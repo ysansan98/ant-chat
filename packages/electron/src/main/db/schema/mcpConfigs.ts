@@ -13,7 +13,7 @@ export const mcpConfigsTable = sqliteTable('mcp_configs', {
 
   // sse 特有字段
   url: text('url'),
-  headers: text('headers', { mode: 'json' }).$type<Record<string, string> | null>().default(null),
+  headers: text('headers', { mode: 'json' }).$type<Record<string, string>>().default({}),
 
   // stdio 特有字段
   command: text('command'),
