@@ -16,7 +16,7 @@ export function MCPManagementPanel() {
 
   return (
     <div className="min-w-80">
-      <div className="flex justify-between items-center">
+      <div className="flex items-center justify-between">
         <div>
           启用MCP
           <div className="text-xs text-gray-500">
@@ -29,11 +29,11 @@ export function MCPManagementPanel() {
         MCPEnabled
           ? (
               <div>
-                <div className="h-[1px] my-3 bg-(--border-color)"></div>
-                <div className="flex flex-col max-h-80 overflow-y-auto">
+                <div className="my-3 h-[1px] bg-(--border-color)"></div>
+                <div className="flex max-h-80 flex-col overflow-y-auto">
                   {
                     mcpConfigs.map(item => (
-                      <div className="flex py-1 justify-between items-center" key={item.serverName}>
+                      <div className="flex items-center justify-between py-1" key={item.serverName}>
                         <div className="flex items-center gap-2">
                           <span>{item.icon}</span>
                           <span>{item.serverName}</span>

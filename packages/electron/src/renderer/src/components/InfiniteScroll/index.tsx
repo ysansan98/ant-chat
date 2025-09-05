@@ -119,7 +119,10 @@ export const InfiniteScroll: React.FC<Props> = ({
   return (
     <div
       ref={containerRef}
-      className={`overflow-y-auto ${className}`}
+      className={`
+        overflow-y-auto
+        ${className}
+      `}
       {...restProps}
     >
       {/* 触顶加载观察器 */}

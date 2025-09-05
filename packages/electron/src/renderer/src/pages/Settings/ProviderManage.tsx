@@ -28,10 +28,10 @@ export default function ProviderManage() {
   return (
     <div className="flex h-full">
       <div
-        className="flex flex-shrink-0 flex-col
-          h-[100dvh] overflow-y-auto gap-2 px-2 py-2 w-50
-          border-r border-r-solid border-(--border-color)
-        "
+        className={`
+          flex h-[100dvh] w-50 flex-shrink-0 flex-col gap-2 overflow-y-auto border-r border-solid
+          border-(--border-color) px-2 py-2
+        `}
       >
         {
           data?.map(item => (
@@ -39,10 +39,9 @@ export default function ProviderManage() {
               key={item.id}
               className={`
                 ${activeProvider?.id === item.id ? 'bg-(--hover-bg-color)' : ''}
-                group
-                flex justify-between items-center gap-2 
-                px-3 p-2 select-none
-                hover:bg-(--hover-bg-color) rounded-md cursor-pointer
+                group flex cursor-pointer items-center justify-between gap-2 rounded-md p-2 px-3
+                select-none
+                hover:bg-(--hover-bg-color)
               `}
               onClick={() => {
                 setActiveProvider(item)
@@ -67,7 +66,10 @@ export default function ProviderManage() {
                   refresh()
                 }}
                 size="small"
-                className="hidden group-hover:block"
+                className={`
+                  hidden
+                  group-hover:block
+                `}
               />
             </div>
           ))

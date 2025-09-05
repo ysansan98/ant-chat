@@ -39,10 +39,16 @@ export function ModelList({ serviceProviderId }: ModelListProps) {
       >
         添加模型
       </Button>
-      <div className="flex flex-col mt-2 border border-(--ant-color-border) rounded-md">
+      <div className="mt-2 flex flex-col rounded-md border border-(--ant-color-border)">
         {
           data?.map(item => (
-            <div key={item.id} className="flex border-b border-(--ant-color-border) last:border-0 py-2 px-3 justify-between items-center">
+            <div
+              key={item.id}
+              className={`
+                flex items-center justify-between border-b border-(--ant-color-border) px-3 py-2
+                last:border-0
+              `}
+            >
               <div className="flex items-center gap-1">
                 {item.name}
               </div>
@@ -62,7 +68,13 @@ export function ModelList({ serviceProviderId }: ModelListProps) {
                 <Button
                   type="text"
                   size="small"
-                  icon={item.isEnabled ? <CheckCircleOutlined className="!text-(--ant-color-success)" /> : <MinusCircleOutlined className="!text-(--ant-color-error)" />}
+                  icon={item.isEnabled
+                    ? (
+                        <CheckCircleOutlined className="!text-(--ant-color-success)" />
+                      )
+                    : (
+                        <MinusCircleOutlined className="!text-(--ant-color-error)" />
+                      )}
                   onClick={async () => {
                     await dbApi.setModelEnabledStatus(item.id, !item.isEnabled)
                     refresh()

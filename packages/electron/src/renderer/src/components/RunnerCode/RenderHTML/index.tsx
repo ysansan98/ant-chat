@@ -28,9 +28,9 @@ function RenderHTML() {
   }, [config.code])
 
   return (
-    <div className="w-full h-full relative">
+    <div className="relative h-full w-full">
       <iframe ref={iframeRef} width="100%" height="100%" src="about:blank" />
-      <div className="absolute top-5 right-5 flex justify-around items-center gap-2">
+      <div className="absolute top-5 right-5 flex items-center justify-around gap-2">
         <Button
           title="下载代码"
           icon={<DownloadOutlined />}

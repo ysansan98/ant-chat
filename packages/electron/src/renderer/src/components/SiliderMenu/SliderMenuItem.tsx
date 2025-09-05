@@ -13,13 +13,14 @@ export function SliderMenuItem({ icon, title, path, actived, disabledTooltip, on
   const button = (
     <div
       className={`
-          w-9 h-9 
-          flex justify-center items-center
-          rounded-md
-          hover:bg-black/3 hover:dark:bg-white/10
-          cursor-pointer
-          text-base
-          ${actived ? 'bg-black/3 dark:bg-white/10' : ''}
+        flex h-9 w-9 cursor-pointer items-center justify-center rounded-md text-base
+        hover:bg-black/3 hover:dark:bg-white/10
+        ${actived
+      ? `
+        bg-black/3
+        dark:bg-white/10
+      `
+      : ''}
       `}
       onClick={(e) => {
         onClick?.(e, path)

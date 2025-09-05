@@ -6,8 +6,14 @@ interface SideButtonProps {
 
 function SideButton({ icon, children, onClick }: SideButtonProps) {
   return (
-    <div className="flex w-full items-center gap-4 cursor-pointer p-2 rounded-md hover:bg-gray-300" onClick={onClick}>
-      <div className="flex-shrink-0 flex justify-center items-center">
+    <div
+      className={`
+        flex w-full cursor-pointer items-center gap-4 rounded-md p-2
+        hover:bg-gray-300
+      `}
+      onClick={onClick}
+    >
+      <div className="flex flex-shrink-0 items-center justify-center">
         {icon}
       </div>
       <div className="flex-1">

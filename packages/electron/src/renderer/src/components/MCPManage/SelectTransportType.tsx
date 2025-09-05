@@ -18,10 +18,7 @@ export function SelectTransportType({ value, onChange }: SelectTransportTypeProp
           <div
             key={item.id}
             className={`
-              antd-css-var
-              relative
-              w-[48%] rounded-xl p-3
-              border-solid border-1 
+              antd-css-var relative w-[48%] rounded-xl border-1 border-solid p-3
               ${value === item.id ? 'border-(--ant-color-primary-text)' : 'border-(--border-color)'}
               cursor-pointer
               hover:border-(--ant-color-primary-text)
@@ -30,13 +27,19 @@ export function SelectTransportType({ value, onChange }: SelectTransportTypeProp
               onChange?.(item.id)
             }}
           >
-            <div className="text-xl flex gap-2">
+            <div className="flex gap-2 text-xl">
               <div className="items-start">
                 {item.icon}
               </div>
               <div className="text-base font-bold">
                 <div>{item.name}</div>
-                <div className="text-black/30 dark:text-white/30 mt-.5 text-xs font-normal">{item.descript}</div>
+                <div className={`
+                  mt-0.5 text-xs font-normal text-black/30
+                  dark:text-white/30
+                `}
+                >
+                  {item.descript}
+                </div>
               </div>
             </div>
             <div className="flex flex-col gap-2 pt-3 pl-1">
@@ -56,7 +59,7 @@ export function SelectTransportType({ value, onChange }: SelectTransportTypeProp
               value === item.id
               && (
                 <span className="text-(--ant-color-primary)">
-                  <CheckCircleFilled className="absolute right-2 top-2 text-xl" />
+                  <CheckCircleFilled className="absolute top-2 right-2 text-xl" />
                 </span>
               )
             }

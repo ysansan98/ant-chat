@@ -36,21 +36,21 @@ function CodeBlock({ language, children, theme = 'light' }: CodeBlockProps) {
   }
 
   return (
-    <div className="border-solid border-1px border-gray-400/20 rounded-md">
+    <div className="rounded-md border-[1px] border-solid border-gray-400/20">
       {/* 代码块header */}
-      <div className="flex justify-between select-none items-center px-2 py-1">
+      <div className="flex items-center justify-between px-2 py-1 select-none">
         <div
-          className="flex gap-2 items-center cursor-pointer"
+          className="flex cursor-pointer items-center gap-2"
           onClick={() => setShowCode(!showCode)}
           style={{ fontFamily }}
         >
           <DownOutlined rotate={showCode ? 0 : -90} />
           {language}
         </div>
-        <div className="text-xs flex justify-end gap-2 cursor-pointer">
-          {copySuccess && <span className="color-blue">复制成功</span>}
+        <div className="flex cursor-pointer justify-end gap-2 text-xs">
+          {copySuccess && <span className="text-blue-400">复制成功</span>}
           <CopyOutlined
-            className="hover:color-blue-4"
+            className="hover:text-blue-400"
             onClick={() => {
               setCopySuccess(true)
               const text = String(children)
@@ -62,7 +62,11 @@ function CodeBlock({ language, children, theme = 'light' }: CodeBlockProps) {
           />
         </div>
       </div>
-      <div className={`overflow-hidden transition-height ${!showCode && 'h-0'}`}>
+      <div className={`
+        overflow-hidden transition-[height]
+        ${!showCode && 'h-0'}
+      `}
+      >
         <SyntaxHighlighter
           showLineNumbers
           wrapLines
@@ -74,7 +78,7 @@ function CodeBlock({ language, children, theme = 'light' }: CodeBlockProps) {
       </div>
       {
         ['mermaid', 'html'].includes(language.toLowerCase()) && (
-          <div className="flex justify-end px-2 py-1 items-center gap-2">
+          <div className="flex items-center justify-end gap-2 px-2 py-1">
             <Button
               type="text"
               size="small"

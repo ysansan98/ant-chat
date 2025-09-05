@@ -20,10 +20,10 @@ export function ProviderServiceSettings({ item, onChange, onDelete }: ProviderSe
   const officialKeyUrl = getOfficialKeyUrl(item.id)
 
   return (
-    <div className="p-3 flex-1 h-[100dvh] overflow-y-auto">
+    <div className="h-[100dvh] flex-1 overflow-y-auto p-3">
       {
         !item.isOfficial && (
-          <div className="flex justify-end items-center">
+          <div className="flex items-center justify-end">
             <Popconfirm
               title="确认要删除这个提供商吗？"
               onConfirm={onDelete}
@@ -42,7 +42,7 @@ export function ProviderServiceSettings({ item, onChange, onDelete }: ProviderSe
           help={
             officialApiUrl
             && (
-              <div className="text-xs mt-1">
+              <div className="mt-1 text-xs">
                 官方URL:
                 {' '}
                 {officialApiUrl}
@@ -63,7 +63,7 @@ export function ProviderServiceSettings({ item, onChange, onDelete }: ProviderSe
           help={officialKeyUrl
             && (
               <a
-                className="text-xs mt-1"
+                className="mt-1 text-xs"
                 href={officialKeyUrl}
               >
                 获取API Key

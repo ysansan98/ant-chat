@@ -22,10 +22,10 @@ export function ModelParameterSettingsPanel() {
 
   return (
     <div className="w-80 p-2 px-4">
-      <div className="text-sm text-gray-500 mb-2">
+      <div className="mb-2 text-sm text-gray-500">
         模型设置
       </div>
-      <div className="form">
+      <div className="">
         <FormItem label="系统提示词" icon={<PromptIcon />}>
           <Input.TextArea value={settings.systemPrompt} onChange={e => updateSettings({ systemPrompt: e.target.value })} />
         </FormItem>
@@ -56,12 +56,12 @@ export function ModelParameterSettingsPanel() {
 
 export function FormItem({ icon, label, children }: { icon?: React.ReactNode, label: string, children?: React.ReactNode }) {
   return (
-    <div className="form-item py-2">
-      <div className="form-item-label flex items-center gap-1 text-sm py-1">
+    <div className="py-2">
+      <div className="flex items-center gap-1 py-1 text-sm">
         {icon}
         {label}
       </div>
-      <div className="form-item-content">
+      <div className="">
         {children}
       </div>
     </div>

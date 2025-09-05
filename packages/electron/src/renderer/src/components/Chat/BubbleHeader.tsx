@@ -9,7 +9,7 @@ interface BubbleHeaderProps {
 
 export function BubbleHeader({ time, modelInfo }: BubbleHeaderProps) {
   return (
-    <div className="flex text-xs items-center">
+    <div className="flex items-center text-xs">
       <div className="mr-2">
         {time ? formatTime(time) : ''}
       </div>

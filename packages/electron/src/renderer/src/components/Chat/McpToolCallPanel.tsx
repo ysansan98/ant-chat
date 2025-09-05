@@ -66,7 +66,7 @@ export function McpToolCallPanel({ item, onExecute }: McpToolCallPanelProps) {
         {
           key: 'mcp',
           label: (
-            <div className="flex justify-between w-full">
+            <div className="flex w-full justify-between">
               <div className="flex items-center">
                 MCP：
                 <Tag color="blue">{item.serverName}</Tag>
@@ -101,7 +101,11 @@ export function McpToolCallPanel({ item, onExecute }: McpToolCallPanelProps) {
                   label: '执行结果',
                   span: 'filled',
                   children: (
-                    <div className={`whitespace-pre-wrap w-full ${!item.result?.success && 'text-red-500'}`}>
+                    <div className={`
+                      w-full whitespace-pre-wrap
+                      ${!item.result?.success && 'text-red-500'}
+                    `}
+                    >
                       <ReadMoreContainer maxHeight={300}>
                         {
                           item.result?.success

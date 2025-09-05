@@ -16,5 +16,15 @@ export default function Icon({ name, classNames, style, onClick }: IconProps) {
     ...style,
   }
 
-  return <div className={`w-1em h-1em bg-[var(--ant-color-text)] ${name} ${classNames}`} style={_style} onClick={onClick} />
+  return (
+    <div
+      className={`
+        h-[1em] w-[1em] bg-[var(--ant-color-text)]
+        ${name}
+        ${classNames}
+      `}
+      style={_style}
+      onClick={onClick}
+    />
+  )
 }

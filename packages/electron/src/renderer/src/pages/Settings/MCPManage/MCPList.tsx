@@ -14,10 +14,16 @@ export function MCPList({ items, onTriggerAction }: MCPListProps) {
   const connectStatusMap = useMcpConfigsStore(state => state.mcpServerRuningStatusMap)
 
   return (
-    <div className="pt-4 flex flex-col gap-4">
+    <div className="flex flex-col gap-4 pt-4">
       {
         items?.map(item => (
-          <div className="py-2 px-4 flex items-center justify-between border border-solid border-(--border-color) rounded-xl" key={item.serverName}>
+          <div
+            className={`
+              flex items-center justify-between rounded-xl border border-solid
+              border-(--border-color) px-4 py-2
+            `}
+            key={item.serverName}
+          >
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xl">{item.icon}</span>

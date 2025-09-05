@@ -141,15 +141,15 @@ export default function ConversationsManage() {
   ]
 
   return (
-    <div className="h-full grid grid-rows-[max-content_1fr_max-content]">
-      <div className="w-full py-2 px-1">
+    <div className="grid h-full grid-rows-[max-content_1fr_max-content]">
+      <div className="w-full px-1 py-2">
         <Dropdown.Button type="primary" buttonsRender={buttonsRender} menu={{ items: dropdownButtons, onClick: onClickMenu }} />
       </div>
       <InfiniteScroll
         hasMore={hasMore}
         loading={loading}
         direction="bottom"
-        noMoreComponent={pageIndex > 0 ? (<div className="text-center text-gray-500 py-1">已经到底了~</div>) : null}
+        noMoreComponent={pageIndex > 0 ? (<div className="py-1 text-center text-gray-500">已经到底了~</div>) : null}
         onLoadMore={async () => {
           if (loading) {
             return

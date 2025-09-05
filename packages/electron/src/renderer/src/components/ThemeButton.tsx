@@ -32,7 +32,10 @@ function ThemeButton() {
             options.map(item => (
               <div
                 key={item.id}
-                className="flex items-center gap-2 cursor-pointer antd-css-var hover:text-(--ant-color-primary-text-hover)"
+                className={`
+                  antd-css-var flex cursor-pointer items-center gap-2
+                  hover:text-(--ant-color-primary-text-hover)
+                `}
                 onClick={() => {
                   setThemeMode(item.id)
                   hide()
@@ -53,12 +56,8 @@ function ThemeButton() {
     >
       <div
         className={`
-          w-9 h-9 
-          flex justify-center items-center 
-          rounded-md 
+          flex h-9 w-9 cursor-pointer items-center justify-center rounded-md text-base
           hover:bg-(--hover-bg-color)
-          cursor-pointer 
-          text-base
         `}
       >
         {icon}

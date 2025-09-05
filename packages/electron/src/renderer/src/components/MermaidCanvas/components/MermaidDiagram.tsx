@@ -1,7 +1,7 @@
-import { useThemeStore } from '@/store/theme'
 import { Alert } from 'antd'
 import mermaid from 'mermaid'
 import React, { useEffect, useRef, useState } from 'react'
+import { useThemeStore } from '@/store/theme'
 import { useDraggable } from '../hooks/useDraggable'
 import { useZoomable } from '../hooks/useZoomable'
 import { downloadSvgToPng, getSvgSize } from '../utils'
@@ -92,7 +92,10 @@ export function MermaidDiagram({ children, className, style }: RenderMermaidProp
   }
   return (
     <div
-      className={`relative w-full h-full overflow-auto ${className}`}
+      className={`
+        relative h-full w-full overflow-auto
+        ${className}
+      `}
       style={style}
     >
       {
@@ -108,7 +111,10 @@ export function MermaidDiagram({ children, className, style }: RenderMermaidProp
               <>
                 <div
                   ref={containerRef}
-                  className="absolute border-solid rounded-md mermaid-container overflow-hidden border-1 border-gray-300"
+                  className={`
+                    mermaid-container absolute overflow-hidden rounded-md border-1 border-solid
+                    border-gray-300
+                  `}
                   style={{
                     left: position.x,
                     top: position.y,

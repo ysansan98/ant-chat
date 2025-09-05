@@ -1,8 +1,8 @@
 export function Logo() {
   return (
-    <div className="flex justify-center items-center gap-2 relative logo select-none">
-      <div className="w-7 h-7">
-        <img src="./logo.svg" alt="logo" className="w-full h-full" draggable={false} />
+    <div className="relative flex items-center justify-center gap-2 select-none">
+      <div className="h-7 w-7">
+        <img src="./logo.svg" alt="logo" className="h-full w-full" draggable={false} />
       </div>
       <div className="text-lg/8">
         Ant Chat

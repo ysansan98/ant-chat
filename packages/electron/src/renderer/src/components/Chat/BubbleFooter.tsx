@@ -1,8 +1,8 @@
 import type { IMessage } from '@ant-chat/shared'
-import { Role } from '@/constants'
 import { CopyOutlined, DeleteOutlined, SyncOutlined } from '@ant-design/icons'
 import { Button, Flex } from 'antd'
 import { useMemo } from 'react'
+import { Role } from '@/constants'
 
 interface BubbleFooterProps {
   message: IMessage
@@ -59,7 +59,11 @@ export default function BubbleFooter({ message, onClick }: BubbleFooterProps) {
   }
 
   return (
-    <Flex className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+    <Flex className={`
+      opacity-0 transition-opacity duration-200
+      group-hover:opacity-100
+    `}
+    >
       {...finallyButtons}
     </Flex>
   )

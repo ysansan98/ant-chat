@@ -57,7 +57,7 @@ function BubbleList({ messages, conversationsId, onExecuteAllCompleted, onRefres
   return (
     <InfiniteScroll
       ref={infiniteScrollRef}
-      className="flex flex-col gap-4 relative px-4"
+      className="relative flex flex-col gap-4 px-4"
       hasMore={hasMore}
       loading={isLoading}
       onLoadMore={handleLoadMore}
@@ -80,7 +80,13 @@ function BubbleList({ messages, conversationsId, onExecuteAllCompleted, onRefres
 
       <Button
         size="small"
-        className={`!sticky block w-6 min-h-6 left-1/2 bottom-8 -translate-x-1/2 transition-opacity duration-300 ${autoScrollToBottom ? 'opacity-0' : 'opacity-100'}`}
+        className={`
+          !sticky bottom-8 left-1/2 block min-h-6 w-6 -translate-x-1/2 transition-opacity
+          duration-300
+          ${autoScrollToBottom
+      ? `opacity-0`
+      : `opacity-100`}
+        `}
         shape="circle"
         icon={<ArrowDownOutlined />}
         onClick={scrollToBottom}

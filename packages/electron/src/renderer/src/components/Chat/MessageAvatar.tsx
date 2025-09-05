@@ -11,14 +11,20 @@ export function MessageAvatar({ message }: MessageAvatarProps) {
   const { role } = message
 
   const defaultAvatar = (
-    <div className="w-8 h-8 flex items-center justify-center text-white text-lg bg-[#69b1ff] rounded-full">
+    <div className={`
+      flex h-8 w-8 items-center justify-center rounded-full bg-[#69b1ff] text-lg text-white
+    `}
+    >
       <RobotFilled />
     </div>
   )
 
   if (role === Role.USER) {
     return (
-      <div className="w-8 h-8 flex items-center justify-center text-white text-lg bg-[#87d068] rounded-full">
+      <div className={`
+        flex h-8 w-8 items-center justify-center rounded-full bg-[#87d068] text-lg text-white
+      `}
+      >
         <UserOutlined />
       </div>
     )
@@ -26,7 +32,10 @@ export function MessageAvatar({ message }: MessageAvatarProps) {
 
   if (role === Role.SYSTEM) {
     return (
-      <div className="w-8 h-8 flex items-center justify-center text-white text-lg bg-[#DE732D] rounded-full">
+      <div className={`
+        flex h-8 w-8 items-center justify-center rounded-full bg-[#DE732D] text-lg text-white
+      `}
+      >
         <SmileFilled />
       </div>
     )
@@ -43,7 +52,11 @@ export function MessageAvatar({ message }: MessageAvatarProps) {
 
     if (ProviderLogo) {
       return (
-        <div className="w-8 h-8 flex items-center justify-center border-solid text-lg border-(--border-color) border-1 bg-white rounded-full">
+        <div className={`
+          flex h-8 w-8 items-center justify-center rounded-full border-1 border-solid
+          border-(--border-color) bg-white text-lg
+        `}
+        >
           <ProviderLogo />
         </div>
       )

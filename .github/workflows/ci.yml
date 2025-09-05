@@ -29,7 +29,7 @@ jobs:
 
       - name: TypeScript Check
         run: pnpm type-check
-      
+
       - name: Rebuild better-sqlite3
         run: pnpm rebuild:node
 
