@@ -5,6 +5,7 @@ import { registerIpcEvents } from './ipcHandlers'
 import { registerMcpHandlers } from './ipcHandlers/mcpHandlers'
 import { clientHub } from './mcpClientHub'
 import { installDevTools } from './plugins/devtools'
+import { UpdateService } from './services'
 import { isDev } from './utils/env'
 import { logger } from './utils/logger'
 import { initializeProxy } from './utils/proxy-manager'
@@ -29,6 +30,10 @@ app.whenReady().then(async () => {
   const mainWindow = new MainWindow()
   await mainWindow.createWindow()
   registerIpcEvents(mainWindow.getWindow()!)
+
+  // 初始化更新服务
+  const updateService = UpdateService.getInstance()
+  updateService.initialize(mainWindow.getWindow()!)
 
   // 初始化 MCP 服务
   registerMcpHandlers(clientHub)

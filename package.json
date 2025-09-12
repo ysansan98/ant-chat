@@ -21,7 +21,10 @@
     "version:patch": "pnpm version patch --no-git-tag-version && pnpm -r version patch --no-git-tag-version",
     "version:minor": "pnpm version minor --no-git-tag-version && pnpm -r version minor --no-git-tag-version",
     "version:major": "pnpm version major --no-git-tag-version && pnpm -r version major --no-git-tag-version",
-    "release": "node scripts/release.js"
+    "release": "node scripts/release.js",
+    "release:patch": "node scripts/create-release.js patch",
+    "release:minor": "node scripts/create-release.js minor",
+    "release:major": "node scripts/create-release.js major"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^4.17.0",

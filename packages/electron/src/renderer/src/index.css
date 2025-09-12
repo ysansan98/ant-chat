@@ -1,5 +1,5 @@
 @import './assets/scroll-style.css';
-@import "tailwindcss";
+@import 'tailwindcss';
 @source "../node_modules/@ferrucc-io/emoji-picker";
 
 @custom-variant dark (&:where(.dark, .dark *));
@@ -14,7 +14,6 @@
     -webkit-app-region: no-drag;
   }
 }
-
 
 :root {
   /* 交互相关颜色 */
@@ -32,8 +31,6 @@
   --hover-bg-color: color-mix(in oklab, #fff 10%, transparent);
   --border-color: #424242;
 }
-
-
 
 @media (max-width: 768px) {
   :root {
@@ -70,8 +67,7 @@ body,
   list-style: none;
 }
 
-
 .app-bar {
-    /* 让这个区域可以拖动整个窗口 */
+  /* 让这个区域可以拖动整个窗口 */
   -webkit-app-region: drag;
 }

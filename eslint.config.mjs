@@ -41,7 +41,10 @@ export default antfu(
       'better-tailwindcss/no-unregistered-classes': ['error', {
         ignore: [
           'app-region-drag',
+          'ant-*',
+          'antd-*',
           'icon-*',
+          'mermaid-container',
         ],
       }],
       'ts/no-require-imports': ['off'],

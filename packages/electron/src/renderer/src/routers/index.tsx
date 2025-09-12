@@ -4,6 +4,7 @@ import {
 } from 'react-router'
 import AntChatApp from '@/App'
 import { ChatPage } from '@/pages/Chat'
+import { About } from '@/pages/Settings/About'
 import { GeneralSettings } from '@/pages/Settings/GeneralSettings'
 import MCPManage from '@/pages/Settings/MCPManage'
 import ProviderManage from '@/pages/Settings/ProviderManage'
@@ -30,6 +31,7 @@ const router = createHashRouter([
           { path: 'general', Component: GeneralSettings },
           { path: 'provider', Component: ProviderManage },
           { path: 'mcp', Component: MCPManage },
+          { path: 'about', Component: About },
         ],
       },
     ],

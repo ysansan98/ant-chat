@@ -1,4 +1,4 @@
-import type { GeneralSettingsState, handleChatCompletionsOptions, handleInitConversationTitleOptions, IConversations, IMessage, McpServer, McpTool, McpToolCallResponse, NotificationOption, SearchResult } from './interfaces'
+import type { GeneralSettingsState, handleChatCompletionsOptions, handleInitConversationTitleOptions, IConversations, IMessage, McpServer, McpTool, McpToolCallResponse, NotificationOption, ProgressInfo, SearchResult, UpdateConfig, UpdateError, UpdateInfo, UpdateStatus } from './interfaces'
 import type { AddConversationsSchema, AddMcpConfigSchema, AddServiceProviderModelSchema, AddServiceProviderSchema, AllAvailableModelsSchema, McpConfigSchema, ServiceProviderModelsSchema, ServiceProviderSchema, UpdateConversationsSchema, UpdateMcpConfigSchema, UpdateServiceProviderSchema } from './schemas'
 
 export function createIpcResponse<T>(success: boolean, data: T, msg?: string): IpcResponse<T> | ErrorIpcResponse {
@@ -73,6 +73,9 @@ export type IpcEvents
     'common:minimize-window': []
     'common:maximize-or-resore-window': []
     'common:quit-app': []
+    'update:check-for-updates': []
+    'update:quit-and-install': []
+    'update:cancel-download': []
   }
   | {
     /**
@@ -146,6 +149,14 @@ export type IpcEvents
 
     // ============================ 代理相关 ============================
     'proxy:test-connection': (proxyUrl: string) => Promise<IpcResponse<boolean>>
+
+    // ============================ 更新相关 ============================
+    'update:get-current-version': () => Promise<IpcResponse<string>>
+    'update:check-for-updates-manual': () => Promise<IpcResponse<UpdateInfo | null>>
+    'update:get-update-config': () => Promise<IpcResponse<UpdateConfig>>
+    'update:set-update-config': (config: UpdateConfig) => Promise<IpcResponse<UpdateConfig>>
+    'update:download-update': () => Promise<IpcResponse<null>>
+    'update:get-update-status': () => Promise<IpcResponse<UpdateStatus>>
   }
 
 /**
@@ -156,5 +167,11 @@ export interface IpcRendererEvent {
   'common:Notification': [NotificationOption]
   'chat:stream-message': [IMessage]
   'chat:stream-canceled': [string]
+  'update:update-status-changed': [{ status: UpdateStatus, updateInfo: UpdateInfo | null }]
+  'update:update-available': [{ status: UpdateStatus, updateInfo: UpdateInfo | null }]
+  'update:update-not-available': []
+  'update:download-progress': [ProgressInfo]
+  'update:update-downloaded': [UpdateInfo]
+  'update:update-error': [UpdateError]
   [key: string]: unknown[]
 }

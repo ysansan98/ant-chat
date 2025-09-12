@@ -5,6 +5,7 @@ import { registerDbHandlers } from './dbHandlers'
 import { registerGeneralSettingsHandlers } from './generalSettingsHandlers'
 import { registerProxyHandlers } from './proxyHandlers'
 import { registerChatServiceEvent } from './registerChatServiceEvent'
+import { registerUpdateHandlers } from './updateHandlers'
 
 export function registerIpcEvents(mainWindow: BrowserWindow) {
   registerDbHandlers()
@@ -13,4 +14,5 @@ export function registerIpcEvents(mainWindow: BrowserWindow) {
   registerChatServiceEvent()
   registerGeneralSettingsHandlers()
   registerProxyHandlers()
+  registerUpdateHandlers()
 }

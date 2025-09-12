@@ -7,7 +7,9 @@ import { useThemeStore } from '@/store/theme'
 import { AppBar } from './components/AppBar'
 import { RunnerCodeProvider } from './components/RunnerCode'
 import { SliderMenu } from './components/SiliderMenu'
+import { UpdateNotification } from './components/UpdateNotification'
 import { useIpcEventListener } from './hooks/useIpcEventListener'
+import { useUpdateNotification } from './hooks/useUpdateNotification'
 
 function AppWrapper() {
   const currentThemeMode = useThemeStore(state => state.mode)
@@ -55,6 +57,7 @@ function AppWrapper() {
 
 function AntChatApp() {
   useIpcEventListener()
+  const { updateInfo, showNotification, hideNotification } = useUpdateNotification()
 
   // 初始化 GeneralSettings
   useEffect(() => {
@@ -74,6 +77,15 @@ function AntChatApp() {
         <SliderMenu />
         <Outlet />
       </div>
+
+      {/* 更新通知 */}
+      {updateInfo && (
+        <UpdateNotification
+          updateInfo={updateInfo}
+          visible={showNotification}
+          onClose={hideNotification}
+        />
+      )}
     </div>
   )
 }
