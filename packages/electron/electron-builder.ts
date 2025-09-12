@@ -104,7 +104,7 @@ const config: Configuration = {
     installerLanguages: ['zh_CN', 'en_US'],
   },
   // 自动更新配置
-  afterSign: 'tsx ../../scripts/update-release-notes.ts', // 签名后更新更新日志
+  // afterSign: 'tsx ../../scripts/update-release-notes.ts', // 签名后更新更新日志
   // 生成自动更新所需的元数据文件
   generateUpdatesFilesForAllChannels: true,
 }
