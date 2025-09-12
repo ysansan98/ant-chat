@@ -62,7 +62,7 @@ jobs:
         run: pnpm build:win
         env:
           # Windows 代码签名环境变量
-          WIN_CSC_LINK: certificate.p12
+          # WIN_CSC_LINK: certificate.p12
           # WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
           # GitHub 发布配置
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

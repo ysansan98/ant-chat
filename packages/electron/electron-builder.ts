@@ -82,12 +82,6 @@ const config: Configuration = {
       },
     ],
     artifactName: '${productName}_${version}.${ext}',
-    requestedExecutionLevel: 'asInvoker',
-    // 代码签名配置
-    verifyUpdateCodeSignature: false,
-    // 签名配置通过环境变量设置：
-    // WIN_CSC_LINK - 证书文件路径
-    // WIN_CSC_KEY_PASSWORD - 证书密码
   },
   nsis: {
     oneClick: false,
