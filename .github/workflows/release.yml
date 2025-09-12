@@ -33,29 +33,29 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       # macOS 代码签名配置
-      - name: Setup macOS code signing
-        if: matrix.os == 'macos-latest'
-        run: |
-          # 创建临时 keychain
-          security create-keychain -p "${{ secrets.KEYCHAIN_PASSWORD }}" build.keychain
-          security default-keychain -s build.keychain
-          security unlock-keychain -p "${{ secrets.KEYCHAIN_PASSWORD }}" build.keychain
+      # - name: Setup macOS code signing
+      #   if: matrix.os == 'macos-latest'
+      #   run: |
+      #     # 创建临时 keychain
+      #     security create-keychain -p "${{ secrets.KEYCHAIN_PASSWORD }}" build.keychain
+      #     security default-keychain -s build.keychain
+      #     security unlock-keychain -p "${{ secrets.KEYCHAIN_PASSWORD }}" build.keychain
 
-          # 导入代码签名证书
-          echo "${{ secrets.CSC_LINK }}" | base64 --decode > certificate.p12
-          security import certificate.p12 -k build.keychain -P "${{ secrets.CSC_KEY_PASSWORD }}" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "${{ secrets.KEYCHAIN_PASSWORD }}" build.keychain
+      #     # 导入代码签名证书
+      #     echo "${{ secrets.CSC_LINK }}" | base64 --decode > certificate.p12
+      #     security import certificate.p12 -k build.keychain -P "${{ secrets.CSC_KEY_PASSWORD }}" -T /usr/bin/codesign
+      #     security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "${{ secrets.KEYCHAIN_PASSWORD }}" build.keychain
 
-          # 清理临时文件
-          rm certificate.p12
+      #     # 清理临时文件
+      #     rm certificate.p12
 
       # Windows 代码签名配置
-      - name: Setup Windows code signing
-        if: matrix.os == 'windows-latest'
-        run: |
-          # 解码并保存证书文件
-          echo "${{ secrets.WIN_CSC_LINK }}" | base64 --decode > certificate.p12
-        shell: bash
+      # - name: Setup Windows code signing
+      #   if: matrix.os == 'windows-latest'
+      #   run: |
+      #     # 解码并保存证书文件
+      #     echo "${{ secrets.WIN_CSC_LINK }}" | base64 --decode > certificate.p12
+      #   shell: bash
 
       - name: Build app (Windows)
         if: matrix.os == 'windows-latest'
@@ -63,7 +63,7 @@ jobs:
         env:
           # Windows 代码签名环境变量
           WIN_CSC_LINK: certificate.p12
-          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          # WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
           # GitHub 发布配置
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -72,13 +72,13 @@ jobs:
         run: pnpm build:mac
         env:
           # macOS 代码签名环境变量
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          # CSC_LINK: ${{ secrets.CSC_LINK }}
+          # CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           # macOS 公证环境变量（可选）
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_ID_PASS: ${{ secrets.APPLE_ID_PASS }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          NOTARIZE: ${{ secrets.NOTARIZE_ENABLED || 'false' }}
+          # APPLE_ID: ${{ secrets.APPLE_ID }}
+          # APPLE_ID_PASS: ${{ secrets.APPLE_ID_PASS }}
+          # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # NOTARIZE: ${{ secrets.NOTARIZE_ENABLED || 'false' }}
           # GitHub 发布配置
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -152,51 +152,3 @@ jobs:
             !packages/electron/release/*/*debug.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  # 发布后验证作业
-  post-release-verification:
-    needs: release
-    runs-on: ubuntu-latest
-    if: always()
-
-    steps:
-      - name: Check out Git repository
-        uses: actions/checkout@v4
-
-      - name: Verify release assets
-        run: |
-          echo "验证发布资产..."
-
-          # 获取当前标签
-          TAG_NAME=${GITHUB_REF#refs/tags/}
-          echo "当前标签: $TAG_NAME"
-
-          # 使用 GitHub API 检查发布
-          RELEASE_INFO=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$TAG_NAME")
-
-          # 检查发布是否存在
-          if echo "$RELEASE_INFO" | grep -q '"message": "Not Found"'; then
-            echo "错误: 发布未找到"
-            exit 1
-          fi
-
-          # 检查资产数量
-          ASSET_COUNT=$(echo "$RELEASE_INFO" | jq '.assets | length')
-          echo "发布资产数量: $ASSET_COUNT"
-
-          if [ "$ASSET_COUNT" -lt 4 ]; then
-            echo "警告: 发布资产数量少于预期 (期望至少 4 个文件)"
-          fi
-
-          # 列出所有资产
-          echo "发布资产列表:"
-          echo "$RELEASE_INFO" | jq -r '.assets[].name'
-
-          echo "发布验证完成"
-
-      - name: Notify on failure
-        if: failure()
-        run: |
-          echo "发布验证失败，请检查构建日志"
-          # 这里可以添加通知逻辑，如发送邮件或 Slack 消息
