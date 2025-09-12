@@ -1,3 +1,18 @@
+# [1.0.0-alpha.0](https://github.com/whitexie/ant-chat/compare/v0.6.0...v1.0.0-alpha.0) (2025-09-12)
+
+
+### Bug Fixes
+
+* 补充[#12](https://github.com/whitexie/ant-chat/issues/12)的迁移文件 ([2cf6510](https://github.com/whitexie/ant-chat/commit/2cf6510e58f1e8e1187b706d4e0b8478c5566b31))
+* 修复 MCP 配置 headers 字段的默认值类型 ([06c04e9](https://github.com/whitexie/ant-chat/commit/06c04e9556235ea78708239c58b7714ed12a98d8))
+
+
+### Features
+
+* 实现自动更新功能 ([070ec51](https://github.com/whitexie/ant-chat/commit/070ec51f506d6b8ed4ed654cd70addbe6e0b003c))
+
+
+
 # [0.6.0](https://github.com/whitexie/ant-chat/compare/v0.6.0-alpha.1...v0.6.0) (2025-09-03)
 
 

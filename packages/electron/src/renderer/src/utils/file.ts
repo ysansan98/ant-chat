@@ -1,6 +1,6 @@
 import type { AntChatFileStructure } from '@/constants'
-import { ANT_CHAT_FILE_TYPE, ANT_CHAT_STRUCTURE } from '@/constants'
 import { pick } from 'lodash-es'
+import { ANT_CHAT_FILE_TYPE, ANT_CHAT_STRUCTURE } from '@/constants'
 
 export async function downloadAntChatFile(fileContent: string, fileName: string) {
   const a = document.createElement('a')
