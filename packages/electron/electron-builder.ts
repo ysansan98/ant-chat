@@ -17,9 +17,6 @@ const config: Configuration = {
     'out/**/*',
     'migrations/**/*',
   ],
-  extraResources: [
-    { from: 'out/web/dist', to: 'out/web/dist' },
-  ],
   electronDownload: {
     mirror: 'https://npmmirror.com/mirrors/electron/',
   },
@@ -30,7 +27,7 @@ const config: Configuration = {
       owner: 'whitexie',
       repo: 'ant-chat',
       private: false,
-      releaseType: 'draft', // 或 'draft' 用于草稿发布
+      releaseType: 'release', // 或 'draft' 用于草稿发布
       // 更新日志配置 - 使用 changelog 生成器
       // 注意：electron-builder 会自动使用 git commit 信息作为更新日志
       // 如果需要自定义更新日志，可以使用 afterSign hook 来修改 release notes
@@ -87,7 +84,7 @@ const config: Configuration = {
     artifactName: '${productName}_${version}.${ext}',
     requestedExecutionLevel: 'asInvoker',
     // 代码签名配置
-    verifyUpdateCodeSignature: true,
+    verifyUpdateCodeSignature: false,
     // 签名配置通过环境变量设置：
     // WIN_CSC_LINK - 证书文件路径
     // WIN_CSC_KEY_PASSWORD - 证书密码

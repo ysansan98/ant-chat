@@ -3,6 +3,11 @@
   "type": "module",
   "version": "1.0.0-alpha.0",
   "private": true,
+  "description": "Ant Chat Electron App",
+  "author": {
+    "email": "ysansan.tech@icloud.com",
+    "name": "幺叁叁"
+  },
   "main": "out/main/index.cjs",
   "scripts": {
     "start": "electron-vite preview",
