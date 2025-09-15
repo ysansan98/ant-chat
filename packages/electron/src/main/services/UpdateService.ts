@@ -55,7 +55,7 @@ export class UpdateService {
 
     if (isDev) {
       // 在开发模式下，我们通过 dev-app-update.yml 手动配置
-      // autoUpdater.forceDevUpdateConfig = true
+      autoUpdater.forceDevUpdateConfig = true
     }
 
     try {
@@ -187,9 +187,6 @@ export class UpdateService {
         return this.updateInfo
       }
 
-      this.cancellationToken = new CancellationToken()
-      autoUpdater.downloadUpdate(this.cancellationToken)
-
       logger.info('手动检查更新')
       await autoUpdater.checkForUpdates()
 
@@ -212,11 +209,15 @@ export class UpdateService {
       }
 
       logger.info('开始下载更新')
-      await autoUpdater.downloadUpdate()
+      this.cancellationToken = new CancellationToken()
+      await autoUpdater.downloadUpdate(this.cancellationToken!)
     }
     catch (error) {
       logger.error('下载更新失败:', error)
       throw error
+    }
+    finally {
+      this.cancellationToken = null
     }
   }
 
@@ -290,8 +291,7 @@ export class UpdateService {
         this.currentStatus = 'idle'
         this.updateInfo = null
         this.cancellationToken?.cancel()
-        logger.info('已取消下载')
-        this.emitStatusUpdate()
+        logger.info('已取消下载', this.cancellationToken)
       }
       else {
         logger.warn('当前没有正在进行的下载任务')
