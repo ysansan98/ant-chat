@@ -3,7 +3,7 @@ import { z } from 'zod'
 export const BaseMcpConfig = z.object({
   serverName: z.string({ message: 'serverName 是必填项' }),
   icon: z.string(),
-  description: z.string().optional(),
+  description: z.string().optional().nullable(),
   timeout: z.number().optional(),
   transportType: z.enum(['stdio', 'sse']),
   createdAt: z.number(),

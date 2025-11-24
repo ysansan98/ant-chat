@@ -4,8 +4,9 @@ import process from 'node:process'
 import { DEFAULT_MCP_TOOL_NAME_SEPARATOR } from '@ant-chat/shared'
 import { McpConfigSchema } from '@ant-chat/shared/src/schemas'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
+
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { CallToolResultSchema, ListToolsResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import deepEqual from 'fast-deep-equal'
 import * as packageJson from '../../../package.json'
@@ -19,7 +20,7 @@ export type ITool = Pick<Tool, 'name' | 'description' | 'inputSchema'> & {
 export interface McpConnection {
   server: McpServer
   client: Client
-  transport: StdioClientTransport | SSEClientTransport
+  transport: StdioClientTransport | StreamableHTTPClientTransport
 }
 
 /**
@@ -95,7 +96,7 @@ export class MCPClientHub {
 
     const client = new Client({ name: packageJson.name, version: packageJson.version })
 
-    let transport: StdioClientTransport | SSEClientTransport
+    let transport: StdioClientTransport | StreamableHTTPClientTransport
 
     if (config.transportType === 'sse') {
       const sseOptions = {
@@ -103,13 +104,8 @@ export class MCPClientHub {
           headers: config.headers,
         },
       }
-      const reconnectingEventSourceOptions = {
-        max_retry_time: 5000,
-        withCredentials: !!config.headers?.Authorization,
-      }
-      transport = new SSEClientTransport(new URL(config.url), {
+      transport = new StreamableHTTPClientTransport(new URL(config.url), {
         ...sseOptions,
-        eventSourceInit: reconnectingEventSourceOptions,
       })
     }
     else {
@@ -235,7 +231,7 @@ export class MCPClientHub {
       console.error(`Failed to parse timeout configuration for server ${serverName}: ${error}`)
     }
 
-    return await connection.client.request(
+    const result = await connection.client.request(
       {
         method: 'tools/call',
         params: {
@@ -248,6 +244,11 @@ export class MCPClientHub {
         timeout,
       },
     )
+
+    return {
+      ...result,
+      content: result.content ?? [],
+    }
   }
 
   async deleteConnection(name: string) {
