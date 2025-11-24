@@ -53,9 +53,11 @@ export async function executeMcpToolAction(message: IMessage, tool: IMcpToolCall
 
   const toolIndex = message.mcpTool?.findIndex(item => item.id === tool.id)
 
-  message.mcpTool[toolIndex].result = result
+  const newMessage: IMessage = structuredClone(message)
 
-  await updateMessageAction(message)
+  newMessage.mcpTool![toolIndex].result = result
+
+  await updateMessageAction(newMessage)
 
   await setMcpToolCallexecuteState(message.id, tool.id, 'completed')
   removeStreamingConversationId(message.convId)
