@@ -30,13 +30,13 @@ interface McpConfigForm {
   env?: { key: string, value: string }[]
   headers?: { key: string, value: string }[]
   url?: string
-  description?: string
+  description?: string | null
   timeout?: number
 }
 
 export default function McpConfigDrawer({ open, mode, defaultValues, onClose, onSave }: McpConfigDrawerProps) {
   const _defaultValues = mode === 'edit'
-    ? { ...defaultValues, env: defaultValues?.transportType === 'stdio' ? envObjectToArray(defaultValues?.env || {}) : undefined }
+    ? { ...defaultValues, env: defaultValues?.transportType === 'stdio' ? objectToArray(defaultValues?.env || {}) : [], headers: defaultValues?.transportType === 'sse' ? objectToArray(defaultValues?.headers || {}) : [] }
     : {
         icon: '⚒️',
         state: 'disconnected',
@@ -159,12 +159,11 @@ export default function McpConfigDrawer({ open, mode, defaultValues, onClose, on
         <div className="w-[55vw] flex-shrink-0 overflow-y-auto px-2 pt-5">
           <QuickImport onImport={(e) => {
             if (e.transportType === 'stdio') {
-              const result: McpConfigForm = { ...e, env: envObjectToArray(e.env) }
+              const result: McpConfigForm = { ...e, env: objectToArray(e.env) }
               form.setFieldsValue(result)
             }
             else {
-              const headers = envObjectToArray(e.headers)
-              console.log('headers => ', headers)
+              const headers = objectToArray(e.headers)
 
               form.setFieldsValue({ ...e, headers })
             }
@@ -272,6 +271,10 @@ export default function McpConfigDrawer({ open, mode, defaultValues, onClose, on
                     if (config.transportType === 'stdio' && Array.isArray(config.env)) {
                       config = { ...config, env: envArrayToObject(config.env) } as McpConfigSchema
                     }
+                    else if (config.transportType === 'sse' && Array.isArray(config.headers)) {
+                      config = { ...config, headers: envArrayToObject(config.headers) } as McpConfigSchema
+                    }
+
                     setConnectState('connecting')
                     let result = false
                     try {
@@ -490,8 +493,11 @@ function envArrayToObject(envArr: { key: string, value: any }[] = []): Record<st
   return obj
 }
 
-function envObjectToArray(envObj: Record<string, any> = {}) {
-  return Object.entries(envObj).map(([key, value]) => ({ key, value }))
+function objectToArray(obj: Record<string, any> = {}) {
+  console.log('objectToArray obj => ', obj)
+  const result = Object.entries(obj).map(([key, value]) => ({ key, value }))
+  console.log('objectToArray result => ', result)
+  return result
 }
 
 function InputArgs({ value, onChange }: { value?: string[], onChange?: (e: string[]) => void }) {
