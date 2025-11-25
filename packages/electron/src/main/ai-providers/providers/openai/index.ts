@@ -1,5 +1,5 @@
-import type { CreateConversationTitleOptions, IMessage, McpTool, MessageContent, SendChatCompletionsOptions } from '@ant-chat/shared'
-import type { ChatCompletionAssistantMessageParam, ChatCompletionChunk, ChatCompletionTool, ChatCompletionToolChoiceOption, ChatCompletionUserMessageParam } from 'openai/resources/index'
+import type { CreateConversationTitleOptions, IMessage, McpTool, McpToolCall, MessageContent, SendChatCompletionsOptions } from '@ant-chat/shared'
+import type { ChatCompletionAssistantMessageParam, ChatCompletionChunk, ChatCompletionMessageParam, ChatCompletionTool, ChatCompletionToolChoiceOption, ChatCompletionUserMessageParam } from 'openai/resources/index'
 import type { AIProvider, ProviderOptions, StreamChunk } from '../interface'
 import { DEFAULT_MCP_TOOL_NAME_SEPARATOR } from '@ant-chat/shared'
 import { clientHub } from '@main/mcpClientHub'
@@ -55,15 +55,59 @@ class OpenAIService implements AIProvider {
     return result
   }
 
+  /**
+   * 转换 MCP 工具调用，返回 tool_calls 和 tool messages
+   */
+  private transformMcpToolCalls(mcpToolCalls: McpToolCall[]): {
+    toolCalls: Array<OpenAI.Chat.Completions.ChatCompletionMessageToolCall>
+    toolMessages: Array<OpenAI.Chat.Completions.ChatCompletionToolMessageParam>
+  } {
+    const toolCalls: Array<OpenAI.Chat.Completions.ChatCompletionMessageToolCall> = []
+    const toolMessages: Array<OpenAI.Chat.Completions.ChatCompletionToolMessageParam> = []
+
+    mcpToolCalls.forEach((tool) => {
+      // 生成 tool_call
+      toolCalls.push({
+        function: {
+          name: tool.serverName + DEFAULT_MCP_TOOL_NAME_SEPARATOR + tool.toolName,
+          arguments: JSON.stringify(tool.args || {}),
+        },
+        id: tool.id,
+        type: 'function',
+      })
+
+      // 生成 tool message（如果已完成）
+      if (tool.executeState === 'completed' && tool.result) {
+        toolMessages.push({
+          role: 'tool',
+          tool_call_id: tool.id,
+          content: JSON.stringify(tool.result),
+        })
+      }
+    })
+
+    return { toolCalls, toolMessages }
+  }
+
   private transformMessages(messages: IMessage[]): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
     const result: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = []
 
     messages.forEach((msg) => {
       if (msg.role === 'user') {
         result.push({ role: 'user', content: this.transformUserMessageContent(msg.content) })
+        return
       }
-      else {
-        result.push({ role: 'assistant', content: this.transformAssistantMessageContent(msg.content) })
+
+      const aiMessage: OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam = { role: 'assistant', content: this.transformAssistantMessageContent(msg.content) }
+      result.push(aiMessage)
+
+      if (msg.mcpTool && msg.mcpTool.length > 0) {
+        const { toolCalls, toolMessages } = this.transformMcpToolCalls(msg.mcpTool)
+        aiMessage.tool_calls = toolCalls
+
+        if (toolMessages.length > 0) {
+          result.push(...toolMessages)
+        }
       }
     })
 
@@ -82,7 +126,7 @@ class OpenAIService implements AIProvider {
   }
 
   async* sendChatCompletions(options: SendChatCompletionsOptions): AsyncIterable<StreamChunk> {
-    const { messages, chatSettings } = options
+    const { messages: _messages, chatSettings } = options
     const { systemPrompt, temperature, maxTokens: max_completion_tokens, model, features } = chatSettings
     let toolsConfig: object | { tools: ChatCompletionTool[], tool_choice: ChatCompletionToolChoiceOption } = {}
     let tools: ChatCompletionTool[] | undefined
@@ -94,16 +138,20 @@ class OpenAIService implements AIProvider {
       toolsConfig = { tools, tool_choice: 'auto' }
     }
 
+    const messages: Array<ChatCompletionMessageParam> = [
+      { role: 'system', content: systemPrompt },
+      ...this.transformMessages(_messages),
+    ]
+
+    console.log('OpenAI sendChatCompletions messages:', JSON.stringify(messages, null, 2))
+
     const stream = await this.client.chat.completions.create(
       {
         ...toolsConfig,
         model,
         temperature,
         max_completion_tokens,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...this.transformMessages(messages),
-        ],
+        messages,
         stream: true,
       },
       { signal: options.abortSignal },
