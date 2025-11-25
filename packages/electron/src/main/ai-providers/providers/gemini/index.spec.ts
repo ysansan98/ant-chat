@@ -11,6 +11,10 @@ vi.mock('@google/genai', () => ({
   })),
 }))
 
+vi.mock('@main/utils/util', () => ({
+  getAppHand: vi.fn().mockReturnValue(''),
+}))
+
 const mockOptions: ProviderOptions = {
   apiKey: 'fake-key',
   baseUrl: 'https://fake-url',

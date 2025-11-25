@@ -58,10 +58,7 @@ class OpenAIService implements AIProvider {
   /**
    * 转换 MCP 工具调用，返回 tool_calls 和 tool messages
    */
-  private transformMcpToolCalls(mcpToolCalls: McpToolCall[]): {
-    toolCalls: Array<OpenAI.Chat.Completions.ChatCompletionMessageToolCall>
-    toolMessages: Array<OpenAI.Chat.Completions.ChatCompletionToolMessageParam>
-  } {
+  private transformMcpToolCalls(mcpToolCalls: McpToolCall[]) {
     const toolCalls: Array<OpenAI.Chat.Completions.ChatCompletionMessageToolCall> = []
     const toolMessages: Array<OpenAI.Chat.Completions.ChatCompletionToolMessageParam> = []
 
