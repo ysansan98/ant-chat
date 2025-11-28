@@ -44,7 +44,7 @@ export default function Chat() {
   ) {
     if (!settings.modelId) {
       notification.error({
-        message: '请选择模型',
+        title: '请选择模型',
         placement: 'bottomRight',
       })
       return
@@ -97,7 +97,7 @@ export default function Chat() {
                   conversationsId={activeConversationsId}
                   onRefresh={async (message) => {
                     if (!settings.modelId) {
-                      notification.error({ message: '请选择模型' })
+                      notification.error({ title: '请选择模型' })
                       return
                     }
                     refreshRequestAction(activeConversationsId, message, features, settings)
@@ -105,7 +105,7 @@ export default function Chat() {
                   onExecuteAllCompleted={
                     () => {
                       if (!settings.modelId) {
-                        notification.error({ message: '请选择模型' })
+                        notification.error({ title: '请选择模型' })
                         return
                       }
                       onRequestAction(activeConversationsId, features, settings)

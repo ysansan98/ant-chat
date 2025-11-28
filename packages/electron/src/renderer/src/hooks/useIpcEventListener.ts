@@ -12,7 +12,7 @@ export function useIpcEventListener() {
   useEffect(() => {
     const handle = (_: Electron.IpcRendererEvent, { type, message, description }: NotificationOption) => {
       const func = notification[type]
-      func({ message, description })
+      func({ title: message, description })
     }
 
     ipc.on('common:Notification', handle)

@@ -45,7 +45,14 @@ function AppWrapper() {
   }, [toggleTheme])
 
   return (
-    <ConfigProvider locale={zhCN} theme={{ algorithm, cssVar: { key: 'antd-css-var' }, hashed: false }}>
+    <ConfigProvider
+      locale={zhCN}
+      theme={{
+        algorithm,
+        cssVar: { key: 'antd-css-var' },
+        hashed: false,
+      }}
+    >
       <RunnerCodeProvider>
         <App className="h-full">
           <AntChatApp />

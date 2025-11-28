@@ -26,8 +26,8 @@ function SwitchButton({
       role="switchButton"
       data-testid={dataTestId}
       className={`
-        ant-btn antd-css-var flex h-8 w-8 cursor-pointer items-center justify-center border-1
-        border-solid
+        ant-btn ant-btn-color-default ant-btn-variant-outlined antd-css-var flex h-8 w-8
+        cursor-pointer items-center justify-center border-1 border-solid
       `}
       style={{
         borderRadius: token.borderRadius,

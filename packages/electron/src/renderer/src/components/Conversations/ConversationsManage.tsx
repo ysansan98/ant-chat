@@ -1,9 +1,9 @@
 import type { ConversationsId, IConversations } from '@ant-chat/shared'
 import type { ConversationsProps } from '@ant-design/x'
 import type { MenuProps } from 'antd'
-import { ClearOutlined, DeleteOutlined, EditOutlined, MessageOutlined } from '@ant-design/icons'
+import { ClearOutlined, DeleteOutlined, EditOutlined, EllipsisOutlined, MessageOutlined } from '@ant-design/icons'
 import { Conversations } from '@ant-design/x'
-import { App, Button, Dropdown } from 'antd'
+import { App, Button, Dropdown, Space } from 'antd'
 import dayjs from 'dayjs'
 import { lazy, Suspense, useState } from 'react'
 import { useConversationRename } from '@/hooks/useConversationRename'
@@ -126,24 +126,26 @@ export default function ConversationsManage() {
     await setActiveConversationsId(value)
   }
 
-  const buttonsRender = ([,rightButton]: React.ReactNode[]) => [
-    <Button
-      type="primary"
-      key={0}
-      className="flex-1"
-      onClick={async () => {
-        await setActiveConversationsId('')
-      }}
-    >
-      新对话
-    </Button>,
-    rightButton,
-  ]
-
   return (
     <div className="grid h-full grid-rows-[max-content_1fr_max-content]">
       <div className="w-full px-1 py-2">
-        <Dropdown.Button type="primary" buttonsRender={buttonsRender} menu={{ items: dropdownButtons, onClick: onClickMenu }} />
+        <Space className="w-full" classNames={{ item: 'w-full' }}>
+          <Space.Compact className="w-full">
+            <Button
+              type="primary"
+              key={0}
+              className="flex-1"
+              onClick={async () => {
+                await setActiveConversationsId('')
+              }}
+            >
+              新对话
+            </Button>
+            <Dropdown menu={{ items: dropdownButtons, onClick: onClickMenu }}>
+              <Button type="primary" icon={<EllipsisOutlined />} />
+            </Dropdown>
+          </Space.Compact>
+        </Space>
       </div>
       <InfiniteScroll
         hasMore={hasMore}

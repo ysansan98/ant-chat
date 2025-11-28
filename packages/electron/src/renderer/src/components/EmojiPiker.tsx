@@ -21,7 +21,7 @@ export function EmojiPickerHoc({ value, onChange }: EmojiPickerProps) {
       trigger="click"
       placement="rightTop"
       destroyOnHidden
-      styles={{ body: { padding: 0, width: 300 } }}
+      styles={{ content: { padding: 0, width: 300 } }}
       content={(
         <div className="">
           <EmojiPicker className="border-(--border-color)" onEmojiSelect={handleEmojiSelect}>

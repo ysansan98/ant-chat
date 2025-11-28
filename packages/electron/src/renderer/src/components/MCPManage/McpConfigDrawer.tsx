@@ -75,7 +75,7 @@ export default function McpConfigDrawer({ open, mode, defaultValues, onClose, on
       title={mode === 'add' ? '添加MCP服务器' : '更新MCP服务器'}
       styles={{ body: { padding: 0 } }}
       placement="bottom"
-      height="100vh"
+      size={window.innerHeight - 100}
       destroyOnHidden
       footer={(
         <div className="flex justify-end gap-2">
@@ -358,7 +358,7 @@ export default function McpConfigDrawer({ open, mode, defaultValues, onClose, on
 
 function FormItemLabel({ name, tag }: { name: string, tag: string }) {
   return (
-    <div className="flex gap-2">
+    <div className="flex items-center gap-2">
       <span>{name}</span>
       <Tag>{tag}</Tag>
     </div>
@@ -472,10 +472,10 @@ function PreviewMcpToolParams({ item }: { item: McpTool }) {
             </>
           ),
           children: (
-            <>
+            <div className="flex items-center gap-2">
               <Tag>{t[1].type as string}</Tag>
               <span className="text-xs">{t[1]?.description as string}</span>
-            </>
+            </div>
           ),
         }))}
         styles={{ title: { lineHeight: '1' }, header: { marginBottom: '5px' } }}
