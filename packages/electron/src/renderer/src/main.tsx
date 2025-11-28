@@ -5,7 +5,6 @@ import { RouterProvider } from 'react-router'
 
 import { scan } from 'react-scan'
 import router from './routers/index.tsx'
-import '@ant-design/v5-patch-for-react-19'
 import './index.css'
 
 enableMapSet()

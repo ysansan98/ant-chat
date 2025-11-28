@@ -34,7 +34,7 @@ export function ModelControlPanel({ value, onChange }: ModelControlPanelProps) {
       trigger="click"
       destroyOnHidden={true}
       styles={{
-        body: {
+        content: {
           padding: 0,
         },
       }}

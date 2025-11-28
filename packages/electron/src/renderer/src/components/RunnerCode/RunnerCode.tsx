@@ -19,7 +19,7 @@ function RunnerCode() {
         resetConfig()
       }}
       placement="bottom"
-      height="calc(100dvh - 80px)"
+      size={window.innerHeight - 80}
     >
 
       <React.Suspense fallback={<Loading />}>

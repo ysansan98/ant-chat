@@ -79,7 +79,7 @@ export default function MessageContent({ content = '', images = [], attachments 
       {
         attachments.map(item => (
           <div key={item.uid} className="pt-2">
-            <Attachments.FileCard item={item} />
+            <Attachments items={[item]} />
           </div>
         ))
       }

@@ -82,10 +82,10 @@ export function MessageBubble({ message, onFooterButtonClick, onExecuteAllComple
       placement={isUser ? 'end' : 'start'}
       avatar={<MessageAvatar message={message} />}
       className="group mx-auto w-full max-w-(--chat-width)"
-      typing={message.status === 'typing' ? { step: 1, interval: 50 } : false}
+      typing={message.status === 'typing' ? { step: 1, interval: 50, effect: 'typing' } : false}
       styles={bubbleStyle}
-      messageRender={renderMessageContent}
       content={transformMessageContent(message)}
+      contentRender={content => renderMessageContent(content)}
       header={<BubbleHeader time={message.createdAt} modelInfo={isAI ? message.modelInfo : undefined} />}
       footer={<BubbleFooter message={message} onClick={onFooterButtonClick} />}
     />
