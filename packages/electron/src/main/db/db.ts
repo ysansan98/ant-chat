@@ -45,7 +45,7 @@ export async function initializeDb() {
     process.exit(1)
   }
 
-  db = drizzle(sqlite as Database, { schema, logger: isDev })
+  db = drizzle(sqlite as Database, { schema, logger: false })
   const migrationsFolder = path.join(__dirname, '../../migrations')
   logger.debug('migrationsFolder => ', migrationsFolder)
   try {

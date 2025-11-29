@@ -17,10 +17,10 @@ export class LoggedIpcListener<T extends IpcEventMap> extends IpcListener<T> {
       e: Electron.IpcMainInvokeEvent,
       ...args: Parameters<ExtractHandler<T>[E]>
     ) => ReturnType<ExtractHandler<T>[E]> | Promise<ReturnType<ExtractHandler<T>[E]>> = async (e, ...args) => {
-      logger.info(`[IPC] Receiving event: [${String(channel)}] `, ...args)
+      logger.debug(`[IPC] Receiving event: [${String(channel)}] `, ...args)
       try {
         const result = await listener(e, ...args)
-        logger.info(`[IPC] Finished handling event: ${String(channel)}. result: `, result)
+        logger.debug(`[IPC] Finished handling event: ${String(channel)}. result: `, result)
         return result
       }
       catch (error) {

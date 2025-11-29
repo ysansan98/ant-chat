@@ -3,6 +3,7 @@ import type { AIProvider, StreamChunk } from '../providers/interface'
 import { createAIMessage, getMessagesByConvId, getModelById, getProviderServiceById, getServiceProviderByModelId, updateMessage } from '@main/db/services'
 import { clientHub } from '@main/mcpClientHub'
 import { mainEmitter } from '@main/utils/ipc-events-bus'
+import { logger } from '@main/utils/logger'
 import { getMainWindow } from '@main/window'
 import { AIProviderMapping } from '../providers'
 import { StreamAbortController } from '../utils/StreamAbortController'
@@ -121,7 +122,7 @@ export async function handleChatCompletions(options: handleChatCompletionsOption
       }
 
       if (functionCalls) {
-        console.log('functionCalls => ', functionCalls.length)
+        logger.debug('functionCalls => ', functionCalls.length)
         aiMessage.mcpTool = functionCalls
       }
 
@@ -134,7 +135,8 @@ export async function handleChatCompletions(options: handleChatCompletionsOption
 
       // 将最新的消息推送给前端
       mainEmitter.send(mainWindow.webContents, 'chat:stream-message', updatedMessage)
-      console.log('chat:stream-message:', JSON.stringify(updatedMessage, null, 2))
+      logger.debug('chat:stream-message:', JSON.stringify(updatedMessage))
+      // console.log('chat:stream-message:', JSON.stringify(updatedMessage, null, 2))
     }
   }
   catch (e) {

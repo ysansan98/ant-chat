@@ -4,16 +4,22 @@ import { APP_NAME } from './constants'
 import { isDev } from './env'
 import { getAppHand } from './util'
 
-const userDataPath = getAppHand()
+const userDataPath = isDev ? '.tmp' : getAppHand()
 const logPath = path.join(userDataPath, APP_NAME, 'logs/main.log')
 
 log.transports.file.maxSize = 1024 * 1024 * 5 // 10MB
 
+log.transports.file.level = 'debug'
+log.transports.console.level = 'info'
+
 if (userDataPath) {
   log.transports.file.resolvePathFn = () => logPath
+  log.transports.file.format = '{y}-{m}-{d} {h}:{i}:{s} [{level}] {text}'
 }
 
-log.debug('log path: ', logPath)
+log.transports.console.format = '[{level}] {text}' // 控制台简洁格式
+
+log.info('log path: ', logPath)
 
 const loggingEnabled = true
 
