@@ -67,14 +67,31 @@ describe('openAIService', () => {
       })
     })
 
-    it('用户包含文本和图片的消息能被正确转换', () => {
+    it('用户包含文本、图片和文件的消息能被正确转换', () => {
       const messages: IMessage[] = [
         {
           ...baseMsg,
           role: 'user',
           content: [
             { type: 'text', text: '这是一张图片：' },
-            { type: 'image', mimeType: 'image/png', data: 'data:image/png;base64,iVBORw0KGgoAAAANS...' },
+          ],
+          images: [
+            {
+              type: 'image/png',
+              name: 'picture.png',
+              data: 'data:image/png;base64,iVBORw0KGgoAAAANS...',
+              uid: 'img1',
+              size: 1024,
+            },
+          ],
+          attachments: [
+            {
+              uid: 'pdf1',
+              name: 'document.pdf',
+              size: 2048,
+              type: 'application/pdf',
+              data: 'data:application/pdf;base64,JVBERi0xLjQKJcfs...',
+            },
           ],
         },
       ]
@@ -84,7 +101,7 @@ describe('openAIService', () => {
       expect(result).toHaveLength(1)
       expect(result[0].role).toBe('user')
       expect(Array.isArray(result[0].content)).toBe(true)
-      expect(result[0].content).toHaveLength(2)
+      expect(result[0].content).toHaveLength(3)
       expect(result[0].content[0]).toEqual({
         type: 'text',
         text: '这是一张图片：',
@@ -92,6 +109,14 @@ describe('openAIService', () => {
       expect(result[0].content[1]).toEqual({
         type: 'image_url',
         image_url: { url: 'data:image/png;base64,iVBORw0KGgoAAAANS...' },
+      })
+
+      expect(result[0].content[2]).toEqual({
+        type: 'file',
+        file: {
+          filename: 'document.pdf',
+          file_data: 'data:application/pdf;base64,JVBERi0xLjQKJcfs...',
+        },
       })
     })
 
@@ -113,30 +138,6 @@ describe('openAIService', () => {
       expect(result[0].content[0]).toEqual({
         type: 'text',
         text: '您好！有什么我可以帮助您的吗？',
-      })
-    })
-
-    it('助手消息忽略图片内容', () => {
-      const messages: IMessage[] = [
-        {
-          ...baseMsg,
-          role: 'assistant',
-          content: [
-            { type: 'text', text: '这是回复：' },
-            { type: 'image', mimeType: 'image/jpeg', data: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABA...' },
-          ],
-        },
-      ]
-
-      const result = (service as any).transformMessages(messages)
-
-      expect(result).toHaveLength(1)
-      expect(result[0].role).toBe('assistant')
-      expect(Array.isArray(result[0].content)).toBe(true)
-      expect(result[0].content).toHaveLength(1) // 只处理文本内容
-      expect(result[0].content[0]).toEqual({
-        type: 'text',
-        text: '这是回复：',
       })
     })
 

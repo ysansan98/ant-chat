@@ -1,4 +1,4 @@
-import type { CreateConversationTitleOptions, IMessage, McpTool, McpToolCall, MessageContent, SendChatCompletionsOptions } from '@ant-chat/shared'
+import type { CreateConversationTitleOptions, IAttachment, IMessage, McpTool, McpToolCall, MessageContent, SendChatCompletionsOptions } from '@ant-chat/shared'
 import type { ChatCompletionAssistantMessageParam, ChatCompletionChunk, ChatCompletionMessageParam, ChatCompletionTool, ChatCompletionToolChoiceOption, ChatCompletionUserMessageParam } from 'openai/resources/index'
 import type { AIProvider, ProviderOptions, StreamChunk } from '../interface'
 import { DEFAULT_MCP_TOOL_NAME_SEPARATOR } from '@ant-chat/shared'
@@ -28,16 +28,25 @@ class OpenAIService implements AIProvider {
     logger.info(`Using proxy: ${process.env.HTTP_PROXY || 'none'}`)
   }
 
-  private transformUserMessageContent(contents: MessageContent): ChatCompletionUserMessageParam['content'] {
+  private transformUserMessageContent(msg: IMessage): ChatCompletionUserMessageParam['content'] {
+    const { content = [], attachments = [], images = [] } = msg
     const result: ChatCompletionUserMessageParam['content'] = []
 
-    contents.forEach((content) => {
+    content.forEach((content) => {
       if (content.type === 'text') {
         result.push({ type: 'text', text: content.text })
       }
       else if (content.type === 'image') {
         result.push({ type: 'image_url', image_url: { url: content.data } })
       }
+    })
+
+    images.forEach((image: IAttachment) => {
+      result.push({ type: 'image_url', image_url: { url: image.data } })
+    })
+
+    attachments.forEach((attachment) => {
+      result.push({ type: 'file', file: { file_data: attachment.data, filename: attachment.name } })
     })
 
     return result
@@ -91,7 +100,9 @@ class OpenAIService implements AIProvider {
 
     messages.forEach((msg) => {
       if (msg.role === 'user') {
-        result.push({ role: 'user', content: this.transformUserMessageContent(msg.content) })
+        const userMessage: OpenAI.Chat.Completions.ChatCompletionUserMessageParam = { role: 'user', content: this.transformUserMessageContent(msg) }
+        result.push(userMessage)
+
         return
       }
 
@@ -140,7 +151,7 @@ class OpenAIService implements AIProvider {
       ...this.transformMessages(_messages),
     ]
 
-    console.log('OpenAI sendChatCompletions messages:', JSON.stringify(messages, null, 2))
+    logger.debug('OpenAI sendChatCompletions messages:', JSON.stringify(messages))
 
     const stream = await this.client.chat.completions.create(
       {
