@@ -1,22 +1,20 @@
 import type { ChatFeatures, IAttachment, IImage } from '@ant-chat/shared'
-import type { UploadFile } from 'antd'
-
+import type { GetRef, UploadFile } from 'antd'
 import Icon, {
-  ArrowUpOutlined,
   CloudUploadOutlined,
   GlobalOutlined,
-  LinkOutlined,
+  PaperClipOutlined,
 } from '@ant-design/icons'
-import { Attachments } from '@ant-design/x'
-import { App, Badge, Button, Tooltip } from 'antd'
-import { useState } from 'react'
+
+import { Attachments, Sender as SenderX } from '@ant-design/x'
+import { App, Badge, Button, Flex, Popover, Tooltip } from 'antd'
+import { useRef, useState } from 'react'
 import MCPIcon from '@/assets/icons/mcp.svg?react'
-import StopSvg from '@/assets/icons/stop.svg?react'
 import { setOnlieSearch, useChatSttingsStore } from '@/store/chatSettings'
 import { useConversationsStore } from '@/store/conversation'
 import { useMessagesStore } from '@/store/messages'
 import { fileToBase64 } from '@/utils'
-import SwitchButton from '../SwitchButton'
+import TypingEffect from '../TypingEffect'
 import MCPManagementPanel from './MCPManagementPanel'
 
 interface SenderProps {
@@ -27,19 +25,15 @@ interface SenderProps {
 
 function Sender({ actions, ...props }: SenderProps) {
   const { message } = App.useApp()
-  const [text, setText] = useState('')
   const [openHeader, setOpenHeader] = useState(false)
   const [attachmentList, setAttachmentList] = useState<UploadFile[]>([])
-  const [rows, setRows] = useState(2)
   const hasMessage = useMessagesStore(state => !!state.messages.length)
   const loading = useConversationsStore(state => state.streamingConversationIds.has(state.activeConversationsId))
+  const senderRef = useRef<GetRef<typeof SenderX>>(null)
 
   // ============================ MCP、联网搜索 ============================
   const mcpEnabled = useChatSttingsStore(state => state.enableMCP)
   const onlineSearch = useChatSttingsStore(state => state.onlineSearch)
-
-  // 新增输入法状态
-  const [isComposing, setIsComposing] = useState(false)
 
   async function transformAttachments() {
     const images: IAttachment[] = []
@@ -62,69 +56,131 @@ function Sender({ actions, ...props }: SenderProps) {
     return { images, attachments }
   }
 
-  async function handleSubmit() {
+  async function handleSubmit(text: string) {
     const { images, attachments } = await transformAttachments()
     props?.onSubmit?.(text, images, attachments, { enableMCP: mcpEnabled, onlineSearch })
     setAttachmentList([])
-    setText('')
     setOpenHeader(false)
-    setRows(2)
   }
 
   return (
     <div
       className={`
-        mx-auto w-full max-w-(--chat-width)
-        ${hasMessage ? 'relative' : 'absolute right-2 bottom-[50%] left-2'}
-        overflow-hidden rounded-xl border-2 border-solid border-[#0000001a] bg-white p-3 shadow-lg
-        transition duration-500
-        focus-within:border-(--ant-color-primary) focus-within:shadow-(--ant-box-shadow-secondary)
-        dark:border-[#fff6] dark:bg-[var(--ant-layout-color-bg-body)]
+        ${!hasMessage ? 'absolute top-[50%] right-3 left-3 translate-y-[-50%]' : ''}
       `}
     >
-      <div className={`
-        h-0 overflow-hidden transition-[height]
-        ${openHeader && 'h-25'}
-      `}
-      >
-        {
-          openHeader && (
-            <div data-testid="header-content">
-              <Attachments
-                multiple
-                overflow="scrollX"
-                beforeUpload={() => false}
-                items={attachmentList}
-                onChange={({ fileList }) => {
-                  const result: UploadFile[] = []
-                  fileList.forEach((item) => {
-                    if (item.size && item.size > 1024 * 1024 * 20) {
-                      message.warning('文件大小不能超过20MB')
-                      return
-                    }
+      {
+        !hasMessage && (
+          <h1 className="mb-3 py-3 text-center text-4xl text-gray-500">
+            <TypingEffect text="有什么可以帮忙的？" />
+          </h1>
+        )
+      }
+      <SenderX
+        ref={senderRef}
+        loading={loading}
+        header={(
+          <SenderX.Header
+            title="附件"
+            open={openHeader}
+            onOpenChange={setOpenHeader}
+            forceRender
+          >
+            <Attachments
+              multiple
+              overflow="scrollX"
+              beforeUpload={() => false}
+              items={attachmentList}
+              onChange={({ fileList }) => {
+                const result: UploadFile[] = []
+                fileList.forEach((item) => {
+                  if (item.size && item.size > 1024 * 1024 * 20) {
+                    message.warning('文件大小不能超过20MB')
+                    return
+                  }
 
-                    // 识别Markdown文件
-                    if (item.name.toLowerCase().endsWith('.md')) {
-                      item.type = 'text/md'
-                    }
+                  // 识别Markdown文件
+                  if (item.name.toLowerCase().endsWith('.md')) {
+                    item.type = 'text/md'
+                  }
 
-                    result.push(item)
-                  })
+                  result.push(item)
+                })
 
-                  setAttachmentList(result)
-                }}
-                placeholder={{
-                  icon: <CloudUploadOutlined />,
-                  title: '上传图片或文档',
-                }}
-                accept="image/*,application/pdf,text/*,.md,.mp4"
-              />
-            </div>
+                setAttachmentList(result)
+              }}
+              placeholder={{
+                icon: <CloudUploadOutlined />,
+                title: '上传图片或文档',
+              }}
+              accept="image/*,application/pdf,text/*,.md,.mp4"
+            />
+          </SenderX.Header>
+
+        )}
+        footer={(_, { components }) => {
+          const { SendButton, LoadingButton, SpeechButton } = components
+          return (
+            <Flex justify="space-between" align="center">
+              <Flex gap="small" align="center">
+                <Tooltip title="附件(支持文档与图片)">
+                  <Badge dot={(attachmentList.length > 0) && !openHeader}>
+                    <Button
+                      onClick={() => {
+                        setOpenHeader(!openHeader)
+                      }}
+                      icon={<PaperClipOutlined />}
+                    />
+                  </Badge>
+                </Tooltip>
+
+                <Tooltip title="联网搜索(目前仅Gemini支持)">
+                  <div>
+                    <SenderX.Switch
+                      value={onlineSearch}
+                      onChange={setOnlieSearch}
+                      icon={<GlobalOutlined />}
+                    />
+                  </div>
+                </Tooltip>
+                <Popover
+                  content={<MCPManagementPanel />}
+                  trigger="click"
+                  getPopupContainer={() => document.body}
+                >
+                  <SenderX.Switch
+                    value={mcpEnabled}
+                    icon={<Icon component={MCPIcon} />}
+                  />
+                </Popover>
+                {actions}
+              </Flex>
+              <Flex gap="small" align="center">
+                <SpeechButton />
+                {
+                  loading
+                    ? (<LoadingButton />)
+                    : (<SendButton />)
+                }
+              </Flex>
+            </Flex>
           )
-        }
-      </div>
+        }}
+        suffix={false}
+        placeholder="Enter发送消息，Shift+Enter换行"
+        autoSize={{ minRows: 3, maxRows: 6 }}
+        onSubmit={(e) => {
+          handleSubmit(e)
+          if (senderRef.current) {
+            senderRef.current?.clear?.()
+          }
+        }}
+        onCancel={() => {
+
+        }}
+      />
       <div>
-        <textarea
+        {/* <textarea
           data-testid="textarea"
           value={text}
           rows={rows}
@@ -151,9 +207,9 @@ function Sender({ actions, ...props }: SenderProps) {
             dark:text-[var(--ant-layout-color-text-body)]
             dark:placeholder-[var(--ant-layout-color-text-body)]
           `}
-        />
+        /> */}
       </div>
-      <div className="flex justify-between">
+      {/* <div className="flex justify-between">
         <div className="flex gap-1">
           <Tooltip title="附件(支持文档与图片)">
             <Badge dot={(attachmentList.length > 0) && !openHeader}>
@@ -205,7 +261,7 @@ function Sender({ actions, ...props }: SenderProps) {
             }
           />
         </div>
-      </div>
+      </div> */}
     </div>
   )
 }
