@@ -53,6 +53,11 @@ export async function handleChatCompletions(options: handleChatCompletionsOption
     throw new Error(`Model not found for id: ${chatSettings.modelId}`)
   }
 
+  const providerServiceInfo = await getProviderServiceById(modelInfo?.serviceProviderId || '')
+  if (!providerServiceInfo) {
+    throw new Error(`ServiceProvider not found for modelId: ${modelInfo.id}`)
+  }
+
   const messages = await getMessagesByConvId(conversationsId)
 
   const chatService = new ChatService()
@@ -68,7 +73,7 @@ export async function handleChatCompletions(options: handleChatCompletionsOption
   const aiMessage = await createAIMessage(
     conversationsId,
     {
-      provider: modelInfo.serviceProviderId,
+      provider: providerServiceInfo.name,
       model: modelInfo.name,
     },
   )
@@ -152,13 +157,21 @@ export async function handleChatCompletions(options: handleChatCompletionsOption
 }
 
 export async function handleInitConversationTitle(options: handleInitConversationTitleOptions) {
-  const { conversationsId, modelId: model } = options
-  const messages = await getMessagesByConvId(conversationsId)
-  const serviceProvider = getServiceProviderByModelId(model)
+  const { conversationsId, modelId } = options
 
-  if (!serviceProvider) {
-    throw new Error(`ServiceProvider not found for modelId: ${model}`)
+  const modelInfo = await getModelById(modelId)
+  if (!modelInfo) {
+    throw new Error(`Model not found for id: ${modelId}`)
   }
+
+  const serviceProvider = getServiceProviderByModelId(modelId)
+  if (!serviceProvider) {
+    throw new Error(`ServiceProvider not found for modelId: ${modelId}`)
+  }
+
+  const { model } = modelInfo
+
+  const messages = await getMessagesByConvId(conversationsId)
 
   const chatService = new ChatService()
   chatService.initializeProvider(serviceProvider?.id)
