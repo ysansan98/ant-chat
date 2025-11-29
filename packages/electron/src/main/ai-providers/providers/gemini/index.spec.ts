@@ -1,14 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { IAttachment, IMcpToolCall, IMessage, SendChatCompletionsOptions } from '@ant-chat/shared'
+import type {
+  IAttachment,
+  IMcpToolCall,
+  IMessage,
+  SendChatCompletionsOptions,
+} from '@ant-chat/shared'
 import type { AIProvider, ProviderOptions } from '../interface'
 import GeminiService from './index'
 
 vi.mock('@google/genai', () => ({
-  GoogleGenAI: vi.fn().mockImplementation(() => ({
-    models: {
-      generateContentStream: vi.fn(),
-    },
-  })),
+  GoogleGenAI: class MockGoogleGenAI {
+    constructor() {
+      this.models = {
+        generateContentStream: vi.fn(),
+      }
+    }
+  },
 }))
 
 vi.mock('@main/utils/util', () => ({
@@ -69,7 +76,13 @@ describe('test GeminiService', () => {
 
   it('文件附件能被正确转换', () => {
     const attachments: IAttachment[] = [
-      { uid: '1', name: 'img.png', size: 123, type: 'image/png', data: 'data:image/png;base64,abc123' },
+      {
+        uid: '1',
+        name: 'img.png',
+        size: 123,
+        type: 'image/png',
+        data: 'data:image/png;base64,abc123',
+      },
     ]
     const result = (service as any).transformFilePart(attachments)
     expect(result[0].inlineData.mimeType).toBe('image/png')
@@ -95,9 +108,7 @@ describe('test GeminiService', () => {
   it('sendChatCompletions 能正确产出格式化结果', async () => {
     const fakeStream = (async function* () {
       yield {
-        candidates: [
-          { content: { parts: [{ text: 'response' }] } },
-        ],
+        candidates: [{ content: { parts: [{ text: 'response' }] } }],
       }
     })()
 

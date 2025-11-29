@@ -51,7 +51,9 @@ describe('mcpConfigs service', () => {
         transportType: 'stdio',
       }
 
-      expect(() => addMcpConfig(config)).rejects.toThrowError('缺少command参数')
+      await expect(() => addMcpConfig(config)).rejects.toThrowError(
+        '缺少command参数',
+      )
     })
 
     it('添加一个 sse Mcp Server，错误的url参数', async () => {
@@ -62,7 +64,9 @@ describe('mcpConfigs service', () => {
         url: 'wwww.baidu.com',
       }
 
-      expect(() => addMcpConfig(config)).rejects.toThrowError('url格式错误')
+      await expect(() => addMcpConfig(config)).rejects.toThrowError(
+        'url格式错误',
+      )
     })
   })
 })

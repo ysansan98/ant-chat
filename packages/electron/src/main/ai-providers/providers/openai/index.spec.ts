@@ -4,13 +4,15 @@ import type { ProviderOptions } from '../interface'
 import OpenAIService from './index'
 
 vi.mock('openai', () => ({
-  default: vi.fn().mockImplementation(() => ({
-    chat: {
-      completions: {
-        create: vi.fn(),
-      },
-    },
-  })),
+  default: class MockOpenAI {
+    constructor() {
+      this.chat = {
+        completions: {
+          create: vi.fn(),
+        },
+      }
+    }
+  },
 }))
 
 vi.mock('@main/mcpClientHub', () => ({
@@ -72,9 +74,7 @@ describe('openAIService', () => {
         {
           ...baseMsg,
           role: 'user',
-          content: [
-            { type: 'text', text: '这是一张图片：' },
-          ],
+          content: [{ type: 'text', text: '这是一张图片：' }],
           images: [
             {
               type: 'image/png',
@@ -208,7 +208,9 @@ describe('openAIService', () => {
       expect(result[1].tool_call_id).toBe('tool_1')
       // expect(Array.isArray(result[1].content)).toBe(true)
       // expect(result[1].content).toHaveLength(1)
-      expect(result[1].content).toBe(JSON.stringify({ success: true, data: '北京今天晴天，温度25°C' }))
+      expect(result[1].content).toBe(
+        JSON.stringify({ success: true, data: '北京今天晴天，温度25°C' }),
+      )
     })
 
     it('助手消息包含未执行的 MCP 工具调用时不生成 tool 消息', () => {
@@ -300,7 +302,9 @@ describe('openAIService', () => {
       // 检查工具执行结果
       expect(result[2].role).toBe('tool')
       expect(result[2].tool_call_id).toBe('weather_tool')
-      expect(result[2].content).toBe(JSON.stringify({ success: true, data: '晴天，温度25°C' }))
+      expect(result[2].content).toBe(
+        JSON.stringify({ success: true, data: '晴天，温度25°C' }),
+      )
 
       // 检查第二条用户消息
       expect(result[3].role).toBe('user')
