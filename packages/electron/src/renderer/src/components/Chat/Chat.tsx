@@ -22,7 +22,6 @@ import {
 import Loading from '../Loading'
 import Sender from '../Sender'
 import { ModelControlPanel } from '../Sender/PickerModel'
-import TypingEffect from '../TypingEffect'
 
 const BubbleList = lazy(() => import('./BubbleList'))
 const RunnerCode = lazy(() => import('../RunnerCode'))
@@ -114,14 +113,7 @@ export default function Chat() {
                 />
               </Suspense>
             )
-          : (
-              <h1 className={`
-                absolute right-0 bottom-[70%] left-0 py-3 text-center text-4xl text-gray-500
-              `}
-              >
-                <TypingEffect text="有什么可以帮忙的？" />
-              </h1>
-            )
+          : null
       }
       <div className="px-2 pb-4">
         <Sender
