@@ -1,6 +1,6 @@
 import { Alert } from 'antd'
 import mermaid from 'mermaid'
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useId, useRef, useState } from 'react'
 import { useThemeStore } from '@/store/theme'
 import { useDraggable } from '../hooks/useDraggable'
 import { useZoomable } from '../hooks/useZoomable'
@@ -14,7 +14,7 @@ interface RenderMermaidProps {
 }
 
 export function MermaidDiagram({ children, className, style }: RenderMermaidProps) {
-  const id = useRef(`d-${Date.now()}-mermaid`)
+  const id = useId()
   const containerRef = useRef<HTMLDivElement>(null)
   const theme = useThemeStore(state => state.theme)
   const { position, isDragging, handleMouseDown, handleMouseMove, handleMouseUp } = useDraggable()
@@ -41,7 +41,7 @@ export function MermaidDiagram({ children, className, style }: RenderMermaidProp
         })
 
         // 渲染 mermaid
-        const { svg } = await mermaid.render(id.current, children)
+        const { svg } = await mermaid.render(id, children)
 
         if (containerRef.current && isMounted) {
           containerRef.current.innerHTML = svg
@@ -112,7 +112,7 @@ export function MermaidDiagram({ children, className, style }: RenderMermaidProp
                 <div
                   ref={containerRef}
                   className={`
-                    mermaid-container absolute overflow-hidden rounded-md border-1 border-solid
+                    mermaid-container absolute overflow-hidden rounded-md border border-solid
                     border-gray-300
                   `}
                   style={{
