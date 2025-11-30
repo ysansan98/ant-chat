@@ -1,5 +1,9 @@
 packages:
   - packages/*
+
 onlyBuiltDependencies:
+  - '@parcel/watcher'
   - better-sqlite3
   - electron
+  - electron-winstaller
+  - esbuild
