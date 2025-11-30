@@ -143,7 +143,7 @@ export const InfiniteScroll: React.FC<Props> = ({
         </div>
       )}
       {/* 滚动到底部时，需要借助该元素 */}
-      <div className="h-[1px]"></div>
+      <div className="h-px"></div>
     </div>
   )
 }

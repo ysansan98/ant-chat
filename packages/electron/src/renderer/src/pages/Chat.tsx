@@ -32,7 +32,7 @@ export function ChatPage() {
   return (
     <div className="flex">
       <div className={`
-        h-(--mainHeight) w-60 overflow-hidden border-r-1 border-solid border-(--border-color)
+        h-(--mainHeight) w-60 overflow-hidden border-r border-solid border-(--border-color)
       `}
       >
         <div className="relative h-full">

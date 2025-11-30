@@ -53,7 +53,7 @@ export function MessageAvatar({ message }: MessageAvatarProps) {
     if (ProviderLogo) {
       return (
         <div className={`
-          flex h-8 w-8 items-center justify-center rounded-full border-1 border-solid
+          flex h-8 w-8 items-center justify-center rounded-full border border-solid
           border-(--border-color) bg-white text-lg
         `}
         >

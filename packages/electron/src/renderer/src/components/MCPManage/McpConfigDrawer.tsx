@@ -156,7 +156,7 @@ export default function McpConfigDrawer({ open, mode, defaultValues, onClose, on
       }}
     >
       <div className="flex h-full w-full">
-        <div className="w-[55vw] flex-shrink-0 overflow-y-auto px-2 pt-5">
+        <div className="w-[55vw] shrink-0 overflow-y-auto px-2 pt-5">
           <QuickImport onImport={(e) => {
             if (e.transportType === 'stdio') {
               const result: McpConfigForm = { ...e, env: objectToArray(e.env) }
@@ -424,7 +424,7 @@ function PreviewMcpToolItem({ item }: { item: McpTool }) {
           <div>{item.name}</div>
           <div className="mt-1 text-xs text-[#a3a3a3]">{item.description}</div>
         </div>
-        <RightOutlined className="flex-shrink-0" rotate={isExpand ? 90 : 0} />
+        <RightOutlined className="shrink-0" rotate={isExpand ? 90 : 0} />
       </div>
       <div className={`
         grid

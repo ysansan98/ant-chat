@@ -15,7 +15,7 @@ export default function Settings() {
 
   return (
     <div className="grid h-(--mainHeight) w-full grid-cols-[max-content_1fr]">
-      <div className="h-full w-50 border-r-1 border-(--border-color) p-2 py-4">
+      <div className="h-full w-50 border-r border-(--border-color) p-2 py-4">
         <div className="flex flex-col gap-3">
           {
             menus.map(item => (

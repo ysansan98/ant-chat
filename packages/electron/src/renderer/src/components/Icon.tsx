@@ -19,7 +19,7 @@ export default function Icon({ name, classNames, style, onClick }: IconProps) {
   return (
     <div
       className={`
-        h-[1em] w-[1em] bg-[var(--ant-color-text)]
+        h-[1em] w-[1em] bg-(--ant-color-text)
         ${name}
         ${classNames}
       `}

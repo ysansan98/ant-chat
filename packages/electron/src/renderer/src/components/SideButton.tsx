@@ -13,7 +13,7 @@ function SideButton({ icon, children, onClick }: SideButtonProps) {
       `}
       onClick={onClick}
     >
-      <div className="flex flex-shrink-0 items-center justify-center">
+      <div className="flex shrink-0 items-center justify-center">
         {icon}
       </div>
       <div className="flex-1">

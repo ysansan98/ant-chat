@@ -63,9 +63,7 @@ export default function MessageContent({ content = '', images = [], attachments 
                   <Image
                     width={100}
                     height={100}
-                    className={`
-                      rounded-md border-[1px] border-solid border-gray-400/20 object-contain
-                    `}
+                    className="rounded-md border border-solid border-gray-400/20 object-contain"
                     src={item.data}
                     key={item.uid}
                     alt={item.name}

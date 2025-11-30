@@ -5,8 +5,7 @@ import { getSystemPlatform, maximizeOrRestoreWindow, minimizeWindow, quitApp } f
 export function AppBar() {
   return (
     <div className={`
-      flex h-(--appBarHeight) flex-shrink-0 items-center justify-between border-b
-      border-(--border-color)
+      flex h-(--appBarHeight) shrink-0 items-center justify-between border-b border-(--border-color)
     `}
     >
       <div>

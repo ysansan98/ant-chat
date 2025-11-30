@@ -61,7 +61,7 @@ export function ModelControlPanel({ value, onChange }: ModelControlPanelProps) {
     >
       <div
         className={`
-          group grid h-8 cursor-pointer grid-cols-[max-content_0fr] rounded-md border-1 border-solid
+          group grid h-8 cursor-pointer grid-cols-[max-content_0fr] rounded-md border border-solid
           border-(--border-color) transition-all duration-300
           hover:grid-cols-[max-content_1fr]
         `}

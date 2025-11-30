@@ -81,7 +81,7 @@ function BubbleList({ messages, conversationsId, onExecuteAllCompleted, onRefres
       <Button
         size="small"
         className={`
-          !sticky bottom-8 left-1/2 block min-h-6 w-6 -translate-x-1/2 transition-opacity
+          sticky! bottom-8 left-1/2 block min-h-6 w-6 -translate-x-1/2 transition-opacity
           duration-300
           ${autoScrollToBottom
       ? `opacity-0`

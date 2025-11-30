@@ -18,7 +18,7 @@ export function SelectTransportType({ value, onChange }: SelectTransportTypeProp
           <div
             key={item.id}
             className={`
-              antd-css-var relative w-[48%] rounded-xl border-1 border-solid p-3
+              antd-css-var relative w-[48%] rounded-xl border border-solid p-3
               ${value === item.id ? 'border-(--ant-color-primary-text)' : 'border-(--border-color)'}
               cursor-pointer
               hover:border-(--ant-color-primary-text)

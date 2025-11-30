@@ -10,7 +10,7 @@ interface SearchResultsProps {
 }
 
 const IconMapping: Record<SearchResult['type'], React.ReactNode> = {
-  message: <MessageOutlined className="!text-[#9ca3af]" />,
+  message: <MessageOutlined className="text-[#9ca3af]!" />,
 }
 
 export function SearchResults({ items, keywords, onItemClick }: SearchResultsProps) {

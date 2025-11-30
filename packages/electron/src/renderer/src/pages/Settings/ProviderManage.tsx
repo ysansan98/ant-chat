@@ -29,7 +29,7 @@ export default function ProviderManage() {
     <div className="flex h-full">
       <div
         className={`
-          flex h-[100dvh] w-50 flex-shrink-0 flex-col gap-2 overflow-y-auto border-r border-solid
+          flex h-dvh w-50 shrink-0 flex-col gap-2 overflow-y-auto border-r border-solid
           border-(--border-color) px-2 py-2
         `}
       >

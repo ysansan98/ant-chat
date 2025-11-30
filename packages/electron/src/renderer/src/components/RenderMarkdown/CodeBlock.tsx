@@ -36,7 +36,7 @@ function CodeBlock({ language, children, theme = 'light' }: CodeBlockProps) {
   }
 
   return (
-    <div className="rounded-md border-[1px] border-solid border-gray-400/20">
+    <div className="rounded-md border border-solid border-gray-400/20">
       {/* 代码块header */}
       <div className="flex items-center justify-between px-2 py-1 select-none">
         <div

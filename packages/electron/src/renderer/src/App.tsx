@@ -73,11 +73,11 @@ function AntChatApp() {
 
   return (
     <div className={`
-      flex h-[100dvh] w-full flex-col overflow-hidden bg-white
+      flex h-dvh w-full flex-col overflow-hidden bg-white
       dark:bg-black
     `}
     >
-      <div className="flex-shrink-0">
+      <div className="shrink-0">
         <AppBar />
       </div>
       <div className="grid h-(--mainHeight) w-full grid-cols-[max-content_1fr]">
