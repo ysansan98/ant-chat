@@ -30,15 +30,16 @@ const ReadMoreContainer: React.FC<ReadMoreContainerProps> = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState<boolean>(false)
   const [isOverflowing, setIsOverflowing] = useState<boolean>(false)
+  const [fullHeight, setFullHeight] = useState<number | null>(null)
 
   const contentRef = useRef<HTMLDivElement>(null)
-  const fullHeightRef = useRef<number | null>(null)
 
   const checkOverflow = useCallback(() => {
     const contentElement = contentRef.current
     if (contentElement) {
-      fullHeightRef.current = contentElement.scrollHeight
-      const doesOverflow = contentElement.scrollHeight > maxHeight
+      const height = contentElement.scrollHeight
+      setFullHeight(height)
+      const doesOverflow = height > maxHeight
       // Prevent unnecessary re-renders if overflow state hasn't changed
       if (doesOverflow !== isOverflowing) {
         setIsOverflowing(doesOverflow)
@@ -60,7 +61,7 @@ const ReadMoreContainer: React.FC<ReadMoreContainerProps> = ({
   }
 
   const contentStyle: React.CSSProperties = {
-    maxHeight: isExpanded ? `${fullHeightRef.current ?? 'none'}px` : `${maxHeight}px`,
+    maxHeight: isExpanded ? `${fullHeight ?? 'none'}px` : `${maxHeight}px`,
     overflow: 'hidden',
     transition: 'max-height 0.3s ease-in-out',
   }
@@ -83,7 +84,7 @@ const ReadMoreContainer: React.FC<ReadMoreContainerProps> = ({
             className="text-xs"
             onClick={toggleExpand}
             icon={<ArrowUpOutlined rotate={isExpanded ? 0 : 180} />}
-            iconPosition="end"
+            iconPlacement="end"
           >
             {isExpanded ? showLessText : readMoreText}
           </Button>
