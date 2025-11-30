@@ -46,7 +46,7 @@ export function UpdateNotification({ updateInfo, visible, onClose }: UpdateNotif
   }, [])
 
   // 开始下载更新
-  const handleDownload = useCallback(async () => {
+  const handleDownload = async () => {
     try {
       await updateApi.downloadUpdate()
     }
@@ -54,7 +54,7 @@ export function UpdateNotification({ updateInfo, visible, onClose }: UpdateNotif
       console.error('下载更新失败:', error)
       message.error(`更新失败: ${(error as Error)?.message || error}`)
     }
-  }, [])
+  }
 
   // 立即重启并安装
   const handleInstallNow = useCallback(() => {
