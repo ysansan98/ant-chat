@@ -1,3 +1,22 @@
+# [1.0.0-alpha.1](https://github.com/ysansan98/ant-chat/compare/v1.0.0-alpha.0...v1.0.0-alpha.1) (2025-11-30)
+
+
+### Bug Fixes
+
+* 升级 @modelcontextprotocol/sdk 依赖，使用StreamableHTTPClientTransport 替换 SSEClientTransport ([2bec6c0](https://github.com/ysansan98/ant-chat/commit/2bec6c09ec734c6917540923cdab4909d5c80b01))
+* 升级 ant-design 和 ant-design-x ([01eb5cd](https://github.com/ysansan98/ant-chat/commit/01eb5cd7dfae049fc957632c4017354c42ec2944))
+* 修复手动添加的模型无法删除问题 ([da63d4f](https://github.com/ysansan98/ant-chat/commit/da63d4f39d880737eeab663d3efb6ee7a209d30d))
+* 修复执行mcp执行错误 ([4a1af09](https://github.com/ysansan98/ant-chat/commit/4a1af0943cfb0a383abc3cfafb4599c61fc2a1ba))
+* 修复自定义服务商无法生成会话标题问题 ([9e4e092](https://github.com/ysansan98/ant-chat/commit/9e4e092904858b15172c6c8e8e63d0910e49cb80))
+* 修复McpConfigDrawer中的env和headers处理逻辑 ([814b07d](https://github.com/ysansan98/ant-chat/commit/814b07d86e249ae463bd359fbd14aaa573f0b118))
+* 修复openai 对图片和文件的转换逻辑 ([6d217c2](https://github.com/ysansan98/ant-chat/commit/6d217c2455398fd11e76500363c9c692bd978fbd))
+* 修复openai中没有对mcpTool数据进行转换的问题 ([910060b](https://github.com/ysansan98/ant-chat/commit/910060bcb743be20914669aa188db16ab95b4952))
+* 优化日志记录功能，调整日志级别和格式 ([149d095](https://github.com/ysansan98/ant-chat/commit/149d095b573ba4a086986a97dedd835a2580ddea))
+* **test:** 修复单元测试中的类型问题 ([acc6e65](https://github.com/ysansan98/ant-chat/commit/acc6e65c27940e5a2d0b40c7335a4075b958c5e4))
+* **tests:** 适配vitest 4.x测试框架 ([66d1db1](https://github.com/ysansan98/ant-chat/commit/66d1db11550d0f6b0ea7a4dd678192315edd7765))
+
+
+
 # [1.0.0-alpha.0](https://github.com/whitexie/ant-chat/compare/v0.6.0...v1.0.0-alpha.0) (2025-09-12)
 
 

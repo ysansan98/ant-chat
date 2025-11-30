@@ -1,7 +1,7 @@
 {
   "name": "electron",
   "type": "module",
-  "version": "1.0.0-alpha.0",
+  "version": "1.0.0-alpha.1",
   "description": "Ant Chat Electron App",
   "author": {
     "email": "ysansan.tech@icloud.com",
