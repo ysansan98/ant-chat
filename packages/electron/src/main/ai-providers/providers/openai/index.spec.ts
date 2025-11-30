@@ -5,6 +5,12 @@ import OpenAIService from './index'
 
 vi.mock('openai', () => ({
   default: class MockOpenAI {
+    chat!: {
+      completions: {
+        create: ReturnType<typeof vi.fn>
+      }
+    }
+
     constructor() {
       this.chat = {
         completions: {

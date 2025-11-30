@@ -10,6 +10,10 @@ import GeminiService from './index'
 
 vi.mock('@google/genai', () => ({
   GoogleGenAI: class MockGoogleGenAI {
+    models!: {
+      generateContentStream: ReturnType<typeof vi.fn>
+    }
+
     constructor() {
       this.models = {
         generateContentStream: vi.fn(),
