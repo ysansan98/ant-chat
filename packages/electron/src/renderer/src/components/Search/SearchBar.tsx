@@ -14,14 +14,13 @@ export function SearchBar({ onItemClick }: SearchBarProps) {
   const [keywords, setKeyword] = React.useState('')
   const [items, setItems] = React.useState<SearchResult[]>([])
 
-  const debouncedSearch = React.useCallback(
-    debounce(async (value: string) => {
+  const debouncedSearch = React.useMemo(
+    () => debounce(async (value: string) => {
       if (!value.trim()) {
         setItems([])
         return
       }
       const result = await dbApi.searchByKeyword(value)
-
       setItems(result)
     }, 300),
     [],
@@ -29,6 +28,10 @@ export function SearchBar({ onItemClick }: SearchBarProps) {
 
   React.useEffect(() => {
     debouncedSearch(keywords)
+
+    return () => {
+      debouncedSearch.cancel()
+    }
   }, [keywords])
 
   React.useEffect(() => {
@@ -49,7 +52,7 @@ export function SearchBar({ onItemClick }: SearchBarProps) {
           m-3 flex items-center gap-2 rounded-md border border-solid border-(--border-color) p-2
         `}
         >
-          <SearchOutlined className="text-[1.5em] !text-[#9ca3af]" />
+          <SearchOutlined className="text-[1.5em] text-[#9ca3af]!" />
           <input
             ref={inputRef}
             className={`
