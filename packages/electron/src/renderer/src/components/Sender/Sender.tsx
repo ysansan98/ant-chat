@@ -119,7 +119,7 @@ function Sender({ actions, ...props }: SenderProps) {
 
         )}
         footer={(_, { components }) => {
-          const { SendButton, LoadingButton, SpeechButton } = components
+          const { SendButton, LoadingButton } = components
           return (
             <Flex justify="space-between" align="center">
               <Flex gap="small" align="center">
@@ -156,7 +156,6 @@ function Sender({ actions, ...props }: SenderProps) {
                 {actions}
               </Flex>
               <Flex gap="small" align="center">
-                <SpeechButton />
                 {
                   loading
                     ? (<LoadingButton />)
@@ -176,92 +175,11 @@ function Sender({ actions, ...props }: SenderProps) {
           }
         }}
         onCancel={() => {
-
+          props.onCancel?.()
         }}
       />
       <div>
-        {/* <textarea
-          data-testid="textarea"
-          value={text}
-          rows={rows}
-          onCompositionStart={() => setIsComposing(true)} // 输入法开始
-          onCompositionEnd={() => setIsComposing(false)} // 输入法结束
-          onChange={(e) => {
-            const value = e.target.value
-            setText(value)
-            const length = value.split('\n').length
-            if (length > 2 || rows > 2) {
-              setRows(length < 6 ? length : 6)
-            }
-          }}
-          onKeyDown={async (e) => {
-            if (e.key === 'Enter' && !e.shiftKey && text.length > 0 && !isComposing) {
-              e.preventDefault()
-              await handleSubmit()
-            }
-          }}
-          placeholder="Enter发送消息，Shift+Enter换行"
-          className={`
-            h-full w-full resize-none border-none bg-transparent p-1 placeholder-[#b4b4b4]
-            outline-none
-            dark:text-[var(--ant-layout-color-text-body)]
-            dark:placeholder-[var(--ant-layout-color-text-body)]
-          `}
-        /> */}
       </div>
-      {/* <div className="flex justify-between">
-        <div className="flex gap-1">
-          <Tooltip title="附件(支持文档与图片)">
-            <Badge dot={(attachmentList.length > 0) && !openHeader}>
-              <Button
-                data-testid="toggle-header"
-                onClick={() => {
-                  setOpenHeader(!openHeader)
-                }}
-                icon={<LinkOutlined />}
-              />
-            </Badge>
-          </Tooltip>
-          <Tooltip title="联网搜索(目前仅Gemini支持)">
-            <div>
-              <SwitchButton
-                dataTestId="onlineSearch"
-                checked={onlineSearch}
-                onChange={setOnlieSearch}
-                icon={<GlobalOutlined />}
-              />
-            </div>
-          </Tooltip>
-          <SwitchButton
-            checked={mcpEnabled}
-            icon={<Icon component={MCPIcon} />}
-            popoverContent={<MCPManagementPanel />}
-          />
-          {actions}
-        </div>
-        <div className="flex items-center gap-1">
-          <Button
-            data-testid="sendBtn"
-            type={loading ? 'text' : 'primary'}
-            shape={loading ? 'default' : 'circle'}
-            disabled={text.length === 0 && !loading}
-            icon={loading
-              ? (
-                  <StopSvg className="h-8 w-8 !text-(--ant-color-primary)" />
-                )
-              : <ArrowUpOutlined />}
-            onClick={
-              () => {
-                if (loading) {
-                  props.onCancel?.()
-                  return
-                }
-                handleSubmit()
-              }
-            }
-          />
-        </div>
-      </div> */}
     </div>
   )
 }
