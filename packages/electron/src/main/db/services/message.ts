@@ -47,6 +47,7 @@ export async function createAIMessage(convId: string, modelInfo: AIMessage['mode
     role: 'assistant',
     status: 'loading',
     modelInfo,
+    reasoningContent: '',
   })
 }
 
