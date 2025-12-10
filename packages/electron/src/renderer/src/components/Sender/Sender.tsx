@@ -4,12 +4,15 @@ import Icon, {
   CloudUploadOutlined,
   GlobalOutlined,
   PaperClipOutlined,
+  StopOutlined,
 } from '@ant-design/icons'
 
 import { Attachments, Sender as SenderX } from '@ant-design/x'
+import { AudioPlayer } from '@lobehub/tts/react'
 import { App, Badge, Button, Flex, Popover, Tooltip } from 'antd'
 import { useRef, useState } from 'react'
 import MCPIcon from '@/assets/icons/mcp.svg?react'
+import { useAudioPlayContext } from '@/contexts/audioplay'
 import { setOnlieSearch, useChatSttingsStore } from '@/store/chatSettings'
 import { useConversationsStore } from '@/store/conversation'
 import { useMessagesStore } from '@/store/messages'
@@ -34,6 +37,14 @@ function Sender({ actions, ...props }: SenderProps) {
   // ============================ MCP、联网搜索 ============================
   const mcpEnabled = useChatSttingsStore(state => state.enableMCP)
   const onlineSearch = useChatSttingsStore(state => state.onlineSearch)
+
+  // ============================ 朗读控制 ============================
+  const {
+    currentMessageId,
+    isLoading,
+    audio,
+    stopPlayback,
+  } = useAudioPlayContext()
 
   async function transformAttachments() {
     const images: IAttachment[] = []
@@ -74,6 +85,29 @@ function Sender({ actions, ...props }: SenderProps) {
           <h1 className="mb-3 py-3 text-center text-4xl text-gray-500">
             <TypingEffect text="有什么可以帮忙的？" />
           </h1>
+        )
+      }
+      {
+        currentMessageId && (
+          <div className="mx-auto mb-2 flex w-[50%] items-center gap-1">
+            <AudioPlayer
+              audio={audio}
+              isLoading={isLoading}
+              onLoadingStop={stopPlayback}
+              showDonload={false}
+              timeRender="tag"
+            />
+
+            <Button
+              size="small"
+              type="text"
+              title="停止"
+              icon={<StopOutlined />}
+              onClick={() => {
+                stopPlayback()
+              }}
+            />
+          </div>
         )
       }
       <SenderX

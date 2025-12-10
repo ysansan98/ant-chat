@@ -26,6 +26,7 @@
   },
   "dependencies": {
     "@google/genai": "^1.32.0",
+    "@lobehub/tts": "^2.0.1",
     "better-sqlite3": "^11.10.0",
     "drizzle-orm": "^0.40.0",
     "electron-log": "^5.4.0",

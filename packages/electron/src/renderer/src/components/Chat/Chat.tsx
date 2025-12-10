@@ -4,6 +4,7 @@ import { lazy, Suspense } from 'react'
 import { useShallow } from 'zustand/shallow'
 import { createConversations, createUserMessage } from '@/api/dataFactory'
 import { DEFAULT_TITLE } from '@/constants'
+import { AudioPlayProvider } from '@/contexts/audioplay'
 import { useChatSettingsContext } from '@/contexts/chatSettings'
 import { useChatSttingsStore } from '@/store/chatSettings'
 import {
@@ -76,66 +77,68 @@ export default function Chat() {
   }
 
   return (
-    <div
-      key={currentConversations?.id}
-      className="relative mx-auto grid h-(--mainHeight) w-full grid-rows-[1fr_max-content]"
-    >
+    <AudioPlayProvider>
       <div
-        className={`
-          absolute top-0 left-0 z-10 h-5 w-full bg-linear-to-b from-white to-transparent
-          dark:from-black
-        `}
+        key={currentConversations?.id}
+        className="relative mx-auto grid h-(--mainHeight) w-full grid-rows-[1fr_max-content]"
       >
-      </div>
-      {
-        messages.length > 0
-          ? (
-              <Suspense fallback={<BubbleSkeleton />}>
-                <BubbleList
-                  messages={messages}
-                  conversationsId={activeConversationsId}
-                  onRefresh={async (message) => {
-                    if (!settings.modelId) {
-                      notification.error({ title: '请选择模型' })
-                      return
-                    }
-                    refreshRequestAction(activeConversationsId, message, features, settings)
-                  }}
-                  onExecuteAllCompleted={
-                    () => {
+        <div
+          className={`
+            absolute top-0 left-0 z-10 h-5 w-full bg-linear-to-b from-white to-transparent
+            dark:from-black
+          `}
+        >
+        </div>
+        {
+          messages.length > 0
+            ? (
+                <Suspense fallback={<BubbleSkeleton />}>
+                  <BubbleList
+                    messages={messages}
+                    conversationsId={activeConversationsId}
+                    onRefresh={async (message) => {
                       if (!settings.modelId) {
                         notification.error({ title: '请选择模型' })
                         return
                       }
-                      onRequestAction(activeConversationsId, features, settings)
+                      refreshRequestAction(activeConversationsId, message, features, settings)
+                    }}
+                    onExecuteAllCompleted={
+                      () => {
+                        if (!settings.modelId) {
+                          notification.error({ title: '请选择模型' })
+                          return
+                        }
+                        onRequestAction(activeConversationsId, features, settings)
+                      }
                     }
-                  }
-                />
-              </Suspense>
-            )
-          : null
-      }
-      <div className="px-2 pb-4">
-        <Sender
-          actions={(
-            <ModelControlPanel
-              value={settings.modelId}
-              onChange={(modelInfo) => {
-                const { id: modelId, maxTokens, temperature } = modelInfo
-                updateSettings({ modelId, maxTokens, temperature })
-              }}
-            />
-          )}
-          onSubmit={onSubmit}
-          onCancel={() => {
-            abortSendChatCompletions(activeConversationsId)
-          }}
-        />
+                  />
+                </Suspense>
+              )
+            : null
+        }
+        <div className="px-2 pb-4">
+          <Sender
+            actions={(
+              <ModelControlPanel
+                value={settings.modelId}
+                onChange={(modelInfo) => {
+                  const { id: modelId, maxTokens, temperature } = modelInfo
+                  updateSettings({ modelId, maxTokens, temperature })
+                }}
+              />
+            )}
+            onSubmit={onSubmit}
+            onCancel={() => {
+              abortSendChatCompletions(activeConversationsId)
+            }}
+          />
+        </div>
+        <Suspense fallback={<Loading />}>
+          <RunnerCode />
+        </Suspense>
       </div>
-      <Suspense fallback={<Loading />}>
-        <RunnerCode />
-      </Suspense>
-    </div>
+    </AudioPlayProvider>
   )
 }
 
