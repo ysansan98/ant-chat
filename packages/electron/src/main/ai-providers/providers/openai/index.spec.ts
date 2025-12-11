@@ -350,5 +350,28 @@ describe('openAIService', () => {
         text: '请重试',
       })
     })
+
+    it('content无实际内容时，能过滤掉', () => {
+      const messages: IMessage[] = [
+        {
+          ...baseMsg,
+          id: 'msg-2',
+          content: [{ type: 'text', text: '123' }],
+          role: 'assistant',
+        },
+        {
+          ...baseMsg,
+          id: 'msg-1',
+          role: 'assistant',
+          content: [{ type: 'text', text: '\n' }],
+        },
+      ]
+
+      const result = (service as any).transformMessages(messages)
+
+      console.error('result => ', JSON.stringify(result))
+      expect(result).toHaveLength(1)
+      expect(result[0].role).toBe('assistant')
+    })
   })
 })

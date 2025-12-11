@@ -1,5 +1,5 @@
 import type { CreateConversationTitleOptions, IAttachment, IMessage, McpTool, McpToolCall, MessageContent, SendChatCompletionsOptions } from '@ant-chat/shared'
-import type { ChatCompletionAssistantMessageParam, ChatCompletionChunk, ChatCompletionMessageParam, ChatCompletionTool, ChatCompletionToolChoiceOption, ChatCompletionUserMessageParam } from 'openai/resources/index'
+import type { ChatCompletionAssistantMessageParam, ChatCompletionChunk, ChatCompletionCreateParamsStreaming, ChatCompletionMessageParam, ChatCompletionTool, ChatCompletionToolChoiceOption, ChatCompletionUserMessageParam } from 'openai/resources/index'
 import type { AIProvider, ProviderOptions, StreamChunk } from '../interface'
 import { DEFAULT_MCP_TOOL_NAME_SEPARATOR } from '@ant-chat/shared'
 import { clientHub } from '@main/mcpClientHub'
@@ -55,11 +55,20 @@ class OpenAIService implements AIProvider {
   private transformAssistantMessageContent(contents: MessageContent): ChatCompletionAssistantMessageParam['content'] {
     const result: ChatCompletionAssistantMessageParam['content'] = []
 
+    let fullText = ''
+
     contents.forEach((content) => {
       if (content.type === 'text') {
         result.push({ type: 'text', text: content.text })
+
+        fullText += content.text
       }
     })
+
+    // 如果没有实质内容返回 null
+    if (fullText.trim().length === 0) {
+      return null
+    }
 
     return result
   }
@@ -107,6 +116,9 @@ class OpenAIService implements AIProvider {
       }
 
       const aiMessage: OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam = { role: 'assistant', content: this.transformAssistantMessageContent(msg.content) }
+      if (aiMessage.content === null) {
+        return
+      }
       result.push(aiMessage)
 
       if (msg.mcpTool && msg.mcpTool.length > 0) {
@@ -151,17 +163,19 @@ class OpenAIService implements AIProvider {
       ...this.transformMessages(_messages),
     ]
 
-    logger.debug('OpenAI sendChatCompletions messages:', JSON.stringify(messages))
+    const params: ChatCompletionCreateParamsStreaming = {
+      ...toolsConfig,
+      model,
+      temperature,
+      max_completion_tokens,
+      messages,
+      stream: true,
+    }
+
+    logger.debug('OpenAI chat.completions.create params:', JSON.stringify(params))
 
     const stream = await this.client.chat.completions.create(
-      {
-        ...toolsConfig,
-        model,
-        temperature,
-        max_completion_tokens,
-        messages,
-        stream: true,
-      },
+      params,
       { signal: options.abortSignal },
     )
 
