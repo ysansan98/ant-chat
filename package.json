@@ -36,7 +36,6 @@
     "@types/node": "^22.13.10",
     "@vitest/coverage-v8": "4.0.14",
     "@vitest/ui": "4.0.14",
-    "electron-vite": "^4.0.0",
     "eslint": "^9.31.0",
     "eslint-plugin-better-tailwindcss": "^3.6.2",
     "eslint-plugin-format": "^1.0.1",

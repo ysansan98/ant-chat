@@ -35,9 +35,6 @@ importers:
       '@vitest/ui':
         specifier: 4.0.14
         version: 4.0.14(vitest@4.0.14)
-      electron-vite:
-        specifier: ^4.0.0
-        version: 4.0.1(vite@7.2.4(@types/node@22.19.1)(jiti@2.6.1)(lightningcss@1.30.2)(sass@1.94.2)(tsx@4.20.6)(yaml@2.8.1))
       eslint:
         specifier: ^9.31.0
         version: 9.39.1(jiti@2.6.1)
@@ -225,6 +222,9 @@ importers:
       electron-devtools-installer:
         specifier: ^4.0.0
         version: 4.0.0
+      electron-vite:
+        specifier: ^5.0.0
+        version: 5.0.0(vite@7.2.4(@types/node@22.19.2)(jiti@2.6.1)(lightningcss@1.30.2)(sass@1.94.2)(tsx@4.20.6)(yaml@2.8.1))
       immer:
         specifier: ^10.1.1
         version: 10.2.0
@@ -276,6 +276,9 @@ importers:
       vite:
         specifier: ^7.1.3
         version: 7.2.4(@types/node@22.19.2)(jiti@2.6.1)(lightningcss@1.30.2)(sass@1.94.2)(tsx@4.20.6)(yaml@2.8.1)
+      vite-bundle-analyzer:
+        specifier: ^1.3.1
+        version: 1.3.1
       vite-plugin-electron:
         specifier: ^0.29.0
         version: 0.29.0
@@ -733,8 +736,8 @@ packages:
     resolution: {integrity: sha512-Qkzpg2s9GnVV2I2BjRksUi43U5e6+zaQMcjoJy0C+C5oxaKl+fmckGDQFtRpZpZV0NQekuZZ+tGz7EA9TVnQtQ==}
     engines: {node: '>=12'}
 
-  '@electron/node-gyp@git+https://git@github.com:electron/node-gyp.git#06b29aafb7708acef8b3669835c8a7857ebc92d2':
-    resolution: {commit: 06b29aafb7708acef8b3669835c8a7857ebc92d2, repo: git@github.com:electron/node-gyp.git, type: git}
+  '@electron/node-gyp@https://codeload.github.com/electron/node-gyp/tar.gz/06b29aafb7708acef8b3669835c8a7857ebc92d2':
+    resolution: {tarball: https://codeload.github.com/electron/node-gyp/tar.gz/06b29aafb7708acef8b3669835c8a7857ebc92d2}
     version: 10.2.0-electron.1
     engines: {node: '>=12.13.0'}
     hasBin: true
@@ -4014,8 +4017,8 @@ packages:
   electron-updater@6.6.2:
     resolution: {integrity: sha512-Cr4GDOkbAUqRHP5/oeOmH/L2Bn6+FQPxVLZtPbcmKZC63a1F3uu5EefYOssgZXG3u/zBlubbJ5PJdITdMVggbw==}
 
-  electron-vite@4.0.1:
-    resolution: {integrity: sha512-QqacJbA8f1pmwUTqki1qLL5vIBaOQmeq13CZZefZ3r3vKVaIoC7cpoTgE+KPKxJDFTax+iFZV0VYvLVWPiQ8Aw==}
+  electron-vite@5.0.0:
+    resolution: {integrity: sha512-OHp/vjdlubNlhNkPkL/+3JD34ii5ov7M0GpuXEVdQeqdQ3ulvVR7Dg/rNBLfS5XPIFwgoBLDf9sjjrL+CuDyRQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
     peerDependencies:
@@ -7626,6 +7629,10 @@ packages:
   vfile@6.0.3:
     resolution: {integrity: sha512-KzIbH/9tXat2u30jf+smMwFCsno4wHVdNmzFyL+T/L3UGqqk6JKfVqOFOZEpZSHADH1k40ab6NUIXZq422ov3Q==}
 
+  vite-bundle-analyzer@1.3.1:
+    resolution: {integrity: sha512-39J8a+d1KTi9fPt0a7MqqEJibMekdIDCW2nohiyQPSiww+xEBRHKSX4fdpwSvia9KDiFg7THjQRTs0xefzB+lg==}
+    hasBin: true
+
   vite-code-inspector-plugin@0.20.17:
     resolution: {integrity: sha512-WdAEvVZCtvJR/xFGaObdI23ic9umqf8BIAaROetsICsJaXnS0AqvtbAONGgfQ7zLXOBv9PJAuIgICkIDFsCnZA==}
 
@@ -8501,7 +8508,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@electron/node-gyp@git+https://git@github.com:electron/node-gyp.git#06b29aafb7708acef8b3669835c8a7857ebc92d2':
+  '@electron/node-gyp@https://codeload.github.com/electron/node-gyp/tar.gz/06b29aafb7708acef8b3669835c8a7857ebc92d2':
     dependencies:
       env-paths: 2.2.1
       exponential-backoff: 3.1.3
@@ -8545,7 +8552,7 @@ snapshots:
 
   '@electron/rebuild@3.7.0':
     dependencies:
-      '@electron/node-gyp': git+https://git@github.com:electron/node-gyp.git#06b29aafb7708acef8b3669835c8a7857ebc92d2
+      '@electron/node-gyp': https://codeload.github.com/electron/node-gyp/tar.gz/06b29aafb7708acef8b3669835c8a7857ebc92d2
       '@malept/cross-spawn-promise': 2.0.0
       chalk: 4.1.2
       debug: 4.4.3
@@ -12186,7 +12193,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron-vite@4.0.1(vite@7.2.4(@types/node@22.19.1)(jiti@2.6.1)(lightningcss@1.30.2)(sass@1.94.2)(tsx@4.20.6)(yaml@2.8.1)):
+  electron-vite@5.0.0(vite@7.2.4(@types/node@22.19.2)(jiti@2.6.1)(lightningcss@1.30.2)(sass@1.94.2)(tsx@4.20.6)(yaml@2.8.1)):
     dependencies:
       '@babel/core': 7.28.5
       '@babel/plugin-transform-arrow-functions': 7.27.1(@babel/core@7.28.5)
@@ -12194,7 +12201,7 @@ snapshots:
       esbuild: 0.25.12
       magic-string: 0.30.21
       picocolors: 1.1.1
-      vite: 7.2.4(@types/node@22.19.1)(jiti@2.6.1)(lightningcss@1.30.2)(sass@1.94.2)(tsx@4.20.6)(yaml@2.8.1)
+      vite: 7.2.4(@types/node@22.19.2)(jiti@2.6.1)(lightningcss@1.30.2)(sass@1.94.2)(tsx@4.20.6)(yaml@2.8.1)
     transitivePeerDependencies:
       - supports-color
 
@@ -16584,6 +16591,8 @@ snapshots:
     dependencies:
       '@types/unist': 3.0.3
       vfile-message: 4.0.3
+
+  vite-bundle-analyzer@1.3.1: {}
 
   vite-code-inspector-plugin@0.20.17:
     dependencies:
