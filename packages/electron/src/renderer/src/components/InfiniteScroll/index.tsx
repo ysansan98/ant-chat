@@ -1,4 +1,4 @@
-import { useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { useEffect, useImperativeHandle, useRef } from 'react'
 
 interface Props {
   // 是否还有更多数据
@@ -21,6 +21,7 @@ interface Props {
   direction?: 'top' | 'bottom' | 'both'
   ref?: React.Ref<ImperativeHandleRef>
   onScroll?: (e: React.UIEvent<HTMLDivElement>) => void
+  onWheel?: (e: React.WheelEvent) => void
 }
 
 export interface ImperativeHandleRef {
@@ -32,6 +33,7 @@ export const InfiniteScroll: React.FC<Props> = ({
   hasMore,
   loading,
   onLoadMore,
+  onWheel,
   loadingComponent,
   noMoreComponent,
   children,
@@ -44,7 +46,6 @@ export const InfiniteScroll: React.FC<Props> = ({
   const containerRef = useRef<HTMLDivElement>(null)
   const topObserverRef = useRef<HTMLDivElement>(null)
   const bottomObserverRef = useRef<HTMLDivElement>(null)
-  const [inited, setInited] = useState(false)
   const oldScrollHeightRef = useRef<number>(0)
 
   const scrollToBottom = () => {
@@ -57,9 +58,6 @@ export const InfiniteScroll: React.FC<Props> = ({
   }
 
   useEffect(() => {
-    if (!inited) {
-      return
-    }
     const shouldObserveTop = direction === 'top' || direction === 'both'
     const shouldObserveBottom = direction === 'bottom' || direction === 'both'
 
@@ -101,7 +99,7 @@ export const InfiniteScroll: React.FC<Props> = ({
     }
 
     return () => observer.disconnect()
-  }, [inited, hasMore])
+  }, [direction, hasMore, loading, onLoadMore, threshold])
 
   useImperativeHandle(ref, () => ({
     containerRef,
@@ -112,9 +110,7 @@ export const InfiniteScroll: React.FC<Props> = ({
     if (direction === 'top') {
       containerRef.current?.lastElementChild?.scrollIntoView(false)
     }
-
-    setInited(true)
-  }, [])
+  }, [direction])
 
   return (
     <div
@@ -124,9 +120,10 @@ export const InfiniteScroll: React.FC<Props> = ({
         ${className}
       `}
       {...restProps}
+      onWheel={onWheel}
     >
       {/* 触顶加载观察器 */}
-      {(direction === 'top' || direction === 'both') && inited && (
+      {(direction === 'top' || direction === 'both') && (
         <div ref={topObserverRef} className="h-1">
           {!hasMore && noMoreComponent}
         </div>

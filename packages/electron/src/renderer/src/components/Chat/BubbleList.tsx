@@ -21,7 +21,7 @@ function BubbleList({ messages, conversationsId, onExecuteAllCompleted, onRefres
   const {
     autoScrollToBottom,
     infiniteScrollRef,
-    handleScroll,
+    handleWheel,
     scrollToBottom,
   } = useAutoScroll()
 
@@ -67,7 +67,7 @@ function BubbleList({ messages, conversationsId, onExecuteAllCompleted, onRefres
           <Loading />
         </div>
       )}
-      onScroll={handleScroll}
+      onWheel={handleWheel}
     >
       {messages.map(message => (
         <MessageBubble
