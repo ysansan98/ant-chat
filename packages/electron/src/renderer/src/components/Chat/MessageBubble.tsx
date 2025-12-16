@@ -82,6 +82,7 @@ export function MessageBubble({ message, onFooterButtonClick, onExecuteAllComple
       placement={isUser ? 'end' : 'start'}
       avatar={<MessageAvatar message={message} />}
       className="group mx-auto w-full max-w-(--chat-width)"
+      classNames={{ body: message.mcpTool ? 'w-full' : '' }}
       typing={message.status === 'typing' ? { step: 1, interval: 50, effect: 'typing' } : false}
       styles={bubbleStyle}
       content={transformMessageContent(message)}

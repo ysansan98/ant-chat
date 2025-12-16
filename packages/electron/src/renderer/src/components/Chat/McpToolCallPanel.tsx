@@ -1,7 +1,6 @@
 import type { IMcpToolCall } from '@ant-chat/shared'
 import { LoadingOutlined, PlayCircleOutlined, ReloadOutlined } from '@ant-design/icons'
 import { Button, Collapse, Descriptions, Tag } from 'antd'
-import React, { Fragment } from 'react'
 import ReadMoreContainer from '../ReadMoreContainer'
 
 interface McpToolCallPanelProps {
@@ -11,52 +10,55 @@ interface McpToolCallPanelProps {
 
 export function McpToolCallPanel({ item, onExecute }: McpToolCallPanelProps) {
   function getMcpExecuteStateElement() {
-    const result: React.ReactNode[] = []
-    if (item.executeState === 'await') {
-      result.push(
-        <Button
-          size="small"
-          type="primary"
-          icon={<PlayCircleOutlined />}
-          onClick={(e) => {
-            e.stopPropagation()
-            onExecute?.(item)
-          }}
-        >
-          执行
-        </Button>,
-      )
-    }
-    else if (item.executeState === 'executing') {
-      result.push(<LoadingOutlined spin />)
-    }
-    else if (item.executeState === 'completed' && item.result?.success) {
-      result.push(<Tag color="green">执行成功</Tag>)
-    }
-    else if (item.executeState === 'completed' && !item.result?.success) {
-      result.push(
-        <>
-          <Tag color="red">执行失败</Tag>
-        </>,
-      )
+    const handleExecute = (e: React.MouseEvent) => {
+      e.stopPropagation()
+      onExecute?.(item)
     }
 
-    if (item.executeState !== 'executing') {
-      result.push(
-        <Button
-          size="small"
-          title="重试"
-          type="text"
-          icon={<ReloadOutlined />}
-          onClick={(e) => {
-            e.stopPropagation()
-            onExecute?.(item)
-          }}
-        />,
-      )
-    }
+    return (
+      <div className="flex items-center gap-2">
+        {item.executeState === 'await' && (
+          <Button
+            size="small"
+            type="primary"
+            icon={<PlayCircleOutlined />}
+            onClick={handleExecute}
+          >
+            执行
+          </Button>
+        )}
 
-    return result
+        {item.executeState === 'executing' && (
+          <LoadingOutlined spin />
+        )}
+
+        {item.executeState === 'completed' && item.result?.success && (
+          <>
+            <Tag color="green">执行成功</Tag>
+            <Button
+              size="small"
+              title="重试"
+              type="text"
+              icon={<ReloadOutlined />}
+              onClick={handleExecute}
+            />
+          </>
+        )}
+
+        {item.executeState === 'completed' && !item.result?.success && (
+          <>
+            <Tag color="red">执行失败</Tag>
+            <Button
+              size="small"
+              title="重试"
+              type="text"
+              icon={<ReloadOutlined />}
+              onClick={handleExecute}
+            />
+          </>
+        )}
+      </div>
+    )
   }
 
   return (
@@ -67,17 +69,13 @@ export function McpToolCallPanel({ item, onExecute }: McpToolCallPanelProps) {
           key: 'mcp',
           label: (
             <div className="flex w-full justify-between">
-              <div className="flex items-center">
+              <div className="flex items-center gap-1">
                 MCP：
                 <Tag color="blue">{item.serverName}</Tag>
                 <Tag color="green">{item.toolName}</Tag>
               </div>
               <div className="ml-5">
-                {getMcpExecuteStateElement().map((el, index) => (
-                  <Fragment key={index}>
-                    {el}
-                  </Fragment>
-                ))}
+                {getMcpExecuteStateElement()}
               </div>
             </div>
           ),
