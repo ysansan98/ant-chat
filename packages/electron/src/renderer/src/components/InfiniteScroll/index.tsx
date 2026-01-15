@@ -1,4 +1,4 @@
-import { useEffect, useImperativeHandle, useRef } from 'react'
+import { useEffect, useEffectEvent, useImperativeHandle, useRef } from 'react'
 
 interface Props {
   // 是否还有更多数据
@@ -22,11 +22,16 @@ interface Props {
   ref?: React.Ref<ImperativeHandleRef>
   onScroll?: (e: React.UIEvent<HTMLDivElement>) => void
   onWheel?: (e: React.WheelEvent) => void
+  // 控制初始滚动位置。默认值: 当 direction='top' 时为 'bottom'
+  // 设置为 'none' 可以禁止自动滚动，允许父组件自行控制位置
+  initialScrollPosition?: 'bottom' | 'top' | 'none'
 }
 
 export interface ImperativeHandleRef {
   scrollToBottom: () => void
   containerRef: React.RefObject<HTMLElement | null>
+  // 滚动到指定选择器的元素
+  scrollToElement: (selector: string) => void
 }
 
 export const InfiniteScroll: React.FC<Props> = ({
@@ -41,6 +46,7 @@ export const InfiniteScroll: React.FC<Props> = ({
   ref,
   direction = 'top', // 默认触顶加载
   className = '',
+  initialScrollPosition,
   ...restProps
 }) => {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -57,32 +63,49 @@ export const InfiniteScroll: React.FC<Props> = ({
     }
   }
 
+  // 滚动到指定选择器的元素
+  const scrollToElement = (selector: string) => {
+    if (containerRef.current) {
+      const element = containerRef.current.querySelector(selector)
+      if (element) {
+        element.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        })
+      }
+    }
+  }
+
+  // 使用 useEffectEvent 包裹回调，访问最新的 props 和 state
+  const onIntersect = useEffectEvent(async (entry: IntersectionObserverEntry) => {
+    if (!entry.isIntersecting || loading || !hasMore)
+      return
+
+    if (containerRef.current) {
+      oldScrollHeightRef.current = containerRef.current.scrollHeight
+    }
+
+    await onLoadMore()
+
+    // 只在触顶加载时需要保持滚动位置
+    if (entry.target === topObserverRef.current) {
+      requestAnimationFrame(() => {
+        if (containerRef.current) {
+          const newScrollHeight = containerRef.current.scrollHeight
+          const scrollDiff = newScrollHeight - oldScrollHeightRef.current
+          containerRef.current.scrollTop = scrollDiff
+        }
+      })
+    }
+  })
+
   useEffect(() => {
     const shouldObserveTop = direction === 'top' || direction === 'both'
     const shouldObserveBottom = direction === 'bottom' || direction === 'both'
 
     const observer = new IntersectionObserver(
-      async (entries) => {
-        const entry = entries[0]
-        if (!entry.isIntersecting || loading || !hasMore)
-          return
-
-        if (containerRef.current) {
-          oldScrollHeightRef.current = containerRef.current.scrollHeight
-        }
-
-        await onLoadMore()
-
-        // 只在触顶加载时需要保持滚动位置
-        if (entry.target === topObserverRef.current) {
-          requestAnimationFrame(() => {
-            if (containerRef.current) {
-              const newScrollHeight = containerRef.current.scrollHeight
-              const scrollDiff = newScrollHeight - oldScrollHeightRef.current
-              containerRef.current.scrollTop = scrollDiff
-            }
-          })
-        }
+      (entries) => {
+        onIntersect(entries[0])
       },
       {
         root: containerRef.current,
@@ -99,18 +122,31 @@ export const InfiniteScroll: React.FC<Props> = ({
     }
 
     return () => observer.disconnect()
-  }, [direction, hasMore, loading, onLoadMore, threshold])
+  }, [direction, threshold])
 
   useImperativeHandle(ref, () => ({
     containerRef,
     scrollToBottom,
+    scrollToElement,
   }))
 
+  // 初始滚动位置控制
   useEffect(() => {
-    if (direction === 'top') {
-      containerRef.current?.lastElementChild?.scrollIntoView(false)
-    }
-  }, [direction])
+    if (initialScrollPosition === 'none')
+      return
+
+    // 如果没有指定初始滚动位置，使用默认行为
+    const position = initialScrollPosition || (direction === 'top' ? 'bottom' : 'top')
+
+    requestAnimationFrame(() => {
+      if (position === 'bottom' && containerRef.current) {
+        containerRef.current.lastElementChild?.scrollIntoView(false)
+      }
+      else if (position === 'top' && containerRef.current) {
+        containerRef.current.firstElementChild?.scrollIntoView(true)
+      }
+    })
+  }, []) // 只在组件挂载时执行一次
 
   return (
     <div
@@ -129,9 +165,27 @@ export const InfiniteScroll: React.FC<Props> = ({
         </div>
       )}
 
-      {loading && loadingComponent}
+      {/* 加载指示器 - 根据方向显示在顶部或底部 */}
+      {loading && (
+        direction === 'top' || direction === 'both'
+          ? (
+              <div className="flex justify-center py-2">
+                {loadingComponent}
+              </div>
+            )
+          : null
+      )}
 
       {children}
+
+      {/* 加载指示器 - 底部方向时显示在底部 */}
+      {loading && (direction === 'bottom' || direction === 'both')
+        ? (
+            <div className="flex justify-center py-2">
+              {loadingComponent}
+            </div>
+          )
+        : null}
 
       {/* 触底加载观察器 */}
       {(direction === 'bottom' || direction === 'both') && (
