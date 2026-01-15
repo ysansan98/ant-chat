@@ -4,7 +4,7 @@
 
 # Ant Chat
 
-基于 Electron 和 `ant-design-x` 的现代化 AI 聊天桌面应用，支持多模型提供商、MCP协议集成和本地数据加密存储
+基于 Electron 和 `ant-design-x` 的现代化 AI 聊天桌面应用，支持多模型提供商、MCP协议集成和本地数据存储
 
 [![codecov](https://codecov.io/gh/whitexie/ant-chat/branch/main/graph/badge.svg?token=ZF0U1B9XI1)](https://codecov.io/gh/whitexie/ant-chat)
 [![CI](https://github.com/whitexie/ant-chat/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/whitexie/ant-chat/actions/workflows/ci.yml)
@@ -28,14 +28,12 @@
 - 📝 **Markdown 渲染** - 支持语法高亮、表格、列表等
 - 🎨 **代码块预览** - HTML代码块实时预览
 - 📊 **Mermaid图表** - 支持流程图、时序图等可视化图表
-- 🎤 **语音输入** - 语音转文字功能
 - 📎 **附件上传** - 支持图片和文件上传（Gemini模型）
 - 🌐 **联网搜索** - 实时获取网络信息（仅Gemini支持）
 
 ### 💾 数据管理
 
 - 📦 **本地存储** - 基于SQLite的本地数据库存储
-- 🔐 **数据加密** - 模型配置和敏感数据AES加密
 - 📂 **会话管理** - 对话历史管理、分组、导入/导出
 - ♾️ **无限滚动** - 大量消息的高效加载
 
