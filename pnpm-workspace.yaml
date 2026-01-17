@@ -1,9 +1,9 @@
 packages:
   - packages/*
 
+packageImportMethod: clone-or-copy
 onlyBuiltDependencies:
   - '@parcel/watcher'
-  - better-sqlite3
   - electron
   - electron-winstaller
   - esbuild

@@ -14,7 +14,7 @@
     "prebuild": "electron-vite build",
     "type-check": "tsc -b",
     "test:unit": "vitest -c ./vitest.config.ts",
-    "rebuild:electron": "pnpm exec electron-rebuild -f -w better-sqlite3",
+    "rebuild:electron": "pnpm dlx electron-rebuild -f -w better-sqlite3",
     "rebuild:node": "pnpm rebuild better-sqlite3",
     "build:unpack": "cross-env NODE_ENV=production electron-vite build && electron-builder --dir",
     "build:win": "cross-env NODE_ENV=production electron-vite build && electron-builder --win",

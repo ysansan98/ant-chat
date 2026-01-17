@@ -1,8 +1,11 @@
 /* eslint-disable no-template-curly-in-string */
 import type { Configuration } from 'electron-builder'
+import fs from 'node:fs/promises'
+import path from 'node:path'
+
+const keepLanguages = new Set(['en', 'en_GB', 'en-US', 'en_US'])
 
 /**
- * electron-builder 配置
  * @type {import('electron-builder').Configuration}
  * @see https://www.electron.build/configuration
  */
@@ -10,27 +13,139 @@ const config: Configuration = {
   appId: 'com.ant-chat.app',
   productName: 'Ant Chat',
   asar: true,
+  asarUnpack: [
+    '**/*.node', // 所有原生模块都解压出来
+  ],
+  extraResources: [
+    {
+      from: 'node_modules/better-sqlite3/build/Release/',
+      to: 'better-sqlite3',
+      filter: ['*.node'], // 只复制原生模块
+    },
+  ],
+  afterPack: async (context) => {
+    if (!['darwin', 'mas'].includes(context.electronPlatformName))
+      return
+
+    const frameworkResourcePath = path.join(
+      context.appOutDir,
+      `${context.packager.appInfo.productFilename}.app`,
+      'Contents/Frameworks/Electron Framework.framework/Versions/A/Resources',
+    )
+
+    try {
+      const entries = await fs.readdir(frameworkResourcePath)
+      await Promise.all(
+        entries.map(async (file) => {
+          if (!file.endsWith('.lproj'))
+            return
+          const lang = file.split('.')[0]
+          if (keepLanguages.has(lang))
+            return
+          await fs.rm(path.join(frameworkResourcePath, file), { force: true, recursive: true })
+        }),
+      )
+    }
+    catch {
+      // Non-critical: folder may not exist
+    }
+  },
   directories: {
     output: 'release/${version}',
   },
   files: [
     'out/**/*',
     'migrations/**/*',
+    '!node_modules/drizzle-orm',
+    'node_modules/drizzle-orm/better-sqlite3',
+    'node_modules/drizzle-orm/sqlite-core',
+    'node_modules/drizzle-orm/query-builders',
+    'node_modules/drizzle-orm/*',
+    'node_modules/drizzle-orm/pg-core',
+    'node_modules/drizzle-orm/sql',
+    'node_modules/better-sqlite3/*',
+    'node_modules/better-sqlite3/sqlite-core',
+    '!**/*.map', // 排除所有 .map 文件
+    '!**/node_modules/better-sqlite3/deps/**', // 排除 better-sqlite3 的 C 源码
+    '!node_modules/@lobehub',
+    '!node_modules/mermaid',
+    '!node_modules/lucide-react',
+    '!node_modules/@emoji-mart',
+    '!node_modules/@shikijs',
+    '!node_modules/shiki',
+    '!node_modules/@mermaid-js',
+    '!node_modules/cytoscape-fcose',
+    '!node_modules/cytoscape-cose-bilkent',
+    '!node_modules/cytoscape',
+    '!node_modules/web-streams-polyfill',
+    '!node_modules/fetch-blob',
+    '!node_modules/formdata-node',
+    '!node_modules/formdata-polyfill',
+    '!node_modules/node-fetch',
+    '!node_modules/@babel',
+    '!node_modules/@splinetool',
+    '!node_modules/lodash',
+    '!node_modules/katex',
+    '!node_modules/langium',
+    '!node_modules/@emotion',
+    '!node_modules/framer-motion',
+    '!node_modules/polished',
+    '!node_modules/lodash-es',
+    '!node_modules/lit-html',
+    '!node_modules/emoji-mart',
+    '!node_modules/chevrotain',
+    '!node_modules/dayjs',
+    '!node_modules/@floating-ui',
+    '!node_modules/@dnd-kit',
+    '!node_modules/d3',
+    '!node_modules/ahooks',
+    '!node_modules/@lit',
+    '!node_modules/leva',
+    '!node_modules/lit',
+    '!node_modules/@radix-ui',
+    '!node_modules/oniguruma-to-es',
+    '!node_modules/oniguruma-parse',
+    '!node_modules/core-js-compat',
+    '!node_modules/dompurify',
+    '!node_modules/chroma-js',
+
+    //
+    '!**/node_modules/**/*.cpp',
+    '!**/node_modules/node-addon-api/**',
+    '!**/node_modules/prebuild-install/**',
+    '!scripts',
+    '!local',
+    '!docs',
+    '!packages',
+    '!.swc',
+    '!.bin',
+    '!._*',
+    '!*.log',
+    '!stats.html',
+    '!*.md',
+    '!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}',
+    '!**/{test,tests,__tests__,powered-test,coverage}/**',
+    '!**/*.{map,ts,tsx,jsx,less,scss,sass,css.d.ts,d.cts,d.mts,md,markdown,yaml,yml}',
+    '!**/{example,examples}/**',
+    '!**/*.{spec,test}.{js,jsx,ts,tsx}',
+    '!**/*.min.*.map',
+    '!**/*.d.ts',
+    '!**/dist/es6/**',
+    '!**/dist/demo/**',
+    '!**/amd/**',
+    '!**/{.DS_Store,Thumbs.db,thumbs.db,__pycache__}',
+    '!**/{LICENSE,license,LICENSE.*,*.LICENSE.txt,NOTICE.txt,README.md,readme.md,CHANGELOG.md}',
   ],
   electronDownload: {
     mirror: 'https://npmmirror.com/mirrors/electron/',
   },
-  // GitHub 发布配置
   publish: [
     {
       provider: 'github',
       owner: 'whitexie',
       repo: 'ant-chat',
       private: false,
-      releaseType: 'release', // 或 'draft' 用于草稿发布
-      // 更新日志配置 - 使用 changelog 生成器
-      // 注意：electron-builder 会自动使用 git commit 信息作为更新日志
-      // 如果需要自定义更新日志，可以使用 afterSign hook 来修改 release notes
+      releaseType: 'release',
     },
   ],
   mac: {
@@ -39,19 +154,19 @@ const config: Configuration = {
     target: [
       {
         target: 'dmg',
-        arch: ['x64', 'arm64'], // 支持 Intel 和 Apple Silicon
+        // arch: ['x64', 'arm64'],
+        arch: ['arm64'],
       },
       {
-        target: 'zip', // 自动更新需要 zip 格式
-        arch: ['x64', 'arm64'],
+        target: 'zip',
+        // arch: ['x64', 'arm64'],
+        arch: ['arm64'],
       },
     ],
-    // 代码签名配置
     hardenedRuntime: true,
     gatekeeperAssess: false,
     entitlements: 'build/entitlements.mac.plist',
     entitlementsInherit: 'build/entitlements.mac.plist',
-    // 公证配置（如果需要）
     notarize: false,
   },
   dmg: {
@@ -77,7 +192,7 @@ const config: Configuration = {
         arch: ['x64'],
       },
       {
-        target: 'zip', // 自动更新需要 zip 格式
+        target: 'zip',
         arch: ['x64'],
       },
     ],
@@ -88,14 +203,11 @@ const config: Configuration = {
     perMachine: false,
     allowToChangeInstallationDirectory: true,
     deleteAppDataOnUninstall: true,
-    createDesktopShortcut: true, // 创建桌面快捷方式
-    createStartMenuShortcut: true, // 创建开始菜单快捷方式
-    shortcutName: 'Ant Chat', // 快捷方式名称
-    // 安装程序语言配置
+    createDesktopShortcut: true,
+    createStartMenuShortcut: true,
+    shortcutName: 'Ant Chat',
     installerLanguages: ['zh_CN', 'en_US'],
   },
-  // 自动更新配置
-  // 生成自动更新所需的元数据文件
   generateUpdatesFilesForAllChannels: true,
 }
 

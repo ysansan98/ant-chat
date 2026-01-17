@@ -3,10 +3,11 @@ import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { codeInspectorPlugin } from 'code-inspector-plugin'
 import { defineConfig } from 'electron-vite'
-import { analyzer } from 'vite-bundle-analyzer'
 import svgr from 'vite-plugin-svgr'
 
 export default defineConfig(({ command, mode }) => {
+  const isDev = command === 'serve'
+
   console.info('command: ', command, 'mode: ', mode)
   return {
     main: {
@@ -16,16 +17,29 @@ export default defineConfig(({ command, mode }) => {
         },
       },
       build: {
-        sourcemap: true,
+        minify: !isDev,
+        sourcemap: isDev ? 'inline' : false,
         rollupOptions: {
+          external: ['better-sqlite3'],
           output: {
             format: 'cjs',
             entryFileNames: '[name].cjs',
           },
         },
+        resolve: {
+          alias: {
+            'drizzle-orm/better-sqlite3': 'better-sqlite3',
+            'drizzle-orm/better-sqlite3/migrator': 'drizzle-orm/better-sqlite3/migrator',
+          },
+        },
       },
     },
-    preload: {},
+    preload: {
+      build: {
+        minify: !isDev,
+        sourcemap: isDev ? 'inline' : false,
+      },
+    },
     renderer: {
       resolve: {
         alias: {
@@ -47,8 +61,11 @@ export default defineConfig(({ command, mode }) => {
         ...(command === 'build'
           ? []
           : [codeInspectorPlugin({ bundler: 'vite' })]),
-        analyzer(),
       ],
+      build: {
+        minify: !isDev,
+        sourcemap: isDev ? 'inline' : false,
+      },
     },
   }
 })
