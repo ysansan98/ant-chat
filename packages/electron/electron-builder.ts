@@ -108,6 +108,7 @@ const config: Configuration = {
     '!node_modules/core-js-compat',
     '!node_modules/dompurify',
     '!node_modules/chroma-js',
+    '!node_modules/@google/genai/dist/web',
 
     //
     '!**/node_modules/**/*.cpp',
