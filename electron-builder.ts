@@ -69,6 +69,7 @@ const config: Configuration = {
     '!**/node_modules/better-sqlite3/deps/**', // 排除 better-sqlite3 的 C 源码
     '!node_modules/@lobehub',
     '!node_modules/mermaid',
+    '!node_modules/@chevrotain',
     '!node_modules/lucide-react',
     '!node_modules/@emoji-mart',
     '!node_modules/@shikijs',
