@@ -137,6 +137,10 @@ const config: Configuration = {
     '!**/amd/**',
     '!**/{.DS_Store,Thumbs.db,thumbs.db,__pycache__}',
     '!**/{LICENSE,license,LICENSE.*,*.LICENSE.txt,NOTICE.txt,README.md,readme.md,CHANGELOG.md}',
+
+    // ===== 新增：排除所有 @types 包 =====
+    '!**/node_modules/@types/**', // 排除所有 @types/* 包
+    '!**/node_modules/**/node_modules/@types/**', // 排除嵌套的 @types 包
   ],
   electronDownload: {
     mirror: 'https://npmmirror.com/mirrors/electron/',
