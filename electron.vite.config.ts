@@ -26,12 +26,6 @@ export default defineConfig(({ command, mode }) => {
             entryFileNames: '[name].cjs',
           },
         },
-        resolve: {
-          alias: {
-            'drizzle-orm/better-sqlite3': 'better-sqlite3',
-            'drizzle-orm/better-sqlite3/migrator': 'drizzle-orm/better-sqlite3/migrator',
-          },
-        },
       },
     },
     preload: {

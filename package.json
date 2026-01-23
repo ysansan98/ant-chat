@@ -11,8 +11,8 @@
   "scripts": {
     "start": "electron-vite preview",
     "postinstall": "electron-builder install-app-deps",
-    "dev": "electron-vite dev",
-    "prebuild": "electron-vite build",
+    "dev": "pnpm -r --filter @ant-chat/shared build && pnpm -r --filter @ant-chat/mcp-client-hub build && electron-vite dev",
+    "prebuild": "pnpm -r --filter @ant-chat/shared build && pnpm -r --filter @ant-chat/mcp-client-hub build && electron-vite build",
     "type-check": "tsc -b",
     "test:unit": "vitest -c ./vitest.config.ts",
     "rebuild:electron": "pnpm dlx electron-rebuild -f -w better-sqlite3",
@@ -26,8 +26,9 @@
     "clean": "rm -rf node_modules out release dev.db"
   },
   "dependencies": {
+    "@ant-chat/mcp-client-hub": "workspace:*",
+    "@ant-chat/shared": "workspace:*",
     "@google/genai": "^1.32.0",
-    "@lobehub/tts": "^2.0.1",
     "better-sqlite3": "^11.10.0",
     "drizzle-orm": "^0.40.0",
     "electron-log": "^5.4.0",
@@ -52,6 +53,7 @@
     "@ferrucc-io/emoji-picker": "^0.0.44",
     "@iconify-json/tdesign": "^1.2.8",
     "@iconify/tailwind4": "^1.0.6",
+    "@lobehub/tts": "^2.0.1",
     "@tailwindcss/vite": "^4.1.6",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",

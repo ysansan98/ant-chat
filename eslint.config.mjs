@@ -3,6 +3,7 @@ import eslintPluginBetterTailwindcss from 'eslint-plugin-better-tailwindcss'
 
 export default antfu(
   {
+    pnpm: true,
     react: true,
     typescript: true,
     formatters: {
