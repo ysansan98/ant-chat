@@ -1,25 +1,29 @@
 {
   "name": "@ant-chat/mcp-client-hub",
   "type": "module",
-  "description": "MCP client for Ant Chat",
-  "author": "Ant Chat",
   "license": "MIT",
-  "keywords": [
-    "mcp",
-    "mcp-client"
-  ],
-  "main": "src/index.ts",
+  "keywords": [],
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.cts",
   "files": [
-    "src"
+    "dist"
   ],
   "scripts": {
-    "test": "vitest"
+    "build": "tsdown"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.22.0",
     "fast-deep-equal": "^3.1.3"
   },
   "devDependencies": {
-    "@ant-chat/shared": "workspace:*"
+    "tsdown": "^0.20.0"
   }
 }

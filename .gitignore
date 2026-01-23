@@ -41,3 +41,6 @@ dist-electron
 out
 build
 release
+
+
+.tmp/**
