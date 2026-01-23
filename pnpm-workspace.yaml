@@ -1,9 +1,7 @@
+shellEmulator: true
+
 packages:
   - packages/*
 
-packageImportMethod: clone-or-copy
-onlyBuiltDependencies:
-  - '@parcel/watcher'
-  - electron
-  - electron-winstaller
-  - esbuild
+catalog:
+  tsdown: ^0.20.0

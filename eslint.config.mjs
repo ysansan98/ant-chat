@@ -61,4 +61,12 @@ export default antfu(
       'perfectionist/sort-imports': ['off'],
     },
   },
+  {
+    files: [
+      'pnpm-workspace.yaml',
+    ],
+    rules: {
+      'pnpm/yaml-enforce-settings': 'off',
+    },
+  },
 )
