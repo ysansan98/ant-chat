@@ -1,12 +1,18 @@
 import { resolve } from 'node:path'
+import process from 'node:process'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { codeInspectorPlugin } from 'code-inspector-plugin'
 import { defineConfig } from 'electron-vite'
+import { analyzer } from 'vite-bundle-analyzer'
 import svgr from 'vite-plugin-svgr'
 
 export default defineConfig(({ command, mode }) => {
   const isDev = command === 'serve'
+
+  const visualizerPlugin = (type: 'renderer' | 'main') => {
+    return process.env[`VISUALIZER_${type.toUpperCase()}`] ? [analyzer({ reportTitle: `${type} process` })] : []
+  }
 
   console.info('command: ', command, 'mode: ', mode)
   return {
@@ -14,6 +20,8 @@ export default defineConfig(({ command, mode }) => {
       resolve: {
         alias: {
           '@main': resolve('src/main'),
+          '@ant-chat/shared': resolve(__dirname, 'packages/shared/dist/index.cjs'),
+          '@ant-chat/mcp-client-hub': resolve(__dirname, 'packages/mcp-client-hub/dist/index.cjs'),
         },
       },
       build: {
@@ -25,8 +33,10 @@ export default defineConfig(({ command, mode }) => {
             format: 'cjs',
             entryFileNames: '[name].cjs',
           },
+
         },
       },
+      plugins: visualizerPlugin('main'),
     },
     preload: {
       build: {
@@ -38,6 +48,7 @@ export default defineConfig(({ command, mode }) => {
       resolve: {
         alias: {
           '@': resolve('src/renderer/src'),
+          '@ant-chat/shared': resolve(__dirname, 'packages/shared/dist/index.cjs'),
         },
       },
       plugins: [
@@ -53,7 +64,7 @@ export default defineConfig(({ command, mode }) => {
           svgrOptions: { icon: true },
         }),
         ...(command === 'build'
-          ? []
+          ? visualizerPlugin('renderer')
           : [codeInspectorPlugin({ bundler: 'vite' })]),
       ],
       build: {
