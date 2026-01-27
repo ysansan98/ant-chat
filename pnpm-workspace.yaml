@@ -1,7 +1,9 @@
 shellEmulator: true
-
 packages:
   - packages/*
 
 catalog:
   tsdown: ^0.20.0
+onlyBuiltDependencies:
+  - electron
+  - esbuild

@@ -64,10 +64,12 @@ export default antfu(
   },
   {
     files: [
+      '**/package.json',
       'pnpm-workspace.yaml',
     ],
     rules: {
       'pnpm/yaml-enforce-settings': 'off',
+      'pnpm/json-enforce-catalog': 'off',
     },
   },
 )
