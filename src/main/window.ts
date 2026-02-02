@@ -158,6 +158,19 @@ export class MainWindow {
       }
     })
 
+    // 处理新窗口创建事件（如 target="_blank" 链接）
+    // 当页面中的链接有 target="_blank" 或 window.open() 时触发
+    this.window.webContents.setWindowOpenHandler(({ url }) => {
+      logger.debug('setWindowOpenHandler', url)
+      const isExternal = url.startsWith('http:') || url.startsWith('https:')
+      if (isExternal) {
+        // 阻止在 Electron 中创建新窗口，使用默认浏览器
+        shell.openExternal(url)
+        return { action: 'deny' }
+      }
+      return { action: 'allow' }
+    })
+
     this.window.on('closed', () => {
       this.window = null
     })
