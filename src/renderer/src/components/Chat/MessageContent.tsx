@@ -52,7 +52,7 @@ export default function MessageContent({ content = '', images = [], attachments 
           <Collapse items={items} defaultActiveKey={['1']} size="small" />
         )
       }
-      <RenderMarkdown content={content || ''} />
+      <RenderMarkdown content={content || ''} final={status === 'success'} />
       {
         images.length > 0 && (
           <>

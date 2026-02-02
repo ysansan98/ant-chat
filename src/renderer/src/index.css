@@ -1,5 +1,6 @@
 @import './assets/scroll-style.css';
 @import 'tailwindcss';
+@import './global.css';
 @source "../node_modules/@ferrucc-io/emoji-picker";
 
 @custom-variant dark (&:where(.dark, .dark *));

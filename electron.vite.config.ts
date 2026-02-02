@@ -20,8 +20,6 @@ export default defineConfig(({ command, mode }) => {
       resolve: {
         alias: {
           '@main': resolve('src/main'),
-          '@ant-chat/shared': resolve(__dirname, 'packages/shared/dist/index.cjs'),
-          '@ant-chat/mcp-client-hub': resolve(__dirname, 'packages/mcp-client-hub/dist/index.cjs'),
         },
       },
       build: {
@@ -48,7 +46,6 @@ export default defineConfig(({ command, mode }) => {
       resolve: {
         alias: {
           '@': resolve('src/renderer/src'),
-          '@ant-chat/shared': resolve(__dirname, 'packages/shared/dist/index.cjs'),
         },
       },
       plugins: [

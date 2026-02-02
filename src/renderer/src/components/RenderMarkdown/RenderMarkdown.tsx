@@ -1,64 +1,38 @@
-import { Typography } from 'antd'
-import { useMemo } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { remarkAlert } from 'remark-github-blockquote-alert'
-import { visit } from 'unist-util-visit'
-import { useThemeStore } from '@/store/theme'
-import CodeBlock from './CodeBlock'
-import style from './style.module.scss'
-import 'remark-github-blockquote-alert/alert.css'
+import { NodeRenderer, setDefaultI18nMap, setKaTeXWorker, setMermaidWorker } from 'markstream-react'
+import KatexWorker from 'markstream-react/workers/katexRenderer.worker?worker&inline'
+import MermaidWorker from 'markstream-react/workers/mermaidParser.worker?worker&inline'
+import React from 'react'
+import 'katex/dist/katex.min.css'
 
 export interface RenderMarkdownProps {
   content: string
+  final?: boolean
 }
 
-// 创建默认语言插件
-function defaultLangPlugin() {
-  return (tree: any) => {
-    visit(tree, 'code', (node: any) => {
-      node.lang = node.lang ?? 'plaintext'
-    })
-  }
+setKaTeXWorker(new KatexWorker())
+setMermaidWorker(new MermaidWorker())
+
+setDefaultI18nMap({
+  'common.copy': '复制',
+  'common.copySuccess': '已复制',
+  'common.decrease': '减少',
+  'common.reset': '重置',
+  'common.increase': '增加',
+  'common.expand': '展开',
+  'common.collapse': '收起',
+  'common.preview': '预览',
+  'common.source': '源码',
+  'common.export': '导出',
+  'common.open': '打开',
+  'common.zoomIn': '放大',
+  'common.zoomOut': '缩小',
+  'common.resetZoom': '重置缩放',
+  'image.loadError': '图片加载失败',
+  'image.loading': '图片加载中...',
+})
+
+function RenderMarkdown({ content, final = false }: RenderMarkdownProps) {
+  return <NodeRenderer content={content} final={final} />
 }
 
-export default function RenderMarkdown({ content }: RenderMarkdownProps) {
-  const theme = useThemeStore(state => state.theme)
-
-  const remarkPlugins = useMemo(() => [
-    defaultLangPlugin,
-    remarkGfm,
-    remarkAlert,
-  ], [])
-
-  const components = useMemo(() => ({
-    code: (props: any) => {
-      const { children, className } = props
-      const language = className ? className.replace('language-', '') : 'txt'
-
-      return className
-        ? (
-            <CodeBlock language={language} theme={theme}>
-              {children}
-            </CodeBlock>
-          )
-        : (
-            <code>
-              {children}
-            </code>
-          )
-    },
-  }), [theme])
-
-  return (
-    <Typography className={style['markdown-typography']}>
-      <ReactMarkdown
-        remarkPlugins={remarkPlugins}
-        components={components}
-        urlTransform={url => url}
-      >
-        {content}
-      </ReactMarkdown>
-    </Typography>
-  )
-}
+export default React.memo(RenderMarkdown)

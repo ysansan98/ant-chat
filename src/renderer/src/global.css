@@ -1,0 +1,6 @@
+@import 'tailwindcss';
+@custom-variant dark (&:is(.dark *));
+
+@layer components {
+  @import 'markstream-react/index.css';
+}
