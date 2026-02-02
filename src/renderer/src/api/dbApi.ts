@@ -1,5 +1,4 @@
-import type { IMessage } from '@ant-chat/shared'
-import type { AddConversationsSchema, AddMcpConfigSchema, AddServiceProviderModelSchema, AddServiceProviderSchema, UpdateConversationsSchema, UpdateMcpConfigSchema, UpdateServiceProviderSchema } from '@ant-chat/shared/src/schemas'
+import type { AddConversationsSchema, AddMcpConfigSchema, AddServiceProviderModelSchema, AddServiceProviderSchema, IMessage, UpdateConversationsSchema, UpdateMcpConfigSchema, UpdateServiceProviderSchema } from '@ant-chat/shared'
 import { emitter, unwrapIpcPaginatedResponse, unwrapIpcResponse } from '@/utils/ipc-bus'
 
 /**
