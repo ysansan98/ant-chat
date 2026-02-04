@@ -20,12 +20,10 @@ import {
   setActiveConversationsId,
   useMessagesStore,
 } from '@/store/messages'
-import Loading from '../Loading'
 import Sender from '../Sender'
 import { ModelControlPanel } from '../Sender/PickerModel'
 
 const BubbleList = lazy(() => import('./BubbleList'))
-const RunnerCode = lazy(() => import('../RunnerCode'))
 
 export default function Chat() {
   const messages = useMessagesStore(state => state.messages)
@@ -134,9 +132,6 @@ export default function Chat() {
             }}
           />
         </div>
-        <Suspense fallback={<Loading />}>
-          <RunnerCode />
-        </Suspense>
       </div>
     </AudioPlayProvider>
   )

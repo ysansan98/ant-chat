@@ -5,7 +5,6 @@ import { Outlet } from 'react-router'
 import { initializeGeneralSettings } from '@/store/generalSettings/actions'
 import { useThemeStore } from '@/store/theme'
 import { AppBar } from './components/AppBar'
-import { RunnerCodeProvider } from './components/RunnerCode'
 import { SliderMenu } from './components/SiliderMenu'
 import { UpdateNotification } from './components/UpdateNotification'
 import { useIpcEventListener } from './hooks/useIpcEventListener'
@@ -53,11 +52,9 @@ function AppWrapper() {
         hashed: false,
       }}
     >
-      <RunnerCodeProvider>
-        <App className="h-full">
-          <AntChatApp />
-        </App>
-      </RunnerCodeProvider>
+      <App className="h-full">
+        <AntChatApp />
+      </App>
     </ConfigProvider>
   )
 }
