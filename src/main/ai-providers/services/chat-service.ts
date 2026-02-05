@@ -1,16 +1,23 @@
-import type { CreateConversationTitleOptions, handleChatCompletionsOptions, handleInitConversationTitleOptions, SendChatCompletionsOptions, TextContent } from '@ant-chat/shared'
-import type { AIProvider, StreamChunk } from '../providers/interface'
+import type { CreateConversationTitleOptions, handleChatCompletionsOptions, handleInitConversationTitleOptions, MessageContent, SendChatCompletionsOptions, TextContent } from '@ant-chat/shared'
+import type { MultiProvider } from '../multi-provider'
 import { createAIMessage, getMessagesByConvId, getModelById, getProviderServiceById, getServiceProviderByModelId, updateMessage } from '@main/db/services'
 import { clientHub } from '@main/mcpClientHub'
 import { mainEmitter } from '@main/utils/ipc-events-bus'
 import { logger } from '@main/utils/logger'
 import { getMainWindow } from '@main/window'
-import { AIProviderMapping } from '../providers'
+import { createProvider } from '../factory'
 import { StreamAbortController } from '../utils/StreamAbortController'
 import { formatMessagesForContext } from './utils'
 
+// 定义 StreamChunk 类型
+interface StreamChunk {
+  content: MessageContent
+  reasoningContent?: string
+  functionCalls?: any[]
+}
+
 class ChatService {
-  private aiProvider: AIProvider | null = null
+  private aiProvider: MultiProvider | null = null
 
   async initializeProvider(providerId: string) {
     const provider = getProviderServiceById(providerId)
@@ -18,14 +25,7 @@ class ChatService {
       throw new Error('Provider not found')
     }
 
-    if (!(provider.apiMode in AIProviderMapping)) {
-      throw new Error(`not support apiMode: ${provider.apiMode}`)
-    }
-
-    const aiProvider = new AIProviderMapping[provider.apiMode]({
-      baseUrl: provider.baseUrl,
-      apiKey: provider.apiKey,
-    })
+    const aiProvider = await createProvider(provider)
     this.aiProvider = aiProvider
   }
 
@@ -43,6 +43,16 @@ class ChatService {
     }
 
     return this.aiProvider.createConversationTitle(options)
+  }
+
+  /**
+   * 验证提供商连接
+   */
+  async validateProviderConnection(model: string) {
+    if (!this.aiProvider) {
+      return { success: false, error: 'AI provider not set' }
+    }
+    return await this.aiProvider.validateConnection(model)
   }
 }
 
@@ -64,6 +74,7 @@ export async function handleChatCompletions(options: handleChatCompletionsOption
 
   chatService.initializeProvider(modelInfo.serviceProviderId)
   const mcpTools = clientHub.getAllAvailableToolsList()
+  logger.info('Available MCP tools:', mcpTools.map(tool => tool.name))
   const mainWindow = getMainWindow()
 
   if (!mainWindow) {

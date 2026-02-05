@@ -5,7 +5,7 @@ export const ServiceProviderSchema = z.object({
   name: z.string(),
   baseUrl: z.string().url(),
   apiKey: z.string(),
-  apiMode: z.enum(['openai', 'anthropic', 'gemini']),
+  apiMode: z.enum(['openai', 'anthropic', 'gemini', 'deepseek']),
   isOfficial: z.boolean(),
   isEnabled: z.boolean(),
   createdAt: z.number(),
