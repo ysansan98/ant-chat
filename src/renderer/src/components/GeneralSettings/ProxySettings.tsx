@@ -2,7 +2,7 @@ import { App, Button, Input, Select } from 'antd'
 import React from 'react'
 import { updateProxySettings } from '@/store/generalSettings/actions'
 import { useGeneralSettingsStore } from '@/store/generalSettings/store'
-import { emitter, unwrapIpcResponse } from '@/utils/ipc-bus'
+import { ipc, unwrapIpcResponse } from '@/utils/ipc-bus'
 
 const proxyOptions = [
   { value: 'none', label: '不使用代理' },
@@ -81,8 +81,7 @@ export function CustomProxyUrl() {
     setTesting(true)
     try {
       // 使用真实的代理测试API
-      const response = await emitter.invoke('proxy:test-connection', urlToTest)
-      const result = unwrapIpcResponse(response)
+      const result = unwrapIpcResponse(await ipc.settings.testProxyConnection(urlToTest))
 
       setTestResult(result)
       message[result ? 'success' : 'error'](

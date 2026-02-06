@@ -1,6 +1,6 @@
 import { useRequest } from 'ahooks'
-import { dbApi } from '@/api/dbApi'
+import { providerApi } from '@/api/providerApi'
 
 export function useAllAvailableModels() {
-  return useRequest(dbApi.getAllAbvailableModels)
+  return useRequest(providerApi.getAllAbvailableModels)
 }

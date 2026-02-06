@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { addStreamingConversationId, removeStreamingConversationId } from '@/store/conversation'
 import { onMcpServerStatusChanged } from '@/store/mcpConfigs/action'
 import { updateMessageActionV2 } from '@/store/messages'
-import { ipc } from '@/utils/ipc-bus'
+import { ipcRenderer } from '@/utils/ipc-bus'
 
 export function useIpcEventListener() {
   const { notification } = App.useApp()
@@ -15,9 +15,9 @@ export function useIpcEventListener() {
       func({ title: message, description })
     }
 
-    ipc.on('common:Notification', handle)
-    ipc.on('mcp:McpServerStatusChanged', onMcpServerStatusChanged)
-    ipc.on('chat:stream-message', (_, msg) => {
+    ipcRenderer.on('common:Notification', handle)
+    ipcRenderer.on('mcp:McpServerStatusChanged', onMcpServerStatusChanged)
+    ipcRenderer.on('chat:stream-message', (_, msg) => {
       console.log('chat:stream-message => ', msg)
 
       handleStreamingConversationStatus(msg)
@@ -25,9 +25,9 @@ export function useIpcEventListener() {
     })
 
     return () => {
-      window.electron.ipcRenderer.removeAllListeners('common:Notification')
-      window.electron.ipcRenderer.removeAllListeners('mcp:McpServerStatusChanged')
-      window.electron.ipcRenderer.removeAllListeners('chat:stream-message')
+      ipcRenderer.removeAllListeners('common:Notification')
+      ipcRenderer.removeAllListeners('mcp:McpServerStatusChanged')
+      ipcRenderer.removeAllListeners('chat:stream-message')
     }
   }, [])
 }

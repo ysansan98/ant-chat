@@ -2,7 +2,7 @@ import type { SearchResult } from '@ant-chat/shared'
 import { SearchOutlined } from '@ant-design/icons'
 import { debounce } from 'lodash-es'
 import React from 'react'
-import { dbApi } from '@/api/dbApi'
+import { searchApi } from '@/api/searchApi'
 import { SearchResults } from './SearchResults'
 
 interface SearchBarProps {
@@ -20,7 +20,7 @@ export function SearchBar({ onItemClick }: SearchBarProps) {
         setItems([])
         return
       }
-      const result = await dbApi.searchByKeyword(value)
+      const result = await searchApi.searchByKeyword(value)
       setItems(result)
     }, 300),
     [],

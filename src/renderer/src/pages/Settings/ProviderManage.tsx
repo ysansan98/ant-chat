@@ -3,17 +3,17 @@ import { useRequest } from 'ahooks'
 import { Button, Empty, message, Switch } from 'antd'
 import React from 'react'
 import Logo from '@/../public/logo.svg?react'
-import { dbApi } from '@/api/dbApi'
+import { providerApi } from '@/api/providerApi'
 import { getProviderLogo } from '@/components/Chat/providerLogo'
 import { AddCustomProvider } from '@/components/ProviderManage/AddCustomProvider'
 import { ProviderServiceSettings } from '@/components/ProviderManage/ProviderServiceSettings'
 
 export default function ProviderManage() {
   const [activeProvider, setActiveProvider] = React.useState<ServiceProviderSchema | null>(null)
-  const { data, error, refresh, loading } = useRequest(dbApi.getAllProviderServices)
+  const { data, error, refresh, loading } = useRequest(providerApi.getAllProviderServices)
 
-  const handleAddProvider = async (provider: Parameters<typeof dbApi.AddServiceProvider>[0]) => {
-    await dbApi.AddServiceProvider(provider)
+  const handleAddProvider = async (provider: Parameters<typeof providerApi.addProviderService>[0]) => {
+    await providerApi.addProviderService(provider)
     refresh()
   }
 
@@ -62,7 +62,7 @@ export default function ProviderManage() {
               <Switch
                 value={item.isEnabled}
                 onChange={async (e) => {
-                  await dbApi.updateServiceProvider({ id: item.id, isEnabled: e })
+                  await providerApi.updateProviderService({ id: item.id, isEnabled: e })
                   refresh()
                 }}
                 size="small"
@@ -85,12 +85,12 @@ export default function ProviderManage() {
                 key={activeProvider?.id || ''}
                 item={activeProvider}
                 onChange={async (e) => {
-                  await dbApi.updateServiceProvider(e)
+                  await providerApi.updateProviderService(e)
                   refresh()
                 }}
                 onDelete={async () => {
                   try {
-                    await dbApi.deleteServiceProvider(activeProvider.id)
+                    await providerApi.deleteProviderService(activeProvider.id)
                   }
                   catch (e) {
                     message.error((e as Error).message)

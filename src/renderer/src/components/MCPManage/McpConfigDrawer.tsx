@@ -6,8 +6,7 @@ import { RightOutlined } from '@ant-design/icons'
 import { Alert, Avatar, Button, Descriptions, Drawer, Empty, Form, Input, Select, Tag } from 'antd'
 import React from 'react'
 import { useImmer } from 'use-immer'
-import { dbApi } from '@/api/dbApi'
-import { connectMcpServer, fetchMcpServerTools } from '@/api/mcpApi'
+import { connectMcpServer, fetchMcpServerTools, getMcpConfigByServerName } from '@/api/mcpApi'
 import { KeyValueList } from '@/components/Common/KeyValueList'
 import { EmojiPickerHoc } from '@/components/EmojiPiker'
 import { QuickImport } from './QuickImport'
@@ -518,7 +517,7 @@ function InputArgs({ value, onChange }: { value?: string[], onChange?: (e: strin
 async function validatorServerName(_: RuleObject, value: string) {
   try {
     // 不报错表示已经存在了
-    await dbApi.getMcpConfigByServerName(value)
+    await getMcpConfigByServerName(value)
     throw new Error(`${value}已存在, 不可重复添加`)
   }
   catch {

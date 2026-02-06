@@ -1,6 +1,6 @@
 import type { UpdateInfo, UpdateStatus } from '@ant-chat/shared'
 import { useEffect, useState } from 'react'
-import { ipc } from '@/utils/ipc-bus'
+import { ipcRenderer } from '@/utils/ipc-bus'
 
 export function useUpdateNotification() {
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
@@ -33,12 +33,12 @@ export function useUpdateNotification() {
       }
     }
 
-    ipc.on('update:update-status-changed', handleUpdateStatusChanged)
-    ipc.on('update:update-error', handleUpdateError)
+    ipcRenderer.on('update:update-status-changed', handleUpdateStatusChanged)
+    ipcRenderer.on('update:update-error', handleUpdateError)
 
     return () => {
-      window.electron.ipcRenderer.removeAllListeners('update:update-status-changed')
-      window.electron.ipcRenderer.removeAllListeners('update:update-error')
+      ipcRenderer.removeAllListeners('update:update-status-changed')
+      ipcRenderer.removeAllListeners('update:update-error')
     }
   }, [])
 

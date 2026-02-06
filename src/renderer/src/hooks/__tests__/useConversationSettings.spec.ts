@@ -1,7 +1,7 @@
 /* eslint-disable import/first */
 import { act, renderHook } from '@testing-library/react'
-import { useConversationSettings } from '../useConversationSettings'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useConversationSettings } from '../useConversationSettings'
 
 // Mock dependencies
 vi.mock('@/store/conversation', () => ({

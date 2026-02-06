@@ -4,7 +4,7 @@ import { App, Button, Modal, Progress, Space, Typography } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
 import { updateApi } from '@/api/updateApi'
 import RenderMarkdown from '@/components/RenderMarkdown'
-import { ipc } from '@/utils/ipc-bus'
+import { ipcRenderer } from '@/utils/ipc-bus'
 
 const { Title, Text } = Typography
 
@@ -34,14 +34,14 @@ export function UpdateNotification({ updateInfo, visible, onClose }: UpdateNotif
       message.error(`更新失败: ${error?.message || error}`)
     }
 
-    ipc.on('update:download-progress', handleDownloadProgress)
-    ipc.on('update:update-downloaded', handleUpdateDownloaded)
-    ipc.on('update:update-error', handleUpdateError)
+    ipcRenderer.on('update:download-progress', handleDownloadProgress)
+    ipcRenderer.on('update:update-downloaded', handleUpdateDownloaded)
+    ipcRenderer.on('update:update-error', handleUpdateError)
 
     return () => {
-      window.electron.ipcRenderer.removeAllListeners('update:download-progress')
-      window.electron.ipcRenderer.removeAllListeners('update:update-downloaded')
-      window.electron.ipcRenderer.removeAllListeners('update:update-error')
+      ipcRenderer.removeAllListeners('update:download-progress')
+      ipcRenderer.removeAllListeners('update:update-downloaded')
+      ipcRenderer.removeAllListeners('update:update-error')
     }
   }, [])
 

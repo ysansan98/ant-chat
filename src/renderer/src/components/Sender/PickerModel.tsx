@@ -3,7 +3,7 @@ import { ControlOutlined, RightOutlined } from '@ant-design/icons'
 import { useRequest } from 'ahooks'
 import { Popover } from 'antd'
 import React from 'react'
-import { dbApi } from '@/api/dbApi'
+import { providerApi } from '@/api/providerApi'
 import { ModelParameterSettingsPanel } from './ModelParameterSettingsPanel'
 import { renderProviderLogo, SelectModel } from './SelectModel'
 
@@ -15,7 +15,7 @@ interface ModelControlPanelProps {
 export function ModelControlPanel({ value, onChange }: ModelControlPanelProps) {
   const [openPopover, setOpenPopover] = React.useState(false)
   const [panel, setPanel] = React.useState<'select' | 'parameter'>('select')
-  const { data } = useRequest<AllAvailableModelsSchema[], []>(dbApi.getAllAbvailableModels)
+  const { data } = useRequest<AllAvailableModelsSchema[], []>(providerApi.getAllAbvailableModels)
 
   const activeProviderServiceInfo = !value ? data?.[0] : data?.find(item => item.models.some(model => model.id === value))
   const currentModelInfo = activeProviderServiceInfo?.models.find(model => model.id === value)

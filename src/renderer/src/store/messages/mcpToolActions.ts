@@ -1,11 +1,11 @@
 import type { IMcpToolCall, IMessage, McpToolCallResponse, MessageId } from '@ant-chat/shared'
-import { dbApi } from '@/api/dbApi'
+import chatApi from '@/api/chatApi'
 import { executeMcpToolCall } from '@/api/mcpApi'
 import { addStreamingConversationId, removeStreamingConversationId } from '../conversation'
 import { updateMessageAction } from './actions'
 
 export async function setMcpToolCallexecuteState(id: MessageId, toolId: string, state: IMcpToolCall['executeState']) {
-  const message = await dbApi.getMessageById(id)
+  const message = await chatApi.getMessageById(id)
   if (!message) {
     throw new Error('message not found')
   }
@@ -63,7 +63,7 @@ export async function executeMcpToolAction(message: IMessage, tool: IMcpToolCall
   removeStreamingConversationId(message.convId)
 
   // 检查当前message.mcpTool是否都执行完了
-  const messageLatest = await dbApi.getMessageById(message.id)
+  const messageLatest = await chatApi.getMessageById(message.id)
   const isAllCompleted = messageLatest.mcpTool?.every(item => item.executeState === 'completed')
 
   return { isAllCompleted }

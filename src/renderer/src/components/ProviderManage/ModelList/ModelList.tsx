@@ -7,7 +7,7 @@ import {
 import { useRequest } from 'ahooks'
 import { App, Button, Empty } from 'antd'
 import React from 'react'
-import { dbApi } from '@/api/dbApi'
+import { providerApi } from '@/api/providerApi'
 import { AddModelFormModal } from './AddModelForm'
 
 export interface ModelListProps {
@@ -18,7 +18,7 @@ export function ModelList({ serviceProviderId }: ModelListProps) {
   const { message } = App.useApp()
   const [openAddModal, setAddModal] = React.useState(false)
   const { data, error, refresh, run, mutate } = useRequest(
-    dbApi.getModelsByServiceProviderId,
+    providerApi.getModelsByServiceProviderId,
     {
       defaultParams: [serviceProviderId],
     },
@@ -70,7 +70,7 @@ export function ModelList({ serviceProviderId }: ModelListProps) {
                       icon={<DeleteOutlined />}
                       onClick={async () => {
                         try {
-                          await dbApi.deleteServiceProviderModel(item.id)
+                          await providerApi.deleteServiceProviderModel(item.id)
                           message.success('删除成功')
                         }
                         catch (e: unknown) {
@@ -94,7 +94,7 @@ export function ModelList({ serviceProviderId }: ModelListProps) {
                       )
                 }
                 onClick={async () => {
-                  await dbApi.setModelEnabledStatus(item.id, !item.isEnabled)
+                  await providerApi.setModelEnabledStatus(item.id, !item.isEnabled)
                   refresh()
                 }}
               />
@@ -109,7 +109,7 @@ export function ModelList({ serviceProviderId }: ModelListProps) {
         onCancel={() => setAddModal(false)}
         onClose={() => setAddModal(false)}
         onSave={async (e) => {
-          dbApi
+          providerApi
             .addServiceProviderModel({
               ...e,
               serviceProviderId,

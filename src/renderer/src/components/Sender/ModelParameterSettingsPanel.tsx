@@ -1,7 +1,7 @@
 import type { ServiceProviderModelsSchema } from '@ant-chat/shared'
 import { Input, Slider } from 'antd'
 import { useEffect, useState } from 'react'
-import { dbApi } from '@/api/dbApi'
+import { providerApi } from '@/api/providerApi'
 import PromptIcon from '@/assets/icons/prompt.svg?react'
 import ReturnIcon from '@/assets/icons/return.svg?react'
 import TemperatureIcon from '@/assets/icons/temperature.svg?react'
@@ -14,7 +14,7 @@ export function ModelParameterSettingsPanel() {
 
   useEffect(() => {
     const fetchModelInfo = async () => {
-      const info = await dbApi.getModelInfoById(settings.modelId)
+      const info = await providerApi.getModelInfoById(settings.modelId)
       setModelInfo(info)
     }
     fetchModelInfo()
@@ -81,7 +81,7 @@ interface CustomSliderProps {
 export function CustomSlider({ defaultValue, min, max, step, value, onChange, formatter }: CustomSliderProps) {
   return (
     <div className="relative">
-      <div className="absolute top-0 right-0 translate-y-[-100%] text-xs">
+      <div className="absolute top-0 right-0 -translate-y-full text-xs">
         {formatter ? formatter(value) : value}
       </div>
       <Slider

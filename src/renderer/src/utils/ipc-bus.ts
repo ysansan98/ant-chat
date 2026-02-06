@@ -1,9 +1,10 @@
-import type { IpcEvents, IpcPaginatedResponse, IpcRendererEvent, IpcResponse } from '@ant-chat/shared'
-import { IpcEmitter, IpcListener } from '@electron-toolkit/typed-ipc/renderer'
+import type { IpcPaginatedResponse, IpcResponse } from '@ant-chat/shared'
+import type { IpcServices } from '@main/bridge'
+import { createIpcProxy } from 'electron-ipc-decorator/client'
 import { pick } from 'lodash-es'
 
-export const ipc = new IpcListener<IpcRendererEvent>()
-export const emitter = new IpcEmitter<IpcEvents>()
+export const ipc = createIpcProxy<IpcServices>(window.electron.ipcRenderer)!
+export const ipcRenderer = window.electron.ipcRenderer
 
 export function unwrapIpcResponse<T>(resp: IpcResponse<T> | IpcPaginatedResponse<T>): T {
   if (!resp.success) {

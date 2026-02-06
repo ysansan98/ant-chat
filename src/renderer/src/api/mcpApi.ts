@@ -1,10 +1,10 @@
-import type { McpConfigSchema, McpConnection, McpToolCall, McpToolCallResponse } from '@ant-chat/shared'
+import type { AddMcpConfigSchema, McpConfigSchema, McpConnection, McpTool, McpToolCall, McpToolCallResponse, UpdateMcpConfigSchema } from '@ant-chat/shared'
 import { uuid } from '@/utils'
-import { emitter, unwrapIpcResponse } from '@/utils/ipc-bus'
+import { ipc, unwrapIpcResponse } from '@/utils/ipc-bus'
 
 export async function getMcpServers(): Promise<McpConnection[]> {
   try {
-    return unwrapIpcResponse(await emitter.invoke('mcp:get-connections'))
+    return unwrapIpcResponse(await ipc.mcp.getConnections())
   }
   catch (e) {
     const error = e as Error
@@ -13,8 +13,28 @@ export async function getMcpServers(): Promise<McpConnection[]> {
   }
 }
 
-export async function getAllAvailableToolsList() {
-  return await emitter.invoke('mcp:get-all-available-tools-list')
+export async function getMcpConfigs(): Promise<McpConfigSchema[]> {
+  return unwrapIpcResponse(await ipc.mcp.getConfigs())
+}
+
+export async function getMcpConfigByServerName(serverName: string): Promise<McpConfigSchema> {
+  return unwrapIpcResponse(await ipc.mcp.getConfigByServerName(serverName))
+}
+
+export async function addMcpConfig(config: AddMcpConfigSchema): Promise<McpConfigSchema> {
+  return unwrapIpcResponse(await ipc.mcp.addConfig(config))
+}
+
+export async function updateMcpConfig(config: UpdateMcpConfigSchema): Promise<McpConfigSchema> {
+  return unwrapIpcResponse(await ipc.mcp.updateConfig(config))
+}
+
+export async function deleteMcpConfig(serverName: string): Promise<null> {
+  return unwrapIpcResponse(await ipc.mcp.deleteConfig(serverName))
+}
+
+export async function getAllAvailableToolsList(): Promise<McpTool[]> {
+  return unwrapIpcResponse(await ipc.mcp.getAllAvailableToolsList())
 }
 
 type CreateMcpToolCallOptions = Partial<Omit<McpToolCall, 'serverName' | 'toolName' | 'args'>> & Pick<McpToolCall, 'serverName' | 'toolName' | 'args'>
@@ -33,7 +53,7 @@ export function createMcpToolCall(options: CreateMcpToolCallOptions): McpToolCal
 
 export async function executeMcpToolCall(toolCall: McpToolCall): Promise<McpToolCallResponse> {
   const { serverName, toolName, args } = toolCall
-  const resp = await emitter.invoke('mcp:call-tool', serverName, toolName, args)
+  const resp = await ipc.mcp.callTool(serverName, toolName, args)
   if (resp.success) {
     return resp.data
   }
@@ -43,25 +63,26 @@ export async function executeMcpToolCall(toolCall: McpToolCall): Promise<McpTool
 export async function connectMcpServer(config: McpConfigSchema): Promise<[boolean, string]> {
   const { serverName } = config
 
-  const resp = await emitter.invoke('mcp:connect-mcp-server', serverName, config)
+  const resp = await ipc.mcp.connectMcpServer(serverName, config)
 
   return [resp.success, resp.success ? '' : resp.msg]
 }
 
 export async function disconnectMcpServer(name: string): Promise<boolean> {
-  return (await emitter.invoke('mcp:disconnect-mcp-server', name)).success
+  const resp = await ipc.mcp.disconnectMcpServer(name)
+  return resp.success
 }
 
 export async function reconnectMcpServer(config: McpConfigSchema): Promise<[boolean, string]> {
   const { serverName } = config
 
-  const resp = await emitter.invoke('mcp:reconnect-mcp-server', serverName, config)
+  const resp = await ipc.mcp.reconnectMcpServer(serverName, config)
 
   return [resp.success, resp.success ? '' : resp.msg]
 }
 
-export async function fetchMcpServerTools(name: string) {
-  const resp = await emitter.invoke('mcp:fetch-mcp-server-tools', name)
+export async function fetchMcpServerTools(name: string): Promise<McpTool[]> {
+  const resp = await ipc.mcp.fetchMcpServerTools(name)
   if (resp.success) {
     return resp.data
   }

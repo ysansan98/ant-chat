@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid'
-import { emitter } from './ipc-bus'
+import { ipc } from './ipc-bus'
 
 export function debounce<T extends (...args: any[]) => void>(func: T, delay: number): (...args: Parameters<T>) => void {
   let timeoutId: ReturnType<typeof setTimeout>
@@ -19,7 +19,7 @@ export function uuid(prefix?: string) {
 }
 
 export async function clipboardWrite(data: Electron.Data) {
-  return await emitter.invoke('common:clipboard-write', data)
+  return await ipc.app.clipboardWrite(data)
 }
 
 export function getSystemPlatform() {
@@ -27,13 +27,13 @@ export function getSystemPlatform() {
 }
 
 export function minimizeWindow() {
-  emitter.send('common:minimize-window')
+  void ipc.app.minimizeWindow()
 }
 
 export function maximizeOrRestoreWindow() {
-  emitter.send('common:maximize-or-resore-window')
+  void ipc.app.maximizeOrRestoreWindow()
 }
 
 export function quitApp() {
-  emitter.send('common:quit-app')
+  void ipc.app.quitApp()
 }

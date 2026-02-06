@@ -3,7 +3,6 @@ import type { AntChatFileStructure } from '@/constants'
 import { produce } from 'immer'
 import chatApi from '@/api/chatApi'
 import { useGeneralSettingsStore } from '@/store/generalSettings'
-import { dbApi } from '@/api/dbApi'
 import { setActiveConversationsId } from '../messages'
 import { useConversationsStore } from './conversationsStore'
 
@@ -12,7 +11,7 @@ export function getConversationByIdAction(id: string) {
 }
 
 export async function addConversationsAction(conversation: AddConversationsSchema) {
-  const data = await dbApi.addConversation(conversation)
+  const data = await chatApi.addConversation(conversation)
 
   useConversationsStore.setState(state => produce(state, (draft) => {
     draft.conversations.splice(0, 0, data)
@@ -24,7 +23,7 @@ export async function addConversationsAction(conversation: AddConversationsSchem
 export async function renameConversationsAction(id: ConversationsId, title: string) {
   // await renameConversations(id, title)
 
-  const data = await dbApi.updateConversation({ id, title })
+  const data = await chatApi.updateConversation({ id, title })
 
   useConversationsStore.setState(state => produce(state, (draft) => {
     const index = draft.conversations.findIndex(c => c.id === id)
@@ -35,7 +34,7 @@ export async function renameConversationsAction(id: ConversationsId, title: stri
 }
 
 export async function deleteConversationsAction(id: ConversationsId) {
-  await dbApi.deleteConversation(id)
+  await chatApi.deleteConversation(id)
 
   setActiveConversationsId('')
 
@@ -59,7 +58,7 @@ export async function clearConversationsAction() {
 
 export async function nextPageConversationsAction() {
   const { pageIndex, pageSize } = useConversationsStore.getState()
-  const { data: conversations, total } = await dbApi.getConversations(pageIndex, pageSize)
+  const { data: conversations, total } = await chatApi.getConversations(pageIndex, pageSize)
 
   useConversationsStore.setState(state => produce(state, (draft) => {
     draft.conversations.push(...conversations)
@@ -105,10 +104,10 @@ export async function initConversationsTitle(conversationsId: string) {
 
 export async function updateConversationsSettingsAction(id: ConversationsId, config: Partial<ConversationsSettingsSchema>) {
   const { systemPrompt } = config
-  const conversations = await dbApi.getConversationById(id)
+  const conversations = await chatApi.getConversationById(id)
 
   if (systemPrompt && conversations.settings?.systemPrompt !== systemPrompt) {
-    await dbApi.updateConversation({ id, settings: { ...conversations.settings, ...config } })
+    await chatApi.updateConversation({ id, settings: { ...conversations.settings, ...config } })
   }
 
   useConversationsStore.setState(state => produce(state, (draft) => {

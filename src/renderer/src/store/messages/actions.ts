@@ -1,13 +1,12 @@
 import type { ChatFeatures, ConversationsId, ConversationsSettingsSchema, IMessage, MessageId } from '@ant-chat/shared'
 import { produce } from 'immer'
 import chatApi from '@/api/chatApi'
-import { dbApi } from '@/api/dbApi'
 import { useConversationsStore } from '../conversation/conversationsStore'
 import { useMessagesStore } from './store'
 
 export async function setActiveConversationsId(id: ConversationsId | '') {
   const { pageSize } = useMessagesStore.getState()
-  const { data: messages, total } = await dbApi.getMessagesByConvIdWithPagination(id, 0, pageSize)
+  const { data: messages, total } = await chatApi.getMessagesByConvIdWithPagination(id, 0, pageSize)
 
   useMessagesStore.setState(state => produce(state, (draft) => {
     draft.activeConversationsId = id as ConversationsId
@@ -19,7 +18,7 @@ export async function setActiveConversationsId(id: ConversationsId | '') {
 }
 
 export async function addMessageAction(message: IMessage) {
-  const data = await dbApi.addMessage(message)
+  const data = await chatApi.addMessage(message)
 
   useMessagesStore.setState(state => produce(state, (draft) => {
     draft.messages.push({ ...data })
@@ -29,7 +28,7 @@ export async function addMessageAction(message: IMessage) {
 }
 
 export async function deleteMessageAction(messageId: MessageId) {
-  await dbApi.deleteMessage(messageId)
+  await chatApi.deleteMessage(messageId)
 
   useMessagesStore.setState(state => produce(state, (draft) => {
     const index = draft.messages.findIndex(m => m.id === messageId)
@@ -40,7 +39,7 @@ export async function deleteMessageAction(messageId: MessageId) {
 }
 
 export async function updateMessageAction(_message: IMessage) {
-  const message = await dbApi.updateMessage(_message)
+  const message = await chatApi.updateMessage(_message)
 
   useMessagesStore.setState(state => produce(state, (draft) => {
     const index = draft.messages.findIndex(m => m.id === message.id)
@@ -103,7 +102,7 @@ export async function refreshRequestAction(conversationId: ConversationsId, mess
 
 export async function nextPageMessagesAction(conversationsId: ConversationsId) {
   const { pageIndex, pageSize } = useMessagesStore.getState()
-  const { data: messages, total } = await dbApi.getMessagesByConvIdWithPagination(conversationsId, pageIndex, pageSize)
+  const { data: messages, total } = await chatApi.getMessagesByConvIdWithPagination(conversationsId, pageIndex, pageSize)
 
   useMessagesStore.setState(state => produce(state, (draft) => {
     draft.messages.splice(0, 0, ...messages)

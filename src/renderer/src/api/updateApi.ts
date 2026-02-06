@@ -1,5 +1,5 @@
 import type { UpdateConfig, UpdateInfo, UpdateStatus } from '@ant-chat/shared'
-import { emitter, unwrapIpcResponse } from '@/utils/ipc-bus'
+import { ipc, unwrapIpcResponse } from '@/utils/ipc-bus'
 
 export interface UpdateAPI {
   getCurrentVersion: () => Promise<string>
@@ -15,44 +15,38 @@ export interface UpdateAPI {
 
 export const updateApi: UpdateAPI = {
   getCurrentVersion: async () => {
-    const response = await emitter.invoke('update:get-current-version')
-    return unwrapIpcResponse(response)
+    return unwrapIpcResponse(await ipc.update.getCurrentVersion())
   },
 
   checkForUpdates: async () => {
-    const response = await emitter.invoke('update:check-for-updates-manual')
-    return unwrapIpcResponse(response)
+    return unwrapIpcResponse(await ipc.update.checkForUpdatesManual())
   },
 
   getUpdateConfig: async () => {
-    const response = await emitter.invoke('update:get-update-config')
-    return unwrapIpcResponse(response)
+    return unwrapIpcResponse(await ipc.update.getUpdateConfig())
   },
 
   setUpdateConfig: async (config: UpdateConfig) => {
-    const response = await emitter.invoke('update:set-update-config', config)
-    return unwrapIpcResponse(response)
+    return unwrapIpcResponse(await ipc.update.setUpdateConfig(config))
   },
 
   downloadUpdate: async () => {
-    const response = await emitter.invoke('update:download-update')
-    return unwrapIpcResponse(response)
+    return unwrapIpcResponse(await ipc.update.downloadUpdate())
   },
 
   getUpdateStatus: async () => {
-    const response = await emitter.invoke('update:get-update-status')
-    return unwrapIpcResponse(response)
+    return unwrapIpcResponse(await ipc.update.getUpdateStatus())
   },
 
   quitAndInstall: () => {
-    emitter.send('update:quit-and-install')
+    void ipc.update.quitAndInstall()
   },
 
   cancelDownload: () => {
-    emitter.send('update:cancel-download')
+    void ipc.update.cancelDownload()
   },
 
   checkForUpdatesManual: () => {
-    emitter.send('update:check-for-updates')
+    void ipc.update.checkForUpdates()
   },
 }
