@@ -28,7 +28,11 @@
     "clean": "rm -rf node_modules out release && pnpm -r clean"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.36",
+    "@ai-sdk/google": "^3.0.20",
+    "@ai-sdk/openai": "^3.0.25",
     "@google/genai": "^1.32.0",
+    "ai": "^6.0.69",
     "better-sqlite3": "^11.10.0",
     "drizzle-orm": "^0.40.0",
     "electron-log": "^5.4.0",
@@ -38,6 +42,7 @@
     "undici": "^7.15.0"
   },
   "devDependencies": {
+    "@ai-sdk/deepseek": "^2.0.17",
     "@ant-chat/mcp-client-hub": "workspace:*",
     "@ant-chat/shared": "workspace:*",
     "@ant-design/icons": "^6.1.0",
@@ -93,7 +98,7 @@
     "katex": "^0.16.28",
     "lint-staged": "^15.3.0",
     "lodash-es": "^4.17.21",
-    "markstream-react": "^0.0.19",
+    "markstream-react": "^0.0.20-beta.1",
     "mermaid": "^11.5.0",
     "motion": "^12.23.5",
     "nanoid": "^5.0.9",
@@ -101,7 +106,6 @@
     "react-dom": "^19.2.0",
     "react-router": "^7.5.3",
     "react-scan": "^0.3.4",
-    "sass": "^1.85.0",
     "stream-markdown": "^0.0.13",
     "stream-monaco": "^0.0.18",
     "tailwindcss": "^4.1.11",
