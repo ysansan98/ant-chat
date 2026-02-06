@@ -1,7 +1,7 @@
 import { NodeRenderer, setDefaultI18nMap, setKaTeXWorker, setMermaidWorker } from 'markstream-react'
 import KatexWorker from 'markstream-react/workers/katexRenderer.worker?worker&inline'
 import MermaidWorker from 'markstream-react/workers/mermaidParser.worker?worker&inline'
-import React from 'react'
+import React, { useId } from 'react'
 import 'katex/dist/katex.min.css'
 
 export interface RenderMarkdownProps {
@@ -31,8 +31,16 @@ setDefaultI18nMap({
   'image.loading': '图片加载中...',
 })
 
-function RenderMarkdown({ content, final = false }: RenderMarkdownProps) {
-  return <NodeRenderer content={content} final={final} />
+function RenderMarkdown({ content }: RenderMarkdownProps) {
+  const customId = useId()
+
+  return (
+    <NodeRenderer
+      content={content}
+      indexKey={customId}
+      viewportPriority={false}
+    />
+  )
 }
 
 export default React.memo(RenderMarkdown)
