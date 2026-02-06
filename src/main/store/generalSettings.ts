@@ -37,7 +37,7 @@ const schema = {
   },
 }
 
-console.error('schema', schema, Store)
+// console.error('schema', schema, Store)
 
 export class GeneralSettingsStore {
   private static instance: GeneralSettingsStore

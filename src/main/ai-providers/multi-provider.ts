@@ -283,7 +283,7 @@ export class MultiProvider {
     const { context, model } = options
 
     try {
-      const result = await streamText({
+      const result = streamText({
         model: this.createModelClient(model),
         prompt: context,
       })

@@ -1,4 +1,4 @@
-import type { CreateConversationTitleOptions, handleChatCompletionsOptions, handleInitConversationTitleOptions, MessageContent, SendChatCompletionsOptions, TextContent } from '@ant-chat/shared'
+import type { CreateConversationTitleOptions, handleChatCompletionsOptions, handleInitConversationTitleOptions, McpToolCall, MessageContent, SendChatCompletionsOptions, TextContent } from '@ant-chat/shared'
 import type { MultiProvider } from '../multi-provider'
 import { createAIMessage, getMessagesByConvId, getModelById, getProviderServiceById, getServiceProviderByModelId, updateMessage } from '@main/db/services'
 import { clientHub } from '@main/mcpClientHub'
@@ -13,7 +13,7 @@ import { formatMessagesForContext } from './utils'
 interface StreamChunk {
   content: MessageContent
   reasoningContent?: string
-  functionCalls?: any[]
+  functionCalls?: McpToolCall[]
 }
 
 class ChatService {
@@ -34,7 +34,7 @@ class ChatService {
       throw new Error('AI provider not set')
     }
 
-    return await this.aiProvider.sendChatCompletions(options)
+    return this.aiProvider.sendChatCompletions(options)
   }
 
   async createConversationTitle(options: CreateConversationTitleOptions) {
@@ -63,7 +63,7 @@ export async function handleChatCompletions(options: handleChatCompletionsOption
     throw new Error(`Model not found for id: ${chatSettings.modelId}`)
   }
 
-  const providerServiceInfo = await getProviderServiceById(modelInfo?.serviceProviderId || '')
+  const providerServiceInfo = getProviderServiceById(modelInfo?.serviceProviderId || '')
   if (!providerServiceInfo) {
     throw new Error(`ServiceProvider not found for modelId: ${modelInfo.id}`)
   }
@@ -72,7 +72,7 @@ export async function handleChatCompletions(options: handleChatCompletionsOption
 
   const chatService = new ChatService()
 
-  chatService.initializeProvider(modelInfo.serviceProviderId)
+  await chatService.initializeProvider(modelInfo.serviceProviderId)
   const mcpTools = clientHub.getAllAvailableToolsList()
   logger.info('Available MCP tools:', mcpTools.map(tool => tool.name))
   const mainWindow = getMainWindow()
@@ -108,7 +108,7 @@ export async function handleChatCompletions(options: handleChatCompletionsOption
     )
   }
   catch (e) {
-    console.error('throw error for sendChatCompletions', e)
+    logger.error('throw error for sendChatCompletions', e)
     aiMessage.content.push({ type: 'error', error: (e as Error).message })
     const errorMessage = await updateMessage({ ...aiMessage, role: 'assistant', status: 'error' })
     mainEmitter.send(mainWindow.webContents, 'chat:stream-message', errorMessage)
@@ -138,7 +138,6 @@ export async function handleChatCompletions(options: handleChatCompletionsOption
       }
 
       if (functionCalls) {
-        logger.debug('functionCalls => ', functionCalls.length)
         aiMessage.mcpTool = functionCalls
       }
 
@@ -152,7 +151,6 @@ export async function handleChatCompletions(options: handleChatCompletionsOption
       // 将最新的消息推送给前端
       mainEmitter.send(mainWindow.webContents, 'chat:stream-message', updatedMessage)
       logger.debug('chat:stream-message:', JSON.stringify(updatedMessage))
-      // console.log('chat:stream-message:', JSON.stringify(updatedMessage, null, 2))
     }
   }
   catch (e) {
@@ -185,7 +183,7 @@ export async function handleInitConversationTitle(options: handleInitConversatio
   const messages = await getMessagesByConvId(conversationsId)
 
   const chatService = new ChatService()
-  chatService.initializeProvider(serviceProvider?.id)
+  await chatService.initializeProvider(serviceProvider?.id)
 
   const context = formatMessagesForContext(messages)
 

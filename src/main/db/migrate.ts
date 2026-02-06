@@ -1,8 +1,8 @@
 import path from 'node:path'
-import { logger } from '@main/utils/logger'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
+import { logger } from '../utils/logger'
 import * as schema from './schema'
 
 logger.debug('开始执行数据库迁移...')
