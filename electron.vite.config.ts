@@ -24,7 +24,7 @@ export default defineConfig(({ command, mode }) => {
       },
       build: {
         minify: !isDev,
-        sourcemap: isDev ? 'inline' : false,
+        sourcemap: !!isDev,
         rollupOptions: {
           external: ['better-sqlite3'],
           output: {
@@ -39,7 +39,7 @@ export default defineConfig(({ command, mode }) => {
     preload: {
       build: {
         minify: !isDev,
-        sourcemap: isDev ? 'inline' : false,
+        sourcemap: !!isDev,
       },
     },
     renderer: {
@@ -66,7 +66,7 @@ export default defineConfig(({ command, mode }) => {
       ],
       build: {
         minify: !isDev,
-        sourcemap: isDev ? 'inline' : false,
+        sourcemap: !!isDev,
       },
     },
   }
