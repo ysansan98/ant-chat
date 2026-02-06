@@ -1,6 +1,6 @@
-import { mockDb } from './utils'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { addMcpConfig, getMcpConfigs } from '../mcpConfigs'
+import { mockDb } from './utils'
 
 describe('mcpConfigs service', () => {
   beforeEach(async () => {

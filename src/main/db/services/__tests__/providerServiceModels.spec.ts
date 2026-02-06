@@ -1,7 +1,7 @@
-import { mockDb } from './utils'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { getAllAvailableModels, getModelsByServiceProviderId } from '../serviceProviderModels'
 import { createProviderService, createProviderServiceModel } from './factory'
+import { mockDb } from './utils'
 
 describe('serviceProviderModels', () => {
   beforeEach(async () => {

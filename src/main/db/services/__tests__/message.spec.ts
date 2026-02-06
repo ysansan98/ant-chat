@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { mockDb } from './utils'
-import { createMessage } from './factory'
 import { updateMessage } from '../message'
+import { createMessage } from './factory'
+import { mockDb } from './utils'
 
 describe('message service', () => {
   beforeEach(async () => {

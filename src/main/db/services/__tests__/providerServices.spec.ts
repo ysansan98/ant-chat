@@ -1,8 +1,8 @@
-import { mockDb } from './utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { initializeTestDb } from '../../db'
 import { addProviderService, deleteProviderService, getProviderServiceById, updateProviderService } from '../serviceProvider'
 import { addServiceProviderModel, getModelsByServiceProviderId } from '../serviceProviderModels'
+import { mockDb } from './utils'
 
 describe('serviceProvider', () => {
   beforeEach(async () => {
