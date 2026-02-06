@@ -3,6 +3,7 @@
   "compilerOptions": {
     "composite": true,
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
+    "experimentalDecorators": true,
     "baseUrl": ".",
     "moduleResolution": "bundler",
     "paths": {
