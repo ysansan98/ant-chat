@@ -2,6 +2,7 @@ import type { AddConversationsSchema, ConversationsId, ConversationsSettingsSche
 import type { AntChatFileStructure } from '@/constants'
 import { produce } from 'immer'
 import chatApi from '@/api/chatApi'
+import { useGeneralSettingsStore } from '@/store/generalSettings'
 import { dbApi } from '@/api/dbApi'
 import { setActiveConversationsId } from '../messages'
 import { useConversationsStore } from './conversationsStore'
@@ -72,7 +73,20 @@ export async function nextPageConversationsAction() {
 }
 
 export async function initConversationsTitle(conversationsId: string) {
-  const resp = await chatApi.initConversationsTitle(conversationsId)
+  const { assistantModelId } = useGeneralSettingsStore.getState()
+  let modelId = assistantModelId
+
+  if (!modelId) {
+    const conversation = getConversationByIdAction(conversationsId)
+    modelId = conversation?.settings?.modelId || ''
+  }
+
+  if (!modelId) {
+    console.error('initConversationsTitle fail. empty modelId. id => ', conversationsId)
+    return
+  }
+
+  const resp = await chatApi.initConversationsTitle(conversationsId, modelId)
 
   if (!resp.success) {
     console.error('initConversationsTitle fail. id => ', conversationsId)
