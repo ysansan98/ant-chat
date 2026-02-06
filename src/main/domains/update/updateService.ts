@@ -1,7 +1,7 @@
 import type { ProgressInfo, UpdateConfig, UpdateInfo, UpdateStatus } from '@ant-chat/shared'
 import { UpdateConfigStore } from '@main/store/updateSettings'
 import { isDev } from '@main/utils/env'
-import { mainEmitter } from '@main/utils/ipc-events-bus'
+import { sendToRenderer } from '@main/utils/ipc-events'
 import { logger } from '@main/utils/logger'
 import { UpdateErrorHandler } from '@main/utils/updateErrorHandler'
 import { app } from 'electron'
@@ -347,7 +347,7 @@ export class UpdateService {
    * 发送状态更新事件
    */
   private emitStatusUpdate(): void {
-    mainEmitter.send(this.getMainWindow().webContents, 'update:update-status-changed', {
+    sendToRenderer(this.getMainWindow().webContents, 'update:update-status-changed', {
       status: this.currentStatus,
       updateInfo: this.updateInfo,
     })
@@ -357,21 +357,21 @@ export class UpdateService {
    * 发送进度更新事件
    */
   private emitProgressUpdate(progress: ProgressInfo): void {
-    mainEmitter.send(this.getMainWindow().webContents, 'update:download-progress', progress)
+    sendToRenderer(this.getMainWindow().webContents, 'update:download-progress', progress)
   }
 
   /**
    * 发送下载完成事件
    */
   private emitUpdateDownloaded(): void {
-    mainEmitter.send(this.getMainWindow().webContents, 'update:update-downloaded', this.updateInfo!)
+    sendToRenderer(this.getMainWindow().webContents, 'update:update-downloaded', this.updateInfo!)
   }
 
   /**
    * 发送错误更新事件
    */
   private emitErrorUpdate(error: any): void {
-    mainEmitter.send(this.getMainWindow().webContents, 'update:update-error', error)
+    sendToRenderer(this.getMainWindow().webContents, 'update:update-error', error)
   }
 
   /**

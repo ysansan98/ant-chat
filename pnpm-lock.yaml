@@ -35,6 +35,9 @@ importers:
       drizzle-orm:
         specifier: ^0.40.0
         version: 0.40.1(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(better-sqlite3@11.10.0)
+      electron-ipc-decorator:
+        specifier: ^1.0.0
+        version: 1.0.0(electron@36.9.5)
       electron-log:
         specifier: ^5.4.0
         version: 5.4.3
@@ -243,9 +246,6 @@ importers:
       react-scan:
         specifier: ^0.3.4
         version: 0.3.6(@types/react@19.2.9)(react-dom@19.2.3(react@19.2.3))(react-router@7.13.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)(rollup@4.56.0)
-      sass:
-        specifier: ^1.85.0
-        version: 1.97.3
       stream-markdown:
         specifier: ^0.0.13
         version: 0.0.13(shiki@3.21.0)
@@ -4424,6 +4424,12 @@ packages:
 
   electron-devtools-installer@4.0.0:
     resolution: {integrity: sha512-9Tntu/jtfSn0n6N/ZI6IdvRqXpDyLQiDuuIbsBI+dL+1Ef7C8J2JwByw58P3TJiNeuqyV3ZkphpNWuZK5iSY2w==}
+
+  electron-ipc-decorator@1.0.0:
+    resolution: {integrity: sha512-4Q27hZ1n6iVEjKSIXxE/09WYE9a08QwAY2eZu5s1e7tl4kH5EmR0+zxHzaBULqT7ufdBT+mDOralYEpl7YYtow==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      electron: '>=32.0.0'
 
   electron-log@5.4.3:
     resolution: {integrity: sha512-sOUsM3LjZdugatazSQ/XTyNcw8dfvH1SYhXWiJyfYodAAKOZdHs0txPiLDXFzOZbhXgAgshQkshH2ccq0feyLQ==}
@@ -12292,6 +12298,7 @@ snapshots:
   chokidar@4.0.3:
     dependencies:
       readdirp: 4.1.2
+    optional: true
 
   chownr@1.1.4: {}
 
@@ -13003,6 +13010,10 @@ snapshots:
   electron-devtools-installer@4.0.0:
     dependencies:
       unzip-crx-3: 0.2.0
+
+  electron-ipc-decorator@1.0.0(electron@36.9.5):
+    dependencies:
+      electron: 36.9.5
 
   electron-log@5.4.3: {}
 
@@ -14434,7 +14445,8 @@ snapshots:
 
   immer@10.2.0: {}
 
-  immutable@5.1.4: {}
+  immutable@5.1.4:
+    optional: true
 
   import-fresh@3.3.1:
     dependencies:
@@ -16497,7 +16509,8 @@ snapshots:
       string_decoder: 1.3.0
       util-deprecate: 1.0.2
 
-  readdirp@4.1.2: {}
+  readdirp@4.1.2:
+    optional: true
 
   recma-build-jsx@1.0.0:
     dependencies:
@@ -16815,6 +16828,7 @@ snapshots:
       source-map-js: 1.2.1
     optionalDependencies:
       '@parcel/watcher': 2.5.6
+    optional: true
 
   sax@1.4.4: {}
 

@@ -2,7 +2,7 @@ import type { CreateConversationTitleOptions, handleChatCompletionsOptions, hand
 import type { MultiProvider } from '../multi-provider'
 import { createAIMessage, getMessagesByConvId, getModelById, getProviderServiceById, getServiceProviderByModelId, updateMessage } from '@main/db/services'
 import { clientHub } from '@main/mcpClientHub'
-import { mainEmitter } from '@main/utils/ipc-events-bus'
+import { sendToRenderer } from '@main/utils/ipc-events'
 import { logger } from '@main/utils/logger'
 import { getMainWindow } from '@main/window'
 import { createProvider } from '../factory'
@@ -89,7 +89,7 @@ export async function handleChatCompletions(options: handleChatCompletionsOption
     },
   )
 
-  mainEmitter.send(mainWindow.webContents, 'chat:stream-message', aiMessage)
+  sendToRenderer(mainWindow.webContents, 'chat:stream-message', aiMessage)
 
   let stream: AsyncIterable<StreamChunk> | null = null
   const streamAbortController = new StreamAbortController(conversationsId)
@@ -111,7 +111,7 @@ export async function handleChatCompletions(options: handleChatCompletionsOption
     logger.error('throw error for sendChatCompletions', e)
     aiMessage.content.push({ type: 'error', error: (e as Error).message })
     const errorMessage = await updateMessage({ ...aiMessage, role: 'assistant', status: 'error' })
-    mainEmitter.send(mainWindow.webContents, 'chat:stream-message', errorMessage)
+    sendToRenderer(mainWindow.webContents, 'chat:stream-message', errorMessage)
     return
   }
 
@@ -149,20 +149,20 @@ export async function handleChatCompletions(options: handleChatCompletionsOption
       })
 
       // 将最新的消息推送给前端
-      mainEmitter.send(mainWindow.webContents, 'chat:stream-message', updatedMessage)
+      sendToRenderer(mainWindow.webContents, 'chat:stream-message', updatedMessage)
       logger.debug('chat:stream-message:', JSON.stringify(updatedMessage))
     }
   }
   catch (e) {
     aiMessage.content.push({ type: 'error', error: (e as Error).message })
     const errorMessage = await updateMessage({ ...aiMessage, role: 'assistant', status: 'error' })
-    mainEmitter.send(mainWindow.webContents, 'chat:stream-message', errorMessage)
+    sendToRenderer(mainWindow.webContents, 'chat:stream-message', errorMessage)
     return
   }
 
   const finalMessage = await updateMessage({ id: aiMessage.id, role: 'assistant', status: 'success' })
 
-  mainEmitter.send(mainWindow.webContents, 'chat:stream-message', { ...finalMessage, status: 'success' })
+  sendToRenderer(mainWindow.webContents, 'chat:stream-message', { ...finalMessage, status: 'success' })
 }
 
 export async function handleInitConversationTitle(options: handleInitConversationTitleOptions) {

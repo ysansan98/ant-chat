@@ -1,5 +1,5 @@
 import type { NotificationOption } from '@ant-chat/shared'
-import { mainEmitter } from '../utils/ipc-events-bus'
+import { sendToRenderer } from '../utils/ipc-events'
 import { getMainWindow } from '../window'
 import { logger } from './logger'
 
@@ -27,6 +27,6 @@ function notification(option: NotificationOption) {
   const window = getMainWindow()
   if (window) {
     logger.debug('send NOTIFICATION', JSON.stringify(option))
-    mainEmitter.send(window.webContents, 'common:Notification', option)
+    sendToRenderer(window.webContents, 'common:Notification', option)
   }
 }

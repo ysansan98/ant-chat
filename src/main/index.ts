@@ -1,15 +1,13 @@
 import process from 'node:process'
 import { app } from 'electron'
 import { initializeDb } from './db'
-import { registerIpcEvents } from './ipcHandlers'
-import { registerMcpHandlers } from './ipcHandlers/mcpHandlers'
-import { clientHub } from './mcpClientHub'
+import { UpdateService } from './domains/update/updateService'
 import { installDevTools } from './plugins/devtools'
-import { UpdateService } from './services'
 import { isDev } from './utils/env'
 import { logger } from './utils/logger'
 import { initializeProxy } from './utils/proxy-manager'
 import { MainWindow } from './window'
+import './bridge'
 
 const __dirname = process.cwd()
 
@@ -29,14 +27,10 @@ app.whenReady().then(async () => {
 
   const mainWindow = new MainWindow()
   await mainWindow.createWindow()
-  registerIpcEvents(mainWindow.getWindow()!)
 
   // 初始化更新服务
   const updateService = UpdateService.getInstance()
   updateService.initialize(mainWindow.getWindow()!)
-
-  // 初始化 MCP 服务
-  registerMcpHandlers(clientHub)
 
   app.on('activate', () => {
     if (!mainWindow.getWindow()) {

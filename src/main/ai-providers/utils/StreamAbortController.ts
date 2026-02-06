@@ -1,4 +1,4 @@
-import { mainEmitter } from '@main/utils/ipc-events-bus'
+import { sendToRenderer } from '@main/utils/ipc-events'
 import { getMainWindow } from '@main/window'
 
 const streamAbortControllerMapping = new Map<string, StreamAbortController>()
@@ -19,7 +19,7 @@ export class StreamAbortController extends AbortController {
       super.abort(reason)
       throw new Error('not found mainWindow')
     }
-    mainEmitter.send(mainWindow.webContents, 'chat:stream-canceled', this.conversationsId)
+    sendToRenderer(mainWindow.webContents, 'chat:stream-canceled', this.conversationsId)
     streamAbortControllerMapping.delete(this.conversationsId)
     // 再调用父类 abort
     super.abort(reason)

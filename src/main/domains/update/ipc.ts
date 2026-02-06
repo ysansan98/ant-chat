@@ -1,29 +1,32 @@
+import type { IpcResponse, UpdateConfig, UpdateInfo, UpdateStatus } from '@ant-chat/shared'
 import { createErrorIpcResponse, createIpcResponse } from '@ant-chat/shared'
-import { UpdateService } from '@main/services/UpdateService'
+import { UpdateService } from '@main/domains/update/updateService'
 import { UpdateConfigStore } from '@main/store/updateSettings'
-import { mainListener } from '@main/utils/ipc-events-bus'
 import { logger } from '@main/utils/logger'
 import { UpdateErrorHandler } from '@main/utils/updateErrorHandler'
+import { IpcMethod, IpcService } from 'electron-ipc-decorator'
 
-export function registerUpdateHandlers() {
-  const updateService = UpdateService.getInstance()
-  const updateConfigStore = UpdateConfigStore.getInstance()
+export class UpdateIpcService extends IpcService {
+  static readonly groupName = 'update'
 
-  // 获取当前版本
-  mainListener.handle('update:get-current-version', async () => {
+  private readonly updateService = UpdateService.getInstance()
+  private readonly updateConfigStore = UpdateConfigStore.getInstance()
+
+  @IpcMethod()
+  async getCurrentVersion(): Promise<IpcResponse<string>> {
     try {
-      const version = updateService.getCurrentVersion()
+      const version = this.updateService.getCurrentVersion()
       return createIpcResponse(true, version)
     }
     catch (error) {
       return createErrorIpcResponse(error instanceof Error ? error : String(error))
     }
-  })
+  }
 
-  // 手动检查更新
-  mainListener.handle('update:check-for-updates-manual', async () => {
+  @IpcMethod()
+  async checkForUpdatesManual(): Promise<IpcResponse<UpdateInfo | null>> {
     try {
-      const updateInfo = await updateService.checkForUpdates()
+      const updateInfo = await this.updateService.checkForUpdates()
       return createIpcResponse(true, updateInfo)
     }
     catch (error) {
@@ -31,34 +34,34 @@ export function registerUpdateHandlers() {
       logger.error('手动检查更新失败:', updateError)
       return createErrorIpcResponse(updateError.userMessage)
     }
-  })
+  }
 
-  // 获取更新配置
-  mainListener.handle('update:get-update-config', async () => {
+  @IpcMethod()
+  async getUpdateConfig(): Promise<IpcResponse<UpdateConfig>> {
     try {
-      const config = updateConfigStore.getConfig()
+      const config = this.updateConfigStore.getConfig()
       return createIpcResponse(true, config)
     }
     catch (error) {
       return createErrorIpcResponse(error instanceof Error ? error : String(error))
     }
-  })
+  }
 
-  // 设置更新配置
-  mainListener.handle('update:set-update-config', async (_, config) => {
+  @IpcMethod()
+  async setUpdateConfig(config: UpdateConfig): Promise<IpcResponse<UpdateConfig>> {
     try {
-      const updatedConfig = updateService.updateConfig(config)
+      const updatedConfig = this.updateService.updateConfig(config)
       return createIpcResponse(true, updatedConfig)
     }
     catch (error) {
       return createErrorIpcResponse(error instanceof Error ? error : String(error))
     }
-  })
+  }
 
-  // 下载更新
-  mainListener.handle('update:download-update', async () => {
+  @IpcMethod()
+  async downloadUpdate(): Promise<IpcResponse<null>> {
     try {
-      await updateService.downloadUpdate()
+      await this.updateService.downloadUpdate()
       return createIpcResponse(true, null)
     }
     catch (error) {
@@ -66,49 +69,49 @@ export function registerUpdateHandlers() {
       logger.error('下载更新失败:', updateError)
       return createErrorIpcResponse(updateError.userMessage)
     }
-  })
+  }
 
-  // 获取更新状态
-  mainListener.handle('update:get-update-status', async () => {
+  @IpcMethod()
+  async getUpdateStatus(): Promise<IpcResponse<UpdateStatus>> {
     try {
-      const status = updateService.getUpdateStatus()
+      const status = this.updateService.getUpdateStatus()
       return createIpcResponse(true, status)
     }
     catch (error) {
       return createErrorIpcResponse(error instanceof Error ? error : String(error))
     }
-  })
+  }
 
-  // 检查更新（自动触发）
-  mainListener.on('update:check-for-updates', async () => {
+  @IpcMethod()
+  async checkForUpdates(): Promise<void> {
     try {
-      await updateService.checkForUpdates()
+      await this.updateService.checkForUpdates()
     }
     catch (error) {
       const updateError = UpdateErrorHandler.handleError(error, '自动检查更新')
       logger.error('自动检查更新失败:', updateError)
     }
-  })
+  }
 
-  // 退出并安装更新
-  mainListener.on('update:quit-and-install', async () => {
+  @IpcMethod()
+  async quitAndInstall(): Promise<void> {
     try {
-      updateService.quitAndInstall()
+      this.updateService.quitAndInstall()
     }
     catch (error) {
       const updateError = UpdateErrorHandler.handleError(error, '退出并安装')
       logger.error('退出并安装失败:', updateError)
     }
-  })
+  }
 
-  // 取消下载
-  mainListener.on('update:cancel-download', async () => {
+  @IpcMethod()
+  async cancelDownload(): Promise<void> {
     try {
-      updateService.cancelDownload()
+      this.updateService.cancelDownload()
     }
     catch (error) {
       const updateError = UpdateErrorHandler.handleError(error, '取消下载')
       logger.error('取消下载失败:', updateError)
     }
-  })
+  }
 }
