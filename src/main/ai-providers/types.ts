@@ -4,4 +4,4 @@
  */
 
 // 支持的提供商格式类型
-export type ProviderFormat = 'deepseek' | 'openai' | 'gemini' | 'anthropic'
+export type ProviderFormat = 'deepseek' | 'openai' | 'google' | 'anthropic'

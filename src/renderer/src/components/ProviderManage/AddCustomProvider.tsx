@@ -123,7 +123,7 @@ export function AddCustomProvider({ onAdd, loading }: AddCustomProviderProps) {
             <Select placeholder="选择API兼容模式">
               <Option value="openai">OpenAI 兼容</Option>
               <Option value="anthropic">Anthropic 兼容</Option>
-              <Option value="gemini">Gemini 兼容</Option>
+              <Option value="google">Google 兼容</Option>
             </Select>
           </Form.Item>
 

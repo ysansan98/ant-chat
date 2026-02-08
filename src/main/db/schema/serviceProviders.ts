@@ -8,7 +8,7 @@ export const serviceProviderTable = sqliteTable('service_provider', {
   name: text('name').notNull(),
   baseUrl: text('base_url').notNull(),
   apiKey: text('api_key').notNull().default(''),
-  apiMode: text('api_mode', { enum: ['openai', 'anthropic', 'gemini', 'deepseek'] }).notNull(),
+  apiMode: text('api_mode', { enum: ['openai', 'anthropic', 'google', 'deepseek'] }).notNull(),
   isOfficial: integer('is_official', { mode: 'boolean' }).notNull().default(false),
   isEnabled: integer('is_enabled', { mode: 'boolean' }).notNull().default(false),
   createdAt: integer('created_at').notNull().default(sql`(strftime('%s','now'))`),

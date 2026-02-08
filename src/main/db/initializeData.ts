@@ -3,7 +3,7 @@ import { serviceProviderModelsTable, serviceProviderTable } from './schema'
 
 const providerServiceData = [
   { id: 'openai', name: 'OpenAI', baseUrl: 'https://api.openai.com', apiMode: 'openai' as const, isOfficial: true },
-  { id: 'gemini', name: 'Gemini', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', apiMode: 'gemini' as const, isOfficial: true },
+  { id: 'google', name: 'Google', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', apiMode: 'google' as const, isOfficial: true },
   { id: 'anthropic', name: 'Anthropic', baseUrl: 'https://api.anthropic.com', apiMode: 'anthropic' as const, isOfficial: true },
   { id: 'deepseek', name: 'DeepSeek', baseUrl: 'https://api.deepseek.com', apiMode: 'deepseek' as const, isOfficial: true },
   { id: 'minimax', name: 'MiniMax', baseUrl: 'https://api.minimax.chat/v1', apiMode: 'openai' as const, isOfficial: false },

@@ -31,7 +31,7 @@ export const AI_OFFICIAL_API_INFO: { [provider: string]: { url: string, keyUrl: 
     url: 'https://api.deepseek.com',
     keyUrl: 'https://platform.deepseek.com/api_keys',
   },
-  gemini: {
+  google: {
     url: 'https://generativelanguage.googleapis.com/v1beta',
     keyUrl: 'https://aistudio.google.com/apikey',
   },

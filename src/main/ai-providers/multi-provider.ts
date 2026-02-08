@@ -62,8 +62,8 @@ export class MultiProvider {
         })
         break
 
-      case 'gemini':
-        this.logger.debug('Creating Gemini client with baseURL:', options.baseUrl)
+      case 'google':
+        this.logger.debug('Creating Google client with baseURL:', options.baseUrl)
         this.client = createGoogleGenerativeAI({
           apiKey: options.apiKey,
           baseURL: options.baseUrl,
