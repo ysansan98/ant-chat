@@ -21,7 +21,7 @@ export function GeneralSettings() {
         </GeneralSettingsItem>
 
         <GeneralSettingsItem
-          title="代理模式"
+          title="网络代理"
           help="配置AI请求的代理设置，支持系统代理和自定义代理"
           icon={<GlobalOutlined className="text-xl" />}
         >
