@@ -20,4 +20,4 @@ export const ipcServiceClasses = [
 
 export const services = createServices(ipcServiceClasses)
 
-export type IpcServices = MergeIpcService<typeof ipcServiceClasses>
+export type IpcServices = MergeIpcService<typeof services>
