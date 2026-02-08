@@ -85,6 +85,7 @@ export async function handleChatCompletions(options: handleChatCompletionsOption
     conversationsId,
     {
       provider: providerServiceInfo.name,
+      providerId: providerServiceInfo.id,
       model: modelInfo.name,
     },
   )

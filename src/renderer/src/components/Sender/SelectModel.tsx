@@ -2,7 +2,7 @@ import type { AllAvailableModelsSchema } from '@ant-chat/shared'
 import { CheckOutlined } from '@ant-design/icons'
 import { Input } from 'antd'
 import React from 'react'
-import { getProviderLogo } from '../Chat/providerLogo'
+import { ProviderLogo } from '../Chat/providerLogo'
 
 export interface SelectModelProps {
   value: string
@@ -73,10 +73,9 @@ export function SelectModel({ value, onChange, options }: SelectModelProps) {
 }
 
 export function renderProviderLogo(providerServiceId: string) {
-  const Logo = getProviderLogo(providerServiceId)
-
-  if (!Logo)
+  const content = <ProviderLogo id={providerServiceId} size={16} className="h-4 w-4" />
+  if (!content) {
     return null
-
-  return <span className="rounded-md bg-white p-1"><Logo /></span>
+  }
+  return <span className="flex items-center justify-center rounded-md bg-white">{content}</span>
 }

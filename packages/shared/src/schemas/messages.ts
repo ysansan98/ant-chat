@@ -69,6 +69,7 @@ export type McpToolCall = z.infer<typeof McpToolCallSchema>
 // 模型信息
 export const ModelInfoSchema = z.object({
   provider: z.string(),
+  providerId: z.string().optional(),
   model: z.string(),
 })
 

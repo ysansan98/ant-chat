@@ -4,7 +4,7 @@ import { Button, Empty, message, Switch } from 'antd'
 import React from 'react'
 import Logo from '@/../public/logo.svg?react'
 import { providerApi } from '@/api/providerApi'
-import { getProviderLogo } from '@/components/Chat/providerLogo'
+import { ProviderLogo } from '@/components/Chat/providerLogo'
 import { AddCustomProvider } from '@/components/ProviderManage/AddCustomProvider'
 import { ProviderServiceSettings } from '@/components/ProviderManage/ProviderServiceSettings'
 
@@ -48,10 +48,12 @@ export default function ProviderManage() {
               }}
             >
               <div className="flex items-center gap-2 text-base">
-                <div className="rounded bg-white p-1">
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-white">
                   {(() => {
-                    const Icon = getProviderLogo(item.id)
-                    return Icon ? <Icon /> : <Logo />
+                    const content = (
+                      <ProviderLogo id={item.id} name={item.name} size={16} className="h-4 w-4" />
+                    )
+                    return content || <Logo />
                   })()}
                 </div>
 

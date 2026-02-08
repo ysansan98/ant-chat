@@ -1,7 +1,7 @@
 import type { IMessage, IMessageAI } from '@ant-chat/shared'
 import { RobotFilled, SmileFilled, UserOutlined } from '@ant-design/icons'
 import { Role } from '@/constants'
-import { getProviderLogo } from './providerLogo'
+import { ProviderLogo } from './providerLogo'
 
 interface MessageAvatarProps {
   message: IMessage
@@ -47,17 +47,20 @@ export function MessageAvatar({ message }: MessageAvatarProps) {
       return defaultAvatar
     }
 
-    const provider = modelInfo?.provider.toLowerCase()
-    const ProviderLogo = getProviderLogo(provider || '')
-
-    if (ProviderLogo) {
+    const providerId = modelInfo?.providerId || modelInfo?.provider
+    const content = providerId
+      ? (
+          <ProviderLogo id={providerId} name={modelInfo?.provider} size={16} className="h-4 w-4" />
+        )
+      : null
+    if (content) {
       return (
         <div className={`
           flex h-8 w-8 items-center justify-center rounded-full border border-solid
           border-(--border-color) bg-white text-lg
         `}
         >
-          <ProviderLogo />
+          {content}
         </div>
       )
     }
