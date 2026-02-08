@@ -6,9 +6,6 @@ const providerServiceData = [
   { id: 'gemini', name: 'Gemini', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', apiMode: 'gemini' as const, isOfficial: true },
   { id: 'anthropic', name: 'Anthropic', baseUrl: 'https://api.anthropic.com', apiMode: 'anthropic' as const, isOfficial: true },
   { id: 'deepseek', name: 'DeepSeek', baseUrl: 'https://api.deepseek.com', apiMode: 'deepseek' as const, isOfficial: true },
-  { id: 'alibaba', name: '阿里巴巴', baseUrl: 'https://dashscope.aliyuncs.com/api/v1', apiMode: 'openai' as const, isOfficial: false },
-  { id: 'zhipu', name: '智谱 AI', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', apiMode: 'openai' as const, isOfficial: false },
-  { id: 'moonshot', name: '月之暗面', baseUrl: 'https://api.moonshot.cn', apiMode: 'openai' as const, isOfficial: false },
   { id: 'minimax', name: 'MiniMax', baseUrl: 'https://api.minimax.chat/v1', apiMode: 'openai' as const, isOfficial: false },
 ] as const
 
