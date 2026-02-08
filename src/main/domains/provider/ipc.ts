@@ -1,6 +1,7 @@
 import type { AddServiceProviderModelSchema, AddServiceProviderSchema, AllAvailableModelsSchema, IpcResponse, ServiceProviderModelsSchema, ServiceProviderSchema, UpdateServiceProviderSchema } from '@ant-chat/shared'
 import { createErrorIpcResponse, createIpcResponse } from '@ant-chat/shared'
 import { services } from '@main/db'
+import { getModelsDevModelsByProviderId, getModelsDevProviders } from './modelsDev'
 import { IpcMethod, IpcService } from 'electron-ipc-decorator'
 
 export class ProviderIpcService extends IpcService {
@@ -141,6 +142,85 @@ export class ProviderIpcService extends IpcService {
     try {
       await services.deleteServiceProviderModel(id)
       return createIpcResponse(true, null)
+    }
+    catch (error) {
+      return createErrorIpcResponse(error as Error)
+    }
+  }
+
+  @IpcMethod()
+  async getModelsDevProviders(): Promise<IpcResponse<Awaited<ReturnType<typeof getModelsDevProviders>>>> {
+    try {
+      const result = await getModelsDevProviders()
+      return createIpcResponse(true, result)
+    }
+    catch (error) {
+      return createErrorIpcResponse(error as Error)
+    }
+  }
+
+  @IpcMethod()
+  async getModelsDevModelsByProviderId(providerId: string): Promise<IpcResponse<Awaited<ReturnType<typeof getModelsDevModelsByProviderId>>>> {
+    try {
+      const result = await getModelsDevModelsByProviderId(providerId)
+      return createIpcResponse(true, result)
+    }
+    catch (error) {
+      return createErrorIpcResponse(error as Error)
+    }
+  }
+
+  @IpcMethod()
+  async importModelsDevModels(providerId: string): Promise<IpcResponse<{ added: string[], skipped: string[], duplicates: string[], errors: { model: string, reason: string }[] }>> {
+    try {
+      const models = await getModelsDevModelsByProviderId(providerId)
+      const existingModels = await services.getModelsByServiceProviderId(providerId)
+      const existingModelSet = new Set(existingModels.map(item => item.model))
+      const added: string[] = []
+      const skipped: string[] = []
+      const duplicates: string[] = []
+      const errors: { model: string, reason: string }[] = []
+      const seen = new Set(existingModelSet)
+
+      for (const model of models) {
+        const displayName = model.name ? `${model.name} (${model.model})` : model.model
+        if (seen.has(model.model)) {
+          if (existingModelSet.has(model.model)) {
+            skipped.push(displayName)
+          }
+          else {
+            duplicates.push(displayName)
+          }
+          continue
+        }
+
+        try {
+          const hasFeatures = model.toolCall || model.reasoning || model.vision
+          const modelFeatures = hasFeatures
+            ? {
+                functionCall: model.toolCall || undefined,
+                reasoning: model.reasoning || undefined,
+                vision: model.vision || undefined,
+              }
+            : undefined
+          await services.addServiceProviderModel({
+            serviceProviderId: providerId,
+            model: model.model,
+            name: model.name,
+            maxTokens: model.maxTokens || 4096,
+            contextLength: model.contextLength || 4096,
+            temperature: 0.7,
+            modelFeatures,
+          })
+          seen.add(model.model)
+          added.push(displayName)
+        }
+        catch (error) {
+          errors.push({ model: displayName, reason: (error as Error).message })
+        }
+      }
+
+      return createIpcResponse(true, { added, skipped, duplicates, errors })
     }
     catch (error) {
       return createErrorIpcResponse(error as Error)

@@ -75,7 +75,11 @@ export default function ProviderManage() {
           ))
         }
         <div className="p-2">
-          <AddCustomProvider onAdd={handleAddProvider} loading={loading} />
+          <AddCustomProvider
+            onAdd={handleAddProvider}
+            existingProviderIds={data?.map(item => item.id)}
+            loading={loading}
+          />
         </div>
       </div>
       {

@@ -29,7 +29,6 @@ export const AddServiceProviderModelSchema = ServiceProviderModelsSchema.omit({
   id: true,
   isBuiltin: true,
   isEnabled: true,
-  modelFeatures: true,
   createdAt: true,
 })
 

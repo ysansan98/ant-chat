@@ -1,20 +1,36 @@
 import type { AddServiceProviderSchema } from '@ant-chat/shared'
 import { PlusOutlined } from '@ant-design/icons'
+import { useRequest } from 'ahooks'
 import { Button, Form, Input, message, Modal, Select, Switch } from 'antd'
 import { nanoid } from 'nanoid'
 import React from 'react'
+import { providerApi } from '@/api/providerApi'
 
 const { Option } = Select
 
 interface AddCustomProviderProps {
   onAdd: (provider: AddServiceProviderSchema) => Promise<void>
+  existingProviderIds?: string[]
   loading?: boolean
 }
 
-export function AddCustomProvider({ onAdd, loading }: AddCustomProviderProps) {
+export function AddCustomProvider({ onAdd, existingProviderIds, loading }: AddCustomProviderProps) {
   const [form] = Form.useForm<AddServiceProviderSchema>()
   const [isModalOpen, setIsModalOpen] = React.useState(false)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const [selectedModelsDevProviderId, setSelectedModelsDevProviderId] = React.useState<string | null>(null)
+  const { data: modelsDevProviders, loading: modelsDevLoading, run } = useRequest(
+    providerApi.getModelsDevProviders,
+    { manual: true },
+  )
+
+  const availableModelsDevProviders = React.useMemo(() => {
+    if (!modelsDevProviders) {
+      return []
+    }
+    const existingIds = new Set(existingProviderIds || [])
+    return modelsDevProviders.filter(provider => !existingIds.has(provider.id))
+  }, [modelsDevProviders, existingProviderIds])
 
   const handleSubmit = async () => {
     try {
@@ -22,7 +38,7 @@ export function AddCustomProvider({ onAdd, loading }: AddCustomProviderProps) {
       setIsSubmitting(true)
 
       const providerData: AddServiceProviderSchema = {
-        id: nanoid(),
+        id: selectedModelsDevProviderId || nanoid(),
         name: values.name,
         baseUrl: values.baseUrl,
         apiKey: values.apiKey,
@@ -34,6 +50,7 @@ export function AddCustomProvider({ onAdd, loading }: AddCustomProviderProps) {
       message.success('自定义提供商添加成功')
       setIsModalOpen(false)
       form.resetFields()
+      setSelectedModelsDevProviderId(null)
     }
     catch (error) {
       if (error instanceof Error) {
@@ -51,6 +68,7 @@ export function AddCustomProvider({ onAdd, loading }: AddCustomProviderProps) {
   const handleCancel = () => {
     setIsModalOpen(false)
     form.resetFields()
+    setSelectedModelsDevProviderId(null)
   }
 
   return (
@@ -58,7 +76,10 @@ export function AddCustomProvider({ onAdd, loading }: AddCustomProviderProps) {
       <Button
         type="dashed"
         icon={<PlusOutlined />}
-        onClick={() => setIsModalOpen(true)}
+        onClick={() => {
+          setIsModalOpen(true)
+          run()
+        }}
         loading={loading}
         className="w-full"
       >
@@ -82,6 +103,40 @@ export function AddCustomProvider({ onAdd, loading }: AddCustomProviderProps) {
             isEnabled: true,
           }}
         >
+          <Form.Item
+            name="modelsDevProvider"
+            label="从 Models.dev 选择"
+            help="选择后会自动填充配置，可继续编辑"
+          >
+            <Select
+              placeholder="选择服务商"
+              loading={modelsDevLoading}
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              onChange={(value) => {
+                if (!value) {
+                  setSelectedModelsDevProviderId(null)
+                  return
+                }
+                const provider = availableModelsDevProviders.find(item => item.id === value)
+                if (!provider) {
+                  setSelectedModelsDevProviderId(null)
+                  return
+                }
+                setSelectedModelsDevProviderId(provider.id)
+                form.setFieldsValue({
+                  name: provider.name,
+                  baseUrl: provider.baseUrl,
+                  apiMode: provider.apiMode,
+                })
+              }}
+              options={availableModelsDevProviders.map(provider => ({
+                label: `${provider.name} (${provider.id})`,
+                value: provider.id,
+              }))}
+            />
+          </Form.Item>
           <Form.Item
             name="name"
             label="提供商名称"

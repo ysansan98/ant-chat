@@ -26,3 +26,4 @@ export const UpdateServiceProviderSchema = ServiceProviderSchema
 
 export type UpdateServiceProviderSchema = z.infer<typeof UpdateServiceProviderSchema>
 export type ServiceProviderSchema = z.infer<typeof ServiceProviderSchema>
+export type ProviderFormat = z.infer<typeof ServiceProviderSchema>['apiMode']

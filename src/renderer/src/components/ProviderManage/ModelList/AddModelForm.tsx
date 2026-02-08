@@ -1,5 +1,5 @@
 import type { AddServiceProviderModelSchema } from '@ant-chat/shared'
-import { Form, Input, InputNumber, Modal } from 'antd'
+import { Form, Input, InputNumber, Modal, Switch } from 'antd'
 
 type AddModelForm = Omit<AddServiceProviderModelSchema, 'providerServiceId'>
 
@@ -32,6 +32,11 @@ export function AddModelFormModal({ open, title, onCancel, onSave }: AddModelFor
         className="!pt-3"
         initialValues={{
           temperature: 0.7,
+          modelFeatures: {
+            functionCall: false,
+            reasoning: false,
+            vision: false,
+          },
         }}
       >
         <Form.Item required label="模型" name="model">
@@ -51,6 +56,18 @@ export function AddModelFormModal({ open, title, onCancel, onSave }: AddModelFor
 
         <Form.Item required label="最大上下文" name="contextLength">
           <InputNumber min={1000} step={1000} style={{ width: '100%' }} />
+        </Form.Item>
+
+        <Form.Item label="函数调用" name={['modelFeatures', 'functionCall']} valuePropName="checked">
+          <Switch />
+        </Form.Item>
+
+        <Form.Item label="推理" name={['modelFeatures', 'reasoning']} valuePropName="checked">
+          <Switch />
+        </Form.Item>
+
+        <Form.Item label="视觉" name={['modelFeatures', 'vision']} valuePropName="checked">
+          <Switch />
         </Form.Item>
       </Form>
     </Modal>

@@ -1,4 +1,4 @@
-import type { AddServiceProviderModelSchema, AddServiceProviderSchema, AllAvailableModelsSchema, ServiceProviderModelsSchema, ServiceProviderSchema, UpdateServiceProviderSchema } from '@ant-chat/shared'
+import type { AddServiceProviderModelSchema, AddServiceProviderSchema, AllAvailableModelsSchema, ModelsDevImportResult, ModelsDevModel, ModelsDevProvider, ServiceProviderModelsSchema, ServiceProviderSchema, UpdateServiceProviderSchema } from '@ant-chat/shared'
 import { ipc, unwrapIpcResponse } from '@/utils/ipc-bus'
 
 export const providerApi = {
@@ -48,5 +48,17 @@ export const providerApi = {
 
   getModelInfoById: async (id: string): Promise<ServiceProviderModelsSchema> => {
     return unwrapIpcResponse(await ipc.provider.getModelById(id))
+  },
+
+  getModelsDevProviders: async (): Promise<ModelsDevProvider[]> => {
+    return unwrapIpcResponse(await ipc.provider.getModelsDevProviders())
+  },
+
+  getModelsDevModelsByProviderId: async (providerId: string): Promise<ModelsDevModel[]> => {
+    return unwrapIpcResponse(await ipc.provider.getModelsDevModelsByProviderId(providerId))
+  },
+
+  importModelsDevModels: async (providerId: string): Promise<ModelsDevImportResult> => {
+    return unwrapIpcResponse(await ipc.provider.importModelsDevModels(providerId))
   },
 }

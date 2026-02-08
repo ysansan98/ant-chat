@@ -17,6 +17,7 @@ export interface ModelListProps {
 export function ModelList({ serviceProviderId }: ModelListProps) {
   const { message } = App.useApp()
   const [openAddModal, setAddModal] = React.useState(false)
+  const [isSyncing, setIsSyncing] = React.useState(false)
   const { data, error, refresh, run, mutate } = useRequest(
     providerApi.getModelsByServiceProviderId,
     {
@@ -38,15 +39,52 @@ export function ModelList({ serviceProviderId }: ModelListProps) {
 
   return (
     <div className="py-2">
-      <Button
-        size="small"
-        icon={<PlusCircleOutlined />}
-        onClick={() => {
-          setAddModal(true)
-        }}
-      >
-        添加模型
-      </Button>
+      <div className="flex items-center gap-2">
+        <Button
+          size="small"
+          icon={<PlusCircleOutlined />}
+          onClick={() => {
+            setAddModal(true)
+          }}
+        >
+          添加模型
+        </Button>
+        <Button
+          size="small"
+          loading={isSyncing}
+          onClick={async () => {
+            setIsSyncing(true)
+            try {
+              const result = await providerApi.importModelsDevModels(serviceProviderId)
+              if (result.added.length === 0 && result.skipped.length === 0 && result.errors.length === 0) {
+                message.info('未发现可同步的模型')
+              }
+              if (result.added.length > 0) {
+                message.success(`已导入 ${result.added.length} 个模型`)
+              }
+              if (result.skipped.length > 0) {
+                message.warning(`已存在模型：${result.skipped.join('、')}`)
+              }
+              if (result.duplicates.length > 0) {
+                message.info(`已忽略重复条目：${result.duplicates.join('、')}`)
+              }
+              if (result.errors.length > 0) {
+                const errorMessage = result.errors.map(item => `${item.model}（${item.reason}）`).join('、')
+                message.error(`导入失败：${errorMessage}`)
+              }
+              refresh()
+            }
+            catch (e) {
+              message.error((e as Error).message)
+            }
+            finally {
+              setIsSyncing(false)
+            }
+          }}
+        >
+          同步模型列表
+        </Button>
+      </div>
       <div className="mt-2 flex flex-col rounded-md border border-(--ant-color-border)">
         {data?.map(item => (
           <div
