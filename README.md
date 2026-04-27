@@ -1,6 +1,6 @@
 <div align="center">
 
-<img height="180" src="./packages/electron/src/renderer/public/logo.svg" />
+<img height="180" src="./src/renderer/public/logo.svg" />
 
 # Ant Chat
 
@@ -115,22 +115,22 @@ pnpm dev
 # 构建应用
 pnpm build:mac    # macOS
 pnpm build:win    # Windows
-pnpm build:linux  # Linux
 ```
 
 ### 项目结构
 
 ```
 ant-chat/
+├── src/
+│   ├── main/               # 主进程
+│   ├── preload/            # 预加载脚本
+│   └── renderer/           # 渲染进程
+├── migrations/             # 数据库迁移
 ├── packages/
-│   ├── electron/           # Electron主应用
-│   │   ├── src/
-│   │   │   ├── main/      # 主进程
-│   │   │   ├── preload/   # 预加载脚本
-│   │   │   └── renderer/  # 渲染进程
-│   │   └── migrations/    # 数据库迁移
-│   ├── mcp-client-hub/    # MCP客户端
-│   └── shared/            # 共享类型和工具
+│   ├── mcp-client-hub/     # MCP客户端
+│   └── shared/             # 共享类型和工具
+├── out/                    # electron-vite 构建产物
+├── release/                # electron-builder 发布产物
 ├── .github/               # GitHub Actions
 └── docs/                  # 文档
 ```

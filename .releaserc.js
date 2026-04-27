@@ -41,7 +41,7 @@ export default {
     [
       '@semantic-release/git',
       {
-        assets: ['CHANGELOG.md', 'package.json', 'packages/electron/package.json', 'packages/mcp-client-hub/package.json', 'packages/shared/package.json'],
+        assets: ['CHANGELOG.md', 'package.json', 'packages/mcp-client-hub/package.json', 'packages/shared/package.json'],
         message: 'chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}',
       },
     ],
@@ -50,10 +50,11 @@ export default {
       '@semantic-release/github',
       {
         assets: [
-          'windows-build/**/*.exe',
-          'windows-build/**/*.blockmap',
-          'macos-build/**/*.dmg',
-          'macos-build/**/*.zip',
+          'release/**/*.exe',
+          'release/**/*.blockmap',
+          'release/**/*.dmg',
+          'release/**/*.zip',
+          'release/**/*.yml',
         ],
       },
     ],

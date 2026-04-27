@@ -14,13 +14,14 @@ export default antfu(
     rules: {
       'no-console': ['off'],
       'ts/no-redeclare': ['off'],
+      'react/no-implicit-key': ['off'],
     },
   },
   {
     files: ['packages/**/*.{ts,tsx}'],
   },
   {
-    files: ['packages/electron/**/*.{ts,tsx}'],
+    files: ['src/**/*.{ts,tsx}'],
     languageOptions: {
       parserOptions: {
         ecmaFeatures: {
@@ -52,7 +53,7 @@ export default antfu(
       'node/prefer-global/process': ['off'],
     },
     settings: {
-      entryPoint: './packages/electron/src/renderer/src/index.css',
+      entryPoint: './src/renderer/src/index.css',
     },
   },
   {
