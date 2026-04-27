@@ -19,10 +19,15 @@ import { setActiveConversationsId, useMessagesStore } from '@/store/messages'
 import { importAntChatFile } from '@/utils'
 import { InfiniteScroll } from '../InfiniteScroll'
 import Loading from '../Loading'
+import { WorkspaceSelector } from '../Workspace/WorkspaceSelector'
 
 const RenameModal = lazy(() => import('./RenameModal'))
 
-export default function ConversationsManage() {
+interface ConversationsManageProps {
+  showHeader?: boolean
+}
+
+export default function ConversationsManage({ showHeader = true }: ConversationsManageProps) {
   const { message, modal } = App.useApp()
   const {
     openRenameModal,
@@ -128,25 +133,34 @@ export default function ConversationsManage() {
 
   return (
     <div className="grid h-full grid-rows-[max-content_1fr_max-content]">
-      <div className="w-full px-1 py-2">
-        <Space className="w-full" classNames={{ item: 'w-full' }}>
-          <Space.Compact className="w-full">
-            <Button
-              type="primary"
-              key={0}
-              className="flex-1"
-              onClick={async () => {
-                await setActiveConversationsId('')
-              }}
-            >
-              新对话
-            </Button>
-            <Dropdown menu={{ items: dropdownButtons, onClick: onClickMenu }}>
-              <Button type="primary" icon={<EllipsisOutlined />} />
-            </Dropdown>
-          </Space.Compact>
-        </Space>
-      </div>
+      {
+        showHeader
+          ? (
+              <div className="w-full px-1 py-2">
+                <div className="mb-2">
+                  <WorkspaceSelector />
+                </div>
+                <Space className="w-full" classNames={{ item: 'w-full' }}>
+                  <Space.Compact className="w-full">
+                    <Button
+                      type="primary"
+                      key={0}
+                      className="flex-1"
+                      onClick={async () => {
+                        await setActiveConversationsId('')
+                      }}
+                    >
+                      新对话
+                    </Button>
+                    <Dropdown menu={{ items: dropdownButtons, onClick: onClickMenu }}>
+                      <Button type="primary" icon={<EllipsisOutlined />} />
+                    </Dropdown>
+                  </Space.Compact>
+                </Space>
+              </div>
+            )
+          : <div />
+      }
       <InfiniteScroll
         hasMore={hasMore}
         loading={loading}

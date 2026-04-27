@@ -29,7 +29,7 @@ export function MCPManagementPanel() {
         MCPEnabled
           ? (
               <div>
-                <div className="my-3 h-[1px] bg-(--border-color)"></div>
+                <div className="my-3 h-px bg-(--border-color)"></div>
                 <div className="flex max-h-80 flex-col overflow-y-auto">
                   {
                     mcpConfigs.map(item => (

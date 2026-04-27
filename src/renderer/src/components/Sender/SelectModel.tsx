@@ -73,7 +73,7 @@ export function SelectModel({ value, onChange, options }: SelectModelProps) {
 }
 
 export function renderProviderLogo(providerServiceId: string) {
-  const content = <ProviderLogo id={providerServiceId} size={16} className="h-4 w-4" />
+  const content = <ProviderLogo id={providerServiceId} size={16} className="size-4" />
   if (!content) {
     return null
   }

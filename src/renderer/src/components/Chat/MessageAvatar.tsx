@@ -12,7 +12,7 @@ export function MessageAvatar({ message }: MessageAvatarProps) {
 
   const defaultAvatar = (
     <div className={`
-      flex h-8 w-8 items-center justify-center rounded-full bg-[#69b1ff] text-lg text-white
+      flex size-8 items-center justify-center rounded-full bg-[#69b1ff] text-lg text-white
     `}
     >
       <RobotFilled />
@@ -22,7 +22,7 @@ export function MessageAvatar({ message }: MessageAvatarProps) {
   if (role === Role.USER) {
     return (
       <div className={`
-        flex h-8 w-8 items-center justify-center rounded-full bg-[#87d068] text-lg text-white
+        flex size-8 items-center justify-center rounded-full bg-[#87d068] text-lg text-white
       `}
       >
         <UserOutlined />
@@ -33,7 +33,7 @@ export function MessageAvatar({ message }: MessageAvatarProps) {
   if (role === Role.SYSTEM) {
     return (
       <div className={`
-        flex h-8 w-8 items-center justify-center rounded-full bg-[#DE732D] text-lg text-white
+        flex size-8 items-center justify-center rounded-full bg-[#DE732D] text-lg text-white
       `}
       >
         <SmileFilled />
@@ -50,13 +50,13 @@ export function MessageAvatar({ message }: MessageAvatarProps) {
     const providerId = modelInfo?.providerId || modelInfo?.provider
     const content = providerId
       ? (
-          <ProviderLogo id={providerId} name={modelInfo?.provider} size={16} className="h-4 w-4" />
+          <ProviderLogo id={providerId} name={modelInfo?.provider} size={16} className="size-4" />
         )
       : null
     if (content) {
       return (
         <div className={`
-          flex h-8 w-8 items-center justify-center rounded-full border border-solid
+          flex size-8 items-center justify-center rounded-full border border-solid
           border-(--border-color) bg-white text-lg
         `}
         >

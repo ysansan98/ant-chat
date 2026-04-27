@@ -93,7 +93,7 @@ export function MermaidDiagram({ children, className, style }: RenderMermaidProp
   return (
     <div
       className={`
-        relative h-full w-full overflow-auto
+        relative size-full overflow-auto
         ${className}
       `}
       style={style}

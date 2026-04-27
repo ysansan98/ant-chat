@@ -124,7 +124,7 @@ export function UpdateNotification({ updateInfo, visible, onClose }: UpdateNotif
             <Title level={5} className="mb-3">
               更新内容
             </Title>
-            <div className="max-h-60 overflow-y-auto rounded border bg-gray-50 p-3">
+            <div className="max-h-60 overflow-y-auto rounded-sm border bg-gray-50 p-3">
               <RenderMarkdown
                 content={
                   typeof updateInfo.releaseNotes === 'string'
@@ -201,7 +201,7 @@ export function UpdateNotification({ updateInfo, visible, onClose }: UpdateNotif
 
         {/* 提示信息 */}
         {isDownloaded && (
-          <div className="mt-4 rounded border border-green-200 bg-green-50 p-3">
+          <div className="mt-4 rounded-sm border border-green-200 bg-green-50 p-3">
             <Text type="success">
               更新已下载完成，重启应用后将自动安装新版本。
             </Text>

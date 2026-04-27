@@ -154,7 +154,7 @@ export default function McpConfigDrawer({ open, mode, defaultValues, onClose, on
         onClose?.()
       }}
     >
-      <div className="flex h-full w-full">
+      <div className="flex size-full">
         <div className="w-[55vw] shrink-0 overflow-y-auto px-2 pt-5">
           <QuickImport onImport={(e) => {
             if (e.transportType === 'stdio') {
@@ -366,7 +366,7 @@ function FormItemLabel({ name, tag }: { name: string, tag: string }) {
 
 function EmptyMcpConfig() {
   return (
-    <div className="flex h-full w-full items-center justify-center">
+    <div className="flex size-full items-center justify-center">
       <Empty description={null}>
         <div className="text-xl">
           配置MCP后开始预览
@@ -414,7 +414,7 @@ function PreviewMcpToolItem({ item }: { item: McpTool }) {
     <div
       key={item.name}
       className={`
-        rounded bg-[#f0f0f0] p-2
+        rounded-sm bg-[#f0f0f0] p-2
         dark:bg-white/10
       `}
     >
@@ -450,7 +450,7 @@ function PreviewMcpToolParams({ item }: { item: McpTool }) {
   }
   return (
     <div className={`
-      mt-2 rounded bg-[#ececec] p-2
+      mt-2 rounded-sm bg-[#ececec] p-2
       dark:bg-white/10
     `}
     >

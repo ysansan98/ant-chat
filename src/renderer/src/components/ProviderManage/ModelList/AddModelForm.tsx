@@ -29,7 +29,7 @@ export function AddModelFormModal({ open, title, onCancel, onSave }: AddModelFor
       <Form
         form={form}
         layout="vertical"
-        className="!pt-3"
+        className="pt-3!"
         initialValues={{
           temperature: 0.7,
           modelFeatures: {

@@ -77,7 +77,7 @@ function Sender({ actions, ...props }: SenderProps) {
   return (
     <div
       className={`
-        ${!hasMessage ? 'absolute top-[50%] right-3 left-3 translate-y-[-50%]' : ''}
+        ${!hasMessage ? 'absolute inset-x-3 top-[50%] translate-y-[-50%]' : ''}
       `}
     >
       {

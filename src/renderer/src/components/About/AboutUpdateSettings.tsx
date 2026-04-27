@@ -92,7 +92,7 @@ export function AboutUpdateSettings() {
       <Card size="small" className="w-full">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <CheckCircleOutlined className="text-2xl !text-green-500" />
+            <CheckCircleOutlined className="text-2xl text-green-500!" />
             <span className="text-base">当前版本</span>
             <span className="text-base">{currentVersion}</span>
           </div>

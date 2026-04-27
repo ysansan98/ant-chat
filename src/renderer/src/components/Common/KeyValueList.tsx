@@ -38,7 +38,7 @@ export function KeyValueList({
             {fields.map(({ key, name }) => (
               <div key={key} className="mb-4 flex w-full items-center gap-3">
                 <Form.Item
-                  className="!mb-0 flex-1"
+                  className="mb-0! flex-1"
                   name={[name, 'key']}
                   rules={[...defaultKeyRules, ...(keyRules || [])]}
                 >
@@ -47,7 +47,7 @@ export function KeyValueList({
                 <Form.Item
                   name={[name, 'value']}
                   rules={[...defaultValueRules, ...(valueRules || [])]}
-                  className="!mb-0 flex-1"
+                  className="mb-0! flex-1"
                 >
                   <Input placeholder={valuePlaceholder} disabled={disabled} />
                 </Form.Item>
@@ -56,7 +56,7 @@ export function KeyValueList({
                 )}
               </div>
             ))}
-            <Form.Item className="!mb-0">
+            <Form.Item className="mb-0!">
               <Button
                 type="dashed"
                 onClick={() => add({ key: '', value: '' })}
