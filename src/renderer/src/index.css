@@ -1,11 +1,5 @@
 @import './assets/scroll-style.css';
-@import 'tailwindcss';
 @import './global.css';
-@source "../node_modules/@ferrucc-io/emoji-picker";
-
-@custom-variant dark (&:where(.dark, .dark *));
-
-@plugin "@iconify/tailwind4";
 
 @layer utilities {
   .app-region-drag {
@@ -21,9 +15,9 @@
   --hover-bg-color: color-mix(in oklab, #000 3%, transparent);
   --border-color: #d9d9d9;
 
-  --appBarHeight: 28px;
-  --mainHeight: calc(100dvh - var(--appBarHeight));
-  --conversationWidth: 240px;
+  --appBarHeight: 0px;
+  --mainHeight: 100dvh;
+  --conversationWidth: 280px;
   --chat-width: calc(100vw - var(--conversationWidth) - 1rem);
   --titleHeight: 50px;
 }
