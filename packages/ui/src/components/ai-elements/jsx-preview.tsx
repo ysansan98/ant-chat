@@ -7,8 +7,8 @@ import { AlertCircle } from 'lucide-react'
 import {
   createContext,
   memo,
+  use,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -33,7 +33,7 @@ const JSXPreviewContext = createContext<JSXPreviewContextValue | null>(null)
 const TAG_REGEX = /<\/?([a-z][a-z0-9]*)\s*([^>]*?)(\/)?>/i
 
 export function useJSXPreview() {
-  const context = useContext(JSXPreviewContext)
+  const context = use(JSXPreviewContext)
   if (!context) {
     throw new Error('JSXPreview components must be used within JSXPreview')
   }
@@ -185,11 +185,11 @@ export const JSXPreview = memo(
     )
 
     return (
-      <JSXPreviewContext.Provider value={contextValue}>
+      <JSXPreviewContext value={contextValue}>
         <div className={cn('relative', className)} {...props}>
           {children}
         </div>
-      </JSXPreviewContext.Provider>
+      </JSXPreviewContext>
     )
   },
 )

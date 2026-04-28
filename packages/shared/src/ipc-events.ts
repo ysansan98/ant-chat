@@ -66,6 +66,7 @@ export interface IpcRendererEvent {
   'common:Notification': [NotificationOption]
   'chat:stream-message': [IMessage]
   'chat:stream-canceled': [string]
+  'workspace:changed': [{ currentWorkspacePath: string }]
   'update:update-status-changed': [{ status: UpdateStatus, updateInfo: UpdateInfo | null }]
   'update:update-available': [{ status: UpdateStatus, updateInfo: UpdateInfo | null }]
   'update:update-not-available': []

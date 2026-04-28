@@ -16,8 +16,8 @@ import { BrainIcon, ChevronDownIcon } from 'lucide-react'
 import {
   createContext,
   memo,
+  use,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -37,7 +37,7 @@ interface ReasoningContextValue {
 const ReasoningContext = createContext<ReasoningContextValue | null>(null)
 
 export function useReasoning() {
-  const context = useContext(ReasoningContext)
+  const context = use(ReasoningContext)
   if (!context) {
     throw new Error('Reasoning components must be used within Reasoning')
   }
@@ -137,7 +137,7 @@ export const Reasoning = memo(
     )
 
     return (
-      <ReasoningContext.Provider value={contextValue}>
+      <ReasoningContext value={contextValue}>
         <Collapsible
           className={cn('not-prose mb-4', className)}
           onOpenChange={handleOpenChange}
@@ -146,7 +146,7 @@ export const Reasoning = memo(
         >
           {children}
         </Collapsible>
-      </ReasoningContext.Provider>
+      </ReasoningContext>
     )
   },
 )

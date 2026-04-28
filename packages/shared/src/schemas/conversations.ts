@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 export const ModelConfigSchema = z.object({
   id: z.string(),
+  workspacePath: z.string().nullable().optional(),
   name: z.string().optional(),
   apiHost: z.string(),
   apiKey: z.string(),
@@ -21,6 +22,7 @@ export type ConversationsSettingsSchema = z.infer<typeof ConversationsSettingsSc
 
 export const ConversationsSchema = z.object({
   id: z.string(),
+  workspacePath: z.string().nullable().optional(),
   title: z.string(),
   createdAt: z.number(),
   updatedAt: z.number(),

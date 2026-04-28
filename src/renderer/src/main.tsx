@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client'
 import { RouterProvider } from 'react-router'
 
 import router from './routers/index.tsx'
+import '@workspace/ui/globals.css'
 import './index.css'
 
 enableMapSet()

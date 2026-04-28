@@ -7,6 +7,7 @@ import { ProviderIpcService } from './domains/provider/ipc'
 import { SearchIpcService } from './domains/search/ipc'
 import { SettingsIpcService } from './domains/settings/ipc'
 import { UpdateIpcService } from './domains/update/ipc'
+import { WorkspaceIpcService } from './domains/workspace/ipc'
 
 export const ipcServiceClasses = [
   AppIpcService,
@@ -16,6 +17,7 @@ export const ipcServiceClasses = [
   SearchIpcService,
   SettingsIpcService,
   UpdateIpcService,
+  WorkspaceIpcService,
 ] as const satisfies readonly IpcServiceConstructor[]
 
 export const services = createServices(ipcServiceClasses)

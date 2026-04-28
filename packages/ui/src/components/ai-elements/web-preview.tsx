@@ -18,8 +18,8 @@ import { cn } from '@workspace/ui/lib/utils'
 import { ChevronDownIcon } from 'lucide-react'
 import {
   createContext,
+  use,
   useCallback,
-  useContext,
   useMemo,
   useState,
 } from 'react'
@@ -34,7 +34,7 @@ export interface WebPreviewContextValue {
 const WebPreviewContext = createContext<WebPreviewContextValue | null>(null)
 
 function useWebPreview() {
-  const context = useContext(WebPreviewContext)
+  const context = use(WebPreviewContext)
   if (!context) {
     throw new Error('WebPreview components must be used within a WebPreview')
   }
@@ -75,7 +75,7 @@ export function WebPreview({
   )
 
   return (
-    <WebPreviewContext.Provider value={contextValue}>
+    <WebPreviewContext value={contextValue}>
       <div
         className={cn(
           'flex size-full flex-col rounded-lg border bg-card',
@@ -85,7 +85,7 @@ export function WebPreview({
       >
         {children}
       </div>
-    </WebPreviewContext.Provider>
+    </WebPreviewContext>
   )
 }
 

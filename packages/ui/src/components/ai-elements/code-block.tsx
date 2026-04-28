@@ -20,8 +20,8 @@ import { CheckIcon, CopyIcon } from 'lucide-react'
 import {
   createContext,
   memo,
+  use,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -448,7 +448,7 @@ export function CodeBlock({
   const contextValue = useMemo(() => ({ code }), [code])
 
   return (
-    <CodeBlockContext.Provider value={contextValue}>
+    <CodeBlockContext value={contextValue}>
       <CodeBlockContainer className={className} language={language} {...props}>
         {children}
         <CodeBlockContent
@@ -457,7 +457,7 @@ export function CodeBlock({
           showLineNumbers={showLineNumbers}
         />
       </CodeBlockContainer>
-    </CodeBlockContext.Provider>
+    </CodeBlockContext>
   )
 }
 
@@ -477,7 +477,7 @@ export function CodeBlockCopyButton({
 }: CodeBlockCopyButtonProps) {
   const [isCopied, setIsCopied] = useState(false)
   const timeoutRef = useRef<number>(0)
-  const { code } = useContext(CodeBlockContext)
+  const { code } = use(CodeBlockContext)
 
   const copyToClipboard = useCallback(async () => {
     if (typeof window === 'undefined' || !navigator?.clipboard?.writeText) {

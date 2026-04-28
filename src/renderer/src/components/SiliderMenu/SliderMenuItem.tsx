@@ -1,42 +1,36 @@
-import { Tooltip } from 'antd'
+import type { ReactNode } from 'react'
 
-interface SliderMenuItemProps {
-  icon?: React.ReactNode
-  title?: string | null
-  path: string
-  actived?: boolean
-  disabledTooltip?: boolean
-  onClick?: (e: React.MouseEvent<HTMLDivElement, MouseEvent>, path: string) => void
+interface SidebarNavItemProps {
+  icon: ReactNode
+  label: string
+  active?: boolean
+  disabled?: boolean
+  onClick?: () => void
 }
 
-export function SliderMenuItem({ icon, title, path, actived, disabledTooltip, onClick }: SliderMenuItemProps) {
-  const button = (
-    <div
-      className={`
-        flex h-9 w-9 cursor-pointer items-center justify-center rounded-md text-base
-        hover:bg-black/3 hover:dark:bg-white/10
-        ${actived
-      ? `
-        bg-black/3
-        dark:bg-white/10
-      `
-      : ''}
-      `}
-      onClick={(e) => {
-        onClick?.(e, path)
-      }}
-    >
-      {icon}
-    </div>
-  )
-
-  if (disabledTooltip) {
-    return button
-  }
+export function SidebarNavItem({ icon, label, active, disabled, onClick }: SidebarNavItemProps) {
+  const activeClass = active
+    ? `
+      bg-black/5 text-slate-700
+      dark:bg-white/10 dark:text-slate-200
+    `
+    : ''
 
   return (
-    <Tooltip title={title} mouseEnterDelay={0.5} placement="right">
-      {button}
-    </Tooltip>
+    <button
+      disabled={disabled}
+      className={`
+        flex h-9 items-center justify-start gap-1 rounded-md px-3 text-[14px] font-medium
+        text-slate-500
+        hover:bg-black/5
+        dark:text-slate-400
+        dark:hover:bg-white/10
+        ${activeClass}
+      `}
+      onClick={onClick}
+    >
+      {icon}
+      {label}
+    </button>
   )
 }

@@ -15,7 +15,7 @@ import {
   CircleIcon,
   XCircleIcon,
 } from 'lucide-react'
-import { createContext, useContext, useMemo } from 'react'
+import { createContext, use, useMemo } from 'react'
 
 type TestStatus = 'passed' | 'failed' | 'skipped' | 'running'
 
@@ -67,7 +67,7 @@ export function TestResultsDuration({
   children,
   ...props
 }: TestResultsDurationProps) {
-  const { summary } = useContext(TestResultsContext)
+  const { summary } = use(TestResultsContext)
 
   if (!summary?.duration) {
     return null
@@ -87,7 +87,7 @@ export function TestResultsSummary({
   children,
   ...props
 }: TestResultsSummaryProps) {
-  const { summary } = useContext(TestResultsContext)
+  const { summary } = use(TestResultsContext)
 
   if (!summary) {
     return null
@@ -147,7 +147,7 @@ export function TestResults({
   const contextValue = useMemo(() => ({ summary }), [summary])
 
   return (
-    <TestResultsContext.Provider value={contextValue}>
+    <TestResultsContext value={contextValue}>
       <div
         className={cn('rounded-lg border bg-background', className)}
         {...props}
@@ -160,7 +160,7 @@ export function TestResults({
             </TestResultsHeader>
           ))}
       </div>
-    </TestResultsContext.Provider>
+    </TestResultsContext>
   )
 }
 
@@ -171,7 +171,7 @@ export function TestResultsProgress({
   children,
   ...props
 }: TestResultsProgressProps) {
-  const { summary } = useContext(TestResultsContext)
+  const { summary } = use(TestResultsContext)
 
   if (!summary) {
     return null
@@ -274,11 +274,11 @@ export function TestSuite({
   const contextValue = useMemo(() => ({ name, status }), [name, status])
 
   return (
-    <TestSuiteContext.Provider value={contextValue}>
+    <TestSuiteContext value={contextValue}>
       <Collapsible className={cn('rounded-lg border', className)} {...props}>
         {children}
       </Collapsible>
-    </TestSuiteContext.Provider>
+    </TestSuiteContext>
   )
 }
 
@@ -289,7 +289,7 @@ export function TestSuiteName({
   children,
   ...props
 }: TestSuiteNameProps) {
-  const { name, status } = useContext(TestSuiteContext)
+  const { name, status } = use(TestSuiteContext)
 
   return (
     <CollapsibleTrigger
@@ -382,7 +382,7 @@ const TestContext = createContext<TestContextType>({
 export type TestNameProps = HTMLAttributes<HTMLSpanElement>
 
 export function TestName({ className, children, ...props }: TestNameProps) {
-  const { name } = useContext(TestContext)
+  const { name } = use(TestContext)
 
   return (
     <span className={cn('flex-1', className)} {...props}>
@@ -398,7 +398,7 @@ export function TestDuration({
   children,
   ...props
 }: TestDurationProps) {
-  const { duration } = useContext(TestContext)
+  const { duration } = use(TestContext)
 
   if (duration === undefined) {
     return null
@@ -421,7 +421,7 @@ export function TestStatus({
   children,
   ...props
 }: TestStatusProps) {
-  const { status } = useContext(TestContext)
+  const { status } = use(TestContext)
 
   return (
     <span
@@ -453,7 +453,7 @@ export function Test({
   )
 
   return (
-    <TestContext.Provider value={contextValue}>
+    <TestContext value={contextValue}>
       <div
         className={cn('flex items-center gap-2 px-4 py-2 text-sm', className)}
         {...props}
@@ -466,7 +466,7 @@ export function Test({
           </>
         )}
       </div>
-    </TestContext.Provider>
+    </TestContext>
   )
 }
 

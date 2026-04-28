@@ -22,6 +22,10 @@ const config: Configuration = {
       to: 'better-sqlite3',
       filter: ['*.node'], // 只复制原生模块
     },
+    {
+      from: 'resources/rg',
+      to: 'rg',
+    },
   ],
   afterPack: async (context) => {
     if (!['darwin', 'mas'].includes(context.electronPlatformName))

@@ -5,7 +5,7 @@ import type { ComponentProps, ReactNode } from 'react'
 import { Alert, AlertDescription } from '@workspace/ui/components/alert'
 import { Button } from '@workspace/ui/components/button'
 import { cn } from '@workspace/ui/lib/utils'
-import { createContext, useContext, useMemo } from 'react'
+import { createContext, use, useMemo } from 'react'
 
 type ToolUIPartApproval
   = | {
@@ -45,7 +45,7 @@ const ConfirmationContext = createContext<ConfirmationContextValue | null>(
 )
 
 function useConfirmation() {
-  const context = useContext(ConfirmationContext)
+  const context = use(ConfirmationContext)
 
   if (!context) {
     throw new Error('Confirmation components must be used within Confirmation')
@@ -72,9 +72,9 @@ export function Confirmation({
   }
 
   return (
-    <ConfirmationContext.Provider value={contextValue}>
+    <ConfirmationContext value={contextValue}>
       <Alert className={cn('flex flex-col gap-2', className)} {...props} />
-    </ConfirmationContext.Provider>
+    </ConfirmationContext>
   )
 }
 

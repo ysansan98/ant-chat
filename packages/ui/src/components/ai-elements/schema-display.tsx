@@ -9,7 +9,7 @@ import {
 } from '@workspace/ui/components/collapsible'
 import { cn } from '@workspace/ui/lib/utils'
 import { ChevronRightIcon } from 'lucide-react'
-import { createContext, useContext, useMemo } from 'react'
+import { createContext, use, useMemo } from 'react'
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
@@ -77,7 +77,7 @@ export function SchemaDisplayMethod({
   children,
   ...props
 }: SchemaDisplayMethodProps) {
-  const { method } = useContext(SchemaDisplayContext)
+  const { method } = use(SchemaDisplayContext)
 
   return (
     <Badge
@@ -97,7 +97,7 @@ export function SchemaDisplayPath({
   children,
   ...props
 }: SchemaDisplayPathProps) {
-  const { path } = useContext(SchemaDisplayContext)
+  const { path } = use(SchemaDisplayContext)
 
   // Highlight path parameters
   const highlightedPath = path.replaceAll(
@@ -123,7 +123,7 @@ export function SchemaDisplayDescription({
   children,
   ...props
 }: SchemaDisplayDescriptionProps) {
-  const { description } = useContext(SchemaDisplayContext)
+  const { description } = use(SchemaDisplayContext)
 
   return (
     <p
@@ -199,7 +199,7 @@ export function SchemaDisplayParameters({
   children,
   ...props
 }: SchemaDisplayParametersProps) {
-  const { parameters } = useContext(SchemaDisplayContext)
+  const { parameters } = use(SchemaDisplayContext)
 
   return (
     <Collapsible className={cn(className)} defaultOpen {...props}>
@@ -331,7 +331,7 @@ export function SchemaDisplayRequest({
   children,
   ...props
 }: SchemaDisplayRequestProps) {
-  const { requestBody } = useContext(SchemaDisplayContext)
+  const { requestBody } = use(SchemaDisplayContext)
 
   return (
     <Collapsible className={cn(className)} defaultOpen {...props}>
@@ -358,7 +358,7 @@ export function SchemaDisplayResponse({
   children,
   ...props
 }: SchemaDisplayResponseProps) {
-  const { responseBody } = useContext(SchemaDisplayContext)
+  const { responseBody } = use(SchemaDisplayContext)
 
   return (
     <Collapsible className={cn(className)} defaultOpen {...props}>
@@ -411,7 +411,7 @@ export function SchemaDisplay({
   )
 
   return (
-    <SchemaDisplayContext.Provider value={contextValue}>
+    <SchemaDisplayContext value={contextValue}>
       <div
         className={cn(
           'overflow-hidden rounded-lg border bg-background',
@@ -442,7 +442,7 @@ export function SchemaDisplay({
           </>
         )}
       </div>
-    </SchemaDisplayContext.Provider>
+    </SchemaDisplayContext>
   )
 }
 

@@ -4,7 +4,22 @@ import chatApi from '@/api/chatApi'
 import { useConversationsStore } from '../conversation/conversationsStore'
 import { useMessagesStore } from './store'
 
+export async function clearActiveConversations() {
+  useMessagesStore.setState(state => produce(state, (draft) => {
+    draft.activeConversationsId = '' as ConversationsId
+    draft.messages = []
+    draft.pageIndex = 0
+    draft.messageTotal = 0
+  }))
+  useConversationsStore.getState().setActiveConversationsId('')
+}
+
 export async function setActiveConversationsId(id: ConversationsId | '') {
+  if (!id) {
+    await clearActiveConversations()
+    return
+  }
+
   const { pageSize } = useMessagesStore.getState()
   const { data: messages, total } = await chatApi.getMessagesByConvIdWithPagination(id, 0, pageSize)
 

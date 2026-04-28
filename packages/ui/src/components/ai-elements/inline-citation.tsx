@@ -17,8 +17,8 @@ import { cn } from '@workspace/ui/lib/utils'
 import { ArrowLeftIcon, ArrowRightIcon } from 'lucide-react'
 import {
   createContext,
+  use,
   useCallback,
-  useContext,
   useEffect,
   useState,
 } from 'react'
@@ -101,7 +101,7 @@ export function InlineCitationCardBody({
 const CarouselApiContext = createContext<CarouselApi | undefined>(undefined)
 
 function useCarouselApi() {
-  const context = useContext(CarouselApiContext)
+  const context = use(CarouselApiContext)
   return context
 }
 
@@ -115,11 +115,11 @@ export function InlineCitationCarousel({
   const [api, setApi] = useState<CarouselApi>()
 
   return (
-    <CarouselApiContext.Provider value={api}>
+    <CarouselApiContext value={api}>
       <Carousel className={cn('w-full', className)} setApi={setApi} {...props}>
         {children}
       </Carousel>
-    </CarouselApiContext.Provider>
+    </CarouselApiContext>
   )
 }
 

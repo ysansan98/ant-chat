@@ -27,6 +27,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Prepare bundled rg binaries
+        run: pnpm rg:prepare
+
       - name: TypeScript Check
         run: pnpm type-check
 

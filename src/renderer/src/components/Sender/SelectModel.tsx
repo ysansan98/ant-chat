@@ -1,6 +1,5 @@
 import type { AllAvailableModelsSchema } from '@ant-chat/shared'
-import { CheckOutlined } from '@ant-design/icons'
-import { Input } from 'antd'
+import { Input } from '@workspace/ui/components/input'
 import React from 'react'
 import { ProviderLogo } from '../Chat/providerLogo'
 
@@ -17,7 +16,6 @@ export function SelectModel({ value, onChange, options }: SelectModelProps) {
     <div>
       <div className="p-2 pt-2">
         <Input
-          size="small"
           placeholder="搜索模型"
           value={keyword}
           onChange={e => setKeyword(e.target.value)}
@@ -51,7 +49,7 @@ export function SelectModel({ value, onChange, options }: SelectModelProps) {
                             </span>
                           </div>
                           <div>
-                            {value === model.id ? (<CheckOutlined />) : null}
+                            {value === model.id ? <span>✓</span> : null}
                           </div>
                         </div>
                       ))}

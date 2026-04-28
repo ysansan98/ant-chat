@@ -1,4 +1,4 @@
-import { Switch } from 'antd'
+import { Switch } from '@workspace/ui/components/switch'
 import React from 'react'
 import { setEnableMCP, useChatSttingsStore } from '@/store/chatSettings'
 import { connectMcpServerAction, disconnectMcpServerAction, initializeMcpConfigs, useMcpConfigsStore } from '@/store/mcpConfigs'
@@ -16,17 +16,17 @@ export function MCPManagementPanel() {
 
   return (
     <div className="min-w-80">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between p-2">
         <div>
           启用MCP
           <div className="text-xs text-gray-500">
             启用MCP功能以使用工具调用
           </div>
         </div>
-        <Switch value={MCPEnabled} onChange={setEnableMCP} />
+        <Switch checked={MCPEnabled} onCheckedChange={setEnableMCP} />
       </div>
       {
-        MCPEnabled
+        MCPEnabled && mcpConfigs.length
           ? (
               <div>
                 <div className="my-3 h-px bg-(--border-color)"></div>
@@ -40,10 +40,10 @@ export function MCPManagementPanel() {
                         </div>
                         <div>
                           <Switch
-                            loading={mcpServerRuningStatusMap[item.serverName] === 'connecting'}
-                            size="small"
-                            value={mcpServerRuningStatusMap[item.serverName] === 'connected'}
-                            onChange={() => {
+                            size="sm"
+                            disabled={mcpServerRuningStatusMap[item.serverName] === 'connecting'}
+                            checked={mcpServerRuningStatusMap[item.serverName] === 'connected'}
+                            onCheckedChange={() => {
                               if (mcpServerRuningStatusMap[item.serverName] === 'connected') {
                                 disconnectMcpServerAction(item.serverName)
                               }

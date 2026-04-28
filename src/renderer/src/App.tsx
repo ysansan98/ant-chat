@@ -1,10 +1,10 @@
+import { TooltipProvider } from '@workspace/ui/components/tooltip'
 import { App, ConfigProvider, theme } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
 import { useEffect } from 'react'
 import { Outlet } from 'react-router'
 import { initializeGeneralSettings } from '@/store/generalSettings/actions'
 import { useThemeStore } from '@/store/theme'
-import { AppBar } from './components/AppBar'
 import { SliderMenu } from './components/SiliderMenu'
 import { UpdateNotification } from './components/UpdateNotification'
 import { useIpcEventListener } from './hooks/useIpcEventListener'
@@ -52,9 +52,11 @@ function AppWrapper() {
         hashed: false,
       }}
     >
-      <App className="h-full">
-        <AntChatApp />
-      </App>
+      <TooltipProvider>
+        <App className="h-full">
+          <AntChatApp />
+        </App>
+      </TooltipProvider>
     </ConfigProvider>
   )
 }
@@ -69,16 +71,11 @@ function AntChatApp() {
   }, [])
 
   return (
-    <div className={`
-      flex h-dvh w-full flex-col overflow-hidden bg-white
-      dark:bg-black
-    `}
-    >
-      <div className="shrink-0">
-        <AppBar />
-      </div>
-      <div className="grid h-(--mainHeight) w-full grid-cols-[max-content_1fr]">
+    <div className="flex h-dvh w-full overflow-hidden">
+      <div className="app-region-drag overflow-hidden p-2">
         <SliderMenu />
+      </div>
+      <div className="h-dvh min-w-0 flex-1">
         <Outlet />
       </div>
 

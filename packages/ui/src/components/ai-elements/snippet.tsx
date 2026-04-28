@@ -12,8 +12,8 @@ import { cn } from '@workspace/ui/lib/utils'
 import { CheckIcon, CopyIcon } from 'lucide-react'
 import {
   createContext,
+  use,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -41,11 +41,11 @@ export function Snippet({
   const contextValue = useMemo(() => ({ code }), [code])
 
   return (
-    <SnippetContext.Provider value={contextValue}>
+    <SnippetContext value={contextValue}>
       <InputGroup className={cn('font-mono', className)} {...props}>
         {children}
       </InputGroup>
-    </SnippetContext.Provider>
+    </SnippetContext>
   )
 }
 
@@ -72,7 +72,7 @@ export type SnippetInputProps = Omit<
 >
 
 export function SnippetInput({ className, ...props }: SnippetInputProps) {
-  const { code } = useContext(SnippetContext)
+  const { code } = use(SnippetContext)
 
   return (
     <InputGroupInput
@@ -100,7 +100,7 @@ export function SnippetCopyButton({
 }: SnippetCopyButtonProps) {
   const [isCopied, setIsCopied] = useState(false)
   const timeoutRef = useRef<number>(0)
-  const { code } = useContext(SnippetContext)
+  const { code } = use(SnippetContext)
 
   const copyToClipboard = useCallback(async () => {
     if (typeof window === 'undefined' || !navigator?.clipboard?.writeText) {

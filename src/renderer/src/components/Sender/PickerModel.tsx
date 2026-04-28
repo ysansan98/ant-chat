@@ -1,7 +1,11 @@
 import type { AllAvailableModelsSchema } from '@ant-chat/shared'
-import { ControlOutlined, RightOutlined } from '@ant-design/icons'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@workspace/ui/components/popover'
 import { useRequest } from 'ahooks'
-import { Popover } from 'antd'
+import { Settings } from 'lucide-react'
 import React from 'react'
 import { providerApi } from '@/api/providerApi'
 import { ModelParameterSettingsPanel } from './ModelParameterSettingsPanel'
@@ -24,76 +28,69 @@ export function ModelControlPanel({ value, onChange }: ModelControlPanelProps) {
     if (!value && activeProviderServiceInfo?.models.length) {
       onChange?.(activeProviderServiceInfo?.models[0])
     }
-  })
+  }, [activeProviderServiceInfo, onChange, value])
 
   return (
     <Popover
       open={openPopover}
-      arrow={false}
-      placement="bottomLeft"
-      trigger="click"
-      destroyOnHidden={true}
-      styles={{
-        content: {
-          padding: 0,
-        },
+      onOpenChange={(nextOpen) => {
+        setOpenPopover(nextOpen)
+        if (!nextOpen && panel === 'parameter') {
+          setPanel('select')
+        }
       }}
-      content={(
-        panel === 'select'
+    >
+      <PopoverTrigger asChild>
+        <div
+          className={`
+            group grid h-8 cursor-pointer grid-cols-[max-content_0fr] rounded-md border border-solid
+            border-(--border-color) transition-all duration-300
+            hover:grid-cols-[max-content_1fr]
+          `}
+        >
+          <div className={`
+            flex items-center gap-1 pl-2
+            hover:bg-(--hover-bg-color)
+          `}
+          >
+            {renderProviderLogo(activeProviderServiceInfo?.id || '')}
+            <div className="flex max-w-30 items-center truncate text-xs font-medium">
+              <span className="truncate">{currentModelInfo?.name}</span>
+              <span className="px-2">›</span>
+            </div>
+          </div>
+          <div className="flex items-center justify-center overflow-hidden">
+            <span
+              className={`
+                flex h-full items-center justify-center px-2
+                hover:bg-(--hover-bg-color)
+              `}
+              onClick={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                setPanel('parameter')
+                setOpenPopover(true)
+              }}
+            >
+              <Settings size={16} />
+            </span>
+          </div>
+        </div>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-80 p-0">
+        {panel === 'select'
           ? (
               <SelectModel
                 value={value}
-                onChange={(e) => {
-                  onChange?.(e)
+                onChange={(nextModel) => {
+                  onChange?.(nextModel)
                   setOpenPopover(false)
                 }}
                 options={data}
               />
             )
-          : (<ModelParameterSettingsPanel />)
-      )}
-      onOpenChange={(value) => {
-        setOpenPopover(value)
-        if (!value && panel === 'parameter') {
-          setPanel('select')
-        }
-      }}
-    >
-      <div
-        className={`
-          group grid h-8 cursor-pointer grid-cols-[max-content_0fr] rounded-md border border-solid
-          border-(--border-color) transition-all duration-300
-          hover:grid-cols-[max-content_1fr]
-        `}
-      >
-        <div className={`
-          flex items-center gap-1 pl-2
-          hover:bg-(--hover-bg-color)
-        `}
-        >
-          {renderProviderLogo(activeProviderServiceInfo?.id || '')}
-          <div className="flex max-w-30 items-center truncate text-xs font-medium">
-            <span className="truncate">{currentModelInfo?.name}</span>
-            <RightOutlined className="px-2" />
-          </div>
-        </div>
-        <div className="flex items-center justify-center overflow-hidden">
-          <ControlOutlined
-            className={`
-              h-full px-2
-              hover:bg-(--hover-bg-color)
-            `}
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              setPanel('parameter')
-              setTimeout(() => {
-                setOpenPopover(true)
-              }, 100)
-            }}
-          />
-        </div>
-      </div>
+          : <ModelParameterSettingsPanel />}
+      </PopoverContent>
     </Popover>
   )
 }

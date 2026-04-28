@@ -20,6 +20,10 @@ async function getConversations(pageIndex: number, pageSize: number): Promise<{ 
   return unwrapIpcPaginatedResponse(await ipc.chat.getConversations(pageIndex, pageSize))
 }
 
+async function getWorkspaceConversations(workspacePath: string, pageIndex: number, pageSize: number): Promise<{ data: IConversations[], total: number }> {
+  return unwrapIpcPaginatedResponse(await ipc.chat.getWorkspaceConversations(workspacePath, pageIndex, pageSize))
+}
+
 async function getConversationById(id: string): Promise<IConversations> {
   return unwrapIpcResponse(await ipc.chat.getConversationById(id))
 }
@@ -69,6 +73,7 @@ export default {
   initConversationsTitle,
   cancelChatCompletions,
   getConversations,
+  getWorkspaceConversations,
   getConversationById,
   addConversation,
   updateConversation,

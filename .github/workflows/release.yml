@@ -32,6 +32,16 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Prepare bundled rg binaries
+        run: pnpm rg:prepare
+
+      - name: Verify bundled rg binaries
+        shell: bash
+        run: |
+          test -f resources/rg/darwin-arm64/rg
+          test -f resources/rg/win32-x64/rg.exe
+          echo "bundled rg binaries are ready"
+
       # macOS 代码签名配置
       # - name: Setup macOS code signing
       #   if: matrix.os == 'macos-latest'

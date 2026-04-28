@@ -19,8 +19,8 @@ import { cn } from '@workspace/ui/lib/utils'
 import { ChevronsUpDownIcon } from 'lucide-react'
 import {
   createContext,
+  use,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -203,9 +203,9 @@ export function MicSelector({
   )
 
   return (
-    <MicSelectorContext.Provider value={contextValue}>
+    <MicSelectorContext value={contextValue}>
       <Popover {...props} onOpenChange={onOpenChange} open={open} />
-    </MicSelectorContext.Provider>
+    </MicSelectorContext>
   )
 }
 
@@ -215,7 +215,7 @@ export function MicSelectorTrigger({
   children,
   ...props
 }: MicSelectorTriggerProps) {
-  const { setWidth } = useContext(MicSelectorContext)
+  const { setWidth } = use(MicSelectorContext)
   const ref = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
@@ -261,7 +261,7 @@ export function MicSelectorContent({
   popoverOptions,
   ...props
 }: MicSelectorContentProps) {
-  const { width, onValueChange, value } = useContext(MicSelectorContext)
+  const { width, onValueChange, value } = use(MicSelectorContext)
 
   return (
     <PopoverContent
@@ -295,7 +295,7 @@ export function MicSelectorList({
   children,
   ...props
 }: MicSelectorListProps) {
-  const { data } = useContext(MicSelectorContext)
+  const { data } = use(MicSelectorContext)
 
   return <CommandList {...props}>{children(data)}</CommandList>
 }
@@ -312,7 +312,7 @@ export function MicSelectorEmpty({
 export type MicSelectorItemProps = ComponentProps<typeof CommandItem>
 
 export function MicSelectorItem(props: MicSelectorItemProps) {
-  const { onValueChange, onOpenChange } = useContext(MicSelectorContext)
+  const { onValueChange, onOpenChange } = use(MicSelectorContext)
 
   const handleSelect = useCallback(
     (currentValue: string) => {
@@ -366,7 +366,7 @@ export function MicSelectorValue({
   className,
   ...props
 }: MicSelectorValueProps) {
-  const { data, value } = useContext(MicSelectorContext)
+  const { data, value } = use(MicSelectorContext)
   const currentDevice = data.find(d => d.deviceId === value)
 
   if (!currentDevice) {

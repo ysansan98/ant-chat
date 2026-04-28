@@ -8,8 +8,8 @@ import { cn } from '@workspace/ui/lib/utils'
 import { CheckIcon, CopyIcon, EyeIcon, EyeOffIcon } from 'lucide-react'
 import {
   createContext,
+  use,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -63,14 +63,14 @@ export function EnvironmentVariables({
   )
 
   return (
-    <EnvironmentVariablesContext.Provider value={contextValue}>
+    <EnvironmentVariablesContext value={contextValue}>
       <div
         className={cn('rounded-lg border bg-background', className)}
         {...props}
       >
         {children}
       </div>
-    </EnvironmentVariablesContext.Provider>
+    </EnvironmentVariablesContext>
   )
 }
 
@@ -114,7 +114,7 @@ export function EnvironmentVariablesToggle({
   className,
   ...props
 }: EnvironmentVariablesToggleProps) {
-  const { showValues, setShowValues } = useContext(EnvironmentVariablesContext)
+  const { showValues, setShowValues } = use(EnvironmentVariablesContext)
 
   return (
     <div className={cn('flex items-center gap-2', className)}>
@@ -177,7 +177,7 @@ export function EnvironmentVariableName({
   children,
   ...props
 }: EnvironmentVariableNameProps) {
-  const { name } = useContext(EnvironmentVariableContext)
+  const { name } = use(EnvironmentVariableContext)
 
   return (
     <span className={cn('font-mono text-sm', className)} {...props}>
@@ -193,8 +193,8 @@ export function EnvironmentVariableValue({
   children,
   ...props
 }: EnvironmentVariableValueProps) {
-  const { value } = useContext(EnvironmentVariableContext)
-  const { showValues } = useContext(EnvironmentVariablesContext)
+  const { value } = use(EnvironmentVariableContext)
+  const { showValues } = use(EnvironmentVariablesContext)
 
   const displayValue = showValues
     ? value
@@ -229,7 +229,7 @@ export function EnvironmentVariable({
   const envVarContextValue = useMemo(() => ({ name, value }), [name, value])
 
   return (
-    <EnvironmentVariableContext.Provider value={envVarContextValue}>
+    <EnvironmentVariableContext value={envVarContextValue}>
       <div
         className={cn(
           'flex items-center justify-between gap-4 px-4 py-3',
@@ -246,7 +246,7 @@ export function EnvironmentVariable({
           </>
         )}
       </div>
-    </EnvironmentVariableContext.Provider>
+    </EnvironmentVariableContext>
   )
 }
 
@@ -270,7 +270,7 @@ export function EnvironmentVariableCopyButton({
 }: EnvironmentVariableCopyButtonProps) {
   const [isCopied, setIsCopied] = useState(false)
   const timeoutRef = useRef<number>(0)
-  const { name, value } = useContext(EnvironmentVariableContext)
+  const { name, value } = use(EnvironmentVariableContext)
 
   const getTextToCopy = useCallback((): string => {
     const formatMap = {

@@ -15,8 +15,8 @@ import {
 } from 'lucide-react'
 import {
   createContext,
+  use,
   useCallback,
-  useContext,
   useMemo,
   useState,
 } from 'react'
@@ -80,7 +80,7 @@ export function FileTree({
   )
 
   return (
-    <FileTreeContext.Provider value={contextValue}>
+    <FileTreeContext value={contextValue}>
       <div
         className={cn(
           'rounded-lg border bg-background font-mono text-sm',
@@ -91,7 +91,7 @@ export function FileTree({
       >
         <div className="p-2">{children}</div>
       </div>
-    </FileTreeContext.Provider>
+    </FileTreeContext>
   )
 }
 
@@ -148,7 +148,7 @@ export function FileTreeFolder({
   ...props
 }: FileTreeFolderProps) {
   const { expandedPaths, togglePath, selectedPath, onSelect }
-    = useContext(FileTreeContext)
+    = use(FileTreeContext)
   const isExpanded = expandedPaths.has(path)
   const isSelected = selectedPath === path
 
@@ -166,7 +166,7 @@ export function FileTreeFolder({
   )
 
   return (
-    <FileTreeFolderContext.Provider value={folderContextValue}>
+    <FileTreeFolderContext value={folderContextValue}>
       <Collapsible onOpenChange={handleOpenChange} open={isExpanded}>
         <div
           className={cn('', className)}
@@ -215,7 +215,7 @@ export function FileTreeFolder({
           </CollapsibleContent>
         </div>
       </Collapsible>
-    </FileTreeFolderContext.Provider>
+    </FileTreeFolderContext>
   )
 }
 
@@ -243,7 +243,7 @@ export function FileTreeFile({
   children,
   ...props
 }: FileTreeFileProps) {
-  const { selectedPath, onSelect } = useContext(FileTreeContext)
+  const { selectedPath, onSelect } = use(FileTreeContext)
   const isSelected = selectedPath === path
 
   const handleClick = useCallback(() => {
@@ -262,7 +262,7 @@ export function FileTreeFile({
   const fileContextValue = useMemo(() => ({ name, path }), [name, path])
 
   return (
-    <FileTreeFileContext.Provider value={fileContextValue}>
+    <FileTreeFileContext value={fileContextValue}>
       <div
         className={cn(
           'flex cursor-pointer items-center gap-1 rounded px-2 py-1 transition-colors hover:bg-muted/50',
@@ -286,7 +286,7 @@ export function FileTreeFile({
           </>
         )}
       </div>
-    </FileTreeFileContext.Provider>
+    </FileTreeFileContext>
   )
 }
 

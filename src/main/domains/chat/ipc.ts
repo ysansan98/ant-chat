@@ -4,6 +4,7 @@ import { handleChatCompletions, handleInitConversationTitle } from '@main/ai-pro
 import { StreamAbortController } from '@main/ai-providers/utils/StreamAbortController'
 import { services } from '@main/db'
 import { updateConversation } from '@main/db/services'
+import { WorkspaceStore } from '@main/store/workspace'
 import { logger } from '@main/utils/logger'
 import { IpcMethod, IpcService } from 'electron-ipc-decorator'
 
@@ -34,12 +35,30 @@ export class ChatIpcService extends IpcService {
   @IpcMethod()
   async getConversations(pageIndex: number, pageSize: number): Promise<IpcPaginatedResponse<IConversations[]>> {
     try {
-      const total = await services.getConversationsTotal()
-      const data = await services.getConversations(pageIndex, pageSize)
+      const workspaceStore = WorkspaceStore.getInstance()
+      const workspacePath = workspaceStore.getCurrentWorkspacePath()
+      const includeNullWorkspace = workspacePath === workspaceStore.getDefaultWorkspacePath()
+      const total = await services.getConversationsTotal(workspacePath, includeNullWorkspace)
+      const data = await services.getConversations(pageIndex, pageSize, workspacePath, includeNullWorkspace)
       return createIpcPaginatedResponse(true, data, '', total)
     }
     catch (error) {
       logger.error('获取会话列表失败:', error)
+      return createErrorIpcResponse(error as Error)
+    }
+  }
+
+  @IpcMethod()
+  async getWorkspaceConversations(workspacePath: string, pageIndex: number, pageSize: number): Promise<IpcPaginatedResponse<IConversations[]>> {
+    try {
+      const workspaceStore = WorkspaceStore.getInstance()
+      const includeNullWorkspace = workspacePath === workspaceStore.getDefaultWorkspacePath()
+      const total = await services.getConversationsTotal(workspacePath, includeNullWorkspace)
+      const data = await services.getConversations(pageIndex, pageSize, workspacePath, includeNullWorkspace)
+      return createIpcPaginatedResponse(true, data, '', total)
+    }
+    catch (error) {
+      logger.error('获取工作区会话列表失败:', error)
       return createErrorIpcResponse(error as Error)
     }
   }
@@ -59,7 +78,10 @@ export class ChatIpcService extends IpcService {
   @IpcMethod()
   async addConversation(conversation: AddConversationsSchema): Promise<IpcResponse<IConversations>> {
     try {
-      const data = await services.addConversation(conversation)
+      const data = await services.addConversation({
+        ...conversation,
+        workspacePath: conversation.workspacePath ?? WorkspaceStore.getInstance().getCurrentWorkspacePath(),
+      })
       return createIpcResponse(true, data)
     }
     catch (error) {

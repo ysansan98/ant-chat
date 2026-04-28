@@ -1,5 +1,13 @@
 import type { IConversations } from '@ant-chat/shared'
 
+export interface WorkspaceConversationsState {
+  conversations: IConversations[]
+  pageIndex: number
+  conversationsTotal: number
+  loadVersion: number
+  loaded: boolean
+}
+
 export interface StoreState {
   conversations: IConversations[]
   abortCallbacks: (() => void)[]
@@ -8,14 +16,34 @@ export interface StoreState {
   conversationsTotal: number
   activeConversationsId: string
   streamingConversationIds: Set<string>
+  loadVersion: number
+  currentWorkspacePath: string
+  workspaceConversations: Record<string, WorkspaceConversationsState>
 }
 
-export const initialState: StoreState = {
-  conversations: [],
-  abortCallbacks: [],
-  streamingConversationIds: new Set<string>(),
-  pageIndex: 0,
-  pageSize: 20,
-  conversationsTotal: 1,
-  activeConversationsId: '',
+export function createWorkspaceConversationsState(): WorkspaceConversationsState {
+  return {
+    conversations: [],
+    pageIndex: 0,
+    conversationsTotal: 1,
+    loadVersion: 0,
+    loaded: false,
+  }
 }
+
+export function createInitialState(): StoreState {
+  return {
+    conversations: [],
+    abortCallbacks: [],
+    streamingConversationIds: new Set<string>(),
+    pageIndex: 0,
+    pageSize: 20,
+    conversationsTotal: 1,
+    activeConversationsId: '',
+    loadVersion: 0,
+    currentWorkspacePath: '',
+    workspaceConversations: {},
+  }
+}
+
+export const initialState: StoreState = createInitialState()

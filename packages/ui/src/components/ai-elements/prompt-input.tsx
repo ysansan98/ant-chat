@@ -66,8 +66,8 @@ import { nanoid } from 'nanoid'
 import {
   Children,
   createContext,
+  use,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -213,7 +213,7 @@ const ProviderAttachmentsContext = createContext<AttachmentsContext | null>(
 )
 
 export function usePromptInputController() {
-  const ctx = useContext(PromptInputController)
+  const ctx = use(PromptInputController)
   if (!ctx) {
     throw new Error(
       'Wrap your component inside <PromptInputProvider> to use usePromptInputController().',
@@ -224,11 +224,11 @@ export function usePromptInputController() {
 
 // Optional variants (do NOT throw). Useful for dual-mode components.
 function useOptionalPromptInputController() {
-  return useContext(PromptInputController)
+  return use(PromptInputController)
 }
 
 export function useProviderAttachments() {
-  const ctx = useContext(ProviderAttachmentsContext)
+  const ctx = use(ProviderAttachmentsContext)
   if (!ctx) {
     throw new Error(
       'Wrap your component inside <PromptInputProvider> to use useProviderAttachments().',
@@ -238,7 +238,7 @@ export function useProviderAttachments() {
 }
 
 function useOptionalProviderAttachments() {
-  return useContext(ProviderAttachmentsContext)
+  return use(ProviderAttachmentsContext)
 }
 
 export type PromptInputProviderProps = PropsWithChildren<{
@@ -362,9 +362,9 @@ export function PromptInputProvider({
 
   return (
     <PromptInputController.Provider value={controller}>
-      <ProviderAttachmentsContext.Provider value={attachments}>
+      <ProviderAttachmentsContext value={attachments}>
         {children}
-      </ProviderAttachmentsContext.Provider>
+      </ProviderAttachmentsContext>
     </PromptInputController.Provider>
   )
 }
@@ -378,7 +378,7 @@ const LocalAttachmentsContext = createContext<AttachmentsContext | null>(null)
 export function usePromptInputAttachments() {
   // Prefer local context (inside PromptInput) as it has validation, fall back to provider
   const provider = useOptionalProviderAttachments()
-  const local = useContext(LocalAttachmentsContext)
+  const local = use(LocalAttachmentsContext)
   const context = local ?? provider
   if (!context) {
     throw new Error(
@@ -403,7 +403,7 @@ export const LocalReferencedSourcesContext
   = createContext<ReferencedSourcesContext | null>(null)
 
 export function usePromptInputReferencedSources() {
-  const ctx = useContext(LocalReferencedSourcesContext)
+  const ctx = use(LocalReferencedSourcesContext)
   if (!ctx) {
     throw new Error(
       'usePromptInputReferencedSources must be used within a LocalReferencedSourcesContext.Provider',
@@ -937,16 +937,16 @@ export function PromptInput({
   )
 
   const withReferencedSources = (
-    <LocalReferencedSourcesContext.Provider value={refsCtx}>
+    <LocalReferencedSourcesContext value={refsCtx}>
       {inner}
-    </LocalReferencedSourcesContext.Provider>
+    </LocalReferencedSourcesContext>
   )
 
   // Always provide LocalAttachmentsContext so children get validated add function
   return (
-    <LocalAttachmentsContext.Provider value={attachmentsCtx}>
+    <LocalAttachmentsContext value={attachmentsCtx}>
       {withReferencedSources}
-    </LocalAttachmentsContext.Provider>
+    </LocalAttachmentsContext>
   )
 }
 

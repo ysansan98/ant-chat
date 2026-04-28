@@ -1,5 +1,6 @@
 import type { ServiceProviderModelsSchema } from '@ant-chat/shared'
-import { Input, Slider } from 'antd'
+import { Input } from '@workspace/ui/components/input'
+import { Textarea } from '@workspace/ui/components/textarea'
 import { useEffect, useState } from 'react'
 import { providerApi } from '@/api/providerApi'
 import PromptIcon from '@/assets/icons/prompt.svg?react'
@@ -27,7 +28,10 @@ export function ModelParameterSettingsPanel() {
       </div>
       <div className="">
         <FormItem label="系统提示词" icon={<PromptIcon />}>
-          <Input.TextArea value={settings.systemPrompt} onChange={e => updateSettings({ systemPrompt: e.target.value })} />
+          <Textarea
+            value={settings.systemPrompt}
+            onChange={e => updateSettings({ systemPrompt: e.target.value })}
+          />
         </FormItem>
         <FormItem label="temperature" icon={<TemperatureIcon />}>
           <CustomSlider
@@ -84,14 +88,14 @@ export function CustomSlider({ defaultValue, min, max, step, value, onChange, fo
       <div className="absolute top-0 right-0 -translate-y-full text-xs">
         {formatter ? formatter(value) : value}
       </div>
-      <Slider
+      <Input
+        type="range"
         defaultValue={defaultValue}
         min={min}
         max={max}
         step={step}
         value={value}
-        tooltip={{ open: false }}
-        onChange={onChange}
+        onChange={event => onChange(Number(event.target.value))}
       />
     </div>
   )

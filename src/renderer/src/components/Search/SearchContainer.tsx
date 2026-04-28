@@ -8,6 +8,9 @@ export function SearchContainer() {
 
   React.useEffect(
     () => {
+      const openSearch = () => {
+        setOpenModal(true)
+      }
       const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
           e.preventDefault()
@@ -24,9 +27,11 @@ export function SearchContainer() {
         }
       }
 
+      window.addEventListener('ant-chat:open-search', openSearch)
       window.addEventListener('keydown', handleKeyDown)
 
       return () => {
+        window.removeEventListener('ant-chat:open-search', openSearch)
         window.removeEventListener('keydown', handleKeyDown)
       }
     },
@@ -41,7 +46,7 @@ export function SearchContainer() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed top-0 right-0 bottom-0 left-0 z-50 bg-black/10 backdrop-blur-sm"
+                className="fixed inset-0 z-50 bg-black/10 backdrop-blur-sm"
                 onClick={(e) => {
                   if (e.target === e.currentTarget) {
                     setOpenModal(false)

@@ -94,6 +94,7 @@ export class MainWindow {
         preload,
       },
       titleBarStyle: isMacOS ? 'hidden' : 'default',
+      trafficLightPosition: { x: 19, y: 19 },
     })
 
     mainWindow = this.window

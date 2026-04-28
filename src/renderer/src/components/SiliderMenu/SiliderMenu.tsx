@@ -1,62 +1,62 @@
-import { GithubFilled, MessageOutlined, SettingOutlined } from '@ant-design/icons'
-
+import {
+  EditOutlined,
+  SearchOutlined,
+  SettingOutlined,
+} from '@ant-design/icons'
 import { useLocation, useNavigate } from 'react-router'
-import ThemeButton from '../ThemeButton'
-import { SliderMenuItem } from './SliderMenuItem'
+import { setActiveConversationsId } from '@/store/messages'
+import { ThemeMenuItem } from '../ThemeButton'
+import { WorkspacePanels } from '../Workspace/WorkspacePanels'
+import { SidebarNavItem } from './SliderMenuItem'
 
 export function SliderMenu() {
   const location = useLocation()
   const navigate = useNavigate()
+  const isChatPage = location.pathname.includes('/chat')
 
-  function handleNavigate(e: React.MouseEvent, path: string) {
-    e.preventDefault()
-    navigate(path)
+  function openSearch() {
+    window.dispatchEvent(new Event('ant-chat:open-search'))
   }
 
   return (
-    <div className="h-full w-12.5 border-r-1 border-(--border-color)">
-      <div className="flex h-full flex-col items-center justify-between">
-        <div className="flex flex-col items-center gap-5 pt-2">
-          <div className="flex h-8 w-8 items-center justify-center p-1">
-            <img
-              src="./logo.svg"
-              className="h-full w-full cursor-pointer"
-              draggable={false}
-              onClick={() => {
-                navigate('/')
-              }}
-            />
-          </div>
-
-          <SliderMenuItem
-            title="对话"
-            icon={<MessageOutlined />}
-            path="/chat"
-            actived={location.pathname.includes('/chat')}
-            onClick={handleNavigate}
+    <aside className={`
+      flex h-full w-(--conversationWidth) shrink-0 flex-col rounded-2xl bg-[#eef3f1] text-slate-500
+      dark:bg-[#151918] dark:text-slate-400
+    `}
+    >
+      <div className="h-14"></div>
+      <div className="app-region-no-drag flex min-h-0 flex-1 flex-col px-2 pb-3">
+        <div className="flex flex-col gap-1 py-2">
+          <SidebarNavItem
+            icon={<EditOutlined />}
+            label="新对话"
+            active={isChatPage && !location.search}
+            onClick={() => {
+              navigate('/chat')
+              void setActiveConversationsId('')
+            }}
           />
-
-          <SliderMenuItem
-            title="设置"
-            icon={<SettingOutlined />}
-            path="/settings"
-            actived={location.pathname.startsWith('/settings')}
-            onClick={handleNavigate}
+          <SidebarNavItem
+            icon={<SearchOutlined />}
+            label="搜索"
+            onClick={openSearch}
           />
         </div>
-        <div className="flex flex-col items-center gap-2 pb-4">
-          <ThemeButton />
 
-          <SliderMenuItem
-            title={null}
-            icon={<GithubFilled />}
-            path="https://github.com/whitexie/ant-chat"
-            onClick={(_, path) => {
-              window.location.href = path
-            }}
+        <div className="mt-6 min-h-0 flex-1 overflow-hidden">
+          <WorkspacePanels />
+        </div>
+
+        <div className="mt-3 flex flex-col gap-1">
+          <ThemeMenuItem />
+          <SidebarNavItem
+            icon={<SettingOutlined />}
+            label="设置"
+            active={location.pathname.startsWith('/settings')}
+            onClick={() => navigate('/settings')}
           />
         </div>
       </div>
-    </div>
+    </aside>
   )
 }

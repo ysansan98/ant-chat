@@ -10,7 +10,7 @@ import {
 } from '@workspace/ui/components/hover-card'
 import { Progress } from '@workspace/ui/components/progress'
 import { cn } from '@workspace/ui/lib/utils'
-import { createContext, useContext, useMemo } from 'react'
+import { createContext, use, useMemo } from 'react'
 import { getUsage } from 'tokenlens'
 
 const PERCENT_MAX = 100
@@ -31,7 +31,7 @@ interface ContextSchema {
 const ContextContext = createContext<ContextSchema | null>(null)
 
 function useContextValue() {
-  const context = useContext(ContextContext)
+  const context = use(ContextContext)
 
   if (!context) {
     throw new Error('Context components must be used within Context')
@@ -55,9 +55,9 @@ export function Context({
   )
 
   return (
-    <ContextContext.Provider value={contextValue}>
+    <ContextContext value={contextValue}>
       <HoverCard closeDelay={0} openDelay={0} {...props} />
-    </ContextContext.Provider>
+    </ContextContext>
   )
 }
 

@@ -18,8 +18,8 @@ import {
 import {
   createContext,
   memo,
+  use,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -59,7 +59,7 @@ interface StackTraceContextValue {
 const StackTraceContext = createContext<StackTraceContextValue | null>(null)
 
 function useStackTrace() {
-  const context = useContext(StackTraceContext)
+  const context = use(StackTraceContext)
   if (!context) {
     throw new Error('StackTrace components must be used within StackTrace')
   }
@@ -193,7 +193,7 @@ export const StackTrace = memo(
     )
 
     return (
-      <StackTraceContext.Provider value={contextValue}>
+      <StackTraceContext value={contextValue}>
         <div
           className={cn(
             'not-prose w-full overflow-hidden rounded-lg border bg-background font-mono text-sm',
@@ -203,7 +203,7 @@ export const StackTrace = memo(
         >
           {children}
         </div>
-      </StackTraceContext.Provider>
+      </StackTraceContext>
     )
   },
 )

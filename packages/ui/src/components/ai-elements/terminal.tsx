@@ -7,8 +7,8 @@ import Ansi from 'ansi-to-react'
 import { CheckIcon, CopyIcon, TerminalIcon, Trash2Icon } from 'lucide-react'
 import {
   createContext,
+  use,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -73,7 +73,7 @@ export function TerminalStatus({
   children,
   ...props
 }: TerminalStatusProps) {
-  const { isStreaming } = useContext(TerminalContext)
+  const { isStreaming } = use(TerminalContext)
 
   if (!isStreaming) {
     return null
@@ -119,7 +119,7 @@ export function TerminalCopyButton({
 }: TerminalCopyButtonProps) {
   const [isCopied, setIsCopied] = useState(false)
   const timeoutRef = useRef<number>(0)
-  const { output } = useContext(TerminalContext)
+  const { output } = use(TerminalContext)
 
   const copyToClipboard = useCallback(async () => {
     if (typeof window === 'undefined' || !navigator?.clipboard?.writeText) {
@@ -170,7 +170,7 @@ export function TerminalClearButton({
   className,
   ...props
 }: TerminalClearButtonProps) {
-  const { onClear } = useContext(TerminalContext)
+  const { onClear } = use(TerminalContext)
 
   if (!onClear) {
     return null
@@ -199,7 +199,7 @@ export function TerminalContent({
   children,
   ...props
 }: TerminalContentProps) {
-  const { output, isStreaming, autoScroll } = useContext(TerminalContext)
+  const { output, isStreaming, autoScroll } = use(TerminalContext)
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -251,7 +251,7 @@ export function Terminal({
   )
 
   return (
-    <TerminalContext.Provider value={contextValue}>
+    <TerminalContext value={contextValue}>
       <div
         className={cn(
           'flex flex-col overflow-hidden rounded-lg border bg-zinc-950 text-zinc-100',
@@ -275,6 +275,6 @@ export function Terminal({
           </>
         )}
       </div>
-    </TerminalContext.Provider>
+    </TerminalContext>
   )
 }

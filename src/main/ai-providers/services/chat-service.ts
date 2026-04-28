@@ -1,5 +1,6 @@
 import type { CreateConversationTitleOptions, handleChatCompletionsOptions, handleInitConversationTitleOptions, McpToolCall, MessageContent, SendChatCompletionsOptions, TextContent } from '@ant-chat/shared'
 import type { MultiProvider } from '../multi-provider'
+import process from 'node:process'
 import { createAIMessage, getMessagesByConvId, getModelById, getProviderServiceById, getServiceProviderByModelId, updateMessage } from '@main/db/services'
 import { clientHub } from '@main/mcpClientHub'
 import { sendToRenderer } from '@main/utils/ipc-events'
@@ -102,6 +103,7 @@ export async function handleChatCompletions(options: handleChatCompletionsOption
         chatSettings: {
           ...chatSettings,
           model: modelInfo.model,
+          systemPrompt: appendPlatformDeclaration(chatSettings.systemPrompt),
         },
         mcpTools,
         abortSignal: streamAbortController.signal,
@@ -164,6 +166,23 @@ export async function handleChatCompletions(options: handleChatCompletionsOption
   const finalMessage = await updateMessage({ id: aiMessage.id, role: 'assistant', status: 'success' })
 
   sendToRenderer(mainWindow.webContents, 'chat:stream-message', { ...finalMessage, status: 'success' })
+}
+
+export function appendPlatformDeclaration(systemPrompt: string): string {
+  const platform = process.platform === 'darwin'
+    ? 'macOS'
+    : process.platform === 'win32'
+      ? 'Windows'
+      : null
+
+  if (!platform) {
+    return systemPrompt
+  }
+
+  const declaration = `Current application platform: ${platform}. Supported agent platforms are macOS and Windows only.`
+  return systemPrompt.trim()
+    ? `${systemPrompt.trim()}\n\n${declaration}`
+    : declaration
 }
 
 export async function handleInitConversationTitle(options: handleInitConversationTitleOptions) {

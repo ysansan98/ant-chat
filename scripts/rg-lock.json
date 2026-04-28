@@ -1,0 +1,21 @@
+{
+  "version": "15.1.0",
+  "targets": [
+    {
+      "platformArch": "darwin-arm64",
+      "archiveUrl": "https://github.com/BurntSushi/ripgrep/releases/download/15.1.0/ripgrep-15.1.0-aarch64-apple-darwin.tar.gz",
+      "archiveType": "tar.gz",
+      "binaryName": "rg",
+      "binaryRelativePathInArchive": "ripgrep-15.1.0-aarch64-apple-darwin/rg",
+      "sha256": "4fdf1d8365af224bc70e3c1490d8461d859c37cc70e739a11e987af0215f3e94"
+    },
+    {
+      "platformArch": "win32-x64",
+      "archiveUrl": "https://github.com/BurntSushi/ripgrep/releases/download/15.1.0/ripgrep-15.1.0-x86_64-pc-windows-msvc.zip",
+      "archiveType": "zip",
+      "binaryName": "rg.exe",
+      "binaryRelativePathInArchive": "ripgrep-15.1.0-x86_64-pc-windows-msvc/rg.exe",
+      "sha256": "decdd4992f3f1b9a5ef9898f1b40ab16886d579d6516b4efd3d5eaa19364e408"
+    }
+  ]
+}

@@ -1,7 +1,6 @@
 import type { AudioProps } from '@lobehub/tts/es/react/AudioPlayer'
 import { createContext } from 'react'
 
-// úš„íóMn
 export const DEFAULT_VOICE_CONFIG = {
   voice: 'zh-CN-YunxiaNeural',
   locale: 'zh-CN',

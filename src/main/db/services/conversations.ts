@@ -4,14 +4,17 @@ import {
   AddConversationsSchema,
   UpdateConversationsSchema,
 } from '@ant-chat/shared'
-import { eq, sql } from 'drizzle-orm'
+import { eq, isNull, or, sql } from 'drizzle-orm'
 import { db } from '../db'
 import {
   conversationsTable,
 } from '../schema'
 
-export async function getConversationsTotal() {
-  const result = db.select({ count: sql<number>`count(1)` }).from(conversationsTable).get()
+export async function getConversationsTotal(workspacePath?: string, includeNullWorkspace = false) {
+  const result = db.select({ count: sql<number>`count(1)` })
+    .from(conversationsTable)
+    .where(getWorkspaceWhere(workspacePath, includeNullWorkspace))
+    .get()
   return result?.count ?? 0
 }
 
@@ -19,9 +22,10 @@ export async function conversationsIsExists(id: string): Promise<boolean> {
   return !!(db.select({ count: sql<number>`COUNT(1)` }).from(conversationsTable).where(eq(conversationsTable.id, id)).get())
 }
 
-export async function getConversations(pageIndex: number, pageSize: number = 10): Promise<IConversations[]> {
+export async function getConversations(pageIndex: number, pageSize: number = 10, workspacePath?: string, includeNullWorkspace = false): Promise<IConversations[]> {
   const results = await db.select()
     .from(conversationsTable)
+    .where(getWorkspaceWhere(workspacePath, includeNullWorkspace))
     .orderBy(sql`${conversationsTable.updatedAt} DESC`)
     .limit(pageSize)
     .offset(pageIndex * pageSize)
@@ -77,4 +81,14 @@ export async function updateConversationUpdateAt(id: string, updatedAt: number):
     .get()
 
   return result as IConversations
+}
+
+function getWorkspaceWhere(workspacePath?: string, includeNullWorkspace = false) {
+  if (!workspacePath) {
+    return undefined
+  }
+
+  return includeNullWorkspace
+    ? or(eq(conversationsTable.workspacePath, workspacePath), isNull(conversationsTable.workspacePath))
+    : eq(conversationsTable.workspacePath, workspacePath)
 }

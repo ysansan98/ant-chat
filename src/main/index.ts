@@ -3,6 +3,7 @@ import { app } from 'electron'
 import { initializeDb } from './db'
 import { UpdateService } from './domains/update/updateService'
 import { installDevTools } from './plugins/devtools'
+import { WorkspaceStore } from './store/workspace'
 import { isDev } from './utils/env'
 import { logger } from './utils/logger'
 import { initializeProxy } from './utils/proxy-manager'
@@ -24,6 +25,9 @@ app.whenReady().then(async () => {
 
   // 初始化代理设置
   await initializeProxy()
+
+  // 初始化默认工作区
+  WorkspaceStore.getInstance().ensureInitialized()
 
   const mainWindow = new MainWindow()
   await mainWindow.createWindow()

@@ -18,7 +18,7 @@ import {
   VideoIcon,
   XIcon,
 } from 'lucide-react'
-import { createContext, useCallback, useContext, useMemo } from 'react'
+import { createContext, use, useCallback, useMemo } from 'react'
 
 // ============================================================================
 // Types
@@ -129,11 +129,11 @@ const AttachmentContext = createContext<AttachmentContextValue | null>(null)
 // ============================================================================
 
 export function useAttachmentsContext() {
-  return useContext(AttachmentsContext) ?? { variant: 'grid' as const }
+  return use(AttachmentsContext) ?? { variant: 'grid' as const }
 }
 
 export function useAttachmentContext() {
-  const ctx = useContext(AttachmentContext)
+  const ctx = use(AttachmentContext)
   if (!ctx) {
     throw new Error('Attachment components must be used within <Attachment>')
   }
@@ -157,7 +157,7 @@ export function Attachments({
   const contextValue = useMemo(() => ({ variant }), [variant])
 
   return (
-    <AttachmentsContext.Provider value={contextValue}>
+    <AttachmentsContext value={contextValue}>
       <div
         className={cn(
           'flex items-start',
@@ -169,7 +169,7 @@ export function Attachments({
       >
         {children}
       </div>
-    </AttachmentsContext.Provider>
+    </AttachmentsContext>
   )
 }
 
@@ -198,7 +198,7 @@ export function Attachment({
   )
 
   return (
-    <AttachmentContext.Provider value={contextValue}>
+    <AttachmentContext value={contextValue}>
       <div
         className={cn(
           'group relative',
@@ -219,7 +219,7 @@ export function Attachment({
       >
         {children}
       </div>
-    </AttachmentContext.Provider>
+    </AttachmentContext>
   )
 }
 

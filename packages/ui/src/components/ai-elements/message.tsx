@@ -22,8 +22,8 @@ import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
 import {
   createContext,
   memo,
+  use,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useState,
@@ -133,7 +133,7 @@ const MessageBranchContext = createContext<MessageBranchContextType | null>(
 )
 
 function useMessageBranch() {
-  const context = useContext(MessageBranchContext)
+  const context = use(MessageBranchContext)
 
   if (!context) {
     throw new Error(
@@ -191,12 +191,12 @@ export function MessageBranch({
   )
 
   return (
-    <MessageBranchContext.Provider value={contextValue}>
+    <MessageBranchContext value={contextValue}>
       <div
         className={cn('grid w-full gap-2 [&>div]:pb-0', className)}
         {...props}
       />
-    </MessageBranchContext.Provider>
+    </MessageBranchContext>
   )
 }
 

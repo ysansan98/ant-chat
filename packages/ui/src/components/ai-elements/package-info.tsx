@@ -4,7 +4,7 @@ import type { HTMLAttributes } from 'react'
 import { Badge } from '@workspace/ui/components/badge'
 import { cn } from '@workspace/ui/lib/utils'
 import { ArrowRightIcon, MinusIcon, PackageIcon, PlusIcon } from 'lucide-react'
-import { createContext, useContext, useMemo } from 'react'
+import { createContext, use, useMemo } from 'react'
 
 type ChangeType = 'major' | 'minor' | 'patch' | 'added' | 'removed'
 
@@ -43,7 +43,7 @@ export function PackageInfoName({
   children,
   ...props
 }: PackageInfoNameProps) {
-  const { name } = useContext(PackageInfoContext)
+  const { name } = use(PackageInfoContext)
 
   return (
     <div className={cn('flex items-center gap-2', className)} {...props}>
@@ -77,7 +77,7 @@ export function PackageInfoChangeType({
   children,
   ...props
 }: PackageInfoChangeTypeProps) {
-  const { changeType } = useContext(PackageInfoContext)
+  const { changeType } = use(PackageInfoContext)
 
   if (!changeType) {
     return null
@@ -106,7 +106,7 @@ export function PackageInfoVersion({
   children,
   ...props
 }: PackageInfoVersionProps) {
-  const { currentVersion, newVersion } = useContext(PackageInfoContext)
+  const { currentVersion, newVersion } = use(PackageInfoContext)
 
   if (!(currentVersion || newVersion)) {
     return null
@@ -157,7 +157,7 @@ export function PackageInfo({
   )
 
   return (
-    <PackageInfoContext.Provider value={contextValue}>
+    <PackageInfoContext value={contextValue}>
       <div
         className={cn('rounded-lg border bg-background p-4', className)}
         {...props}
@@ -172,7 +172,7 @@ export function PackageInfo({
           </>
         )}
       </div>
-    </PackageInfoContext.Provider>
+    </PackageInfoContext>
   )
 }
 

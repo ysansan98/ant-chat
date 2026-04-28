@@ -1,8 +1,8 @@
 import type { AddServiceProviderModelSchema, AddServiceProviderSchema, AllAvailableModelsSchema, IpcResponse, ServiceProviderModelsSchema, ServiceProviderSchema, UpdateServiceProviderSchema } from '@ant-chat/shared'
 import { createErrorIpcResponse, createIpcResponse } from '@ant-chat/shared'
 import { services } from '@main/db'
-import { getModelsDevModelsByProviderId, getModelsDevProviders } from './modelsDev'
 import { IpcMethod, IpcService } from 'electron-ipc-decorator'
+import { getModelsDevModelsByProviderId, getModelsDevProviders } from './modelsDev'
 
 export class ProviderIpcService extends IpcService {
   static readonly groupName = 'provider'
