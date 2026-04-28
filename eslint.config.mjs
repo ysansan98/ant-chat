@@ -11,6 +11,9 @@ export default antfu(
       html: true,
       markdown: 'prettier',
     },
+    ignores: [
+      'docs/**/*.md',
+    ],
     rules: {
       'no-console': ['off'],
       'ts/no-redeclare': ['off'],
@@ -40,8 +43,11 @@ export default antfu(
 
       // or configure rules individually
       'better-tailwindcss/enforce-consistent-line-wrapping': ['warn', { printWidth: 100 }],
-      'better-tailwindcss/no-unregistered-classes': ['error', {
+      'better-tailwindcss/no-unknown-classes': ['error', {
+        detectComponentClasses: true,
         ignore: [
+          'bg-background',
+          'app-region-no-drag',
           'app-region-drag',
           'ant-*',
           'antd-*',
@@ -61,6 +67,19 @@ export default antfu(
     rules: {
       'import/order': ['off'],
       'perfectionist/sort-imports': ['off'],
+    },
+  },
+  {
+    files: ['packages/ui/src/components/ai-elements/**/*.{ts,tsx}'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+      'react-hooks/refs': 'off',
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/immutability': 'off',
+      'react-hooks/static-components': 'off',
+      'react-hooks-extra/no-direct-set-state-in-use-effect': 'off',
+      'regexp/no-super-linear-backtracking': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
     },
   },
   {

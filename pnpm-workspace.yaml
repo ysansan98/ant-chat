@@ -3,6 +3,7 @@ packages:
   - packages/*
 
 catalog:
+  lucide-react: ^1.11.0
   tsdown: ^0.20.0
 onlyBuiltDependencies:
   - electron
