@@ -19,13 +19,13 @@ export function About() {
       <Card className="w-full">
         <div className="space-y-3 text-center">
           <div className="flex justify-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white p-2">
-              <img src="./logo.svg" alt="logo" className="h-full w-full" draggable={false} />
+            <div className="flex size-16 items-center justify-center rounded-2xl bg-white p-2">
+              <img src="./logo.svg" alt="logo" className="size-full" draggable={false} />
             </div>
           </div>
 
           <div>
-            <Title level={2} className="!mb-2">Ant Chat</Title>
+            <Title level={2} className="mb-2!">Ant Chat</Title>
             <Text type="secondary" className="text-base">
               现代化的 AI 聊天桌面应用
             </Text>

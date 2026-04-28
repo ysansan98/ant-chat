@@ -30,7 +30,7 @@ export default function ProviderManage() {
       <div
         className={`
           flex h-dvh w-50 shrink-0 flex-col gap-2 overflow-y-auto border-r border-solid
-          border-(--border-color) px-2 py-2
+          border-(--border-color) p-2
         `}
       >
         {
@@ -48,10 +48,13 @@ export default function ProviderManage() {
               }}
             >
               <div className="flex items-center gap-2 text-base">
-                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-white">
+                <div className="
+                  flex size-6 shrink-0 items-center justify-center rounded-sm bg-white
+                "
+                >
                   {(() => {
                     const content = (
-                      <ProviderLogo id={item.id} name={item.name} size={16} className="h-4 w-4" />
+                      <ProviderLogo id={item.id} name={item.name} size={16} className="size-4" />
                     )
                     return content || <Logo />
                   })()}
