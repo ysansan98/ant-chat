@@ -95,7 +95,11 @@ export function MessageBubble({ messages, collapseIntermediate, onCopyMessage, o
           >
             <div className={cn('space-y-5', isUser && 'space-y-3')}>
               {shouldCollapseProcess && (
-                <Collapsible open={isProcessOpen} onOpenChange={setIsProcessOpen}>
+                <Collapsible
+                  className="mb-0"
+                  open={isProcessOpen}
+                  onOpenChange={setIsProcessOpen}
+                >
                   <CollapsibleTrigger asChild>
                     <Button
                       type="button"

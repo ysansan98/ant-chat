@@ -46,6 +46,8 @@ export default antfu(
       'better-tailwindcss/no-unknown-classes': ['error', {
         detectComponentClasses: true,
         ignore: [
+          'bg-sidebar',
+          'text-sidebar-foreground',
           'bg-background',
           'app-region-no-drag',
           'app-region-drag',

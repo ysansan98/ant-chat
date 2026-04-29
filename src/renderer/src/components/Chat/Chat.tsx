@@ -94,13 +94,7 @@ export default function Chat() {
       key={currentConversations?.id}
       className="relative mx-auto grid h-(--mainHeight) w-full grid-rows-[1fr_max-content]"
     >
-      <div
-        className={`
-          absolute top-0 left-0 z-10 h-5 w-full bg-linear-to-b from-white to-transparent
-          dark:from-black
-        `}
-      >
-      </div>
+
       {
         messages.length > 0
           ? (

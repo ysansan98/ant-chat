@@ -20,8 +20,8 @@ export function SliderMenu() {
 
   return (
     <aside className={`
-      flex h-full w-(--conversationWidth) shrink-0 flex-col rounded-2xl bg-[#eef3f1] text-slate-500
-      dark:bg-[#151918] dark:text-slate-400
+      bg-sidebar text-sidebar-foreground flex h-full w-(--conversationWidth) shrink-0 flex-col
+      rounded-2xl
     `}
     >
       <div className="h-14"></div>
