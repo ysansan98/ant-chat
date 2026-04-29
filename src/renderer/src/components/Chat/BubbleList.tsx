@@ -1,7 +1,8 @@
 import type { IMessage, MessageId } from '@ant-chat/shared'
-import { ArrowDownOutlined } from '@ant-design/icons'
-import { Button } from 'antd'
+import { Button } from '@workspace/ui/components/button'
+import { ArrowDownIcon } from 'lucide-react'
 import { useEffect } from 'react'
+import { Role } from '@/constants'
 import { useAutoScroll } from '@/hooks/useAutoScroll'
 import { useMessageActions } from '@/hooks/useMessageActions'
 import { usePagination } from '@/hooks/usePagination'
@@ -12,11 +13,11 @@ import { MessageBubble } from './MessageBubble'
 interface Props {
   messages: IMessage[]
   conversationsId: string
-  onRefresh?: (message: IMessage) => void
+  isAgentRunning: boolean
   onExecuteAllCompleted?: (messageId: MessageId) => void
 }
 
-function BubbleList({ messages, conversationsId, onExecuteAllCompleted, onRefresh }: Props) {
+function BubbleList({ messages, conversationsId, isAgentRunning, onExecuteAllCompleted }: Props) {
   // 自动滚动逻辑
   const {
     autoScrollToBottom,
@@ -33,19 +34,10 @@ function BubbleList({ messages, conversationsId, onExecuteAllCompleted, onRefres
   } = usePagination(conversationsId)
 
   // 消息操作逻辑
-  const { copyMessage, deleteMessage } = useMessageActions()
+  const { copyMessage } = useMessageActions()
 
   const hasMore = messages.length < messageTotal
-
-  // 处理底部按钮点击
-  async function handleFooterButtonClick(buttonName: string, message: IMessage) {
-    const mapping = {
-      copy: () => copyMessage(message),
-      refresh: () => onRefresh?.(message),
-      delete: () => deleteMessage(message.id),
-    }
-    mapping[buttonName as keyof typeof mapping]?.()
-  }
+  const messageGroups = groupMessages(messages)
 
   // 当消息数量变化时自动滚动
   useEffect(() => {
@@ -57,7 +49,7 @@ function BubbleList({ messages, conversationsId, onExecuteAllCompleted, onRefres
   return (
     <InfiniteScroll
       ref={infiniteScrollRef}
-      className="relative flex flex-col gap-4 px-4"
+      className="relative flex flex-col gap-6 px-4 py-6"
       hasMore={hasMore}
       loading={isLoading}
       onLoadMore={handleLoadMore}
@@ -69,30 +61,49 @@ function BubbleList({ messages, conversationsId, onExecuteAllCompleted, onRefres
       )}
       onWheel={handleWheel}
     >
-      {messages.map(message => (
+      {messageGroups.map(group => (
         <MessageBubble
-          key={message.id}
-          message={message}
-          onFooterButtonClick={handleFooterButtonClick}
+          key={group.map(message => message.id).join(':')}
+          messages={group}
+          collapseIntermediate={!isAgentRunning}
+          onCopyMessage={copyMessage}
           onExecuteAllCompleted={onExecuteAllCompleted}
         />
       ))}
 
       <Button
-        size="small"
+        size="icon-sm"
+        variant="outline"
         className={`
-          sticky! bottom-8 left-1/2 block min-h-6 w-6 -translate-x-1/2 transition-opacity
-          duration-300
+          bg-background sticky bottom-8 left-1/2 z-10 -translate-x-1/2 rounded-full shadow-sm
+          transition-opacity duration-300
           ${autoScrollToBottom
       ? `opacity-0`
       : `opacity-100`}
         `}
-        shape="circle"
-        icon={<ArrowDownOutlined />}
+        type="button"
         onClick={scrollToBottom}
-      />
+      >
+        <ArrowDownIcon className="size-4" />
+      </Button>
     </InfiniteScroll>
   )
 }
 
 export default BubbleList
+
+function groupMessages(messages: IMessage[]): IMessage[][] {
+  return messages.reduce<IMessage[][]>((groups, message) => {
+    const lastGroup = groups.at(-1)
+    const canMergeWithPrevious = message.role === Role.AI && lastGroup?.at(-1)?.role === Role.AI
+
+    if (canMergeWithPrevious && lastGroup) {
+      lastGroup.push(message)
+    }
+    else {
+      groups.push([message])
+    }
+
+    return groups
+  }, [])
+}

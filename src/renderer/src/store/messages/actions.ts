@@ -1,4 +1,4 @@
-import type { ChatFeatures, ConversationsId, ConversationsSettingsSchema, IMessage, MessageId } from '@ant-chat/shared'
+import type { ChatFeatures, ConversationsId, ConversationsSettingsSchema, IMessage } from '@ant-chat/shared'
 import { produce } from 'immer'
 import agentApi from '@/api/agentApi'
 import chatApi from '@/api/chatApi'
@@ -41,17 +41,6 @@ export async function addMessageAction(message: IMessage) {
   }))
 
   return data
-}
-
-export async function deleteMessageAction(messageId: MessageId) {
-  await chatApi.deleteMessage(messageId)
-
-  useMessagesStore.setState(state => produce(state, (draft) => {
-    const index = draft.messages.findIndex(m => m.id === messageId)
-    if (index !== -1) {
-      draft.messages.splice(index, 1)
-    }
-  }))
 }
 
 export async function updateMessageAction(_message: IMessage) {
@@ -107,12 +96,6 @@ export async function sendChatCompletions(conversationId: string | Conversations
 }
 
 export async function onRequestAction(conversationId: ConversationsId, features: ChatFeatures, chatSettings: ConversationsSettingsSchema) {
-  await sendChatCompletions(conversationId, features, chatSettings)
-}
-
-export async function refreshRequestAction(conversationId: ConversationsId, message: IMessage, features: ChatFeatures, chatSettings: ConversationsSettingsSchema) {
-  await deleteMessageAction(message.id)
-
   await sendChatCompletions(conversationId, features, chatSettings)
 }
 

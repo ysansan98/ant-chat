@@ -1,9 +1,9 @@
 import type { ProgressInfo, UpdateInfo } from '@ant-chat/shared'
 import { DownloadOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
+import { MessageResponse } from '@workspace/ui/components/ai-elements/message'
 import { App, Button, Modal, Progress, Space, Typography } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
 import { updateApi } from '@/api/updateApi'
-import RenderMarkdown from '@/components/RenderMarkdown'
 import { ipcRenderer } from '@/utils/ipc-bus'
 
 const { Title, Text } = Typography
@@ -125,13 +125,11 @@ export function UpdateNotification({ updateInfo, visible, onClose }: UpdateNotif
               更新内容
             </Title>
             <div className="max-h-60 overflow-y-auto rounded-sm border bg-gray-50 p-3">
-              <RenderMarkdown
-                content={
-                  typeof updateInfo.releaseNotes === 'string'
-                    ? updateInfo.releaseNotes
-                    : updateInfo.releaseNotes.map(item => `### ${item.version} \n\n ${item.note}`).join('\n\n')
-                }
-              />
+              <MessageResponse>
+                {typeof updateInfo.releaseNotes === 'string'
+                  ? updateInfo.releaseNotes
+                  : updateInfo.releaseNotes.map(item => `### ${item.version} \n\n ${item.note}`).join('\n\n')}
+              </MessageResponse>
             </div>
           </div>
         )}

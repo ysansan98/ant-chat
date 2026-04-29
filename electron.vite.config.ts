@@ -70,15 +70,6 @@ export default defineConfig(({ command, mode }) => {
       build: {
         minify: !isDev,
         sourcemap: !!isDev,
-        rollupOptions: {
-          onLog(level, log, handler) {
-            // 抑制 markstream-react 的 PURE 注释警告
-            if (log.message.includes('/* @__PURE__ */') && log.message.includes('markstream-react')) {
-              return
-            }
-            handler(level, log)
-          },
-        },
       },
     },
   }

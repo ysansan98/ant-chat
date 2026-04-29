@@ -5,7 +5,6 @@ import { useShallow } from 'zustand/shallow'
 import { createConversations, createUserMessage } from '@/api/dataFactory'
 import { AgentApprovalCard, AgentProgressList } from '@/components/Agent'
 import { DEFAULT_TITLE } from '@/constants'
-import { AudioPlayProvider } from '@/contexts/audioplay'
 import { useChatSettingsContext } from '@/contexts/chatSettings'
 import { approveAgentAction, rejectAgentAction, startAgentTask, useAgentStore } from '@/store/agent'
 import { useChatSttingsStore } from '@/store/chatSettings'
@@ -18,7 +17,6 @@ import {
   abortActiveRequest,
   addMessageAction,
   onRequestAction,
-  refreshRequestAction,
   setActiveConversationsId,
   useMessagesStore,
 } from '@/store/messages'
@@ -92,84 +90,76 @@ export default function Chat() {
   }
 
   return (
-    <AudioPlayProvider>
+    <div
+      key={currentConversations?.id}
+      className="relative mx-auto grid h-(--mainHeight) w-full grid-rows-[1fr_max-content]"
+    >
       <div
-        key={currentConversations?.id}
-        className="relative mx-auto grid h-(--mainHeight) w-full grid-rows-[1fr_max-content]"
+        className={`
+          absolute top-0 left-0 z-10 h-5 w-full bg-linear-to-b from-white to-transparent
+          dark:from-black
+        `}
       >
-        <div
-          className={`
-            absolute top-0 left-0 z-10 h-5 w-full bg-linear-to-b from-white to-transparent
-            dark:from-black
-          `}
-        >
-        </div>
-        {
-          messages.length > 0
-            ? (
-                <Suspense fallback={<BubbleSkeleton />}>
-                  <BubbleList
-                    messages={messages}
-                    conversationsId={activeConversationsId}
-                    onRefresh={async (message) => {
+      </div>
+      {
+        messages.length > 0
+          ? (
+              <Suspense fallback={<BubbleSkeleton />}>
+                <BubbleList
+                  messages={messages}
+                  conversationsId={activeConversationsId}
+                  isAgentRunning={Boolean(agentTask)}
+                  onExecuteAllCompleted={
+                    () => {
                       if (!settings.modelId) {
                         notification.error({ title: '请选择模型' })
                         return
                       }
-                      refreshRequestAction(activeConversationsId, message, features, settings)
-                    }}
-                    onExecuteAllCompleted={
-                      () => {
-                        if (!settings.modelId) {
-                          notification.error({ title: '请选择模型' })
-                          return
-                        }
-                        onRequestAction(activeConversationsId, features, settings)
-                      }
+                      onRequestAction(activeConversationsId, features, settings)
                     }
-                  />
-                </Suspense>
-              )
-            : null
-        }
-        <div className="px-2 pb-4">
-          <AgentProgressList progress={progress || []} />
-          {agentTask && pending
-            ? (
-                <AgentApprovalCard
-                  pending={pending}
-                  onApprove={() => void approveAgentAction({ taskId: agentTask.taskId, actionId: pending.actionId })}
-                  onReject={() => void rejectAgentAction({ taskId: agentTask.taskId, actionId: pending.actionId, reason: '用户拒绝' })}
+                  }
                 />
-              )
-            : null}
-          <Sender
-            actions={(
-              <ModelControlPanel
-                value={settings.modelId}
-                onChange={(modelInfo) => {
-                  const { id: modelId, maxTokens, temperature } = modelInfo
-                  updateSettings({ modelId, maxTokens, temperature })
-                }}
+              </Suspense>
+            )
+          : null
+      }
+      <div className="px-2 pb-4">
+        <AgentProgressList progress={progress || []} />
+        {agentTask && pending
+          ? (
+              <AgentApprovalCard
+                pending={pending}
+                onApprove={() => void approveAgentAction({ taskId: agentTask.taskId, actionId: pending.actionId })}
+                onReject={() => void rejectAgentAction({ taskId: agentTask.taskId, actionId: pending.actionId, reason: '用户拒绝' })}
               />
-            )}
-            onSubmit={onSubmit}
-            onCancel={() => {
-              void abortActiveRequest(activeConversationsId)
-            }}
-          />
-        </div>
+            )
+          : null}
+        <Sender
+          actions={(
+            <ModelControlPanel
+              value={settings.modelId}
+              onChange={(modelInfo) => {
+                const { id: modelId, maxTokens, temperature } = modelInfo
+                updateSettings({ modelId, maxTokens, temperature })
+              }}
+            />
+          )}
+          onSubmit={onSubmit}
+          onCancel={() => {
+            void abortActiveRequest(activeConversationsId)
+          }}
+        />
       </div>
-    </AudioPlayProvider>
+    </div>
   )
 }
 
 function BubbleSkeleton() {
   return (
     <div className="mx-auto flex w-(--chat-width) flex-col gap-3">
-      <Skeleton avatar paragraph={{ rows: 4 }} active />
-      <Skeleton avatar paragraph={{ rows: 4 }} active />
-      <Skeleton avatar paragraph={{ rows: 4 }} active />
+      <Skeleton paragraph={{ rows: 4 }} active />
+      <Skeleton paragraph={{ rows: 4 }} active />
+      <Skeleton paragraph={{ rows: 4 }} active />
     </div>
   )
 }

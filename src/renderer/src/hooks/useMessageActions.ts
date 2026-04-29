@@ -1,7 +1,6 @@
 import type { IMessage } from '@ant-chat/shared'
 import { App } from 'antd'
 import { useCallback } from 'react'
-import { deleteMessageAction } from '@/store/messages'
 import { clipboardWrite } from '@/utils'
 
 export function useMessageActions() {
@@ -33,12 +32,7 @@ export function useMessageActions() {
     }
   }, [messageFunc])
 
-  const deleteMessage = useCallback(async (messageId: string) => {
-    await deleteMessageAction(messageId)
-  }, [])
-
   return {
     copyMessage,
-    deleteMessage,
   }
 }
