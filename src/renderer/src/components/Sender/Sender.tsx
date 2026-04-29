@@ -1,4 +1,4 @@
-import type { ChatFeatures, IAttachment, IImage } from '@ant-chat/shared'
+import type { AgentMode, ChatFeatures, IAttachment, IImage } from '@ant-chat/shared'
 import type { FileUIPart } from 'ai'
 import {
   Attachment,
@@ -22,7 +22,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@workspace/ui/components/popover'
-import { FolderOpenIcon, GlobeIcon, PaperclipIcon, PlugZap } from 'lucide-react'
+import { Cable, ChevronDownIcon, FolderOpenIcon, GlobeIcon, HandIcon, PaperclipIcon, ShieldAlertIcon, ShieldCheckIcon } from 'lucide-react'
 import {
   useEffect,
   useMemo,
@@ -30,6 +30,7 @@ import {
 } from 'react'
 import workspaceApi from '@/api/workspaceApi'
 import {
+  setAgentMode,
   setOnlieSearch,
   useChatSttingsStore,
 } from '@/store/chatSettings'
@@ -49,6 +50,7 @@ interface SenderProps {
     images: IImage[],
     attachments: IAttachment[],
     features: ChatFeatures,
+    agentMode: AgentMode,
   ) => void
   onCancel?: () => void
 }
@@ -140,6 +142,14 @@ function Sender({ actions, ...props }: SenderProps) {
 
   const mcpEnabled = useChatSttingsStore(state => state.enableMCP)
   const onlineSearch = useChatSttingsStore(state => state.onlineSearch)
+  const agentMode = useChatSttingsStore(state => state.agentMode)
+
+  const agentModeOptions: Array<{ value: AgentMode, label: string, icon: React.ReactNode }> = [
+    { value: 'strict', label: '默认权限', icon: <HandIcon className="size-4" /> },
+    { value: 'hybrid', label: '自动审查', icon: <ShieldCheckIcon className="size-4" /> },
+    { value: 'full_managed', label: '完全访问权限', icon: <ShieldAlertIcon className="size-4" /> },
+  ]
+  const currentAgentModeOption = agentModeOptions.find(item => item.value === agentMode) || agentModeOptions[1]
 
   const canSwitchWorkspace = !activeConversationsId && !hasMessage && !loading
   const selectableWorkspaces = useMemo(
@@ -236,7 +246,7 @@ function Sender({ actions, ...props }: SenderProps) {
     props.onSubmit?.(message.text, images, attachments, {
       enableMCP: mcpEnabled,
       onlineSearch,
-    })
+    }, agentMode)
   }
 
   return (
@@ -338,9 +348,46 @@ function Sender({ actions, ...props }: SenderProps) {
                 <PromptInputButton
                   size="sm"
                   type="button"
+                  variant="ghost"
+                  className={`
+                    ${agentMode === 'full_managed' ? 'text-orange-600' : ''}
+                  `}
+                >
+                  {currentAgentModeOption.icon}
+                  {currentAgentModeOption.label}
+                  <ChevronDownIcon className="size-3" />
+                </PromptInputButton>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-52 p-1">
+                {agentModeOptions.map(item => (
+                  <button
+                    key={item.value}
+                    type="button"
+                    className={`
+                      flex h-9 w-full items-center justify-between rounded-md px-2 text-sm
+                      hover:bg-black/5
+                      dark:hover:bg-white/10
+                    `}
+                    onClick={() => setAgentMode(item.value)}
+                  >
+                    <span className="flex items-center gap-2">
+                      {item.icon}
+                      {item.label}
+                    </span>
+                    {item.value === agentMode ? <span>✓</span> : null}
+                  </button>
+                ))}
+              </PopoverContent>
+            </Popover>
+
+            <Popover>
+              <PopoverTrigger asChild>
+                <PromptInputButton
+                  size="sm"
+                  type="button"
                   variant={mcpEnabled ? 'secondary' : 'ghost'}
                 >
-                  <PlugZap className="size-3" />
+                  <Cable className="size-3" />
                   MCP
                 </PromptInputButton>
               </PopoverTrigger>

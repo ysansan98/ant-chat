@@ -3,7 +3,10 @@ import path from 'node:path'
 import { WORKSPACE_INVALID_PATH } from '@ant-chat/shared'
 
 export class PathPolicy {
-  constructor(private readonly workspacePath: string) {}
+  constructor(
+    private readonly workspacePath: string,
+    private readonly enforceWorkspaceBoundary: boolean = true,
+  ) {}
 
   resolveExisting(inputPath: string = '.'): string {
     const resolvedPath = this.resolvePath(inputPath)
@@ -48,6 +51,9 @@ export class PathPolicy {
   }
 
   isInsideWorkspace(candidatePath: string): boolean {
+    if (!this.enforceWorkspaceBoundary) {
+      return true
+    }
     const workspaceRealPath = fs.realpathSync.native(this.workspacePath)
     const relativePath = path.relative(workspaceRealPath, candidatePath)
     return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath))
@@ -72,6 +78,10 @@ export class PathPolicy {
 
 export function createPathPolicy(workspacePath: string): PathPolicy {
   return new PathPolicy(fs.realpathSync.native(workspacePath))
+}
+
+export function createPathPolicyByMode(workspacePath: string, mode: 'workspace' | 'unrestricted'): PathPolicy {
+  return new PathPolicy(fs.realpathSync.native(workspacePath), mode === 'workspace')
 }
 
 function findExistingAncestor(inputPath: string): string {

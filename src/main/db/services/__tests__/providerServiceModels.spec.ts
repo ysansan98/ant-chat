@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { getAllAvailableModels, getModelsByServiceProviderId } from '../serviceProviderModels'
 import { createProviderService, createProviderServiceModel } from './factory'
-import { mockDb } from './utils'
+import { canRunDbIntegrationTests, mockDb } from './utils'
 
-describe('serviceProviderModels', () => {
+const describeDb = canRunDbIntegrationTests() ? describe : describe.skip
+
+describeDb('serviceProviderModels', () => {
   beforeEach(async () => {
     await mockDb()
   })

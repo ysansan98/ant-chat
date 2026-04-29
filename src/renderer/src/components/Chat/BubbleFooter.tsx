@@ -109,15 +109,15 @@ export default function BubbleFooter({ message, onClick }: BubbleFooterProps) {
     stopPlayback,
   ])
 
-  const finallyButtons: React.ReactNode[] = [copyButton]
+  const finallyButtons: Array<{ key: string, node: React.ReactNode }> = [{ key: 'copy', node: copyButton }]
 
   if (message.role === Role.AI) {
-    finallyButtons.push(refreshButton)
-    finallyButtons.push(playAudioButton)
+    finallyButtons.push({ key: 'refresh', node: refreshButton })
+    finallyButtons.push({ key: 'audio', node: playAudioButton })
   }
 
   if (message.role !== Role.SYSTEM) {
-    finallyButtons.push(deleteButton)
+    finallyButtons.push({ key: 'delete', node: deleteButton })
   }
 
   return (
@@ -126,7 +126,9 @@ export default function BubbleFooter({ message, onClick }: BubbleFooterProps) {
       group-hover:opacity-100
     `}
     >
-      {...finallyButtons}
+      {finallyButtons.map(item => item.node && (
+        <span key={item.key}>{item.node}</span>
+      ))}
     </Flex>
   )
 }

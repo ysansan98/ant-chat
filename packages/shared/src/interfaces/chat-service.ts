@@ -12,7 +12,7 @@ export interface ChatSettings {
 export interface SendChatCompletionsOptions {
   messages: IMessage[]
   chatSettings: ChatSettings
-  mcpTools?: McpTool[]
+  tools?: McpTool[]
   abortSignal?: AbortSignal
 }
 

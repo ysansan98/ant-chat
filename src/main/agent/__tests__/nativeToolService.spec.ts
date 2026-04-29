@@ -29,17 +29,41 @@ describe('native tool service', () => {
 
   it('read_file/list_dir/write_file 只在工作区内工作', async () => {
     const service = new NativeToolService(workspacePath)
-    await service.writeFile({ path: 'src/a.txt', content: 'hello world' })
+    await service.writeFile({ path: 'src/a.txt', content: 'line-1\nline-2\nline-3' })
 
-    await expect(service.readFile({ path: 'src/a.txt', offset: 6, limit: 5 })).resolves.toMatchObject({
+    await expect(service.readFile({ path: 'src/a.txt', offset: 2, limit: 1 })).resolves.toMatchObject({
       ok: true,
-      output: 'world',
+      output: '[Showing lines 2-2 of 3]\nline-2\n\n[1 more lines. Use offset=3 limit=1 to continue]',
     })
     await expect(service.listDir({ path: 'src' })).resolves.toMatchObject({
       ok: true,
-      output: [{ name: 'a.txt', type: 'file' }],
+      output: {
+        offset: 0,
+        total: 1,
+        hasMore: false,
+        items: [{ name: 'a.txt', type: 'file' }],
+      },
     })
     await expect(service.writeFile({ path: path.join(outsidePath, 'x.txt'), content: 'x' })).rejects.toThrow(WORKSPACE_INVALID_PATH)
+  })
+
+  it('read_file 支持按行分页并返回续读提示', async () => {
+    const service = new NativeToolService(workspacePath)
+    await service.writeFile({ path: 'src/b.txt', content: 'a\nb\nc\nd' })
+
+    await expect(service.readFile({ path: 'src/b.txt', offset: 2, limit: 2 })).resolves.toMatchObject({
+      ok: true,
+      output: '[Showing lines 2-3 of 4]\nb\nc\n\n[1 more lines. Use offset=4 limit=2 to continue]',
+    })
+  })
+
+  it('read_file offset 越界时报错', async () => {
+    const service = new NativeToolService(workspacePath)
+    await service.writeFile({ path: 'src/c.txt', content: 'a\nb' })
+
+    await expect(service.readFile({ path: 'src/c.txt', offset: 10, limit: 1 })).rejects.toThrow(
+      'READ_FILE_OFFSET_OUT_OF_RANGE',
+    )
   })
 
   it('apply_patch 支持多文件变更且上下文不匹配时保持原样', async () => {
@@ -104,12 +128,14 @@ describe('native tool service', () => {
 
     await expect(bash.execute({ command: 'mkdir -p src/nested' })).resolves.toMatchObject({ ok: true })
     expect(fs.statSync(path.join(workspacePath, 'src/nested')).isDirectory()).toBe(true)
+    await expect(bash.execute({ command: 'pwd && ls -la' })).resolves.toMatchObject({ ok: true })
   })
 
   it('tool execute 遇到越界路径返回 AGENT_POLICY_BLOCKED', async () => {
     const service = new NativeToolService(workspacePath)
     const readFile = service.getTools().find(tool => tool.name === 'read_file')!
     const result = await readFile.execute({ path: path.join(outsidePath, 'secret.txt') })
-    expect(result).toMatchObject({ ok: false, error: AGENT_POLICY_BLOCKED })
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain(AGENT_POLICY_BLOCKED)
   })
 })

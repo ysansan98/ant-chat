@@ -17,10 +17,11 @@ import path from 'node:path'
 import { AGENT_POLICY_BLOCKED, AGENT_TOOL_EXEC_FAILED, WORKSPACE_INVALID_PATH } from '@ant-chat/shared'
 import { WorkspaceStore } from '@main/store/workspace'
 import { runBashTool } from './bashRunner'
-import { createPathPolicy } from './pathPolicy'
+import { createPathPolicyByMode } from './pathPolicy'
 
-const DEFAULT_FILE_LIMIT = 20_000
 const DEFAULT_SEARCH_LIMIT = 100
+const DEFAULT_LIST_DIR_LIMIT = 200
+const MAX_LIST_DIR_LIMIT = 1000
 const DEFAULT_EXCLUDED_DIRS = ['node_modules', '.git', 'dist', 'build']
 
 type PatchOperation
@@ -31,7 +32,10 @@ type PatchOperation
 type PatchHunk = Extract<PatchOperation, { type: 'update' }>['hunks'][number]
 
 export class NativeToolService {
-  constructor(private readonly workspacePath = WorkspaceStore.getInstance().getCurrentWorkspacePath()) {}
+  constructor(
+    private readonly workspacePath = WorkspaceStore.getInstance().getCurrentWorkspacePath(),
+    private readonly unrestricted: boolean = false,
+  ) {}
 
   getTools(): AgentTool[] {
     return [
@@ -41,32 +45,73 @@ export class NativeToolService {
       this.createTool('grep_files', () => 'L0', input => this.grepFiles(input as unknown as GrepFilesToolInput)),
       this.createTool('write_file', input => this.inferWriteFileRisk(input as unknown as WriteFileToolInput), input => this.writeFile(input as unknown as WriteFileToolInput)),
       this.createTool('apply_patch', input => this.inferApplyPatchRisk(input as unknown as ApplyPatchToolInput), input => this.applyPatch(input as unknown as ApplyPatchToolInput)),
-      this.createTool('bash', input => this.inferBashRisk(input as unknown as BashToolInput), input => runBashTool(input as unknown as BashToolInput, this.workspacePath)),
+      this.createTool('bash', input => this.inferBashRisk(input as unknown as BashToolInput), input => runBashTool(input as unknown as BashToolInput, this.workspacePath, this.unrestricted)),
     ]
   }
 
+  private get pathPolicy() {
+    return createPathPolicyByMode(this.workspacePath, this.unrestricted ? 'unrestricted' : 'workspace')
+  }
+
   async readFile(input: ReadFileToolInput): Promise<AgentToolResult> {
-    const filePath = createPathPolicy(this.workspacePath).resolveExisting(input.path)
+    const filePath = this.pathPolicy.resolveExisting(input.path)
     const content = await fs.promises.readFile(filePath, 'utf8')
-    const offset = Math.max(input.offset ?? 0, 0)
-    const limit = Math.min(input.limit ?? DEFAULT_FILE_LIMIT, DEFAULT_FILE_LIMIT)
-    return { ok: true, output: content.slice(offset, offset + limit) }
+    const lines = content.split('\n')
+    const startLine = Math.max(input.offset ?? 1, 1)
+    const maxLines = Math.min(Math.max(input.limit ?? 200, 1), 2000)
+    const totalLines = lines.length
+
+    if (startLine > totalLines) {
+      throw new Error(`READ_FILE_OFFSET_OUT_OF_RANGE: offset=${startLine} totalLines=${totalLines}`)
+    }
+
+    const selectedLines = lines.slice(startLine - 1, startLine - 1 + maxLines)
+    const sliced = selectedLines.join('\n')
+    const consumed = selectedLines.length
+    const endLine = startLine + Math.max(consumed - 1, 0)
+    const nextOffset = startLine + consumed
+    const hasMore = nextOffset <= totalLines
+
+    const header = `[Showing lines ${startLine}-${endLine} of ${totalLines}]`
+    if (!hasMore) {
+      return { ok: true, output: `${header}\n${sliced}` }
+    }
+
+    const remaining = totalLines - (nextOffset - 1)
+    return {
+      ok: true,
+      output: `${header}\n${sliced}\n\n[${remaining} more lines. Use offset=${nextOffset} limit=${maxLines} to continue]`,
+    }
   }
 
   async listDir(input: ListDirToolInput = {}): Promise<AgentToolResult> {
-    const dirPath = createPathPolicy(this.workspacePath).resolveExisting(input.path || '.')
+    const dirPath = this.pathPolicy.resolveExisting(input.path || '.')
     const entries = await fs.promises.readdir(dirPath, { withFileTypes: true })
-    return {
-      ok: true,
-      output: entries.map(entry => ({
+    const sorted = entries
+      .map(entry => ({
         name: entry.name,
         type: entry.isDirectory() ? 'directory' : entry.isFile() ? 'file' : 'other',
-      })),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'en'))
+    const listDirInput = input as ListDirToolInput & { offset?: number, limit?: number }
+    const offset = Math.max(listDirInput.offset ?? 0, 0)
+    const limit = Math.min(Math.max(listDirInput.limit ?? DEFAULT_LIST_DIR_LIMIT, 1), MAX_LIST_DIR_LIMIT)
+    const items = sorted.slice(offset, offset + limit)
+    return {
+      ok: true,
+      output: {
+        path: dirPath,
+        offset,
+        limit,
+        total: sorted.length,
+        hasMore: offset + items.length < sorted.length,
+        items,
+      },
     }
   }
 
   async globFiles(input: GlobFilesToolInput): Promise<AgentToolResult> {
-    const cwd = createPathPolicy(this.workspacePath).resolveExisting(input.path || '.')
+    const cwd = this.pathPolicy.resolveExisting(input.path || '.')
     const limit = normalizeLimit(input.limit)
     const args = ['--files', '--no-ignore-global', '--glob', input.pattern, ...defaultExclusionGlobs(input.path)]
     const result = await runRg(args, cwd, limit)
@@ -77,7 +122,7 @@ export class NativeToolService {
   }
 
   async grepFiles(input: GrepFilesToolInput): Promise<AgentToolResult> {
-    const cwd = createPathPolicy(this.workspacePath).resolveExisting(input.path || '.')
+    const cwd = this.pathPolicy.resolveExisting(input.path || '.')
     const limit = normalizeLimit(input.limit)
     const args = ['--line-number', '--no-heading', '--no-ignore-global', ...defaultExclusionGlobs(input.path, input.include)]
     if (input.include) {
@@ -92,14 +137,14 @@ export class NativeToolService {
   }
 
   async writeFile(input: WriteFileToolInput): Promise<AgentToolResult> {
-    const filePath = createPathPolicy(this.workspacePath).resolveForWrite(input.path)
+    const filePath = this.pathPolicy.resolveForWrite(input.path)
     await fs.promises.mkdir(path.dirname(filePath), { recursive: true })
     await fs.promises.writeFile(filePath, input.content, 'utf8')
     return { ok: true, output: { path: path.relative(this.workspacePath, filePath) } }
   }
 
   async applyPatch(input: ApplyPatchToolInput): Promise<AgentToolResult> {
-    const policy = createPathPolicy(this.workspacePath)
+    const policy = this.pathPolicy
     const operations = parsePatch(input.patch)
     const writes = new Map<string, string | null>()
 
@@ -176,7 +221,12 @@ export class NativeToolService {
         }
         catch (error) {
           if (error instanceof Error && error.message === WORKSPACE_INVALID_PATH) {
-            return { ok: false, error: AGENT_POLICY_BLOCKED }
+            return {
+              ok: false,
+              error: this.unrestricted
+                ? AGENT_TOOL_EXEC_FAILED
+                : `${AGENT_POLICY_BLOCKED}: path outside workspace`,
+            }
           }
           return { ok: false, error: error instanceof Error ? error.message : AGENT_TOOL_EXEC_FAILED }
         }
@@ -185,12 +235,18 @@ export class NativeToolService {
   }
 
   private inferWriteFileRisk(input: WriteFileToolInput): AgentToolRisk {
-    const filePath = createPathPolicy(this.workspacePath).resolveForWrite(input.path)
+    const filePath = this.pathPolicy.resolveForWrite(input.path)
     return fs.existsSync(filePath) ? 'L2' : 'L1'
   }
 
   private inferApplyPatchRisk(input: ApplyPatchToolInput): AgentToolRisk {
-    const operations = parsePatch(input.patch)
+    let operations: PatchOperation[]
+    try {
+      operations = parsePatch(input.patch)
+    }
+    catch {
+      return 'L2'
+    }
     if (operations.some(operation => operation.type === 'delete')) {
       return 'L2'
     }
@@ -212,8 +268,8 @@ export class NativeToolService {
   }
 }
 
-export function getNativeToolService(workspacePath?: string): NativeToolService {
-  return new NativeToolService(workspacePath)
+export function getNativeToolService(workspacePath?: string, unrestricted: boolean = false): NativeToolService {
+  return new NativeToolService(workspacePath, unrestricted)
 }
 
 function normalizeLimit(limit: number | undefined): number {

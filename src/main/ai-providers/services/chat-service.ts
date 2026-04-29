@@ -105,7 +105,7 @@ export async function handleChatCompletions(options: handleChatCompletionsOption
           model: modelInfo.model,
           systemPrompt: appendPlatformDeclaration(chatSettings.systemPrompt),
         },
-        mcpTools,
+        tools: mcpTools,
         abortSignal: streamAbortController.signal,
       },
     )
@@ -115,6 +115,9 @@ export async function handleChatCompletions(options: handleChatCompletionsOption
     aiMessage.content.push({ type: 'error', error: (e as Error).message })
     const errorMessage = await updateMessage({ ...aiMessage, role: 'assistant', status: 'error' })
     sendToRenderer(mainWindow.webContents, 'chat:stream-message', errorMessage)
+    return
+  }
+  if (!stream) {
     return
   }
 

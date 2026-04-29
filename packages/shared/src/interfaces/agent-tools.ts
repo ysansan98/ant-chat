@@ -32,6 +32,8 @@ export interface ReadFileToolInput {
 
 export interface ListDirToolInput {
   path?: string
+  offset?: number
+  limit?: number
 }
 
 export interface GlobFilesToolInput {

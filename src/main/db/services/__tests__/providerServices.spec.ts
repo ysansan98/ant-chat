@@ -2,9 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { initializeTestDb } from '../../db'
 import { addProviderService, deleteProviderService, getProviderServiceById, updateProviderService } from '../serviceProvider'
 import { addServiceProviderModel, getModelsByServiceProviderId } from '../serviceProviderModels'
-import { mockDb } from './utils'
+import { canRunDbIntegrationTests, mockDb } from './utils'
 
-describe('serviceProvider', () => {
+const describeDb = canRunDbIntegrationTests() ? describe : describe.skip
+
+describeDb('serviceProvider', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
     await initializeTestDb()

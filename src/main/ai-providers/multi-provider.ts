@@ -5,7 +5,7 @@ import { createAnthropic } from '@ai-sdk/anthropic'
 import { createDeepSeek } from '@ai-sdk/deepseek'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI } from '@ai-sdk/openai'
-import { streamText } from 'ai'
+import { dynamicTool, jsonSchema, streamText } from 'ai'
 
 /**
  * 多提供商 AI 提供商
@@ -202,13 +202,29 @@ export class MultiProvider {
       maxTokens?: number
       systemPrompt: string
     }
+    tools?: Array<{
+      name: string
+      description?: string
+      inputSchema: Record<string, unknown>
+      serverName?: string
+    }>
     abortSignal?: AbortSignal
   }) {
-    const { messages, chatSettings, abortSignal } = options
+    const { messages, chatSettings, abortSignal, tools } = options
     const { model, temperature, maxTokens, systemPrompt } = chatSettings
 
     // 构建 AI SDK 格式的消息
     const aiSdkMessages = this.transformToAISdkMessages(messages, systemPrompt)
+
+    const aiTools = tools && tools.length > 0
+      ? Object.fromEntries(tools.map(item => [item.name, dynamicTool({
+          description: item.description,
+          inputSchema: jsonSchema(item.inputSchema),
+          execute: async () => {
+            throw new Error('RUNTIME_EXTERNAL_TOOL_EXECUTION')
+          },
+        })]))
+      : undefined
 
     // 使用 AI SDK 的流式处理
     const result = streamText({
@@ -216,6 +232,7 @@ export class MultiProvider {
       messages: aiSdkMessages,
       temperature,
       maxOutputTokens: maxTokens,
+      tools: aiTools,
       abortSignal,
     })
 
@@ -239,6 +256,19 @@ export class MultiProvider {
 
           yield {
             content,
+          }
+        }
+        else if (chunk.type === 'tool-call') {
+          const toolDef = tools?.find(item => item.name === chunk.toolName)
+          yield {
+            content: [],
+            functionCalls: [{
+              id: chunk.toolCallId,
+              serverName: toolDef?.serverName || 'native',
+              toolName: chunk.toolName,
+              args: (chunk as any).input || {},
+              executeState: 'await' as const,
+            }],
           }
         }
       }

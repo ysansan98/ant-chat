@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { updateMessage } from '../message'
 import { createMessage } from './factory'
-import { mockDb } from './utils'
+import { canRunDbIntegrationTests, mockDb } from './utils'
 
-describe('message service', () => {
+const describeDb = canRunDbIntegrationTests() ? describe : describe.skip
+
+describeDb('message service', () => {
   beforeEach(async () => {
     await mockDb()
   })

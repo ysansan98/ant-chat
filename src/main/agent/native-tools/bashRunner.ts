@@ -5,40 +5,78 @@ import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { AGENT_BASH_COMMAND_BLOCKED, AGENT_BASH_TIMEOUT, WORKSPACE_INVALID_PATH } from '@ant-chat/shared'
-import { createPathPolicy } from './pathPolicy'
+import { createPathPolicyByMode } from './pathPolicy'
 
 const DEFAULT_TIMEOUT_MS = 10_000
 const MAX_TIMEOUT_MS = 30_000
 const MAX_OUTPUT_CHARS = 20_000
 const READ_ONLY_COMMANDS = new Set(['pwd', 'ls', 'cat', 'rg', 'find'])
 const BLOCKED_COMMANDS = new Set(['rm', 'mv', 'cp', 'chmod', 'chown', 'sudo', 'curl', 'wget', 'pnpm', 'npm', 'yarn', 'bun', 'pip', 'brew'])
-const BLOCKED_TOKENS = ['>', '<', '|', ';', '&&', '||', '`', '$(', '\n']
+const BLOCKED_TOKENS = ['>', '<', '|', ';', '||', '`', '$(', '\n']
 
-export async function runBashTool(input: BashToolInput, workspacePath: string): Promise<AgentToolResult> {
+export async function runBashTool(input: BashToolInput, workspacePath: string, unrestricted: boolean = false): Promise<AgentToolResult> {
   const startedAt = Date.now()
-  let parsed: { command: string, args: string[] }
+  let commands: Array<{ command: string, args: string[] }>
   try {
-    parsed = parseCommand(input.command)
+    commands = parseCommands(input.command)
   }
   catch {
     return { ok: false, error: AGENT_BASH_COMMAND_BLOCKED, durationMs: Date.now() - startedAt }
   }
-  if (!isCommandAllowed(parsed.command, parsed.args)) {
+  if (commands.length === 0 || !commands.every(item => isCommandAllowed(item.command, item.args))) {
     return { ok: false, error: AGENT_BASH_COMMAND_BLOCKED, durationMs: Date.now() - startedAt }
   }
 
-  const policy = createPathPolicy(workspacePath)
+  const policy = createPathPolicyByMode(workspacePath, unrestricted ? 'unrestricted' : 'workspace')
   const cwd = policy.resolveExisting(input.cwd || '.')
-  if (parsed.command === 'mkdir' && !validateMkdirTargets(parsed.args.slice(1), cwd, policy)) {
-    return { ok: false, error: WORKSPACE_INVALID_PATH, durationMs: Date.now() - startedAt }
+  for (const item of commands) {
+    if (item.command === 'mkdir' && !validateMkdirTargets(item.args.slice(1), cwd, policy))
+      return { ok: false, error: WORKSPACE_INVALID_PATH, durationMs: Date.now() - startedAt }
   }
   const timeoutMs = Math.min(input.timeoutMs ?? DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS)
+  const perCommandTimeoutMs = Math.max(Math.floor(timeoutMs / commands.length), 1000)
 
+  let stdout = ''
+  let stderr = ''
+  let exitCode = 0
+  for (const item of commands) {
+    const result = await runSingleCommand(item, cwd, perCommandTimeoutMs, input.env, startedAt)
+    stdout = appendTruncated(stdout, result.stdout || '')
+    stderr = appendTruncated(stderr, result.stderr || '')
+    exitCode = result.exitCode ?? (result.ok ? 0 : 1)
+    if (!result.ok) {
+      return {
+        ok: false,
+        error: result.error,
+        stdout,
+        stderr,
+        exitCode,
+        durationMs: Date.now() - startedAt,
+      }
+    }
+  }
+
+  return {
+    ok: true,
+    stdout,
+    stderr,
+    exitCode,
+    durationMs: Date.now() - startedAt,
+  }
+}
+
+function runSingleCommand(
+  parsed: { command: string, args: string[] },
+  cwd: string,
+  timeoutMs: number,
+  env: Record<string, string> | undefined,
+  startedAt: number,
+): Promise<AgentToolResult> {
   return new Promise((resolve) => {
     const child = spawn(parsed.command, parsed.args, {
       cwd,
       shell: false,
-      env: sanitizeEnv(input.env),
+      env: sanitizeEnv(env),
     })
 
     let stdout = ''
@@ -81,7 +119,15 @@ export async function runBashTool(input: BashToolInput, workspacePath: string): 
   })
 }
 
-function parseCommand(command: string): { command: string, args: string[] } {
+function parseCommands(command: string): Array<{ command: string, args: string[] }> {
+  const segments = command.split('&&').map(item => item.trim()).filter(Boolean)
+  if (segments.length === 0) {
+    throw new Error(AGENT_BASH_COMMAND_BLOCKED)
+  }
+  return segments.map(parseSingleCommand)
+}
+
+function parseSingleCommand(command: string): { command: string, args: string[] } {
   if (BLOCKED_TOKENS.some(token => command.includes(token))) {
     throw new Error(AGENT_BASH_COMMAND_BLOCKED)
   }
@@ -118,7 +164,7 @@ function isAllowedMkdir(args: string[]): boolean {
   return args.slice(1).every(arg => !hasObviousPathEscape(arg))
 }
 
-function validateMkdirTargets(targets: string[], cwd: string, policy: ReturnType<typeof createPathPolicy>): boolean {
+function validateMkdirTargets(targets: string[], cwd: string, policy: ReturnType<typeof createPathPolicyByMode>): boolean {
   return targets.every((target) => {
     const targetPath = path.resolve(cwd, target)
     if (!policy.isInsideWorkspace(targetPath)) {

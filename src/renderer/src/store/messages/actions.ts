@@ -1,5 +1,6 @@
 import type { ChatFeatures, ConversationsId, ConversationsSettingsSchema, IMessage, MessageId } from '@ant-chat/shared'
 import { produce } from 'immer'
+import agentApi from '@/api/agentApi'
 import chatApi from '@/api/chatApi'
 import { useConversationsStore } from '../conversation/conversationsStore'
 import { useMessagesStore } from './store'
@@ -124,4 +125,14 @@ export async function nextPageMessagesAction(conversationsId: ConversationsId) {
     draft.pageIndex = pageIndex + 1
     draft.messageTotal = total
   }))
+}
+
+export async function abortActiveRequest(conversationId: string) {
+  const taskList = await agentApi.listActiveTasks(conversationId)
+  const activeTask = taskList.find(item => ['running', 'awaiting_approval'].includes(item.status))
+  if (activeTask) {
+    await agentApi.cancelTask(activeTask.taskId)
+    return
+  }
+  abortSendChatCompletions(conversationId)
 }

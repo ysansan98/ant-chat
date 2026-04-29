@@ -1,11 +1,13 @@
-import type { ChatFeatures, ConversationsId, IAttachment, IImage, IMessage } from '@ant-chat/shared'
+import type { AgentMode, ChatFeatures, ConversationsId, IAttachment, IImage, IMessage } from '@ant-chat/shared'
 import { App, Skeleton } from 'antd'
 import { lazy, Suspense } from 'react'
 import { useShallow } from 'zustand/shallow'
 import { createConversations, createUserMessage } from '@/api/dataFactory'
+import { AgentApprovalCard, AgentProgressList } from '@/components/Agent'
 import { DEFAULT_TITLE } from '@/constants'
 import { AudioPlayProvider } from '@/contexts/audioplay'
 import { useChatSettingsContext } from '@/contexts/chatSettings'
+import { approveAgentAction, rejectAgentAction, startAgentTask, useAgentStore } from '@/store/agent'
 import { useChatSttingsStore } from '@/store/chatSettings'
 import {
   addConversationsAction,
@@ -13,7 +15,7 @@ import {
   useConversationsStore,
 } from '@/store/conversation'
 import {
-  abortSendChatCompletions,
+  abortActiveRequest,
   addMessageAction,
   onRequestAction,
   refreshRequestAction,
@@ -29,16 +31,22 @@ export default function Chat() {
   const messages = useMessagesStore(state => state.messages)
   const activeConversationsId = useMessagesStore(state => state.activeConversationsId)
   const currentConversations = useConversationsStore(state => state.conversations.find(item => item.id === activeConversationsId))
+  const currentWorkspacePath = useConversationsStore(state => state.currentWorkspacePath)
   const features = useChatSttingsStore(useShallow(state => ({ onlineSearch: state.onlineSearch, enableMCP: state.enableMCP })))
 
   const { notification } = App.useApp()
   const { settings, updateSettings } = useChatSettingsContext()
+  const agentTask = useAgentStore(state => state.getActiveTaskByConversation(activeConversationsId))
+  const agentTaskId = agentTask?.taskId
+  const progress = useAgentStore(state => (agentTaskId ? state.progressByTask[agentTaskId] : undefined))
+  const pending = useAgentStore(state => (agentTaskId ? state.pendingByTask[agentTaskId] : undefined))
 
   async function onSubmit(
     message: string,
     images: IImage[],
     attachments: IAttachment[],
     features: ChatFeatures,
+    agentMode: AgentMode,
   ) {
     if (!settings.modelId) {
       notification.error({
@@ -60,10 +68,19 @@ export default function Chat() {
     await setActiveConversationsId(id)
 
     const messageItem: IMessage = createUserMessage({ images, attachments, content: [{ type: 'text', text: message }], convId: id as ConversationsId })
-    await addMessageAction(messageItem)
+    const persistedMessage = await addMessageAction(messageItem)
 
-    // 发送请求
-    await onRequestAction(id, features, settings)
+    await startAgentTask({
+      conversationId: id as string,
+      userMessageId: persistedMessage.id,
+      prompt: message,
+      mode: agentMode,
+      workspacePath: currentWorkspacePath || undefined,
+      chatSettings: {
+        ...settings,
+        features,
+      },
+    })
 
     // 初始化会话标题
     if (currentConversations?.title === DEFAULT_TITLE || isNewConversation) {
@@ -116,6 +133,16 @@ export default function Chat() {
             : null
         }
         <div className="px-2 pb-4">
+          <AgentProgressList progress={progress || []} />
+          {agentTask && pending
+            ? (
+                <AgentApprovalCard
+                  pending={pending}
+                  onApprove={() => void approveAgentAction({ taskId: agentTask.taskId, actionId: pending.actionId })}
+                  onReject={() => void rejectAgentAction({ taskId: agentTask.taskId, actionId: pending.actionId, reason: '用户拒绝' })}
+                />
+              )
+            : null}
           <Sender
             actions={(
               <ModelControlPanel
@@ -128,7 +155,7 @@ export default function Chat() {
             )}
             onSubmit={onSubmit}
             onCancel={() => {
-              abortSendChatCompletions(activeConversationsId)
+              void abortActiveRequest(activeConversationsId)
             }}
           />
         </div>

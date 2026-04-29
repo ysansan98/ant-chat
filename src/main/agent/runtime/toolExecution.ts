@@ -1,0 +1,316 @@
+import type { AgentPendingAction, McpToolCall } from '@ant-chat/shared'
+import type { ToolRegistry } from '../tools/toolRegistry'
+import type { LoopMessage, RuntimeState } from './loopContext'
+import type { RuntimeTask } from './taskStore'
+import { randomUUID } from 'node:crypto'
+import { decidePolicy } from '../policy/policyEngine'
+import { appendAgentLog } from './agentLogger'
+import { updateTaskAssistantMessage } from './agentMessageWriter'
+import { waitForApproval } from './approvalController'
+import {
+  trimLoopMessages,
+  updateRuntimeStateOnToolFailure,
+  updateRuntimeStateOnToolSuccess,
+} from './loopContext'
+import { reportApprovalRequired, reportTaskProgress, reportTaskState } from './progressReporter'
+
+const DEFAULT_TOOL_OBSERVATION_LIMIT = 1000
+const DEFAULT_TOOL_LOG_PREVIEW_LIMIT = 4000
+
+export interface RequestedToolCall {
+  toolName: string
+  input: Record<string, unknown>
+}
+
+export interface ToolCallContext {
+  toolName: string
+  input: Record<string, unknown>
+  riskLevel: string
+  policy: string
+}
+
+export interface ExecuteToolStepOptions {
+  task: RuntimeTask
+  registry: ToolRegistry
+  requestedToolCall: RequestedToolCall
+  currentAssistantMessageId: string
+  currentModelText: string
+  currentToolMessages: McpToolCall[]
+  runtimeState: RuntimeState
+  observations: string[]
+  loopMessages: LoopMessage[]
+  step: number
+  onToolCallContext?: (context: ToolCallContext) => void
+}
+
+export interface ExecuteToolStepResult {
+  lastToolCallContext: ToolCallContext
+}
+
+export async function executeToolStep(options: ExecuteToolStepOptions): Promise<ExecuteToolStepResult> {
+  const {
+    task,
+    registry,
+    requestedToolCall,
+    currentAssistantMessageId,
+    currentModelText,
+    currentToolMessages,
+    runtimeState,
+    observations,
+    loopMessages,
+    step,
+    onToolCallContext,
+  } = options
+
+  await appendAgentLog(task.snapshot.taskId, 'tool_call_received', {
+    step,
+    toolName: requestedToolCall.toolName,
+    input: requestedToolCall.input,
+  })
+
+  const currentToolCall: McpToolCall = {
+    id: randomUUID(),
+    serverName: 'native',
+    toolName: requestedToolCall.toolName,
+    args: requestedToolCall.input,
+    executeState: 'executing',
+  }
+  currentToolMessages.push(currentToolCall)
+  await updateAssistantMessage(currentAssistantMessageId, currentModelText, currentToolMessages)
+
+  const prepared = registry.prepare(requestedToolCall.toolName, requestedToolCall.input)
+  const policyDecision = decidePolicy(task.snapshot.mode, prepared.riskLevel)
+  const lastToolCallContext = {
+    toolName: requestedToolCall.toolName,
+    input: requestedToolCall.input,
+    riskLevel: prepared.riskLevel,
+    policy: policyDecision.type,
+  }
+  onToolCallContext?.(lastToolCallContext)
+
+  task.snapshot.progress.push({
+    id: randomUUID(),
+    title: `执行工具 ${requestedToolCall.toolName}`,
+    status: 'running',
+  })
+  reportTaskProgress(task.snapshot.taskId, task.snapshot.conversationId, task.snapshot.progress)
+
+  await appendAgentLog(task.snapshot.taskId, 'tool_decision', {
+    toolName: requestedToolCall.toolName,
+    input: requestedToolCall.input,
+    riskLevel: prepared.riskLevel,
+    policy: policyDecision.type,
+    workspacePath: task.snapshot.workspacePath,
+  })
+
+  if (policyDecision.type === 'block') {
+    currentToolCall.executeState = 'completed'
+    currentToolCall.result = {
+      success: false,
+      error: policyDecision.errorCode,
+    }
+    await updateAssistantMessage(currentAssistantMessageId, currentModelText, currentToolMessages)
+    await appendAgentLog(task.snapshot.taskId, 'tool_blocked', {
+      step,
+      toolName: requestedToolCall.toolName,
+      input: requestedToolCall.input,
+      riskLevel: prepared.riskLevel,
+      policy: policyDecision.type,
+      reason: policyDecision.reason,
+      errorCode: policyDecision.errorCode,
+      workspacePath: task.snapshot.workspacePath,
+    })
+    markRunningProgress(task, 'skipped')
+    observations.push(formatToolFailureObservation(
+      prepared.toolName,
+      policyDecision.errorCode,
+      requestedToolCall.input,
+    ))
+    pushObservation(loopMessages, observations)
+    await updateAssistantMessage(currentAssistantMessageId, currentModelText, currentToolMessages, 'success')
+    return { lastToolCallContext }
+  }
+
+  if (policyDecision.type === 'require_approval') {
+    const pendingAction: AgentPendingAction = {
+      actionId: randomUUID(),
+      toolName: prepared.toolName,
+      riskLevel: prepared.riskLevel,
+      inputPreview: JSON.stringify(requestedToolCall.input).slice(0, 200),
+      createdAt: Date.now(),
+    }
+    task.snapshot.status = 'awaiting_approval'
+    task.snapshot.pendingAction = pendingAction
+    reportTaskState(task.snapshot)
+    reportApprovalRequired(task.snapshot.taskId, task.snapshot.conversationId, pendingAction)
+    await updateTaskAssistantMessage(currentAssistantMessageId, {
+      status: 'loading',
+      content: [{ type: 'text', text: currentModelText }],
+    })
+
+    const decisionResult = await waitForApproval(task)
+    if (task.abortController.signal.aborted || decisionResult.reason === 'AGENT_CANCELLED') {
+      throw new Error('AGENT_CANCELLED')
+    }
+
+    if (!decisionResult.approved) {
+      markRunningProgress(task, 'skipped')
+      currentToolCall.executeState = 'completed'
+      currentToolCall.result = {
+        success: false,
+        error: decisionResult.reason || 'AGENT_APPROVAL_REJECTED',
+      }
+      observations.push(`工具 ${prepared.toolName} 被拒绝: ${decisionResult.reason || '无原因'}`)
+      await updateAssistantMessage(currentAssistantMessageId, currentModelText, currentToolMessages)
+      await updateAssistantMessage(currentAssistantMessageId, currentModelText, currentToolMessages, 'success')
+      return { lastToolCallContext }
+    }
+  }
+
+  const result = await prepared.execute()
+  if (!result.ok) {
+    currentToolCall.executeState = 'completed'
+    currentToolCall.result = {
+      success: false,
+      error: result.error || 'AGENT_TOOL_EXEC_FAILED',
+    }
+    await updateAssistantMessage(currentAssistantMessageId, currentModelText, currentToolMessages)
+    await appendAgentLog(task.snapshot.taskId, 'tool_failed', {
+      toolName: prepared.toolName,
+      input: requestedToolCall.input,
+      error: result.error || 'AGENT_TOOL_EXEC_FAILED',
+      workspacePath: task.snapshot.workspacePath,
+    })
+    markRunningProgress(task, 'skipped')
+    observations.push(formatToolFailureObservation(
+      prepared.toolName,
+      result.error || 'AGENT_TOOL_EXEC_FAILED',
+      requestedToolCall.input,
+    ))
+    updateRuntimeStateOnToolFailure(runtimeState, prepared.toolName)
+    pushObservation(loopMessages, observations)
+    await updateAssistantMessage(currentAssistantMessageId, currentModelText, currentToolMessages, 'success')
+    return { lastToolCallContext }
+  }
+
+  markRunningProgress(task, 'done')
+  updateRuntimeStateOnToolSuccess(runtimeState, prepared.toolName, requestedToolCall.input)
+
+  const toolOutputText = getToolOutputText(result)
+  observations.push(buildToolObservation(prepared.toolName, result, toolOutputText))
+  pushObservation(loopMessages, observations)
+  currentToolCall.executeState = 'completed'
+  currentToolCall.result = {
+    success: true,
+    data: truncateTextByTool(prepared.toolName, toolOutputText, 'log'),
+  }
+  await updateAssistantMessage(currentAssistantMessageId, currentModelText, currentToolMessages)
+  await updateAssistantMessage(currentAssistantMessageId, currentModelText, currentToolMessages, 'success')
+  await appendAgentLog(task.snapshot.taskId, 'tool_completed', {
+    toolName: prepared.toolName,
+    input: requestedToolCall.input,
+    outputPreview: truncateTextByTool(prepared.toolName, toolOutputText, 'log'),
+    exitCode: result.exitCode,
+    durationMs: result.durationMs,
+  })
+
+  return { lastToolCallContext }
+}
+
+export function markRunningProgress(task: RuntimeTask, status: 'done' | 'skipped') {
+  const runningProgress = task.snapshot.progress.at(-1)
+  if (runningProgress)
+    runningProgress.status = status
+  reportTaskProgress(task.snapshot.taskId, task.snapshot.conversationId, task.snapshot.progress)
+}
+
+function pushObservation(loopMessages: LoopMessage[], observations: string[]) {
+  loopMessages.push({ role: 'user', content: [{ type: 'text', text: observations.at(-1) || '' }] })
+  trimLoopMessages(loopMessages)
+}
+
+function updateAssistantMessage(
+  messageId: string,
+  text: string,
+  toolMessages: McpToolCall[],
+  status: 'loading' | 'success' = 'loading',
+) {
+  return updateTaskAssistantMessage(messageId, {
+    status,
+    content: [{ type: 'text', text }],
+    mcpTool: [...toolMessages],
+  })
+}
+
+function getToolOutputText(result: { output?: unknown, stdout?: string, stderr?: string, exitCode?: number }): string {
+  if (typeof result.output === 'string') {
+    return result.output
+  }
+  if (result.output !== undefined) {
+    const text = JSON.stringify(result.output)
+    if (typeof text === 'string' && text.length > 0) {
+      return text
+    }
+  }
+  if (result.stdout || result.stderr) {
+    return [result.stdout || '', result.stderr || ''].filter(Boolean).join('\n')
+  }
+  if (typeof result.exitCode === 'number') {
+    return `exitCode=${result.exitCode}`
+  }
+  return ''
+}
+
+function truncateText(text: string, limit: number): string {
+  if (text.length <= limit) {
+    return text
+  }
+  return `${text.slice(0, limit)}...(truncated)`
+}
+
+function truncateTextByTool(toolName: string, text: string, target: 'observation' | 'log'): string {
+  if ((toolName === 'list_dir' || toolName === 'read_file') && target === 'observation') {
+    return text
+  }
+  const limit = target === 'observation' ? DEFAULT_TOOL_OBSERVATION_LIMIT : DEFAULT_TOOL_LOG_PREVIEW_LIMIT
+  return truncateText(text, limit)
+}
+
+function buildToolObservation(
+  toolName: string,
+  result: { output?: unknown, stdout?: string, stderr?: string, exitCode?: number },
+  outputText: string,
+): string {
+  if (toolName === 'list_dir' && result.output && typeof result.output === 'object') {
+    const output = result.output as {
+      path?: string
+      offset?: number
+      limit?: number
+      total?: number
+      hasMore?: boolean
+      items?: Array<{ name: string, type: string }>
+    }
+    return `工具 list_dir 执行成功: path=${output.path || '.'}, offset=${output.offset || 0}, limit=${output.limit || 0}, total=${output.total || 0}, returned=${output.items?.length || 0}, hasMore=${Boolean(output.hasMore)}`
+  }
+  if (toolName === 'read_file') {
+    return `工具 read_file 执行成功，输出如下：\n${outputText}`
+  }
+  return `工具 ${toolName} 执行成功，输出: ${truncateTextByTool(toolName, outputText, 'observation')}`
+}
+
+function formatToolFailureObservation(
+  toolName: string,
+  error: string,
+  input: Record<string, unknown>,
+): string {
+  if (error.includes('AGENT_BASH_COMMAND_BLOCKED')) {
+    return `工具 ${toolName} 执行失败：命令被安全策略拦截。请仅使用允许的只读命令（如 pwd、ls、cat、rg、find），不要使用 ~、重定向、管道、sudo、rm 等。原始命令=${String(input.command || '')}`
+  }
+  if (error.includes('AGENT_POLICY_BLOCKED')) {
+    return `工具 ${toolName} 执行失败：路径越界或策略不允许。请改用当前工作区内路径，优先使用相对路径（如 .、./src、blog.html）。`
+  }
+  if (error.includes('READ_FILE_OFFSET_OUT_OF_RANGE')) {
+    return `工具 ${toolName} 执行失败：read_file 的 offset 超出文件行数。请从更小的 offset 继续读取。`
+  }
+  return `工具 ${toolName} 执行失败：${error}`
+}

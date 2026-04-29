@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { addMcpConfig, getMcpConfigs } from '../mcpConfigs'
-import { mockDb } from './utils'
+import { canRunDbIntegrationTests, mockDb } from './utils'
 
-describe('mcpConfigs service', () => {
+const describeDb = canRunDbIntegrationTests() ? describe : describe.skip
+
+describeDb('mcpConfigs service', () => {
   beforeEach(async () => {
     await mockDb()
   })
