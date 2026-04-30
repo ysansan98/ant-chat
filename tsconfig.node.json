@@ -7,6 +7,9 @@
     "baseUrl": ".",
     "moduleResolution": "bundler",
     "paths": {
+      "@ant-chat/shared": [
+        "packages/shared/src/index.ts"
+      ],
       "@main/*": [
         "src/main/*"
       ]
@@ -18,6 +21,7 @@
   },
   "include": [
     "electron.vite.config.*",
+    "packages/shared/src/**/*",
     "src/types/**/*.ts",
     "src/main/**/*",
     "src/preload/**/*"

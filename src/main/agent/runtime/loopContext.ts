@@ -12,6 +12,7 @@ export interface RuntimeState {
   goal: string
   readFiles: Map<string, string[]>
   writtenFiles: Set<string>
+  loadedSkills: Map<string, string>
   lastAction: 'read' | 'write' | 'other'
 }
 
@@ -30,8 +31,9 @@ export function createLoopSystemPrompt(workspacePath: string): string {
     '工具调用规则：',
     '1. read_file: offset 是 1-based 行号，limit 是行数。大文件必须递增 offset 分段读取。',
     '2. list_dir: 使用 offset/limit 分页。hasMore=true 继续下一页；hasMore=false 立即停止该目录读取。',
-    '3. 遇到工具错误时，先根据错误文本调整参数，再决定是否重试。同一失败参数禁止连续重复。',
-    '4. 工具结果可能被截断。若结果末尾包含继续读取提示，按提示继续读取，而不是改用无关工具。',
+    '3. installed skills 会以工具形式出现。当任务匹配某个 skill 时，先调用 use_skill 或对应 skill_* 工具载入说明，再按说明继续调用 native tools。',
+    '4. 遇到工具错误时，先根据错误文本调整参数，再决定是否重试。同一失败参数禁止连续重复。',
+    '5. 工具结果可能被截断。若结果末尾包含继续读取提示，按提示继续读取，而不是改用无关工具。',
     '完成与停止：',
     '1. 只要信息已足够，就直接执行修改并给出最终结果。',
     '2. 完成后直接给最终答复，包含改了什么、在哪些文件、结果如何。',
@@ -44,6 +46,7 @@ export function createRuntimeState(goal: string): RuntimeState {
     goal,
     readFiles: new Map(),
     writtenFiles: new Set(),
+    loadedSkills: new Map(),
     lastAction: 'other',
   }
 }
@@ -59,9 +62,11 @@ export function buildPlanningPrompt(
     .join('; ')
   const written = [...state.writtenFiles].slice(-5).join(', ') || '(none)'
   const recentObs = observations.slice(-2).join('\n')
+  const loadedSkills = formatLoadedSkills(state)
   return [
     `继续任务：${goal}`,
     `状态摘要：lastAction=${state.lastAction}; writtenFiles=${written}; recentReads=${lastReads || '(none)'}`,
+    loadedSkills,
     '执行要求：若已完成修改，直接输出最终结果，不要再次全量读取同一文件。',
     recentObs ? `最近观察：\n${recentObs}` : '',
   ].filter(Boolean).join('\n')
@@ -149,7 +154,15 @@ export function updateRuntimeStateOnToolSuccess(
   state: RuntimeState,
   toolName: string,
   input: Record<string, unknown>,
+  result?: { output?: unknown },
 ) {
+  const loadedSkill = parseLoadedSkillOutput(result?.output)
+  if (loadedSkill) {
+    state.loadedSkills.set(loadedSkill.name, loadedSkill.content)
+    state.lastAction = 'other'
+    return
+  }
+
   if (toolName === 'read_file') {
     const path = typeof input.path === 'string' ? input.path : '(unknown)'
     const offset = Number(input.offset || 1)
@@ -175,6 +188,36 @@ export function updateRuntimeStateOnToolSuccess(
     return
   }
   state.lastAction = 'other'
+}
+
+function parseLoadedSkillOutput(output: unknown): { name: string, content: string } | null {
+  if (!output || typeof output !== 'object') {
+    return null
+  }
+  const data = output as Record<string, unknown>
+  if (data.type !== 'skill_loaded' || typeof data.name !== 'string' || typeof data.content !== 'string') {
+    return null
+  }
+  return { name: data.name, content: data.content }
+}
+
+function formatLoadedSkills(state: RuntimeState): string {
+  const entries = [...state.loadedSkills.entries()]
+  if (entries.length === 0) {
+    return ''
+  }
+  const maxTotalChars = 24_000
+  let remaining = maxTotalChars
+  const sections: string[] = []
+  for (const [name, content] of entries) {
+    if (remaining <= 0) {
+      break
+    }
+    const body = content.length <= remaining ? content : `${content.slice(0, remaining)}\n[skill context truncated]`
+    sections.push(`Loaded skill: ${name}\nInstructions:\n${body}`)
+    remaining -= body.length
+  }
+  return `已载入 Skill 上下文：\n${sections.join('\n\n')}`
 }
 
 export function updateRuntimeStateOnToolFailure(

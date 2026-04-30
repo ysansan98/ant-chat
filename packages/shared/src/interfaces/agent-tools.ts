@@ -13,6 +13,12 @@ export interface AgentToolResult {
 export interface AgentTool {
   name: string
   source: 'mcp' | 'native' | 'skill'
+  description?: string
+  inputSchema?: {
+    type: 'object'
+    properties: Record<string, Record<string, unknown>>
+    required: string[]
+  }
   inferRisk: (input: Record<string, unknown>) => AgentToolRisk
   execute: (input: Record<string, unknown>) => Promise<AgentToolResult>
 }
@@ -62,5 +68,6 @@ export const WORKSPACE_INVALID_PATH = 'WORKSPACE_INVALID_PATH'
 export const WORKSPACE_DUPLICATED_PATH = 'WORKSPACE_DUPLICATED_PATH'
 export const AGENT_POLICY_BLOCKED = 'AGENT_POLICY_BLOCKED'
 export const AGENT_TOOL_EXEC_FAILED = 'AGENT_TOOL_EXEC_FAILED'
+export const AGENT_SKILL_INVALID = 'AGENT_SKILL_INVALID'
 export const AGENT_BASH_COMMAND_BLOCKED = 'AGENT_BASH_COMMAND_BLOCKED'
 export const AGENT_BASH_TIMEOUT = 'AGENT_BASH_TIMEOUT'

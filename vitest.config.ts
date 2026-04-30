@@ -18,6 +18,7 @@ export default defineConfig({
     },
     globals: true,
     alias: {
+      '@ant-chat/shared': fileURLToPath(new URL('./packages/shared/src/index.ts', import.meta.url)),
       '@ant-design/x/es/sender/useSpeech': '@ant-design/x/es/sender/useSpeech',
       '@ant-design/x': '@ant-design/x/es',
       '@': fileURLToPath(new URL('./src/renderer/src', import.meta.url)),

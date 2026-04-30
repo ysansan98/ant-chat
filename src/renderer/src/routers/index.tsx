@@ -9,6 +9,7 @@ import { GeneralSettings } from '@/pages/Settings/GeneralSettings'
 import MCPManage from '@/pages/Settings/MCPManage'
 import ProviderManage from '@/pages/Settings/ProviderManage'
 import SettingsPage from '@/pages/Settings/Settings'
+import SkillManage from '@/pages/Settings/SkillManage'
 
 const router = createHashRouter([
   {
@@ -31,6 +32,7 @@ const router = createHashRouter([
           { path: 'general', Component: GeneralSettings },
           { path: 'provider', Component: ProviderManage },
           { path: 'mcp', Component: MCPManage },
+          { path: 'skills', Component: SkillManage },
           { path: 'about', Component: About },
         ],
       },

@@ -14,6 +14,9 @@
     "moduleResolution": "bundler",
 
     "paths": {
+      "@ant-chat/shared": [
+        "packages/shared/src/index.ts"
+      ],
       "@main/*": [
         "src/main/*"
       ],
@@ -39,6 +42,7 @@
     "src/renderer/src/env.d.ts",
     "src/renderer/src/**/*",
     "src/renderer/src/**/*.tsx",
+    "packages/shared/src/**/*",
     "packages/ui/src/**/*",
     "src/preload/*.d.ts",
     "src/main/**/*.ts"

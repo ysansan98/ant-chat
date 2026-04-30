@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { updateMessage } from '../message'
-import { createMessage } from './factory'
+import { createConversation, createMessage } from './factory'
 import { canRunDbIntegrationTests, mockDb } from './utils'
 
 const describeDb = canRunDbIntegrationTests() ? describe : describe.skip
@@ -12,6 +12,10 @@ describeDb('message service', () => {
 
   describe('updateMessage', () => {
     it('更新包含error的content', async () => {
+      await createConversation({
+        id: 'conv-otDibEPk_83HIQ-EgO4ZK',
+        title: 'Test Conversation',
+      })
       let message = await createMessage({
         id: 'msg-XiOPzFnYVNEgTCj3h7csb',
         convId: 'conv-otDibEPk_83HIQ-EgO4ZK',

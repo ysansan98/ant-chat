@@ -68,9 +68,11 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
     input: requestedToolCall.input,
   })
 
+  const prepared = registry.prepare(requestedToolCall.toolName, requestedToolCall.input)
+
   const currentToolCall: McpToolCall = {
     id: randomUUID(),
-    serverName: 'native',
+    serverName: prepared.source,
     toolName: requestedToolCall.toolName,
     args: requestedToolCall.input,
     executeState: 'executing',
@@ -78,7 +80,6 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   currentToolMessages.push(currentToolCall)
   await updateAssistantMessage(currentAssistantMessageId, currentModelText, currentToolMessages)
 
-  const prepared = registry.prepare(requestedToolCall.toolName, requestedToolCall.input)
   const policyDecision = decidePolicy(task.snapshot.mode, prepared.riskLevel)
   const lastToolCallContext = {
     toolName: requestedToolCall.toolName,
@@ -194,7 +195,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   }
 
   markRunningProgress(task, 'done')
-  updateRuntimeStateOnToolSuccess(runtimeState, prepared.toolName, requestedToolCall.input)
+  updateRuntimeStateOnToolSuccess(runtimeState, prepared.toolName, requestedToolCall.input, result)
 
   const toolOutputText = getToolOutputText(result)
   observations.push(buildToolObservation(prepared.toolName, result, toolOutputText))
@@ -247,6 +248,16 @@ function getToolOutputText(result: { output?: unknown, stdout?: string, stderr?:
     return result.output
   }
   if (result.output !== undefined) {
+    if (isSkillLoadedOutput(result.output)) {
+      return [
+        `Skill loaded: ${result.output.name}`,
+        '',
+        'Instructions:',
+        result.output.content,
+        '',
+        'Use these instructions for the current task. Continue by calling the appropriate native tools or provide the final answer if enough information is available.',
+      ].join('\n')
+    }
     const text = JSON.stringify(result.output)
     if (typeof text === 'string' && text.length > 0) {
       return text
@@ -259,6 +270,16 @@ function getToolOutputText(result: { output?: unknown, stdout?: string, stderr?:
     return `exitCode=${result.exitCode}`
   }
   return ''
+}
+
+function isSkillLoadedOutput(output: unknown): output is { type: 'skill_loaded', name: string, content: string } {
+  return Boolean(
+    output
+    && typeof output === 'object'
+    && (output as Record<string, unknown>).type === 'skill_loaded'
+    && typeof (output as Record<string, unknown>).name === 'string'
+    && typeof (output as Record<string, unknown>).content === 'string',
+  )
 }
 
 function truncateText(text: string, limit: number): string {

@@ -7,6 +7,7 @@ import { McpIpcService } from './domains/mcp/ipc'
 import { ProviderIpcService } from './domains/provider/ipc'
 import { SearchIpcService } from './domains/search/ipc'
 import { SettingsIpcService } from './domains/settings/ipc'
+import { SkillsIpcService } from './domains/skills/ipc'
 import { UpdateIpcService } from './domains/update/ipc'
 import { WorkspaceIpcService } from './domains/workspace/ipc'
 
@@ -18,6 +19,7 @@ export const ipcServiceClasses = [
   ProviderIpcService,
   SearchIpcService,
   SettingsIpcService,
+  SkillsIpcService,
   UpdateIpcService,
   WorkspaceIpcService,
 ] as const satisfies readonly IpcServiceConstructor[]

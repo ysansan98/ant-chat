@@ -17,6 +17,7 @@ export type AgentErrorCode
     | 'AGENT_APPROVAL_TIMEOUT'
     | 'AGENT_POLICY_BLOCKED'
     | 'AGENT_TOOL_EXEC_FAILED'
+    | 'AGENT_SKILL_INVALID'
     | 'AGENT_CANCELLED'
 
 export interface AgentProgressItem {

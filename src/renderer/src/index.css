@@ -1,5 +1,4 @@
 @import './assets/scroll-style.css';
-@import './global.css';
 
 @layer utilities {
   .app-region-drag {

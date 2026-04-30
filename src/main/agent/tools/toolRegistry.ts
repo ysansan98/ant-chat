@@ -1,8 +1,10 @@
 import type { AgentMode, AgentTool, AgentToolResult, AgentToolRisk } from '@ant-chat/shared'
 import { getNativeToolService } from '../native-tools/nativeToolService'
+import { getSkillToolService } from '../skills/skillToolService'
 
 export interface PreparedToolCall {
   toolName: string
+  source: AgentTool['source']
   input: Record<string, unknown>
   riskLevel: AgentToolRisk
   execute: () => Promise<AgentToolResult>
@@ -22,8 +24,14 @@ export interface RuntimeToolDefinition {
 export class ToolRegistry {
   private readonly tools: Map<string, AgentTool>
 
-  constructor(workspacePath: string, mode: AgentMode) {
-    this.tools = new Map(getNativeToolService(workspacePath, mode === 'full_managed').getTools().map(tool => [tool.name, tool]))
+  private constructor(tools: AgentTool[]) {
+    this.tools = new Map(tools.map(tool => [tool.name, tool]))
+  }
+
+  static async create(workspacePath: string, mode: AgentMode): Promise<ToolRegistry> {
+    const nativeTools = getNativeToolService(workspacePath, mode === 'full_managed').getTools()
+    const skillTools = (await getSkillToolService()).getTools()
+    return new ToolRegistry([...nativeTools, ...skillTools])
   }
 
   prepare(toolName: string, input: Record<string, unknown>): PreparedToolCall {
@@ -31,6 +39,7 @@ export class ToolRegistry {
     if (!tool) {
       return {
         toolName,
+        source: 'native',
         input,
         riskLevel: 'L2',
         execute: async () => ({ ok: false, error: 'AGENT_TOOL_EXEC_FAILED' }),
@@ -39,6 +48,7 @@ export class ToolRegistry {
 
     return {
       toolName,
+      source: tool.source,
       input,
       riskLevel: safeInferRisk(tool, input),
       execute: () => tool.execute(input),
@@ -47,7 +57,9 @@ export class ToolRegistry {
 
   listTools(): RuntimeToolDefinition[] {
     return [...this.tools.values()].map((tool) => {
-      const schema = getNativeToolSchema(tool.name)
+      const schema = tool.inputSchema && tool.description
+        ? { description: tool.description, inputSchema: tool.inputSchema }
+        : getNativeToolSchema(tool.name)
       return {
         name: tool.name,
         source: tool.source,

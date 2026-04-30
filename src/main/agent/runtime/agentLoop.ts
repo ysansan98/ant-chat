@@ -30,7 +30,7 @@ export async function runAgentLoop(taskId: string, options: StartAgentTaskOption
   const model = options.chatSettings?.modelId ? await getModelById(options.chatSettings.modelId) : null
   const provider = model ? getProviderServiceById(model.serviceProviderId) : null
   const aiProvider = provider && model ? await createProvider(provider) : null
-  const registry = new ToolRegistry(task.snapshot.workspacePath, task.snapshot.mode)
+  const registry = await ToolRegistry.create(task.snapshot.workspacePath, task.snapshot.mode)
   const tools = registry.listTools()
   const loopSystemPrompt = createLoopSystemPrompt(task.snapshot.workspacePath)
   let step = 0

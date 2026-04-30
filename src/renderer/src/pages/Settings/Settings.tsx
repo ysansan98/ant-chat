@@ -1,4 +1,5 @@
 import Icon, { CrownOutlined, InfoCircleOutlined, SettingOutlined } from '@ant-design/icons'
+import { SparklesIcon } from 'lucide-react'
 import { Outlet, useLocation, useNavigate } from 'react-router'
 import MCPIcon from '@/assets/icons/mcp.svg?react'
 
@@ -10,6 +11,7 @@ export default function Settings() {
     { id: 'general', name: '通用设置', icon: <SettingOutlined /> },
     { id: 'provider', name: 'AI服务商设置', icon: <CrownOutlined /> },
     { id: 'mcp', name: 'MCP设置', icon: <Icon component={MCPIcon} /> },
+    { id: 'skills', name: 'Skill设置', icon: <SparklesIcon /> },
     { id: 'about', name: '关于', icon: <InfoCircleOutlined /> },
   ]
 

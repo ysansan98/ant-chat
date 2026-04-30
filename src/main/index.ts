@@ -3,6 +3,7 @@ import { app } from 'electron'
 import { initializeDb } from './db'
 import { UpdateService } from './domains/update/updateService'
 import { installDevTools } from './plugins/devtools'
+import { skillFsService } from './skills/skillFsService'
 import { WorkspaceStore } from './store/workspace'
 import { isDev } from './utils/env'
 import { logger } from './utils/logger'
@@ -28,6 +29,9 @@ app.whenReady().then(async () => {
 
   // 初始化默认工作区
   WorkspaceStore.getInstance().ensureInitialized()
+
+  // 初始化本地 Skill 目录和内置 Skill
+  await skillFsService.ensureInitialized()
 
   const mainWindow = new MainWindow()
   await mainWindow.createWindow()
