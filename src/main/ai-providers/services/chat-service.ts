@@ -1,4 +1,5 @@
 import type { CreateConversationTitleOptions, handleChatCompletionsOptions, handleInitConversationTitleOptions, McpToolCall, MessageContent, SendChatCompletionsOptions, TextContent } from '@ant-chat/shared'
+import type { LanguageModelUsage } from 'ai'
 import type { MultiProvider } from '../multi-provider'
 import process from 'node:process'
 import { createAIMessage, getMessagesByConvId, getModelById, getProviderServiceById, getServiceProviderByModelId, updateMessage } from '@main/db/services'
@@ -15,6 +16,7 @@ interface StreamChunk {
   content: MessageContent
   reasoningContent?: string
   functionCalls?: McpToolCall[]
+  usage?: LanguageModelUsage
 }
 
 class ChatService {
@@ -145,6 +147,10 @@ export async function handleChatCompletions(options: handleChatCompletionsOption
 
       if (functionCalls) {
         aiMessage.mcpTool = functionCalls
+      }
+
+      if (chunk.usage) {
+        aiMessage.usage = chunk.usage
       }
 
       // 合并到数据库

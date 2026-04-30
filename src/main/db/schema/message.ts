@@ -17,4 +17,11 @@ export const messagesTable = sqliteTable('messages', {
   reasoningContent: text('reasoning_content'),
   mcpTool: text('mcp_tool', { mode: 'json' }).$type<McpToolCall[] | null>().default(null),
   modelInfo: text('model_info', { mode: 'json' }).$type<ModelInfo | null>().default(null),
+  usage: text('usage', { mode: 'json' }).$type<{
+    inputTokens?: number
+    outputTokens?: number
+    totalTokens?: number
+    reasoningTokens?: number
+    cachedInputTokens?: number
+  } | null>().default(null),
 })

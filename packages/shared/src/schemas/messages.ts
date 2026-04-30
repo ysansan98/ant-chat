@@ -75,6 +75,16 @@ export const ModelInfoSchema = z.object({
 
 export type ModelInfo = z.infer<typeof ModelInfoSchema>
 
+export const LanguageModelUsageSchema = z.object({
+  inputTokens: z.number().optional(),
+  outputTokens: z.number().optional(),
+  totalTokens: z.number().optional(),
+  reasoningTokens: z.number().optional(),
+  cachedInputTokens: z.number().optional(),
+})
+
+export type LanguageModelUsage = z.infer<typeof LanguageModelUsageSchema>
+
 const BaseMessage = z.object({
   id: z.string().nanoid(),
   convId: z.string(),
@@ -97,6 +107,7 @@ export const AIMessage = BaseMessage.extend({
   modelInfo: ModelInfoSchema,
   reasoningContent: z.string().optional().nullable(),
   mcpTool: z.array(McpToolCallSchema).optional().nullable(),
+  usage: LanguageModelUsageSchema.optional().nullable(),
 })
 
 export type AIMessage = z.infer<typeof AIMessage>

@@ -1,4 +1,4 @@
-import type { AttachmentSchema, ConversationsSchema, ConversationsSettingsSchema, McpToolCall, McpToolResult, MessageContent, ModelInfo } from '../schemas'
+import type { AttachmentSchema, ConversationsSchema, ConversationsSettingsSchema, LanguageModelUsage, McpToolCall, McpToolResult, MessageContent, ModelInfo } from '../schemas'
 
 // 基础类型
 export type MessageId = string
@@ -71,6 +71,8 @@ export interface IMessageAI extends IMessageBase {
   mcpTool?: IMcpToolCall[]
   /** 生成当前消息的模型信息 */
   modelInfo?: IModelInfo
+  /** token usage for this message */
+  usage?: LanguageModelUsage
 }
 
 export interface IMessage {
@@ -87,6 +89,8 @@ export interface IMessage {
   mcpTool?: IMcpToolCall[]
   /** 生成当前消息的模型信息 */
   modelInfo?: IModelInfo
+  /** token usage for this message */
+  usage?: LanguageModelUsage
 }
 
 // 消息内容

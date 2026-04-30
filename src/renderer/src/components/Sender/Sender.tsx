@@ -1,5 +1,5 @@
 import type { AgentMode, ChatFeatures, IAttachment, IImage } from '@ant-chat/shared'
-import type { FileUIPart } from 'ai'
+import type { FileUIPart, LanguageModelUsage } from 'ai'
 import {
   Attachment,
   AttachmentInfo,
@@ -7,6 +7,18 @@ import {
   AttachmentRemove,
   Attachments,
 } from '@workspace/ui/components/ai-elements/attachments'
+import {
+  Context,
+  ContextCacheUsage,
+  ContextContent,
+  ContextContentBody,
+  ContextContentFooter,
+  ContextContentHeader,
+  ContextInputUsage,
+  ContextOutputUsage,
+  ContextReasoningUsage,
+  ContextTrigger,
+} from '@workspace/ui/components/ai-elements/context'
 import {
   PromptInput,
   PromptInputBody,
@@ -29,6 +41,7 @@ import {
   useState,
 } from 'react'
 import workspaceApi from '@/api/workspaceApi'
+import { useChatSettingsContext } from '@/contexts/chatSettings'
 import {
   setAgentMode,
   setOnlieSearch,
@@ -118,6 +131,71 @@ function SenderAddAttachmentButton() {
     >
       <PaperclipIcon className="size-4" />
     </PromptInputButton>
+  )
+}
+
+function SenderContextUsageButton() {
+  const { settings } = useChatSettingsContext()
+  const messages = useMessagesStore(state => state.messages)
+
+  const latestAssistantMessage = [...messages]
+    .reverse()
+    .find(msg => msg.role === 'assistant')
+
+  const usage = latestAssistantMessage?.usage
+  const contextUsage: LanguageModelUsage | undefined = usage
+    ? {
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        totalTokens: usage.totalTokens,
+        reasoningTokens: usage.reasoningTokens,
+        cachedInputTokens: usage.cachedInputTokens,
+        inputTokenDetails: {
+          noCacheTokens: undefined,
+          cacheReadTokens: undefined,
+          cacheWriteTokens: undefined,
+        },
+        outputTokenDetails: {
+          reasoningTokens: undefined,
+          textTokens: undefined,
+        },
+      }
+    : undefined
+  const maxTokens = settings.maxTokens || 1
+  const usedTokens = contextUsage?.totalTokens
+    ?? ((contextUsage?.inputTokens || 0) + (contextUsage?.outputTokens || 0))
+
+  return (
+    <Context
+      maxTokens={maxTokens}
+      modelId={settings.modelId || undefined}
+      usage={contextUsage}
+      usedTokens={Math.max(0, usedTokens)}
+    >
+      <ContextTrigger
+        size="sm"
+        type="button"
+        variant="ghost"
+      />
+      <ContextContent align="start" className="w-72">
+        <ContextContentHeader />
+        <ContextContentBody className="space-y-2">
+          {contextUsage
+            ? (
+                <>
+                  <ContextInputUsage />
+                  <ContextOutputUsage />
+                  <ContextReasoningUsage />
+                  <ContextCacheUsage />
+                </>
+              )
+            : (
+                <div className="text-xs text-gray-500">No usage yet</div>
+              )}
+        </ContextContentBody>
+        <ContextContentFooter />
+      </ContextContent>
+    </Context>
   )
 }
 
@@ -333,6 +411,7 @@ function Sender({ actions, ...props }: SenderProps) {
             </Popover>
 
             <SenderAddAttachmentButton />
+            <SenderContextUsageButton />
 
             <PromptInputButton
               type="button"

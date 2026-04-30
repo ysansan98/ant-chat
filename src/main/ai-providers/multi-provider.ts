@@ -301,6 +301,12 @@ export class MultiProvider {
         }
       }
     }
+
+    const totalUsage = await result.totalUsage
+    yield {
+      content: [],
+      usage: totalUsage,
+    }
   }
 
   /**
