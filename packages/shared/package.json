@@ -18,7 +18,8 @@
   ],
   "scripts": {
     "build": "tsdown",
-    "clean": "rm -rf dist node_modules"
+    "clean": "rm -rf dist node_modules",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "tsdown": "catalog:"

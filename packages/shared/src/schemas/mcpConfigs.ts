@@ -33,8 +33,9 @@ export const AddMcpConfigSchema = z.discriminatedUnion('transportType', [
 ])
 export type AddMcpConfigSchema = z.infer<typeof AddMcpConfigSchema>
 
-export const McpConfigSchema = z.discriminatedUnion('transportType', [SSEMcpConfig, StdioMcpConfig])
-export type McpConfigSchema = z.infer<typeof McpConfigSchema>
+const _McpConfigSchema = z.discriminatedUnion('transportType', [SSEMcpConfig, StdioMcpConfig])
+export type McpConfigSchema = z.infer<typeof _McpConfigSchema>
+export const McpConfigSchema: z.ZodType = _McpConfigSchema
 
 export const UpdateMcpConfigSchema = z.discriminatedUnion('transportType', [
   SSEMcpConfig.partial().extend({ serverName: z.string(), transportType: z.literal('sse') }),
