@@ -1,3 +1,5 @@
+'use client'
+
 import type { VariantProps } from 'class-variance-authority'
 import { Button } from '@workspace/ui/components/button'
 

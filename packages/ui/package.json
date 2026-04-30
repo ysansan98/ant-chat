@@ -19,6 +19,11 @@
     "@phosphor-icons/react": "^2.1.10",
     "@radix-ui/react-use-controllable-state": "^1.2.2",
     "@rive-app/react-webgl2": "^4.28.2",
+    "@shikijs/core": "^4.0.2",
+    "@shikijs/engine-javascript": "^4.0.2",
+    "@shikijs/langs": "^4.0.2",
+    "@shikijs/themes": "^4.0.2",
+    "@shikijs/types": "^4.0.2",
     "@streamdown/cjk": "^1.0.3",
     "@streamdown/code": "^1.1.1",
     "@streamdown/math": "^1.0.2",
@@ -30,6 +35,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "embla-carousel-react": "^8.6.0",
+    "js-base64": "^3.7.7",
     "lucide-react": "catalog:",
     "media-chrome": "^4.19.0",
     "motion": "^12.34.3",
@@ -47,21 +53,17 @@
     "tokenlens": "^1.3.1",
     "tw-animate-css": "^1.4.0",
     "use-stick-to-bottom": "^1.1.3",
-    "zod": "^3.25.76"
+    "zod": "catalog:"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.2",
-    "@tailwindcss/vite": "^4.1.18",
+    "@eslint/js": "catalog:",
+    "@tailwindcss/vite": "catalog:",
     "@turbo/gen": "^2.8.1",
-    "@types/node": "^25.1.0",
-    "@types/react": "^19.2.10",
-    "@types/react-dom": "^19.2.3",
-    "eslint": "^9.39.2",
-    "eslint-plugin-react-hooks": "^7.0.1",
-    "eslint-plugin-react-refresh": "^0.4.24",
-    "globals": "^17.2.0",
-    "tailwindcss": "^4.1.18",
-    "typescript": "^5.9.3",
-    "typescript-eslint": "^8.54.0"
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "tailwindcss": "catalog:",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:"
   }
 }

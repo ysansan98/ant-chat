@@ -119,8 +119,8 @@ function completeJsxTag(code: string) {
 
   return (
     result
-    + [...stack]
-      .reverse()
+    + stack
+      .toReversed()
       .map((tag: string) => `</${tag}>`)
       .join('')
   )

@@ -1,0 +1,43 @@
+// Only these languages are bundled at build time.
+// To add a language, import it from '@shikijs/langs/<name>' and add to this map.
+
+export const SHIKI_LANGUAGES = {
+  typescript: () => import('@shikijs/langs/typescript'),
+  javascript: () => import('@shikijs/langs/javascript'),
+  tsx: () => import('@shikijs/langs/tsx'),
+  jsx: () => import('@shikijs/langs/jsx'),
+  python: () => import('@shikijs/langs/python'),
+  java: () => import('@shikijs/langs/java'),
+  go: () => import('@shikijs/langs/go'),
+  rust: () => import('@shikijs/langs/rust'),
+  json: () => import('@shikijs/langs/json'),
+  jsonc: () => import('@shikijs/langs/jsonc'),
+  yaml: () => import('@shikijs/langs/yaml'),
+  xml: () => import('@shikijs/langs/xml'),
+  html: () => import('@shikijs/langs/html'),
+  css: () => import('@shikijs/langs/css'),
+  scss: () => import('@shikijs/langs/scss'),
+  bash: () => import('@shikijs/langs/bash'),
+  shell: () => import('@shikijs/langs/shellscript'),
+  powershell: () => import('@shikijs/langs/powershell'),
+  sql: () => import('@shikijs/langs/sql'),
+  graphql: () => import('@shikijs/langs/graphql'),
+  markdown: () => import('@shikijs/langs/markdown'),
+  mdx: () => import('@shikijs/langs/mdx'),
+  c: () => import('@shikijs/langs/c'),
+  cpp: () => import('@shikijs/langs/cpp'),
+  csharp: () => import('@shikijs/langs/csharp'),
+  php: () => import('@shikijs/langs/php'),
+  ruby: () => import('@shikijs/langs/ruby'),
+  swift: () => import('@shikijs/langs/swift'),
+  kotlin: () => import('@shikijs/langs/kotlin'),
+  dart: () => import('@shikijs/langs/dart'),
+  docker: () => import('@shikijs/langs/dockerfile'),
+  toml: () => import('@shikijs/langs/toml'),
+  diff: () => import('@shikijs/langs/diff'),
+  ini: () => import('@shikijs/langs/ini'),
+  lua: () => import('@shikijs/langs/lua'),
+  vue: () => import('@shikijs/langs/vue'),
+} as const
+
+export type ShikiLang = keyof typeof SHIKI_LANGUAGES

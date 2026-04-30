@@ -1,3 +1,5 @@
+'use client'
+
 import type { UseEmblaCarouselType } from 'embla-carousel-react'
 import { Button } from '@workspace/ui/components/button'
 
