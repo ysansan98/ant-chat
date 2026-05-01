@@ -47,7 +47,6 @@ export default antfu(
         detectComponentClasses: true,
         ignore: [
           'bg-sidebar',
-          'text-sidebar-foreground',
           'bg-background',
           'app-region-no-drag',
           'app-region-drag',
@@ -55,6 +54,7 @@ export default antfu(
           'antd-*',
           'icon-*',
           'mermaid-container',
+          'text-*',
         ],
       }],
       'ts/no-require-imports': ['off'],

@@ -1,4 +1,7 @@
 import type { AgentPendingAction } from '@ant-chat/shared'
+import { Badge } from '@workspace/ui/components/badge'
+import { Button } from '@workspace/ui/components/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@workspace/ui/components/card'
 
 export default function AgentApprovalCard({
   pending,
@@ -10,20 +13,25 @@ export default function AgentApprovalCard({
   onReject: () => void
 }) {
   return (
-    <div className="mb-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs">
-      <div className="font-medium">
-        审批请求：
-        {pending.toolName}
-        {' '}
-        (
-        {pending.riskLevel}
-        )
+    <Card size="sm" className="mb-2 text-xs">
+      <CardHeader>
+        <CardTitle className="gap-1 text-xs">
+          审批请求：
+          {pending.toolName}
+          <Badge variant="secondary">{pending.riskLevel}</Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="text-muted-foreground break-all">
+        {pending.inputPreview}
+      </CardContent>
+      <div className="flex gap-2 px-3 pb-3">
+        <Button size="xs" onClick={onApprove}>
+          批准
+        </Button>
+        <Button size="xs" variant="destructive" onClick={onReject}>
+          拒绝
+        </Button>
       </div>
-      <div className="mt-1 break-all text-gray-600">{pending.inputPreview}</div>
-      <div className="mt-2 flex gap-2">
-        <button type="button" className="rounded-sm bg-emerald-600 px-2 py-1 text-white" onClick={onApprove}>批准</button>
-        <button type="button" className="rounded-sm bg-red-600 px-2 py-1 text-white" onClick={onReject}>拒绝</button>
-      </div>
-    </div>
+    </Card>
   )
 }
