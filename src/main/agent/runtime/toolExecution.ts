@@ -97,6 +97,30 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
     workspacePath: task.snapshot.workspacePath,
   })
 
+  if (prepared.validationError) {
+    currentToolCall.executeState = 'completed'
+    currentToolCall.result = {
+      success: false,
+      error: prepared.validationError,
+    }
+    await updateAssistantMessage(currentAssistantMessageId, currentModelText, currentToolMessages)
+    await appendAgentLog(task.snapshot.taskId, 'tool_failed', {
+      toolName: prepared.toolName,
+      input: requestedToolCall.input,
+      error: prepared.validationError,
+      workspacePath: task.snapshot.workspacePath,
+    })
+    observations.push(formatToolFailureObservation(
+      prepared.toolName,
+      prepared.validationError,
+      requestedToolCall.input,
+    ))
+    updateRuntimeStateOnToolFailure(runtimeState, prepared.toolName)
+    pushObservation(loopMessages, observations)
+    await updateAssistantMessage(currentAssistantMessageId, currentModelText, currentToolMessages, 'success')
+    return { lastToolCallContext }
+  }
+
   if (policyDecision.type === 'block') {
     currentToolCall.executeState = 'completed'
     currentToolCall.result = {

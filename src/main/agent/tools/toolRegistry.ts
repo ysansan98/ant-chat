@@ -7,6 +7,7 @@ export interface PreparedToolCall {
   source: AgentTool['source']
   input: Record<string, unknown>
   riskLevel: AgentToolRisk
+  validationError?: string
   execute: () => Promise<AgentToolResult>
 }
 
@@ -46,11 +47,14 @@ export class ToolRegistry {
       }
     }
 
+    const validationError = tool.validateInput?.(input) ?? undefined
+
     return {
       toolName,
       source: tool.source,
       input,
       riskLevel: safeInferRisk(tool, input),
+      validationError,
       execute: () => tool.execute(input),
     }
   }

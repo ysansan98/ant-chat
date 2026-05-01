@@ -20,6 +20,7 @@ export interface AgentTool {
     required: string[]
   }
   inferRisk: (input: Record<string, unknown>) => AgentToolRisk
+  validateInput?: (input: Record<string, unknown>) => string | null
   execute: (input: Record<string, unknown>) => Promise<AgentToolResult>
 }
 

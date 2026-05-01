@@ -41,7 +41,7 @@ export class NativeToolService {
     return [
       this.createTool('read_file', () => 'L0', input => this.readFile(input as unknown as ReadFileToolInput)),
       this.createTool('list_dir', () => 'L0', input => this.listDir(input as unknown as ListDirToolInput)),
-      this.createTool('glob_files', () => 'L0', input => this.globFiles(input as unknown as GlobFilesToolInput)),
+      this.createTool('glob_files', () => 'L0', input => this.globFiles(input as unknown as GlobFilesToolInput), validateGlobInput),
       this.createTool('grep_files', () => 'L0', input => this.grepFiles(input as unknown as GrepFilesToolInput)),
       this.createTool('write_file', input => this.inferWriteFileRisk(input as unknown as WriteFileToolInput), input => this.writeFile(input as unknown as WriteFileToolInput)),
       this.createTool('apply_patch', input => this.inferApplyPatchRisk(input as unknown as ApplyPatchToolInput), input => this.applyPatch(input as unknown as ApplyPatchToolInput)),
@@ -115,10 +115,10 @@ export class NativeToolService {
     const limit = normalizeLimit(input.limit)
     const args = ['--files', '--no-ignore-global', '--glob', input.pattern, ...defaultExclusionGlobs(input.path)]
     const result = await runRg(args, cwd, limit)
-    if (!result.ok) {
+    if (!result.ok && result.exitCode !== 1) {
       return result
     }
-    return { ...result, output: splitLimitedLines(result.stdout || '', limit) }
+    return { ...result, ok: true, output: splitLimitedLines(result.stdout || '', limit) }
   }
 
   async grepFiles(input: GrepFilesToolInput): Promise<AgentToolResult> {
@@ -152,7 +152,7 @@ export class NativeToolService {
       if (operation.type === 'add') {
         const filePath = policy.resolvePatchPath(operation.filePath, 'write')
         if (fs.existsSync(filePath)) {
-          throw new Error(AGENT_TOOL_EXEC_FAILED)
+          throw new Error(`apply_patch 失败：Add File 操作的目标文件已存在 "${operation.filePath}"`)
         }
         writes.set(filePath, operation.content)
       }
@@ -168,7 +168,7 @@ export class NativeToolService {
 
         for (const hunk of operation.hunks) {
           if (!hunk.hasContext || !content.includes(hunk.oldText)) {
-            throw new Error(AGENT_TOOL_EXEC_FAILED)
+            throw new Error(`apply_patch 失败：Update File "${operation.filePath}" 中的 hunk 匹配失败，oldText 在当前文件内容中未找到`)
           }
           content = content.replace(hunk.oldText, hunk.newText)
         }
@@ -193,7 +193,7 @@ export class NativeToolService {
         }
       }
     }
-    catch {
+    catch (err) {
       for (const [filePath, backup] of backups.entries()) {
         if (backup === null) {
           if (fs.existsSync(filePath)) {
@@ -204,17 +204,18 @@ export class NativeToolService {
         await fs.promises.mkdir(path.dirname(filePath), { recursive: true })
         await fs.promises.writeFile(filePath, backup, 'utf8')
       }
-      throw new Error(AGENT_TOOL_EXEC_FAILED)
+      throw new Error(`apply_patch 失败：文件写入异常，已回滚所有更改。原因: ${err instanceof Error ? err.message : '未知错误'}`)
     }
 
     return { ok: true, output: { changedFiles: writes.size } }
   }
 
-  private createTool(name: string, inferRisk: AgentTool['inferRisk'], execute: AgentTool['execute']): AgentTool {
+  private createTool(name: string, inferRisk: AgentTool['inferRisk'], execute: AgentTool['execute'], validateInput?: AgentTool['validateInput']): AgentTool {
     return {
       name,
       source: 'native',
       inferRisk,
+      validateInput,
       execute: async (input) => {
         try {
           return await execute(input)
@@ -303,16 +304,18 @@ async function runRg(args: string[], cwd: string, limit: number): Promise<AgentT
       const code = (error as NodeJS.ErrnoException).code
       resolve({
         ok: false,
-        error: code === 'ENOENT' ? AGENT_TOOL_EXEC_FAILED : (error.message || AGENT_TOOL_EXEC_FAILED),
+        error: code === 'ENOENT' ? `rg 命令不可用 (${error.message || 'spawn ENOENT'})` : (error.message || AGENT_TOOL_EXEC_FAILED),
         durationMs: Date.now() - startedAt,
       })
     })
     child.on('close', (exitCode) => {
+      const code = exitCode ?? undefined
       resolve({
         ok: exitCode === 0,
         stdout,
         stderr,
-        exitCode: exitCode ?? undefined,
+        exitCode: code,
+        error: exitCode === 0 ? undefined : (stderr.trim() || `rg exited with code ${code}`),
         durationMs: Date.now() - startedAt,
       })
     })
@@ -357,13 +360,24 @@ function splitLimitedLines(stdout: string, limit: number): string[] {
   return stdout.split('\n').filter(Boolean).slice(0, limit)
 }
 
+function validateGlobInput(input: Record<string, unknown>): string | null {
+  const pattern = typeof input.pattern === 'string' ? input.pattern : ''
+  if (!pattern) {
+    return 'glob_files 参数错误：pattern 不能为空'
+  }
+  if (/\{[^}]+\}/.test(pattern)) {
+    return `glob_files 参数错误：pattern "${pattern}" 包含 shell brace expansion 语法 {a,b}，但 rg --glob 不支持该语法。请拆分为多次调用或使用字符类 [[...]] 等替代语法`
+  }
+  return null
+}
+
 function parsePatch(patch: string): PatchOperation[] {
   const lines = patch.replace(/\r\n/g, '\n').split('\n')
   if (lines.at(-1) === '') {
     lines.pop()
   }
   if (lines[0] !== '*** Begin Patch' || lines.at(-1) !== '*** End Patch') {
-    throw new Error(AGENT_TOOL_EXEC_FAILED)
+    throw new Error('apply_patch 参数错误：patch 必须以 "*** Begin Patch" 开头且以 "*** End Patch" 结尾')
   }
 
   const operations: PatchOperation[] = []
@@ -376,7 +390,7 @@ function parsePatch(patch: string): PatchOperation[] {
       const contentLines: string[] = []
       while (index < lines.length - 1 && !lines[index].startsWith('*** ')) {
         if (!lines[index].startsWith('+')) {
-          throw new Error(AGENT_TOOL_EXEC_FAILED)
+          throw new Error('apply_patch 格式错误：Add File 内容行必须以 \'+\' 开头')
         }
         contentLines.push(lines[index].slice(1))
         index += 1
@@ -398,7 +412,7 @@ function parsePatch(patch: string): PatchOperation[] {
 
       while (index < lines.length - 1 && !lines[index].startsWith('*** ')) {
         if (lines[index] !== '@@') {
-          throw new Error(AGENT_TOOL_EXEC_FAILED)
+          throw new Error('apply_patch 格式错误：Update File 的 hunk 必须以 \'@@\' 标记开始')
         }
         index += 1
 
@@ -420,7 +434,7 @@ function parsePatch(patch: string): PatchOperation[] {
             newLines.push(patchLine.slice(1))
           }
           else {
-            throw new Error(AGENT_TOOL_EXEC_FAILED)
+            throw new Error('apply_patch 格式错误：hunk 内每行必须以 \' \'、\'-\' 或 \'+\' 开头')
           }
           index += 1
         }
@@ -436,11 +450,11 @@ function parsePatch(patch: string): PatchOperation[] {
       continue
     }
 
-    throw new Error(AGENT_TOOL_EXEC_FAILED)
+    throw new Error('apply_patch 格式错误：未知的 patch 操作类型，期望 \'*** Add File:\' / \'*** Delete File:\' / \'*** Update File:\'')
   }
 
   if (operations.length === 0) {
-    throw new Error(AGENT_TOOL_EXEC_FAILED)
+    throw new Error('apply_patch 格式错误：patch 未包含任何有效操作')
   }
 
   return operations
