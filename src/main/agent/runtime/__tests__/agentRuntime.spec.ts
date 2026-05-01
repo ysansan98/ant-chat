@@ -4,9 +4,13 @@ import { agentRuntime } from '../agentRuntime'
 import { taskStore } from '../taskStore'
 
 const reportTaskProgressMock = vi.fn()
+const writerMocks = vi.hoisted(() => ({
+  updateTaskAssistantMessage: vi.fn(async () => ({ id: 'ai-msg-1' })),
+}))
 let callRound = 0
 let firstToolName = 'list_dir'
 let firstToolArgs: Record<string, unknown> = { path: '.' }
+let streamTextChunks = ['已完成']
 
 vi.mock('@main/db/services', () => ({
   getMessagesByConvId: vi.fn(async () => []),
@@ -18,7 +22,7 @@ vi.mock('@main/db/services', () => ({
 
 vi.mock('@main/ai-providers/factory', () => ({
   createProvider: vi.fn(async () => ({
-    async* sendChatCompletions() {
+    async* streamModel() {
       callRound += 1
       if (callRound === 1) {
         yield {
@@ -33,8 +37,10 @@ vi.mock('@main/ai-providers/factory', () => ({
         }
         return
       }
-      yield {
-        content: [{ type: 'text', text: '已完成' }],
+      for (const text of streamTextChunks) {
+        yield {
+          content: [{ type: 'text', text }],
+        }
       }
     },
   })),
@@ -42,7 +48,7 @@ vi.mock('@main/ai-providers/factory', () => ({
 
 vi.mock('../agentMessageWriter', () => ({
   createTaskAssistantMessage: vi.fn(async () => ({ id: 'ai-msg-1' })),
-  updateTaskAssistantMessage: vi.fn(async () => ({ id: 'ai-msg-1' })),
+  updateTaskAssistantMessage: writerMocks.updateTaskAssistantMessage,
   finalizeTaskAssistantMessage: vi.fn(async () => ({ id: 'ai-msg-1' })),
 }))
 
@@ -69,6 +75,8 @@ describe('agentRuntime', () => {
     callRound = 0
     firstToolName = 'list_dir'
     firstToolArgs = { path: '.' }
+    streamTextChunks = ['已完成']
+    writerMocks.updateTaskAssistantMessage.mockClear()
   })
 
   it('startTask 创建 task', async () => {
@@ -106,6 +114,33 @@ describe('agentRuntime', () => {
     })
     await new Promise(resolve => setTimeout(resolve, 20))
     expect(reportTaskProgressMock).toHaveBeenCalled()
+  })
+
+  it('模型文本流式写入 assistant message', async () => {
+    streamTextChunks = ['Hel', 'lo']
+    callRound = 1
+
+    const res = await agentRuntime.startTask({
+      conversationId: 'c4',
+      userMessageId: 'm4',
+      prompt: 'say hello',
+      mode: 'hybrid',
+      chatSettings: {
+        modelId: 'model-1',
+        systemPrompt: '',
+        temperature: 0,
+        maxTokens: 256,
+        features: { enableMCP: false, onlineSearch: false },
+      },
+    })
+
+    await waitForTaskStatus(res.taskId, 'success')
+    const streamedTexts = (writerMocks.updateTaskAssistantMessage.mock.calls as unknown as Array<[string, { content?: Array<{ text?: string }> }]>)
+      .map(call => call[1]?.content?.[0]?.text)
+      .filter(Boolean)
+
+    expect(streamedTexts).toContain('Hel')
+    expect(streamedTexts).toContain('Hello')
   })
 
   it('取消等待审批的任务会释放会话', async () => {

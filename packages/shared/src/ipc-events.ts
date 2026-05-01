@@ -64,7 +64,7 @@ export type IpcPaginatedResponse<T> = IpcPaginatedResponseSuccess<T> | ErrorIpcR
 export interface IpcRendererEvent {
   'mcp:McpServerStatusChanged': [string, 'disconnected' | 'connected']
   'common:Notification': [NotificationOption]
-  'chat:stream-message': [IMessage]
+  'message:updated': [IMessage]
   'chat:stream-canceled': [string]
   'workspace:changed': [{ currentWorkspacePath: string }]
   'update:update-status-changed': [{ status: UpdateStatus, updateInfo: UpdateInfo | null }]

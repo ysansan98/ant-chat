@@ -1,4 +1,5 @@
-import type { ChatSettings } from './chat-service'
+import type { ChatFeatures, IAttachment, IConversations } from './db-types'
+import type { ChatSettings } from './model-service'
 
 export type AgentMode = 'strict' | 'hybrid' | 'full_managed'
 
@@ -52,17 +53,24 @@ export interface AgentTaskSnapshot {
   errorMessage?: string
 }
 
-export interface StartAgentTaskOptions {
-  conversationId: string
-  userMessageId: string
+export interface StartAgentTurnOptions {
+  conversationId?: string
   prompt: string
+  images?: IAttachment[]
+  attachments?: IAttachment[]
   workspacePath?: string
   mode?: AgentMode
-  chatSettings?: Omit<ChatSettings, 'model'> & { modelId: string }
+  chatSettings: Omit<ChatSettings, 'model' | 'features'> & {
+    modelId: string
+    features: ChatFeatures
+  }
 }
 
-export interface AgentTaskResult {
+export interface AgentTurnResult {
   taskId: string
+  conversationId: string
+  userMessageId: string
+  conversation: IConversations
 }
 
 export interface ApprovePendingActionOptions {

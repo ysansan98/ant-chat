@@ -7,7 +7,7 @@ function emitStreamMessage(message: IMessage) {
   const mainWindow = getMainWindow()
   if (!mainWindow)
     return
-  sendToRenderer(mainWindow.webContents, 'chat:stream-message', message)
+  sendToRenderer(mainWindow.webContents, 'message:updated', message)
 }
 
 export async function createTaskAssistantMessage(conversationId: string, provider: string, providerId: string, model: string) {

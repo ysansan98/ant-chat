@@ -1,4 +1,4 @@
-import type { ChatFeatures, ConversationsId, ConversationsSettingsSchema, IMessage } from '@ant-chat/shared'
+import type { ConversationsId, IMessage } from '@ant-chat/shared'
 import { produce } from 'immer'
 import agentApi from '@/api/agentApi'
 import chatApi from '@/api/chatApi'
@@ -76,29 +76,6 @@ export async function updateMessageActionV2(message: IMessage) {
   }))
 }
 
-export function abortSendChatCompletions(conversationsId: string) {
-  try {
-    chatApi.cancelChatCompletions(conversationsId)
-  }
-  catch (e) {
-    console.log('execute abort callback fail => ', e)
-  }
-}
-
-export async function sendChatCompletions(conversationId: string | ConversationsId, features: ChatFeatures, chatSettings: ConversationsSettingsSchema) {
-  chatApi.sendChatCompletions({
-    conversationsId: conversationId as string,
-    chatSettings: {
-      ...chatSettings,
-      features,
-    },
-  })
-}
-
-export async function onRequestAction(conversationId: ConversationsId, features: ChatFeatures, chatSettings: ConversationsSettingsSchema) {
-  await sendChatCompletions(conversationId, features, chatSettings)
-}
-
 export async function nextPageMessagesAction(conversationsId: ConversationsId) {
   const { pageIndex, pageSize } = useMessagesStore.getState()
   const { data: messages, total } = await chatApi.getMessagesByConvIdWithPagination(conversationsId, pageIndex, pageSize)
@@ -115,7 +92,5 @@ export async function abortActiveRequest(conversationId: string) {
   const activeTask = taskList.find(item => ['running', 'awaiting_approval'].includes(item.status))
   if (activeTask) {
     await agentApi.cancelTask(activeTask.taskId)
-    return
   }
-  abortSendChatCompletions(conversationId)
 }

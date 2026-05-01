@@ -242,11 +242,11 @@ function stringifyMessageForContext(message: IMessage): string {
     .join('\n')
     .trim()
 
-  if (message.role !== 'assistant' || !Array.isArray(message.mcpTool) || message.mcpTool.length === 0) {
+  if (message.role !== 'assistant' || !Array.isArray(message.toolCalls) || message.toolCalls.length === 0) {
     return baseText
   }
 
-  const toolSummaries = message.mcpTool
+  const toolSummaries = message.toolCalls
     .filter(tool => tool.executeState === 'completed')
     .slice(-4)
     .map((tool) => {

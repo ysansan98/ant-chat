@@ -1,7 +1,6 @@
-import type { AddConversationsSchema, handleChatCompletionsOptions, handleInitConversationTitleOptions, IConversations, IMessage, IpcPaginatedResponse, IpcResponse, UpdateConversationsSchema } from '@ant-chat/shared'
+import type { AddConversationsSchema, handleInitConversationTitleOptions, IConversations, IMessage, IpcPaginatedResponse, IpcResponse, UpdateConversationsSchema } from '@ant-chat/shared'
 import { AddMessage, createErrorIpcResponse, createIpcPaginatedResponse, createIpcResponse, UpdateMessageSchema } from '@ant-chat/shared'
-import { handleChatCompletions, handleInitConversationTitle } from '@main/ai-providers/services/chat-service'
-import { StreamAbortController } from '@main/ai-providers/utils/StreamAbortController'
+import { handleInitConversationTitle } from '@main/ai-providers/services/conversation-title-service'
 import { services } from '@main/db'
 import { updateConversation } from '@main/db/services'
 import { WorkspaceStore } from '@main/store/workspace'
@@ -10,16 +9,6 @@ import { IpcMethod, IpcService } from 'electron-ipc-decorator'
 
 export class ChatIpcService extends IpcService {
   static readonly groupName = 'chat'
-
-  @IpcMethod()
-  async sendChatCompletions(options: handleChatCompletionsOptions): Promise<void> {
-    await handleChatCompletions(options)
-  }
-
-  @IpcMethod()
-  async cancelChatCompletions(conversationsId: string): Promise<void> {
-    StreamAbortController.abortConversationsStream(conversationsId)
-  }
 
   @IpcMethod()
   async createConversationsTitle(options: handleInitConversationTitleOptions): Promise<IpcResponse<IConversations>> {

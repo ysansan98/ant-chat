@@ -68,7 +68,7 @@ export interface IMessageAI extends IMessageBase {
   content: IMessageContent
   status: 'success' | 'error' | 'loading' | 'typing' | 'cancel'
   /** MCP 相关字段 */
-  mcpTool?: IMcpToolCall[]
+  toolCalls?: IMcpToolCall[]
   /** 生成当前消息的模型信息 */
   modelInfo?: IModelInfo
   /** token usage for this message */
@@ -86,7 +86,7 @@ export interface IMessage {
   images?: IAttachment[]
   attachments?: IAttachment[]
   /** MCP 相关字段 */
-  mcpTool?: IMcpToolCall[]
+  toolCalls?: IMcpToolCall[]
   /** 生成当前消息的模型信息 */
   modelInfo?: IModelInfo
   /** token usage for this message */

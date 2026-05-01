@@ -18,8 +18,8 @@ export function useIpcEventListener() {
 
     ipcRenderer.on('common:Notification', handle)
     ipcRenderer.on('mcp:McpServerStatusChanged', onMcpServerStatusChanged)
-    ipcRenderer.on('chat:stream-message', (_, msg) => {
-      console.log('chat:stream-message => ', msg)
+    ipcRenderer.on('message:updated', (_, msg) => {
+      console.log('message:updated => ', msg)
 
       handleStreamingConversationStatus(msg)
       updateMessageActionV2(msg)
@@ -38,12 +38,12 @@ export function useIpcEventListener() {
     return () => {
       ipcRenderer.removeAllListeners('common:Notification')
       ipcRenderer.removeAllListeners('mcp:McpServerStatusChanged')
-      ipcRenderer.removeAllListeners('chat:stream-message')
+      ipcRenderer.removeAllListeners('message:updated')
       ipcRenderer.removeAllListeners('agent:state-updated')
       ipcRenderer.removeAllListeners('agent:progress-updated')
       ipcRenderer.removeAllListeners('agent:approval-required')
     }
-  }, [])
+  }, [notification])
 }
 
 // 处理对话流式状态的辅助函数

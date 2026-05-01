@@ -1,22 +1,17 @@
-import type { AgentMode, ChatFeatures, ConversationsId, IAttachment, IImage, IMessage } from '@ant-chat/shared'
+import type { AgentMode, ChatFeatures, IAttachment, IImage } from '@ant-chat/shared'
 import { App, Skeleton } from 'antd'
 import { lazy, Suspense } from 'react'
-import { useShallow } from 'zustand/shallow'
-import { createConversations, createUserMessage } from '@/api/dataFactory'
 import { AgentApprovalCard, AgentProgressList } from '@/components/Agent'
 import { DEFAULT_TITLE } from '@/constants'
 import { useChatSettingsContext } from '@/contexts/chatSettings'
-import { approveAgentAction, rejectAgentAction, startAgentTask, useAgentStore } from '@/store/agent'
-import { useChatSttingsStore } from '@/store/chatSettings'
+import { approveAgentAction, rejectAgentAction, startAgentTurn, useAgentStore } from '@/store/agent'
 import {
-  addConversationsAction,
   initConversationsTitle,
+  upsertConversationAction,
   useConversationsStore,
 } from '@/store/conversation'
 import {
   abortActiveRequest,
-  addMessageAction,
-  onRequestAction,
   setActiveConversationsId,
   useMessagesStore,
 } from '@/store/messages'
@@ -30,7 +25,6 @@ export default function Chat() {
   const activeConversationsId = useMessagesStore(state => state.activeConversationsId)
   const currentConversations = useConversationsStore(state => state.conversations.find(item => item.id === activeConversationsId))
   const currentWorkspacePath = useConversationsStore(state => state.currentWorkspacePath)
-  const features = useChatSttingsStore(useShallow(state => ({ onlineSearch: state.onlineSearch, enableMCP: state.enableMCP })))
 
   const { notification } = App.useApp()
   const { settings, updateSettings } = useChatSettingsContext()
@@ -54,24 +48,12 @@ export default function Chat() {
       return
     }
 
-    let id = activeConversationsId
-    let isNewConversation = false
-    // 如果当前没有会话，则创建一个
-    if (!activeConversationsId) {
-      const conversation = await addConversationsAction(createConversations({ settings }))
-      id = conversation.id
-      isNewConversation = true
-    }
-
-    await setActiveConversationsId(id)
-
-    const messageItem: IMessage = createUserMessage({ images, attachments, content: [{ type: 'text', text: message }], convId: id as ConversationsId })
-    const persistedMessage = await addMessageAction(messageItem)
-
-    await startAgentTask({
-      conversationId: id as string,
-      userMessageId: persistedMessage.id,
+    const isNewConversation = !activeConversationsId
+    const result = await startAgentTurn({
+      conversationId: activeConversationsId || undefined,
       prompt: message,
+      images,
+      attachments,
       mode: agentMode,
       workspacePath: currentWorkspacePath || undefined,
       chatSettings: {
@@ -79,12 +61,14 @@ export default function Chat() {
         features,
       },
     })
+    upsertConversationAction(result.conversation)
+    await setActiveConversationsId(result.conversationId)
 
     // 初始化会话标题
     if (currentConversations?.title === DEFAULT_TITLE || isNewConversation) {
       // 1s后再次初始化会话标题, 避免请求频繁导致的标题未更新
       setTimeout(() => {
-        initConversationsTitle(id)
+        initConversationsTitle(result.conversationId)
       }, 1000)
     }
   }
@@ -103,15 +87,6 @@ export default function Chat() {
                   messages={messages}
                   conversationsId={activeConversationsId}
                   isAgentRunning={Boolean(agentTask)}
-                  onExecuteAllCompleted={
-                    () => {
-                      if (!settings.modelId) {
-                        notification.error({ title: '请选择模型' })
-                        return
-                      }
-                      onRequestAction(activeConversationsId, features, settings)
-                    }
-                  }
                 />
               </Suspense>
             )

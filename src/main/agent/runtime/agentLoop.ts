@@ -1,6 +1,7 @@
-import type { AgentTaskSnapshot, McpToolCall, StartAgentTaskOptions } from '@ant-chat/shared'
+import type { AgentTaskSnapshot, McpToolCall } from '@ant-chat/shared'
 import type { LoopMessage } from './loopContext'
 import type { ToolCallContext } from './toolExecution'
+import type { AgentRuntimeStartOptions } from './types'
 import { createProvider } from '@main/ai-providers/factory'
 import { getMessagesByConvId, getModelById, getProviderServiceById } from '@main/db/services'
 import { logger } from '@main/utils/logger'
@@ -22,6 +23,8 @@ import { reportTaskState } from './progressReporter'
 import { taskStore } from './taskStore'
 import { executeToolStep, markRunningProgress } from './toolExecution'
 
+const STREAM_MESSAGE_UPDATE_INTERVAL_MS = 80
+
 function normalizeUsage(usage?: {
   inputTokens?: number
   outputTokens?: number
@@ -42,7 +45,7 @@ function normalizeUsage(usage?: {
   }
 }
 
-export async function runAgentLoop(taskId: string, options: StartAgentTaskOptions) {
+export async function runAgentLoop(taskId: string, options: AgentRuntimeStartOptions) {
   const task = taskStore.get(taskId)
   if (!task)
     return
@@ -88,6 +91,7 @@ export async function runAgentLoop(taskId: string, options: StartAgentTaskOption
         provider?.id ?? 'agent-runtime',
         model?.name ?? 'agent-runtime',
       )
+      const assistantMessageId = currentAssistantMessage.id
       currentToolMessages = []
 
       const planningPrompt = buildPlanningPrompt(options.prompt, runtimeState, observations)
@@ -99,7 +103,7 @@ export async function runAgentLoop(taskId: string, options: StartAgentTaskOption
         observationCount: observations.length,
       })
 
-      const stream = aiProvider.sendChatCompletions({
+      const stream = aiProvider.streamModel({
         messages: [...loopMessages, { role: 'user', content: [{ type: 'text', text: planningPrompt }] }] as any,
         chatSettings: {
           model: model.model,
@@ -112,14 +116,36 @@ export async function runAgentLoop(taskId: string, options: StartAgentTaskOption
       })
 
       let modelText = ''
+      let reasoningText = ''
       let latestUsage: ReturnType<typeof normalizeUsage>
       let requestedToolCall: { toolName: string, input: Record<string, unknown> } | null = null
+      let lastStreamUpdateAt = 0
+      const flushStreamMessage = async (force = false) => {
+        const now = Date.now()
+        if (!force && now - lastStreamUpdateAt < STREAM_MESSAGE_UPDATE_INTERVAL_MS) {
+          return
+        }
+        if (!modelText && !reasoningText) {
+          return
+        }
+        lastStreamUpdateAt = now
+        await updateTaskAssistantMessage(assistantMessageId, {
+          status: 'loading',
+          content: [{ type: 'text', text: modelText.trim() || '正在处理中…' }],
+          reasoningContent: reasoningText,
+          usage: latestUsage,
+        })
+      }
+
       for await (const chunk of stream) {
         const content = chunk.content || []
         for (const item of content) {
           if (item.type === 'text' && item.text) {
             modelText += item.text
           }
+        }
+        if ((chunk as any).reasoningContent) {
+          reasoningText += (chunk as any).reasoningContent
         }
         const functionCalls = (chunk as any).functionCalls || []
         if (functionCalls.length > 0) {
@@ -132,6 +158,7 @@ export async function runAgentLoop(taskId: string, options: StartAgentTaskOption
         if ((chunk as any).usage) {
           latestUsage = normalizeUsage((chunk as any).usage)
         }
+        await flushStreamMessage()
       }
       await appendAgentLog(task.snapshot.taskId, 'model_response_finished', {
         step,
@@ -140,11 +167,7 @@ export async function runAgentLoop(taskId: string, options: StartAgentTaskOption
         usage: latestUsage,
       })
       currentModelText = modelText.trim() || '正在处理中…'
-      await updateTaskAssistantMessage(currentAssistantMessage.id, {
-        status: 'loading',
-        content: [{ type: 'text', text: currentModelText }],
-        usage: latestUsage,
-      })
+      await flushStreamMessage(true)
       loopMessages.push({ role: 'assistant', content: [{ type: 'text', text: modelText }] })
       trimLoopMessages(loopMessages)
       if (!requestedToolCall) {
@@ -156,12 +179,16 @@ export async function runAgentLoop(taskId: string, options: StartAgentTaskOption
           await updateTaskAssistantMessage(currentAssistantMessage.id, {
             status: 'success',
             content: [{ type: 'text', text: currentModelText }],
+            reasoningContent: reasoningText,
             usage: latestUsage,
           })
           continue
         }
         finalAnswer = currentModelText || '任务已完成。'
-        await finalizeTaskAssistantMessage(currentAssistantMessage.id, finalAnswer, 'success', { usage: latestUsage })
+        await finalizeTaskAssistantMessage(currentAssistantMessage.id, finalAnswer, 'success', {
+          reasoningContent: reasoningText,
+          usage: latestUsage,
+        })
         break
       }
 

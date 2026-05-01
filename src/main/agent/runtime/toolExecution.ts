@@ -239,7 +239,7 @@ function updateAssistantMessage(
   return updateTaskAssistantMessage(messageId, {
     status,
     content: [{ type: 'text', text }],
-    mcpTool: [...toolMessages],
+    toolCalls: [...toolMessages],
   })
 }
 
@@ -297,7 +297,7 @@ function truncateTextByTool(toolName: string, text: string, target: 'observation
   return truncateText(text, limit)
 }
 
-function buildToolObservation(
+export function buildToolObservation(
   toolName: string,
   result: { output?: unknown, stdout?: string, stderr?: string, exitCode?: number },
   outputText: string,
@@ -311,7 +311,10 @@ function buildToolObservation(
       hasMore?: boolean
       items?: Array<{ name: string, type: string }>
     }
-    return `工具 list_dir 执行成功: path=${output.path || '.'}, offset=${output.offset || 0}, limit=${output.limit || 0}, total=${output.total || 0}, returned=${output.items?.length || 0}, hasMore=${Boolean(output.hasMore)}`
+    return [
+      `工具 list_dir 执行成功: path=${output.path || '.'}, offset=${output.offset || 0}, limit=${output.limit || 0}, total=${output.total || 0}, returned=${output.items?.length || 0}, hasMore=${Boolean(output.hasMore)}`,
+      `输出如下：\n${truncateTextByTool(toolName, outputText, 'observation')}`,
+    ].join('\n')
   }
   if (toolName === 'read_file') {
     return `工具 read_file 执行成功，输出如下：\n${outputText}`

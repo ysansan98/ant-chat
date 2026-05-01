@@ -1,14 +1,6 @@
-import type { AddConversationsSchema, handleChatCompletionsOptions, IConversations, IMessage, IpcResponse, UpdateConversationsSchema } from '@ant-chat/shared'
+import type { AddConversationsSchema, IConversations, IMessage, IpcResponse, UpdateConversationsSchema } from '@ant-chat/shared'
 import { useGeneralSettingsStore } from '@/store/generalSettings'
 import { ipc, unwrapIpcPaginatedResponse, unwrapIpcResponse } from '@/utils/ipc-bus'
-
-function sendChatCompletions(options: handleChatCompletionsOptions): Promise<void> {
-  return ipc.chat.sendChatCompletions(options)
-}
-
-function cancelChatCompletions(conversationdsId: string): void {
-  void ipc.chat.cancelChatCompletions(conversationdsId)
-}
 
 async function initConversationsTitle(conversationsId: string, modelId?: string): Promise<IpcResponse<IConversations>> {
   const { assistantModelId } = useGeneralSettingsStore.getState()
@@ -69,9 +61,7 @@ async function batchDeleteMessages(ids: string[]): Promise<null> {
 }
 
 export default {
-  sendChatCompletions,
   initConversationsTitle,
-  cancelChatCompletions,
   getConversations,
   getWorkspaceConversations,
   getConversationById,

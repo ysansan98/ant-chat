@@ -9,7 +9,6 @@ import {
 
 interface McpToolCallPanelProps {
   item: IMcpToolCall
-  onExecute?: (item: IMcpToolCall) => void
 }
 
 export function McpToolCallPanel({ item }: McpToolCallPanelProps) {

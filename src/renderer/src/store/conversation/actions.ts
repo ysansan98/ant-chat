@@ -1,4 +1,4 @@
-import type { AddConversationsSchema, ConversationsId, ConversationsSettingsSchema } from '@ant-chat/shared'
+import type { AddConversationsSchema, ConversationsId, ConversationsSettingsSchema, IConversations } from '@ant-chat/shared'
 import type { AntChatFileStructure } from '@/constants'
 import { produce } from 'immer'
 import chatApi from '@/api/chatApi'
@@ -88,6 +88,20 @@ export async function addConversationsAction(conversation: AddConversationsSchem
   saveCurrentSlice()
 
   return data
+}
+
+export function upsertConversationAction(conversation: IConversations) {
+  useConversationsStore.setState(state => produce(state, (draft) => {
+    const index = draft.conversations.findIndex(item => item.id === conversation.id)
+    if (index > -1) {
+      draft.conversations[index] = conversation
+      return
+    }
+
+    draft.conversations.splice(0, 0, conversation)
+    draft.conversationsTotal += 1
+  }))
+  saveCurrentSlice()
 }
 
 export async function renameConversationsAction(id: ConversationsId, title: string) {

@@ -1,4 +1,4 @@
-import type { IMessage, MessageId } from '@ant-chat/shared'
+import type { IMessage } from '@ant-chat/shared'
 import type { BubbleContent } from '@/types/global'
 import {
   MessageContent as AiMessageContent,
@@ -15,7 +15,6 @@ import { pick } from 'lodash-es'
 import { ChevronRightIcon } from 'lucide-react'
 import { useState } from 'react'
 import { Role } from '@/constants'
-import { executeMcpToolAction } from '@/store/messages'
 import { transformMessageContent } from '@/utils/messageTransform'
 import BubbleFooter from './BubbleFooter'
 import { McpToolCallPanel } from './McpToolCallPanel'
@@ -25,10 +24,9 @@ interface MessageBubbleProps {
   messages: IMessage[]
   collapseIntermediate: boolean
   onCopyMessage: (message: IMessage) => void
-  onExecuteAllCompleted?: (messageId: MessageId) => void
 }
 
-export function MessageBubble({ messages, collapseIntermediate, onCopyMessage, onExecuteAllCompleted }: MessageBubbleProps) {
+export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }: MessageBubbleProps) {
   const [isProcessOpen, setIsProcessOpen] = useState(false)
   const message = messages[0]
   const isUser = message.role === Role.USER
@@ -60,18 +58,12 @@ export function MessageBubble({ messages, collapseIntermediate, onCopyMessage, o
           reasoningContent={item.reasoningContent}
           status={item.status}
         />
-        {itemIsAI && item.mcpTool && (
+        {itemIsAI && item.toolCalls && (
           <div className="mt-2 flex flex-col gap-2">
-            {item.mcpTool.map(tool => (
+            {item.toolCalls.map(tool => (
               <McpToolCallPanel
                 key={tool.id}
                 item={tool}
-                onExecute={async (tool) => {
-                  const { isAllCompleted } = await executeMcpToolAction(item, tool)
-                  if (isAllCompleted) {
-                    onExecuteAllCompleted?.(item.id)
-                  }
-                }}
               />
             ))}
           </div>
@@ -89,7 +81,7 @@ export function MessageBubble({ messages, collapseIntermediate, onCopyMessage, o
       <div className={cn('flex items-start', isUser && 'justify-end')}>
         <div className={cn('min-w-0 flex-1', isUser && 'flex flex-col items-end')}>
           <AiMessageContent
-            className={isAI && messages.some(item => item.mcpTool?.length)
+            className={isAI && messages.some(item => item.toolCalls?.length)
               ? 'w-full'
               : undefined}
           >

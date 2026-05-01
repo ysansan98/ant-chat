@@ -31,7 +31,7 @@ describeDb('message service', () => {
         images: [],
         attachments: [],
         reasoningContent: null,
-        mcpTool: null,
+        toolCalls: null,
         modelInfo: { provider: 'DeepSeek', model: 'deepseek-chat' },
       })
       const updatedContent = [...message.content, { type: 'error', error: 'new error' } as const]

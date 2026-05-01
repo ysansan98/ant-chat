@@ -1,5 +1,4 @@
-import type { AddMcpConfigSchema, McpConfigSchema, McpConnection, McpTool, McpToolCall, McpToolCallResponse, UpdateMcpConfigSchema } from '@ant-chat/shared'
-import { uuid } from '@/utils'
+import type { AddMcpConfigSchema, McpConfigSchema, McpConnection, McpTool, UpdateMcpConfigSchema } from '@ant-chat/shared'
 import { ipc, unwrapIpcResponse } from '@/utils/ipc-bus'
 
 export async function getMcpServers(): Promise<McpConnection[]> {
@@ -35,29 +34,6 @@ export async function deleteMcpConfig(serverName: string): Promise<null> {
 
 export async function getAllAvailableToolsList(): Promise<McpTool[]> {
   return unwrapIpcResponse(await ipc.mcp.getAllAvailableToolsList())
-}
-
-type CreateMcpToolCallOptions = Partial<Omit<McpToolCall, 'serverName' | 'toolName' | 'args'>> & Pick<McpToolCall, 'serverName' | 'toolName' | 'args'>
-
-export function createMcpToolCall(options: CreateMcpToolCallOptions): McpToolCall {
-  if (!options.serverName || !options.toolName || !options.args) {
-    throw new Error('serverName, toolName and arguments are required')
-  }
-
-  return {
-    id: uuid('functioncall-'),
-    ...options,
-    executeState: 'await',
-  }
-}
-
-export async function executeMcpToolCall(toolCall: McpToolCall): Promise<McpToolCallResponse> {
-  const { serverName, toolName, args } = toolCall
-  const resp = await ipc.mcp.callTool(serverName, toolName, args)
-  if (resp.success) {
-    return resp.data
-  }
-  throw new Error(resp.msg)
 }
 
 export async function connectMcpServer(config: McpConfigSchema): Promise<[boolean, string]> {

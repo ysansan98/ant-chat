@@ -2,6 +2,10 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { AgentIpcService } from '../ipc'
 
+const mocks = vi.hoisted(() => ({
+  startAgentTurn: vi.fn(async () => ({ taskId: 't2', conversationId: 'c1', userMessageId: 'm1', conversation: { id: 'c1' } })),
+}))
+
 vi.mock('electron-ipc-decorator', () => ({
   IpcService: class {},
   IpcMethod: () => () => {},
@@ -9,7 +13,6 @@ vi.mock('electron-ipc-decorator', () => ({
 
 vi.mock('@main/agent/runtime/agentRuntime', () => ({
   agentRuntime: {
-    startTask: vi.fn(async () => ({ taskId: 't1' })),
     approvePendingAction: vi.fn(async () => {}),
     rejectPendingAction: vi.fn(async () => {}),
     cancelTask: vi.fn(async () => {}),
@@ -18,13 +21,30 @@ vi.mock('@main/agent/runtime/agentRuntime', () => ({
   },
 }))
 
+vi.mock('@main/agent/runtime/agentTurnService', () => ({
+  startAgentTurn: mocks.startAgentTurn,
+}))
+
 describe('agent ipc', () => {
-  it('startTask 返回成功响应', async () => {
+  it('startTurn 返回成功响应', async () => {
     const service = new AgentIpcService()
-    const resp = await service.startTask({ conversationId: 'c1', userMessageId: 'm1', prompt: 'p' })
+    const resp = await service.startTurn({
+      prompt: 'p',
+      chatSettings: {
+        modelId: 'model-1',
+        systemPrompt: '',
+        temperature: 0.7,
+        maxTokens: 1024,
+        features: {
+          onlineSearch: false,
+          enableMCP: false,
+        },
+      },
+    })
     expect(resp.success).toBe(true)
     if (resp.success) {
-      expect(resp.data.taskId).toBe('t1')
+      expect(resp.data.taskId).toBe('t2')
+      expect(resp.data.conversationId).toBe('c1')
     }
   })
 

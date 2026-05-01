@@ -1,4 +1,4 @@
-import type { IMessage, MessageId } from '@ant-chat/shared'
+import type { IMessage } from '@ant-chat/shared'
 import { Button } from '@workspace/ui/components/button'
 import { ArrowDownIcon } from 'lucide-react'
 import { useEffect } from 'react'
@@ -14,10 +14,9 @@ interface Props {
   messages: IMessage[]
   conversationsId: string
   isAgentRunning: boolean
-  onExecuteAllCompleted?: (messageId: MessageId) => void
 }
 
-function BubbleList({ messages, conversationsId, isAgentRunning, onExecuteAllCompleted }: Props) {
+function BubbleList({ messages, conversationsId, isAgentRunning }: Props) {
   // 自动滚动逻辑
   const {
     autoScrollToBottom,
@@ -67,7 +66,6 @@ function BubbleList({ messages, conversationsId, isAgentRunning, onExecuteAllCom
           messages={group}
           collapseIntermediate={!isAgentRunning}
           onCopyMessage={copyMessage}
-          onExecuteAllCompleted={onExecuteAllCompleted}
         />
       ))}
 

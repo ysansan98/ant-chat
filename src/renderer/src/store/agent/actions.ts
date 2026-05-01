@@ -1,10 +1,10 @@
-import type { ApprovePendingActionOptions, RejectPendingActionOptions, StartAgentTaskOptions } from '@ant-chat/shared'
+import type { ApprovePendingActionOptions, RejectPendingActionOptions, StartAgentTurnOptions } from '@ant-chat/shared'
 import agentApi from '@/api/agentApi'
 import { addStreamingConversationId, removeStreamingConversationId } from '@/store/conversation'
 import { useAgentStore } from './store'
 
-export async function startAgentTask(options: StartAgentTaskOptions) {
-  return await agentApi.startTask(options)
+export async function startAgentTurn(options: StartAgentTurnOptions) {
+  return await agentApi.startTurn(options)
 }
 
 export async function approveAgentAction(options: ApprovePendingActionOptions) {

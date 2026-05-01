@@ -1,15 +1,16 @@
-import type { AgentTaskResult, ApprovePendingActionOptions, CancelTaskOptions, IpcResponse, RejectPendingActionOptions, StartAgentTaskOptions } from '@ant-chat/shared'
+import type { AgentTurnResult, ApprovePendingActionOptions, CancelTaskOptions, IpcResponse, RejectPendingActionOptions, StartAgentTurnOptions } from '@ant-chat/shared'
 import { createErrorIpcResponse, createIpcResponse } from '@ant-chat/shared'
 import { agentRuntime } from '@main/agent/runtime/agentRuntime'
+import { startAgentTurn } from '@main/agent/runtime/agentTurnService'
 import { IpcMethod, IpcService } from 'electron-ipc-decorator'
 
 export class AgentIpcService extends IpcService {
   static readonly groupName = 'agent'
 
   @IpcMethod()
-  async startTask(options: StartAgentTaskOptions): Promise<IpcResponse<AgentTaskResult>> {
+  async startTurn(options: StartAgentTurnOptions): Promise<IpcResponse<AgentTurnResult>> {
     try {
-      const data = await agentRuntime.startTask(options)
+      const data = await startAgentTurn(options)
       return createIpcResponse(true, data)
     }
     catch (error) {

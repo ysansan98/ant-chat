@@ -106,7 +106,7 @@ export const AIMessage = BaseMessage.extend({
   status: z.enum(['success', 'error', 'loading', 'typing', 'cancel']),
   modelInfo: ModelInfoSchema,
   reasoningContent: z.string().optional().nullable(),
-  mcpTool: z.array(McpToolCallSchema).optional().nullable(),
+  toolCalls: z.array(McpToolCallSchema).optional().nullable(),
   usage: LanguageModelUsageSchema.optional().nullable(),
 })
 
@@ -126,7 +126,7 @@ export type AddMessage = z.infer<typeof AddMessage>
 export const UpdateMessageSchema = BaseMessage.extend({
   status: AIMessage.shape.status,
   role: z.enum(['assistant', 'user']),
-  ...(AIMessage.pick({ modelInfo: true, reasoningContent: true, mcpTool: true, usage: true }).shape),
+  ...(AIMessage.pick({ modelInfo: true, reasoningContent: true, toolCalls: true, usage: true }).shape),
   ...(UserMessage.pick({ images: true, attachments: true }).shape),
 }).partial().extend({ id: z.string() })
 

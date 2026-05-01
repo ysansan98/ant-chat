@@ -207,9 +207,9 @@ export class MultiProvider {
   }
 
   /**
-   * 发送聊天完成请求 - 流式输出
+   * Stream model output.
    */
-  async* sendChatCompletions(options: {
+  async* streamModel(options: {
     messages: any[]
     chatSettings: {
       model: string
@@ -253,10 +253,6 @@ export class MultiProvider {
       abortSignal,
       onFinish: ({ totalUsage, usage }) => {
         finalUsage = totalUsage || usage
-        this.logger.info('usage captured from onFinish', {
-          hasUsage: Boolean(finalUsage),
-          usage: this.normalizeUsage(finalUsage),
-        })
       },
     })
 
@@ -297,10 +293,6 @@ export class MultiProvider {
         }
         else if (chunk.type === 'finish') {
           finalUsage = chunk.totalUsage || finalUsage
-          this.logger.info('usage captured from fullStream finish', {
-            hasUsage: Boolean(finalUsage),
-            usage: this.normalizeUsage(finalUsage),
-          })
         }
       }
     }
@@ -335,10 +327,6 @@ export class MultiProvider {
 
     const totalUsage = finalUsage || await result.totalUsage
     const normalizedUsage = this.normalizeUsage(totalUsage)
-    this.logger.info('usage emitted to chat-service', {
-      hasUsage: Boolean(normalizedUsage),
-      usage: normalizedUsage,
-    })
     yield {
       content: [],
       usage: normalizedUsage,

@@ -15,7 +15,7 @@ export const messagesTable = sqliteTable('messages', {
   images: text('images', { mode: 'json' }).$type<AttachmentSchema[]>().default([]),
   attachments: text('attachments', { mode: 'json' }).$type<AttachmentSchema[]>().default([]),
   reasoningContent: text('reasoning_content'),
-  mcpTool: text('mcp_tool', { mode: 'json' }).$type<McpToolCall[] | null>().default(null),
+  toolCalls: text('tool_calls', { mode: 'json' }).$type<McpToolCall[] | null>().default(null),
   modelInfo: text('model_info', { mode: 'json' }).$type<ModelInfo | null>().default(null),
   usage: text('usage', { mode: 'json' }).$type<{
     inputTokens?: number
