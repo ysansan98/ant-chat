@@ -64,6 +64,7 @@
     "@eslint/js": "catalog:",
     "@ferrucc-io/emoji-picker": "^0.0.44",
     "@iconify-json/tdesign": "^1.2.8",
+    "@iconify/json": "^2.2.468",
     "@iconify/tailwind4": "^1.0.6",
     "@tailwindcss/vite": "catalog:",
     "@testing-library/jest-dom": "^6.6.3",

@@ -1,7 +1,7 @@
 import { TooltipProvider } from '@workspace/ui/components/tooltip'
 import { App, ConfigProvider, theme } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Outlet } from 'react-router'
 import { initializeGeneralSettings } from '@/store/generalSettings/actions'
 import { useThemeStore } from '@/store/theme'
@@ -64,6 +64,7 @@ function AppWrapper() {
 function AntChatApp() {
   useIpcEventListener()
   const { updateInfo, showNotification, hideNotification } = useUpdateNotification()
+  const [showSliderMenu, setShowSliderMenu] = useState(true)
 
   // 初始化 GeneralSettings
   useEffect(() => {
@@ -72,7 +73,28 @@ function AntChatApp() {
 
   return (
     <div className="flex h-dvh w-full overflow-hidden">
-      <div className="app-region-drag overflow-hidden p-2">
+      <div className="app-region-drag absolute top-0 left-0 z-9999 h-4 w-full"></div>
+      <div
+        className="absolute top-[16px] left-[90px] z-9990 cursor-pointer text-slate-600"
+        onClick={() => {
+          setShowSliderMenu(prev => !prev)
+        }}
+      >
+        <span className={`
+          text-xl
+          ${showSliderMenu
+      ? 'icon-[fluent--panel-left-24-filled]'
+      : `icon-[fluent--panel-left-24-regular]`}
+        `}
+        >
+        </span>
+      </div>
+      <div
+        className={`
+          overflow-hidden transition-[width,opacity] duration-300 ease-in-out
+          ${showSliderMenu ? 'w-[296px] opacity-100' : 'w-0 opacity-0'}
+        `}
+      >
         <SliderMenu />
       </div>
       <div className="h-dvh min-w-0 flex-1">

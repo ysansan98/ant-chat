@@ -20,12 +20,10 @@ export function SliderMenu() {
 
   return (
     <aside className={`
-      bg-sidebar text-sidebar-foreground flex h-full w-(--conversationWidth) shrink-0 flex-col
-      rounded-2xl
+      text-sidebar-foreground flex h-full w-(--conversationWidth) shrink-0 flex-col p-2
     `}
     >
-      <div className="h-14"></div>
-      <div className="app-region-no-drag flex min-h-0 flex-1 flex-col px-2 pb-3">
+      <div className="bg-sidebar flex min-h-0 flex-1 flex-col rounded-2xl px-2 pt-8 pb-3">
         <div className="flex flex-col gap-1 py-2">
           <SidebarNavItem
             icon={<EditOutlined />}
@@ -43,7 +41,7 @@ export function SliderMenu() {
           />
         </div>
 
-        <div className="mt-6 min-h-0 flex-1 overflow-hidden">
+        <div className="min-h-0 flex-1 overflow-hidden">
           <WorkspacePanels />
         </div>
 
