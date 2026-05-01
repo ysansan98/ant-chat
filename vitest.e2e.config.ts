@@ -2,29 +2,11 @@ import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
-  plugins: [
-  ],
   test: {
-    include: [
-      'src/**/*.spec.{ts,tsx}',
-      'src/**/*.test.{ts,tsx}',
-      'packages/**/*.spec.{ts,tsx}',
-      'packages/**/*.test.{ts,tsx}',
-      'tests/**/*.spec.{ts,tsx}',
-      'tests/**/*.test.{ts,tsx}',
-    ],
-    coverage: {
-      provider: 'v8',
-      include: [
-        'src/main/**/*.test.{ts,tsx}',
-      ],
-      exclude: [
-        'src/**/*.d.ts',
-        'src/**/interface.ts',
-        'src/types/**',
-      ],
-    },
     globals: true,
+    include: [
+      'tests/e2e/**/*.spec.ts',
+    ],
     alias: {
       '@ant-chat/shared': fileURLToPath(new URL('./packages/shared/src/index.ts', import.meta.url)),
       '@ant-design/x/es/sender/useSpeech': '@ant-design/x/es/sender/useSpeech',
@@ -35,11 +17,6 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: [
       './tests/setup.ts',
-    ],
-    exclude: [
-      'tests/e2e/**',
-      'node_modules/**',
-      '**/node_modules/**',
     ],
   },
 })

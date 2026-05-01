@@ -16,7 +16,6 @@ function createTask(snapshot: Partial<AgentTaskSnapshot> = {}) {
     checkpointPath: '',
     logPath: '',
     prompt: 'hello',
-    progress: [],
   }
   return { snapshot: s, abortController: new AbortController() }
 }

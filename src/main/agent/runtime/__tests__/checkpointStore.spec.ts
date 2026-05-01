@@ -18,7 +18,6 @@ function createSnapshot(taskId: string): AgentTaskSnapshot {
     checkpointPath: '',
     logPath: '',
     prompt: 'p',
-    progress: [],
   }
 }
 

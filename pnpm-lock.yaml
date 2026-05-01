@@ -111,6 +111,9 @@ importers:
       '@commitlint/config-conventional':
         specifier: ^19.6.0
         version: 19.8.1
+      '@copilotkit/aimock':
+        specifier: ^1.16.4
+        version: 1.16.4(vitest@4.0.14)
       '@electron-toolkit/preload':
         specifier: ^3.0.1
         version: 3.0.2(electron@40.6.1)
@@ -935,6 +938,19 @@ packages:
   '@commitlint/types@19.8.1':
     resolution: {integrity: sha512-/yCrWGCoA1SVKOks25EGadP9Pnj0oAIHGpl2wH2M2Y46dPM2ueb8wyCVOD7O3WCTkaJ0IkKvzhl1JY7+uCT2Dw==}
     engines: {node: '>=v18'}
+
+  '@copilotkit/aimock@1.16.4':
+    resolution: {integrity: sha512-DA9WjJWpi2Yh36ltsnfMycj+BbifSS9G0pyHw0JjQZQPm41+FziGIdl2gusBtwYebStypQ4v9Jj2rjqjJqqtvQ==}
+    engines: {node: '>=24.0.0'}
+    hasBin: true
+    peerDependencies:
+      jest: '>=29'
+      vitest: '>=3'
+    peerDependenciesMeta:
+      jest:
+        optional: true
+      vitest:
+        optional: true
 
   '@csstools/color-helpers@5.1.0':
     resolution: {integrity: sha512-S11EXWJyy0Mz5SYvRmY8nJYTFFd1LCNV+7cXyAgQtOOuzb4EsgfqDufL+9esx72/eLhsRdGZwaldu/h+E4t4BA==}
@@ -10269,6 +10285,10 @@ snapshots:
     dependencies:
       '@types/conventional-commits-parser': 5.0.2
       chalk: 5.6.2
+
+  '@copilotkit/aimock@1.16.4(vitest@4.0.14)':
+    optionalDependencies:
+      vitest: 4.0.14(@opentelemetry/api@1.9.0)(@types/node@25.6.0)(@vitest/ui@4.0.14)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.32.0)(msw@2.13.6(@types/node@25.6.0)(typescript@5.9.3))(tsx@4.21.0)(yaml@2.8.2)
 
   '@csstools/color-helpers@5.1.0': {}
 
