@@ -1,5 +1,4 @@
 import type { CreateConversationTitleOptions, handleChatCompletionsOptions, handleInitConversationTitleOptions, McpToolCall, MessageContent, SendChatCompletionsOptions, TextContent } from '@ant-chat/shared'
-import type { LanguageModelUsage } from 'ai'
 import type { MultiProvider } from '../multi-provider'
 import process from 'node:process'
 import { createAIMessage, getMessagesByConvId, getModelById, getProviderServiceById, getServiceProviderByModelId, updateMessage } from '@main/db/services'
@@ -16,7 +15,27 @@ interface StreamChunk {
   content: MessageContent
   reasoningContent?: string
   functionCalls?: McpToolCall[]
-  usage?: LanguageModelUsage
+  usage?: {
+    inputTokens?: number
+    outputTokens?: number
+    totalTokens?: number
+    reasoningTokens?: number
+    cachedInputTokens?: number
+  }
+}
+
+function normalizeUsage(usage?: StreamChunk['usage']) {
+  if (!usage) {
+    return undefined
+  }
+
+  return {
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    totalTokens: usage.totalTokens,
+    reasoningTokens: usage.reasoningTokens,
+    cachedInputTokens: usage.cachedInputTokens,
+  }
 }
 
 class ChatService {
@@ -150,7 +169,12 @@ export async function handleChatCompletions(options: handleChatCompletionsOption
       }
 
       if (chunk.usage) {
-        aiMessage.usage = chunk.usage
+        aiMessage.usage = normalizeUsage(chunk.usage)
+        logger.info('chat usage chunk received', {
+          conversationId: conversationsId,
+          messageId: aiMessage.id,
+          usage: aiMessage.usage,
+        })
       }
 
       // 合并到数据库
@@ -158,6 +182,12 @@ export async function handleChatCompletions(options: handleChatCompletionsOption
         ...aiMessage,
         role: 'assistant',
         status: 'typing',
+      })
+      logger.info('chat usage persisted to message', {
+        conversationId: conversationsId,
+        messageId: updatedMessage.id,
+        hasUsage: Boolean(updatedMessage.usage),
+        usage: updatedMessage.usage,
       })
 
       // 将最新的消息推送给前端
@@ -172,7 +202,12 @@ export async function handleChatCompletions(options: handleChatCompletionsOption
     return
   }
 
-  const finalMessage = await updateMessage({ id: aiMessage.id, role: 'assistant', status: 'success' })
+  const finalMessage = await updateMessage({
+    id: aiMessage.id,
+    role: 'assistant',
+    status: 'success',
+    usage: aiMessage.usage,
+  })
 
   sendToRenderer(mainWindow.webContents, 'chat:stream-message', { ...finalMessage, status: 'success' })
 }

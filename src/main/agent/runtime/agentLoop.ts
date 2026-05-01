@@ -22,6 +22,26 @@ import { reportTaskState } from './progressReporter'
 import { taskStore } from './taskStore'
 import { executeToolStep, markRunningProgress } from './toolExecution'
 
+function normalizeUsage(usage?: {
+  inputTokens?: number
+  outputTokens?: number
+  totalTokens?: number
+  reasoningTokens?: number
+  cachedInputTokens?: number
+}) {
+  if (!usage) {
+    return undefined
+  }
+
+  return {
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    totalTokens: usage.totalTokens,
+    reasoningTokens: usage.reasoningTokens,
+    cachedInputTokens: usage.cachedInputTokens,
+  }
+}
+
 export async function runAgentLoop(taskId: string, options: StartAgentTaskOptions) {
   const task = taskStore.get(taskId)
   if (!task)
@@ -92,6 +112,7 @@ export async function runAgentLoop(taskId: string, options: StartAgentTaskOption
       })
 
       let modelText = ''
+      let latestUsage: ReturnType<typeof normalizeUsage>
       let requestedToolCall: { toolName: string, input: Record<string, unknown> } | null = null
       for await (const chunk of stream) {
         const content = chunk.content || []
@@ -108,16 +129,21 @@ export async function runAgentLoop(taskId: string, options: StartAgentTaskOption
             input: normalizeToolArgs(fc.args),
           }
         }
+        if ((chunk as any).usage) {
+          latestUsage = normalizeUsage((chunk as any).usage)
+        }
       }
       await appendAgentLog(task.snapshot.taskId, 'model_response_finished', {
         step,
         textPreview: modelText.slice(0, 500),
         hasToolCall: Boolean(requestedToolCall),
+        usage: latestUsage,
       })
       currentModelText = modelText.trim() || '正在处理中…'
       await updateTaskAssistantMessage(currentAssistantMessage.id, {
         status: 'loading',
         content: [{ type: 'text', text: currentModelText }],
+        usage: latestUsage,
       })
       loopMessages.push({ role: 'assistant', content: [{ type: 'text', text: modelText }] })
       trimLoopMessages(loopMessages)
@@ -130,11 +156,12 @@ export async function runAgentLoop(taskId: string, options: StartAgentTaskOption
           await updateTaskAssistantMessage(currentAssistantMessage.id, {
             status: 'success',
             content: [{ type: 'text', text: currentModelText }],
+            usage: latestUsage,
           })
           continue
         }
         finalAnswer = currentModelText || '任务已完成。'
-        await finalizeTaskAssistantMessage(currentAssistantMessage.id, finalAnswer, 'success')
+        await finalizeTaskAssistantMessage(currentAssistantMessage.id, finalAnswer, 'success', { usage: latestUsage })
         break
       }
 
@@ -197,7 +224,9 @@ async function handleLoopFailure(options: {
     task.snapshot.status = 'cancelled'
     markRunningProgress(task, 'skipped')
     if (currentAssistantMessage) {
-      await finalizeTaskAssistantMessage(currentAssistantMessage.id, '任务已取消', 'cancel')
+      await finalizeTaskAssistantMessage(currentAssistantMessage.id, '任务已取消', 'cancel', {
+        usage: undefined,
+      })
     }
   }
   else {
@@ -205,7 +234,9 @@ async function handleLoopFailure(options: {
     task.snapshot.errorCode = code as AgentTaskSnapshot['errorCode']
     task.snapshot.errorMessage = error.message
     if (currentAssistantMessage) {
-      await finalizeTaskAssistantMessage(currentAssistantMessage.id, `任务失败：${error.message}`, 'error')
+      await finalizeTaskAssistantMessage(currentAssistantMessage.id, `任务失败：${error.message}`, 'error', {
+        usage: undefined,
+      })
     }
   }
   reportTaskState(task.snapshot)

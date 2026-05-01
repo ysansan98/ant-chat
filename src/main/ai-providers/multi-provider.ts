@@ -1,3 +1,4 @@
+import type { LanguageModelUsage } from 'ai'
 import type { InferSelectModel } from 'drizzle-orm'
 import type { ProviderFormat } from './types'
 import process from 'node:process'
@@ -19,6 +20,20 @@ export class MultiProvider {
     debug: (msg: string, ...args: any[]) => console.log(`[MultiProvider DEBUG] ${msg}`, ...args),
     error: (msg: string, ...args: any[]) => console.error(`[MultiProvider ERROR] ${msg}`, ...args),
     warn: (msg: string, ...args: any[]) => console.warn(`[MultiProvider WARN] ${msg}`, ...args),
+  }
+
+  private normalizeUsage(usage?: LanguageModelUsage) {
+    if (!usage) {
+      return undefined
+    }
+
+    return {
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+      totalTokens: usage.totalTokens,
+      reasoningTokens: usage.reasoningTokens,
+      cachedInputTokens: usage.cachedInputTokens,
+    }
   }
 
   constructor(options: {
@@ -227,6 +242,8 @@ export class MultiProvider {
       : undefined
 
     // 使用 AI SDK 的流式处理
+    let finalUsage: LanguageModelUsage | undefined
+
     const result = streamText({
       model: this.createModelClient(model),
       messages: aiSdkMessages,
@@ -234,6 +251,13 @@ export class MultiProvider {
       maxOutputTokens: maxTokens,
       tools: aiTools,
       abortSignal,
+      onFinish: ({ totalUsage, usage }) => {
+        finalUsage = totalUsage || usage
+        this.logger.info('usage captured from onFinish', {
+          hasUsage: Boolean(finalUsage),
+          usage: this.normalizeUsage(finalUsage),
+        })
+      },
     })
 
     // 处理流式响应 - 优先使用 fullStream 支持推理内容
@@ -271,6 +295,13 @@ export class MultiProvider {
             }],
           }
         }
+        else if (chunk.type === 'finish') {
+          finalUsage = chunk.totalUsage || finalUsage
+          this.logger.info('usage captured from fullStream finish', {
+            hasUsage: Boolean(finalUsage),
+            usage: this.normalizeUsage(finalUsage),
+          })
+        }
       }
     }
     catch (error) {
@@ -302,10 +333,15 @@ export class MultiProvider {
       }
     }
 
-    const totalUsage = await result.totalUsage
+    const totalUsage = finalUsage || await result.totalUsage
+    const normalizedUsage = this.normalizeUsage(totalUsage)
+    this.logger.info('usage emitted to chat-service', {
+      hasUsage: Boolean(normalizedUsage),
+      usage: normalizedUsage,
+    })
     yield {
       content: [],
-      usage: totalUsage,
+      usage: normalizedUsage,
     }
   }
 

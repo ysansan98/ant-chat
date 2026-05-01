@@ -52,12 +52,30 @@ export async function createAIMessage(convId: string, modelInfo: AIMessage['mode
 }
 
 export async function updateMessage(message: UpdateMessageSchema): Promise<IMessage> {
+  const hasUsageInPayload = Object.prototype.hasOwnProperty.call(message, 'usage')
+  console.info('[message.update] payload summary', {
+    id: message.id,
+    role: message.role,
+    status: message.status,
+    hasUsageInPayload,
+    usage: (message as IMessage).usage,
+  })
+
   db.transaction((tx) => {
     const result = tx.update(messagesTable).set(message).where(eq(messagesTable.id, message.id)).returning().get()
     tx.update(conversationsTable).set({ updatedAt: Date.now() }).where(eq(conversationsTable.id, result.convId)).returning().get()
   })
 
-  return getMessageById(message.id)
+  const persisted = await getMessageById(message.id)
+  console.info('[message.update] persisted summary', {
+    id: persisted.id,
+    role: persisted.role,
+    status: persisted.status,
+    hasUsage: Object.prototype.hasOwnProperty.call(persisted, 'usage') && Boolean((persisted as IMessage).usage),
+    usage: (persisted as IMessage).usage,
+  })
+
+  return persisted
 }
 
 export async function deleteMessage(id: string): Promise<boolean> {

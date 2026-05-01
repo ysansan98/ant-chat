@@ -26,8 +26,14 @@ export async function updateTaskAssistantMessage(messageId: string, patch: Omit<
   return message
 }
 
-export async function finalizeTaskAssistantMessage(messageId: string, text: string, status: 'success' | 'error' | 'cancel') {
+export async function finalizeTaskAssistantMessage(
+  messageId: string,
+  text: string,
+  status: 'success' | 'error' | 'cancel',
+  patch?: Partial<Omit<UpdateMessageSchema, 'id' | 'role' | 'status' | 'content'>>,
+) {
   return await updateTaskAssistantMessage(messageId, {
+    ...patch,
     status,
     content: status === 'error'
       ? [{ type: 'error', error: text }]

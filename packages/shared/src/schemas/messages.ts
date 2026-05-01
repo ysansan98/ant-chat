@@ -126,7 +126,7 @@ export type AddMessage = z.infer<typeof AddMessage>
 export const UpdateMessageSchema = BaseMessage.extend({
   status: AIMessage.shape.status,
   role: z.enum(['assistant', 'user']),
-  ...(AIMessage.pick({ modelInfo: true, reasoningContent: true, mcpTool: true }).shape),
+  ...(AIMessage.pick({ modelInfo: true, reasoningContent: true, mcpTool: true, usage: true }).shape),
   ...(UserMessage.pick({ images: true, attachments: true }).shape),
 }).partial().extend({ id: z.string() })
 
