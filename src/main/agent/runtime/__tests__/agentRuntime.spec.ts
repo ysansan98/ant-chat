@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { agentRuntime } from '../agentRuntime'
 import { taskStore } from '../taskStore'
 
-const reportTaskProgressMock = vi.fn()
 const writerMocks = vi.hoisted(() => ({
   updateTaskAssistantMessage: vi.fn(async () => ({ id: 'ai-msg-1' })),
 }))
@@ -54,7 +53,6 @@ vi.mock('../agentMessageWriter', () => ({
 
 vi.mock('../progressReporter', () => ({
   reportTaskState: vi.fn(),
-  reportTaskProgress: (...args: unknown[]) => reportTaskProgressMock(...args),
   reportApprovalRequired: vi.fn(),
 }))
 
@@ -71,7 +69,6 @@ describe('agentRuntime', () => {
   beforeEach(() => {
     ;(taskStore as any).tasks?.clear?.()
     ;(taskStore as any).activeByConversation?.clear?.()
-    reportTaskProgressMock.mockClear()
     callRound = 0
     firstToolName = 'list_dir'
     firstToolArgs = { path: '.' }
@@ -96,24 +93,6 @@ describe('agentRuntime', () => {
 
   it('参数校验', async () => {
     await expect(agentRuntime.startTask({ conversationId: '', userMessageId: '', prompt: '' })).rejects.toThrow('invalid start task options')
-  })
-
-  it('“有哪些文件”会触发工具进度', async () => {
-    await agentRuntime.startTask({
-      conversationId: 'c3',
-      userMessageId: 'm3',
-      prompt: '你能看下目前工作区有哪些文件吗？',
-      mode: 'hybrid',
-      chatSettings: {
-        modelId: 'model-1',
-        systemPrompt: '',
-        temperature: 0,
-        maxTokens: 256,
-        features: { enableMCP: false, onlineSearch: false },
-      },
-    })
-    await new Promise(resolve => setTimeout(resolve, 20))
-    expect(reportTaskProgressMock).toHaveBeenCalled()
   })
 
   it('模型文本流式写入 assistant message', async () => {

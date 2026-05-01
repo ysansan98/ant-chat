@@ -21,12 +21,6 @@ export type AgentErrorCode
     | 'AGENT_SKILL_INVALID'
     | 'AGENT_CANCELLED'
 
-export interface AgentProgressItem {
-  id: string
-  title: string
-  status: 'done' | 'running' | 'pending' | 'failed' | 'skipped'
-}
-
 export interface AgentPendingAction {
   actionId: string
   toolName: string
@@ -47,7 +41,6 @@ export interface AgentTaskSnapshot {
   checkpointPath: string
   logPath: string
   prompt: string
-  progress: AgentProgressItem[]
   pendingAction?: AgentPendingAction
   errorCode?: AgentErrorCode
   errorMessage?: string

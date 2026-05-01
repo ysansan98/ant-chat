@@ -1,4 +1,4 @@
-import type { AgentPendingAction, AgentProgressItem, AgentTaskSnapshot, IMessage, NotificationOption, ProgressInfo, UpdateError, UpdateInfo, UpdateStatus } from './interfaces'
+import type { AgentPendingAction, AgentTaskSnapshot, IMessage, NotificationOption, ProgressInfo, UpdateError, UpdateInfo, UpdateStatus } from './interfaces'
 
 export function createIpcResponse<T>(success: boolean, data: T, msg?: string): IpcResponse<T> | ErrorIpcResponse {
   if (success) {
@@ -74,7 +74,6 @@ export interface IpcRendererEvent {
   'update:update-downloaded': [UpdateInfo]
   'update:update-error': [UpdateError]
   'agent:state-updated': [{ task: AgentTaskSnapshot }]
-  'agent:progress-updated': [{ taskId: string, conversationId: string, progress: AgentProgressItem[] }]
   'agent:approval-required': [{ taskId: string, conversationId: string, pendingAction: AgentPendingAction }]
   [key: string]: unknown[]
 }

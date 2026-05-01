@@ -40,7 +40,6 @@ class AgentRuntime {
       checkpointPath: '',
       logPath: '',
       prompt: options.prompt,
-      progress: [],
     }
 
     taskStore.create({ snapshot, abortController: new AbortController() })

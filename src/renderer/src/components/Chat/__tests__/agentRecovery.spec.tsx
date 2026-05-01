@@ -17,10 +17,8 @@ describe('agentRecovery', () => {
           checkpointPath: '',
           logPath: '',
           prompt: 'p',
-          progress: [],
         },
       },
-      progressByTask: {},
       pendingByTask: {},
     })
 

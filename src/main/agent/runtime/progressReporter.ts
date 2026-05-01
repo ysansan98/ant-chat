@@ -1,4 +1,4 @@
-import type { AgentPendingAction, AgentProgressItem, AgentTaskSnapshot, IpcRendererEvent } from '@ant-chat/shared'
+import type { AgentPendingAction, AgentTaskSnapshot, IpcRendererEvent } from '@ant-chat/shared'
 import { sendToRenderer } from '@main/utils/ipc-events'
 import { getMainWindow } from '@main/window'
 
@@ -11,10 +11,6 @@ function emit<T extends keyof IpcRendererEvent & string>(channel: T, payload: Ip
 
 export function reportTaskState(task: AgentTaskSnapshot) {
   emit('agent:state-updated', { task })
-}
-
-export function reportTaskProgress(taskId: string, conversationId: string, progress: AgentProgressItem[]) {
-  emit('agent:progress-updated', { taskId, conversationId, progress })
 }
 
 export function reportApprovalRequired(taskId: string, conversationId: string, pendingAction: AgentPendingAction) {

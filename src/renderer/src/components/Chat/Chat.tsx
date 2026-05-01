@@ -1,7 +1,7 @@
 import type { AgentMode, ChatFeatures, IAttachment, IImage } from '@ant-chat/shared'
 import { App, Skeleton } from 'antd'
 import { lazy, Suspense } from 'react'
-import { AgentApprovalCard, AgentProgressList } from '@/components/Agent'
+import { AgentApprovalCard } from '@/components/Agent'
 import { DEFAULT_TITLE } from '@/constants'
 import { useChatSettingsContext } from '@/contexts/chatSettings'
 import { approveAgentAction, rejectAgentAction, startAgentTurn, useAgentStore } from '@/store/agent'
@@ -30,7 +30,6 @@ export default function Chat() {
   const { settings, updateSettings } = useChatSettingsContext()
   const agentTask = useAgentStore(state => state.getActiveTaskByConversation(activeConversationsId))
   const agentTaskId = agentTask?.taskId
-  const progress = useAgentStore(state => (agentTaskId ? state.progressByTask[agentTaskId] : undefined))
   const pending = useAgentStore(state => (agentTaskId ? state.pendingByTask[agentTaskId] : undefined))
 
   async function onSubmit(
@@ -93,7 +92,6 @@ export default function Chat() {
           : null
       }
       <div className="px-2 pb-4">
-        <AgentProgressList progress={progress || []} />
         {agentTask && pending
           ? (
               <AgentApprovalCard

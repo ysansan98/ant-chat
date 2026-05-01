@@ -1,7 +1,7 @@
 import type { NotificationOption } from '@ant-chat/shared'
 import { App } from 'antd'
 import { useEffect } from 'react'
-import { onAgentApprovalRequired, onAgentProgressUpdated, onAgentStateUpdated } from '@/store/agent'
+import { onAgentApprovalRequired, onAgentStateUpdated } from '@/store/agent'
 import { addStreamingConversationId, removeStreamingConversationId } from '@/store/conversation'
 import { onMcpServerStatusChanged } from '@/store/mcpConfigs/action'
 import { updateMessageActionV2 } from '@/store/messages'
@@ -28,9 +28,6 @@ export function useIpcEventListener() {
     ipcRenderer.on('agent:state-updated', (_, payload) => {
       onAgentStateUpdated(payload.task)
     })
-    ipcRenderer.on('agent:progress-updated', (_, payload) => {
-      onAgentProgressUpdated(payload.taskId, payload.progress)
-    })
     ipcRenderer.on('agent:approval-required', (_, payload) => {
       onAgentApprovalRequired(payload.taskId, payload.pendingAction)
     })
@@ -40,7 +37,6 @@ export function useIpcEventListener() {
       ipcRenderer.removeAllListeners('mcp:McpServerStatusChanged')
       ipcRenderer.removeAllListeners('message:updated')
       ipcRenderer.removeAllListeners('agent:state-updated')
-      ipcRenderer.removeAllListeners('agent:progress-updated')
       ipcRenderer.removeAllListeners('agent:approval-required')
     }
   }, [notification])

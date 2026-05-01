@@ -30,10 +30,6 @@ export function onAgentStateUpdated(task: Parameters<typeof useAgentStore.getSta
   }
 }
 
-export function onAgentProgressUpdated(taskId: string, progress: any[]) {
-  useAgentStore.getState().setProgress(taskId, progress)
-}
-
 export function onAgentApprovalRequired(taskId: string, pendingAction: any) {
   useAgentStore.getState().setPending(taskId, pendingAction)
 }

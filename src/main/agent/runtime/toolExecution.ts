@@ -12,7 +12,7 @@ import {
   updateRuntimeStateOnToolFailure,
   updateRuntimeStateOnToolSuccess,
 } from './loopContext'
-import { reportApprovalRequired, reportTaskProgress, reportTaskState } from './progressReporter'
+import { reportApprovalRequired, reportTaskState } from './progressReporter'
 
 const DEFAULT_TOOL_OBSERVATION_LIMIT = 1000
 const DEFAULT_TOOL_LOG_PREVIEW_LIMIT = 4000
@@ -89,13 +89,6 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   }
   onToolCallContext?.(lastToolCallContext)
 
-  task.snapshot.progress.push({
-    id: randomUUID(),
-    title: `执行工具 ${requestedToolCall.toolName}`,
-    status: 'running',
-  })
-  reportTaskProgress(task.snapshot.taskId, task.snapshot.conversationId, task.snapshot.progress)
-
   await appendAgentLog(task.snapshot.taskId, 'tool_decision', {
     toolName: requestedToolCall.toolName,
     input: requestedToolCall.input,
@@ -121,7 +114,6 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
       errorCode: policyDecision.errorCode,
       workspacePath: task.snapshot.workspacePath,
     })
-    markRunningProgress(task, 'skipped')
     observations.push(formatToolFailureObservation(
       prepared.toolName,
       policyDecision.errorCode,
@@ -155,7 +147,6 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
     }
 
     if (!decisionResult.approved) {
-      markRunningProgress(task, 'skipped')
       currentToolCall.executeState = 'completed'
       currentToolCall.result = {
         success: false,
@@ -182,7 +173,6 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
       error: result.error || 'AGENT_TOOL_EXEC_FAILED',
       workspacePath: task.snapshot.workspacePath,
     })
-    markRunningProgress(task, 'skipped')
     observations.push(formatToolFailureObservation(
       prepared.toolName,
       result.error || 'AGENT_TOOL_EXEC_FAILED',
@@ -194,7 +184,6 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
     return { lastToolCallContext }
   }
 
-  markRunningProgress(task, 'done')
   updateRuntimeStateOnToolSuccess(runtimeState, prepared.toolName, requestedToolCall.input, result)
 
   const toolOutputText = getToolOutputText(result)
@@ -216,13 +205,6 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   })
 
   return { lastToolCallContext }
-}
-
-export function markRunningProgress(task: RuntimeTask, status: 'done' | 'skipped') {
-  const runningProgress = task.snapshot.progress.at(-1)
-  if (runningProgress)
-    runningProgress.status = status
-  reportTaskProgress(task.snapshot.taskId, task.snapshot.conversationId, task.snapshot.progress)
 }
 
 function pushObservation(loopMessages: LoopMessage[], observations: string[]) {

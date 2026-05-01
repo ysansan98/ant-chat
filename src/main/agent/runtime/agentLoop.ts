@@ -21,7 +21,7 @@ import {
 } from './loopContext'
 import { reportTaskState } from './progressReporter'
 import { taskStore } from './taskStore'
-import { executeToolStep, markRunningProgress } from './toolExecution'
+import { executeToolStep } from './toolExecution'
 
 const STREAM_MESSAGE_UPDATE_INTERVAL_MS = 80
 
@@ -244,12 +244,10 @@ async function handleLoopFailure(options: {
     error: error.message,
     stack: error.stack || '',
     workspacePath: task.snapshot.workspacePath,
-    lastProgress: task.snapshot.progress.at(-1) || null,
     lastToolCallContext,
   }
   if (code === 'AGENT_CANCELLED') {
     task.snapshot.status = 'cancelled'
-    markRunningProgress(task, 'skipped')
     if (currentAssistantMessage) {
       await finalizeTaskAssistantMessage(currentAssistantMessage.id, '任务已取消', 'cancel', {
         usage: undefined,
