@@ -11,13 +11,9 @@ import { createTaskAssistantMessage, finalizeTaskAssistantMessage, updateTaskAss
 import { removeCheckpoint, writeCheckpoint } from './checkpointStore'
 import {
   buildConversationContextMessages,
-  buildPlanningPrompt,
   createLoopSystemPrompt,
-  createRuntimeState,
   looksLikePlanOnlyResponse,
-
   normalizeToolArgs,
-  trimLoopMessages,
 } from './loopContext'
 import { reportTaskState } from './progressReporter'
 import { taskStore } from './taskStore'
@@ -57,13 +53,11 @@ export async function runAgentLoop(taskId: string, options: AgentRuntimeStartOpt
   const tools = registry.listTools()
   const loopSystemPrompt = createLoopSystemPrompt(task.snapshot.workspacePath)
   let step = 0
-  const observations: string[] = []
   let finalAnswer = ''
   let currentAssistantMessage: { id: string } | null = null
   let currentToolMessages: McpToolCall[] = []
   let currentModelText = ''
   let lastToolCallContext: ToolCallContext | null = null
-  const runtimeState = createRuntimeState(options.prompt)
   const loopMessages: LoopMessage[] = []
 
   try {
@@ -74,7 +68,6 @@ export async function runAgentLoop(taskId: string, options: AgentRuntimeStartOpt
       role: 'user',
       content: [{ type: 'text', text: options.prompt }],
     })
-    trimLoopMessages(loopMessages)
 
     for (;;) {
       if (task.abortController.signal.aborted)
@@ -94,17 +87,23 @@ export async function runAgentLoop(taskId: string, options: AgentRuntimeStartOpt
       const assistantMessageId = currentAssistantMessage.id
       currentToolMessages = []
 
-      const planningPrompt = buildPlanningPrompt(options.prompt, runtimeState, observations)
-
       await appendAgentLog(task.snapshot.taskId, 'model_request_started', {
         step,
         workspacePath: task.snapshot.workspacePath,
-        promptPreview: planningPrompt.slice(0, 500),
-        observationCount: observations.length,
+        requestBody: {
+          messages: loopMessages,
+          chatSettings: {
+            model: model.model,
+            temperature: options.chatSettings?.temperature,
+            maxTokens: options.chatSettings?.maxTokens,
+            systemPrompt: loopSystemPrompt,
+          },
+          tools: tools.map(item => ({ name: item.name, description: item.description, inputSchema: item.inputSchema })),
+        },
       })
 
       const stream = aiProvider.streamModel({
-        messages: [...loopMessages, { role: 'user', content: [{ type: 'text', text: planningPrompt }] }] as any,
+        messages: loopMessages as any,
         chatSettings: {
           model: model.model,
           temperature: options.chatSettings?.temperature,
@@ -166,25 +165,26 @@ export async function runAgentLoop(taskId: string, options: AgentRuntimeStartOpt
         hasToolCall: Boolean(requestedToolCall),
         usage: latestUsage,
       })
-      currentModelText = modelText.trim() || '正在处理中…'
+      currentModelText = modelText.trim()
       await flushStreamMessage(true)
-      loopMessages.push({ role: 'assistant', content: [{ type: 'text', text: modelText }] })
-      trimLoopMessages(loopMessages)
+
       if (!requestedToolCall) {
         if (looksLikePlanOnlyResponse(currentModelText)) {
           const nudge = '不要只给计划。请立即调用一个最合适的工具，或在信息已足够时直接给出最终答案。'
-          observations.push(nudge)
+          loopMessages.push({ role: 'assistant', content: [{ type: 'text', text: modelText }] })
           loopMessages.push({ role: 'user', content: [{ type: 'text', text: nudge }] })
-          trimLoopMessages(loopMessages)
+
           await updateTaskAssistantMessage(currentAssistantMessage.id, {
             status: 'success',
-            content: [{ type: 'text', text: currentModelText }],
+            content: [{ type: 'text', text: currentModelText || '正在处理中…' }],
             reasoningContent: reasoningText,
             usage: latestUsage,
           })
           continue
         }
         finalAnswer = currentModelText || '任务已完成。'
+        loopMessages.push({ role: 'assistant', content: [{ type: 'text', text: modelText }] })
+
         await finalizeTaskAssistantMessage(currentAssistantMessage.id, finalAnswer, 'success', {
           reasoningContent: reasoningText,
           usage: latestUsage,
@@ -192,22 +192,44 @@ export async function runAgentLoop(taskId: string, options: AgentRuntimeStartOpt
         break
       }
 
-      const toolResult = await executeToolStep({
+      const toolStepResult = await executeToolStep({
         task,
         registry,
         requestedToolCall,
         currentAssistantMessageId: currentAssistantMessage.id,
         currentModelText,
         currentToolMessages,
-        runtimeState,
-        observations,
-        loopMessages,
         step,
         onToolCallContext: (context) => {
           lastToolCallContext = context
         },
       })
-      lastToolCallContext = toolResult.lastToolCallContext
+      lastToolCallContext = toolStepResult.lastToolCallContext
+
+      // Push assistant message with tool-call content block
+      const assistantContent: LoopMessage['content'] = []
+      if (modelText.trim()) {
+        assistantContent.push({ type: 'text', text: modelText })
+      }
+      assistantContent.push({
+        type: 'tool-call',
+        toolCallId: toolStepResult.toolCallId,
+        toolName: requestedToolCall.toolName,
+        args: requestedToolCall.input,
+      })
+      loopMessages.push({ role: 'assistant', content: assistantContent })
+
+      // Push tool result message
+      loopMessages.push({
+        role: 'tool',
+        content: [{
+          type: 'tool-result',
+          toolCallId: toolStepResult.toolCallId,
+          toolName: requestedToolCall.toolName,
+          result: toolStepResult.toolResultContent,
+          isError: toolStepResult.isError,
+        }],
+      })
     }
 
     task.snapshot.status = 'success'

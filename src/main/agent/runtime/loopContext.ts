@@ -1,19 +1,10 @@
 import type { IMessage } from '@ant-chat/shared'
 
-const LOOP_MESSAGE_WINDOW = 20
-const HISTORY_MESSAGE_LIMIT = 16
+const HISTORY_TOOL_RESULT_TRUNCATE = 100000
 
 export interface LoopMessage {
-  role: 'user' | 'assistant'
-  content: Array<{ type: 'text', text: string }>
-}
-
-export interface RuntimeState {
-  goal: string
-  readFiles: Map<string, string[]>
-  writtenFiles: Set<string>
-  loadedSkills: Map<string, string>
-  lastAction: 'read' | 'write' | 'other'
+  role: 'user' | 'assistant' | 'tool'
+  content: Array<{ type: 'text', text: string } | { type: 'tool-call', toolCallId: string, toolName: string, args: Record<string, unknown> } | { type: 'tool-result', toolCallId: string, toolName: string, result: unknown, isError?: boolean }>
 }
 
 export function createLoopSystemPrompt(workspacePath: string): string {
@@ -41,37 +32,6 @@ export function createLoopSystemPrompt(workspacePath: string): string {
   ].join('\n')
 }
 
-export function createRuntimeState(goal: string): RuntimeState {
-  return {
-    goal,
-    readFiles: new Map(),
-    writtenFiles: new Set(),
-    loadedSkills: new Map(),
-    lastAction: 'other',
-  }
-}
-
-export function buildPlanningPrompt(
-  goal: string,
-  state: RuntimeState,
-  observations: string[],
-): string {
-  const lastReads = [...state.readFiles.entries()]
-    .slice(-3)
-    .map(([path, ranges]) => `${path}: ${ranges.slice(-2).join(', ')}`)
-    .join('; ')
-  const written = [...state.writtenFiles].slice(-5).join(', ') || '(none)'
-  const recentObs = observations.slice(-2).join('\n')
-  const loadedSkills = formatLoadedSkills(state)
-  return [
-    `继续任务：${goal}`,
-    `状态摘要：lastAction=${state.lastAction}; writtenFiles=${written}; recentReads=${lastReads || '(none)'}`,
-    loadedSkills,
-    '执行要求：若已完成修改，直接输出最终结果，不要再次全量读取同一文件。',
-    recentObs ? `最近观察：\n${recentObs}` : '',
-  ].filter(Boolean).join('\n')
-}
-
 export function buildConversationContextMessages(
   messages: IMessage[],
   currentUserMessageId: string,
@@ -85,24 +45,60 @@ export function buildConversationContextMessages(
       }
       return message.status === 'success' || message.status === 'error' || message.status === 'cancel'
     })
-    .slice(-HISTORY_MESSAGE_LIMIT)
 
-  return valid.map((message) => {
-    const text = stringifyMessageForContext(message)
-    return {
-      role: message.role,
-      content: [{ type: 'text', text }],
+  const result: LoopMessage[] = []
+
+  for (const message of valid) {
+    const text = extractMessageText(message)
+
+    if (message.role === 'user') {
+      result.push({ role: 'user', content: [{ type: 'text', text }] })
+      continue
     }
-  })
-}
 
-export function trimLoopMessages(messages: LoopMessage[]) {
-  if (messages.length <= LOOP_MESSAGE_WINDOW) {
-    return
+    // Assistant message: build content with text + tool-call blocks
+    const content: LoopMessage['content'] = []
+    if (text) {
+      content.push({ type: 'text', text })
+    }
+
+    const completedTools = (message.toolCalls || [])
+      .filter(tool => tool.executeState === 'completed')
+      .slice(-4)
+
+    for (const tool of completedTools) {
+      content.push({
+        type: 'tool-call',
+        toolCallId: tool.id,
+        toolName: tool.toolName,
+        args: tool.args,
+      })
+    }
+
+    result.push({ role: 'assistant', content })
+
+    // Push tool result messages for completed tool calls
+    for (const tool of completedTools) {
+      if (!tool.result) {
+        continue
+      }
+      const toolData = tool.result.success
+        ? (tool.result.data || '')
+        : (tool.result.error || '')
+      result.push({
+        role: 'tool',
+        content: [{
+          type: 'tool-result',
+          toolCallId: tool.id,
+          toolName: tool.toolName,
+          result: truncateText(toolData, HISTORY_TOOL_RESULT_TRUNCATE),
+          isError: !tool.result.success,
+        }],
+      })
+    }
   }
-  const [first, ...rest] = messages
-  const tail = rest.slice(-(LOOP_MESSAGE_WINDOW - 1))
-  messages.splice(0, messages.length, first, ...tail)
+
+  return result
 }
 
 export function looksLikePlanOnlyResponse(text: string): boolean {
@@ -150,87 +146,8 @@ export function normalizeToolArgs(args: unknown): Record<string, unknown> {
   return {}
 }
 
-export function updateRuntimeStateOnToolSuccess(
-  state: RuntimeState,
-  toolName: string,
-  input: Record<string, unknown>,
-  result?: { output?: unknown },
-) {
-  const loadedSkill = parseLoadedSkillOutput(result?.output)
-  if (loadedSkill) {
-    state.loadedSkills.set(loadedSkill.name, loadedSkill.content)
-    state.lastAction = 'other'
-    return
-  }
-
-  if (toolName === 'read_file') {
-    const path = typeof input.path === 'string' ? input.path : '(unknown)'
-    const offset = Number(input.offset || 1)
-    const limit = Number(input.limit || 200)
-    const range = `${offset}-${offset + Math.max(limit - 1, 0)}`
-    const ranges = state.readFiles.get(path) || []
-    ranges.push(range)
-    state.readFiles.set(path, ranges.slice(-6))
-    state.lastAction = 'read'
-    return
-  }
-  if (toolName === 'write_file') {
-    if (typeof input.path === 'string')
-      state.writtenFiles.add(input.path)
-    state.lastAction = 'write'
-    return
-  }
-  if (toolName === 'apply_patch') {
-    const path = extractPatchPrimaryPath(String(input.patch || ''))
-    if (path)
-      state.writtenFiles.add(path)
-    state.lastAction = 'write'
-    return
-  }
-  state.lastAction = 'other'
-}
-
-function parseLoadedSkillOutput(output: unknown): { name: string, content: string } | null {
-  if (!output || typeof output !== 'object') {
-    return null
-  }
-  const data = output as Record<string, unknown>
-  if (data.type !== 'skill_loaded' || typeof data.name !== 'string' || typeof data.content !== 'string') {
-    return null
-  }
-  return { name: data.name, content: data.content }
-}
-
-function formatLoadedSkills(state: RuntimeState): string {
-  const entries = [...state.loadedSkills.entries()]
-  if (entries.length === 0) {
-    return ''
-  }
-  const maxTotalChars = 24_000
-  let remaining = maxTotalChars
-  const sections: string[] = []
-  for (const [name, content] of entries) {
-    if (remaining <= 0) {
-      break
-    }
-    const body = content.length <= remaining ? content : `${content.slice(0, remaining)}\n[skill context truncated]`
-    sections.push(`Loaded skill: ${name}\nInstructions:\n${body}`)
-    remaining -= body.length
-  }
-  return `已载入 Skill 上下文：\n${sections.join('\n\n')}`
-}
-
-export function updateRuntimeStateOnToolFailure(
-  state: RuntimeState,
-  toolName: string,
-): void {
-  if (toolName === 'read_file' || toolName === 'write_file' || toolName === 'apply_patch') {
-    state.lastAction = 'other'
-  }
-}
-
-function stringifyMessageForContext(message: IMessage): string {
-  const baseText = (message.content || [])
+function extractMessageText(message: IMessage): string {
+  return (message.content || [])
     .map((item) => {
       if (item.type === 'text')
         return item.text
@@ -241,37 +158,6 @@ function stringifyMessageForContext(message: IMessage): string {
     .filter(Boolean)
     .join('\n')
     .trim()
-
-  if (message.role !== 'assistant' || !Array.isArray(message.toolCalls) || message.toolCalls.length === 0) {
-    return baseText
-  }
-
-  const toolSummaries = message.toolCalls
-    .filter(tool => tool.executeState === 'completed')
-    .slice(-4)
-    .map((tool) => {
-      const result = tool.result
-      if (!result) {
-        return `tool ${tool.toolName}: completed`
-      }
-      if (result.success) {
-        const dataPreview = truncateText(result.data || '', 200)
-        return dataPreview
-          ? `tool ${tool.toolName}: success ${dataPreview}`
-          : `tool ${tool.toolName}: success`
-      }
-      return `tool ${tool.toolName}: failed ${result.error || ''}`.trim()
-    })
-    .join('\n')
-
-  if (!toolSummaries) {
-    return baseText
-  }
-
-  if (!baseText) {
-    return `历史工具结果:\n${toolSummaries}`
-  }
-  return `${baseText}\n\n历史工具结果:\n${toolSummaries}`
 }
 
 function truncateText(text: string, limit: number): string {
@@ -279,17 +165,4 @@ function truncateText(text: string, limit: number): string {
     return text
   }
   return `${text.slice(0, limit)}...(truncated)`
-}
-
-function extractPatchPrimaryPath(patch: string): string | null {
-  const lines = patch.split('\n')
-  for (const line of lines) {
-    if (line.startsWith('*** Update File: ')) {
-      return line.replace('*** Update File: ', '').trim()
-    }
-    if (line.startsWith('*** Add File: ')) {
-      return line.replace('*** Add File: ', '').trim()
-    }
-  }
-  return null
 }

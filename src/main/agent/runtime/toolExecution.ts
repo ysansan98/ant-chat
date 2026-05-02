@@ -1,20 +1,14 @@
 import type { AgentPendingAction, McpToolCall } from '@ant-chat/shared'
 import type { ToolRegistry } from '../tools/toolRegistry'
-import type { LoopMessage, RuntimeState } from './loopContext'
 import type { RuntimeTask } from './taskStore'
 import { randomUUID } from 'node:crypto'
 import { decidePolicy } from '../policy/policyEngine'
 import { appendAgentLog } from './agentLogger'
 import { updateTaskAssistantMessage } from './agentMessageWriter'
 import { waitForApproval } from './approvalController'
-import {
-  trimLoopMessages,
-  updateRuntimeStateOnToolFailure,
-  updateRuntimeStateOnToolSuccess,
-} from './loopContext'
 import { reportApprovalRequired, reportTaskState } from './progressReporter'
 
-const DEFAULT_TOOL_OBSERVATION_LIMIT = 1000
+const DEFAULT_TOOL_OBSERVATION_LIMIT = 4000
 const DEFAULT_TOOL_LOG_PREVIEW_LIMIT = 4000
 
 export interface RequestedToolCall {
@@ -37,15 +31,15 @@ export interface ExecuteToolStepOptions {
   currentAssistantMessageId: string
   currentModelText: string
   currentToolMessages: McpToolCall[]
-  runtimeState: RuntimeState
-  observations: string[]
-  loopMessages: LoopMessage[]
   step: number
   onToolCallContext?: (context: ToolCallContext) => void
 }
 
 export interface ExecuteToolStepResult {
   lastToolCallContext: ToolCallContext
+  toolCallId: string
+  toolResultContent: string
+  isError: boolean
 }
 
 export async function executeToolStep(options: ExecuteToolStepOptions): Promise<ExecuteToolStepResult> {
@@ -56,9 +50,6 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
     currentAssistantMessageId,
     currentModelText,
     currentToolMessages,
-    runtimeState,
-    observations,
-    loopMessages,
     step,
     onToolCallContext,
   } = options
@@ -81,6 +72,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   currentToolMessages.push(currentToolCall)
   await updateAssistantMessage(currentAssistantMessageId, currentModelText, currentToolMessages)
 
+  let lastObservation = ''
   const policyDecision = decidePolicy(task.snapshot.mode, prepared.operationType, prepared.scope)
   const lastToolCallContext = {
     toolName: requestedToolCall.toolName,
@@ -113,15 +105,18 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
       error: prepared.validationError,
       workspacePath: task.snapshot.workspacePath,
     })
-    observations.push(formatToolFailureObservation(
+    lastObservation = formatToolFailureObservation(
       prepared.toolName,
       prepared.validationError,
       requestedToolCall.input,
-    ))
-    updateRuntimeStateOnToolFailure(runtimeState, prepared.toolName)
-    pushObservation(loopMessages, observations)
+    )
     await updateAssistantMessage(currentAssistantMessageId, currentModelText, currentToolMessages, 'success')
-    return { lastToolCallContext }
+    return {
+      lastToolCallContext,
+      toolCallId: currentToolCall.id,
+      toolResultContent: lastObservation,
+      isError: true,
+    }
   }
 
   if (policyDecision.type === 'block') {
@@ -142,14 +137,18 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
       errorCode: policyDecision.errorCode,
       workspacePath: task.snapshot.workspacePath,
     })
-    observations.push(formatToolFailureObservation(
+    lastObservation = formatToolFailureObservation(
       prepared.toolName,
       policyDecision.errorCode,
       requestedToolCall.input,
-    ))
-    pushObservation(loopMessages, observations)
+    )
     await updateAssistantMessage(currentAssistantMessageId, currentModelText, currentToolMessages, 'success')
-    return { lastToolCallContext }
+    return {
+      lastToolCallContext,
+      toolCallId: currentToolCall.id,
+      toolResultContent: lastObservation,
+      isError: true,
+    }
   }
 
   if (policyDecision.type === 'require_approval') {
@@ -181,10 +180,15 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
         success: false,
         error: decisionResult.reason || 'AGENT_APPROVAL_REJECTED',
       }
-      observations.push(`工具 ${prepared.toolName} 被拒绝: ${decisionResult.reason || '无原因'}`)
+      lastObservation = `工具 ${prepared.toolName} 被拒绝: ${decisionResult.reason || '无原因'}`
       await updateAssistantMessage(currentAssistantMessageId, currentModelText, currentToolMessages)
       await updateAssistantMessage(currentAssistantMessageId, currentModelText, currentToolMessages, 'success')
-      return { lastToolCallContext }
+      return {
+        lastToolCallContext,
+        toolCallId: currentToolCall.id,
+        toolResultContent: lastObservation,
+        isError: true,
+      }
     }
   }
 
@@ -202,22 +206,22 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
       error: result.error || 'AGENT_TOOL_EXEC_FAILED',
       workspacePath: task.snapshot.workspacePath,
     })
-    observations.push(formatToolFailureObservation(
+    lastObservation = formatToolFailureObservation(
       prepared.toolName,
       result.error || 'AGENT_TOOL_EXEC_FAILED',
       requestedToolCall.input,
-    ))
-    updateRuntimeStateOnToolFailure(runtimeState, prepared.toolName)
-    pushObservation(loopMessages, observations)
+    )
     await updateAssistantMessage(currentAssistantMessageId, currentModelText, currentToolMessages, 'success')
-    return { lastToolCallContext }
+    return {
+      lastToolCallContext,
+      toolCallId: currentToolCall.id,
+      toolResultContent: lastObservation,
+      isError: true,
+    }
   }
 
-  updateRuntimeStateOnToolSuccess(runtimeState, prepared.toolName, requestedToolCall.input, result)
-
   const toolOutputText = getToolOutputText(result)
-  observations.push(buildToolObservation(prepared.toolName, result, toolOutputText))
-  pushObservation(loopMessages, observations)
+  lastObservation = buildToolObservation(prepared.toolName, result, toolOutputText)
   currentToolCall.executeState = 'completed'
   currentToolCall.result = {
     success: true,
@@ -233,12 +237,12 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
     durationMs: result.durationMs,
   })
 
-  return { lastToolCallContext }
-}
-
-function pushObservation(loopMessages: LoopMessage[], observations: string[]) {
-  loopMessages.push({ role: 'user', content: [{ type: 'text', text: observations.at(-1) || '' }] })
-  trimLoopMessages(loopMessages)
+  return {
+    lastToolCallContext,
+    toolCallId: currentToolCall.id,
+    toolResultContent: lastObservation,
+    isError: false,
+  }
 }
 
 function updateAssistantMessage(

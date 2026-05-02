@@ -59,7 +59,7 @@ export class NativeToolService {
     const content = await fs.promises.readFile(filePath, 'utf8')
     const lines = content.split('\n')
     const startLine = Math.max(input.offset ?? 1, 1)
-    const maxLines = Math.min(Math.max(input.limit ?? 200, 1), 2000)
+    const maxLines = Math.min(Math.max(input.limit ?? 2000, 1), 2000)
     const totalLines = lines.length
 
     if (startLine > totalLines) {

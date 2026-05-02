@@ -187,6 +187,14 @@ export class MultiProvider {
               text: content.text,
             })
           }
+          else if (content.type === 'tool-call') {
+            parts.push({
+              type: 'tool-call' as const,
+              toolCallId: content.toolCallId,
+              toolName: content.toolName,
+              input: content.args,
+            })
+          }
           else if (content.type === 'image') {
             parts.push({
               type: 'file' as const,
@@ -200,6 +208,32 @@ export class MultiProvider {
           role: 'assistant' as const,
           content: parts,
         })
+      }
+      else if (message.role === 'tool') {
+        // 处理工具结果消息
+        const parts: any[] = []
+
+        for (const content of message.content) {
+          if (content.type === 'tool-result') {
+            const outputType = content.isError ? 'error-text' : 'text'
+            parts.push({
+              type: 'tool-result' as const,
+              toolCallId: content.toolCallId,
+              toolName: content.toolName,
+              output: {
+                type: outputType,
+                value: String(content.result ?? ''),
+              },
+            })
+          }
+        }
+
+        if (parts.length > 0) {
+          aiSdkMessages.push({
+            role: 'tool' as const,
+            content: parts,
+          })
+        }
       }
     }
 
@@ -243,6 +277,16 @@ export class MultiProvider {
 
     // 使用 AI SDK 的流式处理
     let finalUsage: LanguageModelUsage | undefined
+
+    this.logger.info('LLM request body', JSON.stringify({
+      model,
+      temperature,
+      maxOutputTokens: maxTokens,
+      messagesCount: aiSdkMessages.length,
+      toolsCount: tools?.length ?? 0,
+      messages: aiSdkMessages,
+      tools: tools?.map(t => ({ name: t.name, description: t.description })),
+    }, null, 2))
 
     const result = streamText({
       model: this.createModelClient(model),
