@@ -11,7 +11,6 @@ const DEFAULT_TIMEOUT_MS = 10_000
 const MAX_TIMEOUT_MS = 30_000
 const MAX_OUTPUT_CHARS = 20_000
 const READ_ONLY_COMMANDS = new Set(['pwd', 'ls', 'cat', 'rg', 'find'])
-const BLOCKED_COMMANDS = new Set(['rm', 'mv', 'cp', 'chmod', 'chown', 'sudo', 'curl', 'wget', 'pnpm', 'npm', 'yarn', 'bun', 'pip', 'brew'])
 const BLOCKED_TOKENS = ['>', '<', '|', ';', '||', '`', '$(', '\n']
 
 export async function runBashTool(input: BashToolInput, workspacePath: string, unrestricted: boolean = false): Promise<AgentToolResult> {
@@ -140,10 +139,6 @@ function parseSingleCommand(command: string): { command: string, args: string[] 
 }
 
 function isCommandAllowed(command: string, args: string[]): boolean {
-  if (BLOCKED_COMMANDS.has(command)) {
-    return false
-  }
-
   if (command === 'mkdir') {
     return isAllowedMkdir(args)
   }
@@ -237,10 +232,6 @@ export function preValidateBashScope(input: BashToolInput, workspacePath: string
 
   let needsApproval = false
   for (const cmd of commands) {
-    if (BLOCKED_COMMANDS.has(cmd.command)) {
-      needsApproval = true
-      continue
-    }
     if (cmd.command === 'mkdir') {
       if (cmd.args.length < 2 || cmd.args[0] !== '-p') {
         needsApproval = true
