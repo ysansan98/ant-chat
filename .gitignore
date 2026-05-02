@@ -47,8 +47,11 @@ release
 .tmp/**
 
 # Agents and skills
+.claude
 .agents
 skills-lock.json
+AGENTS.md
+CLAUDE.md
 
 # bundled ripgrep binaries (build-time downloaded)
 resources/rg/darwin-arm64/rg
