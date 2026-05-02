@@ -1,3 +1,4 @@
+import type { ToolOperationType, ToolScope } from './agent-tools'
 import type { ChatFeatures, IAttachment, IConversations } from './db-types'
 import type { ChatSettings } from './model-service'
 
@@ -24,7 +25,8 @@ export type AgentErrorCode
 export interface AgentPendingAction {
   actionId: string
   toolName: string
-  riskLevel: 'L0' | 'L1' | 'L2'
+  operationType: ToolOperationType
+  scope: ToolScope
   inputPreview: string
   createdAt: number
 }

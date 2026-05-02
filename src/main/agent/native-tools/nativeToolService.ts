@@ -1,13 +1,14 @@
 import type {
   AgentTool,
   AgentToolResult,
-  AgentToolRisk,
   ApplyPatchToolInput,
   BashToolInput,
   GlobFilesToolInput,
   GrepFilesToolInput,
   ListDirToolInput,
   ReadFileToolInput,
+  ToolOperationType,
+  ToolScope,
   WriteFileToolInput,
 } from '@ant-chat/shared'
 import type { Buffer } from 'node:buffer'
@@ -16,7 +17,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { AGENT_POLICY_BLOCKED, AGENT_TOOL_EXEC_FAILED, WORKSPACE_INVALID_PATH } from '@ant-chat/shared'
 import { WorkspaceStore } from '@main/store/workspace'
-import { runBashTool } from './bashRunner'
+import { preValidateBashScope, runBashTool } from './bashRunner'
 import { createPathPolicyByMode } from './pathPolicy'
 
 const DEFAULT_SEARCH_LIMIT = 100
@@ -39,13 +40,13 @@ export class NativeToolService {
 
   getTools(): AgentTool[] {
     return [
-      this.createTool('read_file', () => 'L0', input => this.readFile(input as unknown as ReadFileToolInput)),
-      this.createTool('list_dir', () => 'L0', input => this.listDir(input as unknown as ListDirToolInput)),
-      this.createTool('glob_files', () => 'L0', input => this.globFiles(input as unknown as GlobFilesToolInput), validateGlobInput),
-      this.createTool('grep_files', () => 'L0', input => this.grepFiles(input as unknown as GrepFilesToolInput)),
-      this.createTool('write_file', input => this.inferWriteFileRisk(input as unknown as WriteFileToolInput), input => this.writeFile(input as unknown as WriteFileToolInput)),
-      this.createTool('apply_patch', input => this.inferApplyPatchRisk(input as unknown as ApplyPatchToolInput), input => this.applyPatch(input as unknown as ApplyPatchToolInput)),
-      this.createTool('bash', input => this.inferBashRisk(input as unknown as BashToolInput), input => runBashTool(input as unknown as BashToolInput, this.workspacePath, this.unrestricted)),
+      this.createTool('read_file', input => this.pathPolicy.classifyAccess(String((input as unknown as ReadFileToolInput).path || '.')), input => this.readFile(input as unknown as ReadFileToolInput)),
+      this.createTool('list_dir', input => this.pathPolicy.classifyAccess(String((input as unknown as ListDirToolInput).path || '.')), input => this.listDir(input as unknown as ListDirToolInput)),
+      this.createTool('glob_files', input => this.pathPolicy.classifyAccess(String((input as unknown as GlobFilesToolInput).path || '.')), input => this.globFiles(input as unknown as GlobFilesToolInput), validateGlobInput),
+      this.createTool('grep_files', input => this.pathPolicy.classifyAccess(String((input as unknown as GrepFilesToolInput).path || '.')), input => this.grepFiles(input as unknown as GrepFilesToolInput)),
+      this.createTool('write_file', input => this.pathPolicy.classifyAccess((input as unknown as WriteFileToolInput).path), input => this.writeFile(input as unknown as WriteFileToolInput)),
+      this.createTool('apply_patch', input => this.inferPatchScope(input as unknown as ApplyPatchToolInput), input => this.applyPatch(input as unknown as ApplyPatchToolInput)),
+      this.createTool('bash', input => preValidateBashScope(input as unknown as BashToolInput, this.workspacePath), input => runBashTool(input as unknown as BashToolInput, this.workspacePath, this.unrestricted)),
     ]
   }
 
@@ -210,11 +211,12 @@ export class NativeToolService {
     return { ok: true, output: { changedFiles: writes.size } }
   }
 
-  private createTool(name: string, inferRisk: AgentTool['inferRisk'], execute: AgentTool['execute'], validateInput?: AgentTool['validateInput']): AgentTool {
+  private createTool(name: string, inferScope: AgentTool['inferScope'], execute: AgentTool['execute'], validateInput?: AgentTool['validateInput']): AgentTool {
     return {
       name,
       source: 'native',
-      inferRisk,
+      operationType: getToolOperationType(name),
+      inferScope,
       validateInput,
       execute: async (input) => {
         try {
@@ -235,37 +237,32 @@ export class NativeToolService {
     }
   }
 
-  private inferWriteFileRisk(input: WriteFileToolInput): AgentToolRisk {
-    const filePath = this.pathPolicy.resolveForWrite(input.path)
-    return fs.existsSync(filePath) ? 'L2' : 'L1'
-  }
-
-  private inferApplyPatchRisk(input: ApplyPatchToolInput): AgentToolRisk {
-    let operations: PatchOperation[]
+  private inferPatchScope(input: ApplyPatchToolInput): ToolScope {
     try {
-      operations = parsePatch(input.patch)
+      const operations = parsePatch(input.patch)
+      for (const op of operations) {
+        if (this.pathPolicy.classifyAccess(op.filePath) === 'outside') {
+          return 'outside'
+        }
+      }
+      return 'workspace'
     }
     catch {
-      return 'L2'
+      return 'blocked'
     }
-    if (operations.some(operation => operation.type === 'delete')) {
-      return 'L2'
-    }
-    if (operations.length >= 5) {
-      return 'L2'
-    }
-    if (operations.some(operation => /(?:^|\/)(?:package-lock\.json|pnpm-lock\.yaml|yarn\.lock|package\.json|tsconfig.*\.json)$/.test(operation.filePath))) {
-      return 'L2'
-    }
-    return 'L1'
   }
+}
 
-  private inferBashRisk(input: BashToolInput): AgentToolRisk {
-    const [command, ...args] = input.command.trim().split(/\s+/)
-    if (['pwd', 'ls', 'cat', 'rg', 'find'].includes(command) || (command === 'mkdir' && args[0] === '-p' && args.length >= 2)) {
-      return 'L1'
-    }
-    return 'L2'
+function getToolOperationType(name: string): ToolOperationType {
+  switch (name) {
+    case 'read_file': case 'list_dir': case 'glob_files': case 'grep_files':
+      return 'read'
+    case 'write_file': case 'apply_patch':
+      return 'write'
+    case 'bash':
+      return 'bash'
+    default:
+      return 'read'
   }
 }
 

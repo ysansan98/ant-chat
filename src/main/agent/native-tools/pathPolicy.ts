@@ -50,6 +50,30 @@ export class PathPolicy {
       : this.resolveForWrite(normalized)
   }
 
+  classifyAccess(inputPath: string = '.'): 'workspace' | 'outside' {
+    if (!this.enforceWorkspaceBoundary) {
+      return 'workspace'
+    }
+    try {
+      const targetPath = inputPath || '.'
+      const resolved = path.isAbsolute(targetPath)
+        ? path.resolve(targetPath)
+        : path.resolve(this.workspacePath, targetPath)
+      let realPath: string
+      try {
+        realPath = fs.realpathSync.native(resolved)
+      }
+      catch {
+        realPath = resolved
+      }
+      this.assertInsideWorkspace(realPath)
+      return 'workspace'
+    }
+    catch {
+      return 'outside'
+    }
+  }
+
   isInsideWorkspace(candidatePath: string): boolean {
     if (!this.enforceWorkspaceBoundary) {
       return true

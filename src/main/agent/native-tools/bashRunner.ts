@@ -1,4 +1,4 @@
-import type { AgentToolResult, BashToolInput } from '@ant-chat/shared'
+import type { AgentToolResult, BashToolInput, ToolScope } from '@ant-chat/shared'
 import type { Buffer } from 'node:buffer'
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
@@ -23,7 +23,10 @@ export async function runBashTool(input: BashToolInput, workspacePath: string, u
   catch {
     return { ok: false, error: AGENT_BASH_COMMAND_BLOCKED, durationMs: Date.now() - startedAt }
   }
-  if (commands.length === 0 || !commands.every(item => isCommandAllowed(item.command, item.args))) {
+  if (commands.length === 0) {
+    return { ok: false, error: AGENT_BASH_COMMAND_BLOCKED, durationMs: Date.now() - startedAt }
+  }
+  if (!unrestricted && !commands.every(item => isCommandAllowed(item.command, item.args))) {
     return { ok: false, error: AGENT_BASH_COMMAND_BLOCKED, durationMs: Date.now() - startedAt }
   }
 
@@ -128,10 +131,6 @@ function parseCommands(command: string): Array<{ command: string, args: string[]
 }
 
 function parseSingleCommand(command: string): { command: string, args: string[] } {
-  if (BLOCKED_TOKENS.some(token => command.includes(token))) {
-    throw new Error(AGENT_BASH_COMMAND_BLOCKED)
-  }
-
   const tokens = command.match(/"[^"]*"|'[^']*'|\S+/g)?.map(token => token.replace(/^['"]|['"]$/g, '')) ?? []
   if (tokens.length === 0) {
     throw new Error(AGENT_BASH_COMMAND_BLOCKED)
@@ -212,4 +211,73 @@ function sanitizeEnv(env: Record<string, string> | undefined): NodeJS.ProcessEnv
   }
 
   return nextEnv
+}
+
+export function preValidateBashScope(input: BashToolInput, workspacePath: string): ToolScope {
+  if (BLOCKED_TOKENS.some(token => (input.command || '').includes(token))) {
+    try {
+      parseCommands(input.command)
+    }
+    catch {
+      return 'blocked'
+    }
+    return 'outside'
+  }
+
+  let commands: Array<{ command: string, args: string[] }>
+  try {
+    commands = parseCommands(input.command)
+  }
+  catch {
+    return 'blocked'
+  }
+  if (commands.length === 0) {
+    return 'blocked'
+  }
+
+  let needsApproval = false
+  for (const cmd of commands) {
+    if (BLOCKED_COMMANDS.has(cmd.command)) {
+      needsApproval = true
+      continue
+    }
+    if (cmd.command === 'mkdir') {
+      if (cmd.args.length < 2 || cmd.args[0] !== '-p') {
+        needsApproval = true
+      }
+      else if (cmd.args.slice(1).some(a => hasObviousPathEscape(a))) {
+        needsApproval = true
+      }
+      continue
+    }
+    if (!READ_ONLY_COMMANDS.has(cmd.command)) {
+      needsApproval = true
+      continue
+    }
+    if (cmd.args.some(a => hasObviousPathEscape(a))) {
+      needsApproval = true
+    }
+  }
+
+  const policy = createPathPolicyByMode(workspacePath, 'workspace')
+  let cwd: string
+  try {
+    cwd = policy.resolveExisting(input.cwd || '.')
+  }
+  catch {
+    return 'outside'
+  }
+
+  for (const cmd of commands) {
+    if (cmd.command === 'mkdir') {
+      for (const target of cmd.args.slice(1)) {
+        const targetPath = path.resolve(cwd, target)
+        if (!policy.isInsideWorkspace(targetPath)) {
+          return 'outside'
+        }
+      }
+    }
+  }
+
+  return needsApproval ? 'outside' : 'workspace'
 }

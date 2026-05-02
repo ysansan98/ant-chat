@@ -37,7 +37,8 @@ export class SkillToolService {
         },
         required: ['name'],
       },
-      inferRisk: () => 'L0',
+      operationType: 'skill',
+      inferScope: () => 'workspace',
       execute: async (input) => {
         const name = String(input.name || '')
         return this.loadSkill(name)
@@ -58,7 +59,8 @@ export class SkillToolService {
         },
         required: ['url'],
       },
-      inferRisk: () => 'L2',
+      operationType: 'skill',
+      inferScope: () => 'outside',
       execute: async (input) => {
         const url = String(input.url || '')
         const name = typeof input.name === 'string' ? input.name : undefined
@@ -89,7 +91,8 @@ export class SkillToolService {
         },
         required: [],
       },
-      inferRisk: () => 'L0',
+      operationType: 'skill',
+      inferScope: () => 'workspace',
       execute: async () => this.loadSkill(skill.name),
     }
   }

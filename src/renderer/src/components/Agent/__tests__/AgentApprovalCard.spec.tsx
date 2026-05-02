@@ -11,7 +11,8 @@ describe('agentApprovalCard', () => {
         pending={{
           actionId: 'a1',
           toolName: 'write_file',
-          riskLevel: 'L1',
+          operationType: 'write',
+          scope: 'workspace',
           inputPreview: '{"path":"TODO.md"}',
           createdAt: Date.now(),
         }}

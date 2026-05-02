@@ -1,4 +1,4 @@
-import type { AgentMode, AgentTool, AgentToolResult, AgentToolRisk } from '@ant-chat/shared'
+import type { AgentMode, AgentTool, AgentToolResult, ToolOperationType, ToolScope } from '@ant-chat/shared'
 import { getNativeToolService } from '../native-tools/nativeToolService'
 import { getSkillToolService } from '../skills/skillToolService'
 
@@ -6,7 +6,8 @@ export interface PreparedToolCall {
   toolName: string
   source: AgentTool['source']
   input: Record<string, unknown>
-  riskLevel: AgentToolRisk
+  operationType: ToolOperationType
+  scope: ToolScope
   validationError?: string
   execute: () => Promise<AgentToolResult>
 }
@@ -24,15 +25,21 @@ export interface RuntimeToolDefinition {
 
 export class ToolRegistry {
   private readonly tools: Map<string, AgentTool>
+  private readonly relaxedTools: Map<string, AgentTool>
 
-  private constructor(tools: AgentTool[]) {
+  private constructor(tools: AgentTool[], relaxedTools?: AgentTool[]) {
     this.tools = new Map(tools.map(tool => [tool.name, tool]))
+    this.relaxedTools = relaxedTools
+      ? new Map(relaxedTools.map(tool => [tool.name, tool]))
+      : new Map()
   }
 
   static async create(workspacePath: string, mode: AgentMode): Promise<ToolRegistry> {
-    const nativeTools = getNativeToolService(workspacePath, mode === 'full_managed').getTools()
+    const unrestricted = mode === 'full_managed'
+    const nativeTools = getNativeToolService(workspacePath, unrestricted).getTools()
+    const relaxedNativeTools = unrestricted ? nativeTools : getNativeToolService(workspacePath, true).getTools()
     const skillTools = (await getSkillToolService()).getTools()
-    return new ToolRegistry([...nativeTools, ...skillTools])
+    return new ToolRegistry([...nativeTools, ...skillTools], relaxedNativeTools)
   }
 
   prepare(toolName: string, input: Record<string, unknown>): PreparedToolCall {
@@ -42,20 +49,26 @@ export class ToolRegistry {
         toolName,
         source: 'native',
         input,
-        riskLevel: 'L2',
+        operationType: 'read',
+        scope: 'blocked',
         execute: async () => ({ ok: false, error: 'AGENT_TOOL_EXEC_FAILED' }),
       }
     }
 
     const validationError = tool.validateInput?.(input) ?? undefined
+    const scope = safeInferScope(tool, input)
+    const operationType = tool.operationType
+
+    const resolvedTool = scope === 'outside' ? (this.relaxedTools.get(toolName) ?? tool) : tool
 
     return {
       toolName,
       source: tool.source,
       input,
-      riskLevel: safeInferRisk(tool, input),
+      operationType,
+      scope,
       validationError,
-      execute: () => tool.execute(input),
+      execute: () => resolvedTool.execute(input),
     }
   }
 
@@ -74,12 +87,12 @@ export class ToolRegistry {
   }
 }
 
-function safeInferRisk(tool: AgentTool, input: Record<string, unknown>): AgentToolRisk {
+function safeInferScope(tool: AgentTool, input: Record<string, unknown>): ToolScope {
   try {
-    return tool.inferRisk(input)
+    return tool.inferScope(input)
   }
   catch {
-    return 'L2'
+    return 'blocked'
   }
 }
 

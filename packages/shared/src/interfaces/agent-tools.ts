@@ -1,4 +1,5 @@
-export type AgentToolRisk = 'L0' | 'L1' | 'L2'
+export type ToolOperationType = 'read' | 'write' | 'bash' | 'skill'
+export type ToolScope = 'workspace' | 'outside' | 'blocked'
 
 export interface AgentToolResult {
   ok: boolean
@@ -19,7 +20,8 @@ export interface AgentTool {
     properties: Record<string, Record<string, unknown>>
     required: string[]
   }
-  inferRisk: (input: Record<string, unknown>) => AgentToolRisk
+  operationType: ToolOperationType
+  inferScope: (input: Record<string, unknown>) => ToolScope
   validateInput?: (input: Record<string, unknown>) => string | null
   execute: (input: Record<string, unknown>) => Promise<AgentToolResult>
 }

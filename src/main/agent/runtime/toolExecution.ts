@@ -25,7 +25,8 @@ export interface RequestedToolCall {
 export interface ToolCallContext {
   toolName: string
   input: Record<string, unknown>
-  riskLevel: string
+  operationType: string
+  scope: string
   policy: string
 }
 
@@ -80,11 +81,12 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   currentToolMessages.push(currentToolCall)
   await updateAssistantMessage(currentAssistantMessageId, currentModelText, currentToolMessages)
 
-  const policyDecision = decidePolicy(task.snapshot.mode, prepared.riskLevel)
+  const policyDecision = decidePolicy(task.snapshot.mode, prepared.operationType, prepared.scope)
   const lastToolCallContext = {
     toolName: requestedToolCall.toolName,
     input: requestedToolCall.input,
-    riskLevel: prepared.riskLevel,
+    operationType: prepared.operationType,
+    scope: prepared.scope,
     policy: policyDecision.type,
   }
   onToolCallContext?.(lastToolCallContext)
@@ -92,7 +94,8 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   await appendAgentLog(task.snapshot.taskId, 'tool_decision', {
     toolName: requestedToolCall.toolName,
     input: requestedToolCall.input,
-    riskLevel: prepared.riskLevel,
+    operationType: prepared.operationType,
+    scope: prepared.scope,
     policy: policyDecision.type,
     workspacePath: task.snapshot.workspacePath,
   })
@@ -132,7 +135,8 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
       step,
       toolName: requestedToolCall.toolName,
       input: requestedToolCall.input,
-      riskLevel: prepared.riskLevel,
+      operationType: prepared.operationType,
+      scope: prepared.scope,
       policy: policyDecision.type,
       reason: policyDecision.reason,
       errorCode: policyDecision.errorCode,
@@ -152,7 +156,8 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
     const pendingAction: AgentPendingAction = {
       actionId: randomUUID(),
       toolName: prepared.toolName,
-      riskLevel: prepared.riskLevel,
+      operationType: prepared.operationType,
+      scope: prepared.scope,
       inputPreview: JSON.stringify(requestedToolCall.input).slice(0, 200),
       createdAt: Date.now(),
     }

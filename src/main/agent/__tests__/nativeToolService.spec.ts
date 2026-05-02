@@ -138,4 +138,83 @@ describe('native tool service', () => {
     expect(result.ok).toBe(false)
     expect(result.error).toContain(AGENT_POLICY_BLOCKED)
   })
+
+  describe('inferScope', () => {
+    it('read_file 工作区内 → workspace', () => {
+      const service = new NativeToolService(workspacePath)
+      const tool = service.getTools().find(t => t.name === 'read_file')!
+      expect(tool.inferScope({ path: 'src/a.txt' })).toBe('workspace')
+    })
+
+    it('read_file 工作区外 → outside', () => {
+      const service = new NativeToolService(workspacePath)
+      const tool = service.getTools().find(t => t.name === 'read_file')!
+      expect(tool.inferScope({ path: outsidePath })).toBe('outside')
+    })
+
+    it('glob_files 工作区内 → workspace', () => {
+      const service = new NativeToolService(workspacePath)
+      const tool = service.getTools().find(t => t.name === 'glob_files')!
+      expect(tool.inferScope({ pattern: '*.ts' })).toBe('workspace')
+    })
+
+    it('glob_files 工作区外路径 → outside', () => {
+      const service = new NativeToolService(workspacePath)
+      const tool = service.getTools().find(t => t.name === 'glob_files')!
+      expect(tool.inferScope({ pattern: '*.ts', path: outsidePath })).toBe('outside')
+    })
+
+    it('write_file 工作区内 → workspace', () => {
+      const service = new NativeToolService(workspacePath)
+      const tool = service.getTools().find(t => t.name === 'write_file')!
+      expect(tool.inferScope({ path: 'src/new.txt', content: 'x' })).toBe('workspace')
+    })
+
+    it('write_file 工作区外 → outside', () => {
+      const service = new NativeToolService(workspacePath)
+      const tool = service.getTools().find(t => t.name === 'write_file')!
+      expect(tool.inferScope({ path: path.join(outsidePath, 'x.txt'), content: 'x' })).toBe('outside')
+    })
+
+    it('bash find /Users → outside（路径逃逸，可审批）', () => {
+      const service = new NativeToolService(workspacePath)
+      const tool = service.getTools().find(t => t.name === 'bash')!
+      expect(tool.inferScope({ command: 'find /Users/ysansan -name "*.pdf"' })).toBe('outside')
+      expect(tool.inferScope({ command: 'find ~/Documents -name "*.pdf"' })).toBe('outside')
+    })
+
+    it('bash 安全命令工作区内 → workspace', () => {
+      const service = new NativeToolService(workspacePath)
+      const tool = service.getTools().find(t => t.name === 'bash')!
+      expect(tool.inferScope({ command: 'ls' })).toBe('workspace')
+      expect(tool.inferScope({ command: 'find . -name "*.ts"' })).toBe('workspace')
+    })
+
+    it('bash rm/sudo/curl → outside（需审批）', () => {
+      const service = new NativeToolService(workspacePath)
+      const tool = service.getTools().find(t => t.name === 'bash')!
+      expect(tool.inferScope({ command: 'rm -rf src' })).toBe('outside')
+      expect(tool.inferScope({ command: 'sudo ls' })).toBe('outside')
+      expect(tool.inferScope({ command: 'curl http://example.com' })).toBe('outside')
+    })
+
+    it('bash 管道重定向 → outside（需审批）', () => {
+      const service = new NativeToolService(workspacePath)
+      const tool = service.getTools().find(t => t.name === 'bash')!
+      expect(tool.inferScope({ command: 'ls | grep foo' })).toBe('outside')
+      expect(tool.inferScope({ command: 'find . > /tmp/out' })).toBe('outside')
+    })
+
+    it('bash 非只读命令 → outside（需审批）', () => {
+      const service = new NativeToolService(workspacePath)
+      const tool = service.getTools().find(t => t.name === 'bash')!
+      expect(tool.inferScope({ command: 'git status' })).toBe('outside')
+    })
+
+    it('bash 空命令 → blocked', () => {
+      const service = new NativeToolService(workspacePath)
+      const tool = service.getTools().find(t => t.name === 'bash')!
+      expect(tool.inferScope({ command: '' })).toBe('blocked')
+    })
+  })
 })
