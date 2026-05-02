@@ -278,16 +278,6 @@ export class MultiProvider {
     // 使用 AI SDK 的流式处理
     let finalUsage: LanguageModelUsage | undefined
 
-    this.logger.info('LLM request body', JSON.stringify({
-      model,
-      temperature,
-      maxOutputTokens: maxTokens,
-      messagesCount: aiSdkMessages.length,
-      toolsCount: tools?.length ?? 0,
-      messages: aiSdkMessages,
-      tools: tools?.map(t => ({ name: t.name, description: t.description })),
-    }, null, 2))
-
     const result = streamText({
       model: this.createModelClient(model),
       messages: aiSdkMessages,

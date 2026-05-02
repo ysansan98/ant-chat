@@ -87,20 +87,20 @@ export async function runAgentLoop(taskId: string, options: AgentRuntimeStartOpt
       const assistantMessageId = currentAssistantMessage.id
       currentToolMessages = []
 
-      await appendAgentLog(task.snapshot.taskId, 'model_request_started', {
-        step,
-        workspacePath: task.snapshot.workspacePath,
-        requestBody: {
-          messages: loopMessages,
-          chatSettings: {
-            model: model.model,
-            temperature: options.chatSettings?.temperature,
-            maxTokens: options.chatSettings?.maxTokens,
-            systemPrompt: loopSystemPrompt,
-          },
-          tools: tools.map(item => ({ name: item.name, description: item.description, inputSchema: item.inputSchema })),
-        },
-      })
+      // await appendAgentLog(task.snapshot.taskId, 'model_request_started', {
+      //   step,
+      //   workspacePath: task.snapshot.workspacePath,
+      //   requestBody: {
+      //     messages: loopMessages,
+      //     chatSettings: {
+      //       model: model.model,
+      //       temperature: options.chatSettings?.temperature,
+      //       maxTokens: options.chatSettings?.maxTokens,
+      //       systemPrompt: loopSystemPrompt,
+      //     },
+      //     tools: tools.map(item => ({ name: item.name, description: item.description, inputSchema: item.inputSchema })),
+      //   },
+      // })
 
       const stream = aiProvider.streamModel({
         messages: loopMessages as any,
