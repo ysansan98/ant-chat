@@ -12,10 +12,10 @@ import {
 } from '@workspace/ui/components/collapsible'
 import { cn } from '@workspace/ui/lib/utils'
 import { pick } from 'lodash-es'
-import { ChevronRightIcon } from 'lucide-react'
+import { ChevronRightIcon, ShrinkIcon } from 'lucide-react'
 import { useState } from 'react'
 import { Role } from '@/constants'
-import { transformMessageContent } from '@/utils/messageTransform'
+import { detectCompactionMarker, transformMessageContent } from '@/utils/messageTransform'
 import BubbleFooter from './BubbleFooter'
 import { McpToolCallPanel } from './McpToolCallPanel'
 import MessageContent from './MessageContent'
@@ -29,8 +29,43 @@ interface MessageBubbleProps {
 export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }: MessageBubbleProps) {
   const [isProcessOpen, setIsProcessOpen] = useState(false)
   const message = messages[0]
+  const compactionMarker = detectCompactionMarker(message)
   const isUser = message.role === Role.USER
   const isAI = message.role === Role.AI
+
+  // 压缩标记：渲染为可折叠分隔线
+  if (compactionMarker) {
+    return (
+      <div className="mx-auto flex w-full max-w-(--chat-width) items-center gap-3 py-3">
+        <div className="h-px flex-1 bg-border" />
+        <Collapsible>
+          <CollapsibleTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="
+                h-7 gap-1.5 text-xs text-muted-foreground
+                hover:text-foreground
+              "
+            >
+              <ShrinkIcon className="size-3" />
+              上下文压缩
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="
+            mt-2 max-h-40 overflow-y-auto rounded-lg bg-muted/50 p-3 text-xs whitespace-pre-wrap
+            text-muted-foreground
+          "
+          >
+            {compactionMarker.summary}
+          </CollapsibleContent>
+        </Collapsible>
+        <div className="h-px flex-1 bg-border" />
+      </div>
+    )
+  }
+
   const shouldCollapseProcess = isAI && collapseIntermediate && messages.length > 1
   const processMessages = shouldCollapseProcess ? messages.slice(0, -1) : []
   const visibleMessages = shouldCollapseProcess ? messages.slice(-1) : messages

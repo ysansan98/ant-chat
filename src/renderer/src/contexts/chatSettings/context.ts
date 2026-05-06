@@ -6,6 +6,12 @@ export const DEFAULT_SETTINGS: ConversationsSettingsSchema = {
   systemPrompt: '',
   temperature: 0.7,
   maxTokens: 1000,
+  compaction: {
+    enabled: true,
+    thresholdPercent: 70,
+    keepRecentPairs: 3,
+  },
+  lastCompactedAt: undefined,
 }
 
 export const ChatSettingsContext = createContext<{

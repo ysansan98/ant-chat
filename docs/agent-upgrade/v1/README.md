@@ -16,5 +16,6 @@
 - [P6：组件栈迁移与收敛](./phases/p6-ui-stack-hardening/README.md)
 
 每个阶段目录内：
+
 - `README.md`：目标、范围、交付物、实现要点、验收标准。
 - `TESTPLAN.md`：该阶段验收标准对应的测试用例。

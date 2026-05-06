@@ -1,15 +1,22 @@
-import type { ServiceProviderModelsSchema } from '@ant-chat/shared'
-import { Input } from '@workspace/ui/components/input'
+import type { CompactionSettingsSchema, ServiceProviderModelsSchema } from '@ant-chat/shared'
+import { Label } from '@workspace/ui/components/label'
+import { Separator } from '@workspace/ui/components/separator'
+import { Slider } from '@workspace/ui/components/slider'
+import { Switch } from '@workspace/ui/components/switch'
 import { Textarea } from '@workspace/ui/components/textarea'
 import { useEffect, useState } from 'react'
 import { providerApi } from '@/api/providerApi'
-import PromptIcon from '@/assets/icons/prompt.svg?react'
-import ReturnIcon from '@/assets/icons/return.svg?react'
-import TemperatureIcon from '@/assets/icons/temperature.svg?react'
 import { useChatSettingsContext } from '@/contexts/chatSettings'
+
+const DEFAULT_COMPACTION: CompactionSettingsSchema = {
+  enabled: true,
+  thresholdPercent: 80,
+  keepRecentPairs: 3,
+}
 
 export function ModelParameterSettingsPanel() {
   const { settings, updateSettings } = useChatSettingsContext()
+  const compaction = settings.compaction || DEFAULT_COMPACTION
 
   const [modelInfo, setModelInfo] = useState<ServiceProviderModelsSchema | null>(null)
 
@@ -21,82 +28,109 @@ export function ModelParameterSettingsPanel() {
     fetchModelInfo()
   }, [settings.modelId])
 
+  function updateCompaction(partial: Partial<CompactionSettingsSchema>) {
+    updateSettings({ compaction: { ...compaction, ...partial } })
+  }
+
   return (
     <div className="w-80 p-2 px-4">
-      <div className="mb-2 text-sm text-gray-500">
-        模型设置
-      </div>
-      <div className="">
-        <FormItem label="系统提示词" icon={<PromptIcon />}>
+      <h4 className="mb-3 text-sm font-medium text-muted-foreground">模型设置</h4>
+
+      <div className="space-y-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="system-prompt">系统提示词</Label>
           <Textarea
+            id="system-prompt"
             value={settings.systemPrompt}
             onChange={e => updateSettings({ systemPrompt: e.target.value })}
           />
-        </FormItem>
-        <FormItem label="temperature" icon={<TemperatureIcon />}>
-          <CustomSlider
+        </div>
+
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="temperature">Temperature</Label>
+            <span className="text-xs text-muted-foreground tabular-nums">{settings.temperature}</span>
+          </div>
+          <Slider
+            id="temperature"
             min={0}
             max={2}
             step={0.1}
-            value={settings.temperature}
-            onChange={value => updateSettings({ temperature: value })}
+            value={[settings.temperature]}
+            onValueChange={([v]) => updateSettings({ temperature: v })}
           />
-        </FormItem>
-        <FormItem label="maxTokens" icon={<ReturnIcon />}>
-          <CustomSlider
-            defaultValue={modelInfo?.maxTokens ?? 4096}
+        </div>
+
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="max-tokens">Max Tokens</Label>
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {`${Math.floor((settings.maxTokens ?? 0) / 1000)}k`}
+            </span>
+          </div>
+          <Slider
+            id="max-tokens"
             min={1000}
             max={modelInfo?.maxTokens ?? 8000}
-            formatter={value => `${Math.floor((value ?? 0) / 1000)}k`}
             step={1000}
-            value={settings.maxTokens}
-            onChange={value => updateSettings({ maxTokens: value })}
+            value={[settings.maxTokens]}
+            onValueChange={([v]) => updateSettings({ maxTokens: v })}
           />
-        </FormItem>
+        </div>
       </div>
-    </div>
-  )
-}
 
-export function FormItem({ icon, label, children }: { icon?: React.ReactNode, label: string, children?: React.ReactNode }) {
-  return (
-    <div className="py-2">
-      <div className="flex items-center gap-1 py-1 text-sm">
-        {icon}
-        {label}
-      </div>
-      <div className="">
-        {children}
-      </div>
-    </div>
-  )
-}
+      <Separator className="my-4" />
 
-interface CustomSliderProps {
-  defaultValue?: number
-  min: number
-  max: number
-  step: number
-  value: number
-  onChange: (value: number) => void
-  formatter?: (value: number) => string
-}
+      <h4 className="mb-3 text-sm font-medium text-muted-foreground">上下文压缩</h4>
 
-export function CustomSlider({ defaultValue, min, max, step, value, onChange, formatter }: CustomSliderProps) {
-  return (
-    <div className="relative">
-      <div className="absolute top-0 right-0 -translate-y-full text-xs">
-        {formatter ? formatter(value) : value}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <Label htmlFor="compaction-enabled">启用压缩</Label>
+          <Switch
+            id="compaction-enabled"
+            size="sm"
+            checked={compaction.enabled}
+            onCheckedChange={checked => updateCompaction({ enabled: checked })}
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="compaction-threshold">触发阈值</Label>
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {compaction.thresholdPercent}
+              %
+            </span>
+          </div>
+          <Slider
+            id="compaction-threshold"
+            min={10}
+            max={90}
+            step={10}
+            value={[compaction.thresholdPercent]}
+            onValueChange={([v]) => updateCompaction({ thresholdPercent: v })}
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="compaction-pairs">保留最近</Label>
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {compaction.keepRecentPairs}
+              {' '}
+              对
+            </span>
+          </div>
+          <Slider
+            id="compaction-pairs"
+            min={1}
+            max={10}
+            step={1}
+            value={[compaction.keepRecentPairs]}
+            onValueChange={([v]) => updateCompaction({ keepRecentPairs: v })}
+          />
+        </div>
       </div>
-      <Input
-        type="range"
-        defaultValue={defaultValue}
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={event => onChange(Number(event.target.value))}
-      />
     </div>
   )
 }

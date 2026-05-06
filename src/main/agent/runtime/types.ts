@@ -1,4 +1,4 @@
-import type { AgentMode, ChatSettings } from '@ant-chat/shared'
+import type { AgentMode, ChatSettings, CompactionSettingsSchema } from '@ant-chat/shared'
 
 export interface AgentRuntimeStartOptions {
   conversationId: string
@@ -7,6 +7,8 @@ export interface AgentRuntimeStartOptions {
   workspacePath?: string
   mode?: AgentMode
   chatSettings?: Omit<ChatSettings, 'model'> & { modelId: string }
+  /** 上下文压缩设置 */
+  compaction?: CompactionSettingsSchema
 }
 
 export interface AgentRuntimeStartResult {

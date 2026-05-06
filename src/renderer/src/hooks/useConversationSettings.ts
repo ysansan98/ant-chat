@@ -1,15 +1,22 @@
-import type { ConversationsSettingsSchema } from '@ant-chat/shared'
+import type { CompactionSettingsSchema, ConversationsSettingsSchema } from '@ant-chat/shared'
 import { has } from 'lodash-es'
 import { useEffect } from 'react'
 import { useImmer } from 'use-immer'
 import { getConversationByIdAction, updateConversationsSettingsAction } from '@/store/conversation'
 import { useMessagesStore } from '@/store/messages'
 
+const DEFAULT_COMPACTION: CompactionSettingsSchema = {
+  enabled: true,
+  thresholdPercent: 70,
+  keepRecentPairs: 3,
+}
+
 const DEFAULT_SETTINGS: ConversationsSettingsSchema = {
   modelId: '',
   systemPrompt: '',
   temperature: 0.7,
   maxTokens: 1000,
+  compaction: DEFAULT_COMPACTION,
 }
 
 export function useConversationSettings() {
@@ -33,6 +40,12 @@ export function useConversationSettings() {
     if (has(options, 'maxTokens')) {
       updatedSettings.maxTokens = options.maxTokens
     }
+    if (has(options, 'compaction')) {
+      updatedSettings.compaction = options.compaction
+    }
+    if (has(options, 'lastCompactedAt')) {
+      updatedSettings.lastCompactedAt = options.lastCompactedAt
+    }
 
     if (currentConversationsId) {
       await updateConversationsSettingsAction(currentConversationsId, updatedSettings)
@@ -41,7 +54,7 @@ export function useConversationSettings() {
     _updateSettings((draft) => {
       for (const key in updatedSettings) {
         if (Object.prototype.hasOwnProperty.call(updatedSettings, key)) {
-          draft[key] = updatedSettings[key]
+          ;(draft as any)[key] = (updatedSettings as any)[key]
         }
       }
     })
@@ -54,12 +67,16 @@ export function useConversationSettings() {
         draft.systemPrompt = conversations.settings.systemPrompt || ''
         draft.temperature = conversations.settings.temperature || 0.7
         draft.maxTokens = conversations.settings.maxTokens || 1000
+        draft.compaction = conversations.settings.compaction || DEFAULT_COMPACTION
+        draft.lastCompactedAt = conversations.settings.lastCompactedAt
       }
       else {
         draft.modelId = ''
         draft.systemPrompt = ''
         draft.temperature = 0.7
         draft.maxTokens = 1000
+        draft.compaction = DEFAULT_COMPACTION
+        draft.lastCompactedAt = undefined
       }
     })
   }, [currentConversationsId])

@@ -206,7 +206,7 @@ export function WorkspaceSelector({ compact = false }: WorkspaceSelectorProps) {
         ? (
             <div
               className={`
-                bg-background fixed top-4 right-4 z-100 rounded-md border px-3 py-2 text-sm
+                fixed top-4 right-4 z-100 rounded-md border bg-background px-3 py-2 text-sm
                 shadow-md
                 ${notice.type === 'error'
               ? 'text-red-500'

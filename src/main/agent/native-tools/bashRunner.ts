@@ -110,8 +110,10 @@ function runSingleCommand(
         return
       }
 
+      const ok = exitCode === 0
       resolve({
-        ok: exitCode === 0,
+        ok,
+        error: ok ? undefined : (stderr.trim() || `command exited with code ${exitCode}`),
         stdout,
         stderr,
         exitCode: exitCode ?? undefined,

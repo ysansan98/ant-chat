@@ -46,22 +46,21 @@ export default antfu(
       'better-tailwindcss/no-unknown-classes': ['error', {
         detectComponentClasses: true,
         ignore: [
-          'bg-sidebar',
-          'bg-background',
-          'app-region-no-drag',
-          'app-region-drag',
+          'antd-css-var',
           'ant-*',
-          'antd-*',
-          'icon-*',
           'mermaid-container',
-          'text-*',
+          'app-region-drag',
+          'app-region-no-drag',
         ],
       }],
       'ts/no-require-imports': ['off'],
       'node/prefer-global/process': ['off'],
     },
     settings: {
-      entryPoint: './src/renderer/src/index.css',
+      'better-tailwindcss': {
+        cwd: './packages/ui',
+        entryPoint: 'src/styles/globals.css',
+      },
     },
   },
   {

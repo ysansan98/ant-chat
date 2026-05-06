@@ -220,12 +220,9 @@ export async function initConversationsTitle(conversationsId: string) {
 }
 
 export async function updateConversationsSettingsAction(id: ConversationsId, config: Partial<ConversationsSettingsSchema>) {
-  const { systemPrompt } = config
   const conversations = await chatApi.getConversationById(id)
 
-  if (systemPrompt && conversations.settings?.systemPrompt !== systemPrompt) {
-    await chatApi.updateConversation({ id, settings: { ...conversations.settings, ...config } })
-  }
+  await chatApi.updateConversation({ id, settings: { ...conversations.settings, ...config } })
 
   useConversationsStore.setState(state => produce(state, (draft) => {
     const conversation = draft.conversations.find(c => c.id === id)

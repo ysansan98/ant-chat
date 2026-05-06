@@ -6,7 +6,7 @@ import { createAnthropic } from '@ai-sdk/anthropic'
 import { createDeepSeek } from '@ai-sdk/deepseek'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI } from '@ai-sdk/openai'
-import { dynamicTool, jsonSchema, streamText } from 'ai'
+import { dynamicTool, generateText, jsonSchema, streamText } from 'ai'
 
 /**
  * 多提供商 AI 提供商
@@ -365,6 +365,39 @@ export class MultiProvider {
       content: [],
       usage: normalizedUsage,
     }
+  }
+
+  /**
+   * 非流式补全，用于摘要生成等场景。
+   */
+  async complete(options: {
+    messages: Array<{ role: 'user' | 'assistant' | 'system', content: string }>
+    chatSettings: {
+      model: string
+      systemPrompt: string
+      maxTokens?: number
+    }
+    abortSignal?: AbortSignal
+  }): Promise<{ text: string }> {
+    const { messages, chatSettings, abortSignal } = options
+    const { model, systemPrompt, maxTokens } = chatSettings
+
+    const aiSdkMessages: any[] = []
+    if (systemPrompt) {
+      aiSdkMessages.push({ role: 'system', content: systemPrompt })
+    }
+    for (const msg of messages) {
+      aiSdkMessages.push({ role: msg.role, content: msg.content })
+    }
+
+    const result = await generateText({
+      model: this.createModelClient(model),
+      messages: aiSdkMessages,
+      maxOutputTokens: maxTokens,
+      abortSignal,
+    })
+
+    return { text: result.text }
   }
 
   /**

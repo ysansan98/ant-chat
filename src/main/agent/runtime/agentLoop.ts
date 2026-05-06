@@ -1,14 +1,21 @@
 import type { AgentTaskSnapshot, McpToolCall } from '@ant-chat/shared'
+import type { CompactionSettings } from './compaction'
 import type { LoopMessage } from './loopContext'
 import type { ToolCallContext } from './toolExecution'
 import type { AgentRuntimeStartOptions } from './types'
 import { createProvider } from '@main/ai-providers/factory'
-import { getMessagesByConvId, getModelById, getProviderServiceById } from '@main/db/services'
+import { addMessage, getConversationById, getMessagesByConvId, getModelById, getProviderServiceById, updateConversation } from '@main/db/services'
 import { logger } from '@main/utils/logger'
 import { ToolRegistry } from '../tools/toolRegistry'
 import { appendAgentLog } from './agentLogger'
 import { createTaskAssistantMessage, finalizeTaskAssistantMessage, updateTaskAssistantMessage } from './agentMessageWriter'
 import { removeCheckpoint, writeCheckpoint } from './checkpointStore'
+import {
+  compactMessages,
+  DEFAULT_COMPACTION_SETTINGS,
+  estimateContextTokens,
+  getContextWindow,
+} from './compaction'
 import {
   buildConversationContextMessages,
   createLoopSystemPrompt,
@@ -52,17 +59,33 @@ export async function runAgentLoop(taskId: string, options: AgentRuntimeStartOpt
   const registry = await ToolRegistry.create(task.snapshot.workspacePath, task.snapshot.mode)
   const tools = registry.listTools()
   const loopSystemPrompt = createLoopSystemPrompt(task.snapshot.workspacePath)
+
+  const compactionSettings: CompactionSettings = {
+    ...DEFAULT_COMPACTION_SETTINGS,
+    ...(options.compaction
+      ? {
+          enabled: options.compaction.enabled,
+          thresholdPercent: options.compaction.thresholdPercent,
+          keepRecentPairs: options.compaction.keepRecentPairs,
+        }
+      : {}),
+  }
+  let compactionCount = 0
+
   let step = 0
   let finalAnswer = ''
   let currentAssistantMessage: { id: string } | null = null
   let currentToolMessages: McpToolCall[] = []
   let currentModelText = ''
   let lastToolCallContext: ToolCallContext | null = null
-  const loopMessages: LoopMessage[] = []
+  let loopMessages: LoopMessage[] = []
 
   try {
+    const conversation = await getConversationById(options.conversationId)
+    const lastCompactedAt = conversation?.settings?.lastCompactedAt
+    const lastCompactionSummary = conversation?.settings?.lastCompactionSummary
     const historyMessages = await getMessagesByConvId(options.conversationId)
-    const contextMessages = buildConversationContextMessages(historyMessages, options.userMessageId)
+    const contextMessages = buildConversationContextMessages(historyMessages, options.userMessageId, lastCompactedAt, lastCompactionSummary)
     loopMessages.push(...contextMessages)
     loopMessages.push({
       role: 'user',
@@ -76,6 +99,70 @@ export async function runAgentLoop(taskId: string, options: AgentRuntimeStartOpt
 
       if (!aiProvider || !model) {
         throw new Error('AGENT_TOOL_EXEC_FAILED')
+      }
+
+      // 上下文压缩检查：每轮调用模型前检测是否需要压缩
+      if (compactionSettings.enabled && provider && step > 1) {
+        const estimatedTokens = estimateContextTokens(loopMessages)
+        const contextWindow = getContextWindow(provider.apiMode || 'openai')
+        const usagePercent = Math.round(estimatedTokens / contextWindow * 100)
+        task.snapshot.contextUsage = { estimatedTokens, contextWindow, usagePercent }
+
+        const compResult = await compactMessages({
+          messages: loopMessages,
+          settings: compactionSettings,
+          aiProvider,
+          model: model.model,
+          providerFormat: provider.apiMode || 'openai',
+          abortSignal: task.abortController.signal,
+        })
+        if (compResult.compacted) {
+          loopMessages = compResult.messages
+          compactionCount++
+
+          task.snapshot.lastCompactionAt = Date.now()
+
+          // 持久化摘要到 conversation settings + 存标记消息用于列表分隔线
+          try {
+            const compactedAt = Date.now()
+            const summary = compResult.summaryText || ''
+
+            // 消息列表中的压缩标记（UI 渲染为分隔线）
+            await addMessage({
+              convId: options.conversationId,
+              role: 'user',
+              status: 'success',
+              content: [{ type: 'text' as const, text: `__COMPACTION__\n${summary}` }],
+              images: [],
+              attachments: [],
+            })
+
+            const currentConversation = await getConversationById(options.conversationId)
+            if (currentConversation) {
+              await updateConversation({
+                id: options.conversationId,
+                settings: {
+                  ...currentConversation.settings,
+                  lastCompactedAt: compactedAt,
+                  lastCompactionSummary: summary,
+                },
+              })
+            }
+          }
+          catch (err) {
+            logger.error('[agent-loop] failed to persist compaction', err)
+          }
+
+          reportTaskState(task.snapshot)
+
+          await appendAgentLog(task.snapshot.taskId, 'context_compacted', {
+            step,
+            compactionCount,
+            summaryLength: compResult.summaryLength,
+            keptLength: compResult.keptLength,
+            totalMessages: loopMessages.length,
+          })
+        }
       }
 
       currentAssistantMessage = await createTaskAssistantMessage(

@@ -73,7 +73,7 @@ function BubbleList({ messages, conversationsId, isAgentRunning }: Props) {
         size="icon-sm"
         variant="outline"
         className={`
-          bg-background sticky bottom-8 left-1/2 z-10 -translate-x-1/2 rounded-full shadow-sm
+          sticky bottom-8 left-1/2 z-10 -translate-x-1/2 rounded-full bg-background shadow-sm
           transition-opacity duration-300
           ${autoScrollToBottom
       ? `opacity-0`

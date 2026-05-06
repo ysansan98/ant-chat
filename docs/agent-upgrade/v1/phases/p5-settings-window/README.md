@@ -25,6 +25,7 @@
 新增或调整 `src/main/domains/settings/ipc.ts`。
 
 建议方法：
+
 - `openSettingsWindow()`
 - `getSettings()`
 - `updateSettings(patch)`

@@ -54,6 +54,7 @@ export async function startAgentTurn(options: StartAgentTurnOptions): Promise<Ag
     mode: options.mode,
     workspacePath,
     chatSettings: options.chatSettings,
+    compaction: conversation.settings?.compaction,
   })
 
   return {

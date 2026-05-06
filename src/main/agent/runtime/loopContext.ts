@@ -35,11 +35,21 @@ export function createLoopSystemPrompt(workspacePath: string): string {
 export function buildConversationContextMessages(
   messages: IMessage[],
   currentUserMessageId: string,
+  lastCompactedAt?: number,
+  lastCompactionSummary?: string,
 ): LoopMessage[] {
   const valid = messages
     .filter(message => message.id !== currentUserMessageId)
     .filter((message): message is IMessage & { role: 'user' | 'assistant' } => message.role === 'user' || message.role === 'assistant')
     .filter((message) => {
+      // 跳过已被压缩摘要替代的历史消息（使用 < 保证摘要消息自身不被过滤）
+      if (lastCompactedAt && message.createdAt < lastCompactedAt) {
+        return false
+      }
+      // 跳过压缩标记消息（UI 分隔线用），摘要内容已通过 lastCompactionSummary 注入
+      if (isCompactionMarkerMessage(message)) {
+        return false
+      }
       if (message.role === 'user') {
         return true
       }
@@ -47,6 +57,23 @@ export function buildConversationContextMessages(
     })
 
   const result: LoopMessage[] = []
+
+  // 注入持久化的压缩摘要（不在聊天界面中显示，仅用于上下文构建）
+  if (lastCompactionSummary && lastCompactedAt) {
+    result.push({
+      role: 'user',
+      content: [{
+        type: 'text',
+        text: [
+          '之前的对话历史已压缩为以下摘要：',
+          '<summary>',
+          lastCompactionSummary,
+          '</summary>',
+          '请基于以上摘要和后续对话继续完成任务。',
+        ].join('\n'),
+      }],
+    })
+  }
 
   for (const message of valid) {
     const text = extractMessageText(message)
@@ -165,4 +192,11 @@ function truncateText(text: string, limit: number): string {
     return text
   }
   return `${text.slice(0, limit)}...(truncated)`
+}
+
+/** 检测是否为压缩标记消息（UI 分隔线，不应进入模型上下文） */
+function isCompactionMarkerMessage(message: IMessage): boolean {
+  if (message.role !== 'user')
+    return false
+  return message.content.some(block => block.type === 'text' && block.text.startsWith('__COMPACTION__'))
 }

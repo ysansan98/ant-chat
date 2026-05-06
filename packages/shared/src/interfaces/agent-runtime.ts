@@ -46,6 +46,14 @@ export interface AgentTaskSnapshot {
   pendingAction?: AgentPendingAction
   errorCode?: AgentErrorCode
   errorMessage?: string
+  /** 上下文用量信息 */
+  contextUsage?: {
+    estimatedTokens: number
+    contextWindow: number
+    usagePercent: number
+  }
+  /** 最近一次压缩的时间戳 */
+  lastCompactionAt?: number
 }
 
 export interface StartAgentTurnOptions {

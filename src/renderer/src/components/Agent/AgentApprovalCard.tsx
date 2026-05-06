@@ -40,7 +40,7 @@ export default function AgentApprovalCard({
           )}
         </CardTitle>
       </CardHeader>
-      <CardContent className="text-muted-foreground break-all">
+      <CardContent className="break-all text-muted-foreground">
         {pending.inputPreview}
       </CardContent>
       <div className="flex gap-2 px-3 pb-3">

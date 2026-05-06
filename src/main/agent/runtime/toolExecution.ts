@@ -205,11 +205,15 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
       input: requestedToolCall.input,
       error: result.error || 'AGENT_TOOL_EXEC_FAILED',
       workspacePath: task.snapshot.workspacePath,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      exitCode: result.exitCode,
     })
     lastObservation = formatToolFailureObservation(
       prepared.toolName,
       result.error || 'AGENT_TOOL_EXEC_FAILED',
       requestedToolCall.input,
+      result,
     )
     await updateAssistantMessage(currentAssistantMessageId, currentModelText, currentToolMessages, 'success')
     return {
@@ -341,6 +345,7 @@ function formatToolFailureObservation(
   toolName: string,
   error: string,
   input: Record<string, unknown>,
+  result?: { stdout?: string, stderr?: string, exitCode?: number },
 ): string {
   if (error.includes('AGENT_BASH_COMMAND_BLOCKED')) {
     return `工具 ${toolName} 执行失败：命令被安全策略拦截。请仅使用允许的只读命令（如 pwd、ls、cat、rg、find），不要使用 ~、重定向、管道、sudo、rm 等。原始命令=${String(input.command || '')}`
@@ -350,6 +355,17 @@ function formatToolFailureObservation(
   }
   if (error.includes('READ_FILE_OFFSET_OUT_OF_RANGE')) {
     return `工具 ${toolName} 执行失败：read_file 的 offset 超出文件行数。请从更小的 offset 继续读取。`
+  }
+  if (result?.stderr || result?.stdout || result?.exitCode !== undefined) {
+    const parts: string[] = []
+    if (result.stderr)
+      parts.push(`stderr:\n${result.stderr}`)
+    if (result.stdout)
+      parts.push(`stdout:\n${result.stdout}`)
+    if (result.exitCode !== undefined)
+      parts.push(`exitCode=${result.exitCode}`)
+    const detail = parts.join('\n')
+    return `工具 ${toolName} 执行失败：${error}\n${detail}`
   }
   return `工具 ${toolName} 执行失败：${error}`
 }
