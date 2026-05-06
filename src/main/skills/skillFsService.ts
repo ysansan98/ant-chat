@@ -125,6 +125,10 @@ export class SkillFsService {
       }
       try {
         const manifest = await this.readManifest(path.join(SKILL_ROOT, entry.name))
+        if (manifest.name !== entry.name) {
+          manifest.name = entry.name
+          await this.writeManifest(path.join(SKILL_ROOT, entry.name), manifest)
+        }
         skills.push(manifest)
       }
       catch {}
@@ -239,20 +243,43 @@ async function readSkillMetadata(skillPath: string): Promise<Pick<SkillManifest,
   }
 
   const markdown = await fs.promises.readFile(path.join(skillPath, 'SKILL.md'), 'utf8')
-  const title = markdown
+
+  const frontmatter = parseFrontmatter(markdown)
+  const title = frontmatter?.name || markdown
     .split('\n')
     .find(line => line.startsWith('# '))
     ?.slice(2)
     .trim()
-  const description = markdown
-    .split('\n')
-    .map(line => line.trim())
-    .find(line => line && !line.startsWith('#'))
+  const description = frontmatter?.description
+    || extractBodyDescription(markdown)
   return {
     name: normalizeSkillName(title || path.basename(skillPath)),
     version: undefined,
     description,
   }
+}
+
+function parseFrontmatter(markdown: string): { name?: string, description?: string } | null {
+  const match = markdown.match(/^---\n([\s\S]*?\n)---/)
+  if (!match)
+    return null
+  const nameMatch = match[1].match(/^name:\s+(\S.*)$/m)
+  const descMatch = match[1].match(/^description:\s+(\S.*)$/m)
+  return {
+    name: nameMatch ? nameMatch[1].trim() : undefined,
+    description: descMatch ? descMatch[1].trim() : undefined,
+  }
+}
+
+function extractBodyDescription(markdown: string): string | undefined {
+  const bodyStart = markdown.startsWith('---\n')
+    ? markdown.indexOf('\n---\n')
+    : -1
+  const body = bodyStart > 0 ? markdown.slice(bodyStart + 5) : markdown
+  return body
+    .split('\n')
+    .map(line => line.trim())
+    .find(line => line && !line.startsWith('#'))
 }
 
 function normalizeManifest(value: unknown): SkillManifest {

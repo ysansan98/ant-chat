@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const realTmpdir = os.tmpdir
 const VALID_SKILL_ZIP = 'UEsDBBQAAAAIAK1YnlxVUSklIgAAACQAAAAIAAAAU0tJTEwubWRTVggvyixJLeLiAtMKxRn5RSUKRak5qYnFqQp5+SWpxXoAUEsBAhQAFAAAAAgArVieXFVRKSUiAAAAJAAAAAgAAAAAAAAAAAAAAAAAAAAAAFNLSUxMLm1kUEsFBgAAAAABAAEANgAAAEgAAAAAAA=='
 const UNSAFE_SKILL_ZIP = 'UEsDBBQAAAAIAK9Ynly7JMeZCgAAAAgAAAALAAAALi4vU0tJTEwubWRTVgjNK05MSwUAUEsBAhQAFAAAAAgAr1ieXLskx5kKAAAACAAAAAsAAAAAAAAAAAAAAAAAAAAAAC4uL1NLSUxMLm1kUEsFBgAAAAABAAEAOQAAADMAAAAAAA=='
+const FRONTMATTER_SKILL_ZIP = 'UEsDBBQAAAAAAHx8plzIj6ltcwAAAHMAAAAIAAAAU0tJTEwubWQtLS0KbmFtZToga2FtaQpkZXNjcmlwdGlvbjogVHlwZXNldCBwcm9mZXNzaW9uYWwgZG9jdW1lbnRzLgotLS0KCiMga2FtaSDCtyDntJkKCldyaXRlIHByb2Zlc3Npb25hbCBQREZzIHdpdGgga2FtaS4KUEsBAhQDFAAAAAAAfHymXMiPqW1zAAAAcwAAAAgAAAAAAAAAAAAAAIABAAAAAFNLSUxMLm1kUEsFBgAAAAABAAEANgAAAJkAAAAAAA=='
 
 describe('skillFsService', () => {
   let homeDir: string
@@ -74,5 +75,20 @@ describe('skillFsService', () => {
     await fs.promises.writeFile(zipPath, Buffer.from(UNSAFE_SKILL_ZIP, 'base64'))
 
     await expect(skillFsService.importFromZip(zipPath)).rejects.toThrow('unsafe zip path')
+  })
+
+  it('uses frontmatter name instead of title for SKILL.md without manifest.json', async () => {
+    const { skillFsService } = await import('../skillFsService')
+    const zipPath = path.join(homeDir, 'kami-test.zip')
+    await fs.promises.writeFile(zipPath, Buffer.from(FRONTMATTER_SKILL_ZIP, 'base64'))
+
+    const manifest = await skillFsService.importFromZip(zipPath)
+
+    // Title '# kami · 紙' would normalize to 'kami--', but frontmatter 'name: kami' should win
+    expect(manifest.name).toBe('kami')
+    expect(manifest.description).toBe('Typeset professional documents.')
+
+    const markdown = await skillFsService.readSkillMarkdown('kami')
+    expect(markdown).toContain('# kami · 紙')
   })
 })
