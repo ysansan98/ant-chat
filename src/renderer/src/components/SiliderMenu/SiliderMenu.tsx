@@ -5,6 +5,7 @@ import {
 } from '@ant-design/icons'
 import { useLocation, useNavigate } from 'react-router'
 import { setActiveConversationsId } from '@/store/messages'
+import { ipc, unwrapIpcResponse } from '@/utils/ipc-bus'
 import { ThemeMenuItem } from '../ThemeButton'
 import { WorkspacePanels } from '../Workspace/WorkspacePanels'
 import { SidebarNavItem } from './SliderMenuItem'
@@ -16,6 +17,10 @@ export function SliderMenu() {
 
   function openSearch() {
     window.dispatchEvent(new Event('ant-chat:open-search'))
+  }
+
+  async function openSettings() {
+    await unwrapIpcResponse(await ipc.settings.openSettingsWindow())
   }
 
   return (
@@ -50,8 +55,8 @@ export function SliderMenu() {
           <SidebarNavItem
             icon={<SettingOutlined />}
             label="设置"
-            active={location.pathname.startsWith('/settings')}
-            onClick={() => navigate('/settings')}
+            active={false}
+            onClick={openSettings}
           />
         </div>
       </div>

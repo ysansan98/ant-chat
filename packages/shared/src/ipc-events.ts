@@ -75,5 +75,6 @@ export interface IpcRendererEvent {
   'update:update-error': [UpdateError]
   'agent:state-updated': [{ task: AgentTaskSnapshot }]
   'agent:approval-required': [{ taskId: string, conversationId: string, pendingAction: AgentPendingAction }]
+  'settings:updated': [{ keys: string[] }]
   [key: string]: unknown[]
 }

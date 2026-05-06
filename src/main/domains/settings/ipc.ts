@@ -4,10 +4,29 @@ import { GeneralSettingsStore } from '@main/store/generalSettings'
 import { logger } from '@main/utils/logger'
 import { ProxyManager } from '@main/utils/proxy-manager'
 import { testProxyConnection } from '@main/utils/system-proxy'
+import { SettingsWindow } from '@main/settings-window'
+import { getMainWindow } from '@main/window'
 import { IpcMethod, IpcService } from 'electron-ipc-decorator'
 
 export class SettingsIpcService extends IpcService {
   static readonly groupName = 'settings'
+
+  private static settingsWindowInstance: SettingsWindow | null = null
+
+  @IpcMethod()
+  async openSettingsWindow(): Promise<IpcResponse<void>> {
+    try {
+      if (!SettingsIpcService.settingsWindowInstance) {
+        SettingsIpcService.settingsWindowInstance = new SettingsWindow()
+      }
+      await SettingsIpcService.settingsWindowInstance.createWindow()
+      return createIpcResponse(true, undefined)
+    }
+    catch (error) {
+      logger.error('Failed to open settings window:', error)
+      return createErrorIpcResponse(error instanceof Error ? error : String(error))
+    }
+  }
 
   @IpcMethod()
   async getSettings(): Promise<IpcResponse<GeneralSettingsState>> {
@@ -31,6 +50,18 @@ export class SettingsIpcService extends IpcService {
         await ProxyManager.getInstance().updateProxySettings(updates.proxySettings)
       }
 
+      // 广播 settings:updated 事件
+      const mainWindow = getMainWindow()
+      const settingsWindow = SettingsIpcService.settingsWindowInstance?.getWindow()
+      const keys = Object.keys(updates)
+      
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('settings:updated', { keys })
+      }
+      if (settingsWindow && !settingsWindow.isDestroyed()) {
+        settingsWindow.webContents.send('settings:updated', { keys })
+      }
+
       return createIpcResponse(true, updatedSettings)
     }
     catch (error) {
@@ -47,6 +78,17 @@ export class SettingsIpcService extends IpcService {
       const settings = store.getSettings()
 
       await ProxyManager.getInstance().updateProxySettings(settings.proxySettings)
+
+      // 广播 settings:updated 事件
+      const mainWindow = getMainWindow()
+      const settingsWindow = SettingsIpcService.settingsWindowInstance?.getWindow()
+      
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('settings:updated', { keys: ['all'] })
+      }
+      if (settingsWindow && !settingsWindow.isDestroyed()) {
+        settingsWindow.webContents.send('settings:updated', { keys: ['all'] })
+      }
 
       return createIpcResponse(true, settings)
     }
