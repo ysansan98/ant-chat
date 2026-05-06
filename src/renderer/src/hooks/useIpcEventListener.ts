@@ -1,6 +1,6 @@
 import type { NotificationOption } from '@ant-chat/shared'
-import { App } from 'antd'
 import { useEffect } from 'react'
+import { toast } from 'sonner'
 import { onAgentApprovalRequired, onAgentStateUpdated } from '@/store/agent'
 import { addStreamingConversationId, removeStreamingConversationId } from '@/store/conversation'
 import { onMcpServerStatusChanged } from '@/store/mcpConfigs/action'
@@ -8,12 +8,24 @@ import { updateMessageActionV2 } from '@/store/messages'
 import { ipcRenderer } from '@/utils/ipc-bus'
 
 export function useIpcEventListener() {
-  const { notification } = App.useApp()
-
   useEffect(() => {
-    const handle = (_: Electron.IpcRendererEvent, { type, message, description }: NotificationOption) => {
-      const func = notification[type]
-      func({ title: message, description })
+    const handle = (_: Electron.IpcRendererEvent, notif: NotificationOption) => {
+      const { message } = notif
+      const desc = notif.description
+      const text = `${message}${desc ? `: ${desc}` : ''}`
+      switch (notif.type) {
+        case 'success':
+          toast.success(text)
+          break
+        case 'error':
+          toast.error(text)
+          break
+        case 'warning':
+          toast.warning(text)
+          break
+        default:
+          toast.info(text)
+      }
     }
 
     ipcRenderer.on('common:Notification', handle)
@@ -39,7 +51,7 @@ export function useIpcEventListener() {
       ipcRenderer.removeAllListeners('agent:state-updated')
       ipcRenderer.removeAllListeners('agent:approval-required')
     }
-  }, [notification])
+  }, [])
 }
 
 // 处理对话流式状态的辅助函数

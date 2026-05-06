@@ -1,57 +1,58 @@
-import { App, Button, Input, Select } from 'antd'
+import { Button } from '@workspace/ui/components/button'
+import { Input } from '@workspace/ui/components/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/components/select'
 import React from 'react'
+import { toast } from 'sonner'
 import { updateProxySettings } from '@/store/generalSettings/actions'
 import { useGeneralSettingsStore } from '@/store/generalSettings/store'
 import { ipc, unwrapIpcResponse } from '@/utils/ipc-bus'
 
-const proxyOptions = [
-  { value: 'none', label: '不使用代理' },
-  { value: 'system', label: '系统代理' },
-  { value: 'custom', label: '自定义代理' },
-]
-
 // 代理模式选择组件
 export function ProxySettings() {
-  const { message } = App.useApp()
   const proxySettings = useGeneralSettingsStore(state => state.proxySettings)
   const isLoading = useGeneralSettingsStore(state => state.isLoading)
 
-  const handleProxyModeChange = async (mode: 'none' | 'system' | 'custom') => {
+  const handleProxyModeChange = async (mode: string) => {
     try {
-      await updateProxySettings({ mode })
-      message.success('代理模式已更新')
+      await updateProxySettings({ mode: mode as 'none' | 'system' | 'custom' })
+      toast.success('代理模式已更新')
     }
     catch {
-      message.error('代理模式更新失败')
+      toast.error('代理模式更新失败')
     }
   }
 
   return (
     <Select
       value={proxySettings.mode}
-      onChange={handleProxyModeChange}
-      options={proxyOptions}
-      className="min-w-32"
-      loading={isLoading}
+      onValueChange={handleProxyModeChange}
       disabled={isLoading}
-    />
+    >
+      <SelectTrigger className="min-w-32">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="none">不使用代理</SelectItem>
+        <SelectItem value="system">系统代理</SelectItem>
+        <SelectItem value="custom">自定义代理</SelectItem>
+      </SelectContent>
+    </Select>
   )
 }
 
 // 自定义代理URL配置组件
 export function CustomProxyUrl() {
-  const { message } = App.useApp()
   const proxySettings = useGeneralSettingsStore(state => state.proxySettings)
   const isLoading = useGeneralSettingsStore(state => state.isLoading)
 
   const [testing, setTesting] = React.useState(false)
   const [testResult, setTestResult] = React.useState<boolean | null>(null)
 
-  const handleUrlBlur = async (e) => {
+  const handleUrlBlur = async (e: React.FocusEvent<HTMLInputElement>) => {
     const tempUrl = e.target.value.trim()
 
     if (!(tempUrl.includes('://'))) {
-      message.error('代理地址必须包含协议头，例如：http://127.0.0.1:7890')
+      toast.error('代理地址必须包含协议头，例如：http://127.0.0.1:7890')
       return
     }
 
@@ -60,7 +61,7 @@ export function CustomProxyUrl() {
         await updateProxySettings({ customProxyUrl: tempUrl })
       }
       catch {
-        message.error('代理地址更新失败')
+        toast.error('代理地址更新失败')
       }
     }
   }
@@ -68,28 +69,29 @@ export function CustomProxyUrl() {
   const handleTestProxy = async () => {
     const urlToTest = proxySettings.customProxyUrl
     if (!urlToTest) {
-      message.warning('请先配置代理地址')
+      toast.warning('请先配置代理地址')
       return
     }
 
-    // 验证URL必须包含协议头
     if (!urlToTest.includes('://')) {
-      message.error('代理地址必须包含协议头，例如：http://127.0.0.1:7890')
+      toast.error('代理地址必须包含协议头，例如：http://127.0.0.1:7890')
       return
     }
 
     setTesting(true)
     try {
-      // 使用真实的代理测试API
       const result = unwrapIpcResponse(await ipc.settings.testProxyConnection(urlToTest))
 
       setTestResult(result)
-      message[result ? 'success' : 'error'](
-        result ? '代理连接成功' : '代理连接失败',
-      )
+      if (result) {
+        toast.success('代理连接成功')
+      }
+      else {
+        toast.error('代理连接失败')
+      }
     }
     catch {
-      message.error('代理测试失败')
+      toast.error('代理测试失败')
     }
     finally {
       setTesting(false)
@@ -110,10 +112,8 @@ export function CustomProxyUrl() {
         && proxySettings.mode === 'custom'
         && (
           <Button
-            type="primary"
             onClick={handleTestProxy}
-            loading={testing}
-            disabled={isLoading}
+            disabled={isLoading || testing}
           >
             {testing ? '测试中...' : '测试连接'}
           </Button>

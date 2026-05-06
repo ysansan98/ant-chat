@@ -1,6 +1,6 @@
-import { Popover } from 'antd'
+import { Popover, PopoverContent, PopoverTrigger } from '@workspace/ui/components/popover'
+import { useTheme } from '@workspace/ui/hooks/use-theme'
 import React from 'react'
-import { useToken } from '@/utils'
 
 interface SwitchButtonProps {
   checked: boolean
@@ -8,7 +8,6 @@ interface SwitchButtonProps {
   dataTestId?: string
   onChange?: (checked: boolean) => void
   popoverContent?: React.ReactNode
-  popoverTrigger?: 'hover' | 'click' | 'focus'
 }
 
 function SwitchButton({
@@ -17,22 +16,20 @@ function SwitchButton({
   dataTestId,
   onChange,
   popoverContent,
-  popoverTrigger = 'click',
 }: SwitchButtonProps) {
-  const { token } = useToken()
+  const { token } = useTheme()
 
   const buttonElement = (
     <div
       role="switchButton"
       data-testid={dataTestId}
       className={`
-        ant-btn ant-btn-color-default ant-btn-variant-outlined antd-css-var flex size-8
-        cursor-pointer items-center justify-center border border-solid
+        flex size-8 cursor-pointer items-center justify-center rounded-lg border border-solid
+        transition-colors
       `}
       style={{
-        borderRadius: token.borderRadius,
-        color: checked ? token.colorPrimary : 'var(--ant-button-default-color)',
-        borderColor: checked ? token.colorPrimary : 'var(--ant-button-default-border-color)',
+        color: checked ? token.colorPrimary : 'var(--foreground)',
+        borderColor: checked ? token.colorPrimary : 'var(--border)',
       }}
       onClick={() => onChange?.(!checked)}
     >
@@ -42,12 +39,11 @@ function SwitchButton({
 
   if (popoverContent) {
     return (
-      <Popover
-        trigger={popoverTrigger}
-        content={popoverContent}
-        getPopupContainer={() => document.body}
-      >
-        {buttonElement}
+      <Popover>
+        <PopoverTrigger asChild>{buttonElement}</PopoverTrigger>
+        <PopoverContent>
+          {popoverContent}
+        </PopoverContent>
       </Popover>
     )
   }

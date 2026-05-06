@@ -1,8 +1,7 @@
-import { GithubOutlined, HeartOutlined, InfoCircleOutlined } from '@ant-design/icons'
-import { Button, Card, Space, Typography } from 'antd'
+import { Button } from '@workspace/ui/components/button'
+import { Card, CardContent, CardDescription } from '@workspace/ui/components/card'
+import { GitBranch, Heart, Info } from 'lucide-react'
 import { AboutUpdateSettings } from '@/components/About/AboutUpdateSettings'
-
-const { Title, Text, Paragraph } = Typography
 
 export function About() {
   const handleOpenGitHub = () => {
@@ -17,7 +16,7 @@ export function About() {
     <div className="flex flex-col gap-4 space-y-3 p-4">
       {/* 应用信息卡片 */}
       <Card className="w-full">
-        <div className="space-y-3 text-center">
+        <CardContent className="space-y-3 text-center">
           <div className="flex justify-center">
             <div className="flex size-16 items-center justify-center rounded-2xl bg-white p-2">
               <img src="./logo.svg" alt="logo" className="size-full" draggable={false} />
@@ -25,54 +24,54 @@ export function About() {
           </div>
 
           <div>
-            <Title level={2} className="mb-2!">Ant Chat</Title>
-            <Text type="secondary" className="text-base">
+            <h2 className="mb-2 text-2xl font-bold">Ant Chat</h2>
+            <p className="text-sm text-muted-foreground">
               现代化的 AI 聊天桌面应用
-            </Text>
+            </p>
           </div>
 
-          <Paragraph type="secondary" className="mx-auto max-w-md">
+          <p className="mx-auto max-w-md text-sm text-muted-foreground">
             基于 Electron 和 Ant Design X 构建，支持多种 AI 提供商，
             提供丰富的聊天体验和 MCP 协议集成。
-          </Paragraph>
+          </p>
 
-          <Space size="middle">
+          <div className="flex items-center justify-center gap-3">
             <Button
-              icon={<GithubOutlined />}
+              variant="outline"
               onClick={handleOpenGitHub}
             >
+              <GitBranch />
               GitHub
             </Button>
             <Button
-              icon={<InfoCircleOutlined />}
+              variant="outline"
               onClick={handleOpenLicense}
             >
+              <Info />
               开源协议
             </Button>
-          </Space>
-        </div>
+          </div>
+        </CardContent>
       </Card>
 
       {/* 更新设置 */}
       <AboutUpdateSettings />
 
       {/* 致谢信息 */}
-      <Card size="small" className="w-full">
-        <div className="space-y-1 text-center">
+      <Card className="w-full">
+        <CardContent className="space-y-1 text-center">
           <div className="flex items-center justify-center gap-2">
-            <HeartOutlined className="text-red-500" />
-            <Text strong>致谢</Text>
+            <Heart className="size-4 text-red-500" />
+            <CardDescription className="font-semibold text-foreground!">致谢</CardDescription>
           </div>
 
-          <Paragraph type="secondary" className="text-sm">
+          <p className="text-sm text-muted-foreground">
             感谢所有为开源社区做出贡献的开发者们，
             以及 Ant Design、Electron、React 等优秀项目的支持。
-          </Paragraph>
+          </p>
 
-          <Text type="secondary" className="text-xs">
-            © 2025 Ant Chat. All rights reserved.
-          </Text>
-        </div>
+          <CardDescription>© 2025 Ant Chat. All rights reserved.</CardDescription>
+        </CardContent>
       </Card>
     </div>
   )

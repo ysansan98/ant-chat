@@ -1,4 +1,4 @@
-import { ApiOutlined, CheckCircleFilled, CheckOutlined, CiCircleOutlined } from '@ant-design/icons'
+import { Cable, Check, CheckCircle, Terminal } from 'lucide-react'
 
 interface SelectTransportTypeProps {
   value?: 'stdio' | 'sse'
@@ -6,8 +6,8 @@ interface SelectTransportTypeProps {
 }
 
 const options = [
-  { id: 'sse', icon: <ApiOutlined />, name: 'Streamable HTTP', descript: '基于流式 HTTP 的通信协议', features: ['连接远程MCP服务器，无需额外安装配置'] },
-  { id: 'stdio', icon: <CiCircleOutlined />, name: 'STDIO', descript: '基于标准输入输出的通信协议', features: ['更低的通信延迟，适合本地执行', '需要在本地安装运行MCP服务器'] },
+  { id: 'sse', icon: <Cable className="size-5" />, name: 'Streamable HTTP', descript: '基于流式 HTTP 的通信协议', features: ['连接远程MCP服务器，无需额外安装配置'] },
+  { id: 'stdio', icon: <Terminal className="size-5" />, name: 'STDIO', descript: '基于标准输入输出的通信协议', features: ['更低的通信延迟，适合本地执行', '需要在本地安装运行MCP服务器'] },
 ]
 
 export function SelectTransportType({ value, onChange }: SelectTransportTypeProps) {
@@ -18,10 +18,10 @@ export function SelectTransportType({ value, onChange }: SelectTransportTypeProp
           <div
             key={item.id}
             className={`
-              antd-css-var relative w-[48%] rounded-xl border border-solid p-3
-              ${value === item.id ? 'border-(--ant-color-primary-text)' : 'border-(--border-color)'}
+              relative w-[48%] rounded-xl border border-solid p-3 transition-colors
+              ${value === item.id ? 'border-primary' : 'border-(--border-color)'}
               cursor-pointer
-              hover:border-(--ant-color-primary-text)
+              hover:border-primary
             `}
             onClick={() => {
               onChange?.(item.id)
@@ -46,9 +46,8 @@ export function SelectTransportType({ value, onChange }: SelectTransportTypeProp
               {
                 item.features.map(t => (
                   <div key={t} className="flex items-center gap-2 text-xs">
-                    <span className="text-(--ant-color-success)">
-
-                      <CheckOutlined />
+                    <span className="text-green-500">
+                      <Check className="size-4" />
                     </span>
                     {t}
                   </div>
@@ -58,12 +57,11 @@ export function SelectTransportType({ value, onChange }: SelectTransportTypeProp
             {
               value === item.id
               && (
-                <span className="text-(--ant-color-primary)">
-                  <CheckCircleFilled className="absolute top-2 right-2 text-xl" />
+                <span className="text-primary">
+                  <CheckCircle className="absolute top-2 right-2" />
                 </span>
               )
             }
-
           </div>
         ))
       }

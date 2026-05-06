@@ -5,13 +5,12 @@ import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle }
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@workspace/ui/components/dialog'
 import { Input } from '@workspace/ui/components/input'
 import { Switch } from '@workspace/ui/components/switch'
-import { App } from 'antd'
 import { ArchiveIcon, GitBranchIcon, RefreshCwIcon, Trash2Icon } from 'lucide-react'
 import React from 'react'
+import { toast } from 'sonner'
 import { skillApi } from '@/api/skillApi'
 
 export default function SkillManage() {
-  const { message } = App.useApp()
   const [data, setData] = React.useState<SkillIndex>({ rootPath: '', skills: [] })
   const [loading, setLoading] = React.useState(false)
   const [githubOpen, setGithubOpen] = React.useState(false)
@@ -23,12 +22,12 @@ export default function SkillManage() {
       setData(await skillApi.listSkills())
     }
     catch (error) {
-      message.error((error as Error).message || '加载 Skill 失败')
+      toast.error((error as Error).message || '加载 Skill 失败')
     }
     finally {
       setLoading(false)
     }
-  }, [message])
+  }, [])
 
   React.useEffect(() => {
     void refresh()
@@ -38,11 +37,11 @@ export default function SkillManage() {
     setLoading(true)
     try {
       await action()
-      message.success(success)
+      toast.success(success)
       await refresh()
     }
     catch (error) {
-      message.error((error as Error).message || '操作失败')
+      toast.error((error as Error).message || '操作失败')
     }
     finally {
       setLoading(false)

@@ -1,3 +1,3 @@
-import { theme } from 'antd'
+import { useTheme } from '@workspace/ui/hooks/use-theme'
 
-export const useToken: typeof theme.useToken = theme.useToken
+export { useTheme as useToken }

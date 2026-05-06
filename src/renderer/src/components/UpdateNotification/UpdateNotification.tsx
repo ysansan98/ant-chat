@@ -1,12 +1,13 @@
 import type { ProgressInfo, UpdateInfo } from '@ant-chat/shared'
-import { DownloadOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
 import { MessageResponse } from '@workspace/ui/components/ai-elements/message'
-import { App, Button, Modal, Progress, Space, Typography } from 'antd'
+import { Button } from '@workspace/ui/components/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@workspace/ui/components/dialog'
+import { Progress } from '@workspace/ui/components/progress'
+import { AlertTriangle, Download } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import { updateApi } from '@/api/updateApi'
 import { ipcRenderer } from '@/utils/ipc-bus'
-
-const { Title, Text } = Typography
 
 export interface UpdateNotificationProps {
   updateInfo: UpdateInfo
@@ -17,7 +18,6 @@ export interface UpdateNotificationProps {
 export function UpdateNotification({ updateInfo, visible, onClose }: UpdateNotificationProps) {
   const [downloadProgress, setDownloadProgress] = useState<ProgressInfo | null>(null)
   const [isDownloaded, setIsDownloaded] = useState(false)
-  const { message } = App.useApp()
 
   // 监听下载进度
   useEffect(() => {
@@ -31,7 +31,7 @@ export function UpdateNotification({ updateInfo, visible, onClose }: UpdateNotif
 
     const handleUpdateError = (_: Electron.IpcRendererEvent, error: any) => {
       console.error('更新错误:', error)
-      message.error(`更新失败: ${error?.message || error}`)
+      toast.error(`更新失败: ${error?.message || error}`)
     }
 
     ipcRenderer.on('update:download-progress', handleDownloadProgress)
@@ -52,7 +52,7 @@ export function UpdateNotification({ updateInfo, visible, onClose }: UpdateNotif
     }
     catch (error) {
       console.error('下载更新失败:', error)
-      message.error(`更新失败: ${(error as Error)?.message || error}`)
+      toast.error(`更新失败: ${(error as Error)?.message || error}`)
     }
   }
 
@@ -84,128 +84,117 @@ export function UpdateNotification({ updateInfo, visible, onClose }: UpdateNotif
   const isDownloading = downloadProgress !== null && !isDownloaded
 
   return (
-    <Modal
-      title={(
-        <Space>
-          <ExclamationCircleOutlined className="text-blue-500" />
-          发现新版本
-        </Space>
-      )}
-      open={visible}
-      onCancel={onClose}
-      width={600}
-      footer={null}
-      maskClosable={!isDownloading}
-      closable={!isDownloading}
-    >
-      <div className="py-4">
-        {/* 版本信息 */}
-        <div className="mb-6">
-          <Title level={4} className="mb-2">
-            版本
-            {' '}
-            {updateInfo.version}
-          </Title>
-          <div className="mb-4 flex justify-between text-sm text-gray-600">
-            <span>
-              发布日期:
-              {new Date(updateInfo.releaseDate).toLocaleDateString()}
-            </span>
-            <span>
-              大小:
-              {formatFileSize(updateInfo.downloadSize)}
-            </span>
-          </div>
-        </div>
-
-        {/* 更新日志 */}
-        {updateInfo.releaseNotes && (
+    <Dialog open={visible} onOpenChange={isDownloading ? undefined : onClose}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <AlertTriangle className="text-blue-500" />
+            发现新版本
+          </DialogTitle>
+        </DialogHeader>
+        <div className="py-2">
+          {/* 版本信息 */}
           <div className="mb-6">
-            <Title level={5} className="mb-3">
-              更新内容
-            </Title>
-            <div className="max-h-60 overflow-y-auto rounded-sm border bg-gray-50 p-3">
-              <MessageResponse>
-                {typeof updateInfo.releaseNotes === 'string'
-                  ? updateInfo.releaseNotes
-                  : updateInfo.releaseNotes.map(item => `### ${item.version} \n\n ${item.note}`).join('\n\n')}
-              </MessageResponse>
-            </div>
-          </div>
-        )}
-
-        {/* 下载进度 */}
-        {isDownloading && downloadProgress && (
-          <div className="mb-6">
-            <Title level={5} className="mb-3">
-              下载进度
-            </Title>
-            <Progress
-              percent={Math.round(downloadProgress.percent)}
-              status="active"
-              strokeColor="#1890ff"
-            />
-            <div className="mt-2 flex justify-between text-sm text-gray-600">
+            <h4 className="mb-2 text-lg font-bold">
+              版本
+              {' '}
+              {updateInfo.version}
+            </h4>
+            <div className="mb-4 flex justify-between text-sm text-muted-foreground">
               <span>
-                {formatFileSize(downloadProgress.transferred)}
-                {' '}
-                /
-                {formatFileSize(downloadProgress.total)}
+                发布日期:
+                {new Date(updateInfo.releaseDate).toLocaleDateString()}
               </span>
-              <span>{formatSpeed(downloadProgress.bytesPerSecond)}</span>
+              <span>
+                大小:
+                {formatFileSize(updateInfo.downloadSize)}
+              </span>
             </div>
           </div>
-        )}
 
-        {/* 操作按钮 */}
-        <div className="flex justify-end gap-3">
-          {!isDownloading && !isDownloaded && (
-            <>
-              <Button onClick={onClose}>
-                稍后提醒
-              </Button>
+          {/* 更新日志 */}
+          {updateInfo.releaseNotes && (
+            <div className="mb-6">
+              <h5 className="mb-3 font-bold">
+                更新内容
+              </h5>
+              <div className="max-h-60 overflow-y-auto rounded-sm border bg-muted p-3">
+                <MessageResponse>
+                  {typeof updateInfo.releaseNotes === 'string'
+                    ? updateInfo.releaseNotes
+                    : updateInfo.releaseNotes.map(item => `### ${item.version} \n\n ${item.note}`).join('\n\n')}
+                </MessageResponse>
+              </div>
+            </div>
+          )}
+
+          {/* 下载进度 */}
+          {isDownloading && downloadProgress && (
+            <div className="mb-6">
+              <h5 className="mb-3 font-bold">
+                下载进度
+              </h5>
+              <Progress value={Math.round(downloadProgress.percent)} />
+              <div className="mt-2 flex justify-between text-sm text-muted-foreground">
+                <span>
+                  {formatFileSize(downloadProgress.transferred)}
+                  {' '}
+                  /
+                  {formatFileSize(downloadProgress.total)}
+                </span>
+                <span>{formatSpeed(downloadProgress.bytesPerSecond)}</span>
+              </div>
+            </div>
+          )}
+
+          {/* 操作按钮 */}
+          <div className="flex justify-end gap-3">
+            {!isDownloading && !isDownloaded && (
+              <>
+                <Button variant="outline" onClick={onClose}>
+                  稍后提醒
+                </Button>
+                <Button onClick={handleDownload}>
+                  <Download />
+                  立即下载
+                </Button>
+              </>
+            )}
+
+            {isDownloading && (
               <Button
-                type="primary"
-                icon={<DownloadOutlined />}
-                onClick={handleDownload}
+                variant="outline"
+                onClick={() => {
+                  updateApi.cancelDownload()
+                  setDownloadProgress(null)
+                }}
               >
-                立即下载
+                取消下载
               </Button>
-            </>
-          )}
+            )}
 
-          {isDownloading && (
-            <Button
-              onClick={() => {
-                updateApi.cancelDownload()
-                setDownloadProgress(null)
-              }}
-            >
-              取消下载
-            </Button>
-          )}
+            {isDownloaded && (
+              <>
+                <Button variant="outline" onClick={handleInstallLater}>
+                  稍后重启
+                </Button>
+                <Button onClick={handleInstallNow}>
+                  立即重启并安装
+                </Button>
+              </>
+            )}
+          </div>
 
+          {/* 提示信息 */}
           {isDownloaded && (
-            <>
-              <Button onClick={handleInstallLater}>
-                稍后重启
-              </Button>
-              <Button type="primary" onClick={handleInstallNow}>
-                立即重启并安装
-              </Button>
-            </>
+            <div className="mt-4 rounded-sm border border-green-200 bg-green-50 p-3">
+              <p className="text-sm text-green-600">
+                更新已下载完成，重启应用后将自动安装新版本。
+              </p>
+            </div>
           )}
         </div>
-
-        {/* 提示信息 */}
-        {isDownloaded && (
-          <div className="mt-4 rounded-sm border border-green-200 bg-green-50 p-3">
-            <Text type="success">
-              更新已下载完成，重启应用后将自动安装新版本。
-            </Text>
-          </div>
-        )}
-      </div>
-    </Modal>
+      </DialogContent>
+    </Dialog>
   )
 }

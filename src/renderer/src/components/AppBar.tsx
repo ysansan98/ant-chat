@@ -1,5 +1,5 @@
-import { CloseOutlined, MinusOutlined } from '@ant-design/icons'
-import { Button } from 'antd'
+import { Button } from '@workspace/ui/components/button'
+import { Minus, X } from 'lucide-react'
 import { getSystemPlatform, maximizeOrRestoreWindow, minimizeWindow, quitApp } from '@/utils/util'
 
 export function AppBar() {
@@ -22,19 +22,19 @@ export function AppBar() {
           getSystemPlatform() === 'win32'
             ? (
                 <>
-                  <Button type="text" icon={<MinusOutlined />} onClick={() => minimizeWindow()} />
+                  <Button variant="ghost" size="icon-sm" onClick={() => minimizeWindow()}>
+                    <Minus />
+                  </Button>
                   <Button
-                    type="text"
-                    icon={(
-                      <span className="icon-[tdesign--rectangle] flex items-center" />
-                    )}
+                    variant="ghost"
+                    size="icon-sm"
                     onClick={maximizeOrRestoreWindow}
-                  />
-                  <Button
-                    type="text"
-                    icon={<CloseOutlined />}
-                    onClick={quitApp}
-                  />
+                  >
+                    <span className="icon-[tdesign--rectangle] flex items-center" />
+                  </Button>
+                  <Button variant="ghost" size="icon-sm" onClick={quitApp}>
+                    <X />
+                  </Button>
                 </>
               )
             : null

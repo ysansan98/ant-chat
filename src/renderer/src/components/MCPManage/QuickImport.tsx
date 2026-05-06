@@ -1,6 +1,7 @@
 import { AddMcpConfigSchema } from '@ant-chat/shared'
-import { Alert, Button } from 'antd'
-import TextArea from 'antd/es/input/TextArea'
+import { Alert, AlertTitle } from '@workspace/ui/components/alert'
+import { Button } from '@workspace/ui/components/button'
+import { Textarea } from '@workspace/ui/components/textarea'
 import React from 'react'
 
 interface QuickImportProps {
@@ -32,25 +33,26 @@ export function QuickImport({ onImport }: QuickImportProps) {
         <div>
           {
             error.length > 0 && (
-              <Alert type="error" message={error} showIcon className="mb-2" />
+              <Alert variant="destructive" className="mb-2">
+                <AlertTitle>{error}</AlertTitle>
+              </Alert>
             )
           }
-          <TextArea
+          <Textarea
             value={text}
             onChange={(e) => {
               setText(e.target.value)
             }}
-            autoSize={{ minRows: 10, maxRows: 10 }}
+            rows={10}
             placeholder={placeholder.trim()}
             onFocus={() => {
               setError('')
             }}
           />
           <div className="mt-1 flex items-center justify-end gap-1">
-            <Button size="small" onClick={() => setQuickImport(false)}>取消</Button>
+            <Button size="sm" variant="outline" onClick={() => setQuickImport(false)}>取消</Button>
             <Button
-              size="small"
-              type="primary"
+              size="sm"
               onClick={() => {
                 if (!text.length) {
                   setError('输入内容不能为空')
@@ -75,10 +77,8 @@ export function QuickImport({ onImport }: QuickImportProps) {
       )
     : (
         <Button
-          block
-          color="default"
-          variant="dashed"
-          style={{ paddingTop: '5px', paddingBottom: '5px' }}
+          variant="outline"
+          className="w-full"
           onClick={() => {
             setQuickImport(true)
           }}

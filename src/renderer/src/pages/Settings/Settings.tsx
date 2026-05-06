@@ -1,18 +1,16 @@
-import Icon, { CrownOutlined, InfoCircleOutlined, SettingOutlined } from '@ant-design/icons'
-import { SparklesIcon } from 'lucide-react'
+import { Cable, Crown, Info, SettingsIcon, SparklesIcon } from 'lucide-react'
 import { Outlet, useLocation, useNavigate } from 'react-router'
-import MCPIcon from '@/assets/icons/mcp.svg?react'
 
-export default function Settings() {
+export default function SettingsPage() {
   const navigrate = useNavigate()
   const location = useLocation()
   const activeName = location.pathname.split('/').pop() || 'provider'
   const menus = [
-    { id: 'general', name: '通用设置', icon: <SettingOutlined /> },
-    { id: 'provider', name: 'AI服务商设置', icon: <CrownOutlined /> },
-    { id: 'mcp', name: 'MCP设置', icon: <Icon component={MCPIcon} /> },
-    { id: 'skills', name: 'Skill设置', icon: <SparklesIcon /> },
-    { id: 'about', name: '关于', icon: <InfoCircleOutlined /> },
+    { id: 'general', name: '通用设置', icon: <SettingsIcon className="size-[1em]" /> },
+    { id: 'provider', name: 'AI服务商设置', icon: <Crown className="size-[1em]" /> },
+    { id: 'mcp', name: 'MCP设置', icon: <Cable className="size-[1em]" /> },
+    { id: 'skills', name: 'Skill设置', icon: <SparklesIcon className="size-[1em]" /> },
+    { id: 'about', name: '关于', icon: <Info className="size-[1em]" /> },
   ]
 
   return (
@@ -32,10 +30,10 @@ export default function Settings() {
                   navigrate(`/settings/${item.id}`)
                 }}
               >
-                <div className="text-xl">
+                <div>
                   {item.icon}
                 </div>
-                <div>
+                <div className="text-sm">
                   {item.name}
                 </div>
               </div>

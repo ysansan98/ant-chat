@@ -1,8 +1,5 @@
-import {
-  AimOutlined,
-  DownloadOutlined,
-} from '@ant-design/icons'
-import { Button } from 'antd'
+import { Button } from '@workspace/ui/components/button'
+import { Crosshair, Download } from 'lucide-react'
 import React from 'react'
 
 interface CanvasControlsProps {
@@ -23,21 +20,17 @@ export const CanvasControls: React.FC<CanvasControlsProps> = ({
     >
       {
         onReset && (
-          <Button
-            icon={<AimOutlined />}
-            onClick={onReset}
-            title="重置"
-          />
+          <Button variant="outline" size="icon-sm" onClick={onReset} title="重置">
+            <Crosshair />
+          </Button>
         )
       }
 
       {
         onDownload && (
-          <Button
-            icon={<DownloadOutlined />}
-            onClick={onDownload}
-            title="下载"
-          />
+          <Button variant="outline" size="icon-sm" onClick={onDownload} title="下载">
+            <Download />
+          </Button>
         )
       }
     </div>

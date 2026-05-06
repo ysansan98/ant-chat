@@ -1,5 +1,5 @@
-import { GlobalOutlined, InfoCircleOutlined, LinkOutlined } from '@ant-design/icons'
-import { Tooltip } from 'antd'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@workspace/ui/components/tooltip'
+import { Globe, Info, Link } from 'lucide-react'
 import React from 'react'
 import AssistantIcon from '@/assets/icons/Assistant.svg?react'
 import { CustomProxyUrl, ProxySettings } from '@/components/GeneralSettings/ProxySettings'
@@ -15,7 +15,7 @@ export function GeneralSettings() {
         <GeneralSettingsItem
           title="助手模型"
           help="用于生成对话标题的模型，不设置将使用对话时选择的模型"
-          icon={<AssistantIcon className="text-xl" />}
+          icon={<AssistantIcon className="size-4" />}
         >
           <SelectModel />
         </GeneralSettingsItem>
@@ -23,7 +23,7 @@ export function GeneralSettings() {
         <GeneralSettingsItem
           title="网络代理"
           help="配置AI请求的代理设置，支持系统代理和自定义代理"
-          icon={<GlobalOutlined className="text-xl" />}
+          icon={<Globe className="size-4" />}
         >
           <ProxySettings />
         </GeneralSettingsItem>
@@ -32,7 +32,7 @@ export function GeneralSettings() {
           <GeneralSettingsItem
             title="代理地址"
             help="配置自定义代理服务器地址"
-            icon={<LinkOutlined className="text-xl" />}
+            icon={<Link className="size-4" />}
           >
             <CustomProxyUrl />
           </GeneralSettingsItem>
@@ -52,14 +52,19 @@ interface GeneralSettingsItemProps {
 function GeneralSettingsItem({ title, help, icon, children }: GeneralSettingsItemProps) {
   return (
     <div className="flex items-center justify-between gap-2 px-4 py-1">
-      <span className="flex items-center gap-2 text-base">
+      <span className="flex items-center gap-2 text-sm">
         {icon}
         {title}
         {
           help
             ? (
-                <Tooltip title={help}>
-                  <InfoCircleOutlined className="text-xs text-gray-500" />
+                <Tooltip>
+                  <TooltipTrigger type="button">
+                    <Info className="size-4 text-gray-500" />
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <p>{help}</p>
+                  </TooltipContent>
                 </Tooltip>
               )
             : null

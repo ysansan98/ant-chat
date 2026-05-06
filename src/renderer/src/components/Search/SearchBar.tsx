@@ -1,6 +1,6 @@
 import type { SearchResult } from '@ant-chat/shared'
-import { SearchOutlined } from '@ant-design/icons'
 import { debounce } from 'lodash-es'
+import { Search } from 'lucide-react'
 import React from 'react'
 import { searchApi } from '@/api/searchApi'
 import { SearchResults } from './SearchResults'
@@ -52,7 +52,7 @@ export function SearchBar({ onItemClick }: SearchBarProps) {
           m-3 flex items-center gap-2 rounded-md border border-solid border-(--border-color) p-2
         `}
         >
-          <SearchOutlined className="text-[1.5em] text-[#9ca3af]!" />
+          <Search className="size-[1.5em] text-[#9ca3af]!" />
           <input
             ref={inputRef}
             className={`

@@ -1,5 +1,6 @@
-import { ArrowUpOutlined } from '@ant-design/icons'
-import { Button, Divider } from 'antd'
+import { Button } from '@workspace/ui/components/button'
+import { Separator } from '@workspace/ui/components/separator'
+import { ArrowUp } from 'lucide-react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 
 // Define the props interface for type safety
@@ -77,18 +78,18 @@ const ReadMoreContainer: React.FC<ReadMoreContainerProps> = ({
       </div>
 
       {isOverflowing && (
-        <Divider>
+        <div className="flex flex-col items-center">
+          <Separator className="my-1 w-full" />
           <Button
-            type="link"
-            size="small"
+            variant="link"
+            size="xs"
             className="text-xs"
             onClick={toggleExpand}
-            icon={<ArrowUpOutlined rotate={isExpanded ? 0 : 180} />}
-            iconPlacement="end"
           >
+            <ArrowUp className={isExpanded ? '' : 'rotate-180'} />
             {isExpanded ? showLessText : readMoreText}
           </Button>
-        </Divider>
+        </div>
       )}
     </div>
   )

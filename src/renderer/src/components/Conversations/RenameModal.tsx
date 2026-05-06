@@ -1,5 +1,8 @@
 import type { ConversationsId } from '@ant-chat/shared'
-import { App, Input, Modal } from 'antd'
+import { Button } from '@workspace/ui/components/button'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@workspace/ui/components/dialog'
+import { Input } from '@workspace/ui/components/input'
+import { toast } from 'sonner'
 
 interface RenameModalProps {
   isRenameModalOpen: boolean
@@ -8,32 +11,36 @@ interface RenameModalProps {
   renameId: string
   newName: string
   onChange: (value: string) => void
-
 }
 
 export default function RenameModal({ onChange, isRenameModalOpen, closeRenameModal, renameConversation, renameId, newName }: RenameModalProps) {
-  const { message } = App.useApp()
   return (
-    <Modal
-      title="重命名"
-      open={isRenameModalOpen}
-      onCancel={() => closeRenameModal()}
-      onOk={() => {
-        if (newName.length < 1) {
-          message.error('名称不能为空')
-          throw new Error('名称不能为空')
-        }
-        renameConversation(renameId as ConversationsId, newName)
-        closeRenameModal()
-      }}
-      cancelText="取消"
-    >
-      <Input
-        value={newName}
-        onChange={(e) => {
-          onChange(e.target.value)
-        }}
-      />
-    </Modal>
+    <Dialog open={isRenameModalOpen} onOpenChange={closeRenameModal}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>重命名</DialogTitle>
+        </DialogHeader>
+        <Input
+          value={newName}
+          onChange={(e) => {
+            onChange(e.target.value)
+          }}
+        />
+        <DialogFooter>
+          <Button variant="outline" onClick={closeRenameModal}>取消</Button>
+          <Button onClick={() => {
+            if (newName.length < 1) {
+              toast.error('名称不能为空')
+              return
+            }
+            renameConversation(renameId as ConversationsId, newName)
+            closeRenameModal()
+          }}
+          >
+            确认
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

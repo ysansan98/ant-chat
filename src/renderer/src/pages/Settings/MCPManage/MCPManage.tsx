@@ -1,7 +1,10 @@
 import type { AddMcpConfigSchema, McpConfigSchema, SSEMcpConfig, StdioMcpConfig, UpdateMcpConfigSchema } from '@ant-chat/shared'
-import { PlusOutlined } from '@ant-design/icons'
-import { App, Button, Empty, Switch } from 'antd'
+import { Button } from '@workspace/ui/components/button'
+import { EmptyState } from '@workspace/ui/components/empty-state'
+import { Switch } from '@workspace/ui/components/switch'
+import { Plus } from 'lucide-react'
 import React from 'react'
+import { toast } from 'sonner'
 import { setEnableMCP, useChatSttingsStore } from '@/store/chatSettings'
 import { addMcpConfigAction, connectMcpServerAction, deleteMcpConfigAction, disconnectMcpServerAction, initializeMcpConfigs, reconnectMcpServerAction, upadteMcpConfigAction, useMcpConfigsStore } from '@/store/mcpConfigs'
 import { MCPList } from './MCPList'
@@ -12,7 +15,6 @@ export default function MCPManage() {
   const [open, setOpen] = React.useState(false)
   const [mode, setMode] = React.useState<'add' | 'edit'>('add')
   const [editData, setEditData] = React.useState<McpConfigSchema | null>(null)
-  const { message } = App.useApp()
   // const { data, refreshAsync } = useRequest(getAllMcpConfigs)
   const data = useMcpConfigsStore(state => state.mcpConfigs)
   const mcpServerRuningStatusMap = useMcpConfigsStore(state => state.mcpServerRuningStatusMap)
@@ -25,16 +27,16 @@ export default function MCPManage() {
   }, [])
 
   return (
-    <div className="p-2">
+    <div className="p-2 text-sm">
       <div className={`
-        mb-4 flex justify-between rounded-xl border border-solid border-(--border-color) p-4
+        mb-4 flex justify-between rounded-xl border border-solid border-(--border-color) px-4 py-3
       `}
       >
         <div>
           启用MCP功能
         </div>
         <div>
-          <Switch value={enableMCP} onChange={setEnableMCP} />
+          <Switch checked={enableMCP} onCheckedChange={setEnableMCP} />
         </div>
       </div>
       {
@@ -43,13 +45,13 @@ export default function MCPManage() {
               <>
                 <div className="">
                   <Button
-                    icon={<PlusOutlined />}
                     onClick={() => {
                       setMode('add')
                       setEditData(null)
                       setOpen(true)
                     }}
                   >
+                    <Plus />
                     添加服务器
                   </Button>
                   <MCPList
@@ -108,7 +110,7 @@ export default function MCPManage() {
                           await refreshAsync()
                         }
                         catch (err) {
-                          message.error((err as Error).message || '添加失败')
+                          toast.error((err as Error).message || '添加失败')
                         }
                       }
 
@@ -142,10 +144,8 @@ export default function MCPManage() {
               </>
             )
           : (
-              <Empty
-                image={null}
-                styles={{ image: { height: 0, width: 0 } }}
-                description="请先启用MCP以访问配置选项"
+              <EmptyState
+                title="请先启用MCP以访问配置选项"
               />
             )
       }

@@ -1,7 +1,7 @@
 import type { McpConfigSchema } from '@ant-chat/shared'
 import type { McpConfigActionsProps } from './McpConfigActions'
-import { LoadingOutlined } from '@ant-design/icons'
-import { Tag } from 'antd'
+import { Badge } from '@workspace/ui/components/badge'
+import { Loader2 } from 'lucide-react'
 import { useMcpConfigsStore } from '@/store/mcpConfigs'
 import { McpConfigActions } from './McpConfigActions'
 
@@ -52,8 +52,15 @@ function getMcpServerRunStatus(statusMap: Record<string, 'connected' | 'connecti
   const status = statusMap[name] || 'disconnected'
 
   if (status === 'disconnected') {
-    return <Tag color="#1f2937">已停止</Tag>
+    return <Badge variant="secondary">已停止</Badge>
   }
 
-  return status === 'connected' ? <Tag color="green-inverse">运行中</Tag> : <Tag icon={<LoadingOutlined spin />} color="red-inverse">启动中</Tag>
+  return status === 'connected'
+    ? <Badge variant="default">运行中</Badge>
+    : (
+        <Badge variant="destructive">
+          <Loader2 className="size-3 animate-spin" />
+          启动中
+        </Badge>
+      )
 }

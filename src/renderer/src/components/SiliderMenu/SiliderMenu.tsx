@@ -1,8 +1,8 @@
 import {
-  EditOutlined,
-  SearchOutlined,
-  SettingOutlined,
-} from '@ant-design/icons'
+  Pencil,
+  Search,
+  Settings,
+} from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router'
 import { setActiveConversationsId } from '@/store/messages'
 import { ipc, unwrapIpcResponse } from '@/utils/ipc-bus'
@@ -31,7 +31,7 @@ export function SliderMenu() {
       <div className="flex min-h-0 flex-1 flex-col rounded-2xl bg-sidebar px-2 pt-8 pb-3">
         <div className="flex flex-col gap-1 py-2">
           <SidebarNavItem
-            icon={<EditOutlined />}
+            icon={<Pencil className="size-4" />}
             label="新对话"
             active={isChatPage && !location.search}
             onClick={() => {
@@ -40,7 +40,7 @@ export function SliderMenu() {
             }}
           />
           <SidebarNavItem
-            icon={<SearchOutlined />}
+            icon={<Search className="size-4" />}
             label="搜索"
             onClick={openSearch}
           />
@@ -53,7 +53,7 @@ export function SliderMenu() {
         <div className="mt-3 flex flex-col gap-1">
           <ThemeMenuItem />
           <SidebarNavItem
-            icon={<SettingOutlined />}
+            icon={<Settings className="size-4" />}
             label="设置"
             active={false}
             onClick={openSettings}

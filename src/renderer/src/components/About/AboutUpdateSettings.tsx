@@ -1,10 +1,14 @@
 import type { UpdateConfig } from '@ant-chat/shared'
-import { CheckCircleOutlined, ReloadOutlined, SettingOutlined } from '@ant-design/icons'
-import { Button, Card, Divider, message, Select, Switch, Tag, Typography } from 'antd'
+import { Badge } from '@workspace/ui/components/badge'
+import { Button } from '@workspace/ui/components/button'
+import { Card, CardContent } from '@workspace/ui/components/card'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/components/select'
+import { Separator } from '@workspace/ui/components/separator'
+import { Switch } from '@workspace/ui/components/switch'
+import { CheckCircle, RefreshCw, Settings } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import { updateApi } from '@/api/updateApi'
-
-const { Text } = Typography
 
 export function AboutUpdateSettings() {
   const [config, setConfig] = useState<UpdateConfig | null>(null)
@@ -21,34 +25,32 @@ export function AboutUpdateSettings() {
       const newConfig = { ...config, ...updates }
       const updatedConfig = await updateApi.setUpdateConfig(newConfig)
       setConfig(updatedConfig)
-      message.success('设置已保存')
+      toast.success('设置已保存')
     }
     catch (error) {
       console.error('保存设置失败:', error)
-      message.error('保存设置失败')
+      toast.error('保存设置失败')
     }
   }, [config])
 
   // 手动检查更新
   const handleCheckUpdate = useCallback(async () => {
-    console.log('isLoading => ', isLoading)
     if (isLoading) {
       return
     }
-    console.log('handleCheckUpdate start execute')
     setIsChecking(true)
     try {
       const updateInfo = await updateApi.checkForUpdates()
       if (updateInfo) {
-        message.success(`发现新版本 ${updateInfo.version}`)
+        toast.success(`发现新版本 ${updateInfo.version}`)
       }
       else {
-        message.info('当前已是最新版本')
+        toast.info('当前已是最新版本')
       }
     }
     catch (error) {
       console.error('检查更新失败:', error)
-      message.error('检查更新失败')
+      toast.error('检查更新失败')
     }
     finally {
       setIsChecking(false)
@@ -68,7 +70,7 @@ export function AboutUpdateSettings() {
       }
       catch (error) {
         console.error('加载更新设置失败:', error)
-        message.error('加载更新设置失败')
+        toast.error('加载更新设置失败')
       }
       finally {
         setIsLoading(false)
@@ -80,8 +82,8 @@ export function AboutUpdateSettings() {
 
   if (isLoading || !config) {
     return (
-      <Card loading className="w-full">
-        <div className="h-32" />
+      <Card className="w-full">
+        <CardContent className="h-32" />
       </Card>
     )
   }
@@ -89,113 +91,109 @@ export function AboutUpdateSettings() {
   return (
     <div className="flex flex-col gap-3">
       {/* 版本信息卡片 */}
-      <Card size="small" className="w-full">
-        <div className="flex items-center justify-between">
+      <Card className="w-full">
+        <CardContent className="flex items-center justify-between py-3">
           <div className="flex items-center gap-3">
-            <CheckCircleOutlined className="text-2xl text-green-500!" />
+            <CheckCircle className="size-5 text-green-500" />
             <span className="text-base">当前版本</span>
-            <span className="text-base">{currentVersion}</span>
+            <span className="text-base font-bold">{currentVersion}</span>
           </div>
           <Button
-            type="primary"
-            icon={<ReloadOutlined />}
-            loading={isChecking}
             onClick={handleCheckUpdate}
+            disabled={isChecking}
           >
+            <RefreshCw className="size-4" />
             {isChecking ? '检查中...' : '检查更新'}
           </Button>
-        </div>
+        </CardContent>
       </Card>
 
       {/* 更新设置卡片 */}
-      <Card
-        size="small"
-        title={(
-          <div className="flex items-center gap-2">
-            <SettingOutlined />
+      <Card className="w-full">
+        <CardContent className="">
+          <div className="flex items-center gap-2 text-base font-semibold">
+            <Settings className="size-5" />
             <span>更新设置</span>
           </div>
-        )}
-        className="w-full"
-      >
-        <div>
+        </CardContent>
+        <CardContent className="flex flex-col gap-3 pt-0">
           {/* 自动检查更新 */}
           <div className="flex items-center justify-between">
             <div>
-              <Text strong>自动检查更新</Text>
-              <br />
-              <Text type="secondary" className="text-sm">
+              <p className="font-semibold">自动检查更新</p>
+              <p className="text-sm text-muted-foreground">
                 启用后将定期检查新版本
-              </Text>
+              </p>
             </div>
             <Switch
               checked={config.autoCheck}
-              onChange={checked => updateConfig({ autoCheck: checked })}
+              onCheckedChange={checked => updateConfig({ autoCheck: checked })}
             />
           </div>
 
           {/* 检查频率设置 */}
           {config.autoCheck && (
             <>
-              <Divider size="small" />
+              <Separator />
               <div className="flex items-center justify-between">
                 <div>
-                  <Text strong>检查频率</Text>
-                  <br />
-                  <Text type="secondary" className="text-sm">
+                  <p className="font-semibold">检查频率</p>
+                  <p className="text-sm text-muted-foreground">
                     设置自动检查更新的时间间隔
-                  </Text>
+                  </p>
                 </div>
                 <Select
                   value={config.checkInterval}
-                  onChange={value => updateConfig({ checkInterval: value })}
-                  style={{ width: 120 }}
-                  options={[
-                    { label: '启动时', value: 'startup' },
-                    { label: '每天', value: 'daily' },
-                    { label: '每周', value: 'weekly' },
-                  ]}
-                />
+                  onValueChange={value => updateConfig({ checkInterval: value as UpdateConfig['checkInterval'] })}
+                >
+                  <SelectTrigger className="w-30">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="startup">启动时</SelectItem>
+                    <SelectItem value="daily">每天</SelectItem>
+                    <SelectItem value="weekly">每周</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </>
           )}
 
-          <Divider size="small" />
+          <Separator />
 
           {/* 自动下载更新 */}
           <div className="flex items-center justify-between">
             <div>
-              <Text strong>自动下载更新</Text>
-              <br />
-              <Text type="secondary" className="text-sm">
+              <p className="font-semibold">自动下载更新</p>
+              <p className="text-sm text-muted-foreground">
                 发现新版本时自动下载到后台
-              </Text>
+              </p>
             </div>
             <Switch
               checked={config.autoDownload}
-              onChange={checked => updateConfig({ autoDownload: checked })}
+              onCheckedChange={checked => updateConfig({ autoDownload: checked })}
             />
           </div>
 
-          <Divider size="small" />
+          <Separator />
 
           {/* 包含预发布版本 */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Text strong>包含预发布版本</Text>
-              <Tag color="orange" className="text-xs">Beta</Tag>
+              <p className="font-semibold">包含预发布版本</p>
+              <Badge variant="outline" className="text-xs">Beta</Badge>
             </div>
             <div className="flex items-center gap-1 text-right">
-              <Text type="secondary" className="text-xs">
+              <p className="text-xs text-muted-foreground">
                 包含测试版本和候选版本
-              </Text>
+              </p>
               <Switch
                 checked={config.includePrerelease}
-                onChange={checked => updateConfig({ includePrerelease: checked })}
+                onCheckedChange={checked => updateConfig({ includePrerelease: checked })}
               />
             </div>
           </div>
-        </div>
+        </CardContent>
       </Card>
     </div>
   )

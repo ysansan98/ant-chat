@@ -1,3 +1,4 @@
+import { Toaster } from '@workspace/ui/components/sonner'
 import { useState } from 'react'
 import { Outlet } from 'react-router'
 import { AppProviders } from './AppProviders'
@@ -10,6 +11,7 @@ function AppWrapper() {
   return (
     <AppProviders>
       <AntChatApp />
+      <Toaster />
     </AppProviders>
   )
 }
@@ -49,7 +51,6 @@ function AntChatApp() {
         <Outlet />
       </div>
 
-      {/* 更新通知 */}
       {updateInfo && (
         <UpdateNotification
           updateInfo={updateInfo}

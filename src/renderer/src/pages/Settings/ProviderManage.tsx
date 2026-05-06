@@ -1,7 +1,10 @@
 import type { ServiceProviderSchema } from '@ant-chat/shared'
+import { Button } from '@workspace/ui/components/button'
+import { EmptyState } from '@workspace/ui/components/empty-state'
+import { Switch } from '@workspace/ui/components/switch'
 import { useRequest } from 'ahooks'
-import { Button, Empty, message, Switch } from 'antd'
 import React from 'react'
+import { toast } from 'sonner'
 import Logo from '@/../public/logo.svg?react'
 import { providerApi } from '@/api/providerApi'
 import { ProviderLogo } from '@/components/Chat/providerLogo'
@@ -19,9 +22,9 @@ export default function ProviderManage() {
 
   if (error) {
     return (
-      <Empty description={error.message}>
-        <Button type="text" onClick={() => refresh()}> 重试 </Button>
-      </Empty>
+      <EmptyState title={error.message}>
+        <Button variant="ghost" size="sm" onClick={() => refresh()}>重试</Button>
+      </EmptyState>
     )
   }
 
@@ -47,7 +50,7 @@ export default function ProviderManage() {
                 setActiveProvider(item)
               }}
             >
-              <div className="flex items-center gap-2 text-base">
+              <div className="flex items-center gap-2">
                 <div className="
                   flex size-6 shrink-0 items-center justify-center rounded-sm bg-white
                 "
@@ -65,16 +68,12 @@ export default function ProviderManage() {
                 </span>
               </div>
               <Switch
-                value={item.isEnabled}
-                onChange={async (e) => {
+                checked={item.isEnabled}
+                onCheckedChange={async (e) => {
                   await providerApi.updateProviderService({ id: item.id, isEnabled: e })
                   refresh()
                 }}
-                size="small"
-                className={`
-                  hidden
-                  group-hover:block
-                `}
+                size="sm"
               />
             </div>
           ))
@@ -102,7 +101,7 @@ export default function ProviderManage() {
                     await providerApi.deleteProviderService(activeProvider.id)
                   }
                   catch (e) {
-                    message.error((e as Error).message)
+                    toast.error((e as Error).message)
                     return
                   }
 

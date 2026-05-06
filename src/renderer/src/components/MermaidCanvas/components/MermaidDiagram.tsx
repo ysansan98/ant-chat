@@ -1,4 +1,4 @@
-import { Alert } from 'antd'
+import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import mermaid from 'mermaid'
 import React, { useEffect, useId, useRef, useState } from 'react'
 import { useThemeStore } from '@/store/theme'
@@ -84,10 +84,9 @@ export function MermaidDiagram({ children, className, style }: RenderMermaidProp
 
   if (errorMessage) {
     return (
-      <Alert
-        message={errorMessage}
-        type="error"
-      />
+      <Alert variant="destructive">
+        <AlertTitle>{errorMessage}</AlertTitle>
+      </Alert>
     )
   }
   return (
@@ -101,11 +100,10 @@ export function MermaidDiagram({ children, className, style }: RenderMermaidProp
       {
         errorMessage
           ? (
-              <Alert
-                message={errorMessage}
-                description="请检查代码是否正确"
-                type="error"
-              />
+              <Alert variant="destructive">
+                <AlertTitle>{errorMessage}</AlertTitle>
+                <AlertDescription>请检查代码是否正确</AlertDescription>
+              </Alert>
             )
           : (
               <>

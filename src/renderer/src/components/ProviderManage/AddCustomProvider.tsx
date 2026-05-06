@@ -1,12 +1,16 @@
 import type { AddServiceProviderSchema } from '@ant-chat/shared'
-import { PlusOutlined } from '@ant-design/icons'
+import { Button } from '@workspace/ui/components/button'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@workspace/ui/components/dialog'
+import { Input } from '@workspace/ui/components/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/components/select'
+import { Switch } from '@workspace/ui/components/switch'
 import { useRequest } from 'ahooks'
-import { Button, Form, Input, message, Modal, Select, Switch } from 'antd'
+import { Plus } from 'lucide-react'
 import { nanoid } from 'nanoid'
 import React from 'react'
+import { useForm } from 'react-hook-form'
+import { toast } from 'sonner'
 import { providerApi } from '@/api/providerApi'
-
-const { Option } = Select
 
 interface AddCustomProviderProps {
   onAdd: (provider: AddServiceProviderSchema) => Promise<void>
@@ -14,12 +18,26 @@ interface AddCustomProviderProps {
   loading?: boolean
 }
 
+interface ProviderFormValues {
+  name: string
+  baseUrl: string
+  apiKey: string
+  apiMode: string
+  isEnabled: boolean
+}
+
 export function AddCustomProvider({ onAdd, existingProviderIds, loading }: AddCustomProviderProps) {
-  const [form] = Form.useForm<AddServiceProviderSchema>()
+  const { register, handleSubmit, reset, setValue, watch } = useForm<ProviderFormValues>({
+    defaultValues: {
+      apiMode: 'openai',
+      isEnabled: true,
+    },
+  })
+
   const [isModalOpen, setIsModalOpen] = React.useState(false)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [selectedModelsDevProviderId, setSelectedModelsDevProviderId] = React.useState<string | null>(null)
-  const { data: modelsDevProviders, loading: modelsDevLoading, run } = useRequest(
+  const { data: modelsDevProviders, run } = useRequest(
     providerApi.getModelsDevProviders,
     { manual: true },
   )
@@ -32,9 +50,8 @@ export function AddCustomProvider({ onAdd, existingProviderIds, loading }: AddCu
     return modelsDevProviders.filter(provider => !existingIds.has(provider.id))
   }, [modelsDevProviders, existingProviderIds])
 
-  const handleSubmit = async () => {
+  const handleSubmitForm = handleSubmit(async (values) => {
     try {
-      const values = await form.validateFields()
       setIsSubmitting(true)
 
       const providerData: AddServiceProviderSchema = {
@@ -42,163 +59,140 @@ export function AddCustomProvider({ onAdd, existingProviderIds, loading }: AddCu
         name: values.name,
         baseUrl: values.baseUrl,
         apiKey: values.apiKey,
-        apiMode: values.apiMode,
+        apiMode: values.apiMode as AddServiceProviderSchema['apiMode'],
         isEnabled: values.isEnabled ?? true,
       }
 
       await onAdd(providerData)
-      message.success('自定义提供商添加成功')
+      toast.success('自定义提供商添加成功')
       setIsModalOpen(false)
-      form.resetFields()
+      reset()
       setSelectedModelsDevProviderId(null)
     }
     catch (error) {
       if (error instanceof Error) {
-        message.error(`添加失败: ${error.message}`)
+        toast.error(`添加失败: ${error.message}`)
       }
       else {
-        message.error('添加失败，请重试')
+        toast.error('添加失败，请重试')
       }
     }
     finally {
       setIsSubmitting(false)
     }
-  }
+  })
 
   const handleCancel = () => {
     setIsModalOpen(false)
-    form.resetFields()
+    reset()
     setSelectedModelsDevProviderId(null)
   }
 
   return (
     <>
       <Button
-        type="dashed"
-        icon={<PlusOutlined />}
+        variant="outline"
         onClick={() => {
           setIsModalOpen(true)
           run()
         }}
-        loading={loading}
+        disabled={loading}
         className="w-full"
       >
+        <Plus />
         添加自定义提供商
       </Button>
 
-      <Modal
-        title="添加自定义提供商"
-        open={isModalOpen}
-        onOk={handleSubmit}
-        onCancel={handleCancel}
-        confirmLoading={isSubmitting}
-        okText="添加"
-        cancelText="取消"
-      >
-        <Form
-          form={form}
-          layout="vertical"
-          initialValues={{
-            apiMode: 'openai',
-            isEnabled: true,
-          }}
-        >
-          <Form.Item
-            name="modelsDevProvider"
-            label="从 Models.dev 选择"
-            help="选择后会自动填充配置，可继续编辑"
-          >
-            <Select
-              placeholder="选择服务商"
-              loading={modelsDevLoading}
-              allowClear
-              showSearch
-              optionFilterProp="label"
-              onChange={(value) => {
-                if (!value) {
-                  setSelectedModelsDevProviderId(null)
-                  return
-                }
-                const provider = availableModelsDevProviders.find(item => item.id === value)
-                if (!provider) {
-                  setSelectedModelsDevProviderId(null)
-                  return
-                }
-                setSelectedModelsDevProviderId(provider.id)
-                form.setFieldsValue({
-                  name: provider.name,
-                  baseUrl: provider.baseUrl,
-                  apiMode: provider.apiMode,
-                })
-              }}
-              options={availableModelsDevProviders.map(provider => ({
-                label: `${provider.name} (${provider.id})`,
-                value: provider.id,
-              }))}
-            />
-          </Form.Item>
-          <Form.Item
-            name="name"
-            label="提供商名称"
-            rules={[
-              { required: true, message: '请输入提供商名称' },
-              { min: 2, message: '名称至少2个字符' },
-              { max: 50, message: '名称最多50个字符' },
-            ]}
-          >
-            <Input placeholder="例如：我的自定义 AI" />
-          </Form.Item>
+      <Dialog open={isModalOpen} onOpenChange={handleCancel}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>添加自定义提供商</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmitForm} className="flex flex-col gap-4 pt-2">
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium">从 Models.dev 选择</label>
+              <Select
+                onValueChange={(value) => {
+                  if (!value) {
+                    setSelectedModelsDevProviderId(null)
+                    return
+                  }
+                  const provider = availableModelsDevProviders.find(item => item.id === value)
+                  if (!provider) {
+                    setSelectedModelsDevProviderId(null)
+                    return
+                  }
+                  setSelectedModelsDevProviderId(provider.id)
+                  setValue('name', provider.name)
+                  setValue('baseUrl', provider.baseUrl)
+                  setValue('apiMode', provider.apiMode)
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="选择服务商" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableModelsDevProviders.map(provider => (
+                    <SelectItem key={provider.id} value={provider.id}>
+                      {provider.name}
+                      {' '}
+                      (
+                      {provider.id}
+                      )
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-          <Form.Item
-            name="baseUrl"
-            label="API 地址"
-            rules={[
-              { required: true, message: '请输入API地址' },
-              { type: 'url', message: '请输入有效的URL地址' },
-            ]}
-          >
-            <Input placeholder="https://api.example.com" />
-          </Form.Item>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium">提供商名称 *</label>
+              <Input placeholder="例如：我的自定义 AI" {...register('name', { required: true, minLength: 2, maxLength: 50 })} />
+            </div>
 
-          <Form.Item
-            name="apiKey"
-            label="API Key"
-            rules={[
-              { required: true, message: '请输入API Key' },
-            ]}
-          >
-            <Input.Password placeholder="输入你的API Key" />
-          </Form.Item>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium">API 地址 *</label>
+              <Input placeholder="https://api.example.com" {...register('baseUrl', { required: true })} />
+            </div>
 
-          <Form.Item
-            name="apiMode"
-            label="API 模式"
-            rules={[{ required: true, message: '请选择API模式' }]}
-          >
-            <Select placeholder="选择API兼容模式">
-              <Option value="openai">OpenAI 兼容</Option>
-              <Option value="anthropic">Anthropic 兼容</Option>
-              <Option value="google">Google 兼容</Option>
-            </Select>
-          </Form.Item>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium">API Key *</label>
+              <Input type="password" placeholder="输入你的API Key" {...register('apiKey', { required: true })} />
+            </div>
 
-          <Form.Item
-            name="isEnabled"
-            label="启用状态"
-          >
-            <Switch />
-            {/* <Button
-              type="text"
-              onClick={() => {
-                const current = form.getFieldValue('isEnabled')
-                form.setFieldValue('isEnabled', !current)
-              }}
-            >
-              {form.getFieldValue('isEnabled') ? '已启用' : '已禁用'}
-            </Button> */}
-          </Form.Item>
-        </Form>
-      </Modal>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium">API 模式 *</label>
+              <Select onValueChange={v => setValue('apiMode', v)} defaultValue="openai">
+                <SelectTrigger>
+                  <SelectValue placeholder="选择API兼容模式" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="openai">OpenAI 兼容</SelectItem>
+                  <SelectItem value="anthropic">Anthropic 兼容</SelectItem>
+                  <SelectItem value="google">Google 兼容</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium">启用状态</label>
+              <Switch
+                checked={watch('isEnabled')}
+                onCheckedChange={v => setValue('isEnabled', v)}
+              />
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={handleCancel}>
+                取消
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? '添加中...' : '添加'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

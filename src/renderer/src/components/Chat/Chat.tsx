@@ -1,6 +1,7 @@
 import type { AgentMode, ChatFeatures, IAttachment, IImage } from '@ant-chat/shared'
-import { App, Skeleton } from 'antd'
+import { Skeleton } from '@workspace/ui/components/skeleton'
 import { lazy, Suspense } from 'react'
+import { toast } from 'sonner'
 import { AgentApprovalCard } from '@/components/Agent'
 import { DEFAULT_TITLE } from '@/constants'
 import { useChatSettingsContext } from '@/contexts/chatSettings'
@@ -26,7 +27,6 @@ export default function Chat() {
   const currentConversations = useConversationsStore(state => state.conversations.find(item => item.id === activeConversationsId))
   const currentWorkspacePath = useConversationsStore(state => state.currentWorkspacePath)
 
-  const { notification } = App.useApp()
   const { settings, updateSettings } = useChatSettingsContext()
   const agentTask = useAgentStore(state => state.getActiveTaskByConversation(activeConversationsId))
   const agentTaskId = agentTask?.taskId
@@ -40,10 +40,7 @@ export default function Chat() {
     agentMode: AgentMode,
   ) {
     if (!settings.modelId) {
-      notification.error({
-        title: '请选择模型',
-        placement: 'bottomRight',
-      })
+      toast.error('请选择模型')
       return
     }
 
@@ -124,9 +121,9 @@ export default function Chat() {
 function BubbleSkeleton() {
   return (
     <div className="mx-auto flex w-(--chat-width) flex-col gap-3">
-      <Skeleton paragraph={{ rows: 4 }} active />
-      <Skeleton paragraph={{ rows: 4 }} active />
-      <Skeleton paragraph={{ rows: 4 }} active />
+      <Skeleton className="h-16 w-full" />
+      <Skeleton className="h-16 w-full" />
+      <Skeleton className="h-16 w-full" />
     </div>
   )
 }

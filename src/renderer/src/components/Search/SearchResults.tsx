@@ -1,6 +1,6 @@
 import type { SearchResult } from '@ant-chat/shared'
-import { EnterOutlined, MessageOutlined } from '@ant-design/icons'
-import { Empty } from 'antd'
+import { EmptyState } from '@workspace/ui/components/empty-state'
+import { CornerDownLeft, MessageSquare } from 'lucide-react'
 import { HighlightText } from './HighlightText'
 
 interface SearchResultsProps {
@@ -10,7 +10,7 @@ interface SearchResultsProps {
 }
 
 const IconMapping: Record<SearchResult['type'], React.ReactNode> = {
-  message: <MessageOutlined className="text-[#9ca3af]!" />,
+  message: <MessageSquare className="text-[#9ca3af]!" />,
 }
 
 export function SearchResults({ items, keywords, onItemClick }: SearchResultsProps) {
@@ -59,7 +59,7 @@ export function SearchResults({ items, keywords, onItemClick }: SearchResultsPro
                           group-hover/message:block
                         `}
                         >
-                          <EnterOutlined />
+                          <CornerDownLeft />
                         </span>
                       </div>
                     ))}
@@ -72,9 +72,7 @@ export function SearchResults({ items, keywords, onItemClick }: SearchResultsPro
       )
     : (
         keywords && (
-          <div className="flex size-full items-center justify-center">
-            <Empty />
-          </div>
+          <EmptyState title="未找到结果" />
         )
       )
 }

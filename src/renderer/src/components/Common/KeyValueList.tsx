@@ -1,75 +1,83 @@
-import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons'
-import { Button, Form, Input } from 'antd'
+import { Button } from '@workspace/ui/components/button'
+import { Input } from '@workspace/ui/components/input'
+import { MinusCircle, Plus } from 'lucide-react'
 import React from 'react'
 
+export interface KeyValueItem {
+  key: string
+  value: string
+}
+
 interface KeyValueListProps {
-  name: string | number | (string | number)[]
+  value?: KeyValueItem[]
+  onChange?: (items: KeyValueItem[]) => void
   label?: React.ReactNode
   keyPlaceholder?: string
   valuePlaceholder?: string
-  keyRequired?: boolean
-  valueRequired?: boolean
-  keyRules?: any[]
-  valueRules?: any[]
   addButtonLabel?: string
   disabled?: boolean
 }
 
 export function KeyValueList({
-  name,
+  value = [],
+  onChange,
   label,
   keyPlaceholder = '键',
   valuePlaceholder = '值',
-  keyRequired = true,
-  valueRequired = true,
-  keyRules,
-  valueRules,
   addButtonLabel = '添加',
   disabled = false,
 }: KeyValueListProps) {
-  const defaultKeyRules = keyRequired ? [{ required: true, message: `请输入${keyPlaceholder}` }] : []
-  const defaultValueRules = valueRequired ? [{ required: true, message: `请输入${valuePlaceholder}` }] : []
+  function handleAdd() {
+    onChange?.([...value, { key: '', value: '' }])
+  }
+
+  function handleRemove(index: number) {
+    onChange?.(value.filter((_, i) => i !== index))
+  }
+
+  function handleChange(index: number, field: 'key' | 'value', newValue: string) {
+    const updated = value.map((item, i) =>
+      i === index ? { ...item, [field]: newValue } : item,
+    )
+    onChange?.(updated)
+  }
 
   return (
-    <Form.Item label={label}>
-      <Form.List name={name}>
-        {(fields, { add, remove }) => (
-          <>
-            {fields.map(({ key, name }) => (
-              <div key={key} className="mb-4 flex w-full items-center gap-3">
-                <Form.Item
-                  className="mb-0! flex-1"
-                  name={[name, 'key']}
-                  rules={[...defaultKeyRules, ...(keyRules || [])]}
-                >
-                  <Input placeholder={keyPlaceholder} disabled={disabled} />
-                </Form.Item>
-                <Form.Item
-                  name={[name, 'value']}
-                  rules={[...defaultValueRules, ...(valueRules || [])]}
-                  className="mb-0! flex-1"
-                >
-                  <Input placeholder={valuePlaceholder} disabled={disabled} />
-                </Form.Item>
-                {!disabled && (
-                  <MinusCircleOutlined className="ml-2" onClick={() => remove(name)} />
-                )}
-              </div>
-            ))}
-            <Form.Item className="mb-0!">
-              <Button
-                type="dashed"
-                onClick={() => add({ key: '', value: '' })}
-                block
-                icon={<PlusOutlined />}
-                disabled={disabled}
-              >
-                {addButtonLabel}
-              </Button>
-            </Form.Item>
-          </>
-        )}
-      </Form.List>
-    </Form.Item>
+    <div className="flex flex-col gap-1">
+      {label && <span className="text-sm font-medium">{label}</span>}
+      {value.map((item, index) => (
+        <div key={index} className="mb-2 flex w-full items-center gap-2">
+          <Input
+            placeholder={keyPlaceholder}
+            value={item.key}
+            disabled={disabled}
+            onChange={e => handleChange(index, 'key', e.target.value)}
+            className="flex-1"
+          />
+          <Input
+            placeholder={valuePlaceholder}
+            value={item.value}
+            disabled={disabled}
+            onChange={e => handleChange(index, 'value', e.target.value)}
+            className="flex-1"
+          />
+          {!disabled && (
+            <Button variant="ghost" size="icon-sm" onClick={() => handleRemove(index)}>
+              <MinusCircle />
+            </Button>
+          )}
+        </div>
+      ))}
+      {!disabled && (
+        <Button
+          variant="outline"
+          onClick={handleAdd}
+          className="w-full"
+        >
+          <Plus />
+          {addButtonLabel}
+        </Button>
+      )}
+    </div>
   )
 }

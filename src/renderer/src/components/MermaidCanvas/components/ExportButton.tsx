@@ -1,6 +1,6 @@
 import type { Exporter } from '../utils'
-import { DownloadOutlined } from '@ant-design/icons'
-import { Button } from 'antd'
+import { Button } from '@workspace/ui/components/button'
+import { Download } from 'lucide-react'
 import React from 'react'
 import { useThemeStore } from '@/store/theme'
 import { getBase64SVG, getSvgSize, simulateDownload } from '../utils'
@@ -62,10 +62,13 @@ export const ExportButton: React.FC<ExportButtonProps> = ({ containerRef }) => {
       }}
     >
       <Button
-        icon={<DownloadOutlined />}
+        variant="outline"
+        size="icon-sm"
         onClick={handleExport}
         title="下载PNG"
-      />
+      >
+        <Download />
+      </Button>
     </div>
   )
 }

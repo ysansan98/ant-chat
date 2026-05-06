@@ -1,11 +1,9 @@
 import type { IMessage } from '@ant-chat/shared'
-import { App } from 'antd'
 import { useCallback } from 'react'
+import { toast } from 'sonner'
 import { clipboardWrite } from '@/utils'
 
 export function useMessageActions() {
-  const { message: messageFunc } = App.useApp()
-
   const copyMessage = useCallback(async (message: IMessage) => {
     const data = { text: '', html: '' }
     message.content.forEach((b, index) => {
@@ -25,12 +23,12 @@ export function useMessageActions() {
 
     try {
       await clipboardWrite(data)
-      messageFunc.success('复制成功')
+      toast.success('复制成功')
     }
     catch {
-      messageFunc.error('复制失败')
+      toast.error('复制失败')
     }
-  }, [messageFunc])
+  }, [])
 
   return {
     copyMessage,

@@ -1,5 +1,4 @@
-import { Select } from 'antd'
-import React from 'react'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@workspace/ui/components/select'
 import { useAllAvailableModels } from '@/hooks/useAllAvailableModels'
 import { setAssistantModelId, useGeneralSettingsStore } from '@/store/generalSettings'
 
@@ -8,21 +7,24 @@ export function SelectModel() {
 
   const assistantModelId = useGeneralSettingsStore(state => state.assistantModelId)
 
-  const options = React.useMemo(() => providers?.map(item => ({
-    label: item.name,
-    title: item.name,
-    options: item.models.map(model => ({
-      label: model.name,
-      value: model.id,
-    })),
-  })), [providers])
-
   return (
-    <Select
-      value={assistantModelId}
-      options={[{ label: '使用默认模型', value: '' }, ...(options ?? [])]}
-      className="min-w-50"
-      onChange={value => setAssistantModelId(value)}
-    />
+    <Select value={assistantModelId || '__default__'} onValueChange={value => setAssistantModelId(value === '__default__' ? '' : value)}>
+      <SelectTrigger className="min-w-50">
+        <SelectValue placeholder="选择模型" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="__default__">使用默认模型</SelectItem>
+        {providers?.map(item => (
+          <SelectGroup key={item.name}>
+            <SelectLabel>{item.name}</SelectLabel>
+            {item.models.map(model => (
+              <SelectItem key={model.id} value={model.id}>
+                {model.name}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        ))}
+      </SelectContent>
+    </Select>
   )
 }

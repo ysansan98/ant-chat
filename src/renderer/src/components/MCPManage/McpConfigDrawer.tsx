@@ -1,12 +1,19 @@
 import type { McpConfigSchema, McpTool } from '@ant-chat/shared'
-import type { RuleObject } from 'antd/es/form'
-import { AddMcpConfigSchema, UpdateMcpConfigSchema } from '@ant-chat/shared'
+import type { KeyValueItem } from '@/components/Common/KeyValueList'
 
-import { RightOutlined } from '@ant-design/icons'
-import { Alert, Avatar, Button, Descriptions, Drawer, Empty, Form, Input, Select, Tag } from 'antd'
+import { AddMcpConfigSchema, UpdateMcpConfigSchema } from '@ant-chat/shared'
+import { Alert, AlertTitle } from '@workspace/ui/components/alert'
+import { Avatar } from '@workspace/ui/components/avatar'
+import { Badge } from '@workspace/ui/components/badge'
+import { Button } from '@workspace/ui/components/button'
+import { EmptyState } from '@workspace/ui/components/empty-state'
+import { Input } from '@workspace/ui/components/input'
+import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from '@workspace/ui/components/sheet'
+import { ChevronRight, Search } from 'lucide-react'
 import React from 'react'
+import { useForm, useWatch } from 'react-hook-form'
 import { useImmer } from 'use-immer'
-import { connectMcpServer, fetchMcpServerTools, getMcpConfigByServerName } from '@/api/mcpApi'
+import { connectMcpServer, fetchMcpServerTools } from '@/api/mcpApi'
 import { KeyValueList } from '@/components/Common/KeyValueList'
 import { EmojiPickerHoc } from '@/components/EmojiPiker'
 import { QuickImport } from './QuickImport'
@@ -23,312 +30,329 @@ interface McpConfigDrawerProps {
 interface McpConfigForm {
   serverName: string
   icon: string
-  transportType: 'stdio' | 'sse'
+  transportType: 'stdio' | 'sse' | ''
   command?: string
-  args?: string[]
-  env?: { key: string, value: string }[]
-  headers?: { key: string, value: string }[]
+  args?: string
+  env?: KeyValueItem[]
+  headers?: KeyValueItem[]
   url?: string
   description?: string | null
   timeout?: number
 }
 
 export default function McpConfigDrawer({ open, mode, defaultValues, onClose, onSave }: McpConfigDrawerProps) {
-  const _defaultValues = mode === 'edit'
-    ? { ...defaultValues, env: defaultValues?.transportType === 'stdio' ? objectToArray(defaultValues?.env || {}) : [], headers: defaultValues?.transportType === 'sse' ? objectToArray(defaultValues?.headers || {}) : [] }
+  const _defaultValues: McpConfigForm = mode === 'edit' && defaultValues
+    ? {
+        serverName: defaultValues.serverName,
+        icon: defaultValues.icon,
+        transportType: defaultValues.transportType as 'stdio' | 'sse',
+        command: (defaultValues as Record<string, unknown>).command as string | undefined,
+        args: Array.isArray((defaultValues as Record<string, unknown>).args)
+          ? ((defaultValues as Record<string, unknown>).args as string[]).join(',')
+          : ((defaultValues as Record<string, unknown>).args as string || ''),
+        url: (defaultValues as Record<string, unknown>).url as string | undefined,
+        description: defaultValues.description,
+        timeout: defaultValues.timeout,
+        env: defaultValues.transportType === 'stdio' ? objectToArray((defaultValues as Record<string, unknown>).env as Record<string, unknown> || {}) : [],
+        headers: defaultValues.transportType === 'sse' ? objectToArray((defaultValues as Record<string, unknown>).headers as Record<string, unknown> || {}) : [],
+      }
     : {
         icon: '⚒️',
-        state: 'disconnected',
         serverName: '',
         url: '',
         command: '',
-        args: [],
+        args: '',
         env: [],
         headers: [],
-        transportType: '',
+        transportType: '' as const,
       }
 
-  const [form] = Form.useForm<McpConfigForm>()
+  const { register, handleSubmit, reset, setValue, watch, control } = useForm<McpConfigForm>({
+    defaultValues: _defaultValues,
+  })
+
   const [mcpConfig, updateMcpConfig] = useImmer<McpConfigSchema | null>(null)
   const [mcpTools, updateMcpTools] = useImmer<McpTool[]>([])
 
   const [connectState, setConnectState] = React.useState<'connecting' | 'error' | 'success' | ''>('')
   const [connectError, setConnectError] = React.useState('')
 
-  const transportType = Form.useWatch('transportType', form)
+  const transportType = useWatch({ control, name: 'transportType' })
 
-  const serverNameRules = mode === 'add'
-    ? [{ required: true }, { validator: validatorServerName }]
-    : [{ required: true }]
-
-  function reset() {
+  function resetAll() {
     updateMcpConfig(null)
     updateMcpTools([])
     setConnectState('')
-    form.resetFields()
+    reset()
+  }
+
+  const onSubmit = async (config: McpConfigForm) => {
+    console.log('config => ', JSON.stringify(config))
+
+    let finalConfig: AddMcpConfigSchema | UpdateMcpConfigSchema
+
+    if (mode === 'add') {
+      const addConfig = config.transportType === 'stdio'
+        ? {
+            serverName: config.serverName,
+            icon: config.icon,
+            transportType: 'stdio' as const,
+            command: config.command || '',
+            args: config.args ? config.args.split(',').filter(Boolean) : [],
+            env: config.env ? envArrayToObject(config.env) : undefined,
+            description: config.description,
+            timeout: config.timeout,
+          }
+        : {
+            serverName: config.serverName,
+            icon: config.icon,
+            transportType: 'sse' as const,
+            url: config.url || '',
+            headers: config.headers ? envArrayToObject(config.headers) : undefined,
+            description: config.description,
+            timeout: config.timeout,
+          }
+
+      finalConfig = AddMcpConfigSchema.parse(addConfig)
+    }
+    else {
+      const updateConfig = config.transportType === 'stdio'
+        ? {
+            serverName: config.serverName,
+            icon: config.icon,
+            transportType: 'stdio' as const,
+            command: config.command,
+            args: config.args ? config.args.split(',').filter(Boolean) : [],
+            env: config.env ? envArrayToObject(config.env) : config.env,
+            description: config.description,
+            timeout: config.timeout,
+          }
+        : {
+            serverName: config.serverName,
+            icon: config.icon,
+            transportType: 'sse' as const,
+            url: config.url,
+            headers: config.headers ? envArrayToObject(config.headers) : config.headers,
+            description: config.description,
+            timeout: config.timeout,
+          }
+
+      finalConfig = UpdateMcpConfigSchema.parse(updateConfig)
+    }
+
+    onSave?.(finalConfig)
   }
 
   return (
-    <Drawer
+    <Sheet
       open={open}
-      title={mode === 'add' ? '添加MCP服务器' : '更新MCP服务器'}
-      styles={{ body: { padding: 0 } }}
-      placement="bottom"
-      size={window.innerHeight - 100}
-      destroyOnHidden
-      footer={(
-        <div className="flex justify-end gap-2">
-          <Button onClick={() => {
-            reset()
-            onClose?.()
-          }}
-          >
-            取消
-          </Button>
-          <Button
-            type="primary"
-            onClick={async () => {
-              const config: McpConfigForm = await form.validateFields()
-              console.log('config => ', JSON.stringify(config))
-
-              let finalConfig: AddMcpConfigSchema | UpdateMcpConfigSchema
-
-              if (mode === 'add') {
-                const addConfig = config.transportType === 'stdio'
-                  ? {
-                      serverName: config.serverName,
-                      icon: config.icon,
-                      transportType: 'stdio' as const,
-                      command: config.command || '',
-                      args: config.args || [],
-                      env: config.env ? envArrayToObject(config.env) : undefined,
-                      description: config.description,
-                      timeout: config.timeout,
-                    }
-                  : {
-                      serverName: config.serverName,
-                      icon: config.icon,
-                      transportType: 'sse' as const,
-                      url: config.url || '',
-                      headers: config.headers ? envArrayToObject(config.headers) : undefined,
-                      description: config.description,
-                      timeout: config.timeout,
-                    }
-
-                finalConfig = AddMcpConfigSchema.parse(addConfig)
-              }
-              else {
-                const updateConfig = config.transportType === 'stdio'
-                  ? {
-                      serverName: config.serverName,
-                      icon: config.icon,
-                      transportType: 'stdio' as const,
-                      command: config.command,
-                      args: config.args,
-                      env: config.env ? envArrayToObject(config.env) : config.env,
-                      description: config.description,
-                      timeout: config.timeout,
-                    }
-                  : {
-                      serverName: config.serverName,
-                      icon: config.icon,
-                      transportType: 'sse' as const,
-                      url: config.url,
-                      headers: config.headers ? envArrayToObject(config.headers) : config.headers,
-                      description: config.description,
-                      timeout: config.timeout,
-                    }
-
-                finalConfig = UpdateMcpConfigSchema.parse(updateConfig)
-              }
-
-              onSave?.(finalConfig)
-            }}
-          >
-            {mode === 'edit' ? '更新' : '安装'}
-          </Button>
-        </div>
-      )}
-      onClose={() => {
-        reset()
+      onOpenChange={() => {
+        resetAll()
         onClose?.()
       }}
     >
-      <div className="flex size-full">
-        <div className="w-[55vw] shrink-0 overflow-y-auto px-2 pt-5">
-          <QuickImport onImport={(e) => {
-            if (e.transportType === 'stdio') {
-              const result: McpConfigForm = { ...e, env: objectToArray(e.env) }
-              form.setFieldsValue(result)
-            }
-            else {
-              const headers = objectToArray(e.headers)
+      <SheetContent
+        side="right"
+        className="
+          flex w-[90vw] max-w-[90vw] flex-col gap-0 p-0
+          sm:max-w-[90vw]
+        "
+      >
+        <SheetHeader className="border-b px-4 py-3">
+          <SheetTitle>{mode === 'add' ? '添加MCP服务器' : '更新MCP服务器'}</SheetTitle>
+        </SheetHeader>
+        <div className="flex flex-1 overflow-hidden">
+          <div className="w-[55vw] shrink-0 overflow-y-auto px-2 pt-5">
+            <QuickImport onImport={(e) => {
+              if (e.transportType === 'stdio') {
+                setValue('serverName', e.serverName)
+                setValue('transportType', 'stdio')
+                setValue('command', e.command)
+                setValue('args', e.args?.join(','))
+                setValue('env', objectToArray(e.env))
+                setValue('icon', e.icon)
+              }
+              else {
+                setValue('serverName', e.serverName)
+                setValue('transportType', 'sse')
+                setValue('url', e.url)
+                setValue('headers', objectToArray(e.headers))
+                setValue('icon', e.icon)
+              }
+            }}
+            />
 
-              form.setFieldsValue({ ...e, headers })
-            }
-          }}
-          />
-
-          <div className="px-2 pt-5">
-            <Form form={form} layout="vertical" className="flex flex-col gap-5" initialValues={_defaultValues}>
-              <Form.Item
-                label={<FormItemLabel name="MCP服务类型" tag="transportType" />}
-                name="transportType"
-                rules={[{ required: true }]}
+            <div className="px-2 pt-5">
+              <form
+                className="flex flex-col gap-5"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  handleSubmit(onSubmit)(e)
+                }}
               >
-                <SelectTransportType />
-              </Form.Item>
+                <div className="flex flex-col gap-1">
+                  <FormItemLabel name="MCP服务类型" tag="transportType" />
+                  <SelectTransportType
+                    value={transportType as 'stdio' | 'sse' | undefined}
+                    onChange={v => setValue('transportType', v as 'stdio' | 'sse')}
+                  />
+                </div>
 
-              <Form.Item
-                label={<FormItemLabel name="MCP Server 名称" tag="serverName" />}
-                name="serverName"
-                rules={serverNameRules}
-              >
-                <Input placeholder="例如: my-mcp-plugin" />
-              </Form.Item>
+                <div className="flex flex-col gap-1">
+                  <FormItemLabel name="MCP Server 名称" tag="serverName" />
+                  <Input placeholder="例如: my-mcp-plugin" {...register('serverName', { required: true })} />
+                </div>
 
-              <Form.Item
-                label={<FormItemLabel name="图标" tag="icon" />}
-                name="icon"
-                rules={[
-                  { required: true },
-                ]}
-              >
-                <EmojiPickerHoc />
-              </Form.Item>
+                <div className="flex flex-col gap-1">
+                  <FormItemLabel name="图标" tag="icon" />
+                  <EmojiPickerHoc
+                    value={watch('icon')}
+                    onChange={e => setValue('icon', e)}
+                  />
+                </div>
 
-              {
-                transportType === 'sse'
+                {transportType === 'sse'
                   ? (
                       <>
-                        <Form.Item
-                          name="url"
-                          label={<FormItemLabel name="请求地址" tag="url" />}
-                          validateTrigger="onBlur"
-                          rules={[
-                            { required: true },
-                            { pattern: /^(https?:\/\/)/, message: 'URL必须以http或https开头' },
-                          ]}
-                        >
-                          <Input />
-                        </Form.Item>
+                        <div className="flex flex-col gap-1">
+                          <FormItemLabel name="请求地址" tag="url" />
+                          <Input {...register('url', { required: true, pattern: /^https?:\/\// })} />
+                        </div>
 
                         <KeyValueList
-                          name="headers"
                           label={<FormItemLabel name="请求头" tag="headers" />}
+                          value={watch('headers')}
+                          onChange={v => setValue('headers', v)}
                         />
                       </>
                     )
                   : transportType === 'stdio'
                     ? (
                         <>
-                          <Form.Item
-                            name="command"
-                            label={<FormItemLabel name="命令" tag="command" />}
-                            rules={[{ required: true }]}
-                          >
-                            <Input placeholder="例如： npx / uv / docker" />
-                          </Form.Item>
+                          <div className="flex flex-col gap-1">
+                            <FormItemLabel name="命令" tag="command" />
+                            <Input placeholder="例如： npx / uv / docker" {...register('command', { required: true })} />
+                          </div>
 
-                          <Form.Item
-                            rules={[{ required: true }]}
-                            name="args"
-                            label={<FormItemLabel name="命令参数" tag="args" />}
-                          >
-                            <InputArgs />
-                          </Form.Item>
+                          <div className="flex flex-col gap-1">
+                            <FormItemLabel name="命令参数" tag="args" />
+                            <Input placeholder="参数用逗号分隔" {...register('args')} />
+                          </div>
 
                           <KeyValueList
-                            name="env"
                             label={<FormItemLabel name="环境变量" tag="env" />}
+                            value={watch('env')}
+                            onChange={v => setValue('env', v)}
                             keyPlaceholder="变量名称"
                             valuePlaceholder="变量值"
                             addButtonLabel="添加环境变量"
                           />
                         </>
                       )
-                    : null
-              }
-              {
-                connectState === 'error' && connectError
+                    : null}
+                {connectState === 'error' && connectError
                   ? (
-                      <Alert message={connectError} type="error" />
+                      <Alert variant="destructive">
+                        <AlertTitle>{connectError}</AlertTitle>
+                      </Alert>
                     )
-                  : null
-              }
+                  : null}
 
-              <div className="flex items-center justify-between">
-                <span>测试连接成功后 MCP Server才可以被正常使用</span>
-                <Button
-                  type="primary"
-                  loading={connectState === 'connecting'}
-                  onClick={async () => {
-                    setConnectError('')
-                    updateMcpTools([])
-                    let config: McpConfigSchema | McpConfigForm = await form.validateFields().then(data => data)
+                <div className="flex items-center justify-between">
+                  <span>测试连接成功后 MCP Server才可以被正常使用</span>
+                  <Button
+                    type="button"
+                    disabled={connectState === 'connecting'}
+                    onClick={async () => {
+                      setConnectError('')
+                      updateMcpTools([])
 
-                    if (config.transportType === 'stdio' && Array.isArray(config.env)) {
-                      config = { ...config, env: envArrayToObject(config.env) } as McpConfigSchema
-                    }
-                    else if (config.transportType === 'sse' && Array.isArray(config.headers)) {
-                      config = { ...config, headers: envArrayToObject(config.headers) } as McpConfigSchema
-                    }
+                      const config = watch()
+                      if (!config.transportType || !config.serverName)
+                        return
 
-                    setConnectState('connecting')
-                    let result = false
-                    try {
-                      const [ok, msg] = await connectMcpServer(config as McpConfigSchema)
-                      result = ok
+                      setConnectState('connecting')
+                      let result = false
+                      try {
+                        const mcpCfg = {
+                          serverName: config.serverName,
+                          icon: config.icon,
+                          transportType: config.transportType,
+                          ...(config.transportType === 'stdio'
+                            ? {
+                                command: config.command || '',
+                                args: config.args ? config.args.split(',').filter(Boolean) : [],
+                                env: envArrayToObject(config.env),
+                              }
+                            : {
+                                url: config.url || '',
+                                headers: envArrayToObject(config.headers),
+                              }),
+                        } as McpConfigSchema
 
-                      if (!ok) {
-                        throw new Error(msg)
+                        const [ok, msg] = await connectMcpServer(mcpCfg)
+                        result = ok
+
+                        if (!ok) {
+                          throw new Error(msg)
+                        }
                       }
-                    }
-                    catch (e) {
-                      const message = (e as Error).message
-                      setConnectError(message)
-                      setConnectState('error')
-                      return
-                    }
-                    updateMcpConfig(config as McpConfigSchema)
-                    setConnectState(result ? 'success' : 'error')
+                      catch (e) {
+                        const message = (e as Error).message
+                        setConnectError(message)
+                        setConnectState('error')
+                        return
+                      }
+                      updateMcpConfig(config as unknown as McpConfigSchema)
+                      setConnectState(result ? 'success' : 'error')
 
-                    const tools = await fetchMcpServerTools((config as McpConfigSchema).serverName)
-                    updateMcpTools(tools)
-                  }}
-                >
-                  测试连接
-                </Button>
-              </div>
+                      const tools = await fetchMcpServerTools(config.serverName)
+                      updateMcpTools(tools)
+                    }}
+                  >
+                    测试连接
+                  </Button>
+                </div>
 
-              <Form.Item
-                label={<FormItemLabel name="MCP服务描述" tag="description" />}
-                name="description"
-                className="pt-4"
-              >
-                <Input placeholder="补充该MCPfuw的使用说明和场景等信息" />
-              </Form.Item>
+                <div className="flex flex-col gap-1 pt-4">
+                  <FormItemLabel name="MCP服务描述" tag="description" />
+                  <Input placeholder="补充该MCP服务的使用说明和场景等信息" {...register('description')} />
+                </div>
 
-            </Form>
+                <SheetFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      resetAll()
+                      onClose?.()
+                    }}
+                  >
+                    取消
+                  </Button>
+                  <Button type="submit">
+                    {mode === 'edit' ? '更新' : '安装'}
+                  </Button>
+                </SheetFooter>
+              </form>
+            </div>
           </div>
-        </div>
-        <div className={`
-          flex-1 overflow-y-auto bg-[#f8f8f8]
-          dark:bg-black
-        `}
-        >
-          {
-            mcpTools.length
+          <div className="
+            flex-1 overflow-y-auto bg-[#f8f8f8]
+            dark:bg-black
+          "
+          >
+            {mcpTools.length
               ? (
                   <div className="p-3">
-                    <div className={`
+                    <div className="
                       flex items-center gap-3 rounded-md bg-white p-3
                       dark:bg-white/10
-                    `}
+                    "
                     >
                       <div>
-                        <Avatar size={36} shape="circle">
-                          {mcpConfig?.serverName?.[0]}
+                        <Avatar className="size-9 rounded-full">
+                          <span>{mcpConfig?.serverName?.[0]}</span>
                         </Avatar>
                       </div>
                       <div>
@@ -347,11 +371,11 @@ export default function McpConfigDrawer({ open, mode, defaultValues, onClose, on
                 )
               : (
                   <EmptyMcpConfig />
-                )
-          }
+                )}
+          </div>
         </div>
-      </div>
-    </Drawer>
+      </SheetContent>
+    </Sheet>
   )
 }
 
@@ -359,7 +383,7 @@ function FormItemLabel({ name, tag }: { name: string, tag: string }) {
   return (
     <div className="flex items-center gap-2">
       <span>{name}</span>
-      <Tag>{tag}</Tag>
+      <Badge variant="outline">{tag}</Badge>
     </div>
   )
 }
@@ -367,14 +391,11 @@ function FormItemLabel({ name, tag }: { name: string, tag: string }) {
 function EmptyMcpConfig() {
   return (
     <div className="flex size-full items-center justify-center">
-      <Empty description={null}>
-        <div className="text-xl">
-          配置MCP后开始预览
-        </div>
-        <span className="text-gray-500">
+      <EmptyState title="配置MCP后开始预览">
+        <p className="text-muted-foreground">
           完成配置后，将能够在此处预览MCP Server支持的工具能力
-        </span>
-      </Empty>
+        </p>
+      </EmptyState>
     </div>
   )
 }
@@ -389,19 +410,19 @@ function PreviewMcpToolsList({ items }: PreviewMcpToolsListProps) {
 
   return (
     <div className="mt-4">
-      <Input.Search
-        value={keyword}
-        placeholder="搜索工具"
-        onChange={(e) => {
-          setKeyword(e.target.value)
-        }}
-      />
+      <div className="relative">
+        <Input
+          value={keyword}
+          placeholder="搜索工具"
+          onChange={e => setKeyword(e.target.value)}
+          className="pl-8"
+        />
+        <Search className="absolute top-1/2 left-2 size-4 -translate-y-1/2 text-muted-foreground" />
+      </div>
       <div className="mt-2 flex flex-col gap-3">
-        {
-          showMcpTools.map(tool => (
-            <PreviewMcpToolItem key={tool.name} item={tool} />
-          ))
-        }
+        {showMcpTools.map(tool => (
+          <PreviewMcpToolItem key={tool.name} item={tool} />
+        ))}
       </div>
     </div>
   )
@@ -411,19 +432,21 @@ function PreviewMcpToolItem({ item }: { item: McpTool }) {
   const [isExpand, setIsExpand] = React.useState(false)
 
   return (
-    <div
-      key={item.name}
-      className={`
-        rounded-sm bg-[#f0f0f0] p-2
-        dark:bg-white/10
-      `}
+    <div className="
+      rounded-sm bg-[#f0f0f0] p-2
+      dark:bg-white/10
+    "
     >
       <div className="flex cursor-pointer items-center justify-between gap-2" onClick={() => setIsExpand(!isExpand)}>
         <div className="">
           <div>{item.name}</div>
           <div className="mt-1 text-xs text-[#a3a3a3]">{item.description}</div>
         </div>
-        <RightOutlined className="shrink-0" rotate={isExpand ? 90 : 0} />
+        <ChevronRight className={`
+          shrink-0 transition-transform
+          ${isExpand ? 'rotate-90' : ''}
+        `}
+        />
       </div>
       <div className={`
         grid
@@ -449,78 +472,41 @@ function PreviewMcpToolParams({ item }: { item: McpTool }) {
     )
   }
   return (
-    <div className={`
+    <div className="
       mt-2 rounded-sm bg-[#ececec] p-2
       dark:bg-white/10
-    `}
+    "
     >
-      <Descriptions
-        size="small"
-        column={1}
-        title={<span className="text-xs">工具参数</span>}
-        items={params.map(t => ({
-          key: t[0],
-          label: (
-            <>
-              <span>
-                {t[0] as string}
-              </span>
+      <div className="mb-1 text-xs font-medium">工具参数</div>
+      <div className="flex flex-col gap-2">
+        {params.map(([key, val]) => (
+          <div key={key}>
+            <span>
+              {key}
               <span className="text-red-500">
-                {item.inputSchema.required?.includes(t[0] as string) ? '*' : ''}
+                {item.inputSchema.required?.includes(key) ? '*' : ''}
               </span>
-            </>
-          ),
-          children: (
+            </span>
             <div className="flex items-center gap-2">
-              <Tag>{t[1].type as string}</Tag>
-              <span className="text-xs">{t[1]?.description as string}</span>
+              <Badge variant="outline">{(val as Record<string, unknown>).type as string}</Badge>
+              <span className="text-xs">{(val as Record<string, unknown>)?.description as string}</span>
             </div>
-          ),
-        }))}
-        styles={{ title: { lineHeight: '1' }, header: { marginBottom: '5px' } }}
-      />
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
 
-function envArrayToObject(envArr: { key: string, value: any }[] = []): Record<string, any> {
+function envArrayToObject(envArr: KeyValueItem[] = []): Record<string, string> {
   const obj: Record<string, string> = {}
   envArr.forEach((item) => {
     if (item.key)
-      obj[item.key] = item.value
+      obj[item.key] = String(item.value)
   })
   return obj
 }
 
-function objectToArray(obj: Record<string, any> = {}) {
-  console.log('objectToArray obj => ', obj)
-  const result = Object.entries(obj).map(([key, value]) => ({ key, value }))
-  console.log('objectToArray result => ', result)
-  return result
-}
-
-function InputArgs({ value, onChange }: { value?: string[], onChange?: (e: string[]) => void }) {
-  return (
-    <Select
-      mode="tags"
-      placeholder="例如： mcp-hello-world"
-      value={value}
-      suffixIcon={null}
-      onChange={(value) => {
-        onChange?.(value)
-      }}
-      styles={{ popup: { root: { display: 'none' } } }}
-    />
-  )
-}
-
-async function validatorServerName(_: RuleObject, value: string) {
-  try {
-    // 不报错表示已经存在了
-    await getMcpConfigByServerName(value)
-    throw new Error(`${value}已存在, 不可重复添加`)
-  }
-  catch {
-    return true
-  }
+function objectToArray(obj: Record<string, unknown> = {}): KeyValueItem[] {
+  return Object.entries(obj).map(([key, value]) => ({ key, value: String(value ?? '') }))
 }
