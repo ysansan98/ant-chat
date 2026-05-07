@@ -1,7 +1,5 @@
 import type { ReactNode } from 'react'
 import { TooltipProvider } from '@workspace/ui/components/tooltip'
-import { App, ConfigProvider, theme } from 'antd'
-import zhCN from 'antd/locale/zh_CN'
 import { useEffect } from 'react'
 import { initializeGeneralSettings } from '@/store/generalSettings/actions'
 import { useThemeStore } from '@/store/theme'
@@ -14,10 +12,6 @@ export function AppProviders({ children }: AppProvidersProps) {
   const currentThemeMode = useThemeStore(state => state.mode)
   const currentTheme = useThemeStore(state => state.theme)
   const toggleTheme = useThemeStore(state => state.toggleTheme)
-
-  const algorithm = currentTheme === 'dark'
-    ? theme.darkAlgorithm
-    : theme.defaultAlgorithm
 
   useEffect(() => {
     const themeMedia = window.matchMedia('(prefers-color-scheme: light)')
@@ -42,19 +36,8 @@ export function AppProviders({ children }: AppProvidersProps) {
   }, [])
 
   return (
-    <ConfigProvider
-      locale={zhCN}
-      theme={{
-        algorithm,
-        cssVar: { key: 'antd-css-var' },
-        hashed: false,
-      }}
-    >
-      <TooltipProvider>
-        <App className="h-full">
-          {children}
-        </App>
-      </TooltipProvider>
-    </ConfigProvider>
+    <TooltipProvider>
+      {children}
+    </TooltipProvider>
   )
 }
