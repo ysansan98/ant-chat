@@ -33,6 +33,7 @@ export function SliderMenu() {
           <SidebarNavItem
             icon={<Pencil className="size-4" />}
             label="新对话"
+            dataTestId="sidebar-new-chat"
             active={isChatPage && !location.search}
             onClick={() => {
               navigate('/chat')
@@ -42,6 +43,7 @@ export function SliderMenu() {
           <SidebarNavItem
             icon={<Search className="size-4" />}
             label="搜索"
+            dataTestId="sidebar-search"
             onClick={openSearch}
           />
         </div>
@@ -55,6 +57,7 @@ export function SliderMenu() {
           <SidebarNavItem
             icon={<Settings className="size-4" />}
             label="设置"
+            dataTestId="sidebar-settings"
             active={false}
             onClick={openSettings}
           />

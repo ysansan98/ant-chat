@@ -1,10 +1,16 @@
 import fs from 'node:fs/promises'
-import path from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { cleanupTempRuntimeDataRoot, createTempRuntimeDataRoot } from '../../../../../tests/helpers/runtimeData'
 import { appendAgentLog } from '../agentLogger'
 
+let runtimeRoot: string
+
+beforeEach(async () => {
+  runtimeRoot = await createTempRuntimeDataRoot()
+})
+
 afterEach(async () => {
-  await fs.rm(path.join(process.cwd(), 'agent'), { recursive: true, force: true }).catch(() => {})
+  await cleanupTempRuntimeDataRoot(runtimeRoot)
 })
 
 describe('agentLogger', () => {
@@ -14,6 +20,7 @@ describe('agentLogger', () => {
       envToken: 'abc',
       longText: 'x'.repeat(600),
     })
+    expect(logPath.startsWith(runtimeRoot)).toBe(true)
     const content = await fs.readFile(logPath, 'utf8')
     expect(content).toContain('"event":"tool_completed"')
     expect(content).toContain('"apiKey":"***"')

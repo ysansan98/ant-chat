@@ -231,7 +231,7 @@ function Sender({ actions, ...props }: SenderProps) {
 
   const canSwitchWorkspace = !activeConversationsId && !hasMessage && !loading
   const selectableWorkspaces = useMemo(
-    () => (workspaceData?.workspaces || []).filter(item => item.path.startsWith('/')),
+    () => (workspaceData?.workspaces || []).filter(item => isAbsoluteWorkspacePath(item.path)),
     [workspaceData],
   )
   const canSwitchWorkspaceSelect = canSwitchWorkspace && selectableWorkspaces.length > 0
@@ -279,7 +279,7 @@ function Sender({ actions, ...props }: SenderProps) {
     ) {
       return
     }
-    if (!nextWorkspacePath.startsWith('/')) {
+    if (!isAbsoluteWorkspacePath(nextWorkspacePath)) {
       return
     }
 
@@ -341,6 +341,7 @@ function Sender({ actions, ...props }: SenderProps) {
 
       <PromptInput
         accept="image/*,application/pdf,text/*,.md,.mp4"
+        data-testid="chat-input-form"
         maxFileSize={20 * 1024 * 1024}
         multiple
         onError={({ message }) => setNotice(message)}
@@ -353,6 +354,7 @@ function Sender({ actions, ...props }: SenderProps) {
           <SenderAttachmentsPreview />
           <PromptInputTextarea
             className="max-h-48 min-h-24 border-0 bg-transparent p-1"
+            data-testid="chat-input"
             placeholder="Enter发送消息，Shift+Enter换行"
           />
         </PromptInputBody>
@@ -371,6 +373,7 @@ function Sender({ actions, ...props }: SenderProps) {
                 <PromptInputButton
                   type="button"
                   variant="ghost"
+                  data-testid="workspace-switcher"
                   disabled={workspaceLoading}
                   aria-disabled={workspaceSwitchDisabled}
                   className={`
@@ -480,6 +483,7 @@ function Sender({ actions, ...props }: SenderProps) {
 
           <PromptInputSubmit
             size="sm"
+            data-testid={loading ? 'chat-cancel' : 'chat-submit'}
             onStop={props.onCancel}
             status={loading ? 'streaming' : 'ready'}
             variant={loading ? 'outline' : 'default'}
@@ -495,6 +499,12 @@ function Sender({ actions, ...props }: SenderProps) {
 
     </div>
   )
+}
+
+function isAbsoluteWorkspacePath(workspacePath: string): boolean {
+  return workspacePath.startsWith('/')
+    || /^[a-z]:[\\/]/i.test(workspacePath)
+    || workspacePath.startsWith('\\\\')
 }
 
 export default Sender

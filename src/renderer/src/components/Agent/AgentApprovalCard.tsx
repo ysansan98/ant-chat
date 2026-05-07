@@ -29,7 +29,7 @@ export default function AgentApprovalCard({
   const typeLabel = typeLabels[pending.operationType] || pending.operationType
 
   return (
-    <Card size="sm" className="mb-2 text-xs">
+    <Card size="sm" className="mb-2 text-xs" data-testid="agent-approval-card">
       <CardHeader>
         <CardTitle className="gap-1 text-xs">
           审批请求：
@@ -44,10 +44,10 @@ export default function AgentApprovalCard({
         {pending.inputPreview}
       </CardContent>
       <div className="flex gap-2 px-3 pb-3">
-        <Button size="xs" onClick={onApprove}>
+        <Button size="xs" data-testid="agent-approve" onClick={onApprove}>
           批准
         </Button>
-        <Button size="xs" variant="destructive" onClick={onReject}>
+        <Button size="xs" data-testid="agent-reject" variant="destructive" onClick={onReject}>
           拒绝
         </Button>
       </div>

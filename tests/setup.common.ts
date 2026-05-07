@@ -1,6 +1,5 @@
 import log from 'electron-log'
 import { vi } from 'vitest'
-import '@testing-library/jest-dom'
 
 vi.mock('electron', () => {
   return {

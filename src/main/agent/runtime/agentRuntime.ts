@@ -43,7 +43,7 @@ class AgentRuntime {
     }
 
     taskStore.create({ snapshot, abortController: new AbortController() })
-    await appendAgentLog(taskId, 'task_started', {
+    snapshot.logPath = await appendAgentLog(taskId, 'task_started', {
       conversationId: options.conversationId,
       userMessageId: options.userMessageId,
       mode,

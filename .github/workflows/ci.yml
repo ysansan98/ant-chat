@@ -1,43 +1,110 @@
 name: CI
 
-# 暂停掉，后续优化完单元测试再开启
 on:
+  pull_request:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
-  unit-test:
+  quality:
     runs-on: ubuntu-latest
     env:
       TZ: Asia/Shanghai
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
 
       - name: Setup node
         uses: actions/setup-node@v4
         with:
           node-version: 22
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 10
+          cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: Prepare bundled rg binaries
         run: pnpm rg:prepare
 
-      - name: TypeScript Check
+      - name: Rebuild better-sqlite3
+        run: pnpm rebuild:node
+
+      - name: TypeScript check
         run: pnpm type-check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Unit test
+        run: pnpm test:unit
+
+  ui-test:
+    runs-on: ubuntu-latest
+    needs: quality
+    env:
+      TZ: Asia/Shanghai
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: UI flow test
+        run: pnpm test:ui
+
+  agent-e2e:
+    runs-on: ubuntu-latest
+    needs: quality
+    env:
+      TZ: Asia/Shanghai
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prepare bundled rg binaries
+        run: pnpm rg:prepare
 
       - name: Rebuild better-sqlite3
         run: pnpm rebuild:node
 
-      - name: Unit Test
-        run: pnpm test:unit
+      - name: Agent runtime e2e
+        run: pnpm test:e2e:agent-runtime
 
       # - name: Upload test results to Codecov
       #   if: ${{ !cancelled() }}

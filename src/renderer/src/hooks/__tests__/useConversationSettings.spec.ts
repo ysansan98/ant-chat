@@ -21,6 +21,12 @@ vi.mock('use-immer', async () => {
   return actual
 })
 
+const defaultCompaction = {
+  enabled: true,
+  thresholdPercent: 70,
+  keepRecentPairs: 3,
+}
+
 describe('useConversationSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -36,6 +42,8 @@ describe('useConversationSettings', () => {
       systemPrompt: '',
       temperature: 0.7,
       maxTokens: 1000,
+      compaction: defaultCompaction,
+      lastCompactedAt: undefined,
     })
   })
 
@@ -60,6 +68,8 @@ describe('useConversationSettings', () => {
       systemPrompt: 'You are a bot',
       temperature: 0.5,
       maxTokens: 500,
+      compaction: defaultCompaction,
+      lastCompactedAt: undefined,
     })
   })
 
@@ -138,6 +148,8 @@ describe('useConversationSettings', () => {
       systemPrompt: '',
       temperature: 0.7,
       maxTokens: 1000,
+      compaction: defaultCompaction,
+      lastCompactedAt: undefined,
     })
   })
 })

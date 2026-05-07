@@ -4,14 +4,16 @@
     "composite": true,
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
     "experimentalDecorators": true,
-    "baseUrl": ".",
     "moduleResolution": "bundler",
     "paths": {
       "@ant-chat/shared": [
-        "packages/shared/src/index.ts"
+        "./packages/shared/src/index.ts"
+      ],
+      "@ant-chat/mcp-client-hub": [
+        "./packages/mcp-client-hub/src/index.ts"
       ],
       "@main/*": [
-        "src/main/*"
+        "./src/main/*"
       ]
     },
     "types": [
@@ -22,8 +24,10 @@
   "include": [
     "electron.vite.config.*",
     "packages/shared/src/**/*",
+    "packages/mcp-client-hub/src/**/*",
     "src/types/**/*.ts",
     "src/main/**/*",
-    "src/preload/**/*"
+    "src/preload/**/*",
+    "tests/helpers/**/*.ts"
   ]
 }

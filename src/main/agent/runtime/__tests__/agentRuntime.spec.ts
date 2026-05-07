@@ -12,10 +12,13 @@ let firstToolArgs: Record<string, unknown> = { path: '.' }
 let streamTextChunks = ['已完成']
 
 vi.mock('@main/db/services', () => ({
+  addMessage: vi.fn(),
+  getConversationById: vi.fn(async () => ({ id: 'c1', settings: {} })),
   getMessagesByConvId: vi.fn(async () => []),
   getModelById: vi.fn(async () => ({ id: 'model-1', model: 'test-model', name: 'Test Model', serviceProviderId: 'sp-1' })),
   getProviderServiceById: vi.fn(() => ({ id: 'sp-1', name: 'Test Provider' })),
   createAIMessage: vi.fn(),
+  updateConversation: vi.fn(),
   updateMessage: vi.fn(),
 }))
 

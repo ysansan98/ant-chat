@@ -21,6 +21,7 @@ export default function SettingsPage() {
             menus.map(item => (
               <div
                 key={item.id}
+                data-testid={`settings-nav-${item.id}`}
                 className={`
                   flex h-10 cursor-pointer items-center gap-3 rounded-md px-4
                   hover:bg-(--hover-bg-color)

@@ -140,8 +140,11 @@ ant-chat/
 ```bash
 # 开发
 pnpm dev                  # 启动开发环境
+pnpm check                # 类型检查 + lint + 单元测试
 pnpm type-check          # 类型检查
 pnpm test:unit           # 运行单元测试
+pnpm test:ui             # 运行 renderer UI 流程测试(jsdom)
+pnpm test:e2e            # 运行跨模块端到端测试
 
 # 数据库
 pnpm db:generate         # 生成数据库迁移
@@ -151,6 +154,10 @@ pnpm db:migrate          # 执行数据库迁移
 pnpm build:mac           # 构建macOS版本
 pnpm build:win           # 构建Windows版本
 ```
+
+### 测试与质量检查
+
+测试分层、CI、本地质量检查和运行产物约定见 [docs/engineering/testing.md](./docs/engineering/testing.md)。
 
 ## 贡献指南 🤝
 

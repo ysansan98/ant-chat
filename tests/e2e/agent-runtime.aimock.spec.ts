@@ -29,7 +29,7 @@ describe('agent runtime aimock e2e', () => {
 
     aimock().llm.reset()
     aimock().llm.on({
-      predicate: request => getLastUserText(request).includes('工具 list_dir 执行成功'),
+      predicate: request => getAllMessageText(request).includes('工具 list_dir 执行成功'),
     }, {
       content: 'Done. README.md exists in the workspace.',
       usage: {
@@ -40,8 +40,8 @@ describe('agent runtime aimock e2e', () => {
     })
     aimock().llm.on({
       predicate: (request) => {
-        const lastUserText = getLastUserText(request)
-        return lastUserText.includes('lastAction=other') && !lastUserText.includes('工具 list_dir 执行成功')
+        const allText = getAllMessageText(request)
+        return allText.includes('inspect workspace') && !allText.includes('工具 list_dir 执行成功')
       },
     }, {
       toolCalls: [
@@ -146,13 +146,31 @@ function getLastUserText(request: any): string {
   return ''
 }
 
+function getAllMessageText(request: any): string {
+  return (request.messages || [])
+    .map((message: any) => {
+      if (typeof message.content === 'string') {
+        return message.content
+      }
+      if (Array.isArray(message.content)) {
+        return message.content
+          .map((item: any) => typeof item.text === 'string' ? item.text : '')
+          .join('\n')
+      }
+      return ''
+    })
+    .join('\n')
+}
+
 async function waitForTaskToFinish(taskId: string) {
   const startedAt = Date.now()
   while (Date.now() - startedAt < 3000) {
     try {
       const task = agentRuntime.getTask(taskId)
       if (['success', 'failed', 'cancelled'].includes(task.status)) {
-        expect(task.status).toBe('success')
+        if (task.status !== 'success') {
+          throw createTaskDebugError(task)
+        }
         return
       }
     }
@@ -164,15 +182,29 @@ async function waitForTaskToFinish(taskId: string) {
     }
     await new Promise(resolve => setTimeout(resolve, 20))
   }
+  throw createTaskDebugError(agentRuntime.getTask(taskId))
+}
+
+function createTaskDebugError(task: any) {
   const requests = aimock().llm.getRequests()
-  throw new Error(JSON.stringify({
-    status: agentRuntime.getTask(taskId).status,
+  return new Error(JSON.stringify({
+    status: task.status,
+    errorCode: task.errorCode,
+    errorMessage: task.errorMessage,
     requestCount: requests.length,
     lastRequests: requests.slice(-3).map((entry: any) => ({
       entryKeys: Object.keys(entry),
       responseStatus: entry.response?.status,
       bodyKeys: Object.keys(entry.body || {}),
       lastUser: getLastUserText(entry.body || {}),
+      messages: entry.body?.messages?.slice(-6).map((message: any) => ({
+        role: message.role,
+        text: typeof message.content === 'string'
+          ? message.content
+          : Array.isArray(message.content)
+            ? message.content.map((item: any) => item.text || item.type || '').join('\n')
+            : '',
+      })),
       responseBody: entry.response?.body,
       matched: entry.fixtureIndex ?? entry.fixture ?? entry.source ?? null,
     })),

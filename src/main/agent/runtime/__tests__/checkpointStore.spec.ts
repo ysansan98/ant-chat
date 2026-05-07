@@ -1,7 +1,7 @@
 import type { AgentTaskSnapshot } from '@ant-chat/shared'
 import fs from 'node:fs/promises'
-import path from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { cleanupTempRuntimeDataRoot, createTempRuntimeDataRoot } from '../../../../../tests/helpers/runtimeData'
 import { removeCheckpoint, writeCheckpoint } from '../checkpointStore'
 
 function createSnapshot(taskId: string): AgentTaskSnapshot {
@@ -21,15 +21,23 @@ function createSnapshot(taskId: string): AgentTaskSnapshot {
   }
 }
 
+let runtimeRoot: string
+
+beforeEach(async () => {
+  runtimeRoot = await createTempRuntimeDataRoot()
+})
+
 afterEach(async () => {
-  await fs.rm(path.join(process.cwd(), 'agent'), { recursive: true, force: true })
+  await cleanupTempRuntimeDataRoot(runtimeRoot)
 })
 
 describe('checkpointStore', () => {
   it('写入并删除 checkpoint', async () => {
     const filePath = await writeCheckpoint(createSnapshot('t1'))
+    expect(filePath.startsWith(runtimeRoot)).toBe(true)
     const content = await fs.readFile(filePath, 'utf8')
     expect(content).toContain('"taskId": "t1"')
+    expect(content).toContain('"checkpointPath":')
     await removeCheckpoint('t1')
     await expect(fs.stat(filePath)).rejects.toThrow()
   })

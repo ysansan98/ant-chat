@@ -8,22 +8,22 @@
     "moduleDetection": "force",
     "useDefineForClassFields": true,
     "experimentalDecorators": true,
-    "baseUrl": ".",
-
-    /* Bundler mode */
     "moduleResolution": "bundler",
 
     "paths": {
       "@ant-chat/shared": [
-        "packages/shared/src/index.ts"
+        "./packages/shared/src/index.ts"
+      ],
+      "@ant-chat/mcp-client-hub": [
+        "./packages/mcp-client-hub/src/index.ts"
       ],
       "@main/*": [
-        "src/main/*"
+        "./src/main/*"
       ],
       "@/*": [
-        "src/renderer/src/*"
+        "./src/renderer/src/*"
       ],
-      "@workspace/ui/*": ["packages/ui/src/*"]
+      "@workspace/ui/*": ["./packages/ui/src/*"]
     },
     "types": ["node", "wicg-file-system-access"],
 
@@ -43,8 +43,14 @@
     "src/renderer/src/**/*",
     "src/renderer/src/**/*.tsx",
     "packages/shared/src/**/*",
+    "packages/mcp-client-hub/src/**/*",
     "packages/ui/src/**/*",
     "src/preload/*.d.ts",
-    "src/main/**/*.ts"
+    "src/main/**/*.ts",
+    "tests/helpers/**/*.ts",
+    "tests/e2e/**/*.tsx",
+    "tests/setup.common.ts",
+    "tests/setup.ui.ts",
+    "tests/ui/**/*.tsx"
   ]
 }

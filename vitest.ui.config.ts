@@ -1,11 +1,15 @@
 import { fileURLToPath } from 'node:url'
+import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
+  plugins: [
+    react(),
+  ],
   test: {
     globals: true,
     include: [
-      'tests/e2e/**/*.spec.ts',
+      'tests/ui/**/*.spec.{ts,tsx}',
     ],
     alias: {
       '@ant-chat/shared': fileURLToPath(new URL('./packages/shared/src/index.ts', import.meta.url)),
@@ -16,7 +20,7 @@ export default defineConfig({
     },
     environment: 'jsdom',
     setupFiles: [
-      './tests/setup.common.ts',
+      './tests/setup.ui.ts',
     ],
   },
 })

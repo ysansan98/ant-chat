@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { getAgentLogsDir } from '@main/utils/appPaths'
 
 function maskValue(raw: unknown): unknown {
   if (typeof raw === 'string') {
@@ -15,8 +16,7 @@ function maskValue(raw: unknown): unknown {
 }
 
 export async function appendAgentLog(taskId: string, event: string, payload: Record<string, unknown>) {
-  const date = new Date().toISOString().slice(0, 10)
-  const root = path.join(process.cwd(), 'agent', 'logs', date)
+  const root = getAgentLogsDir()
   await fs.mkdir(root, { recursive: true })
   const logPath = path.join(root, `${taskId}.jsonl`)
   const line = JSON.stringify({ time: Date.now(), event, payload: maskValue(payload) })

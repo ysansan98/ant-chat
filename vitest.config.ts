@@ -34,10 +34,11 @@ export default defineConfig({
     },
     environment: 'jsdom',
     setupFiles: [
-      './tests/setup.ts',
+      './tests/setup.common.ts',
     ],
     exclude: [
       'tests/e2e/**',
+      'tests/ui/**',
       'node_modules/**',
       '**/node_modules/**',
     ],
