@@ -48,6 +48,16 @@ export default function MessageContent({ content = '', images = [], attachments 
     )
   }
 
+  if (status === 'cancel') {
+    return (
+      <Alert variant="default">
+        <AlertDescription>
+          {content && <p className="whitespace-pre-wrap">{content}</p>}
+        </AlertDescription>
+      </Alert>
+    )
+  }
+
   const isStreaming = status === 'loading' || status === 'typing'
   const imageItems = images.map(toAttachmentData)
   const attachmentItems = attachments.map(toAttachmentData)
