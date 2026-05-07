@@ -2,6 +2,7 @@ import type { BrowserWindow } from 'electron'
 import { BaseWindow } from './base-window'
 
 let settingsWindow: null | BrowserWindow = null
+let settingsWindowInstance: SettingsWindow | null = null
 
 export class SettingsWindow extends BaseWindow {
   constructor() {
@@ -22,4 +23,12 @@ export class SettingsWindow extends BaseWindow {
 
 export function getSettingsWindow(): typeof settingsWindow {
   return settingsWindow
+}
+
+export async function openSettingsWindow(): Promise<void> {
+  if (!settingsWindowInstance) {
+    settingsWindowInstance = new SettingsWindow()
+  }
+
+  await settingsWindowInstance.createWindow()
 }

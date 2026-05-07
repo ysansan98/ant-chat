@@ -139,16 +139,26 @@ describe('gui ui flow', () => {
     })
   })
 
-  it('启动后进入聊天页，并可在设置和新对话之间路由切换', async () => {
+  it('opens the settings window from chat and keeps new chat available', async () => {
+    vi.mocked(window.electron.ipcRenderer.invoke).mockResolvedValue({ success: true, data: null })
     renderGui('/')
 
     expect(await screen.findByTestId('chat-input')).toBeInTheDocument()
 
     fireEvent.click(screen.getByTestId('sidebar-settings'))
-    expect(await screen.findByTestId('settings-nav-general')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(window.electron.ipcRenderer.invoke).toHaveBeenCalled()
+    })
 
     fireEvent.click(screen.getByTestId('sidebar-new-chat'))
     expect(await screen.findByTestId('chat-input')).toBeInTheDocument()
+  })
+
+  it('reserves top space for native window controls in settings navigation', async () => {
+    renderSettingsWindow('/settings/general')
+
+    expect(await screen.findByTestId('settings-nav-general')).toBeInTheDocument()
+    expect(screen.getByTestId('settings-nav')).toHaveClass('pt-12')
   })
 
   it('未选择模型时发送消息会提示用户先选择模型', async () => {
@@ -290,6 +300,31 @@ function renderGui(initialPath: string) {
             { path: 'general', element: <div data-testid="settings-general-page">通用设置</div> },
           ],
         },
+      ],
+    },
+  ], {
+    initialEntries: [initialPath],
+  })
+
+  return render(<RouterProvider router={router} />)
+}
+
+function renderSettingsWindow(initialPath: string) {
+  const router = createMemoryRouter([
+    {
+      path: '/',
+      Component: SettingsPage,
+      children: [
+        { index: true, element: <Navigate replace to="./general" /> },
+        { path: 'general', element: <div data-testid="settings-general-page">General settings</div> },
+      ],
+    },
+    {
+      path: '/settings',
+      Component: SettingsPage,
+      children: [
+        { index: true, element: <Navigate replace to="./general" /> },
+        { path: 'general', element: <div data-testid="settings-general-page">General settings</div> },
       ],
     },
   ], {

@@ -1,6 +1,7 @@
 import type { BrowserWindow } from 'electron'
 import { app, Menu } from 'electron'
 import { BaseWindow } from './base-window'
+import { openSettingsWindow } from './settings-window'
 import { isDev, isMacOS } from './utils/env'
 import { logger } from './utils/logger'
 
@@ -40,6 +41,16 @@ export class MainWindow extends BaseWindow {
             label: app.name,
             submenu: [
               { role: 'about' },
+              { type: 'separator' },
+              {
+                label: 'Settings...',
+                accelerator: 'Command+,',
+                click: () => {
+                  openSettingsWindow().catch((error) => {
+                    logger.error('Failed to open settings window:', error)
+                  })
+                },
+              },
               { type: 'separator' },
               { role: 'services' },
               { type: 'separator' },

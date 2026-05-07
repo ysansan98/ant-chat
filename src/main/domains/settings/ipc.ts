@@ -1,6 +1,6 @@
 import type { GeneralSettingsState, IpcResponse } from '@ant-chat/shared'
 import { createErrorIpcResponse, createIpcResponse } from '@ant-chat/shared'
-import { SettingsWindow } from '@main/settings-window'
+import { getSettingsWindow, openSettingsWindow } from '@main/settings-window'
 import { GeneralSettingsStore } from '@main/store/generalSettings'
 import { logger } from '@main/utils/logger'
 import { ProxyManager } from '@main/utils/proxy-manager'
@@ -11,15 +11,10 @@ import { IpcMethod, IpcService } from 'electron-ipc-decorator'
 export class SettingsIpcService extends IpcService {
   static readonly groupName = 'settings'
 
-  private static settingsWindowInstance: SettingsWindow | null = null
-
   @IpcMethod()
   async openSettingsWindow(): Promise<IpcResponse<void>> {
     try {
-      if (!SettingsIpcService.settingsWindowInstance) {
-        SettingsIpcService.settingsWindowInstance = new SettingsWindow()
-      }
-      await SettingsIpcService.settingsWindowInstance.createWindow()
+      await openSettingsWindow()
       return createIpcResponse(true, undefined)
     }
     catch (error) {
@@ -52,7 +47,7 @@ export class SettingsIpcService extends IpcService {
 
       // 广播 settings:updated 事件
       const mainWindow = getMainWindow()
-      const settingsWindow = SettingsIpcService.settingsWindowInstance?.getWindow()
+      const settingsWindow = getSettingsWindow()
       const keys = Object.keys(updates)
 
       if (mainWindow && !mainWindow.isDestroyed()) {
@@ -81,7 +76,7 @@ export class SettingsIpcService extends IpcService {
 
       // 广播 settings:updated 事件
       const mainWindow = getMainWindow()
-      const settingsWindow = SettingsIpcService.settingsWindowInstance?.getWindow()
+      const settingsWindow = getSettingsWindow()
 
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('settings:updated', { keys: ['all'] })
