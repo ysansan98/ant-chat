@@ -15,7 +15,10 @@ export default function SettingsPage() {
 
   return (
     <div className="grid h-(--mainHeight) w-full grid-cols-[max-content_1fr]">
-      <div className="h-full w-50 border-r border-(--border-color) p-2 py-4">
+      <div
+        data-testid="settings-nav"
+        className="h-full w-50 border-r border-(--border-color) px-2 pt-12 pb-4"
+      >
         <div className="flex flex-col gap-3">
           {
             menus.map(item => (
