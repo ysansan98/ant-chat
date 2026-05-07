@@ -9,8 +9,8 @@ import { GeneralSettings } from '@/pages/Settings/GeneralSettings'
 import MCPManage from '@/pages/Settings/MCPManage'
 import ProviderManage from '@/pages/Settings/ProviderManage'
 import SettingsPage from '@/pages/Settings/Settings'
-import SettingsApp from '@/pages/Settings/SettingsApp'
 import SkillManage from '@/pages/Settings/SkillManage'
+import SettingsApp from '@/SettingsApp'
 
 const windowType = new URLSearchParams(window.location.search).get('window')
 const isSettingsWindow = windowType === 'settings'
