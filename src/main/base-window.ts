@@ -5,6 +5,7 @@ import { isDev, isMacOS, isWindows } from './utils/env'
 import { logger } from './utils/logger'
 
 export interface BaseWindowOptions {
+  type: 'main' | 'settings'
   width: number
   height: number
   hash?: string
@@ -23,7 +24,7 @@ export abstract class BaseWindow {
     }
   }
 
-  abstract onWindowCreated?(window: BrowserWindow): void
+  protected onWindowCreated(_window: BrowserWindow) {}
 
   async createWindow() {
     // 如果窗口已存在，聚焦它
@@ -54,28 +55,30 @@ export abstract class BaseWindow {
 
     this.setupWindow(this.window)
 
-    // 加载页面
     if (isDev && process.env.ELECTRON_RENDERER_URL) {
-      const url = process.env.ELECTRON_RENDERER_URL + (this.options.hash ? `#${this.options.hash}` : '')
-      logger.debug('Loading dev server => ', url)
-      this.window.loadURL(url).catch((err) => {
+      const rendererUrl = new URL(process.env.ELECTRON_RENDERER_URL)
+      rendererUrl.searchParams.set('window', this.options.type)
+      if (this.options.hash) {
+        rendererUrl.hash = this.options.hash
+      }
+
+      logger.debug('Loading dev server => ', rendererUrl.toString())
+      this.window.loadURL(rendererUrl.toString()).catch((err) => {
         logger.error('Failed to load dev server:', err)
         logger.info('Please make sure the web project is running (pnpm dev)')
       })
-    } else {
+    }
+    else {
       const webDistPath = join(__dirname, '../renderer/index.html')
       logger.info('生产环境加载文件', webDistPath)
-      if (this.options.hash) {
-        this.window.loadFile(webDistPath, { hash: this.options.hash })
-      } else {
-        this.window.loadFile(webDistPath)
-      }
+      this.window.loadFile(webDistPath, {
+        hash: this.options.hash,
+        query: { window: this.options.type },
+      })
     }
 
     // 子类可以重写这个方法来添加额外的初始化
-    if (this.onWindowCreated) {
-      this.onWindowCreated(this.window)
-    }
+    this.onWindowCreated(this.window)
   }
 
   private setupWindow(window: BrowserWindow) {

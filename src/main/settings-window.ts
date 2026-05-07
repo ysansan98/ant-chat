@@ -1,11 +1,11 @@
-import { BrowserWindow } from 'electron'
+import type { BrowserWindow } from 'electron'
 import { BaseWindow } from './base-window'
 
 let settingsWindow: null | BrowserWindow = null
 
 export class SettingsWindow extends BaseWindow {
   constructor() {
-    super({ width: 900, height: 700, hash: '/settings' })
+    super({ type: 'settings', width: 900, height: 700, hash: '/settings' })
   }
 
   override async createWindow() {

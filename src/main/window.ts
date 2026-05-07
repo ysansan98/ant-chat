@@ -1,13 +1,14 @@
-import { app, BrowserWindow, Menu } from 'electron'
+import type { BrowserWindow } from 'electron'
+import { app, Menu } from 'electron'
+import { BaseWindow } from './base-window'
 import { isDev, isMacOS } from './utils/env'
 import { logger } from './utils/logger'
-import { BaseWindow } from './base-window'
 
 let mainWindow: null | BrowserWindow = null
 
 export class MainWindow extends BaseWindow {
   constructor() {
-    super({ width: 1200, height: 900 })
+    super({ type: 'main', width: 1200, height: 900 })
   }
 
   override async createWindow() {

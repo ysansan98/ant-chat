@@ -1,10 +1,10 @@
 import type { GeneralSettingsState, IpcResponse } from '@ant-chat/shared'
 import { createErrorIpcResponse, createIpcResponse } from '@ant-chat/shared'
+import { SettingsWindow } from '@main/settings-window'
 import { GeneralSettingsStore } from '@main/store/generalSettings'
 import { logger } from '@main/utils/logger'
 import { ProxyManager } from '@main/utils/proxy-manager'
 import { testProxyConnection } from '@main/utils/system-proxy'
-import { SettingsWindow } from '@main/settings-window'
 import { getMainWindow } from '@main/window'
 import { IpcMethod, IpcService } from 'electron-ipc-decorator'
 
@@ -54,7 +54,7 @@ export class SettingsIpcService extends IpcService {
       const mainWindow = getMainWindow()
       const settingsWindow = SettingsIpcService.settingsWindowInstance?.getWindow()
       const keys = Object.keys(updates)
-      
+
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('settings:updated', { keys })
       }
@@ -82,7 +82,7 @@ export class SettingsIpcService extends IpcService {
       // 广播 settings:updated 事件
       const mainWindow = getMainWindow()
       const settingsWindow = SettingsIpcService.settingsWindowInstance?.getWindow()
-      
+
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('settings:updated', { keys: ['all'] })
       }
