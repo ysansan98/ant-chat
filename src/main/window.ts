@@ -1,15 +1,35 @@
-import { join } from 'node:path'
-import process from 'node:process'
-import { app, BrowserWindow, Menu, shell } from 'electron'
-import { isDev, isMacOS, isWindows } from './utils/env'
+import { app, BrowserWindow, Menu } from 'electron'
+import { isDev, isMacOS } from './utils/env'
 import { logger } from './utils/logger'
-
-// const __dirname = process.cwd()
+import { BaseWindow } from './base-window'
 
 let mainWindow: null | BrowserWindow = null
 
-export class MainWindow {
-  private window: BrowserWindow | null = null
+export class MainWindow extends BaseWindow {
+  constructor() {
+    super({ width: 1200, height: 900 })
+  }
+
+  override async createWindow() {
+    await super.createWindow()
+    if (this.window) {
+      mainWindow = this.window
+    }
+  }
+
+  protected onWindowCreated(window: BrowserWindow) {
+    // 创建菜单
+    this.createMenu()
+
+    // 开发模式下添加额外的事件监听
+    if (isDev) {
+      this.setupDevEvents(window)
+    }
+  }
+
+  protected override onWindowClosed() {
+    mainWindow = null
+  }
 
   private createMenu() {
     const template = [
@@ -78,108 +98,22 @@ export class MainWindow {
     Menu.setApplicationMenu(menu)
   }
 
-  async createWindow() {
-    const preload = join(__dirname, '../preload/index.js')
-
-    logger.debug('preload path => ', preload)
-
-    this.window = new BrowserWindow({
-      width: 1200,
-      height: 900,
-      frame: !(isWindows),
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true,
-        webSecurity: true,
-        preload,
-      },
-      titleBarStyle: isMacOS ? 'hidden' : 'default',
-      trafficLightPosition: { x: 19, y: 19 },
-    })
-
-    mainWindow = this.window
-
-    // 创建菜单
-    this.createMenu()
-
-    // 开发模式下加载本地服务器
-    if (isDev && process.env.ELECTRON_RENDERER_URL) {
-      logger.debug('Loading dev server => ', process.env.ELECTRON_RENDERER_URL)
-      this.window.loadURL(process.env.ELECTRON_RENDERER_URL).catch((err) => {
-        logger.error('Failed to load dev server:', err)
-        logger.info('Please make sure the web project is running (pnpm dev)')
-      })
-
-      // 添加快捷键支持
-      this.window.webContents.on('before-input-event', (event, input) => {
-        // Command+Option+I (Mac) 或 Ctrl+Shift+I (Windows/Linux)
-        if (input.key === 'i' && input.control && input.shift) {
-          this.window?.webContents.toggleDevTools()
-          event.preventDefault()
-        }
-        // 刷新页面: Command+R (Mac) 或 Ctrl+R (Windows/Linux)
-        if (input.key === 'r' && (input.control || input.meta)) {
-          this.window?.webContents.reload()
-          event.preventDefault()
-        }
-
-        // 退出应用: Command+Q (Mac) 或 Ctrl+Q (Windows/Linux)
-        if (input.key === 'q' && (input.control || input.meta)) {
-          app.quit()
-          event.preventDefault()
-        }
-      })
-
-      // 监听页面加载状态
-      this.window.webContents.on('did-fail-load', (_, errorCode, errorDescription) => {
-        logger.error('Page failed to load:', errorCode, errorDescription)
-      })
-
-      this.window.webContents.on('did-finish-load', () => {
-        logger.info('页面加载成功')
-      })
-    }
-    else {
-      // 生产环境加载打包后的文件
-      const webDistPath = join(__dirname, '../renderer/index.html')
-      logger.info('生产环境加载打包后的文件', webDistPath)
-      this.window.loadFile(webDistPath)
-    }
-
-    this.window.webContents.on('will-navigate', (event, url) => {
-      logger.debug('will-navigate', url)
-
-      if (isDev && url.startsWith(process.env.ELECTRON_RENDERER_URL || '')) {
-        return
-      }
-      const isExternal = url.startsWith('http:') || url.startsWith('https:')
-      if (isExternal) {
+  private setupDevEvents(window: BrowserWindow) {
+    window.webContents.on('before-input-event', (event, input) => {
+      // 退出应用: Command+Q (Mac) 或 Ctrl+Q (Windows/Linux)
+      if (input.key === 'q' && (input.control || input.meta)) {
+        app.quit()
         event.preventDefault()
-        shell.openExternal(url)
       }
     })
 
-    // 处理新窗口创建事件（如 target="_blank" 链接）
-    // 当页面中的链接有 target="_blank" 或 window.open() 时触发
-    this.window.webContents.setWindowOpenHandler(({ url }) => {
-      logger.debug('setWindowOpenHandler', url)
-      const isExternal = url.startsWith('http:') || url.startsWith('https:')
-      if (isExternal) {
-        // 阻止在 Electron 中创建新窗口，使用默认浏览器
-        shell.openExternal(url)
-        return { action: 'deny' }
-      }
-      return { action: 'allow' }
+    window.webContents.on('did-fail-load', (_, errorCode, errorDescription) => {
+      logger.error('Page failed to load:', errorCode, errorDescription)
     })
 
-    this.window.on('closed', () => {
-      this.window = null
+    window.webContents.on('did-finish-load', () => {
+      logger.info('页面加载成功')
     })
-  }
-
-  getWindow() {
-    // logger.info('获取窗口', this.window)
-    return this.window
   }
 }
 
