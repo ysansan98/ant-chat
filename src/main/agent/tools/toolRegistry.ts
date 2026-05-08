@@ -143,6 +143,28 @@ function getNativeToolSchema(name: string): { description: string, inputSchema: 
           required: ['path', 'content'],
         },
       }
+    case 'edit_file':
+      return {
+        description: '对单个文件做精确文本替换。每个 edits[].oldText 必须唯一匹配且不能和其他替换重叠；修改同一邻近代码块时应合并为一个替换项',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            path: { type: 'string' },
+            edits: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  oldText: { type: 'string' },
+                  newText: { type: 'string' },
+                },
+                required: ['oldText', 'newText'],
+              },
+            },
+          },
+          required: ['path', 'edits'],
+        },
+      }
     case 'apply_patch':
       return {
         description: '按自定义 patch 语法修改文件，必须使用 "*** Begin Patch" / "*** Update File" / "*** End Patch" 格式，不接受 git unified diff',

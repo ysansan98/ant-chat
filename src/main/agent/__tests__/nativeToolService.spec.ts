@@ -117,6 +117,45 @@ describe('native tool service', () => {
     expect(fs.existsSync(path.join(workspacePath, 'ok.ts'))).toBe(false)
   })
 
+  it('edit_file 支持单文件多处精确替换并保留 CRLF', async () => {
+    const service = new NativeToolService(workspacePath)
+    fs.mkdirSync(path.join(workspacePath, 'src'))
+    fs.writeFileSync(path.join(workspacePath, 'src/edit.ts'), 'const a = 1\r\nconst b = 2\r\nconst c = 3\r\n')
+
+    await expect(service.editFile({
+      path: 'src/edit.ts',
+      edits: [
+        { oldText: 'const a = 1\n', newText: 'const a = 10\n' },
+        { oldText: 'const c = 3\n', newText: 'const c = 30\n' },
+      ],
+    })).resolves.toMatchObject({ ok: true, output: { path: 'src/edit.ts', replacements: 2 } })
+
+    expect(fs.readFileSync(path.join(workspacePath, 'src/edit.ts'), 'utf8')).toBe('const a = 10\r\nconst b = 2\r\nconst c = 30\r\n')
+  })
+
+  it('edit_file 拒绝非唯一和重叠替换', async () => {
+    const service = new NativeToolService(workspacePath)
+    fs.mkdirSync(path.join(workspacePath, 'src'))
+    fs.writeFileSync(path.join(workspacePath, 'src/dup.ts'), 'same\nsame\n')
+    fs.writeFileSync(path.join(workspacePath, 'src/overlap.ts'), 'abcdef\n')
+
+    await expect(service.editFile({
+      path: 'src/dup.ts',
+      edits: [{ oldText: 'same\n', newText: 'next\n' }],
+    })).rejects.toThrow('oldText 必须唯一')
+
+    await expect(service.editFile({
+      path: 'src/overlap.ts',
+      edits: [
+        { oldText: 'abc', newText: 'x' },
+        { oldText: 'bcd', newText: 'y' },
+      ],
+    })).rejects.toThrow('重叠')
+
+    expect(fs.readFileSync(path.join(workspacePath, 'src/dup.ts'), 'utf8')).toBe('same\nsame\n')
+    expect(fs.readFileSync(path.join(workspacePath, 'src/overlap.ts'), 'utf8')).toBe('abcdef\n')
+  })
+
   it('bash 阻断危险命令并允许低风险 mkdir', async () => {
     const service = new NativeToolService(workspacePath)
     const bash = service.getTools().find(tool => tool.name === 'bash')!
@@ -174,6 +213,12 @@ describe('native tool service', () => {
       const service = new NativeToolService(workspacePath)
       const tool = service.getTools().find(t => t.name === 'write_file')!
       expect(tool.inferScope({ path: path.join(outsidePath, 'x.txt'), content: 'x' })).toBe('outside')
+    })
+
+    it('edit_file 工作区内 → workspace', () => {
+      const service = new NativeToolService(workspacePath)
+      const tool = service.getTools().find(t => t.name === 'edit_file')!
+      expect(tool.inferScope({ path: 'src/a.txt', edits: [{ oldText: 'a', newText: 'b' }] })).toBe('workspace')
     })
 
     it('bash find /Users → outside（路径逃逸，可审批）', () => {
