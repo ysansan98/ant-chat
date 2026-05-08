@@ -37,17 +37,19 @@ export function transformMessageContent(message: IMessage): string {
     return message.content
   }
 
-  return message.content.reduce((acc, block, index) => {
+  return message.content.reduce((acc, block) => {
+    const prefix = acc ? '\n' : ''
+
     if (block.type === 'image') {
       return block?.url
-        ? `\n![](${block.url})`
-        : `${acc}\n![](data:${block.mimeType};base64,${block.data})\n`
+        ? `${acc}${prefix}![](${block.url})`
+        : `${acc}${prefix}![](data:${block.mimeType};base64,${block.data})`
     }
     else if (block.type === 'error') {
-      return index === 0 ? `${acc}\n${block.error}` : `${acc}\n> [!CAUTION]\n> ${block.error}`
+      return acc ? `${acc}\n> [!CAUTION]\n> ${block.error}` : block.error
     }
     else {
-      return `${acc}\n${block.text}`
+      return `${acc}${prefix}${block.text}`
     }
   }, '')
 }
