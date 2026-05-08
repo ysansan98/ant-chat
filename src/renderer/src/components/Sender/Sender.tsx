@@ -58,6 +58,7 @@ import { setActiveConversationsId, useMessagesStore } from '@/store/messages'
 import { fileToBase64 } from '@/utils'
 import TypingEffect from '../TypingEffect'
 import {
+  buildReferenceInputParts,
   getActiveReferenceTrigger,
   insertReferenceToken,
   isCompletedReferenceTrigger,
@@ -215,6 +216,52 @@ function SenderContextUsageButton() {
   )
 }
 
+function ReferenceInputOverlay({
+  text,
+  referencedFiles,
+  selectedSkill,
+  scrollTop,
+}: {
+  text: string
+  referencedFiles: string[]
+  selectedSkill?: string
+  scrollTop: number
+}) {
+  const parts = useMemo(
+    () => buildReferenceInputParts(text, referencedFiles, selectedSkill),
+    [text, referencedFiles, selectedSkill],
+  )
+
+  return (
+    <div
+      aria-hidden="true"
+      className="
+        pointer-events-none absolute inset-0 z-0 max-h-48 min-h-24 overflow-hidden p-1 text-left
+        text-base wrap-break-word whitespace-pre-wrap
+        md:text-sm
+      "
+    >
+      <div style={{ transform: `translateY(-${scrollTop}px)` }}>
+        {parts.map((part) => {
+          if (part.type === 'text') {
+            return <span key={`${part.offset}-text`}>{part.text}</span>
+          }
+
+          return (
+            <span
+              key={`${part.offset}-${part.type}-${part.text}`}
+              data-testid="reference-token"
+              className="rounded-sm bg-primary/10 text-primary ring-2 ring-primary/10"
+            >
+              {part.text}
+            </span>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function Sender({ actions, ...props }: SenderProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const senderRef = useRef<HTMLDivElement | null>(null)
@@ -231,6 +278,7 @@ function Sender({ actions, ...props }: SenderProps) {
   const [fileResults, setFileResults] = useState<WorkspaceFileSearchResult[]>([])
   const [skills, setSkills] = useState<SkillManifest[]>([])
   const [highlightedIndex, setHighlightedIndex] = useState(0)
+  const [textareaScrollTop, setTextareaScrollTop] = useState(0)
   const [suggestionAnchorRect, setSuggestionAnchorRect] = useState<DOMRect | null>(null)
 
   const activeConversationsId = useMessagesStore(
@@ -584,6 +632,7 @@ function Sender({ actions, ...props }: SenderProps) {
     setCursor(0)
     setReferencedFiles([])
     setSelectedSkill(undefined)
+    setTextareaScrollTop(0)
   }
 
   return (
@@ -612,19 +661,33 @@ function Sender({ actions, ...props }: SenderProps) {
       >
         <PromptInputBody className="bg-transparent px-1 pt-1">
           <SenderAttachmentsPreview />
-          <PromptInputTextarea
-            ref={textareaRef}
-            className="max-h-48 min-h-24 border-0 bg-transparent p-1"
-            data-testid="chat-input"
-            value={draft}
-            onChange={(event) => {
-              updateDraft(event.currentTarget.value, event.currentTarget.selectionStart)
-            }}
-            onClick={event => updateCursorFromTextarea(event.currentTarget)}
-            onKeyDown={handleTextareaKeyDown}
-            onKeyUp={handleTextareaKeyUp}
-            placeholder="Enter发送消息，Shift+Enter换行"
-          />
+          <div className="relative min-h-24 w-full">
+            <ReferenceInputOverlay
+              text={draft}
+              referencedFiles={referencedFiles}
+              selectedSkill={selectedSkill}
+              scrollTop={textareaScrollTop}
+            />
+            <PromptInputTextarea
+              ref={textareaRef}
+              className="
+                relative z-10 max-h-48 min-h-24 border-0 bg-transparent p-1 text-transparent
+                caret-foreground
+                selection:bg-primary/20 selection:text-foreground
+                placeholder:text-muted-foreground
+              "
+              data-testid="chat-input"
+              value={draft}
+              onChange={(event) => {
+                updateDraft(event.currentTarget.value, event.currentTarget.selectionStart)
+              }}
+              onClick={event => updateCursorFromTextarea(event.currentTarget)}
+              onKeyDown={handleTextareaKeyDown}
+              onKeyUp={handleTextareaKeyUp}
+              onScroll={event => setTextareaScrollTop(event.currentTarget.scrollTop)}
+              placeholder="Enter发送消息，Shift+Enter换行"
+            />
+          </div>
           <ReferenceSuggestionPanel
             trigger={activeReferenceTrigger}
             files={fileResults}
