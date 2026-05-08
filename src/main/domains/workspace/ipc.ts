@@ -1,6 +1,7 @@
-import type { IpcResponse, ListWorkspacesData } from '@ant-chat/shared'
+import type { IpcResponse, ListWorkspacesData, WorkspaceFileSearchResult } from '@ant-chat/shared'
 import { createErrorIpcResponse, createIpcResponse } from '@ant-chat/shared'
 import { WorkspaceStore } from '@main/store/workspace'
+import { searchWorkspaceFiles } from '@main/store/workspaceFileSearch'
 import { sendToRenderer } from '@main/utils/ipc-events'
 import { logger } from '@main/utils/logger'
 import { getMainWindow } from '@main/window'
@@ -82,6 +83,22 @@ export class WorkspaceIpcService extends IpcService {
     }
     catch (error) {
       logger.error('选择工作区失败:', error)
+      return createErrorIpcResponse(error as Error)
+    }
+  }
+
+  @IpcMethod()
+  async searchWorkspaceFiles(query = '', limit = 50): Promise<IpcResponse<WorkspaceFileSearchResult[]>> {
+    try {
+      const workspacePath = WorkspaceStore.getInstance().getCurrentWorkspacePath()
+      if (!workspacePath) {
+        return createIpcResponse(true, [])
+      }
+
+      return createIpcResponse(true, await searchWorkspaceFiles(workspacePath, query, limit))
+    }
+    catch (error) {
+      logger.error('搜索工作区文件失败:', error)
       return createErrorIpcResponse(error as Error)
     }
   }

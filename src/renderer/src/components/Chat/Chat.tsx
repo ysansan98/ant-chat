@@ -36,6 +36,8 @@ export default function Chat() {
     message: string,
     images: IImage[],
     attachments: IAttachment[],
+    referencedFiles: string[],
+    selectedSkill: string | undefined,
     features: ChatFeatures,
     agentMode: AgentMode,
   ) {
@@ -50,6 +52,8 @@ export default function Chat() {
       prompt: message,
       images,
       attachments,
+      referencedFiles,
+      selectedSkill,
       mode: agentMode,
       workspacePath: currentWorkspacePath || undefined,
       chatSettings: {

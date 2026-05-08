@@ -1,4 +1,4 @@
-import type { ListWorkspacesData } from '@ant-chat/shared'
+import type { ListWorkspacesData, WorkspaceFileSearchResult } from '@ant-chat/shared'
 import { ipc, unwrapIpcResponse } from '@/utils/ipc-bus'
 
 async function listWorkspaces(): Promise<ListWorkspacesData> {
@@ -21,10 +21,15 @@ async function chooseWorkspace(): Promise<ListWorkspacesData | null> {
   return unwrapIpcResponse(await ipc.workspace.chooseWorkspace())
 }
 
+async function searchWorkspaceFiles(query: string, limit = 50): Promise<WorkspaceFileSearchResult[]> {
+  return unwrapIpcResponse(await ipc.workspace.searchWorkspaceFiles(query, limit))
+}
+
 export default {
   listWorkspaces,
   addWorkspace,
   removeWorkspace,
   openWorkspace,
   chooseWorkspace,
+  searchWorkspaceFiles,
 }

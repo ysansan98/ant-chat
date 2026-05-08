@@ -83,7 +83,7 @@ export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }:
         ...pick(item, pickList),
         content,
       }
-      return <MessageContent {...messageContentProps} />
+      return <MessageContent {...messageContentProps} enableReferenceTokens={itemIsUser} />
     }
 
     return (

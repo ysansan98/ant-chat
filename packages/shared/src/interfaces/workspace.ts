@@ -18,3 +18,9 @@ export interface ListWorkspacesData {
   currentWorkspacePath: string
   workspaces: WorkspaceItem[]
 }
+
+export interface WorkspaceFileSearchResult {
+  path: string
+  name: string
+  type: 'file'
+}

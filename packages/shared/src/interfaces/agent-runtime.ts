@@ -61,6 +61,8 @@ export interface StartAgentTurnOptions {
   prompt: string
   images?: IAttachment[]
   attachments?: IAttachment[]
+  referencedFiles?: string[]
+  selectedSkill?: string
   workspacePath?: string
   mode?: AgentMode
   chatSettings: Omit<ChatSettings, 'model' | 'features'> & {
