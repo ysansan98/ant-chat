@@ -3,8 +3,10 @@ import type { CompactionSettings } from './compaction'
 import type { LoopMessage } from './loopContext'
 import type { ToolCallContext } from './toolExecution'
 import type { AgentRuntimeStartOptions } from './types'
+import { randomUUID } from 'node:crypto'
 import { createProvider } from '@main/ai-providers/factory'
 import { addMessage, getConversationById, getMessagesByConvId, getModelById, getProviderServiceById, updateConversation } from '@main/db/services'
+import { isDev } from '@main/utils/env'
 import { logger } from '@main/utils/logger'
 import { ToolRegistry } from '../tools/toolRegistry'
 import { appendAgentLog } from './agentLogger'
@@ -155,7 +157,7 @@ export async function runAgentLoop(taskId: string, options: AgentRuntimeStartOpt
 
           reportTaskState(task.snapshot)
 
-          await appendAgentLog(task.snapshot.taskId, 'context_compacted', {
+          await appendAgentLog(task.snapshot.conversationId, task.snapshot.userMessageId, 'context_compacted', {
             step,
             compactionCount,
             summaryLength: compResult.summaryLength,
@@ -174,20 +176,22 @@ export async function runAgentLoop(taskId: string, options: AgentRuntimeStartOpt
       const assistantMessageId = currentAssistantMessage.id
       currentToolMessages = []
 
-      // await appendAgentLog(task.snapshot.taskId, 'model_request_started', {
-      //   step,
-      //   workspacePath: task.snapshot.workspacePath,
-      //   requestBody: {
-      //     messages: loopMessages,
-      //     chatSettings: {
-      //       model: model.model,
-      //       temperature: options.chatSettings?.temperature,
-      //       maxTokens: options.chatSettings?.maxTokens,
-      //       systemPrompt: loopSystemPrompt,
-      //     },
-      //     tools: tools.map(item => ({ name: item.name, description: item.description, inputSchema: item.inputSchema })),
-      //   },
-      // })
+      if (isDev) {
+        await appendAgentLog(task.snapshot.conversationId, task.snapshot.userMessageId, 'model_request_started', {
+          step,
+          workspacePath: task.snapshot.workspacePath,
+          requestBody: {
+            messages: loopMessages,
+            chatSettings: {
+              model: model.model,
+              temperature: options.chatSettings?.temperature,
+              maxTokens: options.chatSettings?.maxTokens,
+              systemPrompt: loopSystemPrompt,
+            },
+            tools: tools.map(item => ({ name: item.name, description: item.description, inputSchema: item.inputSchema })),
+          },
+        })
+      }
 
       const stream = aiProvider.streamModel({
         messages: loopMessages as any,
@@ -204,7 +208,7 @@ export async function runAgentLoop(taskId: string, options: AgentRuntimeStartOpt
       let modelText = ''
       let reasoningText = ''
       let latestUsage: ReturnType<typeof normalizeUsage>
-      let requestedToolCall: { toolName: string, input: Record<string, unknown> } | null = null
+      let requestedToolCall: { toolName: string, input: Record<string, unknown>, invalidArgsError?: string } | null = null
       let lastStreamUpdateAt = 0
       const flushStreamMessage = async (force = false) => {
         const now = Date.now()
@@ -236,9 +240,11 @@ export async function runAgentLoop(taskId: string, options: AgentRuntimeStartOpt
         const functionCalls = (chunk as any).functionCalls || []
         if (functionCalls.length > 0) {
           const fc = functionCalls[0]
+          const argsResult = normalizeToolArgs(fc.args)
           requestedToolCall = {
             toolName: fc.toolName,
-            input: normalizeToolArgs(fc.args),
+            input: argsResult.ok ? argsResult.input : {},
+            invalidArgsError: argsResult.ok ? undefined : argsResult.error,
           }
         }
         if ((chunk as any).usage) {
@@ -246,7 +252,7 @@ export async function runAgentLoop(taskId: string, options: AgentRuntimeStartOpt
         }
         await flushStreamMessage()
       }
-      await appendAgentLog(task.snapshot.taskId, 'model_response_finished', {
+      await appendAgentLog(task.snapshot.conversationId, task.snapshot.userMessageId, 'model_response_finished', {
         step,
         textPreview: modelText.slice(0, 500),
         hasToolCall: Boolean(requestedToolCall),
@@ -279,18 +285,25 @@ export async function runAgentLoop(taskId: string, options: AgentRuntimeStartOpt
         break
       }
 
-      const toolStepResult = await executeToolStep({
-        task,
-        registry,
-        requestedToolCall,
-        currentAssistantMessageId: currentAssistantMessage.id,
-        currentModelText,
-        currentToolMessages,
-        step,
-        onToolCallContext: (context) => {
-          lastToolCallContext = context
-        },
-      })
+      const toolStepResult = requestedToolCall.invalidArgsError
+        ? await createInvalidToolArgsResult({
+            requestedToolCall,
+            currentAssistantMessageId: currentAssistantMessage.id,
+            currentModelText,
+            currentToolMessages,
+          })
+        : await executeToolStep({
+            task,
+            registry,
+            requestedToolCall,
+            currentAssistantMessageId: currentAssistantMessage.id,
+            currentModelText,
+            currentToolMessages,
+            step,
+            onToolCallContext: (context) => {
+              lastToolCallContext = context
+            },
+          })
       lastToolCallContext = toolStepResult.lastToolCallContext
 
       // Push assistant message with tool-call content block
@@ -321,7 +334,7 @@ export async function runAgentLoop(taskId: string, options: AgentRuntimeStartOpt
 
     task.snapshot.status = 'success'
     reportTaskState(task.snapshot)
-    await appendAgentLog(task.snapshot.taskId, 'task_completed', { finalAnswer })
+    await appendAgentLog(task.snapshot.conversationId, task.snapshot.userMessageId, 'task_completed', { finalAnswer })
   }
   catch (error) {
     await handleLoopFailure({
@@ -338,6 +351,50 @@ export async function runAgentLoop(taskId: string, options: AgentRuntimeStartOpt
       await removeCheckpoint(task.snapshot.taskId)
       taskStore.finish(task.snapshot.taskId)
     }
+  }
+}
+
+async function createInvalidToolArgsResult(options: {
+  requestedToolCall: { toolName: string, input: Record<string, unknown>, invalidArgsError?: string }
+  currentAssistantMessageId: string
+  currentModelText: string
+  currentToolMessages: McpToolCall[]
+}): Promise<{
+  lastToolCallContext: ToolCallContext
+  toolCallId: string
+  toolResultContent: string
+  isError: boolean
+}> {
+  const { requestedToolCall, currentAssistantMessageId, currentModelText, currentToolMessages } = options
+  const toolCallId = randomUUID()
+  const error = `工具 ${requestedToolCall.toolName} 参数解析失败：${requestedToolCall.invalidArgsError || 'args must be a JSON object'}。请修正参数后重新调用该工具。`
+  currentToolMessages.push({
+    id: toolCallId,
+    serverName: 'native',
+    toolName: requestedToolCall.toolName,
+    args: requestedToolCall.input,
+    executeState: 'completed',
+    result: {
+      success: false,
+      error,
+    },
+  })
+  await updateTaskAssistantMessage(currentAssistantMessageId, {
+    status: 'success',
+    content: [{ type: 'text', text: currentModelText || '工具参数解析失败，等待模型修正。' }],
+    toolCalls: currentToolMessages,
+  })
+  return {
+    lastToolCallContext: {
+      toolName: requestedToolCall.toolName,
+      input: requestedToolCall.input,
+      operationType: 'unknown',
+      scope: 'unknown',
+      policy: 'error',
+    },
+    toolCallId,
+    toolResultContent: error,
+    isError: true,
   }
 }
 
@@ -374,6 +431,6 @@ async function handleLoopFailure(options: {
     }
   }
   reportTaskState(task.snapshot)
-  await appendAgentLog(task.snapshot.taskId, 'task_failed', failurePayload)
+  await appendAgentLog(task.snapshot.conversationId, task.snapshot.userMessageId, 'task_failed', failurePayload)
   logger.error('[agent-runtime] task_failed', failurePayload)
 }

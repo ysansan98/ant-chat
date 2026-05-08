@@ -54,7 +54,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
     onToolCallContext,
   } = options
 
-  await appendAgentLog(task.snapshot.taskId, 'tool_call_received', {
+  await appendAgentLog(task.snapshot.conversationId, task.snapshot.userMessageId, 'tool_call_received', {
     step,
     toolName: requestedToolCall.toolName,
     input: requestedToolCall.input,
@@ -83,7 +83,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   }
   onToolCallContext?.(lastToolCallContext)
 
-  await appendAgentLog(task.snapshot.taskId, 'tool_decision', {
+  await appendAgentLog(task.snapshot.conversationId, task.snapshot.userMessageId, 'tool_decision', {
     toolName: requestedToolCall.toolName,
     input: requestedToolCall.input,
     operationType: prepared.operationType,
@@ -99,7 +99,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
       error: prepared.validationError,
     }
     await updateAssistantMessage(currentAssistantMessageId, currentModelText, currentToolMessages)
-    await appendAgentLog(task.snapshot.taskId, 'tool_failed', {
+    await appendAgentLog(task.snapshot.conversationId, task.snapshot.userMessageId, 'tool_failed', {
       toolName: prepared.toolName,
       input: requestedToolCall.input,
       error: prepared.validationError,
@@ -126,7 +126,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
       error: policyDecision.errorCode,
     }
     await updateAssistantMessage(currentAssistantMessageId, currentModelText, currentToolMessages)
-    await appendAgentLog(task.snapshot.taskId, 'tool_blocked', {
+    await appendAgentLog(task.snapshot.conversationId, task.snapshot.userMessageId, 'tool_blocked', {
       step,
       toolName: requestedToolCall.toolName,
       input: requestedToolCall.input,
@@ -200,7 +200,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
       error: result.error || 'AGENT_TOOL_EXEC_FAILED',
     }
     await updateAssistantMessage(currentAssistantMessageId, currentModelText, currentToolMessages)
-    await appendAgentLog(task.snapshot.taskId, 'tool_failed', {
+    await appendAgentLog(task.snapshot.conversationId, task.snapshot.userMessageId, 'tool_failed', {
       toolName: prepared.toolName,
       input: requestedToolCall.input,
       error: result.error || 'AGENT_TOOL_EXEC_FAILED',
@@ -229,14 +229,14 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   currentToolCall.executeState = 'completed'
   currentToolCall.result = {
     success: true,
-    data: truncateTextByTool(prepared.toolName, toolOutputText, 'log'),
+    data: truncateTextByTool(prepared.toolName, toolOutputText, 'observation'),
   }
   await updateAssistantMessage(currentAssistantMessageId, currentModelText, currentToolMessages)
   await updateAssistantMessage(currentAssistantMessageId, currentModelText, currentToolMessages, 'success')
-  await appendAgentLog(task.snapshot.taskId, 'tool_completed', {
+  await appendAgentLog(task.snapshot.conversationId, task.snapshot.userMessageId, 'tool_completed', {
     toolName: prepared.toolName,
     input: requestedToolCall.input,
-    outputPreview: truncateTextByTool(prepared.toolName, toolOutputText, 'log'),
+    outputPreview: truncateTextByTool(prepared.toolName, toolOutputText, 'observation'),
     exitCode: result.exitCode,
     durationMs: result.durationMs,
   })

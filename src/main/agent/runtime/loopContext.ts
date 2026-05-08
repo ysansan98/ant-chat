@@ -7,6 +7,10 @@ export interface LoopMessage {
   content: Array<{ type: 'text', text: string } | { type: 'tool-call', toolCallId: string, toolName: string, args: Record<string, unknown> } | { type: 'tool-result', toolCallId: string, toolName: string, result: unknown, isError?: boolean }>
 }
 
+export type NormalizeToolArgsResult
+  = | { ok: true, input: Record<string, unknown> }
+    | { ok: false, error: string }
+
 export function createLoopSystemPrompt(workspacePath: string): string {
   return [
     '你是一个AI助手代理，目标是完成用户任务，不是展示过程。',
@@ -157,20 +161,23 @@ export function looksLikePlanOnlyResponse(text: string): boolean {
   return !finalAnswerHints.some(hint => content.includes(hint))
 }
 
-export function normalizeToolArgs(args: unknown): Record<string, unknown> {
+export function normalizeToolArgs(args: unknown): NormalizeToolArgsResult {
   if (args && typeof args === 'object' && !Array.isArray(args)) {
-    return args as Record<string, unknown>
+    return { ok: true, input: args as Record<string, unknown> }
   }
   if (typeof args === 'string') {
     try {
       const parsed = JSON.parse(args)
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        return parsed as Record<string, unknown>
+        return { ok: true, input: parsed as Record<string, unknown> }
       }
     }
-    catch {}
+    catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      return { ok: false, error: `args must be a JSON object: ${message}` }
+    }
   }
-  return {}
+  return { ok: false, error: 'args must be an object or a JSON object string' }
 }
 
 function extractMessageText(message: IMessage): string {

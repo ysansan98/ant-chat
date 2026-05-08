@@ -6,10 +6,14 @@ import { taskStore } from '../taskStore'
 const writerMocks = vi.hoisted(() => ({
   updateTaskAssistantMessage: vi.fn(async () => ({ id: 'ai-msg-1' })),
 }))
+const loggerMocks = vi.hoisted(() => ({
+  appendAgentLog: vi.fn(async () => '/tmp/log.jsonl'),
+}))
 let callRound = 0
 let firstToolName = 'list_dir'
-let firstToolArgs: Record<string, unknown> = { path: '.' }
+let firstToolArgs: unknown = { path: '.' }
 let streamTextChunks = ['已完成']
+let toolCallsByRound: Array<{ toolName: string, args: unknown } | null> | null = null
 
 vi.mock('@main/db/services', () => ({
   addMessage: vi.fn(),
@@ -26,14 +30,19 @@ vi.mock('@main/ai-providers/factory', () => ({
   createProvider: vi.fn(async () => ({
     async* streamModel() {
       callRound += 1
-      if (callRound === 1) {
+      const configuredToolCall = toolCallsByRound
+        ? toolCallsByRound[callRound - 1]
+        : callRound === 1
+          ? { toolName: firstToolName, args: firstToolArgs }
+          : null
+      if (configuredToolCall) {
         yield {
           content: [],
           functionCalls: [{
             id: 'call-1',
             serverName: 'native',
-            toolName: firstToolName,
-            args: firstToolArgs,
+            toolName: configuredToolCall.toolName,
+            args: configuredToolCall.args,
             executeState: 'await',
           }],
         }
@@ -65,7 +74,7 @@ vi.mock('../checkpointStore', () => ({
 }))
 
 vi.mock('../agentLogger', () => ({
-  appendAgentLog: vi.fn(async () => '/tmp/log.jsonl'),
+  appendAgentLog: loggerMocks.appendAgentLog,
 }))
 
 describe('agentRuntime', () => {
@@ -76,7 +85,9 @@ describe('agentRuntime', () => {
     firstToolName = 'list_dir'
     firstToolArgs = { path: '.' }
     streamTextChunks = ['已完成']
+    toolCallsByRound = null
     writerMocks.updateTaskAssistantMessage.mockClear()
+    loggerMocks.appendAgentLog.mockClear()
   })
 
   it('startTask 创建 task', async () => {
@@ -123,6 +134,37 @@ describe('agentRuntime', () => {
 
     expect(streamedTexts).toContain('Hel')
     expect(streamedTexts).toContain('Hello')
+  })
+
+  it('工具参数解析失败时返回错误观察并继续下一轮', async () => {
+    toolCallsByRound = [
+      { toolName: 'list_dir', args: '{invalid json' },
+      { toolName: 'list_dir', args: { path: '.' } },
+      null,
+    ]
+    streamTextChunks = ['修正后完成']
+
+    const res = await agentRuntime.startTask({
+      conversationId: 'c6',
+      userMessageId: 'm6',
+      prompt: '检查当前项目结构',
+      mode: 'hybrid',
+      chatSettings: {
+        modelId: 'model-1',
+        systemPrompt: '',
+        temperature: 0,
+        maxTokens: 256,
+        features: { enableMCP: false, onlineSearch: false },
+      },
+    })
+
+    await waitForTaskStatus(res.taskId, 'success')
+    const failedToolCalls = (writerMocks.updateTaskAssistantMessage.mock.calls as unknown as Array<[string, { toolCalls?: Array<{ result?: { error?: string } }> }]>)
+      .flatMap(call => call[1]?.toolCalls || [])
+      .filter(tool => tool.result?.error?.includes('参数解析失败'))
+
+    expect(callRound).toBe(3)
+    expect(failedToolCalls).toHaveLength(1)
   })
 
   it('取消等待审批的任务会释放会话', async () => {

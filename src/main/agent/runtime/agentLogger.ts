@@ -4,8 +4,7 @@ import { getAgentLogsDir } from '@main/utils/appPaths'
 
 function maskValue(raw: unknown): unknown {
   if (typeof raw === 'string') {
-    const maybeSecret = raw.replace(/(sk-[A-Za-z0-9]{10})[A-Za-z0-9-]*/g, '$1***')
-    return maybeSecret.length > 500 ? `${maybeSecret.slice(0, 500)}...(truncated)` : maybeSecret
+    return raw.replace(/(sk-[A-Za-z0-9]{10})[A-Za-z0-9-]*/g, '$1***')
   }
   if (Array.isArray(raw))
     return raw.map(maskValue)
@@ -15,10 +14,10 @@ function maskValue(raw: unknown): unknown {
   return raw
 }
 
-export async function appendAgentLog(taskId: string, event: string, payload: Record<string, unknown>) {
+export async function appendAgentLog(conversationId: string, userMessageId: string, event: string, payload: Record<string, unknown>) {
   const root = getAgentLogsDir()
-  await fs.mkdir(root, { recursive: true })
-  const logPath = path.join(root, `${taskId}.jsonl`)
+  const logPath = path.join(root, conversationId, `${userMessageId}.jsonl`)
+  await fs.mkdir(path.dirname(logPath), { recursive: true })
   const line = JSON.stringify({ time: Date.now(), event, payload: maskValue(payload) })
   await fs.appendFile(logPath, `${line}\n`, 'utf8')
   return logPath

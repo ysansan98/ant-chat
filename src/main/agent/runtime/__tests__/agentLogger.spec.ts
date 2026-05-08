@@ -15,7 +15,7 @@ afterEach(async () => {
 
 describe('agentLogger', () => {
   it('写入结构化日志且做脱敏与截断', async () => {
-    const logPath = await appendAgentLog('task-log-1', 'tool_completed', {
+    const logPath = await appendAgentLog('conv-1', 'msg-1', 'tool_completed', {
       apiKey: 'sk-1234567890abcdefghijklmnopqrstuvwxyz',
       envToken: 'abc',
       longText: 'x'.repeat(600),
