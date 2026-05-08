@@ -63,6 +63,14 @@ export interface WriteFileToolInput {
   content: string
 }
 
+export interface EditFileToolInput {
+  path: string
+  edits: Array<{
+    oldText: string
+    newText: string
+  }>
+}
+
 export interface ApplyPatchToolInput {
   patch: string
 }
