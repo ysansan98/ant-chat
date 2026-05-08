@@ -6,10 +6,16 @@ export interface ActiveReferenceTrigger {
 }
 
 interface ReferenceTokenRange {
+  type: 'file' | 'skill'
   start: number
   end: number
   trailingSpaceEnd: number
+  text: string
 }
+
+export type ReferenceInputPart
+  = | { type: 'text', text: string, offset: number }
+    | { type: 'file' | 'skill', text: string, offset: number }
 
 export function getActiveReferenceTrigger(text: string, cursor: number): ActiveReferenceTrigger | null {
   const beforeCursor = text.slice(0, cursor)
@@ -46,14 +52,21 @@ export function insertReferenceToken(
 }
 
 export function syncReferencedFiles(text: string, selected: string[]): string[] {
-  return selected.filter(file => text.includes(`@${file}`))
+  const ranges = getReferenceTokenRanges(text, selected)
+  return selected.filter(file =>
+    ranges.some(range => range.type === 'file' && range.text === `@${file}`),
+  )
 }
 
 export function syncSelectedSkill(text: string, selected?: string): string | undefined {
   if (!selected) {
     return undefined
   }
-  return text.includes(`/${selected}`) ? selected : undefined
+
+  const ranges = getReferenceTokenRanges(text, [], selected)
+  return ranges.some(range => range.type === 'skill' && range.text === `/${selected}`)
+    ? selected
+    : undefined
 }
 
 export function isCompletedReferenceTrigger(
@@ -139,6 +152,35 @@ export function snapCursorToReferenceTokenBoundary(
   return cursor
 }
 
+export function buildReferenceInputParts(
+  text: string,
+  referencedFiles: string[],
+  selectedSkill?: string,
+): ReferenceInputPart[] {
+  const parts: ReferenceInputPart[] = []
+  const ranges = getReferenceTokenRanges(text, referencedFiles, selectedSkill)
+  let cursor = 0
+
+  for (const range of ranges) {
+    if (range.start < cursor) {
+      continue
+    }
+
+    if (range.start > cursor) {
+      parts.push({ type: 'text', text: text.slice(cursor, range.start), offset: cursor })
+    }
+
+    parts.push({ type: range.type, text: range.text, offset: range.start })
+    cursor = range.end
+  }
+
+  if (cursor < text.length) {
+    parts.push({ type: 'text', text: text.slice(cursor), offset: cursor })
+  }
+
+  return parts.length > 0 ? parts : [{ type: 'text', text, offset: 0 }]
+}
+
 function getReferenceTokenRanges(
   text: string,
   referencedFiles: string[],
@@ -154,11 +196,19 @@ function getReferenceTokenRanges(
     let start = text.indexOf(token)
     while (start !== -1) {
       const end = start + token.length
-      ranges.push({
-        start,
-        end,
-        trailingSpaceEnd: text[end] === ' ' ? end + 1 : end,
-      })
+      const hasStartBoundary = start === 0 || /\s/.test(text[start - 1])
+      const hasEndBoundary = end === text.length || /\s/.test(text[end])
+
+      if (hasStartBoundary && hasEndBoundary) {
+        ranges.push({
+          type: token.startsWith('@') ? 'file' : 'skill',
+          start,
+          end,
+          trailingSpaceEnd: text[end] === ' ' ? end + 1 : end,
+          text: token,
+        })
+      }
+
       start = text.indexOf(token, end)
     }
   }

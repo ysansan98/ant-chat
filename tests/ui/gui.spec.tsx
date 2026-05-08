@@ -43,6 +43,9 @@ const mocks = vi.hoisted(() => ({
   provider: {
     getAllAbvailableModels: vi.fn(),
   },
+  skill: {
+    listSkills: vi.fn(async () => ({ skills: [] })),
+  },
   workspace: {
     chooseWorkspace: vi.fn(async () => null),
     listWorkspaces: vi.fn(),
@@ -64,6 +67,10 @@ vi.mock('@/api/generalSettingsApi', () => ({
 
 vi.mock('@/api/providerApi', () => ({
   providerApi: mocks.provider,
+}))
+
+vi.mock('@/api/skillApi', () => ({
+  skillApi: mocks.skill,
 }))
 
 vi.mock('@/api/workspaceApi', () => ({
@@ -105,6 +112,7 @@ describe('gui ui flow', () => {
     useAgentStore.setState({ pendingByTask: {}, tasks: {} })
 
     mocks.provider.getAllAbvailableModels.mockResolvedValue([])
+    mocks.skill.listSkills.mockResolvedValue({ skills: [] })
     mocks.workspace.listWorkspaces.mockResolvedValue({
       currentWorkspacePath: guiWorkspacePath,
       workspaces: [{
