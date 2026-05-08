@@ -2,6 +2,7 @@ import type { AddMessage, AgentTurnResult, StartAgentTurnOptions } from '@ant-ch
 import { addConversation, addMessage, getConversationById } from '@main/db/services'
 import { WorkspaceStore } from '@main/store/workspace'
 import { agentRuntime } from './agentRuntime'
+import { buildPromptWithTurnContext } from './turnContext'
 
 const DEFAULT_CONVERSATION_TITLE = 'Untitled'
 
@@ -50,7 +51,13 @@ export async function startAgentTurn(options: StartAgentTurnOptions): Promise<Ag
   const task = await agentRuntime.startTask({
     conversationId: conversation.id,
     userMessageId: userMessage.id,
-    prompt,
+    prompt: buildPromptWithTurnContext({
+      prompt,
+      referencedFiles: options.referencedFiles,
+      selectedSkill: options.selectedSkill,
+    }),
+    referencedFiles: options.referencedFiles,
+    selectedSkill: options.selectedSkill,
     mode: options.mode,
     workspacePath,
     chatSettings: options.chatSettings,

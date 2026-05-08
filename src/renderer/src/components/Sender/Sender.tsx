@@ -1,4 +1,4 @@
-import type { AgentMode, ChatFeatures, IAttachment, IImage } from '@ant-chat/shared'
+import type { AgentMode, ChatFeatures, IAttachment, IImage, SkillManifest, WorkspaceFileSearchResult } from '@ant-chat/shared'
 import type { FileUIPart, LanguageModelUsage } from 'ai'
 import {
   Attachment,
@@ -37,9 +37,12 @@ import {
 import { Cable, ChevronDownIcon, FolderOpenIcon, GlobeIcon, HandIcon, PaperclipIcon, ShieldAlertIcon, ShieldCheckIcon } from 'lucide-react'
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react'
+import { skillApi } from '@/api/skillApi'
 import workspaceApi from '@/api/workspaceApi'
 import { useChatSettingsContext } from '@/contexts/chatSettings'
 import {
@@ -54,7 +57,18 @@ import {
 import { setActiveConversationsId, useMessagesStore } from '@/store/messages'
 import { fileToBase64 } from '@/utils'
 import TypingEffect from '../TypingEffect'
+import {
+  getActiveReferenceTrigger,
+  insertReferenceToken,
+  isCompletedReferenceTrigger,
+  moveCursorAcrossReferenceToken,
+  removeReferenceTokenAtCursor,
+  snapCursorToReferenceTokenBoundary,
+  syncReferencedFiles,
+  syncSelectedSkill,
+} from './inputReferences'
 import MCPManagementPanel from './MCPManagementPanel'
+import { ReferenceSuggestionPanel } from './ReferenceSuggestionPanel'
 
 interface SenderProps {
   actions?: React.ReactNode
@@ -62,6 +76,8 @@ interface SenderProps {
     message: string,
     images: IImage[],
     attachments: IAttachment[],
+    referencedFiles: string[],
+    selectedSkill: string | undefined,
     features: ChatFeatures,
     agentMode: AgentMode,
   ) => void
@@ -200,12 +216,22 @@ function SenderContextUsageButton() {
 }
 
 function Sender({ actions, ...props }: SenderProps) {
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const senderRef = useRef<HTMLDivElement | null>(null)
   const [workspaceLoading, setWorkspaceLoading] = useState(false)
   const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false)
   const [workspaceData, setWorkspaceData] = useState<
     Awaited<ReturnType<typeof workspaceApi.listWorkspaces>> | null
   >(null)
   const [notice, setNotice] = useState('')
+  const [draft, setDraft] = useState('')
+  const [cursor, setCursor] = useState(0)
+  const [referencedFiles, setReferencedFiles] = useState<string[]>([])
+  const [selectedSkill, setSelectedSkill] = useState<string>()
+  const [fileResults, setFileResults] = useState<WorkspaceFileSearchResult[]>([])
+  const [skills, setSkills] = useState<SkillManifest[]>([])
+  const [highlightedIndex, setHighlightedIndex] = useState(0)
+  const [suggestionAnchorRect, setSuggestionAnchorRect] = useState<DOMRect | null>(null)
 
   const activeConversationsId = useMessagesStore(
     state => state.activeConversationsId,
@@ -228,6 +254,33 @@ function Sender({ actions, ...props }: SenderProps) {
     { value: 'full_managed', label: '完全访问权限', icon: <ShieldAlertIcon className="size-4" /> },
   ]
   const currentAgentModeOption = agentModeOptions.find(item => item.value === agentMode) || agentModeOptions[1]
+  const activeReferenceTrigger = useMemo(() => {
+    const trigger = getActiveReferenceTrigger(draft, cursor)
+    return isCompletedReferenceTrigger(trigger, referencedFiles, selectedSkill)
+      ? null
+      : trigger
+  }, [draft, cursor, referencedFiles, selectedSkill])
+  const enabledSkills = useMemo(
+    () => skills.filter(skill => skill.enabled),
+    [skills],
+  )
+  const filteredSkills = useMemo(() => {
+    if (!activeReferenceTrigger || activeReferenceTrigger.type !== 'skill') {
+      return []
+    }
+    const query = activeReferenceTrigger.query.toLowerCase()
+    return enabledSkills
+      .filter(skill =>
+        skill.name.toLowerCase().includes(query)
+        || (skill.description || '').toLowerCase().includes(query),
+      )
+      .slice(0, 20)
+  }, [activeReferenceTrigger, enabledSkills])
+  const suggestionItemCount = activeReferenceTrigger?.type === 'file'
+    ? fileResults.length
+    : activeReferenceTrigger?.type === 'skill'
+      ? filteredSkills.length
+      : 0
 
   const canSwitchWorkspace = !activeConversationsId && !hasMessage && !loading
   const selectableWorkspaces = useMemo(
@@ -247,7 +300,49 @@ function Sender({ actions, ...props }: SenderProps) {
 
   useEffect(() => {
     void refreshWorkspaceData()
+    void refreshSkills()
   }, [])
+
+  useEffect(() => {
+    if (!activeReferenceTrigger || activeReferenceTrigger.type !== 'file') {
+      setFileResults([])
+      return
+    }
+
+    const timer = window.setTimeout(() => {
+      void workspaceApi.searchWorkspaceFiles(activeReferenceTrigger.query, 50)
+        .then(setFileResults)
+        .catch(() => setFileResults([]))
+    }, 120)
+
+    return () => window.clearTimeout(timer)
+  }, [activeReferenceTrigger])
+
+  useLayoutEffect(() => {
+    if (!activeReferenceTrigger) {
+      setSuggestionAnchorRect(null)
+      return
+    }
+
+    const updateRect = () => {
+      const anchor = senderRef.current?.querySelector('[data-testid="chat-input-form"]')
+      const rect = anchor?.getBoundingClientRect()
+      setSuggestionAnchorRect(rect ?? null)
+    }
+
+    updateRect()
+    window.addEventListener('resize', updateRect)
+    window.addEventListener('scroll', updateRect, true)
+
+    return () => {
+      window.removeEventListener('resize', updateRect)
+      window.removeEventListener('scroll', updateRect, true)
+    }
+  }, [activeReferenceTrigger, draft])
+
+  useEffect(() => {
+    setHighlightedIndex(0)
+  }, [activeReferenceTrigger?.type, activeReferenceTrigger?.query, suggestionItemCount])
 
   useEffect(() => {
     if (!currentWorkspacePath) {
@@ -269,6 +364,11 @@ function Sender({ actions, ...props }: SenderProps) {
   async function refreshWorkspaceData() {
     const data = await workspaceApi.listWorkspaces()
     setWorkspaceData(data)
+  }
+
+  async function refreshSkills() {
+    const data = await skillApi.listSkills()
+    setSkills(data.skills)
   }
 
   async function handleSwitchWorkspace(nextWorkspacePath: string) {
@@ -300,9 +400,164 @@ function Sender({ actions, ...props }: SenderProps) {
     }
   }
 
+  function updateDraft(nextText: string, nextCursor?: number) {
+    setDraft(nextText)
+    setReferencedFiles(prev => syncReferencedFiles(nextText, prev))
+    setSelectedSkill(prev => syncSelectedSkill(nextText, prev))
+    if (typeof nextCursor === 'number') {
+      setCursor(nextCursor)
+    }
+  }
+
+  function selectFileReference(file: WorkspaceFileSearchResult) {
+    if (!activeReferenceTrigger || activeReferenceTrigger.type !== 'file') {
+      return
+    }
+
+    const token = `@${file.path}`
+    const next = insertReferenceToken(draft, activeReferenceTrigger, token)
+    updateDraft(next.text, next.cursor)
+    setReferencedFiles(prev => Array.from(new Set([...prev, file.path])))
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus()
+      textareaRef.current?.setSelectionRange(next.cursor, next.cursor)
+    })
+  }
+
+  function selectSkillReference(skill: SkillManifest) {
+    if (!activeReferenceTrigger || activeReferenceTrigger.type !== 'skill') {
+      return
+    }
+
+    const token = `/${skill.name}`
+    const next = insertReferenceToken(draft, activeReferenceTrigger, token)
+    updateDraft(next.text, next.cursor)
+    setSelectedSkill(skill.name)
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus()
+      textareaRef.current?.setSelectionRange(next.cursor, next.cursor)
+    })
+  }
+
+  function selectHighlightedReference() {
+    if (!activeReferenceTrigger || suggestionItemCount === 0) {
+      return false
+    }
+
+    const index = Math.min(highlightedIndex, suggestionItemCount - 1)
+    if (activeReferenceTrigger.type === 'file') {
+      selectFileReference(fileResults[index])
+      return true
+    }
+
+    selectSkillReference(filteredSkills[index])
+    return true
+  }
+
+  function handleTextareaKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (
+      (event.key === 'ArrowLeft' || event.key === 'ArrowRight')
+      && !event.shiftKey
+      && !event.altKey
+      && !event.metaKey
+      && !event.ctrlKey
+      && event.currentTarget.selectionStart === event.currentTarget.selectionEnd
+    ) {
+      const nextCursor = moveCursorAcrossReferenceToken(
+        draft,
+        event.currentTarget.selectionStart,
+        event.key,
+        referencedFiles,
+        selectedSkill,
+      )
+      if (nextCursor !== null) {
+        event.preventDefault()
+        setCursor(nextCursor)
+        requestAnimationFrame(() => {
+          textareaRef.current?.setSelectionRange(nextCursor, nextCursor)
+        })
+        return
+      }
+    }
+
+    if (
+      (event.key === 'Backspace' || event.key === 'Delete')
+      && event.currentTarget.selectionStart === event.currentTarget.selectionEnd
+    ) {
+      const next = removeReferenceTokenAtCursor(
+        draft,
+        event.currentTarget.selectionStart,
+        event.key,
+        referencedFiles,
+        selectedSkill,
+      )
+      if (next) {
+        event.preventDefault()
+        updateDraft(next.text, next.cursor)
+        requestAnimationFrame(() => {
+          textareaRef.current?.focus()
+          textareaRef.current?.setSelectionRange(next.cursor, next.cursor)
+        })
+        return
+      }
+    }
+
+    if (!activeReferenceTrigger) {
+      return
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      setCursor(0)
+      return
+    }
+
+    if (event.key === 'ArrowDown' && suggestionItemCount > 0) {
+      event.preventDefault()
+      setHighlightedIndex(prev => (prev + 1) % suggestionItemCount)
+      return
+    }
+
+    if (event.key === 'ArrowUp' && suggestionItemCount > 0) {
+      event.preventDefault()
+      setHighlightedIndex(prev => (prev - 1 + suggestionItemCount) % suggestionItemCount)
+      return
+    }
+
+    if (event.key === 'Enter' && !event.shiftKey && suggestionItemCount > 0) {
+      event.preventDefault()
+      selectHighlightedReference()
+    }
+  }
+
+  function updateCursorFromTextarea(element: HTMLTextAreaElement) {
+    const nextCursor = snapCursorToReferenceTokenBoundary(
+      draft,
+      element.selectionStart,
+      referencedFiles,
+      selectedSkill,
+    )
+    setCursor(nextCursor)
+    if (nextCursor !== element.selectionStart) {
+      requestAnimationFrame(() => {
+        textareaRef.current?.setSelectionRange(nextCursor, nextCursor)
+      })
+    }
+  }
+
+  function handleTextareaKeyUp(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].includes(event.key)) {
+      return
+    }
+
+    updateCursorFromTextarea(event.currentTarget)
+  }
+
   async function handleSubmit(message: { text: string, files: FileUIPart[] }) {
     const images: IImage[] = []
     const attachments: IAttachment[] = []
+    const nextReferencedFiles = syncReferencedFiles(message.text, referencedFiles)
+    const nextSelectedSkill = syncSelectedSkill(message.text, selectedSkill)
 
     const files = await Promise.all(
       message.files.map((part, index) => filePartToAttachment(part, index)),
@@ -321,14 +576,19 @@ function Sender({ actions, ...props }: SenderProps) {
       }
     })
 
-    props.onSubmit?.(message.text, images, attachments, {
+    props.onSubmit?.(message.text, images, attachments, nextReferencedFiles, nextSelectedSkill, {
       enableMCP: mcpEnabled,
       onlineSearch,
     }, agentMode)
+    setDraft('')
+    setCursor(0)
+    setReferencedFiles([])
+    setSelectedSkill(undefined)
   }
 
   return (
     <div
+      ref={senderRef}
       className={`
         ${!hasMessage ? 'absolute inset-x-3 top-[50%] translate-y-[-50%]' : ''}
       `}
@@ -353,9 +613,28 @@ function Sender({ actions, ...props }: SenderProps) {
         <PromptInputBody className="bg-transparent px-1 pt-1">
           <SenderAttachmentsPreview />
           <PromptInputTextarea
+            ref={textareaRef}
             className="max-h-48 min-h-24 border-0 bg-transparent p-1"
             data-testid="chat-input"
+            value={draft}
+            onChange={(event) => {
+              updateDraft(event.currentTarget.value, event.currentTarget.selectionStart)
+            }}
+            onClick={event => updateCursorFromTextarea(event.currentTarget)}
+            onKeyDown={handleTextareaKeyDown}
+            onKeyUp={handleTextareaKeyUp}
             placeholder="Enter发送消息，Shift+Enter换行"
+          />
+          <ReferenceSuggestionPanel
+            trigger={activeReferenceTrigger}
+            files={fileResults}
+            skills={filteredSkills}
+            hasWorkspace={Boolean(workspaceData?.currentWorkspacePath)}
+            hasEnabledSkills={enabledSkills.length > 0}
+            highlightedIndex={highlightedIndex}
+            anchorRect={suggestionAnchorRect}
+            onSelectFile={selectFileReference}
+            onSelectSkill={selectSkillReference}
           />
         </PromptInputBody>
 
