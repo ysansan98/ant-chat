@@ -37,6 +37,7 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.36",
+    "@ai-sdk/deepseek": "^2.0.34",
     "@ai-sdk/google": "^3.0.20",
     "@ai-sdk/openai": "^3.0.25",
     "@google/genai": "^1.32.0",
@@ -55,7 +56,6 @@
     "undici": "^7.15.0"
   },
   "devDependencies": {
-    "@ai-sdk/deepseek": "^2.0.17",
     "@ant-chat/mcp-client-hub": "workspace:*",
     "@ant-chat/shared": "workspace:*",
     "@antfu/eslint-config": "^6.2.0",

@@ -5,7 +5,8 @@ import { getAgentLogsDir } from '@main/utils/appPaths'
 function maskValue(raw: unknown): unknown {
   if (typeof raw === 'string') {
     const maybeSecret = raw.replace(/(sk-[A-Za-z0-9]{10})[A-Za-z0-9-]*/g, '$1***')
-    return maybeSecret.length > 500 ? `${maybeSecret.slice(0, 500)}...(truncated)` : maybeSecret
+    return maybeSecret
+    // return maybeSecret.length > 500 ? `${maybeSecret.slice(0, 500)}...(truncated)` : maybeSecret
   }
   if (Array.isArray(raw))
     return raw.map(maskValue)
