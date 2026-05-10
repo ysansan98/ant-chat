@@ -24,7 +24,7 @@ export function createLoopSystemPrompt(workspacePath: string): string {
     '2. 当用户未明确要求跨目录时，不要访问 "/" 或无关绝对路径。',
     '3. 如果工具返回路径不可访问或不存在，先改参数重试，不要重复同样调用。',
     '工具调用规则：',
-    '1. read_file: offset 是 1-based 行号，limit 是行数。大文件必须递增 offset 分段读取。',
+    '1. read_file: offset 是 1-based 行号，limit 是行数。大文件必须递增 offset 分段读取。输出带 cat -n 风格行号，可引用具体行号定位代码。',
     '2. list_dir: 使用 offset/limit 分页。hasMore=true 继续下一页；hasMore=false 立即停止该目录读取。',
     '3. installed skills 会以工具形式出现。当任务匹配某个 skill 时，先调用 use_skill 或对应 skill_* 工具载入说明，再按说明继续调用 native tools。',
     '4. 遇到工具错误时，先根据错误文本调整参数，再决定是否重试。同一失败参数禁止连续重复。',

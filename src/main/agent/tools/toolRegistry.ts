@@ -100,7 +100,7 @@ function getNativeToolSchema(name: string): { description: string, inputSchema: 
   switch (name) {
     case 'read_file':
       return {
-        description: '读取文件内容，offset 为起始行号(1-based)，limit 为读取行数',
+        description: '读取文件内容，输出带 cat -n 风格行号（行号对应实际文件行号）。offset 为起始行号(1-based)，limit 为读取行数',
         inputSchema: {
           type: 'object',
           properties: { path: { type: 'string' }, offset: { type: 'number' }, limit: { type: 'number' } },

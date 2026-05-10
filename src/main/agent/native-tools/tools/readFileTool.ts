@@ -16,11 +16,15 @@ export async function readFile(input: ReadFileToolInput, pathPolicy: PathPolicy)
   }
 
   const selectedLines = lines.slice(startLine - 1, startLine - 1 + maxLines)
-  const sliced = selectedLines.join('\n')
   const consumed = selectedLines.length
   const endLine = startLine + Math.max(consumed - 1, 0)
   const nextOffset = startLine + consumed
   const hasMore = nextOffset <= totalLines
+
+  const padding = String(endLine).length
+  const numberedLines = selectedLines.map((line, i) =>
+    `${String(startLine + i).padStart(padding)}\t${line}`)
+  const sliced = numberedLines.join('\n')
 
   const header = `[Showing lines ${startLine}-${endLine} of ${totalLines}]`
   if (!hasMore) {
