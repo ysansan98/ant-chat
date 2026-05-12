@@ -11,6 +11,13 @@ export interface AgentToolResult {
   error?: string
 }
 
+export interface ToolResultView {
+  output?: unknown
+  stdout?: string
+  stderr?: string
+  exitCode?: number
+}
+
 export interface AgentTool {
   name: string
   source: 'mcp' | 'native' | 'skill'
@@ -24,6 +31,9 @@ export interface AgentTool {
   inferScope: (input: Record<string, unknown>) => ToolScope
   validateInput?: (input: Record<string, unknown>) => string | null
   execute: (input: Record<string, unknown>) => Promise<AgentToolResult>
+  formatObservation?: (result: ToolResultView, outputText: string) => string
+  formatError?: (error: string, input: Record<string, unknown>, result?: ToolResultView) => string | undefined
+  truncateObservation?: boolean
 }
 
 export interface BashToolInput {

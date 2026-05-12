@@ -14,6 +14,12 @@ export async function writeFile(input: WriteFileToolInput, pathPolicy: PathPolic
 export function createWriteFileTool(pathPolicy: PathPolicy, workspacePath: string, unrestricted: boolean) {
   return createNativeTool({
     name: 'write_file',
+    description: '写入文件内容',
+    inputSchema: {
+      type: 'object',
+      properties: { path: { type: 'string' }, content: { type: 'string' } },
+      required: ['path', 'content'],
+    },
     unrestricted,
     inferScope: input => pathPolicy.classifyAccess((input as unknown as WriteFileToolInput).path),
     execute: input => writeFile(input as unknown as WriteFileToolInput, pathPolicy, workspacePath),

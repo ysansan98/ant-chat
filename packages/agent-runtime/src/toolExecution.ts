@@ -1,8 +1,9 @@
 import type { AgentPendingAction, AgentRuntimeConfig, McpToolCall } from '@ant-chat/shared'
 import type { ApprovalDecision } from './approvalController'
 import type { RuntimeTask } from './taskStore'
-import type { ToolRegistry } from './toolRegistry'
+import type { PreparedToolCall, ToolRegistry } from './toolRegistry'
 import { randomUUID } from 'node:crypto'
+import { AgentError } from './AgentError'
 import { decidePolicy } from './policyEngine'
 import { truncateText } from './utils'
 
@@ -108,11 +109,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
       error: prepared.validationError,
       workspacePath: task.snapshot.workspacePath,
     })
-    lastObservation = formatToolFailureObservation(
-      prepared.toolName,
-      prepared.validationError,
-      requestedToolCall.input,
-    )
+    lastObservation = formatFailure(prepared, prepared.validationError, requestedToolCall.input)
     await updateAssistantMessage(config, currentAssistantMessageId, currentModelText, currentToolMessages, 'success')
     return {
       lastToolCallContext,
@@ -139,11 +136,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
       errorCode: policyDecision.errorCode,
       workspacePath: task.snapshot.workspacePath,
     })
-    lastObservation = formatToolFailureObservation(
-      prepared.toolName,
-      policyDecision.errorCode,
-      requestedToolCall.input,
-    )
+    lastObservation = formatFailure(prepared, policyDecision.errorCode, requestedToolCall.input)
     await updateAssistantMessage(config, currentAssistantMessageId, currentModelText, currentToolMessages, 'success')
     return {
       lastToolCallContext,
@@ -173,7 +166,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
 
     const decisionResult = await waitForApproval(task)
     if (task.abortController.signal.aborted || decisionResult.reason === 'AGENT_CANCELLED') {
-      throw new Error('AGENT_CANCELLED')
+      throw new AgentError('AGENT_CANCELLED', '任务已取消')
     }
 
     if (!decisionResult.approved) {
@@ -209,12 +202,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
       stderr: result.stderr,
       exitCode: result.exitCode,
     })
-    lastObservation = formatToolFailureObservation(
-      prepared.toolName,
-      result.error || 'AGENT_TOOL_EXEC_FAILED',
-      requestedToolCall.input,
-      result,
-    )
+    lastObservation = formatFailure(prepared, result.error || 'AGENT_TOOL_EXEC_FAILED', requestedToolCall.input, result)
     await updateAssistantMessage(config, currentAssistantMessageId, currentModelText, currentToolMessages, 'success')
     return {
       lastToolCallContext,
@@ -225,17 +213,20 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   }
 
   const toolOutputText = getToolOutputText(result)
-  lastObservation = buildToolObservation(prepared.toolName, result, toolOutputText)
+  lastObservation = buildObservation(prepared, result, toolOutputText)
+  const shouldTruncate = prepared.truncateObservation !== false
+  const dataText = shouldTruncate ? truncateText(toolOutputText, DEFAULT_TOOL_OBSERVATION_LIMIT) : toolOutputText
+  const logPreview = shouldTruncate ? truncateText(toolOutputText, DEFAULT_TOOL_LOG_PREVIEW_LIMIT) : toolOutputText
   currentToolCall.executeState = 'completed'
   currentToolCall.result = {
     success: true,
-    data: truncateTextByTool(prepared.toolName, toolOutputText, 'observation'),
+    data: dataText,
   }
   await updateAssistantMessage(config, currentAssistantMessageId, currentModelText, currentToolMessages, 'success')
   await appendAgentLog(task.snapshot.conversationId, task.snapshot.userMessageId, 'tool_completed', {
     toolName: prepared.toolName,
     input: requestedToolCall.input,
-    outputPreview: truncateTextByTool(prepared.toolName, toolOutputText, 'observation'),
+    outputPreview: logPreview,
     exitCode: result.exitCode,
     durationMs: result.durationMs,
   })
@@ -301,37 +292,18 @@ function isSkillLoadedOutput(output: unknown): output is { type: 'skill_loaded',
   )
 }
 
-function truncateTextByTool(toolName: string, text: string, target: 'observation' | 'log'): string {
-  if ((toolName === 'list_dir' || toolName === 'read_file') && target === 'observation') {
-    return text
-  }
-  const limit = target === 'observation' ? DEFAULT_TOOL_OBSERVATION_LIMIT : DEFAULT_TOOL_LOG_PREVIEW_LIMIT
-  return truncateText(text, limit)
-}
-
-export function buildToolObservation(
-  toolName: string,
+function buildObservation(
+  prepared: PreparedToolCall,
   result: { output?: unknown, stdout?: string, stderr?: string, exitCode?: number },
   outputText: string,
 ): string {
-  if (toolName === 'list_dir' && result.output && typeof result.output === 'object') {
-    const output = result.output as {
-      path?: string
-      offset?: number
-      limit?: number
-      total?: number
-      hasMore?: boolean
-      items?: Array<{ name: string, type: string }>
-    }
-    return [
-      `工具 list_dir 执行成功: path=${output.path || '.'}, offset=${output.offset || 0}, limit=${output.limit || 0}, total=${output.total || 0}, returned=${output.items?.length || 0}, hasMore=${Boolean(output.hasMore)}`,
-      `输出如下：\n${truncateTextByTool(toolName, outputText, 'observation')}`,
-    ].join('\n')
+  if (prepared.formatObservation) {
+    return prepared.formatObservation(result, outputText)
   }
-  if (toolName === 'read_file') {
-    return `工具 read_file 执行成功，输出如下：\n${outputText}`
-  }
-  return `工具 ${toolName} 执行成功，输出: ${truncateTextByTool(toolName, outputText, 'observation')}`
+  const truncated = prepared.truncateObservation !== false
+    ? truncateText(outputText, DEFAULT_TOOL_OBSERVATION_LIMIT)
+    : outputText
+  return `工具 ${prepared.toolName} 执行成功，输出: ${truncated}`
 }
 
 export async function createInvalidToolArgsResult(options: {
@@ -379,31 +351,30 @@ export async function createInvalidToolArgsResult(options: {
   }
 }
 
-function formatToolFailureObservation(
-  toolName: string,
+function formatFailure(
+  prepared: PreparedToolCall,
   error: string,
   input: Record<string, unknown>,
   result?: { stdout?: string, stderr?: string, exitCode?: number },
 ): string {
-  if (error.includes('AGENT_BASH_COMMAND_BLOCKED')) {
-    return `工具 ${toolName} 执行失败：命令被安全策略拦截。请仅使用允许的只读命令（如 pwd、ls、cat、rg、find），不要使用 ~、重定向、管道、sudo、rm 等。原始命令=${String(input.command || '')}`
-  }
-  if (error.includes('AGENT_POLICY_BLOCKED')) {
-    return `工具 ${toolName} 执行失败：路径越界或策略不允许。请改用当前工作区内路径，优先使用相对路径（如 .、./src、blog.html）。`
-  }
-  if (error.includes('READ_FILE_OFFSET_OUT_OF_RANGE')) {
-    return `工具 ${toolName} 执行失败：read_file 的 offset 超出文件行数。请从更小的 offset 继续读取。`
+  if (prepared.formatError) {
+    const formatted = prepared.formatError(error, input, result)
+    if (formatted) {
+      return formatted
+    }
   }
   if (result?.stderr || result?.stdout || result?.exitCode !== undefined) {
     const parts: string[] = []
-    if (result.stderr)
+    if (result.stderr) {
       parts.push(`stderr:\n${result.stderr}`)
-    if (result.stdout)
+    }
+    if (result.stdout) {
       parts.push(`stdout:\n${result.stdout}`)
-    if (result.exitCode !== undefined)
+    }
+    if (result.exitCode !== undefined) {
       parts.push(`exitCode=${result.exitCode}`)
-    const detail = parts.join('\n')
-    return `工具 ${toolName} 执行失败：${error}\n${detail}`
+    }
+    return `工具 ${prepared.toolName} 执行失败：${error}\n${parts.join('\n')}`
   }
-  return `工具 ${toolName} 执行失败：${error}`
+  return `工具 ${prepared.toolName} 执行失败：${error}`
 }

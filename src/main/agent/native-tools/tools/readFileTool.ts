@@ -41,8 +41,15 @@ export async function readFile(input: ReadFileToolInput, pathPolicy: PathPolicy)
 export function createReadFileTool(pathPolicy: PathPolicy, unrestricted: boolean) {
   return createNativeTool({
     name: 'read_file',
+    description: '读取文件内容，输出带 cat -n 风格行号（行号对应实际文件行号）。offset 为起始行号(1-based)，limit 为读取行数',
+    inputSchema: {
+      type: 'object',
+      properties: { path: { type: 'string' }, offset: { type: 'number' }, limit: { type: 'number' } },
+      required: ['path'],
+    },
     unrestricted,
     inferScope: input => pathPolicy.classifyAccess(String((input as unknown as ReadFileToolInput).path || '.')),
     execute: input => readFile(input as unknown as ReadFileToolInput, pathPolicy),
+    truncateObservation: false,
   })
 }

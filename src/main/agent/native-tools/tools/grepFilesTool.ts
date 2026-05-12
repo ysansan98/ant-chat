@@ -21,6 +21,12 @@ export async function grepFiles(input: GrepFilesToolInput, pathPolicy: PathPolic
 export function createGrepFilesTool(pathPolicy: PathPolicy, unrestricted: boolean) {
   return createNativeTool({
     name: 'grep_files',
+    description: '按正则搜索文件内容',
+    inputSchema: {
+      type: 'object',
+      properties: { pattern: { type: 'string' }, path: { type: 'string' }, include: { type: 'string' }, limit: { type: 'number' } },
+      required: ['pattern'],
+    },
     unrestricted,
     inferScope: input => pathPolicy.classifyAccess(String((input as unknown as GrepFilesToolInput).path || '.')),
     execute: input => grepFiles(input as unknown as GrepFilesToolInput, pathPolicy),

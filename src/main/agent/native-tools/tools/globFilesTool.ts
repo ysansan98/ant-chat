@@ -17,6 +17,12 @@ export async function globFiles(input: GlobFilesToolInput, pathPolicy: PathPolic
 export function createGlobFilesTool(pathPolicy: PathPolicy, unrestricted: boolean) {
   return createNativeTool({
     name: 'glob_files',
+    description: '按 glob 模式查找文件',
+    inputSchema: {
+      type: 'object',
+      properties: { pattern: { type: 'string' }, path: { type: 'string' }, limit: { type: 'number' } },
+      required: ['pattern'],
+    },
     unrestricted,
     inferScope: input => pathPolicy.classifyAccess(String((input as unknown as GlobFilesToolInput).path || '.')),
     validateInput: validateGlobInput,
