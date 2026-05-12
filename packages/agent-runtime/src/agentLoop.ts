@@ -3,7 +3,6 @@ import type { ApprovalDecision } from './approvalController'
 import type { CompactionSettings } from './compaction'
 import type { ToolCallContext } from './toolExecution'
 import type { RuntimeStartInput } from './types'
-import { createCheckpointStore } from './checkpointStore'
 import {
   compactMessages,
   DEFAULT_COMPACTION_SETTINGS,
@@ -82,8 +81,6 @@ export async function runAgentLoop(input: {
   let currentModelText = ''
   let lastToolCallContext: ToolCallContext | null = null
   let loopMessages: LoopMessage[] = []
-
-  const { writeCheckpoint, removeCheckpoint } = createCheckpointStore(config.pathProvider)
 
   try {
     const conversation = await config.messageStore.getConversationById(options.conversationId)
@@ -348,9 +345,7 @@ export async function runAgentLoop(input: {
   }
   finally {
     task.snapshot.updatedAt = Date.now()
-    task.snapshot.checkpointPath = await writeCheckpoint(task.snapshot)
     if (['success', 'failed', 'cancelled'].includes(task.snapshot.status)) {
-      await removeCheckpoint(task.snapshot.taskId)
       taskStore.finish(task.snapshot.taskId)
     }
   }

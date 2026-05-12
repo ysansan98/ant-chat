@@ -106,7 +106,6 @@ export interface IAgentEventEmitter {
 // ============================================================
 
 export interface IAgentPathProvider {
-  getCheckpointsDir: () => string
   getLogsDir: () => string
 }
 

@@ -404,7 +404,6 @@ function createTask(options: {
 }): AgentTaskSnapshot {
   const now = Date.now()
   return {
-    checkpointPath: '',
     conversationId: options.conversationId,
     createdAt: now,
     logPath: '',

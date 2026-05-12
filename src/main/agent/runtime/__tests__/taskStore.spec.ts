@@ -13,7 +13,6 @@ function createTask(snapshot: Partial<AgentTaskSnapshot> = {}) {
     status: snapshot.status ?? 'running',
     createdAt: now,
     updatedAt: now,
-    checkpointPath: '',
     logPath: '',
     prompt: 'hello',
   }
