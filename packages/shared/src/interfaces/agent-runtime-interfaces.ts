@@ -18,6 +18,7 @@ export interface LoopMessage {
 export interface RuntimeToolDefinition {
   name: string
   source: AgentTool['source']
+  serverName?: string
   description?: string
   inputSchema: {
     type: 'object'

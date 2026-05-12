@@ -1,6 +1,8 @@
 import type { IMessage, LoopMessage } from '@ant-chat/shared'
+import { truncateText } from './utils'
 
 const HISTORY_TOOL_RESULT_TRUNCATE = 100000
+const HISTORY_TOOL_CALLS_KEEP = 4
 
 export type NormalizeToolArgsResult
   = | { ok: true, input: Record<string, unknown> }
@@ -86,7 +88,7 @@ export function buildConversationContextMessages(
 
     const completedTools = (message.toolCalls || [])
       .filter(tool => tool.executeState === 'completed')
-      .slice(-4)
+      .slice(-HISTORY_TOOL_CALLS_KEEP)
 
     for (const tool of completedTools) {
       content.push({
@@ -182,13 +184,6 @@ function extractMessageText(message: IMessage): string {
     .filter(Boolean)
     .join('\n')
     .trim()
-}
-
-function truncateText(text: string, limit: number): string {
-  if (text.length <= limit) {
-    return text
-  }
-  return `${text.slice(0, limit)}...(truncated)`
 }
 
 function isCompactionMarkerMessage(message: IMessage): boolean {

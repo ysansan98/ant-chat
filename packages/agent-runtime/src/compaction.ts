@@ -16,12 +16,12 @@ export interface CompactionSettings {
   keepRecentPairs: number
 }
 
-export const DEFAULT_COMPACTION_SETTINGS: CompactionSettings = {
+export const DEFAULT_COMPACTION_SETTINGS: Readonly<CompactionSettings> = Object.freeze({
   enabled: true,
   reserveTokens: 4096,
   thresholdPercent: 70,
   keepRecentPairs: 3,
-}
+})
 
 function defaultLogger(): ILogger {
   return {

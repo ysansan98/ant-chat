@@ -3,7 +3,6 @@ import type { ApprovalDecision } from './approvalController'
 import type { CompactionSettings } from './compaction'
 import type { ToolCallContext } from './toolExecution'
 import type { AgentRuntimeStartOptions } from './types'
-import { randomUUID } from 'node:crypto'
 import { createCheckpointStore } from './checkpointStore'
 import {
   compactMessages,
@@ -18,7 +17,7 @@ import {
   normalizeToolArgs,
 } from './loopContext'
 import { taskStore } from './taskStore'
-import { executeToolStep } from './toolExecution'
+import { createInvalidToolArgsResult, executeToolStep } from './toolExecution'
 import { ToolRegistry } from './toolRegistry'
 
 const STREAM_MESSAGE_UPDATE_INTERVAL_MS = 80
@@ -43,16 +42,17 @@ function normalizeUsage(usage?: {
   }
 }
 
-export async function runAgentLoop(
-  taskId: string,
-  options: AgentRuntimeStartOptions,
-  config: AgentRuntimeConfig,
-  appendAgentLog: (conversationId: string, userMessageId: string, event: string, payload: Record<string, unknown>) => Promise<string>,
-  approvalController: { waitForApproval: (task: NonNullable<ReturnType<typeof taskStore.get>>) => Promise<ApprovalDecision> },
-) {
+export async function runAgentLoop(input: {
+  taskId: string
+  options: AgentRuntimeStartOptions
+  config: AgentRuntimeConfig
+  appendAgentLog: (conversationId: string, userMessageId: string, event: string, payload: Record<string, unknown>) => Promise<string>
+  approvalController: { waitForApproval: (task: NonNullable<ReturnType<typeof taskStore.get>>) => Promise<ApprovalDecision> }
+}) {
+  const { taskId, options, config, appendAgentLog, approvalController } = input
   const task = taskStore.get(taskId)
   if (!task)
-    return
+    throw new Error('AGENT_TASK_NOT_FOUND')
 
   const model = options.chatSettings?.modelId ? await config.modelResolver.getModelById(options.chatSettings.modelId) : null
   const provider = model ? config.modelResolver.getProviderById(model.serviceProviderId).then(p => p!) : null
@@ -192,14 +192,14 @@ export async function runAgentLoop(
       }
 
       const stream = aiProvider.streamModel({
-        messages: loopMessages as any,
+        messages: loopMessages,
         chatSettings: {
           model: model.model,
           temperature: options.chatSettings?.temperature,
           maxTokens: options.chatSettings?.maxTokens,
           systemPrompt: loopSystemPrompt,
         },
-        tools: toolDefs.map(item => ({ ...item, serverName: 'native' } as any)),
+        tools: toolDefs.map(item => ({ ...item, serverName: 'native' })),
         abortSignal: task.abortController.signal,
       })
 
@@ -292,7 +292,7 @@ export async function runAgentLoop(
             currentToolMessages,
           })
         : await executeToolStep({
-            task: task!,
+            task,
             registry,
             requestedToolCall,
             currentAssistantMessageId: currentAssistantMessage.id,
@@ -339,7 +339,7 @@ export async function runAgentLoop(
   catch (error) {
     await handleLoopFailure({
       config,
-      task: task!,
+      task,
       error: error as Error,
       currentAssistantMessage,
       lastToolCallContext,
@@ -347,11 +347,11 @@ export async function runAgentLoop(
     })
   }
   finally {
-    task!.snapshot.updatedAt = Date.now()
-    await writeCheckpoint(task!.snapshot)
-    if (['success', 'failed', 'cancelled'].includes(task!.snapshot.status)) {
-      await removeCheckpoint(task!.snapshot.taskId)
-      taskStore.finish(task!.snapshot.taskId)
+    task.snapshot.updatedAt = Date.now()
+    task.snapshot.checkpointPath = await writeCheckpoint(task.snapshot)
+    if (['success', 'failed', 'cancelled'].includes(task.snapshot.status)) {
+      await removeCheckpoint(task.snapshot.taskId)
+      taskStore.finish(task.snapshot.taskId)
     }
   }
 }
@@ -361,7 +361,7 @@ async function finalizeAssistantMessage(
   messageId: string,
   text: string,
   status: 'success' | 'error' | 'cancel',
-  patch?: Partial<Record<string, unknown>>,
+  patch?: { reasoningContent?: string, usage?: ReturnType<typeof normalizeUsage> },
 ) {
   return config.messageStore.updateMessage(messageId, {
     ...patch,
@@ -370,51 +370,6 @@ async function finalizeAssistantMessage(
       ? [{ type: 'error', error: text }]
       : [{ type: 'text', text }],
   })
-}
-
-async function createInvalidToolArgsResult(options: {
-  config: AgentRuntimeConfig
-  requestedToolCall: { toolName: string, input: Record<string, unknown>, invalidArgsError?: string }
-  currentAssistantMessageId: string
-  currentModelText: string
-  currentToolMessages: McpToolCall[]
-}): Promise<{
-  lastToolCallContext: ToolCallContext
-  toolCallId: string
-  toolResultContent: string
-  isError: boolean
-}> {
-  const { config, requestedToolCall, currentAssistantMessageId, currentModelText, currentToolMessages } = options
-  const toolCallId = randomUUID()
-  const error = `工具 ${requestedToolCall.toolName} 参数解析失败：${requestedToolCall.invalidArgsError || 'args must be a JSON object'}。请修正参数后重新调用该工具。`
-  currentToolMessages.push({
-    id: toolCallId,
-    serverName: 'native',
-    toolName: requestedToolCall.toolName,
-    args: requestedToolCall.input,
-    executeState: 'completed',
-    result: {
-      success: false,
-      error,
-    },
-  })
-  await config.messageStore.updateMessage(currentAssistantMessageId, {
-    status: 'success',
-    content: [{ type: 'text', text: currentModelText || '工具参数解析失败，等待模型修正。' }],
-    toolCalls: currentToolMessages,
-  })
-  return {
-    lastToolCallContext: {
-      toolName: requestedToolCall.toolName,
-      input: requestedToolCall.input,
-      operationType: 'unknown',
-      scope: 'unknown',
-      policy: 'error',
-    },
-    toolCallId,
-    toolResultContent: error,
-    isError: true,
-  }
 }
 
 async function handleLoopFailure(options: {

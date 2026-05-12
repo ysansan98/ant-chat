@@ -34,6 +34,7 @@ export class TaskStore {
     if (!task)
       return
     this.activeByConversation.delete(task.snapshot.conversationId)
+    this.tasks.delete(taskId)
   }
 
   delete(taskId: string) {

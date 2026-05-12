@@ -57,21 +57,27 @@ export class AgentRuntime {
       workspacePath,
     })
     this.config.eventEmitter.emitTaskUpdated(snapshot)
-    void runAgentLoop(taskId, options, this.config, this.agentLogger.appendAgentLog, this.approvalController).catch(() => {})
+    void runAgentLoop({
+      taskId,
+      options,
+      config: this.config,
+      appendAgentLog: this.agentLogger.appendAgentLog,
+      approvalController: this.approvalController,
+    }).catch(() => {})
 
     return { taskId }
   }
 
-  approvePendingAction(options: ApprovePendingActionOptions) {
-    return this.approvalController.approvePendingAction(options)
+  approvePendingAction(options: ApprovePendingActionOptions): void {
+    this.approvalController.approvePendingAction(options)
   }
 
-  rejectPendingAction(options: RejectPendingActionOptions) {
-    return this.approvalController.rejectPendingAction(options)
+  rejectPendingAction(options: RejectPendingActionOptions): void {
+    this.approvalController.rejectPendingAction(options)
   }
 
-  cancelTask(options: CancelTaskOptions) {
-    return this.approvalController.cancelTask(options)
+  cancelTask(options: CancelTaskOptions): void {
+    this.approvalController.cancelTask(options)
   }
 
   getTask(taskId: string) {
