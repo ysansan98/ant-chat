@@ -90,8 +90,8 @@ describe('agent runtime aimock e2e', () => {
       userMessageId: 'user-message-1',
       prompt: 'inspect workspace',
       workspacePath,
-      mode: 'hybrid',
-      chatSettings: {
+      executionMode: 'hybrid',
+      modelConfig: {
         modelId: model.id,
         systemPrompt: '',
         temperature: 0,
