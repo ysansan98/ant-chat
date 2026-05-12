@@ -23,11 +23,12 @@ vi.mock('@main/store/workspace', () => ({
   },
 }))
 
-vi.mock('../agentRuntime', () => ({
-  agentRuntime: {
-    listActiveTasks: mocks.listActiveTasks,
-    startTask: mocks.startTask,
+vi.mock('@ant-chat/agent-runtime', () => ({
+  AgentRuntime: class {
+    listActiveTasks = mocks.listActiveTasks
+    startTask = mocks.startTask
   },
+  buildPromptWithTurnContext: vi.fn((opts: { prompt: string }) => opts.prompt),
 }))
 
 describe('agentTurnService', () => {

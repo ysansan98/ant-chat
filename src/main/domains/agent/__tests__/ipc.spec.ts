@@ -11,7 +11,7 @@ vi.mock('electron-ipc-decorator', () => ({
   IpcMethod: () => () => {},
 }))
 
-vi.mock('@main/agent/runtime/agentRuntime', () => ({
+vi.mock('@main/agent/runtime/agentTurnService', () => ({
   agentRuntime: {
     approvePendingAction: vi.fn(async () => {}),
     rejectPendingAction: vi.fn(async () => {}),
@@ -19,9 +19,6 @@ vi.mock('@main/agent/runtime/agentRuntime', () => ({
     getTask: vi.fn(() => ({ taskId: 't1', status: 'running' })),
     listActiveTasks: vi.fn(() => [{ taskId: 't1', status: 'running' }]),
   },
-}))
-
-vi.mock('@main/agent/runtime/agentTurnService', () => ({
   startAgentTurn: mocks.startAgentTurn,
 }))
 

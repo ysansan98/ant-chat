@@ -1,8 +1,30 @@
-import type { AddMessage, AgentTurnResult, StartAgentTurnOptions } from '@ant-chat/shared'
+import type { AddMessage, AgentRuntimeConfig, AgentTurnResult, StartAgentTurnOptions } from '@ant-chat/shared'
+import { AgentRuntime, buildPromptWithTurnContext } from '@ant-chat/agent-runtime'
+import { createDbAIProvider } from '@main/agent/adapters/aiProviderFactory.adapter'
+import { dbModelResolver } from '@main/agent/adapters/dbModelResolver.adapter'
+import { electronEventEmitter } from '@main/agent/adapters/electronEventEmitter.adapter'
+import { electronLogger } from '@main/agent/adapters/electronLogger.adapter'
+import { electronPathProvider } from '@main/agent/adapters/electronPathProvider.adapter'
+import { createDbMessageStore } from '@main/agent/adapters/messageStore.adapter'
+import { electronToolProvider } from '@main/agent/adapters/toolProvider.adapter'
 import { addConversation, addMessage, getConversationById } from '@main/db/services'
 import { WorkspaceStore } from '@main/store/workspace'
-import { agentRuntime } from './agentRuntime'
-import { buildPromptWithTurnContext } from './turnContext'
+import { isDev } from '@main/utils/env'
+
+function createRuntimeConfig(): AgentRuntimeConfig {
+  return {
+    messageStore: createDbMessageStore(),
+    aiProviderFactory: createDbAIProvider,
+    eventEmitter: electronEventEmitter,
+    pathProvider: electronPathProvider,
+    modelResolver: dbModelResolver,
+    toolProvider: electronToolProvider,
+    logger: electronLogger,
+    isDev,
+  }
+}
+
+export const agentRuntime = new AgentRuntime(createRuntimeConfig())
 
 const DEFAULT_CONVERSATION_TITLE = 'Untitled'
 

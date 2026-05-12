@@ -47,6 +47,9 @@ importers:
       '@ai-sdk/anthropic':
         specifier: ^3.0.36
         version: 3.0.50(zod@3.25.76)
+      '@ai-sdk/deepseek':
+        specifier: ^2.0.34
+        version: 2.0.34(zod@3.25.76)
       '@ai-sdk/google':
         specifier: ^3.0.20
         version: 3.0.34(zod@3.25.76)
@@ -96,9 +99,9 @@ importers:
         specifier: ^7.15.0
         version: 7.22.0
     devDependencies:
-      '@ai-sdk/deepseek':
-        specifier: ^2.0.34
-        version: 2.0.34(zod@3.25.76)
+      '@ant-chat/agent-runtime':
+        specifier: workspace:*
+        version: link:packages/agent-runtime
       '@ant-chat/mcp-client-hub':
         specifier: workspace:*
         version: link:packages/mcp-client-hub
@@ -315,6 +318,16 @@ importers:
       zustand:
         specifier: ^5.0.3
         version: 5.0.11(@types/react@19.2.14)(immer@10.2.0)(react@19.2.4)(use-sync-external-store@1.6.0(react@19.2.4))
+
+  packages/agent-runtime:
+    dependencies:
+      '@ant-chat/shared':
+        specifier: workspace:^
+        version: link:../shared
+    devDependencies:
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.20.3(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(synckit@0.11.12)(typescript@5.9.3)
 
   packages/mcp-client-hub:
     dependencies:
@@ -2984,6 +2997,13 @@ packages:
     engines: {node: ^20.19.0 || >=22.12.0}
     cpu: [arm]
     os: [linux]
+
+  '@rolldown/binding-linux-arm64-gnu@1.0.0':
+    resolution: {integrity: sha512-n7Ofp0mx+aB2cC+Sdy5YtMnXtY9lchnHbY+3Yt0uq9JsWQExf4f5Whu0tK0R8Jdc9S6RchTHjIFY7uc92puOVQ==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
 
   '@rolldown/binding-linux-arm64-gnu@1.0.0-rc.15':
     resolution: {integrity: sha512-eBZ/u8iAK9SoHGanqe/jrPnY0JvBN6iXbVOsbO38mbz+ZJsaobExAm1Iu+rxa4S1l2FjG0qEZn4Rc6X8n+9M+w==}
@@ -11857,6 +11877,9 @@ snapshots:
   '@rolldown/binding-linux-arm-gnueabihf@1.0.0-rc.3':
     optional: true
 
+  '@rolldown/binding-linux-arm64-gnu@1.0.0':
+    optional: true
+
   '@rolldown/binding-linux-arm64-gnu@1.0.0-rc.15':
     optional: true
 
@@ -17688,6 +17711,7 @@ snapshots:
       '@rolldown/binding-darwin-x64': 1.0.0
       '@rolldown/binding-freebsd-x64': 1.0.0
       '@rolldown/binding-linux-arm-gnueabihf': 1.0.0
+      '@rolldown/binding-linux-arm64-gnu': 1.0.0
       '@rolldown/binding-linux-arm64-musl': 1.0.0
       '@rolldown/binding-linux-ppc64-gnu': 1.0.0
       '@rolldown/binding-linux-s390x-gnu': 1.0.0

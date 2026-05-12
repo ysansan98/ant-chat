@@ -1,7 +1,6 @@
 import type { AgentTurnResult, ApprovePendingActionOptions, CancelTaskOptions, IpcResponse, RejectPendingActionOptions, StartAgentTurnOptions } from '@ant-chat/shared'
 import { createErrorIpcResponse, createIpcResponse } from '@ant-chat/shared'
-import { agentRuntime } from '@main/agent/runtime/agentRuntime'
-import { startAgentTurn } from '@main/agent/runtime/agentTurnService'
+import { agentRuntime, startAgentTurn } from '@main/agent/runtime/agentTurnService'
 import { IpcMethod, IpcService } from 'electron-ipc-decorator'
 
 export class AgentIpcService extends IpcService {

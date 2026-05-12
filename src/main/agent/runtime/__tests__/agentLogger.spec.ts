@@ -25,6 +25,7 @@ describe('agentLogger', () => {
     expect(content).toContain('"event":"tool_completed"')
     expect(content).toContain('"apiKey":"***"')
     expect(content).toContain('"envToken":"***"')
-    expect(content).toContain('truncated')
+    // 截断处理已移除，长文本原样保留
+    expect(content).toContain(`"longText":"${'x'.repeat(600)}"`)
   })
 })

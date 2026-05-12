@@ -1,6 +1,4 @@
 import type { ToolOperationType, ToolScope } from './agent-tools'
-import type { ChatFeatures, IAttachment, IConversations } from './db-types'
-import type { ChatSettings } from './model-service'
 
 export type AgentMode = 'strict' | 'hybrid' | 'full_managed'
 
@@ -54,28 +52,6 @@ export interface AgentTaskSnapshot {
   }
   /** 最近一次压缩的时间戳 */
   lastCompactionAt?: number
-}
-
-export interface StartAgentTurnOptions {
-  conversationId?: string
-  prompt: string
-  images?: IAttachment[]
-  attachments?: IAttachment[]
-  referencedFiles?: string[]
-  selectedSkill?: string
-  workspacePath?: string
-  mode?: AgentMode
-  chatSettings: Omit<ChatSettings, 'model' | 'features'> & {
-    modelId: string
-    features: ChatFeatures
-  }
-}
-
-export interface AgentTurnResult {
-  taskId: string
-  conversationId: string
-  userMessageId: string
-  conversation: IConversations
 }
 
 export interface ApprovePendingActionOptions {

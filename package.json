@@ -56,6 +56,7 @@
     "undici": "^7.15.0"
   },
   "devDependencies": {
+    "@ant-chat/agent-runtime": "workspace:*",
     "@ant-chat/mcp-client-hub": "workspace:*",
     "@ant-chat/shared": "workspace:*",
     "@antfu/eslint-config": "^6.2.0",

@@ -33,7 +33,7 @@ describe('native tool service', () => {
 
     await expect(service.readFile({ path: 'src/a.txt', offset: 2, limit: 1 })).resolves.toMatchObject({
       ok: true,
-      output: '[Showing lines 2-2 of 3]\nline-2\n\n[1 more lines. Use offset=3 limit=1 to continue]',
+      output: '[Showing lines 2-2 of 3]\n2\tline-2\n\n[1 more lines. Use offset=3 limit=1 to continue]',
     })
     await expect(service.listDir({ path: 'src' })).resolves.toMatchObject({
       ok: true,
@@ -53,7 +53,7 @@ describe('native tool service', () => {
 
     await expect(service.readFile({ path: 'src/b.txt', offset: 2, limit: 2 })).resolves.toMatchObject({
       ok: true,
-      output: '[Showing lines 2-3 of 4]\nb\nc\n\n[1 more lines. Use offset=4 limit=2 to continue]',
+      output: '[Showing lines 2-3 of 4]\n2\tb\n3\tc\n\n[1 more lines. Use offset=4 limit=2 to continue]',
     })
   })
 
