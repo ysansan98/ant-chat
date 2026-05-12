@@ -54,17 +54,16 @@ export async function runAgentLoop(input: {
 
   let step = 0
   let finalAnswer = ''
-  let currentAssistantMessage: { id: string } | null = null
   let currentToolMessages: McpToolCall[] = []
   let currentModelText = ''
   let lastToolCallContext: ToolCallContext | null = null
   let loopMessages: LoopMessage[] = []
 
   try {
-    const conversation = await config.messageStore.getConversationById(options.conversationId)
+    const conversation = await config.conversationQuery.getConversationById(options.conversationId)
     const lastCompactedAt = conversation?.settings?.lastCompactedAt as number | undefined
     const lastCompactionSummary = conversation?.settings?.lastCompactionSummary as string | undefined
-    const historyMessages: IMessage[] = await config.messageStore.getMessagesByConvId(options.conversationId)
+    const historyMessages: IMessage[] = await config.conversationQuery.getMessagesByConvId(options.conversationId)
     const contextMessages = buildConversationContextMessages(historyMessages, options.userMessageId, lastCompactedAt, lastCompactionSummary)
     loopMessages.push(...contextMessages)
     loopMessages.push({
@@ -106,23 +105,11 @@ export async function runAgentLoop(input: {
             const compactedAt = Date.now()
             const summary = compResult.summaryText || ''
 
-            await config.messageStore.addMessage({
-              convId: options.conversationId,
-              role: 'user',
-              status: 'success',
-              content: [{ type: 'text' as const, text: `__COMPACTION__\n${summary}` }],
+            config.eventEmitter.emitCompactionSaved({
+              conversationId: options.conversationId,
+              summary,
+              compactedAt,
             })
-
-            const currentConversation = await config.messageStore.getConversationById(options.conversationId)
-            if (currentConversation) {
-              await config.messageStore.updateConversation(options.conversationId, {
-                settings: {
-                  ...currentConversation.settings,
-                  lastCompactedAt: compactedAt,
-                  lastCompactionSummary: summary,
-                },
-              })
-            }
           }
           catch (err) {
             config.logger.error('[agent-loop] failed to persist compaction', err)
@@ -140,13 +127,14 @@ export async function runAgentLoop(input: {
         }
       }
 
-      currentAssistantMessage = await config.messageStore.createAssistantMessage(
-        options.conversationId,
-        resolvedProvider?.name ?? 'agent-runtime',
-        resolvedProvider?.id ?? 'agent-runtime',
-        model?.name ?? 'agent-runtime',
-      )
-      const assistantMessageId = currentAssistantMessage.id
+      config.eventEmitter.emitTurnStarted({
+        conversationId: options.conversationId,
+        model: {
+          name: model?.name ?? 'agent-runtime',
+          provider: resolvedProvider?.name ?? 'agent-runtime',
+          providerId: resolvedProvider?.id ?? 'agent-runtime',
+        },
+      })
       currentToolMessages = []
 
       if (config.isDev) {
@@ -198,7 +186,11 @@ export async function runAgentLoop(input: {
             invalidArgsError: argsResult.ok ? undefined : argsResult.error,
           }
         }
-        await config.streamProcessor?.onChunk(chunk, assistantMessageId)
+        config.eventEmitter.emitTurnChunk({
+          conversationId: options.conversationId,
+          accumulatedText: modelText,
+          chunk,
+        })
       }
       await appendAgentLog(task.snapshot.conversationId, task.snapshot.userMessageId, 'model_response_finished', {
         step,
@@ -206,21 +198,24 @@ export async function runAgentLoop(input: {
         hasToolCall: Boolean(requestedToolCall),
       })
       currentModelText = modelText.trim()
-      await config.streamProcessor?.flush(assistantMessageId)
 
       if (!requestedToolCall) {
         finalAnswer = currentModelText || '任务已完成。'
         loopMessages.push({ role: 'assistant', content: [{ type: 'text', text: modelText }] })
 
-        await finalizeAssistantMessage(config, currentAssistantMessage.id, finalAnswer, 'success')
+        config.eventEmitter.emitTurnFinished({
+          conversationId: options.conversationId,
+          text: finalAnswer,
+          status: 'success',
+        })
         break
       }
 
       const toolStepResult = requestedToolCall.invalidArgsError
         ? await createInvalidToolArgsResult({
             config,
+            conversationId: options.conversationId,
             requestedToolCall,
-            currentAssistantMessageId: currentAssistantMessage.id,
             currentModelText,
             currentToolMessages,
           })
@@ -228,7 +223,6 @@ export async function runAgentLoop(input: {
             task,
             registry,
             requestedToolCall,
-            currentAssistantMessageId: currentAssistantMessage.id,
             currentModelText,
             currentToolMessages,
             step,
@@ -274,7 +268,6 @@ export async function runAgentLoop(input: {
       config,
       task,
       error: error as Error,
-      currentAssistantMessage,
       lastToolCallContext,
       appendAgentLog,
     })
@@ -287,29 +280,14 @@ export async function runAgentLoop(input: {
   }
 }
 
-async function finalizeAssistantMessage(
-  config: AgentRuntimeConfig,
-  messageId: string,
-  text: string,
-  status: 'success' | 'error' | 'cancel',
-) {
-  return config.messageStore.updateMessage(messageId, {
-    status,
-    content: status === 'error'
-      ? [{ type: 'error', error: text }]
-      : [{ type: 'text', text }],
-  })
-}
-
 async function handleLoopFailure(options: {
   config: AgentRuntimeConfig
   task: NonNullable<ReturnType<typeof taskStore.get>>
   error: Error
-  currentAssistantMessage: { id: string } | null
   lastToolCallContext: ToolCallContext | null
   appendAgentLog: (conversationId: string, userMessageId: string, event: string, payload: Record<string, unknown>) => Promise<string>
 }) {
-  const { config, task, error, currentAssistantMessage, lastToolCallContext, appendAgentLog } = options
+  const { config, task, error, lastToolCallContext, appendAgentLog } = options
   const failurePayload = {
     error: error.message,
     stack: error.stack || '',
@@ -318,17 +296,21 @@ async function handleLoopFailure(options: {
   }
   if (error instanceof AgentError && error.code === 'AGENT_CANCELLED') {
     task.snapshot.status = 'cancelled'
-    if (currentAssistantMessage) {
-      await finalizeAssistantMessage(config, currentAssistantMessage.id, '任务已取消', 'cancel')
-    }
+    config.eventEmitter.emitTurnFinished({
+      conversationId: task.snapshot.conversationId,
+      text: '任务已取消',
+      status: 'cancel',
+    })
   }
   else {
     task.snapshot.status = 'failed'
     task.snapshot.errorCode = (error instanceof AgentError ? error.code : error.message) as AgentTaskSnapshot['errorCode']
     task.snapshot.errorMessage = error.message
-    if (currentAssistantMessage) {
-      await finalizeAssistantMessage(config, currentAssistantMessage.id, `任务失败：${error.message}`, 'error')
-    }
+    config.eventEmitter.emitTurnFinished({
+      conversationId: task.snapshot.conversationId,
+      text: `任务失败：${error.message}`,
+      status: 'error',
+    })
   }
   config.eventEmitter.emitTaskUpdated(task.snapshot)
   await appendAgentLog(task.snapshot.conversationId, task.snapshot.userMessageId, 'task_failed', failurePayload)
