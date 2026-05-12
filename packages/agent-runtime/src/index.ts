@@ -1,5 +1,5 @@
 export { AgentRuntime } from './AgentRuntime'
 export { buildPromptWithTurnContext } from './turnContext'
 export type { TurnContextOptions } from './turnContext'
-export type { AgentRuntimeStartOptions } from './types'
+export type { RuntimeStartInput } from './types'
 export type { AgentRuntimeConfig, AIProviderFactory, IAgentEventEmitter, IAgentPathProvider, IAIProvider, IAIStreamChunk, ILogger, IMessageStore, IModelResolver, LoopMessage, RuntimeToolDefinition, ToolProvider } from '@ant-chat/shared'

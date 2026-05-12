@@ -1,5 +1,5 @@
 import type { AgentRuntimeConfig, AgentTaskSnapshot, ApprovePendingActionOptions, CancelTaskOptions, RejectPendingActionOptions } from '@ant-chat/shared'
-import type { AgentRuntimeStartOptions } from './types'
+import type { RuntimeStartInput } from './types'
 import { randomUUID } from 'node:crypto'
 import process from 'node:process'
 import { createAgentLogger } from './agentLogger'
@@ -18,7 +18,7 @@ export class AgentRuntime {
     this.agentLogger = createAgentLogger(config.pathProvider)
   }
 
-  async startTask(options: AgentRuntimeStartOptions) {
+  async startTask(options: RuntimeStartInput) {
     const missing: string[] = []
     if (!options.conversationId?.trim())
       missing.push('conversationId')
@@ -32,7 +32,7 @@ export class AgentRuntime {
 
     const now = Date.now()
     const taskId = randomUUID()
-    const mode = options.mode ?? 'hybrid'
+    const mode = options.executionMode ?? 'hybrid'
     const workspacePath = options.workspacePath ?? process.cwd()
 
     const snapshot: AgentTaskSnapshot = {
