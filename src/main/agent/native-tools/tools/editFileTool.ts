@@ -41,6 +41,15 @@ export async function editFile(input: EditFileToolInput, pathPolicy: PathPolicy,
 export function createEditFileTool(pathPolicy: PathPolicy, workspacePath: string, unrestricted: boolean) {
   return createNativeTool({
     name: 'edit_file',
+    description: '对单个文件做精确文本替换。每个 edits[].oldText 必须唯一匹配且不能和其他替换重叠；修改同一邻近代码块时应合并为一个替换项',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string' },
+        edits: { type: 'array', items: { type: 'object', properties: { oldText: { type: 'string' }, newText: { type: 'string' } }, required: ['oldText', 'newText'] } },
+      },
+      required: ['path', 'edits'],
+    },
     unrestricted,
     inferScope: input => pathPolicy.classifyAccess((input as unknown as EditFileToolInput).path),
     execute: input => editFile(input as unknown as EditFileToolInput, pathPolicy, workspacePath),

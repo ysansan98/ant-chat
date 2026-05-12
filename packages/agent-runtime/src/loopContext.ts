@@ -124,35 +124,6 @@ export function buildConversationContextMessages(
   return result
 }
 
-export function looksLikePlanOnlyResponse(text: string): boolean {
-  const content = text.trim()
-  if (!content) {
-    return false
-  }
-  const patterns = [
-    '让我继续',
-    '我来继续',
-    '我先继续',
-    '让我先',
-    '继续读取',
-    '继续查看',
-    '再看看',
-    '先看看',
-  ]
-  if (!patterns.some(pattern => content.includes(pattern))) {
-    return false
-  }
-  const finalAnswerHints = [
-    '已完成',
-    '完成了',
-    '修改如下',
-    '我已经',
-    '最终',
-    '结论',
-  ]
-  return !finalAnswerHints.some(hint => content.includes(hint))
-}
-
 export function normalizeToolArgs(args: unknown): NormalizeToolArgsResult {
   if (args && typeof args === 'object' && !Array.isArray(args)) {
     return { ok: true, input: args as Record<string, unknown> }

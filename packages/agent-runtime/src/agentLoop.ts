@@ -3,6 +3,7 @@ import type { ApprovalDecision } from './approvalController'
 import type { CompactionSettings } from './compaction'
 import type { ToolCallContext } from './toolExecution'
 import type { RuntimeStartInput } from './types'
+import { AgentError } from './AgentError'
 import {
   compactMessages,
   DEFAULT_COMPACTION_SETTINGS,
@@ -12,7 +13,6 @@ import {
 import {
   buildConversationContextMessages,
   createLoopSystemPrompt,
-  looksLikePlanOnlyResponse,
   normalizeToolArgs,
 } from './loopContext'
 import { taskStore } from './taskStore'
@@ -29,7 +29,7 @@ export async function runAgentLoop(input: {
   const { taskId, options, config, appendAgentLog, approvalController } = input
   const task = taskStore.get(taskId)
   if (!task)
-    throw new Error('AGENT_TASK_NOT_FOUND')
+    throw new AgentError('AGENT_TASK_NOT_FOUND', '任务未找到')
 
   const model = options.modelConfig?.modelId ? await config.modelResolver.getModelById(options.modelConfig.modelId) : null
   const provider = model ? config.modelResolver.getProviderById(model.serviceProviderId).then(p => p!) : null
@@ -74,11 +74,11 @@ export async function runAgentLoop(input: {
 
     for (;;) {
       if (task.abortController.signal.aborted)
-        throw new Error('AGENT_CANCELLED')
+        throw new AgentError('AGENT_CANCELLED', '任务已取消')
       step += 1
 
       if (!aiProvider || !model) {
-        throw new Error('AGENT_TOOL_EXEC_FAILED')
+        throw new AgentError('AGENT_TOOL_EXEC_FAILED', 'AI 提供者或模型未就绪')
       }
 
       if (compactionSettings.enabled && resolvedProvider && step > 1) {
@@ -182,13 +182,13 @@ export async function runAgentLoop(input: {
       let requestedToolCall: { toolName: string, input: Record<string, unknown>, invalidArgsError?: string } | null = null
 
       for await (const chunk of stream) {
-        const content = (chunk as any).content || []
+        const content = chunk.content || []
         for (const item of content) {
           if (item.type === 'text' && item.text) {
             modelText += item.text
           }
         }
-        const functionCalls = (chunk as any).functionCalls || []
+        const functionCalls = chunk.functionCalls || []
         if (functionCalls.length > 0) {
           const fc = functionCalls[0]
           const argsResult = normalizeToolArgs(fc.args)
@@ -209,17 +209,6 @@ export async function runAgentLoop(input: {
       await config.streamProcessor?.flush(assistantMessageId)
 
       if (!requestedToolCall) {
-        if (looksLikePlanOnlyResponse(currentModelText)) {
-          const nudge = '不要只给计划。请立即调用一个最合适的工具，或在信息已足够时直接给出最终答案。'
-          loopMessages.push({ role: 'assistant', content: [{ type: 'text', text: modelText }] })
-          loopMessages.push({ role: 'user', content: [{ type: 'text', text: nudge }] })
-
-          await config.messageStore.updateMessage(currentAssistantMessage.id, {
-            status: 'success',
-            content: [{ type: 'text', text: currentModelText || '正在处理中…' }],
-          })
-          continue
-        }
         finalAnswer = currentModelText || '任务已完成。'
         loopMessages.push({ role: 'assistant', content: [{ type: 'text', text: modelText }] })
 
@@ -321,14 +310,13 @@ async function handleLoopFailure(options: {
   appendAgentLog: (conversationId: string, userMessageId: string, event: string, payload: Record<string, unknown>) => Promise<string>
 }) {
   const { config, task, error, currentAssistantMessage, lastToolCallContext, appendAgentLog } = options
-  const code = error.message
   const failurePayload = {
     error: error.message,
     stack: error.stack || '',
     workspacePath: task.snapshot.workspacePath,
     lastToolCallContext,
   }
-  if (code === 'AGENT_CANCELLED') {
+  if (error instanceof AgentError && error.code === 'AGENT_CANCELLED') {
     task.snapshot.status = 'cancelled'
     if (currentAssistantMessage) {
       await finalizeAssistantMessage(config, currentAssistantMessage.id, '任务已取消', 'cancel')
@@ -336,7 +324,7 @@ async function handleLoopFailure(options: {
   }
   else {
     task.snapshot.status = 'failed'
-    task.snapshot.errorCode = code as AgentTaskSnapshot['errorCode']
+    task.snapshot.errorCode = (error instanceof AgentError ? error.code : error.message) as AgentTaskSnapshot['errorCode']
     task.snapshot.errorMessage = error.message
     if (currentAssistantMessage) {
       await finalizeAssistantMessage(config, currentAssistantMessage.id, `任务失败：${error.message}`, 'error')

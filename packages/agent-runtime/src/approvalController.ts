@@ -1,5 +1,6 @@
 import type { ApprovePendingActionOptions, CancelTaskOptions, IAgentEventEmitter, RejectPendingActionOptions } from '@ant-chat/shared'
 import type { RuntimeTask } from './taskStore'
+import { AgentError } from './AgentError'
 import { taskStore } from './taskStore'
 
 export interface ApprovalDecision {
@@ -31,7 +32,7 @@ export function createApprovalController(eventEmitter: IAgentEventEmitter) {
   function cancelTask(options: CancelTaskOptions) {
     const task = taskStore.get(options.taskId)
     if (!task)
-      throw new Error('AGENT_TASK_NOT_FOUND')
+      throw new AgentError('AGENT_TASK_NOT_FOUND', '任务未找到')
     task.abortController.abort()
     task.snapshot.status = 'cancelled'
     task.snapshot.pendingAction = undefined
@@ -45,7 +46,7 @@ export function createApprovalController(eventEmitter: IAgentEventEmitter) {
       task.pendingResolver = resolve
       setTimeout(() => {
         if (task.snapshot.status === 'awaiting_approval') {
-          reject(new Error('AGENT_APPROVAL_TIMEOUT'))
+          reject(new AgentError('AGENT_APPROVAL_TIMEOUT', '审批等待超时'))
         }
       }, APPROVAL_TIMEOUT_MS)
     })
@@ -57,10 +58,10 @@ export function createApprovalController(eventEmitter: IAgentEventEmitter) {
 function getApprovableTask(taskId: string, actionId: string): RuntimeTask {
   const task = taskStore.get(taskId)
   if (!task)
-    throw new Error('AGENT_TASK_NOT_FOUND')
+    throw new AgentError('AGENT_TASK_NOT_FOUND', '任务未找到')
   if (task.snapshot.status !== 'awaiting_approval' || !task.snapshot.pendingAction)
-    throw new Error('AGENT_TASK_NOT_APPROVABLE')
+    throw new AgentError('AGENT_TASK_NOT_APPROVABLE', '任务不在等待审批状态')
   if (task.snapshot.pendingAction.actionId !== actionId)
-    throw new Error('AGENT_APPROVAL_ACTION_MISMATCH')
+    throw new AgentError('AGENT_APPROVAL_ACTION_MISMATCH', '审批操作不匹配')
   return task
 }

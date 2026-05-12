@@ -1,5 +1,6 @@
+export { AgentError } from './AgentError'
 export { AgentRuntime } from './AgentRuntime'
 export { buildPromptWithTurnContext } from './turnContext'
 export type { TurnContextOptions } from './turnContext'
 export type { RuntimeStartInput } from './types'
-export type { AgentRuntimeConfig, AIProviderFactory, IAgentEventEmitter, IAgentPathProvider, IAIProvider, IAIStreamChunk, ILogger, IMessageStore, IModelResolver, LoopMessage, RuntimeToolDefinition, StreamProcessor, ToolProvider } from '@ant-chat/shared'
+export type { AgentRuntimeConfig, AIProviderFactory, IAgentEventEmitter, IAgentPathProvider, IAIProvider, IAIStreamChunk, ILogger, IMessageStore, IModelResolver, LoopMessage, MessageUpdatePatch, RuntimeToolDefinition, StreamProcessor, ToolProvider } from '@ant-chat/shared'

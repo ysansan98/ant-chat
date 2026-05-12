@@ -35,8 +35,23 @@ export async function listDir(input: ListDirToolInput = {}, pathPolicy: PathPoli
 export function createListDirTool(pathPolicy: PathPolicy, unrestricted: boolean) {
   return createNativeTool({
     name: 'list_dir',
+    description: '列出目录内容，支持 offset/limit 分页',
+    inputSchema: {
+      type: 'object',
+      properties: { path: { type: 'string' }, offset: { type: 'number' }, limit: { type: 'number' } },
+      required: [],
+    },
     unrestricted,
     inferScope: input => pathPolicy.classifyAccess(String((input as unknown as ListDirToolInput).path || '.')),
     execute: input => listDir(input as unknown as ListDirToolInput, pathPolicy),
+    truncateObservation: false,
+    formatObservation: (result) => {
+      const output = result.output as { path?: string, offset?: number, limit?: number, total?: number, hasMore?: boolean, items?: Array<{ name: string, type: string }> }
+      const itemsText = output.items?.map(i => `${i.type === 'directory' ? '[dir]' : '[file]'} ${i.name}`).join('\n') || '(空)'
+      return [
+        `工具 list_dir 执行成功: path=${output.path || '.'}, offset=${output.offset || 0}, total=${output.total || 0}, returned=${output.items?.length || 0}, hasMore=${Boolean(output.hasMore)}`,
+        itemsText,
+      ].join('\n')
+    },
   })
 }

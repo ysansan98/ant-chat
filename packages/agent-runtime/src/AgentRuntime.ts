@@ -2,6 +2,7 @@ import type { AgentRuntimeConfig, AgentTaskSnapshot, ApprovePendingActionOptions
 import type { RuntimeStartInput } from './types'
 import { randomUUID } from 'node:crypto'
 import process from 'node:process'
+import { AgentError } from './AgentError'
 import { createAgentLogger } from './agentLogger'
 import { runAgentLoop } from './agentLoop'
 import { createApprovalController } from './approvalController'
@@ -82,7 +83,7 @@ export class AgentRuntime {
   getTask(taskId: string) {
     const task = taskStore.get(taskId)
     if (!task)
-      throw new Error('AGENT_TASK_NOT_FOUND')
+      throw new AgentError('AGENT_TASK_NOT_FOUND', '任务未找到')
     return task.snapshot
   }
 

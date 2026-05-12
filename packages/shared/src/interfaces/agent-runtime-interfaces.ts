@@ -32,7 +32,7 @@ export interface RuntimeToolDefinition {
 // ============================================================
 
 export interface IAIStreamChunk {
-  content: Array<{ type: 'text', text: string }>
+  content?: Array<{ type: 'text', text: string }>
   reasoningContent?: string
   functionCalls?: Array<{
     id?: string
@@ -77,9 +77,23 @@ export interface IAIProvider {
 // Message Store
 // ============================================================
 
+export interface MessageUpdatePatch {
+  status?: 'loading' | 'success' | 'error' | 'cancel'
+  content?: Array<{ type: 'text', text: string } | { type: 'error', error: string }>
+  toolCalls?: Record<string, unknown>[]
+  reasoningContent?: string
+  usage?: {
+    inputTokens?: number
+    outputTokens?: number
+    totalTokens?: number
+    reasoningTokens?: number
+    cachedInputTokens?: number
+  }
+}
+
 export interface IMessageStore {
   createAssistantMessage: (convId: string, provider: string, providerId: string, model: string) => Promise<{ id: string }>
-  updateMessage: (messageId: string, patch: Record<string, unknown>) => Promise<{ id: string }>
+  updateMessage: (messageId: string, patch: MessageUpdatePatch) => Promise<{ id: string }>
   addMessage: (params: {
     convId: string
     role: 'user' | 'assistant'

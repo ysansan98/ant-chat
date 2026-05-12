@@ -80,6 +80,12 @@ export async function applyPatch(input: ApplyPatchToolInput, pathPolicy: PathPol
 export function createApplyPatchTool(pathPolicy: PathPolicy, unrestricted: boolean) {
   return createNativeTool({
     name: 'apply_patch',
+    description: '按自定义 patch 语法修改文件，必须使用 "*** Begin Patch" / "*** Update File" / "*** End Patch" 格式，不接受 git unified diff',
+    inputSchema: {
+      type: 'object',
+      properties: { patch: { type: 'string' } },
+      required: ['patch'],
+    },
     unrestricted,
     inferScope: input => inferPatchScope(input as unknown as ApplyPatchToolInput, pathPolicy),
     execute: input => applyPatch(input as unknown as ApplyPatchToolInput, pathPolicy),

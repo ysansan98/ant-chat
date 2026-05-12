@@ -1,4 +1,4 @@
-import type { IMessage, IMessageStore } from '@ant-chat/shared'
+import type { IMessage, IMessageStore, MessageUpdatePatch } from '@ant-chat/shared'
 import { createAIMessage, addMessage as dbAddMessage, updateMessage as dbUpdateMessage, getConversationById, getMessagesByConvId, updateConversation } from '@main/db/services'
 
 export function createDbMessageStore(): IMessageStore {
@@ -7,7 +7,7 @@ export function createDbMessageStore(): IMessageStore {
       const msg = await createAIMessage(convId, { provider, providerId, model })
       return { id: msg.id }
     },
-    updateMessage: async (messageId, patch) => {
+    updateMessage: async (messageId, patch: MessageUpdatePatch) => {
       const msg = await dbUpdateMessage({ id: messageId, role: 'assistant', ...patch } as any)
       return { id: msg.id }
     },
