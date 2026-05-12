@@ -1,29 +1,26 @@
 import type { AddMessage, AgentRuntimeConfig, AgentTurnResult, StartAgentTurnOptions } from '@ant-chat/shared'
 import { AgentRuntime, buildPromptWithTurnContext } from '@ant-chat/agent-runtime'
 import { createDbAIProvider } from '@main/agent/adapters/aiProviderFactory.adapter'
+import { createDbConversationQuery } from '@main/agent/adapters/conversationQuery.adapter'
 import { dbModelResolver } from '@main/agent/adapters/dbModelResolver.adapter'
-import { electronEventEmitter } from '@main/agent/adapters/electronEventEmitter.adapter'
+import { createElectronEventEmitter } from '@main/agent/adapters/electronEventEmitter.adapter'
 import { electronLogger } from '@main/agent/adapters/electronLogger.adapter'
 import { electronPathProvider } from '@main/agent/adapters/electronPathProvider.adapter'
-import { createDbMessageStore } from '@main/agent/adapters/messageStore.adapter'
 import { electronToolProvider } from '@main/agent/adapters/toolProvider.adapter'
 import { addConversation, addMessage, getConversationById } from '@main/db/services'
 import { WorkspaceStore } from '@main/store/workspace'
 import { isDev } from '@main/utils/env'
-import { createStreamProcessor } from './streamProcessor'
 
 function createRuntimeConfig(): AgentRuntimeConfig {
-  const messageStore = createDbMessageStore()
   return {
-    messageStore,
+    conversationQuery: createDbConversationQuery(),
     aiProviderFactory: createDbAIProvider,
-    eventEmitter: electronEventEmitter,
+    eventEmitter: createElectronEventEmitter(),
     pathProvider: electronPathProvider,
     modelResolver: dbModelResolver,
     toolProvider: electronToolProvider,
     logger: electronLogger,
     isDev,
-    streamProcessor: createStreamProcessor(messageStore),
   }
 }
 

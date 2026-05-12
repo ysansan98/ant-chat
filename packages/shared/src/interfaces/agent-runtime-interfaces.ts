@@ -1,3 +1,4 @@
+import type { McpToolCall } from '../schemas'
 import type { AgentMode, AgentPendingAction, AgentTaskSnapshot } from './agent-runtime'
 import type { AgentTool } from './agent-tools'
 import type { IConversations, IMessage } from './db-types'
@@ -74,35 +75,12 @@ export interface IAIProvider {
 }
 
 // ============================================================
-// Message Store
+// Conversation Query (只读)
 // ============================================================
 
-export interface MessageUpdatePatch {
-  status?: 'loading' | 'success' | 'error' | 'cancel'
-  content?: Array<{ type: 'text', text: string } | { type: 'error', error: string }>
-  toolCalls?: Record<string, unknown>[]
-  reasoningContent?: string
-  usage?: {
-    inputTokens?: number
-    outputTokens?: number
-    totalTokens?: number
-    reasoningTokens?: number
-    cachedInputTokens?: number
-  }
-}
-
-export interface IMessageStore {
-  createAssistantMessage: (convId: string, provider: string, providerId: string, model: string) => Promise<{ id: string }>
-  updateMessage: (messageId: string, patch: MessageUpdatePatch) => Promise<{ id: string }>
-  addMessage: (params: {
-    convId: string
-    role: 'user' | 'assistant'
-    status: 'success' | 'error' | 'loading' | 'cancel'
-    content: Array<{ type: 'text', text: string }>
-  }) => Promise<{ id: string }>
-  getMessagesByConvId: (convId: string) => Promise<IMessage[]>
+export interface IConversationQuery {
   getConversationById: (id: string) => Promise<IConversations | null>
-  updateConversation: (id: string, data: { settings?: Record<string, unknown> }) => Promise<void>
+  getMessagesByConvId: (convId: string) => Promise<IMessage[]>
 }
 
 // ============================================================
@@ -112,7 +90,11 @@ export interface IMessageStore {
 export interface IAgentEventEmitter {
   emitTaskUpdated: (task: AgentTaskSnapshot) => void
   emitApprovalRequired: (taskId: string, conversationId: string, pendingAction: AgentPendingAction) => void
-  emitMessageUpdated: (message: IMessage) => void
+  emitTurnStarted: (params: { conversationId: string, model: { name: string, provider: string, providerId: string } }) => void
+  emitTurnChunk: (params: { conversationId: string, accumulatedText: string, chunk: IAIStreamChunk }) => void
+  emitTurnToolCalls: (params: { conversationId: string, text: string, toolCalls: McpToolCall[] }) => void
+  emitTurnFinished: (params: { conversationId: string, text: string, status: 'success' | 'error' | 'cancel' }) => void
+  emitCompactionSaved: (params: { conversationId: string, summary: string, compactedAt: number }) => void
 }
 
 // ============================================================
@@ -151,22 +133,11 @@ export type AIProviderFactory = (modelId: string, modelResolver: IModelResolver)
 export type ToolProvider = (workspacePath: string, mode: AgentMode) => Promise<AgentTool[]>
 
 // ============================================================
-// Stream Processor
-// ============================================================
-
-export interface StreamProcessor {
-  /** 每个原始 chunk 都会调用，消费者自行决定提取什么、如何节流持久化 */
-  onChunk: (chunk: IAIStreamChunk, assistantMessageId: string) => Promise<void>
-  /** 流结束后调用，消费者刷新待持久化的缓存状态 */
-  flush: (assistantMessageId: string) => Promise<void>
-}
-
-// ============================================================
 // Combined Config
 // ============================================================
 
 export interface AgentRuntimeConfig {
-  messageStore: IMessageStore
+  conversationQuery: IConversationQuery
   aiProviderFactory: AIProviderFactory
   eventEmitter: IAgentEventEmitter
   pathProvider: IAgentPathProvider
@@ -174,5 +145,4 @@ export interface AgentRuntimeConfig {
   toolProvider: ToolProvider
   logger: ILogger
   isDev: boolean
-  streamProcessor?: StreamProcessor
 }

@@ -27,7 +27,6 @@ export interface ExecuteToolStepOptions {
   task: RuntimeTask
   registry: ToolRegistry
   requestedToolCall: RequestedToolCall
-  currentAssistantMessageId: string
   currentModelText: string
   currentToolMessages: McpToolCall[]
   step: number
@@ -49,7 +48,6 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
     task,
     registry,
     requestedToolCall,
-    currentAssistantMessageId,
     currentModelText,
     currentToolMessages,
     step,
@@ -75,7 +73,11 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
     executeState: 'executing',
   }
   currentToolMessages.push(currentToolCall)
-  await updateAssistantMessage(config, currentAssistantMessageId, currentModelText, currentToolMessages)
+  config.eventEmitter.emitTurnToolCalls({
+    conversationId: task.snapshot.conversationId,
+    text: currentModelText,
+    toolCalls: [...currentToolMessages],
+  })
 
   let lastObservation = ''
   const policyDecision = decidePolicy(task.snapshot.mode, prepared.operationType, prepared.scope)
@@ -110,7 +112,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
       workspacePath: task.snapshot.workspacePath,
     })
     lastObservation = formatFailure(prepared, prepared.validationError, requestedToolCall.input)
-    await updateAssistantMessage(config, currentAssistantMessageId, currentModelText, currentToolMessages, 'success')
+    await emitToolCalls(config, task.snapshot.conversationId, currentModelText, currentToolMessages, 'success')
     return {
       lastToolCallContext,
       toolCallId: currentToolCall.id,
@@ -137,7 +139,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
       workspacePath: task.snapshot.workspacePath,
     })
     lastObservation = formatFailure(prepared, policyDecision.errorCode, requestedToolCall.input)
-    await updateAssistantMessage(config, currentAssistantMessageId, currentModelText, currentToolMessages, 'success')
+    await emitToolCalls(config, task.snapshot.conversationId, currentModelText, currentToolMessages, 'success')
     return {
       lastToolCallContext,
       toolCallId: currentToolCall.id,
@@ -159,10 +161,6 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
     task.snapshot.pendingAction = pendingAction
     config.eventEmitter.emitTaskUpdated(task.snapshot)
     config.eventEmitter.emitApprovalRequired(task.snapshot.taskId, task.snapshot.conversationId, pendingAction)
-    await config.messageStore.updateMessage(currentAssistantMessageId, {
-      status: 'loading',
-      content: [{ type: 'text', text: currentModelText }],
-    })
 
     const decisionResult = await waitForApproval(task)
     if (task.abortController.signal.aborted || decisionResult.reason === 'AGENT_CANCELLED') {
@@ -176,7 +174,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
         error: decisionResult.reason || 'AGENT_APPROVAL_REJECTED',
       }
       lastObservation = `工具 ${prepared.toolName} 被拒绝: ${decisionResult.reason || '无原因'}`
-      await updateAssistantMessage(config, currentAssistantMessageId, currentModelText, currentToolMessages, 'success')
+      await emitToolCalls(config, task.snapshot.conversationId, currentModelText, currentToolMessages, 'success')
       return {
         lastToolCallContext,
         toolCallId: currentToolCall.id,
@@ -203,7 +201,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
       exitCode: result.exitCode,
     })
     lastObservation = formatFailure(prepared, result.error || 'AGENT_TOOL_EXEC_FAILED', requestedToolCall.input, result)
-    await updateAssistantMessage(config, currentAssistantMessageId, currentModelText, currentToolMessages, 'success')
+    await emitToolCalls(config, task.snapshot.conversationId, currentModelText, currentToolMessages, 'success')
     return {
       lastToolCallContext,
       toolCallId: currentToolCall.id,
@@ -222,7 +220,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
     success: true,
     data: dataText,
   }
-  await updateAssistantMessage(config, currentAssistantMessageId, currentModelText, currentToolMessages, 'success')
+  await emitToolCalls(config, task.snapshot.conversationId, currentModelText, currentToolMessages, 'success')
   await appendAgentLog(task.snapshot.conversationId, task.snapshot.userMessageId, 'tool_completed', {
     toolName: prepared.toolName,
     input: requestedToolCall.input,
@@ -239,16 +237,16 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   }
 }
 
-function updateAssistantMessage(
+function emitToolCalls(
   config: AgentRuntimeConfig,
-  messageId: string,
+  conversationId: string,
   text: string,
   toolMessages: McpToolCall[],
-  status: 'loading' | 'success' = 'loading',
+  _status?: 'loading' | 'success',
 ) {
-  return config.messageStore.updateMessage(messageId, {
-    status,
-    content: [{ type: 'text', text }],
+  config.eventEmitter.emitTurnToolCalls({
+    conversationId,
+    text,
     toolCalls: [...toolMessages],
   })
 }
@@ -308,8 +306,8 @@ function buildObservation(
 
 export async function createInvalidToolArgsResult(options: {
   config: AgentRuntimeConfig
+  conversationId: string
   requestedToolCall: { toolName: string, input: Record<string, unknown>, invalidArgsError?: string }
-  currentAssistantMessageId: string
   currentModelText: string
   currentToolMessages: McpToolCall[]
 }): Promise<{
@@ -318,7 +316,7 @@ export async function createInvalidToolArgsResult(options: {
   toolResultContent: string
   isError: boolean
 }> {
-  const { config, requestedToolCall, currentAssistantMessageId, currentModelText, currentToolMessages } = options
+  const { config, conversationId, requestedToolCall, currentModelText, currentToolMessages } = options
   const toolCallId = randomUUID()
   const error = `工具 ${requestedToolCall.toolName} 参数解析失败：${requestedToolCall.invalidArgsError || 'args must be a JSON object'}。请修正参数后重新调用该工具。`
   currentToolMessages.push({
@@ -332,10 +330,10 @@ export async function createInvalidToolArgsResult(options: {
       error,
     },
   })
-  await config.messageStore.updateMessage(currentAssistantMessageId, {
-    status: 'success',
-    content: [{ type: 'text', text: currentModelText || '工具参数解析失败，等待模型修正。' }],
-    toolCalls: currentToolMessages,
+  config.eventEmitter.emitTurnToolCalls({
+    conversationId,
+    text: currentModelText || '工具参数解析失败，等待模型修正。',
+    toolCalls: [...currentToolMessages],
   })
   return {
     lastToolCallContext: {
