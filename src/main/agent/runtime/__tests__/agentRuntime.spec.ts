@@ -95,7 +95,7 @@ describe('agentRuntime', () => {
       conversationId: 'c1',
       userMessageId: 'm1',
       prompt: '检查当前项目结构',
-      mode: 'hybrid',
+      executionMode: 'hybrid',
     })
     expect(res.taskId).toBeTruthy()
   })
@@ -117,8 +117,8 @@ describe('agentRuntime', () => {
       conversationId: 'c4',
       userMessageId: 'm4',
       prompt: 'say hello',
-      mode: 'hybrid',
-      chatSettings: {
+      executionMode: 'hybrid',
+      modelConfig: {
         modelId: 'model-1',
         systemPrompt: '',
         temperature: 0,
@@ -148,8 +148,8 @@ describe('agentRuntime', () => {
       conversationId: 'c6',
       userMessageId: 'm6',
       prompt: '检查当前项目结构',
-      mode: 'hybrid',
-      chatSettings: {
+      executionMode: 'hybrid',
+      modelConfig: {
         modelId: 'model-1',
         systemPrompt: '',
         temperature: 0,
@@ -175,8 +175,8 @@ describe('agentRuntime', () => {
       conversationId: 'c5',
       userMessageId: 'm5',
       prompt: '写入测试文件',
-      mode: 'strict',
-      chatSettings: {
+      executionMode: 'strict',
+      modelConfig: {
         modelId: 'model-1',
         systemPrompt: '',
         temperature: 0,

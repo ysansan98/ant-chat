@@ -2,7 +2,7 @@ import type { AgentRuntimeConfig, AgentTaskSnapshot, IMessage, LoopMessage, McpT
 import type { ApprovalDecision } from './approvalController'
 import type { CompactionSettings } from './compaction'
 import type { ToolCallContext } from './toolExecution'
-import type { AgentRuntimeStartOptions } from './types'
+import type { RuntimeStartInput } from './types'
 import { createCheckpointStore } from './checkpointStore'
 import {
   compactMessages,
@@ -44,7 +44,7 @@ function normalizeUsage(usage?: {
 
 export async function runAgentLoop(input: {
   taskId: string
-  options: AgentRuntimeStartOptions
+  options: RuntimeStartInput
   config: AgentRuntimeConfig
   appendAgentLog: (conversationId: string, userMessageId: string, event: string, payload: Record<string, unknown>) => Promise<string>
   approvalController: { waitForApproval: (task: NonNullable<ReturnType<typeof taskStore.get>>) => Promise<ApprovalDecision> }
@@ -54,10 +54,10 @@ export async function runAgentLoop(input: {
   if (!task)
     throw new Error('AGENT_TASK_NOT_FOUND')
 
-  const model = options.chatSettings?.modelId ? await config.modelResolver.getModelById(options.chatSettings.modelId) : null
+  const model = options.modelConfig?.modelId ? await config.modelResolver.getModelById(options.modelConfig.modelId) : null
   const provider = model ? config.modelResolver.getProviderById(model.serviceProviderId).then(p => p!) : null
   const resolvedProvider = await provider
-  const aiProvider = model ? await config.aiProviderFactory(options.chatSettings!.modelId, config.modelResolver) : null
+  const aiProvider = model ? await config.aiProviderFactory(options.modelConfig!.modelId, config.modelResolver) : null
   const tools = await config.toolProvider(task.snapshot.workspacePath, task.snapshot.mode)
   const registry = new ToolRegistry(tools)
   const toolDefs = registry.listTools()
@@ -182,8 +182,8 @@ export async function runAgentLoop(input: {
             messages: loopMessages,
             chatSettings: {
               model: model.model,
-              temperature: options.chatSettings?.temperature,
-              maxTokens: options.chatSettings?.maxTokens,
+              temperature: options.modelConfig?.temperature,
+              maxTokens: options.modelConfig?.maxTokens,
               systemPrompt: loopSystemPrompt,
             },
             tools: toolDefs.map(item => ({ name: item.name, description: item.description, inputSchema: item.inputSchema })),
@@ -195,8 +195,8 @@ export async function runAgentLoop(input: {
         messages: loopMessages,
         chatSettings: {
           model: model.model,
-          temperature: options.chatSettings?.temperature,
-          maxTokens: options.chatSettings?.maxTokens,
+          temperature: options.modelConfig?.temperature,
+          maxTokens: options.modelConfig?.maxTokens,
           systemPrompt: loopSystemPrompt,
         },
         tools: toolDefs.map(item => ({ ...item, serverName: 'native' })),

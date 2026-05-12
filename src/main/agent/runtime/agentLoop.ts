@@ -2,7 +2,7 @@ import type { AgentTaskSnapshot, McpToolCall } from '@ant-chat/shared'
 import type { CompactionSettings } from './compaction'
 import type { LoopMessage } from './loopContext'
 import type { ToolCallContext } from './toolExecution'
-import type { AgentRuntimeStartOptions } from './types'
+import type { RuntimeStartInput } from './types'
 import { randomUUID } from 'node:crypto'
 import { createProvider } from '@main/ai-providers/factory'
 import { addMessage, getConversationById, getMessagesByConvId, getModelById, getProviderServiceById, updateConversation } from '@main/db/services'
@@ -50,12 +50,12 @@ function normalizeUsage(usage?: {
   }
 }
 
-export async function runAgentLoop(taskId: string, options: AgentRuntimeStartOptions) {
+export async function runAgentLoop(taskId: string, options: RuntimeStartInput) {
   const task = taskStore.get(taskId)
   if (!task)
     return
 
-  const model = options.chatSettings?.modelId ? await getModelById(options.chatSettings.modelId) : null
+  const model = options.modelConfig?.modelId ? await getModelById(options.modelConfig.modelId) : null
   const provider = model ? getProviderServiceById(model.serviceProviderId) : null
   const aiProvider = provider && model ? await createProvider(provider) : null
   const registry = await ToolRegistry.create(task.snapshot.workspacePath, task.snapshot.mode)
@@ -184,8 +184,8 @@ export async function runAgentLoop(taskId: string, options: AgentRuntimeStartOpt
             messages: loopMessages,
             chatSettings: {
               model: model.model,
-              temperature: options.chatSettings?.temperature,
-              maxTokens: options.chatSettings?.maxTokens,
+              temperature: options.modelConfig?.temperature,
+              maxTokens: options.modelConfig?.maxTokens,
               systemPrompt: loopSystemPrompt,
             },
             tools: tools.map(item => ({ name: item.name, description: item.description, inputSchema: item.inputSchema })),
@@ -197,8 +197,8 @@ export async function runAgentLoop(taskId: string, options: AgentRuntimeStartOpt
         messages: loopMessages as any,
         chatSettings: {
           model: model.model,
-          temperature: options.chatSettings?.temperature,
-          maxTokens: options.chatSettings?.maxTokens,
+          temperature: options.modelConfig?.temperature,
+          maxTokens: options.modelConfig?.maxTokens,
           systemPrompt: loopSystemPrompt,
         },
         tools: tools.map(item => ({ ...item, serverName: 'native' })),
