@@ -8,8 +8,7 @@ export function createCheckpointStore(pathProvider: IAgentPathProvider) {
     await fs.mkdir(root, { recursive: true })
     const filePath = path.join(root, `${snapshot.taskId}.json`)
     const tmpPath = `${filePath}.tmp`
-    snapshot.checkpointPath = filePath
-    await fs.writeFile(tmpPath, JSON.stringify(snapshot, null, 2), 'utf8')
+    await fs.writeFile(tmpPath, JSON.stringify({ ...snapshot, checkpointPath: filePath }, null, 2), 'utf8')
     await fs.rename(tmpPath, filePath)
     return filePath
   }

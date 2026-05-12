@@ -10,7 +10,7 @@ export function buildPromptWithTurnContext(options: TurnContextOptions): string 
   const selectedSkill = options.selectedSkill?.trim()
 
   if (referencedFiles.length === 0 && !selectedSkill) {
-    return prompt
+    return prompt || ''
   }
 
   const context: string[] = ['<turn_context>']
@@ -28,7 +28,7 @@ export function buildPromptWithTurnContext(options: TurnContextOptions): string 
 
   context.push('</turn_context>')
 
-  return `${context.join('\n')}\n\n${prompt}`
+  return prompt ? `${context.join('\n')}\n\n${prompt}` : context.join('\n')
 }
 
 function normalizeReferencedFiles(files?: string[]): string[] {

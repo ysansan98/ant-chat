@@ -4,6 +4,7 @@ import type { RuntimeTask } from './taskStore'
 import type { ToolRegistry } from './toolRegistry'
 import { randomUUID } from 'node:crypto'
 import { decidePolicy } from './policyEngine'
+import { truncateText } from './utils'
 
 const DEFAULT_TOOL_OBSERVATION_LIMIT = 4000
 const DEFAULT_TOOL_LOG_PREVIEW_LIMIT = 4000
@@ -101,7 +102,6 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
       success: false,
       error: prepared.validationError,
     }
-    await updateAssistantMessage(config, currentAssistantMessageId, currentModelText, currentToolMessages)
     await appendAgentLog(task.snapshot.conversationId, task.snapshot.userMessageId, 'tool_failed', {
       toolName: prepared.toolName,
       input: requestedToolCall.input,
@@ -128,7 +128,6 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
       success: false,
       error: policyDecision.errorCode,
     }
-    await updateAssistantMessage(config, currentAssistantMessageId, currentModelText, currentToolMessages)
     await appendAgentLog(task.snapshot.conversationId, task.snapshot.userMessageId, 'tool_blocked', {
       step,
       toolName: requestedToolCall.toolName,
@@ -184,7 +183,6 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
         error: decisionResult.reason || 'AGENT_APPROVAL_REJECTED',
       }
       lastObservation = `工具 ${prepared.toolName} 被拒绝: ${decisionResult.reason || '无原因'}`
-      await updateAssistantMessage(config, currentAssistantMessageId, currentModelText, currentToolMessages)
       await updateAssistantMessage(config, currentAssistantMessageId, currentModelText, currentToolMessages, 'success')
       return {
         lastToolCallContext,
@@ -202,7 +200,6 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
       success: false,
       error: result.error || 'AGENT_TOOL_EXEC_FAILED',
     }
-    await updateAssistantMessage(config, currentAssistantMessageId, currentModelText, currentToolMessages)
     await appendAgentLog(task.snapshot.conversationId, task.snapshot.userMessageId, 'tool_failed', {
       toolName: prepared.toolName,
       input: requestedToolCall.input,
@@ -234,7 +231,6 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
     success: true,
     data: truncateTextByTool(prepared.toolName, toolOutputText, 'observation'),
   }
-  await updateAssistantMessage(config, currentAssistantMessageId, currentModelText, currentToolMessages)
   await updateAssistantMessage(config, currentAssistantMessageId, currentModelText, currentToolMessages, 'success')
   await appendAgentLog(task.snapshot.conversationId, task.snapshot.userMessageId, 'tool_completed', {
     toolName: prepared.toolName,
@@ -305,13 +301,6 @@ function isSkillLoadedOutput(output: unknown): output is { type: 'skill_loaded',
   )
 }
 
-function truncateText(text: string, limit: number): string {
-  if (text.length <= limit) {
-    return text
-  }
-  return `${text.slice(0, limit)}...(truncated)`
-}
-
 function truncateTextByTool(toolName: string, text: string, target: 'observation' | 'log'): string {
   if ((toolName === 'list_dir' || toolName === 'read_file') && target === 'observation') {
     return text
@@ -343,6 +332,51 @@ export function buildToolObservation(
     return `工具 read_file 执行成功，输出如下：\n${outputText}`
   }
   return `工具 ${toolName} 执行成功，输出: ${truncateTextByTool(toolName, outputText, 'observation')}`
+}
+
+export async function createInvalidToolArgsResult(options: {
+  config: AgentRuntimeConfig
+  requestedToolCall: { toolName: string, input: Record<string, unknown>, invalidArgsError?: string }
+  currentAssistantMessageId: string
+  currentModelText: string
+  currentToolMessages: McpToolCall[]
+}): Promise<{
+  lastToolCallContext: ToolCallContext
+  toolCallId: string
+  toolResultContent: string
+  isError: boolean
+}> {
+  const { config, requestedToolCall, currentAssistantMessageId, currentModelText, currentToolMessages } = options
+  const toolCallId = randomUUID()
+  const error = `工具 ${requestedToolCall.toolName} 参数解析失败：${requestedToolCall.invalidArgsError || 'args must be a JSON object'}。请修正参数后重新调用该工具。`
+  currentToolMessages.push({
+    id: toolCallId,
+    serverName: 'native',
+    toolName: requestedToolCall.toolName,
+    args: requestedToolCall.input,
+    executeState: 'completed',
+    result: {
+      success: false,
+      error,
+    },
+  })
+  await config.messageStore.updateMessage(currentAssistantMessageId, {
+    status: 'success',
+    content: [{ type: 'text', text: currentModelText || '工具参数解析失败，等待模型修正。' }],
+    toolCalls: currentToolMessages,
+  })
+  return {
+    lastToolCallContext: {
+      toolName: requestedToolCall.toolName,
+      input: requestedToolCall.input,
+      operationType: 'unknown',
+      scope: 'unknown',
+      policy: 'error',
+    },
+    toolCallId,
+    toolResultContent: error,
+    isError: true,
+  }
 }
 
 function formatToolFailureObservation(
