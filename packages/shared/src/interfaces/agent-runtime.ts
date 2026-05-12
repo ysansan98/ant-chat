@@ -38,7 +38,6 @@ export interface AgentTaskSnapshot {
   status: AgentTaskStatus
   createdAt: number
   updatedAt: number
-  checkpointPath: string
   logPath: string
   prompt: string
   pendingAction?: AgentPendingAction

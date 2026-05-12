@@ -11,7 +11,6 @@ import { logger } from '@main/utils/logger'
 import { ToolRegistry } from '../tools/toolRegistry'
 import { appendAgentLog } from './agentLogger'
 import { createTaskAssistantMessage, finalizeTaskAssistantMessage, updateTaskAssistantMessage } from './agentMessageWriter'
-import { removeCheckpoint, writeCheckpoint } from './checkpointStore'
 import {
   compactMessages,
   DEFAULT_COMPACTION_SETTINGS,
@@ -346,9 +345,7 @@ export async function runAgentLoop(taskId: string, options: RuntimeStartInput) {
   }
   finally {
     task.snapshot.updatedAt = Date.now()
-    await writeCheckpoint(task.snapshot)
     if (['success', 'failed', 'cancelled'].includes(task.snapshot.status)) {
-      await removeCheckpoint(task.snapshot.taskId)
       taskStore.finish(task.snapshot.taskId)
     }
   }

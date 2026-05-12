@@ -37,7 +37,6 @@ class AgentRuntime {
       status: 'running',
       createdAt: now,
       updatedAt: now,
-      checkpointPath: '',
       logPath: '',
       prompt: options.prompt,
     }

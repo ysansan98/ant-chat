@@ -68,11 +68,6 @@ vi.mock('../progressReporter', () => ({
   reportApprovalRequired: vi.fn(),
 }))
 
-vi.mock('../checkpointStore', () => ({
-  writeCheckpoint: vi.fn(async () => '/tmp/checkpoint.json'),
-  removeCheckpoint: vi.fn(async () => {}),
-}))
-
 vi.mock('../agentLogger', () => ({
   appendAgentLog: loggerMocks.appendAgentLog,
 }))
