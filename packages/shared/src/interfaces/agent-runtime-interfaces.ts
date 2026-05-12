@@ -137,6 +137,17 @@ export type AIProviderFactory = (modelId: string, modelResolver: IModelResolver)
 export type ToolProvider = (workspacePath: string, mode: AgentMode) => Promise<AgentTool[]>
 
 // ============================================================
+// Stream Processor
+// ============================================================
+
+export interface StreamProcessor {
+  /** 每个原始 chunk 都会调用，消费者自行决定提取什么、如何节流持久化 */
+  onChunk: (chunk: IAIStreamChunk, assistantMessageId: string) => Promise<void>
+  /** 流结束后调用，消费者刷新待持久化的缓存状态 */
+  flush: (assistantMessageId: string) => Promise<void>
+}
+
+// ============================================================
 // Combined Config
 // ============================================================
 
@@ -149,4 +160,5 @@ export interface AgentRuntimeConfig {
   toolProvider: ToolProvider
   logger: ILogger
   isDev: boolean
+  streamProcessor?: StreamProcessor
 }

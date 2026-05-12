@@ -19,28 +19,6 @@ import { taskStore } from './taskStore'
 import { createInvalidToolArgsResult, executeToolStep } from './toolExecution'
 import { ToolRegistry } from './toolRegistry'
 
-const STREAM_MESSAGE_UPDATE_INTERVAL_MS = 80
-
-function normalizeUsage(usage?: {
-  inputTokens?: number
-  outputTokens?: number
-  totalTokens?: number
-  reasoningTokens?: number
-  cachedInputTokens?: number
-}) {
-  if (!usage) {
-    return undefined
-  }
-
-  return {
-    inputTokens: usage.inputTokens,
-    outputTokens: usage.outputTokens,
-    totalTokens: usage.totalTokens,
-    reasoningTokens: usage.reasoningTokens,
-    cachedInputTokens: usage.cachedInputTokens,
-  }
-}
-
 export async function runAgentLoop(input: {
   taskId: string
   options: RuntimeStartInput
@@ -201,26 +179,7 @@ export async function runAgentLoop(input: {
       })
 
       let modelText = ''
-      let reasoningText = ''
-      let latestUsage: ReturnType<typeof normalizeUsage>
       let requestedToolCall: { toolName: string, input: Record<string, unknown>, invalidArgsError?: string } | null = null
-      let lastStreamUpdateAt = 0
-      const flushStreamMessage = async (force = false) => {
-        const now = Date.now()
-        if (!force && now - lastStreamUpdateAt < STREAM_MESSAGE_UPDATE_INTERVAL_MS) {
-          return
-        }
-        if (!modelText && !reasoningText) {
-          return
-        }
-        lastStreamUpdateAt = now
-        await config.messageStore.updateMessage(assistantMessageId, {
-          status: 'loading',
-          content: [{ type: 'text', text: modelText.trim() || '正在处理中…' }],
-          reasoningContent: reasoningText,
-          usage: latestUsage,
-        })
-      }
 
       for await (const chunk of stream) {
         const content = (chunk as any).content || []
@@ -228,9 +187,6 @@ export async function runAgentLoop(input: {
           if (item.type === 'text' && item.text) {
             modelText += item.text
           }
-        }
-        if ((chunk as any).reasoningContent) {
-          reasoningText += (chunk as any).reasoningContent
         }
         const functionCalls = (chunk as any).functionCalls || []
         if (functionCalls.length > 0) {
@@ -242,19 +198,15 @@ export async function runAgentLoop(input: {
             invalidArgsError: argsResult.ok ? undefined : argsResult.error,
           }
         }
-        if ((chunk as any).usage) {
-          latestUsage = normalizeUsage((chunk as any).usage)
-        }
-        await flushStreamMessage()
+        await config.streamProcessor?.onChunk(chunk, assistantMessageId)
       }
       await appendAgentLog(task.snapshot.conversationId, task.snapshot.userMessageId, 'model_response_finished', {
         step,
         textPreview: modelText.slice(0, 500),
         hasToolCall: Boolean(requestedToolCall),
-        usage: latestUsage,
       })
       currentModelText = modelText.trim()
-      await flushStreamMessage(true)
+      await config.streamProcessor?.flush(assistantMessageId)
 
       if (!requestedToolCall) {
         if (looksLikePlanOnlyResponse(currentModelText)) {
@@ -265,18 +217,13 @@ export async function runAgentLoop(input: {
           await config.messageStore.updateMessage(currentAssistantMessage.id, {
             status: 'success',
             content: [{ type: 'text', text: currentModelText || '正在处理中…' }],
-            reasoningContent: reasoningText,
-            usage: latestUsage,
           })
           continue
         }
         finalAnswer = currentModelText || '任务已完成。'
         loopMessages.push({ role: 'assistant', content: [{ type: 'text', text: modelText }] })
 
-        await finalizeAssistantMessage(config, currentAssistantMessage.id, finalAnswer, 'success', {
-          reasoningContent: reasoningText,
-          usage: latestUsage,
-        })
+        await finalizeAssistantMessage(config, currentAssistantMessage.id, finalAnswer, 'success')
         break
       }
 
@@ -356,10 +303,8 @@ async function finalizeAssistantMessage(
   messageId: string,
   text: string,
   status: 'success' | 'error' | 'cancel',
-  patch?: { reasoningContent?: string, usage?: ReturnType<typeof normalizeUsage> },
 ) {
   return config.messageStore.updateMessage(messageId, {
-    ...patch,
     status,
     content: status === 'error'
       ? [{ type: 'error', error: text }]
@@ -386,9 +331,7 @@ async function handleLoopFailure(options: {
   if (code === 'AGENT_CANCELLED') {
     task.snapshot.status = 'cancelled'
     if (currentAssistantMessage) {
-      await finalizeAssistantMessage(config, currentAssistantMessage.id, '任务已取消', 'cancel', {
-        usage: undefined,
-      })
+      await finalizeAssistantMessage(config, currentAssistantMessage.id, '任务已取消', 'cancel')
     }
   }
   else {
@@ -396,9 +339,7 @@ async function handleLoopFailure(options: {
     task.snapshot.errorCode = code as AgentTaskSnapshot['errorCode']
     task.snapshot.errorMessage = error.message
     if (currentAssistantMessage) {
-      await finalizeAssistantMessage(config, currentAssistantMessage.id, `任务失败：${error.message}`, 'error', {
-        usage: undefined,
-      })
+      await finalizeAssistantMessage(config, currentAssistantMessage.id, `任务失败：${error.message}`, 'error')
     }
   }
   config.eventEmitter.emitTaskUpdated(task.snapshot)
