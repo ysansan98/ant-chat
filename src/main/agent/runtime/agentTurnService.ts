@@ -10,10 +10,12 @@ import { electronToolProvider } from '@main/agent/adapters/toolProvider.adapter'
 import { addConversation, addMessage, getConversationById } from '@main/db/services'
 import { WorkspaceStore } from '@main/store/workspace'
 import { isDev } from '@main/utils/env'
+import { createStreamProcessor } from './streamProcessor'
 
 function createRuntimeConfig(): AgentRuntimeConfig {
+  const messageStore = createDbMessageStore()
   return {
-    messageStore: createDbMessageStore(),
+    messageStore,
     aiProviderFactory: createDbAIProvider,
     eventEmitter: electronEventEmitter,
     pathProvider: electronPathProvider,
@@ -21,6 +23,7 @@ function createRuntimeConfig(): AgentRuntimeConfig {
     toolProvider: electronToolProvider,
     logger: electronLogger,
     isDev,
+    streamProcessor: createStreamProcessor(messageStore),
   }
 }
 
