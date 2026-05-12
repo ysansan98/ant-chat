@@ -37,6 +37,9 @@ jobs:
       - name: Rebuild better-sqlite3
         run: pnpm rebuild:node
 
+      - name: Build workspace packages
+        run: pnpm -F @ant-chat/agent-runtime build
+
       - name: TypeScript check
         run: pnpm type-check
 
@@ -102,6 +105,9 @@ jobs:
 
       - name: Rebuild better-sqlite3
         run: pnpm rebuild:node
+
+      - name: Build workspace packages
+        run: pnpm -F @ant-chat/agent-runtime build
 
       - name: Agent runtime e2e
         run: pnpm test:e2e:agent-runtime
