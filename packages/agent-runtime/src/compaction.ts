@@ -1,4 +1,4 @@
-import type { IAIProvider, ILogger, LoopMessage } from '@ant-chat/shared'
+import type { CompactionSettingsSchema, IAIProvider, ILogger, LoopMessage } from '@ant-chat/shared'
 
 const CONTEXT_WINDOWS: Record<string, number> = {
   anthropic: 200_000,
@@ -8,14 +8,9 @@ const CONTEXT_WINDOWS: Record<string, number> = {
 }
 
 const DEFAULT_CONTEXT_WINDOW = 128_000
+const TOOL_RESULT_MAX_LENGTH = 2000
 
-export interface CompactionSettings {
-  enabled: boolean
-  thresholdPercent: number
-  keepRecentPairs: number
-}
-
-export const DEFAULT_COMPACTION_SETTINGS: Readonly<CompactionSettings> = Object.freeze({
+export const DEFAULT_COMPACTION_SETTINGS: Readonly<CompactionSettingsSchema> = Object.freeze({
   enabled: true,
   thresholdPercent: 70,
   keepRecentPairs: 3,
@@ -97,7 +92,7 @@ function serializeMessages(messages: LoopMessage[]): string {
       for (const part of msg.content) {
         if (part.type === 'tool-result') {
           const resultStr = typeof part.result === 'string' ? part.result : JSON.stringify(part.result)
-          const truncated = resultStr.length > 2000 ? `${resultStr.slice(0, 2000)}...(truncated)` : resultStr
+          const truncated = resultStr.length > TOOL_RESULT_MAX_LENGTH ? `${resultStr.slice(0, TOOL_RESULT_MAX_LENGTH)}...(truncated)` : resultStr
           const errorTag = part.isError ? ' [ERROR]' : ''
           lines.push(`[tool-result ${part.toolName}${errorTag}]: ${truncated}`)
         }
@@ -109,7 +104,7 @@ function serializeMessages(messages: LoopMessage[]): string {
 
 export interface CompactionInput {
   messages: LoopMessage[]
-  settings: CompactionSettings
+  settings: CompactionSettingsSchema
   aiProvider: IAIProvider
   model: string
   providerFormat: string
@@ -169,12 +164,13 @@ export async function compactMessages(input: CompactionInput): Promise<Compactio
     role: 'user',
     content: [{
       type: 'text',
+      // 将压缩摘要注入为一条 user 消息，供模型后续对话参考
       text: [
-        '之前的对话历史已压缩为以下摘要：',
+        'Previous conversation history has been compressed into the following summary:',
         '<summary>',
         summary,
         '</summary>',
-        '请基于以上摘要和后续对话继续完成任务。',
+        'Continue the task based on the above summary and subsequent conversation.',
       ].join('\n'),
     }],
   }

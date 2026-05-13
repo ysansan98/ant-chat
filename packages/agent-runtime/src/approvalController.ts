@@ -32,7 +32,8 @@ export function createApprovalController(eventEmitter: IAgentEventEmitter) {
   function cancelTask(options: CancelTaskOptions) {
     const task = taskStore.get(options.taskId)
     if (!task)
-      throw new AgentError('AGENT_TASK_NOT_FOUND', '任务未找到')
+      // 取消操作时任务不存在
+      throw new AgentError('AGENT_TASK_NOT_FOUND', 'Task not found')
     task.abortController.abort()
     task.snapshot.status = 'cancelled'
     task.snapshot.pendingAction = undefined
@@ -42,11 +43,17 @@ export function createApprovalController(eventEmitter: IAgentEventEmitter) {
   }
 
   function waitForApproval(task: RuntimeTask): Promise<ApprovalDecision> {
+    let timer: ReturnType<typeof setTimeout>
     return new Promise<ApprovalDecision>((resolve, reject) => {
-      task.pendingResolver = resolve
-      setTimeout(() => {
+      task.pendingResolver = (decision: ApprovalDecision) => {
+        clearTimeout(timer)
+        resolve(decision)
+      }
+      timer = setTimeout(() => {
         if (task.snapshot.status === 'awaiting_approval') {
-          reject(new AgentError('AGENT_APPROVAL_TIMEOUT', '审批等待超时'))
+          task.pendingResolver = undefined
+          // 审批等待超时（5 分钟）
+          reject(new AgentError('AGENT_APPROVAL_TIMEOUT', 'Approval timeout'))
         }
       }, APPROVAL_TIMEOUT_MS)
     })
@@ -58,10 +65,10 @@ export function createApprovalController(eventEmitter: IAgentEventEmitter) {
 function getApprovableTask(taskId: string, actionId: string): RuntimeTask {
   const task = taskStore.get(taskId)
   if (!task)
-    throw new AgentError('AGENT_TASK_NOT_FOUND', '任务未找到')
+    throw new AgentError('AGENT_TASK_NOT_FOUND', 'Task not found')
   if (task.snapshot.status !== 'awaiting_approval' || !task.snapshot.pendingAction)
-    throw new AgentError('AGENT_TASK_NOT_APPROVABLE', '任务不在等待审批状态')
+    throw new AgentError('AGENT_TASK_NOT_APPROVABLE', 'Task is not awaiting approval')
   if (task.snapshot.pendingAction.actionId !== actionId)
-    throw new AgentError('AGENT_APPROVAL_ACTION_MISMATCH', '审批操作不匹配')
+    throw new AgentError('AGENT_APPROVAL_ACTION_MISMATCH', 'Approval action mismatch')
   return task
 }

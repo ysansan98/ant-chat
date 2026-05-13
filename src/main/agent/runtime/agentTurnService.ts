@@ -80,8 +80,6 @@ export async function startAgentTurn(options: StartAgentTurnOptions): Promise<Ag
       referencedFiles: options.referencedFiles,
       selectedSkill: options.selectedSkill,
     }),
-    referencedFiles: options.referencedFiles,
-    selectedSkill: options.selectedSkill,
     executionMode: options.mode,
     workspacePath,
     modelConfig: options.chatSettings,
