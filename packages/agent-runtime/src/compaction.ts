@@ -11,14 +11,12 @@ const DEFAULT_CONTEXT_WINDOW = 128_000
 
 export interface CompactionSettings {
   enabled: boolean
-  reserveTokens: number
   thresholdPercent: number
   keepRecentPairs: number
 }
 
 export const DEFAULT_COMPACTION_SETTINGS: Readonly<CompactionSettings> = Object.freeze({
   enabled: true,
-  reserveTokens: 4096,
   thresholdPercent: 70,
   keepRecentPairs: 3,
 })
@@ -109,65 +107,6 @@ function serializeMessages(messages: LoopMessage[]): string {
   return lines.join('\n')
 }
 
-const SUMMARIZATION_SYSTEM_PROMPT = `You compress prior agent conversation history so the task can continue accurately.
-
-Summarize only the provided conversation. Do not infer facts that are not present.
-If a section has no evidence, write "None" or "Unknown".
-
-Output exactly these sections:
-
-## User goal
-The user's final objective and any explicit constraints or preferences that still apply.
-
-## Completed work
-Concrete completed actions only. Include changed files, commands run, command results, and verification status.
-
-## Current state
-What the agent was doing when this history ended. Include pending edits, running commands, unresolved errors, and blockers.
-
-## Decisions
-Important implementation decisions and the reason recorded in the conversation.
-
-## Next actions
-Actionable next steps needed to continue the task.
-
-## Critical context
-Preserve exact file paths, commands, identifiers, versions, ports, URLs, error messages, test names, branch names, commit hashes, and user instructions.
-
-Rules:
-- Preserve exact literals. Do not rewrite paths, commands, identifiers, or error messages.
-- Do not mark planned work as completed.
-- Do not omit failing checks or unverified work.
-- Do not include commentary before or after the summary.`
-
-async function generateSummary(
-  serialized: string,
-  aiProvider: IAIProvider,
-  model: string,
-  reserveTokens: number,
-  abortSignal?: AbortSignal,
-): Promise<string> {
-  const maxSummaryTokens = Math.max(1024, Math.floor(reserveTokens * 0.8))
-  const userMessage = [
-    'Compress the following prior conversation history into a structured continuation summary:',
-    '',
-    '<conversation>',
-    serialized,
-    '</conversation>',
-  ].join('\n')
-
-  const result = await aiProvider.complete({
-    messages: [{ role: 'user', content: userMessage }],
-    chatSettings: {
-      model,
-      systemPrompt: SUMMARIZATION_SYSTEM_PROMPT,
-      maxTokens: maxSummaryTokens,
-    },
-    abortSignal,
-  })
-  return result.text
-}
-
 export interface CompactionInput {
   messages: LoopMessage[]
   settings: CompactionSettings
@@ -176,6 +115,7 @@ export interface CompactionInput {
   providerFormat: string
   abortSignal?: AbortSignal
   logger?: ILogger
+  summarize: (serialized: string, aiProvider: IAIProvider, model: string, abortSignal?: AbortSignal) => Promise<string>
 }
 
 export interface CompactionResult {
@@ -187,7 +127,7 @@ export interface CompactionResult {
 }
 
 export async function compactMessages(input: CompactionInput): Promise<CompactionResult> {
-  const { messages, settings, aiProvider, model, providerFormat, abortSignal, logger: log = defaultLogger() } = input
+  const { messages, settings, aiProvider, model, providerFormat, abortSignal, logger: log = defaultLogger(), summarize } = input
 
   if (!settings.enabled) {
     return { messages, compacted: false }
@@ -218,7 +158,7 @@ export async function compactMessages(input: CompactionInput): Promise<Compactio
 
   let summary: string
   try {
-    summary = await generateSummary(serialized, aiProvider, model, settings.reserveTokens, abortSignal)
+    summary = await summarize(serialized, aiProvider, model, abortSignal)
   }
   catch {
     log.warn('summary failed, keeping original messages')

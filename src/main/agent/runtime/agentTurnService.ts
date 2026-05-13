@@ -1,6 +1,7 @@
 import type { AddMessage, AgentRuntimeConfig, AgentTurnResult, StartAgentTurnOptions } from '@ant-chat/shared'
 import { AgentRuntime, buildPromptWithTurnContext } from '@ant-chat/agent-runtime'
 import { createDbAIProvider } from '@main/agent/adapters/aiProviderFactory.adapter'
+import { createCompactionStrategy } from '@main/agent/adapters/compactionStrategy.adapter'
 import { createDbConversationQuery } from '@main/agent/adapters/conversationQuery.adapter'
 import { dbModelResolver } from '@main/agent/adapters/dbModelResolver.adapter'
 import { createElectronEventEmitter } from '@main/agent/adapters/electronEventEmitter.adapter'
@@ -21,6 +22,7 @@ function createRuntimeConfig(): AgentRuntimeConfig {
     toolProvider: electronToolProvider,
     logger: electronLogger,
     isDev,
+    compactionStrategy: createCompactionStrategy(),
   }
 }
 

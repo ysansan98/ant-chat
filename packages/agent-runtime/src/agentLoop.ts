@@ -80,7 +80,7 @@ export async function runAgentLoop(input: {
         throw new AgentError('AGENT_TOOL_EXEC_FAILED', 'AI 提供者或模型未就绪')
       }
 
-      if (compactionSettings.enabled && resolvedProvider && step > 1) {
+      if (compactionSettings.enabled && resolvedProvider && step > 1 && config.compactionStrategy) {
         const estimatedTokens = estimateContextTokens(loopMessages)
         const contextWindow = getContextWindow(resolvedProvider.apiMode || 'openai')
         const usagePercent = Math.round(estimatedTokens / contextWindow * 100)
@@ -94,6 +94,7 @@ export async function runAgentLoop(input: {
           providerFormat: resolvedProvider.apiMode || 'openai',
           abortSignal: task.abortController.signal,
           logger: config.logger,
+          summarize: config.compactionStrategy.summarize,
         })
         if (compResult.compacted) {
           loopMessages = compResult.messages
