@@ -132,6 +132,10 @@ export type AIProviderFactory = (modelId: string, modelResolver: IModelResolver)
 
 export type ToolProvider = (workspacePath: string, mode: AgentMode) => Promise<AgentTool[]>
 
+export interface CompactionStrategy {
+  summarize: (serialized: string, aiProvider: IAIProvider, model: string, abortSignal?: AbortSignal) => Promise<string>
+}
+
 // ============================================================
 // Combined Config
 // ============================================================
@@ -145,4 +149,5 @@ export interface AgentRuntimeConfig {
   toolProvider: ToolProvider
   logger: ILogger
   isDev: boolean
+  compactionStrategy?: CompactionStrategy
 }
