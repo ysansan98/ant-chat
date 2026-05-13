@@ -1,5 +1,5 @@
 import type { IAgentEventEmitter } from '@ant-chat/shared'
-import { addMessage, createAIMessage, updateMessage as dbUpdateMessage, getConversationById, updateConversation } from '@main/db/services'
+import { createAIMessage, updateMessage as dbUpdateMessage, getConversationById, updateConversation } from '@main/db/services'
 import { sendToRenderer } from '@main/utils/ipc-events'
 import { getMainWindow } from '@main/window'
 
@@ -96,7 +96,6 @@ export function createElectronEventEmitter(): IAgentEventEmitter {
     },
 
     async emitCompactionSaved({ conversationId, summary, compactedAt }) {
-      await addMessage({ convId: conversationId, role: 'user', status: 'success', content: [{ type: 'text', text: `__COMPACTION__\n${summary}` }], images: [], attachments: [] } as any)
       const conv = await getConversationById(conversationId)
       if (conv) {
         await updateConversation({ id: conversationId, settings: { ...conv.settings, lastCompactedAt: compactedAt, lastCompactionSummary: summary } } as any)

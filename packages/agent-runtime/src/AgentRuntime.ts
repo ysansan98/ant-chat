@@ -83,7 +83,7 @@ export class AgentRuntime {
   getTask(taskId: string) {
     const task = taskStore.get(taskId)
     if (!task)
-      throw new AgentError('AGENT_TASK_NOT_FOUND', '任务未找到')
+      throw new AgentError('AGENT_TASK_NOT_FOUND', 'Task not found')
     return task.snapshot
   }
 

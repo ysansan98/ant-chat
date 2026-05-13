@@ -112,7 +112,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
       workspacePath: task.snapshot.workspacePath,
     })
     lastObservation = formatFailure(prepared, prepared.validationError, requestedToolCall.input)
-    await emitToolCalls(config, task.snapshot.conversationId, currentModelText, currentToolMessages, 'success')
+    await emitToolCalls(config, task.snapshot.conversationId, currentModelText, currentToolMessages)
     return {
       lastToolCallContext,
       toolCallId: currentToolCall.id,
@@ -139,7 +139,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
       workspacePath: task.snapshot.workspacePath,
     })
     lastObservation = formatFailure(prepared, policyDecision.errorCode, requestedToolCall.input)
-    await emitToolCalls(config, task.snapshot.conversationId, currentModelText, currentToolMessages, 'success')
+    await emitToolCalls(config, task.snapshot.conversationId, currentModelText, currentToolMessages)
     return {
       lastToolCallContext,
       toolCallId: currentToolCall.id,
@@ -164,7 +164,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
 
     const decisionResult = await waitForApproval(task)
     if (task.abortController.signal.aborted || decisionResult.reason === 'AGENT_CANCELLED') {
-      throw new AgentError('AGENT_CANCELLED', '任务已取消')
+      throw new AgentError('AGENT_CANCELLED', 'Task cancelled')
     }
 
     if (!decisionResult.approved) {
@@ -173,8 +173,9 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
         success: false,
         error: decisionResult.reason || 'AGENT_APPROVAL_REJECTED',
       }
-      lastObservation = `工具 ${prepared.toolName} 被拒绝: ${decisionResult.reason || '无原因'}`
-      await emitToolCalls(config, task.snapshot.conversationId, currentModelText, currentToolMessages, 'success')
+      // 工具被用户拒绝
+      lastObservation = `Tool ${prepared.toolName} rejected: ${decisionResult.reason || 'no reason given'}`
+      await emitToolCalls(config, task.snapshot.conversationId, currentModelText, currentToolMessages)
       return {
         lastToolCallContext,
         toolCallId: currentToolCall.id,
@@ -201,7 +202,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
       exitCode: result.exitCode,
     })
     lastObservation = formatFailure(prepared, result.error || 'AGENT_TOOL_EXEC_FAILED', requestedToolCall.input, result)
-    await emitToolCalls(config, task.snapshot.conversationId, currentModelText, currentToolMessages, 'success')
+    await emitToolCalls(config, task.snapshot.conversationId, currentModelText, currentToolMessages)
     return {
       lastToolCallContext,
       toolCallId: currentToolCall.id,
@@ -220,7 +221,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
     success: true,
     data: dataText,
   }
-  await emitToolCalls(config, task.snapshot.conversationId, currentModelText, currentToolMessages, 'success')
+  await emitToolCalls(config, task.snapshot.conversationId, currentModelText, currentToolMessages)
   await appendAgentLog(task.snapshot.conversationId, task.snapshot.userMessageId, 'tool_completed', {
     toolName: prepared.toolName,
     input: requestedToolCall.input,
@@ -242,7 +243,6 @@ function emitToolCalls(
   conversationId: string,
   text: string,
   toolMessages: McpToolCall[],
-  _status?: 'loading' | 'success',
 ) {
   config.eventEmitter.emitTurnToolCalls({
     conversationId,
@@ -256,17 +256,7 @@ function getToolOutputText(result: { output?: unknown, stdout?: string, stderr?:
     return result.output
   }
   if (result.output !== undefined) {
-    if (isSkillLoadedOutput(result.output)) {
-      return [
-        `Skill loaded: ${result.output.name}`,
-        '',
-        'Instructions:',
-        result.output.content,
-        '',
-        'Use these instructions for the current task. Continue by calling the appropriate native tools or provide the final answer if enough information is available.',
-      ].join('\n')
-    }
-    const text = JSON.stringify(result.output)
+    const text = typeof result.output === 'string' ? result.output : JSON.stringify(result.output)
     if (typeof text === 'string' && text.length > 0) {
       return text
     }
@@ -280,16 +270,6 @@ function getToolOutputText(result: { output?: unknown, stdout?: string, stderr?:
   return ''
 }
 
-function isSkillLoadedOutput(output: unknown): output is { type: 'skill_loaded', name: string, content: string } {
-  return Boolean(
-    output
-    && typeof output === 'object'
-    && (output as Record<string, unknown>).type === 'skill_loaded'
-    && typeof (output as Record<string, unknown>).name === 'string'
-    && typeof (output as Record<string, unknown>).content === 'string',
-  )
-}
-
 function buildObservation(
   prepared: PreparedToolCall,
   result: { output?: unknown, stdout?: string, stderr?: string, exitCode?: number },
@@ -301,7 +281,8 @@ function buildObservation(
   const truncated = prepared.truncateObservation !== false
     ? truncateText(outputText, DEFAULT_TOOL_OBSERVATION_LIMIT)
     : outputText
-  return `工具 ${prepared.toolName} 执行成功，输出: ${truncated}`
+  // 工具执行成功的观测文本，供模型下一轮决策
+  return `Tool ${prepared.toolName} succeeded, output: ${truncated}`
 }
 
 export async function createInvalidToolArgsResult(options: {
@@ -318,7 +299,8 @@ export async function createInvalidToolArgsResult(options: {
 }> {
   const { config, conversationId, requestedToolCall, currentModelText, currentToolMessages } = options
   const toolCallId = randomUUID()
-  const error = `工具 ${requestedToolCall.toolName} 参数解析失败：${requestedToolCall.invalidArgsError || 'args must be a JSON object'}。请修正参数后重新调用该工具。`
+  // 模型调用工具时参数格式错误，返回提示让模型修正
+  const error = `Tool ${requestedToolCall.toolName} argument error: ${requestedToolCall.invalidArgsError || 'args must be a JSON object'}. Fix the arguments and retry.`
   currentToolMessages.push({
     id: toolCallId,
     serverName: 'native',
@@ -332,7 +314,8 @@ export async function createInvalidToolArgsResult(options: {
   })
   config.eventEmitter.emitTurnToolCalls({
     conversationId,
-    text: currentModelText || '工具参数解析失败，等待模型修正。',
+    // 参数解析失败时的占位文本，通知消费者模型需要修正参数
+    text: currentModelText || 'Tool argument error, waiting for model to correct.',
     toolCalls: [...currentToolMessages],
   })
   return {
@@ -372,7 +355,9 @@ function formatFailure(
     if (result.exitCode !== undefined) {
       parts.push(`exitCode=${result.exitCode}`)
     }
-    return `工具 ${prepared.toolName} 执行失败：${error}\n${parts.join('\n')}`
+    // 工具执行失败，附上 stderr/stdout 帮助模型诊断
+    return `Tool ${prepared.toolName} failed: ${error}\n${parts.join('\n')}`
   }
-  return `工具 ${prepared.toolName} 执行失败：${error}`
+  // 工具执行失败的简单反馈
+  return `Tool ${prepared.toolName} failed: ${error}`
 }

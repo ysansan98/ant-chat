@@ -4,8 +4,6 @@ export interface RuntimeStartInput {
   conversationId: string
   userMessageId: string
   prompt: string
-  referencedFiles?: string[]
-  selectedSkill?: string
   workspacePath?: string
   executionMode?: AgentMode
   modelConfig?: Omit<ChatSettings, 'model'> & { modelId: string }

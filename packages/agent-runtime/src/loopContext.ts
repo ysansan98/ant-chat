@@ -8,28 +8,24 @@ export type NormalizeToolArgsResult
   = | { ok: true, input: Record<string, unknown> }
     | { ok: false, error: string }
 
-export function createLoopSystemPrompt(workspacePath: string): string {
+// 构建 agent 循环的系统提示词。消费者可通过 config.systemPrompt 自定义，
+// 使用 {workspacePath} 占位符注入工作区路径。
+export function createLoopSystemPrompt(workspacePath: string, customPrompt?: string): string {
+  if (customPrompt) {
+    return customPrompt.split('{workspacePath}').join(workspacePath)
+  }
+  // 默认英文轻量提示
   return [
-    '你是一个AI助手代理，目标是完成用户任务，不是展示过程。',
-    `当前工作区路径：${workspacePath}`,
-    '执行准则：',
-    '1. 与文件相关的请求必须优先调用工具，不要臆测文件内容。',
-    '2. 每一轮只做一个最有价值的下一步，避免无意义重复读取。',
-    '3. 你输出的自然语言要么是最终答复，要么配合当前已发起的工具调用；不要只输出"让我继续看看"这类计划句。',
-    '目录与路径规则：',
-    '1. 默认在当前工作区内工作，优先相对路径。',
-    '2. 当用户未明确要求跨目录时，不要访问 "/" 或无关绝对路径。',
-    '3. 如果工具返回路径不可访问或不存在，先改参数重试，不要重复同样调用。',
-    '工具调用规则：',
-    '1. read_file: offset 是 1-based 行号，limit 是行数。大文件必须递增 offset 分段读取。输出带 cat -n 风格行号，可引用具体行号定位代码。',
-    '2. list_dir: 使用 offset/limit 分页。hasMore=true 继续下一页；hasMore=false 立即停止该目录读取。',
-    '3. installed skills 会以工具形式出现。当任务匹配某个 skill 时，先调用 use_skill 或对应 skill_* 工具载入说明，再按说明继续调用 native tools。',
-    '4. 遇到工具错误时，先根据错误文本调整参数，再决定是否重试。同一失败参数禁止连续重复。',
-    '5. 工具结果可能被截断。若结果末尾包含继续读取提示，按提示继续读取，而不是改用无关工具。',
-    '完成与停止：',
-    '1. 只要信息已足够，就直接执行修改并给出最终结果。',
-    '2. 完成后直接给最终答复，包含改了什么、在哪些文件、结果如何。',
-    '3. 除非用户明确要求审计，不要为了"确认"而完整遍历所有文件。',
+    'You are an AI assistant. Your goal is to complete the user\'s task, not to describe what you plan to do.',
+    `Workspace path: ${workspacePath}`,
+    'Rules:',
+    '1. Always call tools for file-related requests. Do not guess file contents.',
+    '2. Take the single most valuable next step each turn.',
+    '3. Your output must be either a final answer or paired with an active tool call. Do not output plan-only statements.',
+    '4. Work inside the workspace directory. Prefer relative paths.',
+    '5. If a tool returns an error, adjust parameters and retry. Do not repeat the same failing call.',
+    '6. Tool results may be truncated. If the output indicates more content, continue reading.',
+    '7. When sufficient information is available, execute the change and provide the final result.',
   ].join('\n')
 }
 
@@ -46,9 +42,6 @@ export function buildConversationContextMessages(
       if (lastCompactedAt && message.createdAt < lastCompactedAt) {
         return false
       }
-      if (isCompactionMarkerMessage(message)) {
-        return false
-      }
       if (message.role === 'user') {
         return true
       }
@@ -62,12 +55,13 @@ export function buildConversationContextMessages(
       role: 'user',
       content: [{
         type: 'text',
+        // 将压缩摘要注入上下文，模型基于摘要继续任务
         text: [
-          '之前的对话历史已压缩为以下摘要：',
+          'Previous conversation history has been compressed into the following summary:',
           '<summary>',
           lastCompactionSummary,
           '</summary>',
-          '请基于以上摘要和后续对话继续完成任务。',
+          'Continue the task based on the above summary and subsequent conversation.',
         ].join('\n'),
       }],
     })
@@ -155,10 +149,4 @@ function extractMessageText(message: IMessage): string {
     .filter(Boolean)
     .join('\n')
     .trim()
-}
-
-function isCompactionMarkerMessage(message: IMessage): boolean {
-  if (message.role !== 'user')
-    return false
-  return message.content.some(block => block.type === 'text' && block.text.startsWith('__COMPACTION__'))
 }

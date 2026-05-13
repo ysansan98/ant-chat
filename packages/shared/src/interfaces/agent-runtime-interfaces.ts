@@ -150,4 +150,5 @@ export interface AgentRuntimeConfig {
   logger: ILogger
   isDev: boolean
   compactionStrategy?: CompactionStrategy
+  systemPrompt?: string
 }

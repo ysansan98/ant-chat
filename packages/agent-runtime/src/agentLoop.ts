@@ -1,6 +1,5 @@
 import type { AgentRuntimeConfig, AgentTaskSnapshot, IMessage, LoopMessage, McpToolCall } from '@ant-chat/shared'
 import type { ApprovalDecision } from './approvalController'
-import type { CompactionSettings } from './compaction'
 import type { ToolCallContext } from './toolExecution'
 import type { RuntimeStartInput } from './types'
 import { AgentError } from './AgentError'
@@ -29,7 +28,8 @@ export async function runAgentLoop(input: {
   const { taskId, options, config, appendAgentLog, approvalController } = input
   const task = taskStore.get(taskId)
   if (!task)
-    throw new AgentError('AGENT_TASK_NOT_FOUND', '任务未找到')
+    // 任务未在 taskStore 中找到
+    throw new AgentError('AGENT_TASK_NOT_FOUND', 'Task not found')
 
   const model = options.modelConfig?.modelId ? await config.modelResolver.getModelById(options.modelConfig.modelId) : null
   const provider = model ? config.modelResolver.getProviderById(model.serviceProviderId).then(p => p!) : null
@@ -38,18 +38,9 @@ export async function runAgentLoop(input: {
   const tools = await config.toolProvider(task.snapshot.workspacePath, task.snapshot.mode)
   const registry = new ToolRegistry(tools)
   const toolDefs = registry.listTools()
-  const loopSystemPrompt = createLoopSystemPrompt(task.snapshot.workspacePath)
+  const loopSystemPrompt = createLoopSystemPrompt(task.snapshot.workspacePath, config.systemPrompt)
 
-  const compactionSettings: CompactionSettings = {
-    ...DEFAULT_COMPACTION_SETTINGS,
-    ...(options.compaction
-      ? {
-          enabled: options.compaction.enabled,
-          thresholdPercent: options.compaction.thresholdPercent,
-          keepRecentPairs: options.compaction.keepRecentPairs,
-        }
-      : {}),
-  }
+  const compactionSettings = { ...DEFAULT_COMPACTION_SETTINGS, ...options.compaction }
   let compactionCount = 0
 
   let step = 0
@@ -61,8 +52,8 @@ export async function runAgentLoop(input: {
 
   try {
     const conversation = await config.conversationQuery.getConversationById(options.conversationId)
-    const lastCompactedAt = conversation?.settings?.lastCompactedAt as number | undefined
-    const lastCompactionSummary = conversation?.settings?.lastCompactionSummary as string | undefined
+    const lastCompactedAt = conversation?.settings?.lastCompactedAt
+    const lastCompactionSummary = conversation?.settings?.lastCompactionSummary
     const historyMessages: IMessage[] = await config.conversationQuery.getMessagesByConvId(options.conversationId)
     const contextMessages = buildConversationContextMessages(historyMessages, options.userMessageId, lastCompactedAt, lastCompactionSummary)
     loopMessages.push(...contextMessages)
@@ -73,11 +64,13 @@ export async function runAgentLoop(input: {
 
     for (;;) {
       if (task.abortController.signal.aborted)
-        throw new AgentError('AGENT_CANCELLED', '任务已取消')
+        // 用户请求中止任务
+        throw new AgentError('AGENT_CANCELLED', 'Task cancelled')
       step += 1
 
       if (!aiProvider || !model) {
-        throw new AgentError('AGENT_TOOL_EXEC_FAILED', 'AI 提供者或模型未就绪')
+        // AI 提供者或模型未初始化完成
+        throw new AgentError('AGENT_TOOL_EXEC_FAILED', 'AI provider or model not ready')
       }
 
       if (compactionSettings.enabled && resolvedProvider && step > 1 && config.compactionStrategy) {
@@ -201,7 +194,8 @@ export async function runAgentLoop(input: {
       currentModelText = modelText.trim()
 
       if (!requestedToolCall) {
-        finalAnswer = currentModelText || '任务已完成。'
+        // 模型未返回文本时的最终占位答案
+        finalAnswer = currentModelText || 'Task completed.'
         loopMessages.push({ role: 'assistant', content: [{ type: 'text', text: modelText }] })
 
         config.eventEmitter.emitTurnFinished({
@@ -299,7 +293,8 @@ async function handleLoopFailure(options: {
     task.snapshot.status = 'cancelled'
     config.eventEmitter.emitTurnFinished({
       conversationId: task.snapshot.conversationId,
-      text: '任务已取消',
+      // 通知消费者任务已取消
+      text: 'Task cancelled.',
       status: 'cancel',
     })
   }
@@ -309,7 +304,8 @@ async function handleLoopFailure(options: {
     task.snapshot.errorMessage = error.message
     config.eventEmitter.emitTurnFinished({
       conversationId: task.snapshot.conversationId,
-      text: `任务失败：${error.message}`,
+      // 通知消费者任务执行失败
+      text: `Task failed: ${error.message}`,
       status: 'error',
     })
   }
