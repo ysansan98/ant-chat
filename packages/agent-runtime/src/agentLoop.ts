@@ -32,7 +32,13 @@ export async function runAgentLoop(input: {
     throw new AgentError('AGENT_TASK_NOT_FOUND', 'Task not found')
 
   const model = options.modelConfig?.modelId ? await config.modelResolver.getModelById(options.modelConfig.modelId) : null
-  const provider = model ? config.modelResolver.getProviderById(model.serviceProviderId).then(p => p!) : null
+  const provider = model
+    ? config.modelResolver.getProviderById(model.serviceProviderId).then((p) => {
+        if (!p)
+          throw new AgentError('AGENT_PROVIDER_NOT_FOUND', `Provider not found for model ${model.model}`)
+        return p
+      })
+    : null
   const resolvedProvider = await provider
   const aiProvider = model ? await config.aiProviderFactory(options.modelConfig!.modelId, config.modelResolver) : null
   const tools = await config.toolProvider(task.snapshot.workspacePath, task.snapshot.mode)
@@ -73,7 +79,7 @@ export async function runAgentLoop(input: {
         throw new AgentError('AGENT_TOOL_EXEC_FAILED', 'AI provider or model not ready')
       }
 
-      if (compactionSettings.enabled && resolvedProvider && step > 1 && config.compactionStrategy) {
+      if (compactionSettings.enabled && resolvedProvider && config.compactionStrategy) {
         const estimatedTokens = estimateContextTokens(loopMessages)
         const contextWindow = getContextWindow(resolvedProvider.apiMode || 'openai')
         const usagePercent = Math.round(estimatedTokens / contextWindow * 100)
@@ -81,6 +87,7 @@ export async function runAgentLoop(input: {
 
         const compResult = await compactMessages({
           messages: loopMessages,
+          preEstimatedTokens: estimatedTokens,
           settings: compactionSettings,
           aiProvider,
           model: model.model,
@@ -121,6 +128,13 @@ export async function runAgentLoop(input: {
         }
       }
 
+      const chatSettings = {
+        model: model.model,
+        temperature: options.modelConfig?.temperature,
+        maxTokens: options.modelConfig?.maxTokens,
+        systemPrompt: loopSystemPrompt,
+      }
+
       config.eventEmitter.emitTurnStarted({
         conversationId: options.conversationId,
         model: {
@@ -137,12 +151,7 @@ export async function runAgentLoop(input: {
           workspacePath: task.snapshot.workspacePath,
           requestBody: {
             messages: loopMessages,
-            chatSettings: {
-              model: model.model,
-              temperature: options.modelConfig?.temperature,
-              maxTokens: options.modelConfig?.maxTokens,
-              systemPrompt: loopSystemPrompt,
-            },
+            chatSettings,
             tools: toolDefs.map(item => ({ name: item.name, description: item.description, inputSchema: item.inputSchema })),
           },
         })
@@ -150,18 +159,13 @@ export async function runAgentLoop(input: {
 
       const stream = aiProvider.streamModel({
         messages: loopMessages,
-        chatSettings: {
-          model: model.model,
-          temperature: options.modelConfig?.temperature,
-          maxTokens: options.modelConfig?.maxTokens,
-          systemPrompt: loopSystemPrompt,
-        },
+        chatSettings,
         tools: toolDefs.map(item => ({ ...item, serverName: 'native' })),
         abortSignal: task.abortController.signal,
       })
 
       let modelText = ''
-      let requestedToolCall: { toolName: string, input: Record<string, unknown>, invalidArgsError?: string } | null = null
+      const toolCallMap = new Map<string, { toolName: string, input: Record<string, unknown>, invalidArgsError?: string }>()
 
       for await (const chunk of stream) {
         const content = chunk.content || []
@@ -171,14 +175,13 @@ export async function runAgentLoop(input: {
           }
         }
         const functionCalls = chunk.functionCalls || []
-        if (functionCalls.length > 0) {
-          const fc = functionCalls[0]
+        for (const fc of functionCalls) {
           const argsResult = normalizeToolArgs(fc.args)
-          requestedToolCall = {
+          toolCallMap.set(fc.toolName, {
             toolName: fc.toolName,
             input: argsResult.ok ? argsResult.input : {},
             invalidArgsError: argsResult.ok ? undefined : argsResult.error,
-          }
+          })
         }
         config.eventEmitter.emitTurnChunk({
           conversationId: options.conversationId,
@@ -186,14 +189,15 @@ export async function runAgentLoop(input: {
           chunk,
         })
       }
+      const requestedToolCalls = [...toolCallMap.values()]
       await appendAgentLog(task.snapshot.conversationId, task.snapshot.userMessageId, 'model_response_finished', {
         step,
         textPreview: modelText.slice(0, 500),
-        hasToolCall: Boolean(requestedToolCall),
+        hasToolCall: requestedToolCalls.length > 0,
       })
       currentModelText = modelText.trim()
 
-      if (!requestedToolCall) {
+      if (requestedToolCalls.length === 0) {
         // 模型未返回文本时的最终占位答案
         finalAnswer = currentModelText || 'Task completed.'
         loopMessages.push({ role: 'assistant', content: [{ type: 'text', text: modelText }] })
@@ -206,18 +210,31 @@ export async function runAgentLoop(input: {
         break
       }
 
-      const toolStepResult = requestedToolCall.invalidArgsError
-        ? await createInvalidToolArgsResult({
+      // Execute all tool calls
+      interface ToolStepOutcome { toolCallId: string, toolName: string, toolResultContent: string, isError: boolean, lastContext: ToolCallContext }
+      const outcomes: ToolStepOutcome[] = []
+      for (const rc of requestedToolCalls) {
+        if (rc.invalidArgsError) {
+          const res = createInvalidToolArgsResult({
             config,
             conversationId: options.conversationId,
-            requestedToolCall,
+            requestedToolCall: rc,
             currentModelText,
             currentToolMessages,
           })
-        : await executeToolStep({
+          outcomes.push({
+            toolCallId: res.toolCallId,
+            toolName: rc.toolName,
+            toolResultContent: res.toolResultContent,
+            isError: res.isError,
+            lastContext: res.lastToolCallContext,
+          })
+        }
+        else {
+          const res = await executeToolStep({
             task,
             registry,
-            requestedToolCall,
+            requestedToolCall: rc,
             currentModelText,
             currentToolMessages,
             step,
@@ -228,30 +245,43 @@ export async function runAgentLoop(input: {
               lastToolCallContext = context
             },
           })
-      lastToolCallContext = toolStepResult.lastToolCallContext
+          outcomes.push({
+            toolCallId: res.toolCallId,
+            toolName: rc.toolName,
+            toolResultContent: res.toolResultContent,
+            isError: res.isError,
+            lastContext: res.lastToolCallContext,
+          })
+        }
+      }
+      lastToolCallContext = outcomes[outcomes.length - 1]?.lastContext ?? lastToolCallContext
 
       const assistantContent: LoopMessage['content'] = []
       if (modelText.trim()) {
         assistantContent.push({ type: 'text', text: modelText })
       }
-      assistantContent.push({
-        type: 'tool-call',
-        toolCallId: toolStepResult.toolCallId,
-        toolName: requestedToolCall.toolName,
-        args: requestedToolCall.input,
-      })
+      for (let i = 0; i < requestedToolCalls.length; i++) {
+        assistantContent.push({
+          type: 'tool-call',
+          toolCallId: outcomes[i].toolCallId,
+          toolName: requestedToolCalls[i].toolName,
+          args: requestedToolCalls[i].input,
+        })
+      }
       loopMessages.push({ role: 'assistant', content: assistantContent })
 
-      loopMessages.push({
-        role: 'tool',
-        content: [{
-          type: 'tool-result',
-          toolCallId: toolStepResult.toolCallId,
-          toolName: requestedToolCall.toolName,
-          result: toolStepResult.toolResultContent,
-          isError: toolStepResult.isError,
-        }],
-      })
+      for (const outcome of outcomes) {
+        loopMessages.push({
+          role: 'tool',
+          content: [{
+            type: 'tool-result',
+            toolCallId: outcome.toolCallId,
+            toolName: outcome.toolName,
+            result: outcome.toolResultContent,
+            isError: outcome.isError,
+          }],
+        })
+      }
     }
 
     task.snapshot.status = 'success'

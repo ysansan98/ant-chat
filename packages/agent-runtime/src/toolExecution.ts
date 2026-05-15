@@ -100,33 +100,25 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   })
 
   if (prepared.validationError) {
-    currentToolCall.executeState = 'completed'
-    currentToolCall.result = {
-      success: false,
-      error: prepared.validationError,
-    }
     await appendAgentLog(task.snapshot.conversationId, task.snapshot.userMessageId, 'tool_failed', {
       toolName: prepared.toolName,
       input: requestedToolCall.input,
       error: prepared.validationError,
       workspacePath: task.snapshot.workspacePath,
     })
-    lastObservation = formatFailure(prepared, prepared.validationError, requestedToolCall.input)
-    await emitToolCalls(config, task.snapshot.conversationId, currentModelText, currentToolMessages)
-    return {
+    return finalizeToolError(
+      currentToolCall,
+      prepared.validationError,
+      formatFailure(prepared, prepared.validationError, requestedToolCall.input),
       lastToolCallContext,
-      toolCallId: currentToolCall.id,
-      toolResultContent: lastObservation,
-      isError: true,
-    }
+      config,
+      task.snapshot.conversationId,
+      currentModelText,
+      currentToolMessages,
+    )
   }
 
   if (policyDecision.type === 'block') {
-    currentToolCall.executeState = 'completed'
-    currentToolCall.result = {
-      success: false,
-      error: policyDecision.errorCode,
-    }
     await appendAgentLog(task.snapshot.conversationId, task.snapshot.userMessageId, 'tool_blocked', {
       step,
       toolName: requestedToolCall.toolName,
@@ -138,14 +130,16 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
       errorCode: policyDecision.errorCode,
       workspacePath: task.snapshot.workspacePath,
     })
-    lastObservation = formatFailure(prepared, policyDecision.errorCode, requestedToolCall.input)
-    await emitToolCalls(config, task.snapshot.conversationId, currentModelText, currentToolMessages)
-    return {
+    return finalizeToolError(
+      currentToolCall,
+      policyDecision.errorCode,
+      formatFailure(prepared, policyDecision.errorCode, requestedToolCall.input),
       lastToolCallContext,
-      toolCallId: currentToolCall.id,
-      toolResultContent: lastObservation,
-      isError: true,
-    }
+      config,
+      task.snapshot.conversationId,
+      currentModelText,
+      currentToolMessages,
+    )
   }
 
   if (policyDecision.type === 'require_approval') {
@@ -168,47 +162,41 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
     }
 
     if (!decisionResult.approved) {
-      currentToolCall.executeState = 'completed'
-      currentToolCall.result = {
-        success: false,
-        error: decisionResult.reason || 'AGENT_APPROVAL_REJECTED',
-      }
-      // 工具被用户拒绝
-      lastObservation = `Tool ${prepared.toolName} rejected: ${decisionResult.reason || 'no reason given'}`
-      await emitToolCalls(config, task.snapshot.conversationId, currentModelText, currentToolMessages)
-      return {
+      return finalizeToolError(
+        currentToolCall,
+        decisionResult.reason || 'AGENT_APPROVAL_REJECTED',
+        `Tool ${prepared.toolName} rejected: ${decisionResult.reason || 'no reason given'}`,
         lastToolCallContext,
-        toolCallId: currentToolCall.id,
-        toolResultContent: lastObservation,
-        isError: true,
-      }
+        config,
+        task.snapshot.conversationId,
+        currentModelText,
+        currentToolMessages,
+      )
     }
   }
 
   const result = await prepared.execute()
   if (!result.ok) {
-    currentToolCall.executeState = 'completed'
-    currentToolCall.result = {
-      success: false,
-      error: result.error || 'AGENT_TOOL_EXEC_FAILED',
-    }
+    const errorMsg = result.error || 'AGENT_TOOL_EXEC_FAILED'
     await appendAgentLog(task.snapshot.conversationId, task.snapshot.userMessageId, 'tool_failed', {
       toolName: prepared.toolName,
       input: requestedToolCall.input,
-      error: result.error || 'AGENT_TOOL_EXEC_FAILED',
+      error: errorMsg,
       workspacePath: task.snapshot.workspacePath,
       stdout: result.stdout,
       stderr: result.stderr,
       exitCode: result.exitCode,
     })
-    lastObservation = formatFailure(prepared, result.error || 'AGENT_TOOL_EXEC_FAILED', requestedToolCall.input, result)
-    await emitToolCalls(config, task.snapshot.conversationId, currentModelText, currentToolMessages)
-    return {
+    return finalizeToolError(
+      currentToolCall,
+      errorMsg,
+      formatFailure(prepared, errorMsg, requestedToolCall.input, result),
       lastToolCallContext,
-      toolCallId: currentToolCall.id,
-      toolResultContent: lastObservation,
-      isError: true,
-    }
+      config,
+      task.snapshot.conversationId,
+      currentModelText,
+      currentToolMessages,
+    )
   }
 
   const toolOutputText = getToolOutputText(result)
@@ -251,13 +239,34 @@ function emitToolCalls(
   })
 }
 
+async function finalizeToolError(
+  currentToolCall: McpToolCall,
+  error: string,
+  lastObservation: string,
+  lastToolCallContext: ToolCallContext,
+  config: AgentRuntimeConfig,
+  conversationId: string,
+  currentModelText: string,
+  currentToolMessages: McpToolCall[],
+): Promise<ExecuteToolStepResult> {
+  currentToolCall.executeState = 'completed'
+  currentToolCall.result = { success: false, error }
+  await emitToolCalls(config, conversationId, currentModelText, currentToolMessages)
+  return {
+    lastToolCallContext,
+    toolCallId: currentToolCall.id,
+    toolResultContent: lastObservation,
+    isError: true,
+  }
+}
+
 function getToolOutputText(result: { output?: unknown, stdout?: string, stderr?: string, exitCode?: number }): string {
   if (typeof result.output === 'string') {
     return result.output
   }
   if (result.output !== undefined) {
-    const text = typeof result.output === 'string' ? result.output : JSON.stringify(result.output)
-    if (typeof text === 'string' && text.length > 0) {
+    const text = JSON.stringify(result.output)
+    if (text.length > 0) {
       return text
     }
   }
@@ -285,18 +294,18 @@ function buildObservation(
   return `Tool ${prepared.toolName} succeeded, output: ${truncated}`
 }
 
-export async function createInvalidToolArgsResult(options: {
+export function createInvalidToolArgsResult(options: {
   config: AgentRuntimeConfig
   conversationId: string
   requestedToolCall: { toolName: string, input: Record<string, unknown>, invalidArgsError?: string }
   currentModelText: string
   currentToolMessages: McpToolCall[]
-}): Promise<{
+}): {
   lastToolCallContext: ToolCallContext
   toolCallId: string
   toolResultContent: string
   isError: boolean
-}> {
+} {
   const { config, conversationId, requestedToolCall, currentModelText, currentToolMessages } = options
   const toolCallId = randomUUID()
   // 模型调用工具时参数格式错误，返回提示让模型修正

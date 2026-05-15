@@ -111,6 +111,8 @@ export interface CompactionInput {
   abortSignal?: AbortSignal
   logger?: ILogger
   summarize: (serialized: string, aiProvider: IAIProvider, model: string, abortSignal?: AbortSignal) => Promise<string>
+  /** Pre-computed token estimate to avoid double computation */
+  preEstimatedTokens?: number
 }
 
 export interface CompactionResult {
@@ -122,13 +124,13 @@ export interface CompactionResult {
 }
 
 export async function compactMessages(input: CompactionInput): Promise<CompactionResult> {
-  const { messages, settings, aiProvider, model, providerFormat, abortSignal, logger: log = defaultLogger(), summarize } = input
+  const { messages, settings, aiProvider, model, providerFormat, abortSignal, logger: log = defaultLogger(), summarize, preEstimatedTokens } = input
 
   if (!settings.enabled) {
     return { messages, compacted: false }
   }
 
-  const estimatedTokens = estimateContextTokens(messages)
+  const estimatedTokens = preEstimatedTokens ?? estimateContextTokens(messages)
   const contextWindow = getContextWindow(providerFormat)
   const thresholdTokens = Math.floor(contextWindow * settings.thresholdPercent / 100)
 

@@ -7,5 +7,6 @@ export class AgentError extends Error {
     super(message)
     this.name = 'AgentError'
     this.code = code
+    Object.setPrototypeOf(this, AgentError.prototype)
   }
 }
