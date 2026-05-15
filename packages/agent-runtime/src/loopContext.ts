@@ -36,15 +36,15 @@ export function buildConversationContextMessages(
   lastCompactionSummary?: string,
 ): LoopMessage[] {
   const valid = messages
-    .filter(message => message.id !== currentUserMessageId)
-    .filter((message): message is IMessage & { role: 'user' | 'assistant' } => message.role === 'user' || message.role === 'assistant')
-    .filter((message) => {
-      if (lastCompactedAt && message.createdAt < lastCompactedAt) {
+    .filter((message): message is IMessage & { role: 'user' | 'assistant' } => {
+      if (message.id === currentUserMessageId)
         return false
-      }
-      if (message.role === 'user') {
+      if (message.role !== 'user' && message.role !== 'assistant')
+        return false
+      if (lastCompactedAt && message.createdAt < lastCompactedAt)
+        return false
+      if (message.role === 'user')
         return true
-      }
       return message.status === 'success' || message.status === 'error' || message.status === 'cancel'
     })
 

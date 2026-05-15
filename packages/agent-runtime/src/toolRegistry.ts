@@ -18,6 +18,11 @@ export class ToolRegistry {
   private readonly relaxedTools: Map<string, AgentTool>
 
   constructor(tools: AgentTool[], relaxedTools?: AgentTool[]) {
+    for (const tool of tools) {
+      if (!tool.description || !tool.inputSchema) {
+        throw new Error(`Tool "${tool.name}" is missing required description or inputSchema`)
+      }
+    }
     this.tools = new Map(tools.map(tool => [tool.name, tool]))
     this.relaxedTools = relaxedTools
       ? new Map(relaxedTools.map(tool => [tool.name, tool]))
@@ -59,14 +64,11 @@ export class ToolRegistry {
 
   listTools(): RuntimeToolDefinition[] {
     return [...this.tools.values()].map((tool) => {
-      if (!tool.description || !tool.inputSchema) {
-        throw new Error(`工具 "${tool.name}" 缺少必需的 description 或 inputSchema`)
-      }
       return {
         name: tool.name,
         source: tool.source,
-        description: tool.description,
-        inputSchema: tool.inputSchema,
+        description: tool.description!,
+        inputSchema: tool.inputSchema!,
       }
     })
   }
