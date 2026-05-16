@@ -1,4 +1,3 @@
-import type { IAgentPathProvider } from '@ant-chat/shared'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
@@ -15,10 +14,9 @@ function maskValue(raw: unknown): unknown {
   return raw
 }
 
-export function createAgentLogger(pathProvider: IAgentPathProvider) {
+export function createAgentLogger(logsDir: string) {
   async function appendAgentLog(conversationId: string, userMessageId: string, event: string, payload: Record<string, unknown>) {
-    const root = pathProvider.getLogsDir()
-    const logPath = path.join(root, conversationId, `${userMessageId}.jsonl`)
+    const logPath = path.join(logsDir, conversationId, `${userMessageId}.jsonl`)
     await fs.mkdir(path.dirname(logPath), { recursive: true })
     const line = JSON.stringify({ time: Date.now(), event, payload: maskValue(payload) })
     await fs.appendFile(logPath, `${line}\n`, 'utf8')

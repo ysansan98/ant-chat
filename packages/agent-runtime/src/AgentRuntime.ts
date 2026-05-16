@@ -1,9 +1,7 @@
-import type { AgentRuntimeConfig, AgentTaskSnapshot, ApprovePendingActionOptions, CancelTaskOptions, RejectPendingActionOptions } from '@ant-chat/shared'
+import type { AgentRuntimeConfig, AgentTaskSnapshot, ApprovePendingActionOptions, CancelTaskOptions, LoopMessage, RejectPendingActionOptions } from '@ant-chat/shared'
 import type { RuntimeStartInput } from './types'
 import { randomUUID } from 'node:crypto'
-import process from 'node:process'
 import { AgentError } from './AgentError'
-import { createAgentLogger } from './agentLogger'
 import { runAgentLoop } from './agentLoop'
 import { createApprovalController } from './approvalController'
 import { taskStore } from './taskStore'
@@ -11,15 +9,19 @@ import { taskStore } from './taskStore'
 export class AgentRuntime {
   private config: AgentRuntimeConfig
   private approvalController: ReturnType<typeof createApprovalController>
-  private agentLogger: ReturnType<typeof createAgentLogger>
 
   constructor(config: AgentRuntimeConfig) {
     this.config = config
     this.approvalController = createApprovalController(config.eventEmitter)
-    this.agentLogger = createAgentLogger(config.pathProvider)
   }
 
-  async startTask(options: RuntimeStartInput) {
+  async startTask(
+    options: RuntimeStartInput,
+    runtime: {
+      onBeforeTurn?: (ctx: { messages: LoopMessage[], step: number }) => Promise<{ messages: LoopMessage[] }>
+      appendAgentLog: (conversationId: string, userMessageId: string, event: string, payload: Record<string, unknown>) => Promise<string>
+    },
+  ) {
     const missing: string[] = []
     if (!options.conversationId?.trim())
       missing.push('conversationId')
@@ -33,15 +35,13 @@ export class AgentRuntime {
 
     const now = Date.now()
     const taskId = randomUUID()
-    const mode = options.executionMode ?? 'hybrid'
-    const workspacePath = options.workspacePath ?? process.cwd()
 
     const snapshot: AgentTaskSnapshot = {
       taskId,
       conversationId: options.conversationId,
       userMessageId: options.userMessageId,
-      workspacePath,
-      mode,
+      workspacePath: options.workspacePath,
+      mode: options.mode,
       status: 'running',
       createdAt: now,
       updatedAt: now,
@@ -50,18 +50,19 @@ export class AgentRuntime {
     }
 
     taskStore.create({ snapshot, abortController: new AbortController() })
-    snapshot.logPath = await this.agentLogger.appendAgentLog(options.conversationId, options.userMessageId, 'task_started', {
+    snapshot.logPath = await runtime.appendAgentLog(options.conversationId, options.userMessageId, 'task_started', {
       conversationId: options.conversationId,
       userMessageId: options.userMessageId,
-      mode,
-      workspacePath,
+      mode: options.mode,
+      workspacePath: options.workspacePath,
     })
     this.config.eventEmitter.emitTaskUpdated(snapshot)
     void runAgentLoop({
       taskId,
       options,
       config: this.config,
-      appendAgentLog: this.agentLogger.appendAgentLog,
+      onBeforeTurn: runtime.onBeforeTurn,
+      appendAgentLog: runtime.appendAgentLog,
       approvalController: this.approvalController,
     }).catch(() => {})
 
