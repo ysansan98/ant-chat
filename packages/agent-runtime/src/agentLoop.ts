@@ -16,10 +16,9 @@ export async function runAgentLoop(input: {
     messages: LoopMessage[]
     step: number
   }) => Promise<{ messages: LoopMessage[] }>
-  appendAgentLog: (conversationId: string, userMessageId: string, event: string, payload: Record<string, unknown>) => Promise<string>
   approvalController: { waitForApproval: (task: NonNullable<ReturnType<typeof taskStore.get>>) => Promise<ApprovalDecision> }
 }) {
-  const { taskId, options, config, onBeforeTurn, appendAgentLog, approvalController } = input
+  const { taskId, options, config, onBeforeTurn, approvalController } = input
   const task = taskStore.get(taskId)
   if (!task)
     throw new AgentError('AGENT_TASK_NOT_FOUND', 'Task not found')
@@ -75,12 +74,7 @@ export async function runAgentLoop(input: {
 
       currentToolMessages = []
 
-      await appendAgentLog(options.conversationId, options.userMessageId, 'model_request_started', {
-        step,
-        workspacePath: options.workspacePath,
-        messageCount: loopMessages.length,
-        toolCount: toolDefs.length,
-      })
+      config.logger.info('agent-runtime', { event: 'model_request_started', conversationId: options.conversationId, userMessageId: options.userMessageId, step, messageCount: loopMessages.length, toolCount: toolDefs.length })
 
       const stream = aiProvider.streamModel({
         messages: loopMessages,
@@ -117,11 +111,7 @@ export async function runAgentLoop(input: {
 
       const requestedToolCalls = [...toolCallMap.values()]
 
-      await appendAgentLog(options.conversationId, options.userMessageId, 'model_response_finished', {
-        step,
-        textPreview: modelText.slice(0, 500),
-        hasToolCall: requestedToolCalls.length > 0,
-      })
+      config.logger.info('agent-runtime', { event: 'model_response_finished', conversationId: options.conversationId, userMessageId: options.userMessageId, step, textPreview: modelText.slice(0, 500), hasToolCall: requestedToolCalls.length > 0 })
       currentModelText = modelText.trim()
 
       if (requestedToolCalls.length === 0) {
@@ -165,7 +155,6 @@ export async function runAgentLoop(input: {
             currentToolMessages,
             step,
             config,
-            appendAgentLog,
             waitForApproval: approvalController.waitForApproval,
             onToolCallContext: (context) => {
               lastToolCallContext = context
@@ -212,7 +201,7 @@ export async function runAgentLoop(input: {
 
     task.snapshot.status = 'success'
     config.eventEmitter.emitTaskUpdated(task.snapshot)
-    await appendAgentLog(options.conversationId, options.userMessageId, 'task_completed', { finalAnswer })
+    config.logger.info('agent-runtime', { event: 'task_completed', conversationId: options.conversationId, userMessageId: options.userMessageId, finalAnswer })
   }
   catch (error) {
     await handleLoopFailure({
@@ -220,7 +209,6 @@ export async function runAgentLoop(input: {
       task,
       error: error as Error,
       lastToolCallContext,
-      appendAgentLog,
     })
   }
   finally {
@@ -236,9 +224,8 @@ async function handleLoopFailure(options: {
   task: NonNullable<ReturnType<typeof taskStore.get>>
   error: Error
   lastToolCallContext: ToolCallContext | null
-  appendAgentLog: (conversationId: string, userMessageId: string, event: string, payload: Record<string, unknown>) => Promise<string>
 }) {
-  const { config, task, error, lastToolCallContext, appendAgentLog } = options
+  const { config, task, error, lastToolCallContext } = options
   const failurePayload = {
     error: error.message,
     stack: error.stack || '',
@@ -264,6 +251,5 @@ async function handleLoopFailure(options: {
     })
   }
   config.eventEmitter.emitTaskUpdated(task.snapshot)
-  await appendAgentLog(task.snapshot.conversationId, task.snapshot.userMessageId, 'task_failed', failurePayload)
   config.logger.error('[agent-runtime] task_failed', failurePayload)
 }

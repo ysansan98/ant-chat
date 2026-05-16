@@ -31,7 +31,6 @@ export interface ExecuteToolStepOptions {
   currentToolMessages: McpToolCall[]
   step: number
   config: AgentRuntimeConfig
-  appendAgentLog: (conversationId: string, userMessageId: string, event: string, payload: Record<string, unknown>) => Promise<string>
   waitForApproval: (task: RuntimeTask) => Promise<ApprovalDecision>
   onToolCallContext?: (context: ToolCallContext) => void
 }
@@ -52,16 +51,11 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
     currentToolMessages,
     step,
     config,
-    appendAgentLog,
     waitForApproval,
     onToolCallContext,
   } = options
 
-  await appendAgentLog(task.snapshot.conversationId, task.snapshot.userMessageId, 'tool_call_received', {
-    step,
-    toolName: requestedToolCall.toolName,
-    input: requestedToolCall.input,
-  })
+  config.logger.info('agent-runtime', { event: 'tool_call_received', conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, step, toolName: requestedToolCall.toolName, input: requestedToolCall.input })
 
   const prepared = registry.prepare(requestedToolCall.toolName, requestedToolCall.input)
 
@@ -90,22 +84,10 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   }
   onToolCallContext?.(lastToolCallContext)
 
-  await appendAgentLog(task.snapshot.conversationId, task.snapshot.userMessageId, 'tool_decision', {
-    toolName: requestedToolCall.toolName,
-    input: requestedToolCall.input,
-    operationType: prepared.operationType,
-    scope: prepared.scope,
-    policy: policyDecision.type,
-    workspacePath: task.snapshot.workspacePath,
-  })
+  config.logger.info('agent-runtime', { event: 'tool_decision', conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, toolName: requestedToolCall.toolName, input: requestedToolCall.input, operationType: prepared.operationType, scope: prepared.scope, policy: policyDecision.type, workspacePath: task.snapshot.workspacePath })
 
   if (prepared.validationError) {
-    await appendAgentLog(task.snapshot.conversationId, task.snapshot.userMessageId, 'tool_failed', {
-      toolName: prepared.toolName,
-      input: requestedToolCall.input,
-      error: prepared.validationError,
-      workspacePath: task.snapshot.workspacePath,
-    })
+    config.logger.info('agent-runtime', { event: 'tool_failed', conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, toolName: prepared.toolName, input: requestedToolCall.input, error: prepared.validationError, workspacePath: task.snapshot.workspacePath })
     return finalizeToolError(
       currentToolCall,
       prepared.validationError,
@@ -119,17 +101,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   }
 
   if (policyDecision.type === 'block') {
-    await appendAgentLog(task.snapshot.conversationId, task.snapshot.userMessageId, 'tool_blocked', {
-      step,
-      toolName: requestedToolCall.toolName,
-      input: requestedToolCall.input,
-      operationType: prepared.operationType,
-      scope: prepared.scope,
-      policy: policyDecision.type,
-      reason: policyDecision.reason,
-      errorCode: policyDecision.errorCode,
-      workspacePath: task.snapshot.workspacePath,
-    })
+    config.logger.info('agent-runtime', { event: 'tool_blocked', conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, step, toolName: requestedToolCall.toolName, input: requestedToolCall.input, operationType: prepared.operationType, scope: prepared.scope, policy: policyDecision.type, reason: policyDecision.reason, errorCode: policyDecision.errorCode, workspacePath: task.snapshot.workspacePath })
     return finalizeToolError(
       currentToolCall,
       policyDecision.errorCode,
@@ -178,15 +150,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   const result = await prepared.execute()
   if (!result.ok) {
     const errorMsg = result.error || 'AGENT_TOOL_EXEC_FAILED'
-    await appendAgentLog(task.snapshot.conversationId, task.snapshot.userMessageId, 'tool_failed', {
-      toolName: prepared.toolName,
-      input: requestedToolCall.input,
-      error: errorMsg,
-      workspacePath: task.snapshot.workspacePath,
-      stdout: result.stdout,
-      stderr: result.stderr,
-      exitCode: result.exitCode,
-    })
+    config.logger.info('agent-runtime', { event: 'tool_failed', conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, toolName: prepared.toolName, input: requestedToolCall.input, error: errorMsg, workspacePath: task.snapshot.workspacePath, stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode })
     return finalizeToolError(
       currentToolCall,
       errorMsg,
@@ -210,13 +174,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
     data: dataText,
   }
   await emitToolCalls(config, task.snapshot.conversationId, currentModelText, currentToolMessages)
-  await appendAgentLog(task.snapshot.conversationId, task.snapshot.userMessageId, 'tool_completed', {
-    toolName: prepared.toolName,
-    input: requestedToolCall.input,
-    outputPreview: logPreview,
-    exitCode: result.exitCode,
-    durationMs: result.durationMs,
-  })
+  config.logger.info('agent-runtime', { event: 'tool_completed', conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, toolName: prepared.toolName, input: requestedToolCall.input, outputPreview: logPreview, exitCode: result.exitCode, durationMs: result.durationMs })
 
   return {
     lastToolCallContext,

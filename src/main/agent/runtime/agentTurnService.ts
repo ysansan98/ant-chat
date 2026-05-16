@@ -4,7 +4,6 @@ import {
   buildConversationContextMessages,
   buildPromptWithTurnContext,
   compactMessages,
-  createAgentLogger,
   createLoopSystemPrompt,
   DEFAULT_COMPACTION_SETTINGS,
   estimateContextTokens,
@@ -15,7 +14,6 @@ import { createDbConversationQuery } from '@main/agent/adapters/conversationQuer
 import { dbModelResolver } from '@main/agent/adapters/dbModelResolver.adapter'
 import { createElectronEventEmitter } from '@main/agent/adapters/electronEventEmitter.adapter'
 import { electronLogger } from '@main/agent/adapters/electronLogger.adapter'
-import { electronPathProvider } from '@main/agent/adapters/electronPathProvider.adapter'
 import { electronToolProvider } from '@main/agent/adapters/toolProvider.adapter'
 import { addConversation, addMessage, getConversationById } from '@main/db/services'
 import { WorkspaceStore } from '@main/store/workspace'
@@ -122,11 +120,7 @@ export async function startAgentTurn(options: StartAgentTurnOptions): Promise<Ag
   const apiMode = provider.apiMode || 'openai'
   const compactionSettings: CompactionSettingsSchema = conv?.settings?.compaction ?? DEFAULT_COMPACTION_SETTINGS
 
-  // 9. 创建日志回调
-  const logsDir = electronPathProvider.getLogsDir()
-  const { appendAgentLog } = createAgentLogger(logsDir)
-
-  // 10. 创建 compaction gate (onBeforeTurn)
+  // 9. 创建 compaction gate (onBeforeTurn)
   const compactionStrategy = createCompactionStrategy()
   const onBeforeTurn = createCompactionGate({
     settings: compactionSettings,
@@ -137,10 +131,9 @@ export async function startAgentTurn(options: StartAgentTurnOptions): Promise<Ag
     eventEmitter,
     conversationId: conversation.id,
     userMessageId: userMessage.id,
-    appendAgentLog,
   })
 
-  // 11. 启动任务
+  // 10. 启动任务
   const task = await agentRuntime.startTask(
     {
       conversationId: conversation.id,
@@ -160,7 +153,7 @@ export async function startAgentTurn(options: StartAgentTurnOptions): Promise<Ag
       maxTokens: options.chatSettings.maxTokens,
       compaction: compactionSettings,
     },
-    { onBeforeTurn, appendAgentLog },
+    { onBeforeTurn },
   )
 
   return {
@@ -184,9 +177,8 @@ function createCompactionGate(params: {
   eventEmitter: AgentRuntimeConfig['eventEmitter']
   conversationId: string
   userMessageId: string
-  appendAgentLog: (conversationId: string, userMessageId: string, event: string, payload: Record<string, unknown>) => Promise<string>
 }): (ctx: { messages: LoopMessage[], step: number }) => Promise<{ messages: LoopMessage[] }> {
-  const { settings, aiProvider, modelName, apiMode, summarize, eventEmitter, conversationId, userMessageId, appendAgentLog } = params
+  const { settings, aiProvider, modelName, apiMode, summarize, eventEmitter, conversationId, userMessageId } = params
   let compactionCount = 0
 
   return async (ctx) => {
@@ -225,13 +217,7 @@ function createCompactionGate(params: {
       electronLogger.error('[compaction-gate] failed to persist compaction', err)
     }
 
-    await appendAgentLog(conversationId, userMessageId, 'context_compacted', {
-      step: ctx.step,
-      compactionCount,
-      summaryLength: compResult.summaryLength,
-      keptLength: compResult.keptLength,
-      totalMessages: compResult.messages.length,
-    })
+    electronLogger.info('[agent-runtime]', { event: 'context_compacted', conversationId, userMessageId, step: ctx.step, compactionCount, summaryLength: compResult.summaryLength, keptLength: compResult.keptLength, totalMessages: compResult.messages.length })
 
     return { messages: compResult.messages }
   }
