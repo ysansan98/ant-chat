@@ -13,7 +13,6 @@ const mocks = vi.hoisted(() => ({
   getConvById: vi.fn(),
   getMessagesByConvId: vi.fn(),
   electronToolProvider: vi.fn(),
-  getLogsDir: vi.fn(),
   createElectronEventEmitter: vi.fn(),
 }))
 
@@ -53,12 +52,6 @@ vi.mock('@main/agent/adapters/toolProvider.adapter', () => ({
   electronToolProvider: (...args: any[]) => mocks.electronToolProvider(...args),
 }))
 
-vi.mock('@main/agent/adapters/electronPathProvider.adapter', () => ({
-  electronPathProvider: {
-    getLogsDir: () => mocks.getLogsDir(),
-  },
-}))
-
 vi.mock('@main/agent/adapters/electronEventEmitter.adapter', () => ({
   createElectronEventEmitter: () => mocks.createElectronEventEmitter(),
 }))
@@ -86,9 +79,6 @@ vi.mock('@ant-chat/agent-runtime', () => ({
   buildConversationContextMessages: vi.fn(() => []),
   createLoopSystemPrompt: vi.fn(() => 'system prompt'),
   compactMessages: vi.fn(),
-  createAgentLogger: vi.fn(() => ({
-    appendAgentLog: vi.fn().mockResolvedValue('/logs/c1/m1.jsonl'),
-  })),
   DEFAULT_COMPACTION_SETTINGS: { enabled: true, thresholdPercent: 70, keepRecentPairs: 3 },
   estimateContextTokens: vi.fn(() => 1000),
   getContextWindow: vi.fn(() => 128000),
@@ -129,7 +119,6 @@ describe('agentTurnService', () => {
     mocks.getConvById.mockResolvedValue({ id: 'c1', settings: {} })
     mocks.getMessagesByConvId.mockResolvedValue([])
     mocks.electronToolProvider.mockResolvedValue([])
-    mocks.getLogsDir.mockReturnValue('/logs')
     mocks.createElectronEventEmitter.mockReturnValue({
       emitTaskUpdated: vi.fn(),
       emitApprovalRequired: vi.fn(),
@@ -178,7 +167,6 @@ describe('agentTurnService', () => {
       }),
       expect.objectContaining({
         onBeforeTurn: expect.any(Function),
-        appendAgentLog: expect.any(Function),
       }),
     )
     expect(result).toEqual(expect.objectContaining({

@@ -17,9 +17,8 @@ export class AgentRuntime {
 
   async startTask(
     options: RuntimeStartInput,
-    runtime: {
+    runtime?: {
       onBeforeTurn?: (ctx: { messages: LoopMessage[], step: number }) => Promise<{ messages: LoopMessage[] }>
-      appendAgentLog: (conversationId: string, userMessageId: string, event: string, payload: Record<string, unknown>) => Promise<string>
     },
   ) {
     const missing: string[] = []
@@ -50,19 +49,12 @@ export class AgentRuntime {
     }
 
     taskStore.create({ snapshot, abortController: new AbortController() })
-    snapshot.logPath = await runtime.appendAgentLog(options.conversationId, options.userMessageId, 'task_started', {
-      conversationId: options.conversationId,
-      userMessageId: options.userMessageId,
-      mode: options.mode,
-      workspacePath: options.workspacePath,
-    })
     this.config.eventEmitter.emitTaskUpdated(snapshot)
     void runAgentLoop({
       taskId,
       options,
       config: this.config,
-      onBeforeTurn: runtime.onBeforeTurn,
-      appendAgentLog: runtime.appendAgentLog,
+      onBeforeTurn: runtime?.onBeforeTurn,
       approvalController: this.approvalController,
     }).catch(() => {})
 
