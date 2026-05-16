@@ -75,12 +75,29 @@ export interface IAIProvider {
 }
 
 // ============================================================
-// Conversation Query (只读)
+// Conversation Query（适配器层使用，不注入 AgentRuntimeConfig）
 // ============================================================
 
 export interface IConversationQuery {
   getConversationById: (id: string) => Promise<IConversations | null>
   getMessagesByConvId: (convId: string) => Promise<IMessage[]>
+}
+
+// ============================================================
+// Path Provider（适配器层使用，不注入 AgentRuntimeConfig）
+// ============================================================
+
+export interface IAgentPathProvider {
+  getLogsDir: () => string
+}
+
+// ============================================================
+// Model Resolver（适配器层使用，不注入 AgentRuntimeConfig）
+// ============================================================
+
+export interface IModelResolver {
+  getModelById: (id: string) => Promise<{ id: string, model: string, name: string, serviceProviderId: string } | null>
+  getProviderById: (id: string) => Promise<{ id: string, name: string, apiKey?: string, baseUrl?: string, apiMode?: string } | null>
 }
 
 // ============================================================
@@ -98,23 +115,6 @@ export interface IAgentEventEmitter {
 }
 
 // ============================================================
-// Path Provider
-// ============================================================
-
-export interface IAgentPathProvider {
-  getLogsDir: () => string
-}
-
-// ============================================================
-// Model Resolver
-// ============================================================
-
-export interface IModelResolver {
-  getModelById: (id: string) => Promise<{ id: string, model: string, name: string, serviceProviderId: string } | null>
-  getProviderById: (id: string) => Promise<{ id: string, name: string, apiKey?: string, baseUrl?: string, apiMode?: string } | null>
-}
-
-// ============================================================
 // Logger
 // ============================================================
 
@@ -125,30 +125,26 @@ export interface ILogger {
 }
 
 // ============================================================
-// Factory Types
+// Factory Types（适配器层使用，不注入 AgentRuntimeConfig）
 // ============================================================
 
 export type AIProviderFactory = (modelId: string, modelResolver: IModelResolver) => Promise<IAIProvider>
 
 export type ToolProvider = (workspacePath: string, mode: AgentMode) => Promise<AgentTool[]>
 
+// ============================================================
+// Compaction (纯策略回调，外层 onBeforeTurn 中使用)
+// ============================================================
+
 export interface CompactionStrategy {
   summarize: (serialized: string, aiProvider: IAIProvider, model: string, abortSignal?: AbortSignal) => Promise<string>
 }
 
 // ============================================================
-// Combined Config
+// Runtime Config（最小化：仅运行环境基础设施）
 // ============================================================
 
 export interface AgentRuntimeConfig {
-  conversationQuery: IConversationQuery
-  aiProviderFactory: AIProviderFactory
   eventEmitter: IAgentEventEmitter
-  pathProvider: IAgentPathProvider
-  modelResolver: IModelResolver
-  toolProvider: ToolProvider
   logger: ILogger
-  isDev: boolean
-  compactionStrategy?: CompactionStrategy
-  systemPrompt?: string
 }
