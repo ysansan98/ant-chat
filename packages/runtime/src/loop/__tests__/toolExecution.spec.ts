@@ -71,7 +71,7 @@ describe('executeToolStep', () => {
       currentToolMessages: [],
       step: 1,
       config: { eventEmitter: emitter, logger },
-      waitForApproval: async () => ({ approved: true }),
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
     })
 
     expect(result.toolCallId).toBeDefined()
@@ -94,11 +94,11 @@ describe('executeToolStep', () => {
       currentToolMessages: [],
       step: 1,
       config: { eventEmitter: emitter, logger },
-      waitForApproval: async () => ({ approved: true }),
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
     })
 
     expect(result.isError).toBe(true)
-    // Tool not found => scope is 'blocked' => policy blocks
+    // Tool not found => scope is 'blocked' => execute returns error
     expect(result.toolResultContent).toContain('failed')
   })
 
@@ -119,18 +119,17 @@ describe('executeToolStep', () => {
       currentToolMessages: [],
       step: 1,
       config: { eventEmitter: emitter, logger },
-      waitForApproval: async () => ({ approved: true }),
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
     })
 
     expect(result.isError).toBe(true)
     expect(result.toolResultContent).toContain('Path must be absolute')
   })
 
-  it('handles policy blocking', async () => {
+  it('handles hook block result', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
-    const tool = createReadTool({ inferScope: () => 'blocked' })
-    const registry = new ToolRegistry([tool])
+    const registry = new ToolRegistry([createReadTool()])
     const task = createTask()
 
     const result = await executeToolStep({
@@ -141,86 +140,44 @@ describe('executeToolStep', () => {
       currentToolMessages: [],
       step: 1,
       config: { eventEmitter: emitter, logger },
-      waitForApproval: async () => ({ approved: true }),
+      beforeToolExecute: async () => ({
+        outcome: 'block',
+        errorCode: 'AGENT_POLICY_BLOCKED',
+        reason: '策略阻断，禁止执行',
+      }),
     })
 
     expect(result.isError).toBe(true)
     expect(result.toolResultContent).toContain('AGENT_POLICY_BLOCKED')
   })
 
-  it('requires approval for outside scope in strict mode', async () => {
+  it('handles hook allow result with tool execution', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
-    const tool = createReadTool({ inferScope: () => 'outside' })
-    const registry = new ToolRegistry([tool])
-    const task = createTask({ mode: 'strict' })
+    const registry = new ToolRegistry([createReadTool()])
+    const task = createTask()
 
-    let pendingResolver: ((v: { approved: boolean, reason?: string }) => void) | undefined
-
-    const waitForApproval = vi.fn().mockImplementation((t: typeof task) => {
-      return new Promise<{ approved: boolean, reason?: string }>((resolve) => {
-        pendingResolver = resolve
-        t.pendingResolver = resolve
-      })
-    })
-
-    // Start execution but don't await — it will block on approval
-    const resultPromise = executeToolStep({
+    let hookCalled = false
+    const result = await executeToolStep({
       task,
       registry,
-      requestedToolCall: { toolName: 'read_file', input: {} },
+      requestedToolCall: { toolName: 'read_file', input: { path: 'test.txt' } },
       currentModelText: '',
       currentToolMessages: [],
       step: 1,
       config: { eventEmitter: emitter, logger },
-      waitForApproval,
+      beforeToolExecute: async (input) => {
+        hookCalled = true
+        // Verify hook receives the right prepared data
+        expect(input.prepared.toolName).toBe('read_file')
+        expect(input.prepared.operationType).toBe('read')
+        expect(input.prepared.scope).toBe('workspace')
+        return { outcome: 'allow' }
+      },
     })
 
-    // Verify task is awaiting approval
-    expect(task.snapshot.status).toBe('awaiting_approval')
-    expect(task.snapshot.pendingAction).toBeDefined()
-    expect(task.snapshot.pendingAction?.toolName).toBe('read_file')
-
-    // Approve
-    pendingResolver?.({ approved: true })
-    const result = await resultPromise
-
+    expect(hookCalled).toBe(true)
     expect(result.isError).toBe(false)
-  })
-
-  it('rejects when approval is denied', async () => {
-    const emitter = createMockEmitter()
-    const logger = createMockLogger()
-    const tool = createReadTool({ inferScope: () => 'outside' })
-    const registry = new ToolRegistry([tool])
-    const task = createTask({ mode: 'strict' })
-
-    let pendingResolver: ((v: { approved: boolean, reason?: string }) => void) | undefined
-
-    const waitForApproval = vi.fn().mockImplementation((t: typeof task) => {
-      return new Promise<{ approved: boolean, reason?: string }>((resolve) => {
-        pendingResolver = resolve
-        t.pendingResolver = resolve
-      })
-    })
-
-    const resultPromise = executeToolStep({
-      task,
-      registry,
-      requestedToolCall: { toolName: 'read_file', input: {} },
-      currentModelText: '',
-      currentToolMessages: [],
-      step: 1,
-      config: { eventEmitter: emitter, logger },
-      waitForApproval,
-    })
-
-    // Reject
-    pendingResolver?.({ approved: false, reason: 'User denied' })
-    const result = await resultPromise
-
-    expect(result.isError).toBe(true)
-    expect(result.toolResultContent).toContain('rejected')
   })
 
   it('handles tool execution failure', async () => {
@@ -240,7 +197,7 @@ describe('executeToolStep', () => {
       currentToolMessages: [],
       step: 1,
       config: { eventEmitter: emitter, logger },
-      waitForApproval: async () => ({ approved: true }),
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
     })
 
     expect(result.isError).toBe(true)
@@ -262,13 +219,13 @@ describe('executeToolStep', () => {
       currentToolMessages: [],
       step: 1,
       config: { eventEmitter: emitter, logger },
-      waitForApproval: async () => ({ approved: true }),
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
     })
 
     expect(emitter.emitTurnToolCalls).toHaveBeenCalledTimes(2) // once at start, once at completion
   })
 
-  it('calls onToolCallContext callback', async () => {
+  it('calls onToolCallContext callback via beforeToolExecute hook', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
     const tool = createReadTool()
@@ -284,7 +241,17 @@ describe('executeToolStep', () => {
       currentToolMessages: [],
       step: 1,
       config: { eventEmitter: emitter, logger },
-      waitForApproval: async () => ({ approved: true }),
+      beforeToolExecute: async (input) => {
+        // Simulate what the real hook does: call onToolCallContext
+        input.onToolCallContext?.({
+          toolName: input.prepared.toolName,
+          input: input.prepared.input,
+          operationType: input.prepared.operationType,
+          scope: input.prepared.scope,
+          policy: 'allow',
+        })
+        return { outcome: 'allow' }
+      },
       onToolCallContext: onContext,
     })
 

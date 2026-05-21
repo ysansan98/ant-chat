@@ -38,7 +38,7 @@ jobs:
         run: pnpm rebuild:node
 
       - name: Build workspace packages
-        run: pnpm -F @ant-chat/agent-runtime build
+        run: pnpm -F @ant-chat/runtime build
 
       - name: TypeScript check
         run: pnpm type-check
@@ -107,7 +107,7 @@ jobs:
         run: pnpm rebuild:node
 
       - name: Build workspace packages
-        run: pnpm -F @ant-chat/agent-runtime build
+        run: pnpm -F @ant-chat/runtime build
 
       - name: Agent runtime e2e
         run: pnpm test:e2e:agent-runtime

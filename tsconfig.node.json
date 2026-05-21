@@ -12,8 +12,8 @@
       "@ant-chat/mcp-client-hub": [
         "./packages/mcp-client-hub/src/index.ts"
       ],
-      "@ant-chat/agent-runtime": [
-        "./packages/agent-runtime/src/index.ts"
+      "@ant-chat/runtime": [
+        "./packages/runtime/src/index.ts"
       ],
       "@main/*": [
         "./src/main/*"
@@ -28,7 +28,7 @@
     "electron.vite.config.*",
     "packages/shared/src/**/*",
     "packages/mcp-client-hub/src/**/*",
-    "packages/agent-runtime/src/**/*",
+    "packages/runtime/src/**/*",
     "src/types/**/*.ts",
     "src/main/**/*",
     "src/preload/**/*",

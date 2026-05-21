@@ -1,8 +1,7 @@
 import type { AgentRuntimeConfig, AgentTaskSnapshot, LoopMessage, McpToolCall } from '@ant-chat/shared'
-import type { ApprovalDecision } from './approvalController'
-import type { ToolCallContext } from './toolExecution'
-import type { RuntimeStartInput } from './types'
-import { AgentError } from './AgentError'
+import type { RuntimeStartInput } from '../session/types'
+import type { BeforeToolExecuteHook, ToolCallContext } from './types'
+import { AgentError } from '../AgentError'
 import { normalizeToolArgs } from './loopContext'
 import { taskStore } from './taskStore'
 import { createInvalidToolArgsResult, executeToolStep } from './toolExecution'
@@ -16,9 +15,9 @@ export async function runAgentLoop(input: {
     messages: LoopMessage[]
     step: number
   }) => Promise<{ messages: LoopMessage[] }>
-  approvalController: { waitForApproval: (task: NonNullable<ReturnType<typeof taskStore.get>>) => Promise<ApprovalDecision> }
+  beforeToolExecute: BeforeToolExecuteHook
 }) {
-  const { taskId, options, config, onBeforeTurn, approvalController } = input
+  const { taskId, options, config, onBeforeTurn, beforeToolExecute } = input
   const task = taskStore.get(taskId)
   if (!task)
     throw new AgentError('AGENT_TASK_NOT_FOUND', 'Task not found')
@@ -155,7 +154,7 @@ export async function runAgentLoop(input: {
             currentToolMessages,
             step,
             config,
-            waitForApproval: approvalController.waitForApproval,
+            beforeToolExecute,
             onToolCallContext: (context) => {
               lastToolCallContext = context
             },

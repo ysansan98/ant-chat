@@ -70,7 +70,7 @@ vi.mock('@main/agent/adapters/compactionStrategy.adapter', () => ({
   }),
 }))
 
-vi.mock('@ant-chat/agent-runtime', () => ({
+vi.mock('@ant-chat/runtime', () => ({
   AgentRuntime: class {
     listActiveTasks = mocks.listActiveTasks
     startTask = mocks.startTask

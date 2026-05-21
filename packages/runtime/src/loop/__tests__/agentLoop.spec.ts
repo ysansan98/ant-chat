@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { runAgentLoop } from '../agentLoop'
 import { taskStore } from '../taskStore'
 import type { AgentTool, IAgentEventEmitter, IAIProvider, IAIStreamChunk, ILogger } from '@ant-chat/shared'
-import type { RuntimeStartInput } from '../types'
+import type { RuntimeStartInput } from '../../session/types'
 
 // ============================================================
 // Mock AI Provider — deterministic stream control via queueMicrotask
@@ -154,7 +154,7 @@ describe('runAgentLoop', () => {
       taskId,
       options,
       config: { eventEmitter: emitter, logger },
-      approvalController: { waitForApproval: async () => ({ approved: true }) },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
     })
 
     const updated = taskStore.get(taskId)
@@ -189,7 +189,7 @@ describe('runAgentLoop', () => {
       taskId,
       options,
       config: { eventEmitter: emitter, logger },
-      approvalController: { waitForApproval: async () => ({ approved: true }) },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
     })
 
     // Task should be finished (completed)
@@ -231,7 +231,7 @@ describe('runAgentLoop', () => {
       taskId,
       options,
       config: { eventEmitter: emitter, logger },
-      approvalController: { waitForApproval: async () => ({ approved: true }) },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
     })
 
     const updated = taskStore.get(taskId)
@@ -260,7 +260,7 @@ describe('runAgentLoop', () => {
       options,
       config: { eventEmitter: emitter, logger },
       onBeforeTurn,
-      approvalController: { waitForApproval: async () => ({ approved: true }) },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
     })
 
     expect(onBeforeTurn).toHaveBeenCalledTimes(1)
@@ -281,7 +281,7 @@ describe('runAgentLoop', () => {
       taskId,
       options,
       config: { eventEmitter: emitter, logger },
-      approvalController: { waitForApproval: async () => ({ approved: true }) },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
     })
 
     expect(emitter.emitTurnFinished).toHaveBeenCalledWith(
@@ -295,7 +295,7 @@ describe('runAgentLoop', () => {
         taskId: 'nonexistent',
         options: createBaseInput().options,
         config: { eventEmitter: emitter, logger },
-        approvalController: { waitForApproval: async () => ({ approved: true }) },
+        beforeToolExecute: async () => ({ outcome: 'allow' }),
       }),
     ).rejects.toThrow('Task not found')
   })
@@ -330,7 +330,7 @@ describe('runAgentLoop', () => {
       taskId,
       options,
       config: { eventEmitter: emitter, logger },
-      approvalController: { waitForApproval: async () => ({ approved: true }) },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
     })
 
     expect(emitter.emitTurnFinished).toHaveBeenCalledWith(

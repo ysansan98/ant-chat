@@ -7,7 +7,7 @@ import {
   createLoopSystemPrompt,
   DEFAULT_COMPACTION_SETTINGS,
   estimateContextTokens,
-} from '@ant-chat/agent-runtime'
+} from '@ant-chat/runtime'
 import { createDbAIProvider } from '@main/agent/adapters/aiProviderFactory.adapter'
 import { createCompactionStrategy } from '@main/agent/adapters/compactionStrategy.adapter'
 import { createDbConversationQuery } from '@main/agent/adapters/conversationQuery.adapter'

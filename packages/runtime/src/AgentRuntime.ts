@@ -1,18 +1,24 @@
 import type { AgentRuntimeConfig, AgentTaskSnapshot, ApprovePendingActionOptions, CancelTaskOptions, LoopMessage, RejectPendingActionOptions } from '@ant-chat/shared'
-import type { RuntimeStartInput } from './types'
+import type { BeforeToolExecuteHook } from './loop/types'
+import type { RuntimeStartInput } from './session/types'
 import { randomUUID } from 'node:crypto'
 import { AgentError } from './AgentError'
-import { runAgentLoop } from './agentLoop'
-import { createApprovalController } from './approvalController'
-import { taskStore } from './taskStore'
+import { runAgentLoop } from './loop/agentLoop'
+import { taskStore } from './loop/taskStore'
+import { createApprovalController } from './policy/approvalController'
+import { createBeforeToolExecuteHook } from './policy/beforeToolExecute'
 
 export class AgentRuntime {
   private config: AgentRuntimeConfig
   private approvalController: ReturnType<typeof createApprovalController>
+  private beforeToolExecuteHook: BeforeToolExecuteHook
 
   constructor(config: AgentRuntimeConfig) {
     this.config = config
     this.approvalController = createApprovalController(config.eventEmitter)
+    this.beforeToolExecuteHook = createBeforeToolExecuteHook(
+      this.approvalController.waitForApproval,
+    )
   }
 
   async startTask(
@@ -55,7 +61,7 @@ export class AgentRuntime {
       options,
       config: this.config,
       onBeforeTurn: runtime?.onBeforeTurn,
-      approvalController: this.approvalController,
+      beforeToolExecute: this.beforeToolExecuteHook,
     }).catch(() => {})
 
     return { taskId }

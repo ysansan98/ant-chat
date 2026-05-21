@@ -1,5 +1,5 @@
 {
-  "name": "@ant-chat/agent-runtime",
+  "name": "@ant-chat/runtime",
   "type": "module",
   "license": "MIT",
   "exports": {
