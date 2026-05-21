@@ -1,7 +1,7 @@
 import type { ApprovePendingActionOptions, CancelTaskOptions, IAgentEventEmitter, RejectPendingActionOptions } from '@ant-chat/shared'
-import type { RuntimeTask } from './taskStore'
-import { AgentError } from './AgentError'
-import { taskStore } from './taskStore'
+import type { RuntimeTask } from '../loop/taskStore'
+import { AgentError } from '../AgentError'
+import { taskStore } from '../loop/taskStore'
 
 export interface ApprovalDecision {
   approved: boolean

@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import { AgentRuntime } from '../AgentRuntime'
-import { taskStore } from '../taskStore'
+import { taskStore } from '../loop/taskStore'
 import type { AgentRuntimeConfig, IAgentEventEmitter, ILogger } from '@ant-chat/shared'
-import type { RuntimeStartInput } from '../types'
+import type { RuntimeStartInput } from '../session/types'
 
 // Mock the agentLoop so startTask doesn't actually run the loop
-vi.mock('../agentLoop', () => ({
+vi.mock('../loop/agentLoop', () => ({
   runAgentLoop: vi.fn().mockResolvedValue(undefined),
 }))
 

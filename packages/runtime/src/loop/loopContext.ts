@@ -1,5 +1,5 @@
 import type { IMessage, LoopMessage } from '@ant-chat/shared'
-import { truncateText } from './utils'
+import { truncateText } from '../utils'
 
 const HISTORY_TOOL_RESULT_TRUNCATE = 100000
 const HISTORY_TOOL_CALLS_KEEP = 4

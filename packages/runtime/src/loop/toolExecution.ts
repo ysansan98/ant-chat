@@ -1,11 +1,9 @@
-import type { AgentPendingAction, AgentRuntimeConfig, McpToolCall } from '@ant-chat/shared'
-import type { ApprovalDecision } from './approvalController'
+import type { AgentRuntimeConfig, McpToolCall } from '@ant-chat/shared'
 import type { RuntimeTask } from './taskStore'
 import type { PreparedToolCall, ToolRegistry } from './toolRegistry'
+import type { BeforeToolExecuteHook, ToolCallContext } from './types'
 import { randomUUID } from 'node:crypto'
-import { AgentError } from './AgentError'
-import { decidePolicy } from './policyEngine'
-import { truncateText } from './utils'
+import { truncateText } from '../utils'
 
 const DEFAULT_TOOL_OBSERVATION_LIMIT = 4000
 const DEFAULT_TOOL_LOG_PREVIEW_LIMIT = 4000
@@ -13,14 +11,6 @@ const DEFAULT_TOOL_LOG_PREVIEW_LIMIT = 4000
 export interface RequestedToolCall {
   toolName: string
   input: Record<string, unknown>
-}
-
-export interface ToolCallContext {
-  toolName: string
-  input: Record<string, unknown>
-  operationType: string
-  scope: string
-  policy: string
 }
 
 export interface ExecuteToolStepOptions {
@@ -31,7 +21,7 @@ export interface ExecuteToolStepOptions {
   currentToolMessages: McpToolCall[]
   step: number
   config: AgentRuntimeConfig
-  waitForApproval: (task: RuntimeTask) => Promise<ApprovalDecision>
+  beforeToolExecute: BeforeToolExecuteHook
   onToolCallContext?: (context: ToolCallContext) => void
 }
 
@@ -51,7 +41,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
     currentToolMessages,
     step,
     config,
-    waitForApproval,
+    beforeToolExecute,
     onToolCallContext,
   } = options
 
@@ -74,17 +64,13 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   })
 
   let lastObservation = ''
-  const policyDecision = decidePolicy(task.snapshot.mode, prepared.operationType, prepared.scope)
-  const lastToolCallContext = {
+  let lastToolCallContext: ToolCallContext = {
     toolName: requestedToolCall.toolName,
     input: requestedToolCall.input,
     operationType: prepared.operationType,
     scope: prepared.scope,
-    policy: policyDecision.type,
+    policy: 'unknown',
   }
-  onToolCallContext?.(lastToolCallContext)
-
-  config.logger.info('agent-runtime', { event: 'tool_decision', conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, toolName: requestedToolCall.toolName, input: requestedToolCall.input, operationType: prepared.operationType, scope: prepared.scope, policy: policyDecision.type, workspacePath: task.snapshot.workspacePath })
 
   if (prepared.validationError) {
     config.logger.info('agent-runtime', { event: 'tool_failed', conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, toolName: prepared.toolName, input: requestedToolCall.input, error: prepared.validationError, workspacePath: task.snapshot.workspacePath })
@@ -100,51 +86,29 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
     )
   }
 
-  if (policyDecision.type === 'block') {
-    config.logger.info('agent-runtime', { event: 'tool_blocked', conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, step, toolName: requestedToolCall.toolName, input: requestedToolCall.input, operationType: prepared.operationType, scope: prepared.scope, policy: policyDecision.type, reason: policyDecision.reason, errorCode: policyDecision.errorCode, workspacePath: task.snapshot.workspacePath })
+  // === beforeToolExecute hook: policy decision + approval (injected from policy/) ===
+  const beforeResult = await beforeToolExecute({
+    task,
+    prepared: prepared as PreparedToolCall,
+    config,
+    onToolCallContext: (context) => {
+      lastToolCallContext = context
+      onToolCallContext?.(context)
+    },
+  })
+
+  if (beforeResult.outcome === 'block') {
+    config.logger.info('agent-runtime', { event: 'tool_blocked', conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, step, toolName: requestedToolCall.toolName, input: requestedToolCall.input, operationType: prepared.operationType, scope: prepared.scope, policy: 'block', reason: beforeResult.reason, errorCode: beforeResult.errorCode, workspacePath: task.snapshot.workspacePath })
     return finalizeToolError(
       currentToolCall,
-      policyDecision.errorCode,
-      formatFailure(prepared, policyDecision.errorCode, requestedToolCall.input),
+      beforeResult.errorCode,
+      formatFailure(prepared, beforeResult.errorCode, requestedToolCall.input),
       lastToolCallContext,
       config,
       task.snapshot.conversationId,
       currentModelText,
       currentToolMessages,
     )
-  }
-
-  if (policyDecision.type === 'require_approval') {
-    const pendingAction: AgentPendingAction = {
-      actionId: randomUUID(),
-      toolName: prepared.toolName,
-      operationType: prepared.operationType,
-      scope: prepared.scope,
-      inputPreview: JSON.stringify(requestedToolCall.input).slice(0, 200),
-      createdAt: Date.now(),
-    }
-    task.snapshot.status = 'awaiting_approval'
-    task.snapshot.pendingAction = pendingAction
-    config.eventEmitter.emitTaskUpdated(task.snapshot)
-    config.eventEmitter.emitApprovalRequired(task.snapshot.taskId, task.snapshot.conversationId, pendingAction)
-
-    const decisionResult = await waitForApproval(task)
-    if (task.abortController.signal.aborted || decisionResult.reason === 'AGENT_CANCELLED') {
-      throw new AgentError('AGENT_CANCELLED', 'Task cancelled')
-    }
-
-    if (!decisionResult.approved) {
-      return finalizeToolError(
-        currentToolCall,
-        decisionResult.reason || 'AGENT_APPROVAL_REJECTED',
-        `Tool ${prepared.toolName} rejected: ${decisionResult.reason || 'no reason given'}`,
-        lastToolCallContext,
-        config,
-        task.snapshot.conversationId,
-        currentModelText,
-        currentToolMessages,
-      )
-    }
   }
 
   const result = await prepared.execute()
@@ -248,7 +212,6 @@ function buildObservation(
   const truncated = prepared.truncateObservation !== false
     ? truncateText(outputText, DEFAULT_TOOL_OBSERVATION_LIMIT)
     : outputText
-  // 工具执行成功的观测文本，供模型下一轮决策
   return `Tool ${prepared.toolName} succeeded, output: ${truncated}`
 }
 
@@ -266,7 +229,6 @@ export function createInvalidToolArgsResult(options: {
 } {
   const { config, conversationId, requestedToolCall, currentModelText, currentToolMessages } = options
   const toolCallId = randomUUID()
-  // 模型调用工具时参数格式错误，返回提示让模型修正
   const error = `Tool ${requestedToolCall.toolName} argument error: ${requestedToolCall.invalidArgsError || 'args must be a JSON object'}. Fix the arguments and retry.`
   currentToolMessages.push({
     id: toolCallId,
@@ -281,7 +243,6 @@ export function createInvalidToolArgsResult(options: {
   })
   config.eventEmitter.emitTurnToolCalls({
     conversationId,
-    // 参数解析失败时的占位文本，通知消费者模型需要修正参数
     text: currentModelText || 'Tool argument error, waiting for model to correct.',
     toolCalls: [...currentToolMessages],
   })
@@ -322,9 +283,7 @@ function formatFailure(
     if (result.exitCode !== undefined) {
       parts.push(`exitCode=${result.exitCode}`)
     }
-    // 工具执行失败，附上 stderr/stdout 帮助模型诊断
     return `Tool ${prepared.toolName} failed: ${error}\n${parts.join('\n')}`
   }
-  // 工具执行失败的简单反馈
   return `Tool ${prepared.toolName} failed: ${error}`
 }
