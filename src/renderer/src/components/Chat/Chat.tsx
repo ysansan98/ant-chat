@@ -68,7 +68,7 @@ export default function Chat() {
     if (currentConversations?.title === DEFAULT_TITLE || isNewConversation) {
       // 1s后再次初始化会话标题, 避免请求频繁导致的标题未更新
       setTimeout(() => {
-        initConversationsTitle(result.conversationId)
+        void initConversationsTitle(result.conversationId)
       }, 1000)
     }
   }

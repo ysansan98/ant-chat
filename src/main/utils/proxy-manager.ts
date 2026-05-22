@@ -1,6 +1,6 @@
 import type { ProxySettings } from '@ant-chat/shared'
 import { logger } from '@main/utils/logger'
-import { Agent, ProxyAgent, setGlobalDispatcher } from 'undici'
+import { Agent, EnvHttpProxyAgent, setGlobalDispatcher } from 'undici'
 import { GeneralSettingsStore } from '../store/generalSettings'
 import { getSystemProxySettings } from './system-proxy'
 
@@ -8,7 +8,7 @@ import { getSystemProxySettings } from './system-proxy'
 export class ProxyManager {
   private static instance: ProxyManager
   private currentSettings: ProxySettings = { mode: 'none' }
-  private currentAgent: ProxyAgent | null = null
+  private currentAgent: EnvHttpProxyAgent | null = null
   private originalDispatcher: typeof globalThis.dispatcher | null = null
 
   private constructor() {}
@@ -28,12 +28,11 @@ export class ProxyManager {
   private getNoProxyList(): string {
     // 本地地址不走代理
     return [
-      'localhost', // 本地主机
-      '127.0.0.1', // IPv4本地回环
-      '::1', // IPv6本地回环
-      '192.168.*', // 私有网络A类
-      '10.*', // 私有网络B类
-      '172.16.*-172.31.*', // 私有网络C类
+      'localhost',
+      '127.0.0.1',
+      '0.0.0.0',
+      '[::1]',
+      '::1',
     ].join(',')
   }
 
@@ -53,9 +52,11 @@ export class ProxyManager {
 
     if (proxyUrl) {
       try {
-        // 创建新的 ProxyAgent
-        const newAgent = new ProxyAgent({
-          uri: proxyUrl,
+        const noProxy = this.getNoProxyList()
+        const newAgent = new EnvHttpProxyAgent({
+          httpProxy: proxyUrl,
+          httpsProxy: proxyUrl,
+          noProxy,
           proxyTls: {
             rejectUnauthorized: true,
           },
@@ -74,10 +75,11 @@ export class ProxyManager {
         // 同时设置环境变量以兼容其他 HTTP 客户端
         process.env.HTTP_PROXY = proxyUrl
         process.env.HTTPS_PROXY = proxyUrl
-        process.env.NO_PROXY = this.getNoProxyList()
+        process.env.NO_PROXY = noProxy
+        process.env.no_proxy = noProxy
 
         logger.info(`Global proxy configured: ${proxyUrl}`)
-        logger.info(`Local networks bypass proxy: ${process.env.NO_PROXY}`)
+        logger.info(`Local addresses bypass proxy: ${process.env.NO_PROXY}`)
       }
       catch (error) {
         logger.error('Failed to create ProxyAgent:', error)
@@ -106,6 +108,7 @@ export class ProxyManager {
     delete process.env.HTTP_PROXY
     delete process.env.HTTPS_PROXY
     delete process.env.NO_PROXY
+    delete process.env.no_proxy
 
     logger.info('Proxy cleared')
   }

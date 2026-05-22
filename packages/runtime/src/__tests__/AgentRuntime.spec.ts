@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { AgentRuntime } from '../AgentRuntime'
 import { taskStore } from '../loop/taskStore'
-import type { AgentRuntimeConfig, IAgentEventEmitter, ILogger } from '@ant-chat/shared'
+import type { AgentRuntimeConfig, IAgentEventEmitter, ILogger, ISessionStore } from '@ant-chat/shared'
 import type { RuntimeStartInput } from '../session/types'
 
 // Mock the agentLoop so startTask doesn't actually run the loop
@@ -33,6 +33,79 @@ function createConfig(): AgentRuntimeConfig {
   return {
     eventEmitter: createMockEmitter(),
     logger: createMockLogger(),
+  }
+}
+
+function createSessionStore(overrides: Partial<ISessionStore> = {}): ISessionStore {
+  const conversation = {
+    id: 'conv-session',
+    title: 'Untitled',
+    workspacePath: '/workspace',
+    createdAt: 1,
+    updatedAt: 1,
+    settings: {
+      modelId: 'model-1',
+      systemPrompt: '',
+      temperature: 0.7,
+      maxTokens: 1024,
+    },
+  }
+  return {
+    getConversation: vi.fn(async () => conversation),
+    getConversationById: vi.fn(async () => conversation),
+    createConversation: vi.fn(async () => conversation),
+    updateConversation: vi.fn(async () => conversation),
+    listConversations: vi.fn(async () => [conversation]),
+    getMessages: vi.fn(async () => []),
+    getMessagesByConvId: vi.fn(async () => []),
+    createUserMessage: vi.fn(async () => ({
+      id: 'user-msg-1',
+      convId: conversation.id,
+      createdAt: 2,
+      role: 'user' as const,
+      status: 'success' as const,
+      content: [{ type: 'text' as const, text: 'inspect project' }],
+      images: [],
+      attachments: [],
+    })),
+    createAssistantMessage: vi.fn(async () => ({
+      id: 'assistant-msg-1',
+      convId: conversation.id,
+      createdAt: 3,
+      role: 'assistant' as const,
+      status: 'loading' as const,
+      content: [],
+      modelInfo: { provider: 'provider', providerId: 'provider-1', model: 'test-model' },
+    })),
+    updateAssistantMessage: vi.fn(async () => ({
+      id: 'assistant-msg-1',
+      convId: conversation.id,
+      createdAt: 3,
+      role: 'assistant' as const,
+      status: 'success' as const,
+      content: [],
+      modelInfo: { provider: 'provider', providerId: 'provider-1', model: 'test-model' },
+    })),
+    saveCompactionState: vi.fn(async () => {}),
+    ...overrides,
+  }
+}
+
+function createSessionConfig(overrides: Partial<AgentRuntimeConfig> = {}): AgentRuntimeConfig {
+  return {
+    ...createConfig(),
+    sessionStore: createSessionStore(),
+    modelResolver: {
+      getModelById: vi.fn(async () => ({ id: 'model-1', model: 'test-model', name: 'Test Model', serviceProviderId: 'provider-1' })),
+      getProviderById: vi.fn(async () => ({ id: 'provider-1', name: 'provider', apiMode: 'openai' })),
+    },
+    aiProviderFactory: vi.fn(async () => ({
+      streamModel: vi.fn(),
+      complete: vi.fn(),
+    })),
+    toolProvider: vi.fn(async () => []),
+    compactionStrategy: { summarize: vi.fn() },
+    ...overrides,
   }
 }
 
@@ -146,6 +219,58 @@ describe('agentRuntime', () => {
       ).rejects.toThrow('AGENT_TASK_ALREADY_RUNNING')
 
       cleanupTasks([result1.taskId])
+    })
+
+    it('creates session state and starts loop from high-level task options', async () => {
+      const store = createSessionStore()
+      const config = createSessionConfig({ sessionStore: store })
+      const runtime = new AgentRuntime(config)
+
+      const result = await runtime.startTask({
+        prompt: ' inspect project ',
+        modelId: 'model-1',
+        workspacePath: '/workspace',
+        mode: 'hybrid',
+        chatSettings: {
+          systemPrompt: '',
+          temperature: 0.7,
+          maxTokens: 1024,
+        },
+      })
+
+      expect(store.createConversation).toHaveBeenCalledWith(expect.objectContaining({
+        title: 'Untitled',
+        workspacePath: '/workspace',
+      }))
+      expect(store.createUserMessage).toHaveBeenCalledWith(expect.objectContaining({
+        convId: 'conv-session',
+        role: 'user',
+        content: [{ type: 'text', text: 'inspect project' }],
+      }))
+      expect(result).toEqual(expect.objectContaining({
+        conversationId: 'conv-session',
+        userMessageId: 'user-msg-1',
+      }))
+
+      cleanupTasks([result.taskId])
+    })
+
+    it('does not create user message when conversation already has an active task', async () => {
+      const store = createSessionStore()
+      const config = createSessionConfig({ sessionStore: store })
+      const runtime = new AgentRuntime(config)
+      const running = await runtime.startTask(createValidStartInput({ conversationId: 'conv-session' }))
+
+      await expect(runtime.startTask({
+        conversationId: 'conv-session',
+        prompt: 'run it',
+        modelId: 'model-1',
+        workspacePath: '/workspace',
+        mode: 'hybrid',
+      })).rejects.toThrow('AGENT_TASK_ALREADY_RUNNING')
+
+      expect(store.createUserMessage).not.toHaveBeenCalled()
+      cleanupTasks([running.taskId])
     })
   })
 

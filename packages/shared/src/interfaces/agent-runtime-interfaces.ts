@@ -1,7 +1,7 @@
-import type { McpToolCall } from '../schemas'
+import type { AddConversationsSchema, AddMessage, McpToolCall, ModelInfo, UpdateConversationsSchema, UpdateMessageSchema } from '../schemas'
 import type { AgentMode, AgentPendingAction, AgentTaskSnapshot } from './agent-runtime'
 import type { AgentTool } from './agent-tools'
-import type { IConversations, IMessage } from './db-types'
+import type { IAttachment, IConversations, IMessage } from './db-types'
 
 // ============================================================
 // LoopMessage & RuntimeToolDefinition（从 runtime 提升到 shared）
@@ -75,12 +75,37 @@ export interface IAIProvider {
 }
 
 // ============================================================
-// Conversation Query（适配器层使用，不注入 AgentRuntimeConfig）
+// Session Store
 // ============================================================
 
 export interface IConversationQuery {
   getConversationById: (id: string) => Promise<IConversations | null>
   getMessagesByConvId: (convId: string) => Promise<IMessage[]>
+}
+
+export type CreateConversationInput = AddConversationsSchema
+export type UpdateConversationInput = Omit<UpdateConversationsSchema, 'id'>
+export type CreateUserMessageInput = Extract<AddMessage, { role: 'user' }>
+export interface CreateAssistantMessageInput {
+  conversationId: string
+  modelInfo: ModelInfo
+}
+export type UpdateAssistantMessageInput = Omit<UpdateMessageSchema, 'id'>
+
+export interface ISessionStore extends IConversationQuery {
+  getConversation: (id: string) => Promise<IConversations | null>
+  createConversation: (data: CreateConversationInput) => Promise<IConversations>
+  updateConversation: (id: string, patch: UpdateConversationInput) => Promise<IConversations>
+  listConversations: () => Promise<IConversations[]>
+  getMessages: (convId: string) => Promise<IMessage[]>
+  createUserMessage: (data: CreateUserMessageInput) => Promise<IMessage>
+  createAssistantMessage: (data: CreateAssistantMessageInput) => Promise<IMessage>
+  updateAssistantMessage: (id: string, patch: UpdateAssistantMessageInput) => Promise<IMessage>
+  saveCompactionState: (input: {
+    conversationId: string
+    summary: string
+    compactedAt: number
+  }) => Promise<void>
 }
 
 // ============================================================
@@ -105,13 +130,14 @@ export interface IModelResolver {
 // ============================================================
 
 export interface IAgentEventEmitter {
-  emitTaskUpdated: (task: AgentTaskSnapshot) => void
-  emitApprovalRequired: (taskId: string, conversationId: string, pendingAction: AgentPendingAction) => void
-  emitTurnStarted: (params: { conversationId: string, model: { name: string, provider: string, providerId: string } }) => void
-  emitTurnChunk: (params: { conversationId: string, accumulatedText: string, chunk: IAIStreamChunk }) => void
-  emitTurnToolCalls: (params: { conversationId: string, text: string, toolCalls: McpToolCall[] }) => void
-  emitTurnFinished: (params: { conversationId: string, text: string, status: 'success' | 'error' | 'cancel' }) => void
-  emitCompactionSaved: (params: { conversationId: string, summary: string, compactedAt: number }) => void
+  emitMessageUpdated?: (message: IMessage) => void | Promise<void>
+  emitTaskUpdated: (task: AgentTaskSnapshot) => void | Promise<void>
+  emitApprovalRequired: (taskId: string, conversationId: string, pendingAction: AgentPendingAction) => void | Promise<void>
+  emitTurnStarted: (params: { conversationId: string, model: { name: string, provider: string, providerId: string } }) => void | Promise<void>
+  emitTurnChunk: (params: { conversationId: string, accumulatedText: string, chunk: IAIStreamChunk }) => void | Promise<void>
+  emitTurnToolCalls: (params: { conversationId: string, text: string, toolCalls: McpToolCall[] }) => void | Promise<void>
+  emitTurnFinished: (params: { conversationId: string, text: string, status: 'success' | 'error' | 'cancel' }) => void | Promise<void>
+  emitCompactionSaved: (params: { conversationId: string, summary: string, compactedAt: number }) => void | Promise<void>
 }
 
 // ============================================================
@@ -147,4 +173,33 @@ export interface CompactionStrategy {
 export interface AgentRuntimeConfig {
   eventEmitter: IAgentEventEmitter
   logger: ILogger
+  sessionStore?: ISessionStore
+  modelResolver?: IModelResolver
+  aiProviderFactory?: AIProviderFactory
+  toolProvider?: ToolProvider
+  compactionStrategy?: CompactionStrategy
+}
+
+export interface AgentRuntimeStartTaskOptions {
+  prompt: string
+  conversationId?: string
+  modelId: string
+  workspacePath: string
+  mode?: AgentMode
+  images?: IAttachment[]
+  attachments?: IAttachment[]
+  referencedFiles?: string[]
+  selectedSkill?: string
+  chatSettings?: {
+    systemPrompt?: string
+    temperature?: number
+    maxTokens?: number
+  }
+}
+
+export interface AgentRuntimeStartTaskResult {
+  taskId: string
+  conversationId: string
+  userMessageId: string
+  conversation: IConversations
 }

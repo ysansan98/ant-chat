@@ -66,7 +66,7 @@ export async function runAgentLoop(input: {
         systemPrompt,
       }
 
-      config.eventEmitter.emitTurnStarted({
+      await config.eventEmitter.emitTurnStarted({
         conversationId: options.conversationId,
         model: { name: modelName, provider: providerName, providerId },
       })
@@ -101,7 +101,7 @@ export async function runAgentLoop(input: {
             invalidArgsError: argsResult.ok ? undefined : argsResult.error,
           })
         }
-        config.eventEmitter.emitTurnChunk({
+        await config.eventEmitter.emitTurnChunk({
           conversationId: options.conversationId,
           accumulatedText: modelText,
           chunk,
@@ -117,7 +117,7 @@ export async function runAgentLoop(input: {
         finalAnswer = currentModelText || 'Task completed.'
         loopMessages.push({ role: 'assistant', content: [{ type: 'text', text: modelText }] })
 
-        config.eventEmitter.emitTurnFinished({
+        await config.eventEmitter.emitTurnFinished({
           conversationId: options.conversationId,
           text: finalAnswer,
           status: 'success',
@@ -130,7 +130,7 @@ export async function runAgentLoop(input: {
 
       for (const rc of requestedToolCalls) {
         if (rc.invalidArgsError) {
-          const res = createInvalidToolArgsResult({
+          const res = await createInvalidToolArgsResult({
             config,
             conversationId: options.conversationId,
             requestedToolCall: rc,
@@ -199,7 +199,7 @@ export async function runAgentLoop(input: {
     }
 
     task.snapshot.status = 'success'
-    config.eventEmitter.emitTaskUpdated(task.snapshot)
+    await config.eventEmitter.emitTaskUpdated(task.snapshot)
     config.logger.info('agent-runtime', { event: 'task_completed', conversationId: options.conversationId, userMessageId: options.userMessageId, finalAnswer })
   }
   catch (error) {
@@ -233,7 +233,7 @@ async function handleLoopFailure(options: {
   }
   if (error instanceof AgentError && error.code === 'AGENT_CANCELLED') {
     task.snapshot.status = 'cancelled'
-    config.eventEmitter.emitTurnFinished({
+    await config.eventEmitter.emitTurnFinished({
       conversationId: task.snapshot.conversationId,
       text: 'Task cancelled.',
       status: 'cancel',
@@ -243,12 +243,12 @@ async function handleLoopFailure(options: {
     task.snapshot.status = 'failed'
     task.snapshot.errorCode = (error instanceof AgentError ? error.code : error.message) as AgentTaskSnapshot['errorCode']
     task.snapshot.errorMessage = error.message
-    config.eventEmitter.emitTurnFinished({
+    await config.eventEmitter.emitTurnFinished({
       conversationId: task.snapshot.conversationId,
       text: `Task failed: ${error.message}`,
       status: 'error',
     })
   }
-  config.eventEmitter.emitTaskUpdated(task.snapshot)
+  await config.eventEmitter.emitTaskUpdated(task.snapshot)
   config.logger.error('[agent-runtime] task_failed', failurePayload)
 }

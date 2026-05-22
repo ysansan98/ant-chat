@@ -57,7 +57,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
     executeState: 'executing',
   }
   currentToolMessages.push(currentToolCall)
-  config.eventEmitter.emitTurnToolCalls({
+  await config.eventEmitter.emitTurnToolCalls({
     conversationId: task.snapshot.conversationId,
     text: currentModelText,
     toolCalls: [...currentToolMessages],
@@ -148,13 +148,13 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   }
 }
 
-function emitToolCalls(
+async function emitToolCalls(
   config: AgentRuntimeConfig,
   conversationId: string,
   text: string,
   toolMessages: McpToolCall[],
 ) {
-  config.eventEmitter.emitTurnToolCalls({
+  await config.eventEmitter.emitTurnToolCalls({
     conversationId,
     text,
     toolCalls: [...toolMessages],
@@ -215,18 +215,18 @@ function buildObservation(
   return `Tool ${prepared.toolName} succeeded, output: ${truncated}`
 }
 
-export function createInvalidToolArgsResult(options: {
+export async function createInvalidToolArgsResult(options: {
   config: AgentRuntimeConfig
   conversationId: string
   requestedToolCall: { toolName: string, input: Record<string, unknown>, invalidArgsError?: string }
   currentModelText: string
   currentToolMessages: McpToolCall[]
-}): {
+}): Promise<{
   lastToolCallContext: ToolCallContext
   toolCallId: string
   toolResultContent: string
   isError: boolean
-} {
+}> {
   const { config, conversationId, requestedToolCall, currentModelText, currentToolMessages } = options
   const toolCallId = randomUUID()
   const error = `Tool ${requestedToolCall.toolName} argument error: ${requestedToolCall.invalidArgsError || 'args must be a JSON object'}. Fix the arguments and retry.`
@@ -241,7 +241,7 @@ export function createInvalidToolArgsResult(options: {
       error,
     },
   })
-  config.eventEmitter.emitTurnToolCalls({
+  await config.eventEmitter.emitTurnToolCalls({
     conversationId,
     text: currentModelText || 'Tool argument error, waiting for model to correct.',
     toolCalls: [...currentToolMessages],

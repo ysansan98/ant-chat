@@ -266,11 +266,11 @@ describe('executeToolStep', () => {
 })
 
 describe('createInvalidToolArgsResult', () => {
-  it('creates error result for invalid tool arguments', () => {
+  it('creates error result for invalid tool arguments', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
 
-    const result = createInvalidToolArgsResult({
+    const result = await createInvalidToolArgsResult({
       config: { eventEmitter: emitter, logger },
       conversationId: 'conv-1',
       requestedToolCall: {
@@ -288,11 +288,11 @@ describe('createInvalidToolArgsResult', () => {
     expect(emitter.emitTurnToolCalls).toHaveBeenCalled()
   })
 
-  it('uses default error when no invalidArgsError provided', () => {
+  it('uses default error when no invalidArgsError provided', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
 
-    const result = createInvalidToolArgsResult({
+    const result = await createInvalidToolArgsResult({
       config: { eventEmitter: emitter, logger },
       conversationId: 'conv-1',
       requestedToolCall: { toolName: 'bash', input: {} },

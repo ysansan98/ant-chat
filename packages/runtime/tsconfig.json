@@ -3,8 +3,12 @@
     "composite": true,
     "target": "ES2020",
     "baseUrl": ".",
+    "rootDir": "../..",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "paths": {
+      "@ant-chat/shared": ["../shared/src/index.ts"]
+    },
     "strict": true,
     "declaration": true,
     "declarationMap": true,
@@ -15,6 +19,6 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "../shared/src/**/*"],
   "exclude": ["node_modules", "dist"]
 }

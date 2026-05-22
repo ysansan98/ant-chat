@@ -12,13 +12,19 @@ export class ChatIpcService extends IpcService {
 
   @IpcMethod()
   async createConversationsTitle(options: handleInitConversationTitleOptions): Promise<IpcResponse<IConversations>> {
-    logger.info('IPC Event: chat:create-conversations-title', options)
-    const title = await handleInitConversationTitle(options)
-    const udpatedConversations = await updateConversation({
-      id: options.conversationsId,
-      title,
-    })
-    return createIpcResponse(true, udpatedConversations)
+    try {
+      logger.info('IPC Event: chat:create-conversations-title', options)
+      const title = await handleInitConversationTitle(options)
+      const udpatedConversations = await updateConversation({
+        id: options.conversationsId,
+        title,
+      })
+      return createIpcResponse(true, udpatedConversations)
+    }
+    catch (error) {
+      logger.error('初始化会话标题失败:', error)
+      return createErrorIpcResponse(error as Error)
+    }
   }
 
   @IpcMethod()

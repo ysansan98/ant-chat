@@ -20,6 +20,7 @@ export default defineConfig(({ command, mode }) => {
       resolve: {
         alias: {
           '@ant-chat/shared': resolve('packages/shared/src/index.ts'),
+          '@ant-chat/runtime': resolve('packages/runtime/src/index.ts'),
           '@main': resolve('src/main'),
         },
       },

@@ -17,6 +17,9 @@
       "@ant-chat/mcp-client-hub": [
         "./packages/mcp-client-hub/src/index.ts"
       ],
+      "@ant-chat/runtime": [
+        "./packages/runtime/src/index.ts"
+      ],
       "@main/*": [
         "./src/main/*"
       ],
@@ -44,6 +47,7 @@
     "src/renderer/src/**/*.tsx",
     "packages/shared/src/**/*",
     "packages/mcp-client-hub/src/**/*",
+    "packages/runtime/src/**/*",
     "packages/ui/src/**/*",
     "src/preload/*.d.ts",
     "src/main/**/*.ts",
