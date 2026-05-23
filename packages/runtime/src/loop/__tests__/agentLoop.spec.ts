@@ -108,8 +108,8 @@ function makeTextChunk(text: string): IAIStreamChunk {
   return { content: [{ type: 'text', text }] }
 }
 
-function makeToolCallChunk(toolName: string, args: Record<string, unknown>): IAIStreamChunk {
-  return { functionCalls: [{ toolName, args }] }
+function makeToolCallChunk(toolName: string, args: Record<string, unknown>, id?: string): IAIStreamChunk {
+  return { functionCalls: [id ? { id, toolName, args } : { toolName, args }] }
 }
 
 // ============================================================
@@ -202,6 +202,61 @@ describe('runAgentLoop', () => {
     expect(emitter.emitTurnFinished).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'success' }),
     )
+  })
+
+  it('keeps duplicate tool calls from the same model response', async () => {
+    const execute = vi.fn(async (input: Record<string, unknown>) => ({ ok: true, output: `contents:${input.path}`, exitCode: 0 }))
+    const readTool = createReadTool({ execute })
+    const modelRequests: RuntimeStartInput['messages'][] = []
+    const aiProvider: IAIProvider = {
+      async* streamModel(opts) {
+        modelRequests.push(opts.messages)
+        if (modelRequests.length === 1) {
+          yield {
+            functionCalls: [
+              { id: 'call-a', toolName: 'read_file', args: { path: 'a.txt' } },
+              { id: 'call-b', toolName: 'read_file', args: { path: 'b.txt' } },
+            ],
+          }
+          return
+        }
+        yield makeTextChunk('Done')
+      },
+      complete: vi.fn().mockResolvedValue({ text: 'mock complete' }),
+    }
+
+    const { taskId, options } = createBaseInput({
+      aiProvider,
+      tools: [readTool],
+    })
+    const task = createTask(taskId, options.conversationId)
+    taskStore.create(task)
+
+    await runAgentLoop({
+      taskId,
+      options,
+      config: { eventEmitter: emitter, logger },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
+    })
+
+    expect(execute).toHaveBeenCalledTimes(2)
+    expect(execute).toHaveBeenNthCalledWith(1, { path: 'a.txt' })
+    expect(execute).toHaveBeenNthCalledWith(2, { path: 'b.txt' })
+
+    const secondRequestMessages = modelRequests[1]
+    const assistantMessage = secondRequestMessages.find(message => message.role === 'assistant')
+    const toolMessages = secondRequestMessages.filter(message => message.role === 'tool')
+    expect(assistantMessage?.content.filter(item => item.type === 'tool-call')).toEqual([
+      expect.objectContaining({ toolCallId: 'call-a', toolName: 'read_file', args: { path: 'a.txt' } }),
+      expect.objectContaining({ toolCallId: 'call-b', toolName: 'read_file', args: { path: 'b.txt' } }),
+    ])
+    expect(toolMessages).toHaveLength(2)
+    expect(toolMessages[0]?.content).toEqual([
+      expect.objectContaining({ toolCallId: 'call-a', toolName: 'read_file', isError: false }),
+    ])
+    expect(toolMessages[1]?.content).toEqual([
+      expect.objectContaining({ toolCallId: 'call-b', toolName: 'read_file', isError: false }),
+    ])
   })
 
   it('aborts when abortController is signaled during tool execution', async () => {

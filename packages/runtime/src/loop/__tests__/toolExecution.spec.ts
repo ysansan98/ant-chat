@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createInvalidToolArgsResult, executeToolStep } from '../toolExecution'
 import { ToolRegistry } from '../toolRegistry'
-import type { AgentTaskSnapshot, AgentTool, IAgentEventEmitter, ILogger } from '@ant-chat/shared'
+import type { AgentTaskSnapshot, AgentTool, IAgentEventEmitter, ILogger, McpToolCall } from '@ant-chat/shared'
 
 function createMockEmitter(): IAgentEventEmitter {
   return {
@@ -78,6 +78,30 @@ describe('executeToolStep', () => {
     expect(result.isError).toBe(false)
     expect(result.toolResultContent).toContain('read_file')
     expect(result.toolResultContent).toContain('succeeded')
+  })
+
+  it('preserves model-provided tool call id', async () => {
+    const emitter = createMockEmitter()
+    const logger = createMockLogger()
+    const registry = new ToolRegistry([createReadTool()])
+    const task = createTask()
+    const currentToolMessages: McpToolCall[] = []
+
+    const result = await executeToolStep({
+      task,
+      registry,
+      requestedToolCall: { id: 'model-call-1', toolName: 'read_file', input: { path: 'test.txt' } },
+      currentModelText: 'Reading file...',
+      currentToolMessages,
+      step: 1,
+      config: { eventEmitter: emitter, logger },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
+    })
+
+    expect(result.toolCallId).toBe('model-call-1')
+    expect(currentToolMessages).toEqual([
+      expect.objectContaining({ id: 'model-call-1', toolName: 'read_file' }),
+    ])
   })
 
   it('handles tool not found in registry', async () => {
@@ -286,6 +310,30 @@ describe('createInvalidToolArgsResult', () => {
     expect(result.toolResultContent).toContain('command is required')
     expect(result.toolCallId).toBeDefined()
     expect(emitter.emitTurnToolCalls).toHaveBeenCalled()
+  })
+
+  it('preserves model-provided tool call id for invalid arguments', async () => {
+    const emitter = createMockEmitter()
+    const logger = createMockLogger()
+    const currentToolMessages: McpToolCall[] = []
+
+    const result = await createInvalidToolArgsResult({
+      config: { eventEmitter: emitter, logger },
+      conversationId: 'conv-1',
+      requestedToolCall: {
+        id: 'bad-call-1',
+        toolName: 'bash',
+        input: {},
+        invalidArgsError: 'command is required',
+      },
+      currentModelText: '',
+      currentToolMessages,
+    })
+
+    expect(result.toolCallId).toBe('bad-call-1')
+    expect(currentToolMessages).toEqual([
+      expect.objectContaining({ id: 'bad-call-1', toolName: 'bash' }),
+    ])
   })
 
   it('uses default error when no invalidArgsError provided', async () => {

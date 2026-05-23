@@ -83,7 +83,7 @@ export async function runAgentLoop(input: {
       })
 
       let modelText = ''
-      const toolCallMap = new Map<string, { toolName: string, input: Record<string, unknown>, invalidArgsError?: string }>()
+      const requestedToolCalls: Array<{ id?: string, toolName: string, input: Record<string, unknown>, invalidArgsError?: string }> = []
 
       for await (const chunk of stream) {
         const content = chunk.content || []
@@ -95,7 +95,8 @@ export async function runAgentLoop(input: {
         const functionCalls = chunk.functionCalls || []
         for (const fc of functionCalls) {
           const argsResult = normalizeToolArgs(fc.args)
-          toolCallMap.set(fc.toolName, {
+          requestedToolCalls.push({
+            id: fc.id,
             toolName: fc.toolName,
             input: argsResult.ok ? argsResult.input : {},
             invalidArgsError: argsResult.ok ? undefined : argsResult.error,
@@ -107,8 +108,6 @@ export async function runAgentLoop(input: {
           chunk,
         })
       }
-
-      const requestedToolCalls = [...toolCallMap.values()]
 
       config.logger.info('agent-runtime', { event: 'model_response_finished', conversationId: options.conversationId, userMessageId: options.userMessageId, step, textPreview: modelText.slice(0, 500), hasToolCall: requestedToolCalls.length > 0 })
       currentModelText = modelText.trim()

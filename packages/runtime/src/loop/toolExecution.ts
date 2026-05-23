@@ -9,6 +9,7 @@ const DEFAULT_TOOL_OBSERVATION_LIMIT = 4000
 const DEFAULT_TOOL_LOG_PREVIEW_LIMIT = 4000
 
 export interface RequestedToolCall {
+  id?: string
   toolName: string
   input: Record<string, unknown>
 }
@@ -50,7 +51,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   const prepared = registry.prepare(requestedToolCall.toolName, requestedToolCall.input)
 
   const currentToolCall: McpToolCall = {
-    id: randomUUID(),
+    id: requestedToolCall.id ?? randomUUID(),
     serverName: prepared.source,
     toolName: requestedToolCall.toolName,
     args: requestedToolCall.input,
@@ -218,7 +219,7 @@ function buildObservation(
 export async function createInvalidToolArgsResult(options: {
   config: AgentRuntimeConfig
   conversationId: string
-  requestedToolCall: { toolName: string, input: Record<string, unknown>, invalidArgsError?: string }
+  requestedToolCall: RequestedToolCall & { invalidArgsError?: string }
   currentModelText: string
   currentToolMessages: McpToolCall[]
 }): Promise<{
@@ -228,7 +229,7 @@ export async function createInvalidToolArgsResult(options: {
   isError: boolean
 }> {
   const { config, conversationId, requestedToolCall, currentModelText, currentToolMessages } = options
-  const toolCallId = randomUUID()
+  const toolCallId = requestedToolCall.id ?? randomUUID()
   const error = `Tool ${requestedToolCall.toolName} argument error: ${requestedToolCall.invalidArgsError || 'args must be a JSON object'}. Fix the arguments and retry.`
   currentToolMessages.push({
     id: toolCallId,
