@@ -1,12 +1,13 @@
 import type { GeneralSettingsState } from '@ant-chat/shared'
 import type { SettingsRepository } from '../../repositories'
 import type { AppDataDatabase } from '../types'
+import { GeneralSettingsSchema } from '@ant-chat/shared'
 import { eq } from 'drizzle-orm'
 import { appSettingsTable } from '../schema'
 
 const GENERAL_SETTINGS_KEY = 'general'
 
-export const DEFAULT_GENERAL_SETTINGS: GeneralSettingsState = {
+const DEFAULT_GENERAL_SETTINGS: GeneralSettingsState = {
   assistantModelId: '',
   proxySettings: {
     mode: 'none',
@@ -19,7 +20,11 @@ export class SqliteSettingsRepository implements SettingsRepository {
 
   async getGeneralSettings(): Promise<GeneralSettingsState> {
     const result = this.db.select().from(appSettingsTable).where(eq(appSettingsTable.key, GENERAL_SETTINGS_KEY)).get()
-    return result?.value ?? DEFAULT_GENERAL_SETTINGS
+    return result ? this.parseStoredSettings(result.value) : DEFAULT_GENERAL_SETTINGS
+  }
+
+  parseStoredSettings(value: unknown): GeneralSettingsState {
+    return GeneralSettingsSchema.parse(value)
   }
 
   async updateGeneralSettings(updates: Partial<GeneralSettingsState>): Promise<GeneralSettingsState> {
