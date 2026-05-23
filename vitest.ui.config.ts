@@ -9,20 +9,17 @@ export default defineConfig({
   test: {
     globals: true,
     include: [
-      'tests/ui/**/*.spec.{ts,tsx}',
+      'apps/desktop/tests/ui/**/*.spec.{ts,tsx}',
     ],
     alias: {
-      '@ant-chat/shared': fileURLToPath(new URL('./packages/shared/src/index.ts', import.meta.url)),
-      '@ant-chat/app-data': fileURLToPath(new URL('./packages/app-data/src/index.ts', import.meta.url)),
-      '@ant-chat/local-server': fileURLToPath(new URL('./packages/local-server/src/index.ts', import.meta.url)),
       '@ant-design/x/es/sender/useSpeech': '@ant-design/x/es/sender/useSpeech',
       '@ant-design/x': '@ant-design/x/es',
-      '@': fileURLToPath(new URL('./src/renderer/src', import.meta.url)),
-      '@main': fileURLToPath(new URL('./src/main', import.meta.url)),
+      '@': fileURLToPath(new URL('./apps/desktop/src/renderer/src', import.meta.url)),
+      '@main': fileURLToPath(new URL('./apps/desktop/src/main', import.meta.url)),
     },
     environment: 'jsdom',
     setupFiles: [
-      './tests/setup.ui.ts',
+      './apps/desktop/tests/setup.ui.ts',
     ],
   },
 })

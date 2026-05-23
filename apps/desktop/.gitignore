@@ -1,0 +1,7 @@
+# Build output
+out
+build
+release
+
+# Database
+*.db

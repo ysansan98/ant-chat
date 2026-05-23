@@ -32,22 +32,22 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Prepare bundled rg binaries
-        run: pnpm rg:prepare
+        run: pnpm -F @ant-chat/desktop rg:prepare
 
       - name: Rebuild better-sqlite3
-        run: pnpm rebuild:node
+        run: pnpm -F @ant-chat/desktop rebuild:node
 
       - name: Build workspace packages
         run: pnpm -F @ant-chat/runtime build
 
       - name: TypeScript check
-        run: pnpm type-check
+        run: pnpm -F @ant-chat/desktop type-check
 
       - name: Lint
-        run: pnpm lint
+        run: pnpm -F @ant-chat/desktop lint
 
       - name: Unit test
-        run: pnpm test:unit
+        run: pnpm -F @ant-chat/desktop test:unit
 
   ui-test:
     runs-on: ubuntu-latest
@@ -74,7 +74,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: UI flow test
-        run: pnpm test:ui
+        run: pnpm -F @ant-chat/desktop test:ui
 
   agent-e2e:
     runs-on: ubuntu-latest
@@ -101,16 +101,16 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Prepare bundled rg binaries
-        run: pnpm rg:prepare
+        run: pnpm -F @ant-chat/desktop rg:prepare
 
       - name: Rebuild better-sqlite3
-        run: pnpm rebuild:node
+        run: pnpm -F @ant-chat/desktop rebuild:node
 
       - name: Build workspace packages
         run: pnpm -F @ant-chat/runtime build
 
       - name: Agent runtime e2e
-        run: pnpm test:e2e:agent-runtime
+        run: pnpm -F @ant-chat/desktop test:e2e:agent-runtime
 
       # - name: Upload test results to Codecov
       #   if: ${{ !cancelled() }}

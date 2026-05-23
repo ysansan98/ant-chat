@@ -1,6 +1,7 @@
 shellEmulator: true
 packages:
   - packages/*
+  - apps/*
 
 catalog:
   '@eslint/js': ^9.39.2
@@ -21,3 +22,10 @@ onlyBuiltDependencies:
   - esbuild
   - msw
   - protobufjs
+allowBuilds:
+  better-sqlite3: true
+  electron: true
+  electron-winstaller: true
+  esbuild: true
+  msw: true
+  protobufjs: true

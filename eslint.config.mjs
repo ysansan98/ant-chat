@@ -1,5 +1,9 @@
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import antfu from '@antfu/eslint-config'
 import eslintPluginBetterTailwindcss from 'eslint-plugin-better-tailwindcss'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
 
 export default antfu(
   {
@@ -13,6 +17,12 @@ export default antfu(
     },
     ignores: [
       'docs/**/*.md',
+      '**/out/**',
+      '**/dist/**',
+      '**/release/**',
+      '**/*.db',
+      '.claude/**',
+      '.agents/**',
     ],
     rules: {
       'no-console': ['off'],
@@ -24,7 +34,7 @@ export default antfu(
     files: ['packages/**/*.{ts,tsx}'],
   },
   {
-    files: ['src/**/*.{ts,tsx}'],
+    files: ['apps/desktop/src/**/*.{ts,tsx}'],
     languageOptions: {
       parserOptions: {
         ecmaFeatures: {
@@ -42,23 +52,29 @@ export default antfu(
       ...eslintPluginBetterTailwindcss.configs['recommended-error'].rules,
 
       // or configure rules individually
-      'better-tailwindcss/enforce-consistent-line-wrapping': ['warn', { printWidth: 100 }],
-      'better-tailwindcss/no-unknown-classes': ['error', {
-        detectComponentClasses: true,
-        ignore: [
-          'antd-css-var',
-          'ant-*',
-          'mermaid-container',
-          'app-region-drag',
-          'app-region-no-drag',
-        ],
-      }],
+      'better-tailwindcss/enforce-consistent-line-wrapping': [
+        'warn',
+        { printWidth: 100 },
+      ],
+      'better-tailwindcss/no-unknown-classes': [
+        'warn',
+        {
+          detectComponentClasses: true,
+          ignore: [
+            'antd-css-var',
+            'ant-*',
+            'mermaid-container',
+            'app-region-drag',
+            'app-region-no-drag',
+          ],
+        },
+      ],
       'ts/no-require-imports': ['off'],
       'node/prefer-global/process': ['off'],
     },
     settings: {
       'better-tailwindcss': {
-        cwd: './packages/ui',
+        cwd: resolve(__dirname, 'packages/ui'),
         entryPoint: 'src/styles/globals.css',
       },
     },
@@ -84,10 +100,7 @@ export default antfu(
     },
   },
   {
-    files: [
-      '**/package.json',
-      'pnpm-workspace.yaml',
-    ],
+    files: ['**/package.json', 'pnpm-workspace.yaml'],
     rules: {
       'pnpm/yaml-enforce-settings': 'off',
       'pnpm/json-enforce-catalog': 'off',

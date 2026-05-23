@@ -1,0 +1,25 @@
+{
+  "extends": "@electron-toolkit/tsconfig/tsconfig.node.json",
+  "compilerOptions": {
+    "composite": true,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
+    "experimentalDecorators": true,
+    "moduleResolution": "bundler",
+    "paths": {
+      "@main/*": [
+        "./src/main/*"
+      ]
+    },
+    "types": [
+      "electron-vite/node"
+    ],
+    "noEmit": true
+  },
+  "include": [
+    "electron.vite.config.*",
+    "src/types/**/*.ts",
+    "src/main/**/*",
+    "src/preload/**/*",
+    "tests/helpers/**/*.ts"
+  ]
+}

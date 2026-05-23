@@ -3,7 +3,7 @@
  * @type {import('lint-staged').Configuration}
  */
 export default {
-  'src/**/*.ts?(x)': () => 'tsc -p tsconfig.json --noEmit',
+  'apps/desktop/src/**/*.ts?(x)': () => 'tsc -p apps/desktop/tsconfig.json --noEmit',
   'packages/**/*.{ts,js,jsx,tsx,vue}': 'eslint --fix --quiet',
-  'src/**/*.{ts,js,jsx,tsx}': 'eslint --fix --quiet',
+  'apps/desktop/src/**/*.{ts,js,jsx,tsx}': 'eslint --fix --quiet',
 }

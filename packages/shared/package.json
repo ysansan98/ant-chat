@@ -21,6 +21,9 @@
     "clean": "rm -rf dist node_modules",
     "typecheck": "tsc --noEmit"
   },
+  "dependencies": {
+    "zod": "catalog:"
+  },
   "devDependencies": {
     "tsdown": "catalog:"
   }

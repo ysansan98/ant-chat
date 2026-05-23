@@ -41,7 +41,7 @@ export default {
     [
       '@semantic-release/git',
       {
-        assets: ['CHANGELOG.md', 'package.json', 'packages/mcp-client-hub/package.json', 'packages/shared/package.json'],
+        assets: ['CHANGELOG.md', 'package.json', 'apps/desktop/package.json', 'packages/mcp-client-hub/package.json', 'packages/shared/package.json'],
         message: 'chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}',
       },
     ],
@@ -50,11 +50,11 @@ export default {
       '@semantic-release/github',
       {
         assets: [
-          'release/**/*.exe',
-          'release/**/*.blockmap',
-          'release/**/*.dmg',
-          'release/**/*.zip',
-          'release/**/*.yml',
+          'apps/desktop/release/**/*.exe',
+          'apps/desktop/release/**/*.blockmap',
+          'apps/desktop/release/**/*.dmg',
+          'apps/desktop/release/**/*.zip',
+          'apps/desktop/release/**/*.yml',
         ],
       },
     ],

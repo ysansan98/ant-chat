@@ -24,6 +24,7 @@
     "@ant-chat/shared": "workspace:^"
   },
   "devDependencies": {
-    "tsdown": "catalog:"
+    "tsdown": "catalog:",
+    "vitest": "^4.0.14"
   }
 }

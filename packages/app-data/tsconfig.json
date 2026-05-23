@@ -1,12 +1,10 @@
 {
   "compilerOptions": {
+    "composite": true,
     "target": "ES2020",
     "baseUrl": ".",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "paths": {
-      "@ant-chat/shared": ["../shared/src/index.ts"]
-    },
     "strict": true,
     "declaration": true,
     "declarationMap": true,
