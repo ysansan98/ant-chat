@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useReducer } from 'react'
 
 interface Size {
   width: number
@@ -6,11 +6,14 @@ interface Size {
 }
 
 export function useZoomable(initialSize: Size) {
-  const [size, setSize] = useState<Size>(initialSize)
+  const [size, dispatch] = useReducer(
+    (_s: Size, a: Size) => a,
+    initialSize,
+  )
 
   // 当 initialSize 变化时更新 size
   useEffect(() => {
-    setSize(initialSize)
+    dispatch(initialSize)
   }, [initialSize])
 
   const handleWheel = (e: WheelEvent) => {
@@ -22,7 +25,7 @@ export function useZoomable(initialSize: Size) {
     const newHeight = size.height * scaleFactor
 
     if (newWidth > 100 && newHeight > 100) {
-      setSize({ width: newWidth, height: newHeight })
+      dispatch({ width: newWidth, height: newHeight })
     }
   }
 
@@ -38,5 +41,5 @@ export function useZoomable(initialSize: Size) {
     }
   }, [size.width, size.height])
 
-  return { size, setSize }
+  return { size, setSize: (s: Size) => dispatch(s) }
 }

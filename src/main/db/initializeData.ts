@@ -1,4 +1,4 @@
-import { db } from './db'
+import { getDb } from './db'
 import { serviceProviderModelsTable, serviceProviderTable } from './schema'
 
 const providerServiceData = [
@@ -12,7 +12,7 @@ const providerServiceData = [
 const providerServiceModelsData = []
 
 export async function initializeData() {
-  db.transaction((tx) => {
+  getDb().transaction((tx) => {
     providerServiceData.forEach((row) => {
       tx.insert(serviceProviderTable).values(row).onConflictDoNothing({ target: serviceProviderTable.id }).run()
     })

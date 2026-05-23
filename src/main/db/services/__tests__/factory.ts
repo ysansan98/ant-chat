@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid'
-import { db } from '../../db'
+import { getDb } from '../../db'
 import { conversationsTable, messagesTable, serviceProviderModelsTable, serviceProviderTable } from '../../schema'
 
 // 插入 providerServices 测试数据
@@ -15,7 +15,7 @@ export async function createProviderService(data: Partial<typeof serviceProvider
     updatedAt: Math.floor(Date.now() / 1000),
   }
   const insertData = { ...defaultData, ...data }
-  const [row] = await db.insert(serviceProviderTable).values(insertData).returning()
+  const [row] = await getDb().insert(serviceProviderTable).values(insertData).returning()
   return row
 }
 
@@ -32,7 +32,7 @@ export async function createProviderServiceModel(data: Partial<typeof servicePro
     createdAt: Math.floor(Date.now() / 1000),
   }
   const insertData = { ...defaultData, ...data }
-  const [row] = await db.insert(serviceProviderModelsTable).values(insertData).returning()
+  const [row] = await getDb().insert(serviceProviderModelsTable).values(insertData).returning()
   return row
 }
 
@@ -45,7 +45,7 @@ export async function createMessage(data: Partial<typeof messagesTable.$inferIns
     convId: `conv-${nanoid()}`,
   }
   const insertData = { ...defaultData, ...data }
-  const [row] = await db.insert(messagesTable).values(insertData).returning()
+  const [row] = await getDb().insert(messagesTable).values(insertData).returning()
   return row
 }
 
@@ -64,6 +64,6 @@ export async function createConversation(data: Partial<typeof conversationsTable
     },
   }
   const insertData = { ...defaultData, ...data }
-  const [row] = await db.insert(conversationsTable).values(insertData).returning()
+  const [row] = await getDb().insert(conversationsTable).values(insertData).returning()
   return row
 }

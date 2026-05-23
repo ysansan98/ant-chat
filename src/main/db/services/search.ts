@@ -1,12 +1,12 @@
 import type { SearchResult } from '@ant-chat/shared'
 import { eq, sql } from 'drizzle-orm'
-import { db } from '../db'
+import { getDb } from '../db'
 import { conversationsTable, messagesTable } from '../schema'
 
 export async function searchMessagesByKeyword(query: string): Promise<SearchResult[]> {
   const searchQuery = `%${query}%`
 
-  const results = await db
+  const results = await getDb()
     .select({
       id: messagesTable.id,
       conversationId: messagesTable.convId,

@@ -10,22 +10,40 @@ import React from 'react'
 import { toast } from 'sonner'
 import { skillApi } from '@/api/skillApi'
 
+interface SkillState { data: SkillIndex, loading: boolean }
+
+type SkillAction
+  = | { type: 'FETCH_START' }
+    | { type: 'FETCH_SUCCESS', data: SkillIndex }
+    | { type: 'FETCH_ERROR', error: string }
+
+function skillReducer(state: SkillState, action: SkillAction): SkillState {
+  switch (action.type) {
+    case 'FETCH_START':
+      return { ...state, loading: true }
+    case 'FETCH_SUCCESS':
+      return { loading: false, data: action.data }
+    case 'FETCH_ERROR':
+      return { ...state, loading: false }
+  }
+}
+
 export default function SkillManage() {
-  const [data, setData] = React.useState<SkillIndex>({ rootPath: '', skills: [] })
-  const [loading, setLoading] = React.useState(false)
+  const [state, dispatch] = React.useReducer(skillReducer, {
+    data: { rootPath: '', skills: [] },
+    loading: false,
+  })
   const [githubOpen, setGithubOpen] = React.useState(false)
   const [githubUrl, setGithubUrl] = React.useState('')
 
   const refresh = React.useCallback(async () => {
-    setLoading(true)
+    dispatch({ type: 'FETCH_START' })
     try {
-      setData(await skillApi.listSkills())
+      dispatch({ type: 'FETCH_SUCCESS', data: await skillApi.listSkills() })
     }
     catch (error) {
       toast.error((error as Error).message || '加载 Skill 失败')
-    }
-    finally {
-      setLoading(false)
+      dispatch({ type: 'FETCH_ERROR', error: (error as Error).message || '加载 Skill 失败' })
     }
   }, [])
 
@@ -34,7 +52,7 @@ export default function SkillManage() {
   }, [refresh])
 
   async function runAction(action: () => Promise<unknown>, success: string) {
-    setLoading(true)
+    dispatch({ type: 'FETCH_START' })
     try {
       await action()
       toast.success(success)
@@ -42,9 +60,7 @@ export default function SkillManage() {
     }
     catch (error) {
       toast.error((error as Error).message || '操作失败')
-    }
-    finally {
-      setLoading(false)
+      dispatch({ type: 'FETCH_ERROR', error: (error as Error).message || '操作失败' })
     }
   }
 
@@ -54,12 +70,12 @@ export default function SkillManage() {
         <CardHeader>
           <CardTitle>Skills</CardTitle>
           <CardDescription>
-            {data.rootPath || '~/.ant-chat/skills'}
+            {state.data.rootPath || '~/.ant-chat/skills'}
           </CardDescription>
           <CardAction className="flex gap-2">
             <Button
               variant="outline"
-              disabled={loading}
+              disabled={state.loading}
               onClick={() => void runAction(async () => skillApi.rebuildSkillIndex(), '索引已重建')}
             >
               <RefreshCwIcon data-icon="inline-start" />
@@ -67,13 +83,13 @@ export default function SkillManage() {
             </Button>
             <Button
               variant="outline"
-              disabled={loading}
+              disabled={state.loading}
               onClick={() => void runAction(async () => skillApi.importSkillFromZip(), 'ZIP 已导入')}
             >
               <ArchiveIcon data-icon="inline-start" />
               Import ZIP
             </Button>
-            <Button disabled={loading} onClick={() => setGithubOpen(true)}>
+            <Button disabled={state.loading} onClick={() => setGithubOpen(true)}>
               <GitBranchIcon data-icon="inline-start" />
               Import GitHub
             </Button>
@@ -82,7 +98,7 @@ export default function SkillManage() {
       </Card>
 
       <div className="flex flex-col gap-3">
-        {data.skills.length === 0
+        {state.data.skills.length === 0
           ? (
               <Card>
                 <CardContent className="py-8 text-center text-gray-400">
@@ -90,11 +106,11 @@ export default function SkillManage() {
                 </CardContent>
               </Card>
             )
-          : data.skills.map(skill => (
+          : state.data.skills.map(skill => (
               <SkillRow
                 key={skill.name}
                 skill={skill}
-                disabled={loading}
+                disabled={state.loading}
                 onToggle={enabled => void runAction(
                   async () => skillApi.setSkillEnabled({ name: skill.name, enabled }),
                   enabled ? 'Skill 已启用' : 'Skill 已停用',
@@ -120,7 +136,7 @@ export default function SkillManage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setGithubOpen(false)}>Cancel</Button>
             <Button
-              disabled={!githubUrl.trim() || loading}
+              disabled={!githubUrl.trim() || state.loading}
               onClick={() => {
                 const url = githubUrl.trim()
                 void runAction(async () => {

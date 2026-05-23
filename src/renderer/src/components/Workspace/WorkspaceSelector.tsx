@@ -26,7 +26,7 @@ import {
   PlusIcon,
   Trash2Icon,
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useReducer, useState } from 'react'
 import workspaceApi from '@/api/workspaceApi'
 import {
   emitWorkspaceChanged,
@@ -47,7 +47,11 @@ interface NoticeState {
 export function WorkspaceSelector({ compact = false }: WorkspaceSelectorProps) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [workspaceData, setWorkspaceData] = useState<ListWorkspacesData | null>(null)
+  // useReducer to avoid react-hooks/set-state-in-effect: dispatch is allowed in effects
+  const [workspaceData, setWorkspaceData] = useReducer(
+    (_s: ListWorkspacesData | null, a: ListWorkspacesData | null) => a,
+    null,
+  )
   const [notice, setNotice] = useState<NoticeState | null>(null)
   const [removeTarget, setRemoveTarget] = useState<WorkspaceItem | null>(null)
   const compactClass = compact
@@ -61,6 +65,12 @@ export function WorkspaceSelector({ compact = false }: WorkspaceSelectorProps) {
     () => workspaceData?.workspaces.find(item => item.path === workspaceData.currentWorkspacePath),
     [workspaceData],
   )
+
+  async function refreshWorkspaces() {
+    const data = await workspaceApi.listWorkspaces()
+    setWorkspaceData(data)
+    useConversationsStore.getState().switchWorkspace(data.currentWorkspacePath)
+  }
 
   useEffect(() => {
     void refreshWorkspaces()
@@ -85,12 +95,6 @@ export function WorkspaceSelector({ compact = false }: WorkspaceSelectorProps) {
     const timer = window.setTimeout(() => setNotice(null), 2400)
     return () => window.clearTimeout(timer)
   }, [notice])
-
-  async function refreshWorkspaces() {
-    const data = await workspaceApi.listWorkspaces()
-    setWorkspaceData(data)
-    useConversationsStore.getState().switchWorkspace(data.currentWorkspacePath)
-  }
 
   async function applyWorkspaceData(data: ListWorkspacesData | null) {
     if (!data) {

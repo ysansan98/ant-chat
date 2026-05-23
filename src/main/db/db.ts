@@ -17,8 +17,11 @@ const DB_PATH = isDev
   ? path.join(projectPath, 'dev.db')
   : path.join(getAppHand(), APP_NAME, DB_CONFIG.dbFileName)
 
-// eslint-disable-next-line import/no-mutable-exports
-export let db: BetterSQLite3Database<typeof schema>
+let _db: BetterSQLite3Database<typeof schema>
+
+export function getDb(): BetterSQLite3Database<typeof schema> {
+  return _db
+}
 
 /**
  * 连接数据库
@@ -45,11 +48,11 @@ export async function initializeDb() {
     process.exit(1)
   }
 
-  db = drizzle(sqlite as Database, { schema, logger: false })
+  _db = drizzle(sqlite as Database, { schema, logger: false })
   const migrationsFolder = path.join(__dirname, '../../migrations')
   logger.debug('migrationsFolder => ', migrationsFolder)
   try {
-    migrate(db, { migrationsFolder })
+    migrate(_db, { migrationsFolder })
     logger.info('Database migrations applied successfully.')
   }
   catch (e) {
@@ -86,11 +89,11 @@ export async function initializeTestDb() {
     process.exit(1)
   }
 
-  db = drizzle(sqlite as Database, { schema })
+  _db = drizzle(sqlite as Database, { schema })
   const migrationsFolder = path.join(projectPath, './migrations')
   logger.debug('migrationsFolder for test db => ', migrationsFolder)
   try {
-    migrate(db, { migrationsFolder })
+    migrate(_db, { migrationsFolder })
     logger.info('Test database migrations applied successfully (in-memory).')
   }
   catch (e) {

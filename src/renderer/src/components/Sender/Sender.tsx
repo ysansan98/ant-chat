@@ -39,6 +39,7 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useReducer,
   useRef,
   useState,
 } from 'react'
@@ -262,24 +263,73 @@ function ReferenceInputOverlay({
   )
 }
 
+type WorkspaceDataType = Awaited<ReturnType<typeof workspaceApi.listWorkspaces>> | null
+
+interface SenderDataState {
+  workspaceData: WorkspaceDataType
+  skills: SkillManifest[]
+  fileResults: WorkspaceFileSearchResult[]
+  suggestionAnchorRect: DOMRect | null
+  highlightedIndex: number
+}
+
+type SenderDataAction
+  = | { type: 'SET_WORKSPACE_DATA', data: WorkspaceDataType }
+    | { type: 'SYNC_WORKSPACE_PATH', currentWorkspacePath: string }
+    | { type: 'SET_SKILLS', skills: SkillManifest[] }
+    | { type: 'CLEAR_FILE_RESULTS' }
+    | { type: 'SET_FILE_RESULTS', results: WorkspaceFileSearchResult[] }
+    | { type: 'CLEAR_ANCHOR_RECT' }
+    | { type: 'SET_ANCHOR_RECT', rect: DOMRect | null }
+    | { type: 'RESET_HIGHLIGHTED_INDEX' }
+    | { type: 'SET_HIGHLIGHTED_INDEX', index: number }
+
+function senderDataReducer(state: SenderDataState, action: SenderDataAction): SenderDataState {
+  switch (action.type) {
+    case 'SET_WORKSPACE_DATA':
+      return { ...state, workspaceData: action.data }
+    case 'SYNC_WORKSPACE_PATH': {
+      const prev = state.workspaceData
+      if (!prev || prev.currentWorkspacePath === action.currentWorkspacePath)
+        return state
+      return { ...state, workspaceData: { ...prev, currentWorkspacePath: action.currentWorkspacePath } }
+    }
+    case 'SET_SKILLS':
+      return { ...state, skills: action.skills }
+    case 'CLEAR_FILE_RESULTS':
+      return { ...state, fileResults: [] }
+    case 'SET_FILE_RESULTS':
+      return { ...state, fileResults: action.results }
+    case 'CLEAR_ANCHOR_RECT':
+      return { ...state, suggestionAnchorRect: null }
+    case 'SET_ANCHOR_RECT':
+      return { ...state, suggestionAnchorRect: action.rect }
+    case 'RESET_HIGHLIGHTED_INDEX':
+      return { ...state, highlightedIndex: 0 }
+    case 'SET_HIGHLIGHTED_INDEX':
+      return { ...state, highlightedIndex: action.index }
+  }
+}
+
 function Sender({ actions, ...props }: SenderProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const senderRef = useRef<HTMLDivElement | null>(null)
   const [workspaceLoading, setWorkspaceLoading] = useState(false)
   const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false)
-  const [workspaceData, setWorkspaceData] = useState<
-    Awaited<ReturnType<typeof workspaceApi.listWorkspaces>> | null
-  >(null)
   const [notice, setNotice] = useState('')
   const [draft, setDraft] = useState('')
   const [cursor, setCursor] = useState(0)
   const [referencedFiles, setReferencedFiles] = useState<string[]>([])
   const [selectedSkill, setSelectedSkill] = useState<string>()
-  const [fileResults, setFileResults] = useState<WorkspaceFileSearchResult[]>([])
-  const [skills, setSkills] = useState<SkillManifest[]>([])
-  const [highlightedIndex, setHighlightedIndex] = useState(0)
   const [textareaScrollTop, setTextareaScrollTop] = useState(0)
-  const [suggestionAnchorRect, setSuggestionAnchorRect] = useState<DOMRect | null>(null)
+
+  const [senderData, dispatchSenderData] = useReducer(senderDataReducer, {
+    workspaceData: null,
+    skills: [],
+    fileResults: [],
+    suggestionAnchorRect: null,
+    highlightedIndex: 0,
+  })
 
   const activeConversationsId = useMessagesStore(
     state => state.activeConversationsId,
@@ -309,8 +359,8 @@ function Sender({ actions, ...props }: SenderProps) {
       : trigger
   }, [draft, cursor, referencedFiles, selectedSkill])
   const enabledSkills = useMemo(
-    () => skills.filter(skill => skill.enabled),
-    [skills],
+    () => senderData.skills.filter(skill => skill.enabled),
+    [senderData.skills],
   )
   const filteredSkills = useMemo(() => {
     if (!activeReferenceTrigger || activeReferenceTrigger.type !== 'skill') {
@@ -325,42 +375,57 @@ function Sender({ actions, ...props }: SenderProps) {
       .slice(0, 20)
   }, [activeReferenceTrigger, enabledSkills])
   const suggestionItemCount = activeReferenceTrigger?.type === 'file'
-    ? fileResults.length
+    ? senderData.fileResults.length
     : activeReferenceTrigger?.type === 'skill'
       ? filteredSkills.length
       : 0
 
   const canSwitchWorkspace = !activeConversationsId && !hasMessage && !loading
   const selectableWorkspaces = useMemo(
-    () => (workspaceData?.workspaces || []).filter(item => isAbsoluteWorkspacePath(item.path)),
-    [workspaceData],
+    () => (senderData.workspaceData?.workspaces || []).filter(item => isAbsoluteWorkspacePath(item.path)),
+    [senderData.workspaceData],
   )
   const canSwitchWorkspaceSelect = canSwitchWorkspace && selectableWorkspaces.length > 0
   const currentWorkspace = useMemo(
     () =>
-      workspaceData?.workspaces.find(
-        item => item.path === workspaceData.currentWorkspacePath,
+      senderData.workspaceData?.workspaces.find(
+        item => item.path === senderData.workspaceData?.currentWorkspacePath,
       ),
-    [workspaceData],
+    [senderData.workspaceData],
   )
   const workspaceDisplayName = currentWorkspace?.displayName || '未选择工作区'
   const workspaceSwitchDisabled = workspaceLoading || !canSwitchWorkspaceSelect
 
+  async function refreshWorkspaceData() {
+    const data = await workspaceApi.listWorkspaces()
+    dispatchSenderData({ type: 'SET_WORKSPACE_DATA', data })
+  }
+
+  async function refreshSkills() {
+    const data = await skillApi.listSkills()
+    dispatchSenderData({ type: 'SET_SKILLS', skills: data.skills })
+  }
+
   useEffect(() => {
     void refreshWorkspaceData()
+
     void refreshSkills()
   }, [])
 
   useEffect(() => {
     if (!activeReferenceTrigger || activeReferenceTrigger.type !== 'file') {
-      setFileResults([])
+      dispatchSenderData({ type: 'CLEAR_FILE_RESULTS' })
       return
     }
 
     const timer = window.setTimeout(() => {
       void workspaceApi.searchWorkspaceFiles(activeReferenceTrigger.query, 50)
-        .then(setFileResults)
-        .catch(() => setFileResults([]))
+        .then((results) => {
+          dispatchSenderData({ type: 'SET_FILE_RESULTS', results })
+        })
+        .catch(() => {
+          dispatchSenderData({ type: 'CLEAR_FILE_RESULTS' })
+        })
     }, 120)
 
     return () => window.clearTimeout(timer)
@@ -368,14 +433,14 @@ function Sender({ actions, ...props }: SenderProps) {
 
   useLayoutEffect(() => {
     if (!activeReferenceTrigger) {
-      setSuggestionAnchorRect(null)
+      dispatchSenderData({ type: 'CLEAR_ANCHOR_RECT' })
       return
     }
 
     const updateRect = () => {
       const anchor = senderRef.current?.querySelector('[data-testid="chat-input-form"]')
       const rect = anchor?.getBoundingClientRect()
-      setSuggestionAnchorRect(rect ?? null)
+      dispatchSenderData({ type: 'SET_ANCHOR_RECT', rect: rect ?? null })
     }
 
     updateRect()
@@ -389,7 +454,7 @@ function Sender({ actions, ...props }: SenderProps) {
   }, [activeReferenceTrigger, draft])
 
   useEffect(() => {
-    setHighlightedIndex(0)
+    dispatchSenderData({ type: 'RESET_HIGHLIGHTED_INDEX' })
   }, [activeReferenceTrigger?.type, activeReferenceTrigger?.query, suggestionItemCount])
 
   useEffect(() => {
@@ -397,33 +462,14 @@ function Sender({ actions, ...props }: SenderProps) {
       return
     }
 
-    setWorkspaceData((prev) => {
-      if (!prev || prev.currentWorkspacePath === currentWorkspacePath) {
-        return prev
-      }
-
-      return {
-        ...prev,
-        currentWorkspacePath,
-      }
-    })
+    dispatchSenderData({ type: 'SYNC_WORKSPACE_PATH', currentWorkspacePath })
   }, [currentWorkspacePath])
-
-  async function refreshWorkspaceData() {
-    const data = await workspaceApi.listWorkspaces()
-    setWorkspaceData(data)
-  }
-
-  async function refreshSkills() {
-    const data = await skillApi.listSkills()
-    setSkills(data.skills)
-  }
 
   async function handleSwitchWorkspace(nextWorkspacePath: string) {
     if (
       !canSwitchWorkspace
-      || !workspaceData
-      || nextWorkspacePath === workspaceData.currentWorkspacePath
+      || !senderData.workspaceData
+      || nextWorkspacePath === senderData.workspaceData.currentWorkspacePath
     ) {
       return
     }
@@ -435,7 +481,7 @@ function Sender({ actions, ...props }: SenderProps) {
     setNotice('')
     try {
       const data = await workspaceApi.openWorkspace(nextWorkspacePath)
-      setWorkspaceData(data)
+      dispatchSenderData({ type: 'SET_WORKSPACE_DATA', data })
       setWorkspacePickerOpen(false)
       await setActiveConversationsId('')
       await switchWorkspaceConversationsAction(nextWorkspacePath)
@@ -492,9 +538,9 @@ function Sender({ actions, ...props }: SenderProps) {
       return false
     }
 
-    const index = Math.min(highlightedIndex, suggestionItemCount - 1)
+    const index = Math.min(senderData.highlightedIndex, suggestionItemCount - 1)
     if (activeReferenceTrigger.type === 'file') {
-      selectFileReference(fileResults[index])
+      selectFileReference(senderData.fileResults[index])
       return true
     }
 
@@ -562,13 +608,13 @@ function Sender({ actions, ...props }: SenderProps) {
 
     if (event.key === 'ArrowDown' && suggestionItemCount > 0) {
       event.preventDefault()
-      setHighlightedIndex(prev => (prev + 1) % suggestionItemCount)
+      dispatchSenderData({ type: 'SET_HIGHLIGHTED_INDEX', index: (senderData.highlightedIndex + 1) % suggestionItemCount })
       return
     }
 
     if (event.key === 'ArrowUp' && suggestionItemCount > 0) {
       event.preventDefault()
-      setHighlightedIndex(prev => (prev - 1 + suggestionItemCount) % suggestionItemCount)
+      dispatchSenderData({ type: 'SET_HIGHLIGHTED_INDEX', index: (senderData.highlightedIndex - 1 + suggestionItemCount) % suggestionItemCount })
       return
     }
 
@@ -690,12 +736,12 @@ function Sender({ actions, ...props }: SenderProps) {
           </div>
           <ReferenceSuggestionPanel
             trigger={activeReferenceTrigger}
-            files={fileResults}
+            files={senderData.fileResults}
             skills={filteredSkills}
-            hasWorkspace={Boolean(workspaceData?.currentWorkspacePath)}
+            hasWorkspace={Boolean(senderData.workspaceData?.currentWorkspacePath)}
             hasEnabledSkills={enabledSkills.length > 0}
-            highlightedIndex={highlightedIndex}
-            anchorRect={suggestionAnchorRect}
+            highlightedIndex={senderData.highlightedIndex}
+            anchorRect={senderData.suggestionAnchorRect}
             onSelectFile={selectFileReference}
             onSelectSkill={selectSkillReference}
           />

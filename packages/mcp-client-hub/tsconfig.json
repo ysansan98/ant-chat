@@ -2,14 +2,19 @@
   "compilerOptions": {
     "target": "ES2020",
     "lib": ["ES2020"],
-    "rootDir": "./src",
+    "baseUrl": ".",
     "module": "ESNext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
+    "paths": {
+      "@ant-chat/shared": ["../shared/src/index.ts"]
+    },
     "resolveJsonModule": true,
     "strict": true,
     "declaration": true,
-    "declarationDir": "./dist",
-    "outDir": "./dist",
+    "declarationMap": true,
+    "noEmit": true,
+    "outDir": "dist",
+    "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true
