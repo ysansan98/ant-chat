@@ -1,16 +1,15 @@
 import type { CreateAssistantMessageInput, CreateConversationInput, CreateUserMessageInput, ISessionStore, UpdateAssistantMessageInput, UpdateConversationInput } from '@ant-chat/shared'
 import { getAppDataServices } from '@main/adapters/appDataContainer'
-import { createAIMessage, getConversationById } from '@main/db/services'
 
 export function createElectronSessionStore(): ISessionStore {
   const { conversationService, messageService } = getAppDataServices()
 
   return {
     async getConversation(id) {
-      return await getNullableConversation(id)
+      return await getNullableConversation(conversationService, id)
     },
     async getConversationById(id) {
-      return await getNullableConversation(id)
+      return await getNullableConversation(conversationService, id)
     },
     async createConversation(data: CreateConversationInput) {
       return await conversationService.create(data)
@@ -31,13 +30,13 @@ export function createElectronSessionStore(): ISessionStore {
       return await messageService.create(data)
     },
     async createAssistantMessage(data: CreateAssistantMessageInput) {
-      return await createAIMessage(data.conversationId, data.modelInfo)
+      return await messageService.createAssistant(data.conversationId, data.modelInfo)
     },
     async updateAssistantMessage(id: string, patch: UpdateAssistantMessageInput) {
       return await messageService.update({ id, ...patch })
     },
     async saveCompactionState(input) {
-      const conv = await getConversationById(input.conversationId)
+      const conv = await conversationService.getById(input.conversationId)
       await conversationService.update({
         id: input.conversationId,
         settings: {
@@ -50,9 +49,9 @@ export function createElectronSessionStore(): ISessionStore {
   }
 }
 
-async function getNullableConversation(id: string) {
+async function getNullableConversation(conversationService: ReturnType<typeof getAppDataServices>['conversationService'], id: string) {
   try {
-    return await getConversationById(id)
+    return await conversationService.getById(id)
   }
   catch {
     return null

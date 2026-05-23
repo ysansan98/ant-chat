@@ -1,7 +1,6 @@
-import { ConversationService, MessageService, SettingsService } from '@ant-chat/app-data'
-import { SqliteConversationRepository } from './sqliteConversationRepository.adapter'
-import { SqliteMessageRepository } from './sqliteMessageRepository.adapter'
-import { SqliteSettingsRepository } from './sqliteSettingsRepository.adapter'
+import type { AppDataDatabase, ConversationService, MessageService, SettingsService } from '@ant-chat/app-data'
+import { createAppDataServices } from '@ant-chat/app-data'
+import { db } from '@main/db/db'
 
 let appDataServices: {
   conversationService: ConversationService
@@ -11,11 +10,7 @@ let appDataServices: {
 
 export function getAppDataServices() {
   if (!appDataServices) {
-    appDataServices = {
-      conversationService: new ConversationService(new SqliteConversationRepository()),
-      messageService: new MessageService(new SqliteMessageRepository()),
-      settingsService: new SettingsService(new SqliteSettingsRepository()),
-    }
+    appDataServices = createAppDataServices(db as AppDataDatabase)
   }
 
   return appDataServices

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { SettingsService } from '../settingsService'
 
-describe('SettingsService', () => {
+describe('settings service', () => {
   it('delegates general settings updates to repository', async () => {
     const repository = {
       getGeneralSettings: vi.fn(),

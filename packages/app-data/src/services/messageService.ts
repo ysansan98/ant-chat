@@ -1,4 +1,4 @@
-import type { AddMessage, IMessage, UpdateMessageSchema } from '@ant-chat/shared'
+import type { AddMessage, AIMessage, IMessage, UpdateMessageSchema } from '@ant-chat/shared'
 import type { MessageRepository, PaginatedResult } from '../repositories'
 
 export class MessageService {
@@ -18,6 +18,17 @@ export class MessageService {
 
   async create(message: AddMessage): Promise<IMessage> {
     return this.repository.create(message)
+  }
+
+  async createAssistant(conversationId: string, modelInfo: AIMessage['modelInfo']): Promise<IMessage> {
+    return this.repository.create({
+      convId: conversationId,
+      content: [],
+      role: 'assistant',
+      status: 'loading',
+      modelInfo,
+      reasoningContent: '',
+    })
   }
 
   async update(message: UpdateMessageSchema): Promise<IMessage> {

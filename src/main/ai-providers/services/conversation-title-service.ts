@@ -1,6 +1,7 @@
 import type { CreateConversationTitleOptions, handleInitConversationTitleOptions } from '@ant-chat/shared'
 import type { MultiProvider } from '../multi-provider'
-import { getMessagesByConvId, getModelById, getProviderServiceById, getServiceProviderByModelId } from '@main/db/services'
+import { getAppDataServices } from '@main/adapters/appDataContainer'
+import { getModelById, getProviderServiceById, getServiceProviderByModelId } from '@main/db/services'
 import { createProvider } from '../factory'
 import { formatMessagesForContext } from './utils'
 
@@ -38,7 +39,7 @@ export async function handleInitConversationTitle(options: handleInitConversatio
     throw new Error(`ServiceProvider not found for modelId: ${modelId}`)
   }
 
-  const messages = await getMessagesByConvId(conversationsId)
+  const messages = await getAppDataServices().messageService.listByConversation(conversationsId)
   const context = formatMessagesForContext(messages)
 
   const titleService = new ConversationTitleService()
