@@ -21,7 +21,20 @@ function createRuntimeConfig(): AgentRuntimeConfig {
   }
 }
 
-export const agentRuntime = new AgentRuntime(createRuntimeConfig())
+let _agentRuntime: AgentRuntime | null = null
+
+function getAgentRuntime(): AgentRuntime {
+  if (!_agentRuntime) {
+    _agentRuntime = new AgentRuntime(createRuntimeConfig())
+  }
+  return _agentRuntime
+}
+
+export const agentRuntime = new Proxy({} as AgentRuntime, {
+  get(_, prop) {
+    return (getAgentRuntime() as any)[prop]
+  },
+})
 
 export async function startAgentTurn(options: StartAgentTurnOptions): Promise<AgentTurnResult> {
   const workspacePath = options.workspacePath
