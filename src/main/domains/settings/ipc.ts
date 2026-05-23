@@ -1,7 +1,7 @@
 import type { GeneralSettingsState, IpcResponse } from '@ant-chat/shared'
 import { createErrorIpcResponse, createIpcResponse } from '@ant-chat/shared'
+import { getAppDataServices } from '@main/adapters/appDataContainer'
 import { getSettingsWindow, openSettingsWindow } from '@main/settings-window'
-import { GeneralSettingsStore } from '@main/store/generalSettings'
 import { logger } from '@main/utils/logger'
 import { ProxyManager } from '@main/utils/proxy-manager'
 import { testProxyConnection } from '@main/utils/system-proxy'
@@ -26,7 +26,7 @@ export class SettingsIpcService extends IpcService {
   @IpcMethod()
   async getSettings(): Promise<IpcResponse<GeneralSettingsState>> {
     try {
-      const settings = GeneralSettingsStore.getInstance().getSettings()
+      const settings = await getAppDataServices().settingsService.getGeneralSettings()
       return createIpcResponse(true, settings)
     }
     catch (error) {
@@ -37,9 +37,7 @@ export class SettingsIpcService extends IpcService {
   @IpcMethod()
   async updateSettings(updates: Partial<GeneralSettingsState>): Promise<IpcResponse<GeneralSettingsState>> {
     try {
-      const store = GeneralSettingsStore.getInstance()
-      store.updateSettings(updates)
-      const updatedSettings = store.getSettings()
+      const updatedSettings = await getAppDataServices().settingsService.updateGeneralSettings(updates)
 
       if (updates.proxySettings) {
         await ProxyManager.getInstance().updateProxySettings(updates.proxySettings)
@@ -68,9 +66,7 @@ export class SettingsIpcService extends IpcService {
   @IpcMethod()
   async resetSettings(): Promise<IpcResponse<GeneralSettingsState>> {
     try {
-      const store = GeneralSettingsStore.getInstance()
-      store.resetSettings()
-      const settings = store.getSettings()
+      const settings = await getAppDataServices().settingsService.resetGeneralSettings()
 
       await ProxyManager.getInstance().updateProxySettings(settings.proxySettings)
 

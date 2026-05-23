@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2020"],
+    "baseUrl": ".",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "paths": {
+      "@ant-chat/app-data": ["../app-data/src/index.ts"],
+      "@ant-chat/shared": ["../shared/src/index.ts"]
+    },
+    "types": ["node"],
+    "strict": true,
+    "declaration": true,
+    "declarationMap": true,
+    "noEmit": true,
+    "outDir": "dist",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

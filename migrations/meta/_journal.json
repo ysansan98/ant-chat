@@ -127,6 +127,13 @@
       "when": 1777577600000,
       "tag": "0017_rename_message_tool_calls",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1779552000000,
+      "tag": "0018_app_settings",
+      "breakpoints": true
     }
   ]
 }

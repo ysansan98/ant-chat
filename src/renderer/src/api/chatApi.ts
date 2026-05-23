@@ -1,63 +1,63 @@
 import type { AddConversationsSchema, IConversations, IMessage, IpcResponse, UpdateConversationsSchema } from '@ant-chat/shared'
 import { useGeneralSettingsStore } from '@/store/generalSettings'
-import { ipc, unwrapIpcPaginatedResponse, unwrapIpcResponse } from '@/utils/ipc-bus'
+import { getAppTransport } from './transports/appTransport'
 
 async function initConversationsTitle(conversationsId: string, modelId?: string): Promise<IpcResponse<IConversations>> {
   const { assistantModelId } = useGeneralSettingsStore.getState()
   const finalModelId = modelId || assistantModelId
-  return await ipc.chat.createConversationsTitle({ modelId: finalModelId, conversationsId })
+  return (await getAppTransport()).chat.createConversationsTitle({ modelId: finalModelId, conversationsId })
 }
 
 async function getConversations(pageIndex: number, pageSize: number): Promise<{ data: IConversations[], total: number }> {
-  return unwrapIpcPaginatedResponse(await ipc.chat.getConversations(pageIndex, pageSize))
+  return (await getAppTransport()).chat.getConversations(pageIndex, pageSize)
 }
 
 async function getWorkspaceConversations(workspacePath: string, pageIndex: number, pageSize: number): Promise<{ data: IConversations[], total: number }> {
-  return unwrapIpcPaginatedResponse(await ipc.chat.getWorkspaceConversations(workspacePath, pageIndex, pageSize))
+  return (await getAppTransport()).chat.getWorkspaceConversations(workspacePath, pageIndex, pageSize)
 }
 
 async function getConversationById(id: string): Promise<IConversations> {
-  return unwrapIpcResponse(await ipc.chat.getConversationById(id))
+  return (await getAppTransport()).chat.getConversationById(id)
 }
 
 async function addConversation(conversation: AddConversationsSchema): Promise<IConversations> {
-  return unwrapIpcResponse(await ipc.chat.addConversation(conversation))
+  return (await getAppTransport()).chat.addConversation(conversation)
 }
 
 async function updateConversation(conversation: UpdateConversationsSchema): Promise<IConversations> {
-  return unwrapIpcResponse(await ipc.chat.updateConversation(conversation))
+  return (await getAppTransport()).chat.updateConversation(conversation)
 }
 
 async function deleteConversation(id: string): Promise<null> {
-  return unwrapIpcResponse(await ipc.chat.deleteConversation(id))
+  return (await getAppTransport()).chat.deleteConversation(id)
 }
 
 async function getMessagesByConvId(convId: string): Promise<IMessage[]> {
-  return unwrapIpcResponse(await ipc.chat.getMessagesByConvId(convId))
+  return (await getAppTransport()).chat.getMessagesByConvId(convId)
 }
 
 async function getMessageById(id: string): Promise<IMessage> {
-  return unwrapIpcResponse(await ipc.chat.getMessageById(id))
+  return (await getAppTransport()).chat.getMessageById(id)
 }
 
 async function addMessage(message: IMessage): Promise<IMessage> {
-  return unwrapIpcResponse(await ipc.chat.addMessage(message))
+  return (await getAppTransport()).chat.addMessage(message)
 }
 
 async function updateMessage(message: IMessage): Promise<IMessage> {
-  return unwrapIpcResponse(await ipc.chat.updateMessage(message))
+  return (await getAppTransport()).chat.updateMessage(message)
 }
 
 async function deleteMessage(id: string): Promise<null> {
-  return unwrapIpcResponse(await ipc.chat.deleteMessage(id))
+  return (await getAppTransport()).chat.deleteMessage(id)
 }
 
 async function getMessagesByConvIdWithPagination(id: string, pageIndex: number, pageSize: number): Promise<{ data: IMessage[], total: number }> {
-  return unwrapIpcPaginatedResponse(await ipc.chat.getMessagesByConvIdWithPagination(id, pageIndex, pageSize))
+  return (await getAppTransport()).chat.getMessagesByConvIdWithPagination(id, pageIndex, pageSize)
 }
 
 async function batchDeleteMessages(ids: string[]): Promise<null> {
-  return unwrapIpcResponse(await ipc.chat.batchDeleteMessages(ids))
+  return (await getAppTransport()).chat.batchDeleteMessages(ids)
 }
 
 export default {

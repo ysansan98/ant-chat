@@ -21,6 +21,8 @@ export default defineConfig(({ command, mode }) => {
         alias: {
           '@ant-chat/shared': resolve('packages/shared/src/index.ts'),
           '@ant-chat/runtime': resolve('packages/runtime/src/index.ts'),
+          '@ant-chat/app-data': resolve('packages/app-data/src/index.ts'),
+          '@ant-chat/local-server': resolve('packages/local-server/src/index.ts'),
           '@main': resolve('src/main'),
         },
       },
@@ -50,6 +52,7 @@ export default defineConfig(({ command, mode }) => {
           { find: /^shiki\/engine\/javascript$/, replacement: resolve('packages/ui/src/lib/shiki-engine-shim.ts') },
           { find: /^shiki$/, replacement: resolve('packages/ui/src/lib/shiki-shim.ts') },
           { find: '@ant-chat/shared', replacement: resolve('packages/shared/src/index.ts') },
+          { find: '@ant-chat/app-data', replacement: resolve('packages/app-data/src/index.ts') },
           { find: '@', replacement: resolve('src/renderer/src') },
         ],
       },

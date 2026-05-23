@@ -13,6 +13,8 @@ export default defineConfig({
     ],
     alias: {
       '@ant-chat/shared': fileURLToPath(new URL('./packages/shared/src/index.ts', import.meta.url)),
+      '@ant-chat/app-data': fileURLToPath(new URL('./packages/app-data/src/index.ts', import.meta.url)),
+      '@ant-chat/local-server': fileURLToPath(new URL('./packages/local-server/src/index.ts', import.meta.url)),
       '@ant-design/x/es/sender/useSpeech': '@ant-design/x/es/sender/useSpeech',
       '@ant-design/x': '@ant-design/x/es',
       '@': fileURLToPath(new URL('./src/renderer/src', import.meta.url)),

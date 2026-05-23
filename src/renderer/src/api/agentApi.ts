@@ -1,24 +1,24 @@
-import type { AgentTaskSnapshot, AgentTurnResult, ApprovePendingActionOptions, IpcResponse, RejectPendingActionOptions, StartAgentTurnOptions } from '@ant-chat/shared'
-import { ipc, unwrapIpcResponse } from '@/utils/ipc-bus'
+import type { AgentTaskSnapshot, AgentTurnResult, ApprovePendingActionOptions, RejectPendingActionOptions, StartAgentTurnOptions } from '@ant-chat/shared'
+import { getAppTransport } from './transports/appTransport'
 
 async function startTurn(options: StartAgentTurnOptions): Promise<AgentTurnResult> {
-  return unwrapIpcResponse(await ipc.agent.startTurn(options) as IpcResponse<AgentTurnResult>)
+  return (await getAppTransport()).agent.startTurn(options)
 }
 
 async function approvePendingAction(options: ApprovePendingActionOptions): Promise<null> {
-  return unwrapIpcResponse(await ipc.agent.approvePendingAction(options))
+  return (await getAppTransport()).agent.approvePendingAction(options)
 }
 
 async function rejectPendingAction(options: RejectPendingActionOptions): Promise<null> {
-  return unwrapIpcResponse(await ipc.agent.rejectPendingAction(options))
+  return (await getAppTransport()).agent.rejectPendingAction(options)
 }
 
 async function cancelTask(taskId: string): Promise<null> {
-  return unwrapIpcResponse(await ipc.agent.cancelTask({ taskId }))
+  return (await getAppTransport()).agent.cancelTask(taskId)
 }
 
 async function listActiveTasks(conversationId?: string): Promise<AgentTaskSnapshot[]> {
-  return unwrapIpcResponse(await ipc.agent.listActiveTasks(conversationId))
+  return (await getAppTransport()).agent.listActiveTasks(conversationId)
 }
 
 export default {

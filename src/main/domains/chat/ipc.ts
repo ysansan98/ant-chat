@@ -1,8 +1,7 @@
 import type { AddConversationsSchema, handleInitConversationTitleOptions, IConversations, IMessage, IpcPaginatedResponse, IpcResponse, UpdateConversationsSchema } from '@ant-chat/shared'
 import { AddMessage, createErrorIpcResponse, createIpcPaginatedResponse, createIpcResponse, UpdateMessageSchema } from '@ant-chat/shared'
+import { getAppDataServices } from '@main/adapters/appDataContainer'
 import { handleInitConversationTitle } from '@main/ai-providers/services/conversation-title-service'
-import { services } from '@main/db'
-import { updateConversation } from '@main/db/services'
 import { WorkspaceStore } from '@main/store/workspace'
 import { logger } from '@main/utils/logger'
 import { IpcMethod, IpcService } from 'electron-ipc-decorator'
@@ -15,7 +14,7 @@ export class ChatIpcService extends IpcService {
     try {
       logger.info('IPC Event: chat:create-conversations-title', options)
       const title = await handleInitConversationTitle(options)
-      const udpatedConversations = await updateConversation({
+      const udpatedConversations = await getAppDataServices().conversationService.update({
         id: options.conversationsId,
         title,
       })
@@ -33,8 +32,7 @@ export class ChatIpcService extends IpcService {
       const workspaceStore = WorkspaceStore.getInstance()
       const workspacePath = workspaceStore.getCurrentWorkspacePath()
       const includeNullWorkspace = workspacePath === workspaceStore.getDefaultWorkspacePath()
-      const total = await services.getConversationsTotal(workspacePath, includeNullWorkspace)
-      const data = await services.getConversations(pageIndex, pageSize, workspacePath, includeNullWorkspace)
+      const { data, total } = await getAppDataServices().conversationService.list(pageIndex, pageSize, workspacePath, includeNullWorkspace)
       return createIpcPaginatedResponse(true, data, '', total)
     }
     catch (error) {
@@ -48,8 +46,7 @@ export class ChatIpcService extends IpcService {
     try {
       const workspaceStore = WorkspaceStore.getInstance()
       const includeNullWorkspace = workspacePath === workspaceStore.getDefaultWorkspacePath()
-      const total = await services.getConversationsTotal(workspacePath, includeNullWorkspace)
-      const data = await services.getConversations(pageIndex, pageSize, workspacePath, includeNullWorkspace)
+      const { data, total } = await getAppDataServices().conversationService.list(pageIndex, pageSize, workspacePath, includeNullWorkspace)
       return createIpcPaginatedResponse(true, data, '', total)
     }
     catch (error) {
@@ -61,7 +58,7 @@ export class ChatIpcService extends IpcService {
   @IpcMethod()
   async getConversationById(id: string): Promise<IpcResponse<IConversations>> {
     try {
-      const data = await services.getConversationById(id)
+      const data = await getAppDataServices().conversationService.getById(id)
       return createIpcResponse(true, data)
     }
     catch (error) {
@@ -73,7 +70,7 @@ export class ChatIpcService extends IpcService {
   @IpcMethod()
   async addConversation(conversation: AddConversationsSchema): Promise<IpcResponse<IConversations>> {
     try {
-      const data = await services.addConversation({
+      const data = await getAppDataServices().conversationService.create({
         ...conversation,
         workspacePath: conversation.workspacePath ?? WorkspaceStore.getInstance().getCurrentWorkspacePath(),
       })
@@ -88,7 +85,7 @@ export class ChatIpcService extends IpcService {
   @IpcMethod()
   async updateConversation(conversation: UpdateConversationsSchema): Promise<IpcResponse<IConversations>> {
     try {
-      const data = await services.updateConversation(conversation)
+      const data = await getAppDataServices().conversationService.update(conversation)
       return createIpcResponse(true, data)
     }
     catch (error) {
@@ -100,7 +97,7 @@ export class ChatIpcService extends IpcService {
   @IpcMethod()
   async deleteConversation(id: string): Promise<IpcResponse<null>> {
     try {
-      await services.deleteConversation(id)
+      await getAppDataServices().conversationService.delete(id)
       return createIpcResponse(true, null)
     }
     catch (error) {
@@ -112,7 +109,7 @@ export class ChatIpcService extends IpcService {
   @IpcMethod()
   async getMessagesByConvId(id: string): Promise<IpcResponse<IMessage[]>> {
     try {
-      const data = await services.getMessagesByConvId(id)
+      const data = await getAppDataServices().messageService.listByConversation(id)
       return createIpcResponse(true, data)
     }
     catch (error) {
@@ -124,7 +121,7 @@ export class ChatIpcService extends IpcService {
   @IpcMethod()
   async getMessageById(id: string): Promise<IpcResponse<IMessage>> {
     try {
-      const data = await services.getMessageById(id)
+      const data = await getAppDataServices().messageService.getById(id)
       return createIpcResponse(true, data)
     }
     catch (error) {
@@ -137,7 +134,7 @@ export class ChatIpcService extends IpcService {
   async addMessage(message: IMessage): Promise<IpcResponse<IMessage>> {
     try {
       const msg = AddMessage.parse(message)
-      const data = await services.addMessage(msg)
+      const data = await getAppDataServices().messageService.create(msg)
       return createIpcResponse(true, data)
     }
     catch (error) {
@@ -150,7 +147,7 @@ export class ChatIpcService extends IpcService {
   async updateMessage(message: IMessage): Promise<IpcResponse<IMessage>> {
     try {
       const msg = UpdateMessageSchema.parse(message)
-      const data = await services.updateMessage(msg)
+      const data = await getAppDataServices().messageService.update(msg)
       return createIpcResponse(true, data)
     }
     catch (error) {
@@ -162,7 +159,7 @@ export class ChatIpcService extends IpcService {
   @IpcMethod()
   async deleteMessage(id: string): Promise<IpcResponse<null>> {
     try {
-      await services.deleteMessage(id)
+      await getAppDataServices().messageService.delete(id)
       return createIpcResponse(true, null)
     }
     catch (error) {
@@ -174,7 +171,7 @@ export class ChatIpcService extends IpcService {
   @IpcMethod()
   async getMessagesByConvIdWithPagination(id: string, pageIndex: number, pageSize: number): Promise<IpcPaginatedResponse<IMessage[]>> {
     try {
-      const { data, total } = await services.getMessagesByConvIdWithPagination(id, pageIndex, pageSize)
+      const { data, total } = await getAppDataServices().messageService.listByConversationPaginated(id, pageIndex, pageSize)
       return createIpcPaginatedResponse(true, data, '', total)
     }
     catch (error) {
@@ -186,7 +183,7 @@ export class ChatIpcService extends IpcService {
   @IpcMethod()
   async batchDeleteMessages(ids: string[]): Promise<IpcResponse<null>> {
     try {
-      await services.batchDeleteMessages(ids)
+      await getAppDataServices().messageService.batchDelete(ids)
       return createIpcResponse(true, null)
     }
     catch (error) {

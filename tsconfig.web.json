@@ -20,6 +20,12 @@
       "@ant-chat/runtime": [
         "./packages/runtime/src/index.ts"
       ],
+      "@ant-chat/app-data": [
+        "./packages/app-data/src/index.ts"
+      ],
+      "@ant-chat/local-server": [
+        "./packages/local-server/src/index.ts"
+      ],
       "@main/*": [
         "./src/main/*"
       ],
@@ -48,6 +54,8 @@
     "packages/shared/src/**/*",
     "packages/mcp-client-hub/src/**/*",
     "packages/runtime/src/**/*",
+    "packages/app-data/src/**/*",
+    "packages/local-server/src/**/*",
     "packages/ui/src/**/*",
     "src/preload/*.d.ts",
     "src/main/**/*.ts",

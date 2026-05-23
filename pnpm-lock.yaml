@@ -99,6 +99,12 @@ importers:
         specifier: ^7.15.0
         version: 7.22.0
     devDependencies:
+      '@ant-chat/app-data':
+        specifier: workspace:*
+        version: link:packages/app-data
+      '@ant-chat/local-server':
+        specifier: workspace:*
+        version: link:packages/local-server
       '@ant-chat/mcp-client-hub':
         specifier: workspace:*
         version: link:packages/mcp-client-hub
@@ -318,6 +324,29 @@ importers:
       zustand:
         specifier: ^5.0.3
         version: 5.0.11(@types/react@19.2.14)(immer@10.2.0)(react@19.2.4)(use-sync-external-store@1.6.0(react@19.2.4))
+
+  packages/app-data:
+    dependencies:
+      '@ant-chat/shared':
+        specifier: workspace:^
+        version: link:../shared
+    devDependencies:
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.20.3(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(synckit@0.11.12)(typescript@5.9.3)
+
+  packages/local-server:
+    dependencies:
+      '@ant-chat/app-data':
+        specifier: workspace:^
+        version: link:../app-data
+      '@ant-chat/shared':
+        specifier: workspace:^
+        version: link:../shared
+    devDependencies:
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.20.3(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)(synckit@0.11.12)(typescript@5.9.3)
 
   packages/mcp-client-hub:
     dependencies:

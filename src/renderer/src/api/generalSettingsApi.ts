@@ -1,5 +1,5 @@
 import type { GeneralSettingsState } from '@ant-chat/shared'
-import { ipc, unwrapIpcResponse } from '@/utils/ipc-bus'
+import { getAppTransport } from './transports/appTransport'
 
 export interface GeneralSettingsAPI {
   getSettings: () => Promise<GeneralSettingsState>
@@ -9,14 +9,14 @@ export interface GeneralSettingsAPI {
 
 export const generalSettingsApi: GeneralSettingsAPI = {
   getSettings: async () => {
-    return unwrapIpcResponse(await ipc.settings.getSettings())
+    return (await getAppTransport()).settings.getSettings()
   },
 
   updateSettings: async (updates: Partial<GeneralSettingsState>) => {
-    return unwrapIpcResponse(await ipc.settings.updateSettings(updates))
+    return (await getAppTransport()).settings.updateSettings(updates)
   },
 
   resetSettings: async () => {
-    return unwrapIpcResponse(await ipc.settings.resetSettings())
+    return (await getAppTransport()).settings.resetSettings()
   },
 }

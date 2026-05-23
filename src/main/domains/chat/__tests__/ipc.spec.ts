@@ -3,7 +3,9 @@ import { ChatIpcService } from '../ipc'
 
 const mocks = vi.hoisted(() => ({
   handleInitConversationTitle: vi.fn(),
-  updateConversation: vi.fn(),
+  conversationService: {
+    update: vi.fn(),
+  },
 }))
 
 vi.mock('electron-ipc-decorator', () => ({
@@ -15,12 +17,11 @@ vi.mock('@main/ai-providers/services/conversation-title-service', () => ({
   handleInitConversationTitle: mocks.handleInitConversationTitle,
 }))
 
-vi.mock('@main/db/services', () => ({
-  updateConversation: mocks.updateConversation,
-}))
-
-vi.mock('@main/db', () => ({
-  services: {},
+vi.mock('@main/adapters/appDataContainer', () => ({
+  getAppDataServices: () => ({
+    conversationService: mocks.conversationService,
+    messageService: {},
+  }),
 }))
 
 vi.mock('@main/store/workspace', () => ({
@@ -53,6 +54,6 @@ describe('chat ipc', () => {
     if (!resp.success) {
       expect(resp.msg).toContain('No output generated')
     }
-    expect(mocks.updateConversation).not.toHaveBeenCalled()
+    expect(mocks.conversationService.update).not.toHaveBeenCalled()
   })
 })
