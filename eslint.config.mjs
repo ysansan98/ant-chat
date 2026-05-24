@@ -21,6 +21,8 @@ export default antfu(
       '**/dist/**',
       '**/release/**',
       '**/*.db',
+      '.ant-chat/**',
+      'apps/desktop/.ant-chat/**',
       '.claude/**',
       '.agents/**',
     ],

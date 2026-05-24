@@ -42,6 +42,7 @@ dist-electron
 
 
 .tmp/**
+.ant-chat/**
 
 # Agents and skills
 .claude
