@@ -1,21 +1,17 @@
 import path from 'node:path'
 import log from 'electron-log'
-import { APP_NAME } from './constants'
+import { getAppDataRoot } from './appPaths'
 import { isDev } from './env'
-import { getAppHand } from './util'
 
-const userDataPath = isDev ? '.tmp' : getAppHand()
-const logPath = path.join(userDataPath, APP_NAME, 'logs/main.log')
+const logPath = path.join(getAppDataRoot(), 'logs/main.log')
 
 log.transports.file.maxSize = 1024 * 1024 * 5 // 10MB
 
 log.transports.file.level = 'debug'
 log.transports.console.level = 'info'
 
-if (userDataPath) {
-  log.transports.file.resolvePathFn = () => logPath
-  log.transports.file.format = '{y}-{m}-{d} {h}:{i}:{s} [{level}] {text}'
-}
+log.transports.file.resolvePathFn = () => logPath
+log.transports.file.format = '{y}-{m}-{d} {h}:{i}:{s} [{level}] {text}'
 
 log.transports.console.format = '[{level}] {text}' // 控制台简洁格式
 

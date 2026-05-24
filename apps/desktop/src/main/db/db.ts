@@ -4,18 +4,17 @@ import path from 'node:path'
 import _Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
-import { APP_NAME, DB_CONFIG } from '../utils/constants'
+import { getAppDataRoot } from '../utils/appPaths'
+import { DB_CONFIG } from '../utils/constants'
 import { isDev } from '../utils/env'
 import { logger } from '../utils/logger'
-import { generateDbPath, getAppHand, getDirname } from '../utils/util'
+import { generateDbPath, getDirname } from '../utils/util'
 import { initializeData } from './initializeData'
 import * as schema from './schema'
 
 const __dirname = getDirname(import.meta.url)
 const projectPath = process.cwd()
-const DB_PATH = isDev
-  ? path.join(projectPath, 'dev.db')
-  : path.join(getAppHand(), APP_NAME, DB_CONFIG.dbFileName)
+const DB_PATH = path.join(getAppDataRoot(), isDev ? 'dev.db' : DB_CONFIG.dbFileName)
 
 let _db: BetterSQLite3Database<typeof schema>
 

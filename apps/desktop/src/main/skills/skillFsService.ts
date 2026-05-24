@@ -2,11 +2,12 @@ import type { ImportSkillFromGithubOptions, SkillIndex, SkillManifest } from '@a
 import { Buffer } from 'node:buffer'
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
-import * as os from 'node:os'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { getAppDataRoot } from '@main/utils/appPaths'
 import { unzipSync } from 'fflate'
 
-const SKILL_ROOT = path.join(os.homedir(), '.ant-chat', 'skills')
+const SKILL_ROOT = path.join(getAppDataRoot(), 'skills')
 const INDEX_FILE = '.index.json'
 const SKILL_NAME_PATTERN = /^[\w.-]+$/
 const BUILTIN_SKILL_INSTALLER = 'skill-installer'
@@ -214,7 +215,7 @@ export class SkillFsService {
   }
 
   private createTempDir(): Promise<string> {
-    return fs.promises.mkdtemp(path.join(os.tmpdir(), `ant-chat-skill-${randomUUID()}-`))
+    return fs.promises.mkdtemp(path.join(tmpdir(), `ant-chat-skill-${randomUUID()}-`))
   }
 }
 

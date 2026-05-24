@@ -4,7 +4,6 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const realTmpdir = os.tmpdir
 const VALID_SKILL_ZIP = 'UEsDBBQAAAAIAK1YnlxVUSklIgAAACQAAAAIAAAAU0tJTEwubWRTVggvyixJLeLiAtMKxRn5RSUKRak5qYnFqQp5+SWpxXoAUEsBAhQAFAAAAAgArVieXFVRKSUiAAAAJAAAAAgAAAAAAAAAAAAAAAAAAAAAAFNLSUxMLm1kUEsFBgAAAAABAAEANgAAAEgAAAAAAA=='
 const UNSAFE_SKILL_ZIP = 'UEsDBBQAAAAIAK9Ynly7JMeZCgAAAAgAAAALAAAALi4vU0tJTEwubWRTVgjNK05MSwUAUEsBAhQAFAAAAAgAr1ieXLskx5kKAAAACAAAAAsAAAAAAAAAAAAAAAAAAAAAAC4uL1NLSUxMLm1kUEsFBgAAAAABAAEAOQAAADMAAAAAAA=='
 const FRONTMATTER_SKILL_ZIP = 'UEsDBBQAAAAAAHx8plzIj6ltcwAAAHMAAAAIAAAAU0tJTEwubWQtLS0KbmFtZToga2FtaQpkZXNjcmlwdGlvbjogVHlwZXNldCBwcm9mZXNzaW9uYWwgZG9jdW1lbnRzLgotLS0KCiMga2FtaSDCtyDntJkKCldyaXRlIHByb2Zlc3Npb25hbCBQREZzIHdpdGgga2FtaS4KUEsBAhQDFAAAAAAAfHymXMiPqW1zAAAAcwAAAAgAAAAAAAAAAAAAAIABAAAAAFNLSUxMLm1kUEsFBgAAAAABAAEANgAAAJkAAAAAAA=='
@@ -14,23 +13,12 @@ describe('skillFsService', () => {
 
   beforeEach(async () => {
     homeDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'ant-chat-skill-test-'))
+    process.env.ANT_CHAT_APP_DATA_DIR = path.join(homeDir, '.ant-chat')
     vi.resetModules()
-    vi.doMock('node:os', async () => {
-      const actual = await vi.importActual<typeof import('node:os')>('node:os')
-      return {
-        ...actual,
-        default: {
-          ...actual,
-          homedir: () => homeDir,
-        },
-        homedir: () => homeDir,
-        tmpdir: realTmpdir,
-      }
-    })
   })
 
   afterEach(async () => {
-    vi.doUnmock('node:os')
+    delete process.env.ANT_CHAT_APP_DATA_DIR
     vi.resetModules()
     await fs.promises.rm(homeDir, { recursive: true, force: true })
   })

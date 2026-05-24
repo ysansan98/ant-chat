@@ -2,8 +2,7 @@ import type { AppDataDatabase, ConversationService, MessageService, SettingsServ
 import path from 'node:path'
 import { createAppDataServices } from '@ant-chat/app-data'
 import { getDb } from '@main/db/db'
-import { APP_NAME } from '@main/utils/constants'
-import { getAppHand } from '@main/utils/util'
+import { getAppDataRoot } from '@main/utils/appPaths'
 
 let appDataServices: {
   conversationService: ConversationService
@@ -15,7 +14,7 @@ export function getAppDataServices() {
   if (!appDataServices) {
     appDataServices = createAppDataServices({
       db: getDb() as AppDataDatabase,
-      settingsFilePath: path.join(getAppHand(), APP_NAME, 'settings.json'),
+      settingsFilePath: path.join(getAppDataRoot(), 'settings.json'),
     })
   }
 
