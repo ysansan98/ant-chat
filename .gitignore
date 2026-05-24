@@ -43,6 +43,7 @@ dist-electron
 
 .tmp/**
 .ant-chat/**
+apps/desktop/.ant-chat/
 
 # Agents and skills
 .claude
