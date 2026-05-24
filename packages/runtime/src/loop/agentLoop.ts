@@ -74,6 +74,7 @@ export async function runAgentLoop(input: {
       currentToolMessages = []
 
       config.logger.info('agent-runtime', { event: 'model_request_started', conversationId: options.conversationId, userMessageId: options.userMessageId, step, messageCount: loopMessages.length, toolCount: toolDefs.length })
+      config.taskLogger?.write('model_request_started', { conversationId: options.conversationId, userMessageId: options.userMessageId, step, messageCount: loopMessages.length, toolCount: toolDefs.length })
 
       const stream = aiProvider.streamModel({
         messages: loopMessages,
@@ -110,6 +111,7 @@ export async function runAgentLoop(input: {
       }
 
       config.logger.info('agent-runtime', { event: 'model_response_finished', conversationId: options.conversationId, userMessageId: options.userMessageId, step, textPreview: modelText.slice(0, 500), hasToolCall: requestedToolCalls.length > 0 })
+      config.taskLogger?.write('model_response_finished', { conversationId: options.conversationId, userMessageId: options.userMessageId, step, textPreview: modelText.slice(0, 500), hasToolCall: requestedToolCalls.length > 0 })
       currentModelText = modelText.trim()
 
       if (requestedToolCalls.length === 0) {
@@ -200,6 +202,7 @@ export async function runAgentLoop(input: {
     task.snapshot.status = 'success'
     await config.eventEmitter.emitTaskUpdated(task.snapshot)
     config.logger.info('agent-runtime', { event: 'task_completed', conversationId: options.conversationId, userMessageId: options.userMessageId, finalAnswer })
+    config.taskLogger?.write('task_completed', { conversationId: options.conversationId, userMessageId: options.userMessageId, finalAnswer })
   }
   catch (error) {
     await handleLoopFailure({
@@ -214,6 +217,8 @@ export async function runAgentLoop(input: {
     if (['success', 'failed', 'cancelled'].includes(task.snapshot.status)) {
       taskStore.finish(task.snapshot.taskId)
     }
+    // 确保 taskLogger 在 loop 结束时关闭（刷盘 + 释放资源）
+    config.taskLogger?.close()
   }
 }
 
@@ -250,4 +255,5 @@ async function handleLoopFailure(options: {
   }
   await config.eventEmitter.emitTaskUpdated(task.snapshot)
   config.logger.error('[agent-runtime] task_failed', failurePayload)
+  config.taskLogger?.write('task_failed', { conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, ...failurePayload })
 }

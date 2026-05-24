@@ -37,6 +37,16 @@ export function createBeforeToolExecuteHook(
       policy: policyDecision.type,
       workspacePath: task.snapshot.workspacePath,
     })
+    config.taskLogger?.write('tool_decision', {
+      conversationId: task.snapshot.conversationId,
+      userMessageId: task.snapshot.userMessageId,
+      toolName: prepared.toolName,
+      input: prepared.input,
+      operationType: prepared.operationType,
+      scope: prepared.scope,
+      policy: policyDecision.type,
+      workspacePath: task.snapshot.workspacePath,
+    })
 
     if (policyDecision.type === 'allow') {
       return { outcome: 'allow' }
@@ -45,6 +55,18 @@ export function createBeforeToolExecuteHook(
     if (policyDecision.type === 'block') {
       config.logger.info('agent-runtime', {
         event: 'tool_blocked',
+        conversationId: task.snapshot.conversationId,
+        userMessageId: task.snapshot.userMessageId,
+        toolName: prepared.toolName,
+        input: prepared.input,
+        operationType: prepared.operationType,
+        scope: prepared.scope,
+        policy: policyDecision.type,
+        reason: policyDecision.reason,
+        errorCode: policyDecision.errorCode,
+        workspacePath: task.snapshot.workspacePath,
+      })
+      config.taskLogger?.write('tool_blocked', {
         conversationId: task.snapshot.conversationId,
         userMessageId: task.snapshot.userMessageId,
         toolName: prepared.toolName,

@@ -1,4 +1,4 @@
-import type { AgentMode, AgentTool, CompactionSettingsSchema, IAIProvider, LoopMessage } from '@ant-chat/shared'
+import type { AgentMode, AgentTool, CompactionSettingsSchema, IAIProvider, ITaskLogger, LoopMessage } from '@ant-chat/shared'
 
 export interface RuntimeStartInput {
   // ===== 标识 =====
@@ -21,6 +21,9 @@ export interface RuntimeStartInput {
   providerName: string
   providerId: string
   apiMode: string
+
+  // ===== 按任务日志 =====
+  taskLogger?: ITaskLogger
 
   // ===== 可选配置 =====
   temperature?: number

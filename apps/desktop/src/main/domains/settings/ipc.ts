@@ -3,6 +3,7 @@ import { createErrorIpcResponse, createIpcResponse } from '@ant-chat/shared'
 import { getAppDataServices } from '@main/adapters/appDataContainer'
 import { getSettingsWindow, openSettingsWindow } from '@main/settings-window'
 import { logger } from '@main/utils/logger'
+import { LogPathManager } from '@main/utils/logPathManager'
 import { ProxyManager } from '@main/utils/proxy-manager'
 import { testProxyConnection } from '@main/utils/system-proxy'
 import { getMainWindow } from '@main/window'
@@ -41,6 +42,10 @@ export class SettingsIpcService extends IpcService {
 
       if (updates.proxySettings) {
         await ProxyManager.getInstance().updateProxySettings(updates.proxySettings)
+      }
+
+      if (updates.logBasePath !== undefined) {
+        LogPathManager.getInstance().reconfigure(updates.logBasePath)
       }
 
       // 广播 settings:updated 事件

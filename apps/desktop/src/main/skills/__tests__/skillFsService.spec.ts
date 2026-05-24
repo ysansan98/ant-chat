@@ -13,12 +13,10 @@ describe('skillFsService', () => {
 
   beforeEach(async () => {
     homeDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'ant-chat-skill-test-'))
-    process.env.ANT_CHAT_APP_DATA_DIR = path.join(homeDir, '.ant-chat')
     vi.resetModules()
   })
 
   afterEach(async () => {
-    delete process.env.ANT_CHAT_APP_DATA_DIR
     vi.resetModules()
     await fs.promises.rm(homeDir, { recursive: true, force: true })
   })

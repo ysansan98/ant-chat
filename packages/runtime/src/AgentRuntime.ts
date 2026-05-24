@@ -71,9 +71,18 @@ export class AgentRuntime {
 
     const now = Date.now()
     const taskId = randomUUID()
-    const config = runtime?.eventEmitter
-      ? { ...this.config, eventEmitter: runtime.eventEmitter }
+
+    // 合并 runtime 提供的 eventEmitter，以及 options 透传的 taskLogger
+    const needMerge = runtime?.eventEmitter || options.taskLogger
+    const config = needMerge
+      ? {
+          ...this.config,
+          ...(runtime?.eventEmitter ? { eventEmitter: runtime.eventEmitter } : {}),
+          ...(options.taskLogger ? { taskLogger: options.taskLogger } : {}),
+        }
       : this.config
+
+    const logPath = options.taskLogger?.filePath ?? ''
 
     const snapshot: AgentTaskSnapshot = {
       taskId,
@@ -84,7 +93,7 @@ export class AgentRuntime {
       status: 'running',
       createdAt: now,
       updatedAt: now,
-      logPath: '',
+      logPath,
       prompt: options.prompt,
     }
 

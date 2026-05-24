@@ -47,6 +47,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   } = options
 
   config.logger.info('agent-runtime', { event: 'tool_call_received', conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, step, toolName: requestedToolCall.toolName, input: requestedToolCall.input })
+  config.taskLogger?.write('tool_call_received', { conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, step, toolName: requestedToolCall.toolName, input: requestedToolCall.input })
 
   const prepared = registry.prepare(requestedToolCall.toolName, requestedToolCall.input)
 
@@ -75,6 +76,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
 
   if (prepared.validationError) {
     config.logger.info('agent-runtime', { event: 'tool_failed', conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, toolName: prepared.toolName, input: requestedToolCall.input, error: prepared.validationError, workspacePath: task.snapshot.workspacePath })
+    config.taskLogger?.write('tool_failed', { conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, toolName: prepared.toolName, input: requestedToolCall.input, error: prepared.validationError, workspacePath: task.snapshot.workspacePath })
     return finalizeToolError(
       currentToolCall,
       prepared.validationError,
@@ -100,6 +102,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
 
   if (beforeResult.outcome === 'block') {
     config.logger.info('agent-runtime', { event: 'tool_blocked', conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, step, toolName: requestedToolCall.toolName, input: requestedToolCall.input, operationType: prepared.operationType, scope: prepared.scope, policy: 'block', reason: beforeResult.reason, errorCode: beforeResult.errorCode, workspacePath: task.snapshot.workspacePath })
+    config.taskLogger?.write('tool_blocked', { conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, step, toolName: requestedToolCall.toolName, input: requestedToolCall.input, operationType: prepared.operationType, scope: prepared.scope, policy: 'block', reason: beforeResult.reason, errorCode: beforeResult.errorCode, workspacePath: task.snapshot.workspacePath })
     return finalizeToolError(
       currentToolCall,
       beforeResult.errorCode,
@@ -116,6 +119,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   if (!result.ok) {
     const errorMsg = result.error || 'AGENT_TOOL_EXEC_FAILED'
     config.logger.info('agent-runtime', { event: 'tool_failed', conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, toolName: prepared.toolName, input: requestedToolCall.input, error: errorMsg, workspacePath: task.snapshot.workspacePath, stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode })
+    config.taskLogger?.write('tool_failed', { conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, toolName: prepared.toolName, input: requestedToolCall.input, error: errorMsg, workspacePath: task.snapshot.workspacePath, stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode })
     return finalizeToolError(
       currentToolCall,
       errorMsg,
@@ -140,6 +144,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   }
   await emitToolCalls(config, task.snapshot.conversationId, currentModelText, currentToolMessages)
   config.logger.info('agent-runtime', { event: 'tool_completed', conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, toolName: prepared.toolName, input: requestedToolCall.input, outputPreview: logPreview, exitCode: result.exitCode, durationMs: result.durationMs })
+  config.taskLogger?.write('tool_completed', { conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, toolName: prepared.toolName, input: requestedToolCall.input, outputPreview: logPreview, exitCode: result.exitCode, durationMs: result.durationMs })
 
   return {
     lastToolCallContext,

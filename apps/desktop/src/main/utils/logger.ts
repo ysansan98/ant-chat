@@ -1,21 +1,21 @@
-import path from 'node:path'
 import log from 'electron-log'
-import { getAppDataRoot } from './appPaths'
 import { isDev } from './env'
+import { LogPathManager } from './logPathManager'
 
-const logPath = path.join(getAppDataRoot(), 'logs/main.log')
+const logPathManager = LogPathManager.getInstance()
 
-log.transports.file.maxSize = 1024 * 1024 * 5 // 10MB
+log.transports.file.maxSize = 1024 * 1024 * 5 // 5MB
 
 log.transports.file.level = 'debug'
 log.transports.console.level = 'info'
 
-log.transports.file.resolvePathFn = () => logPath
+// 动态路径：每次写入时通过 LogPathManager 解析，支持运行时切换
+log.transports.file.resolvePathFn = () => logPathManager.getSystemLogPath()
 log.transports.file.format = '{y}-{m}-{d} {h}:{i}:{s} [{level}] {text}'
 
 log.transports.console.format = '[{level}] {text}' // 控制台简洁格式
 
-log.info('log path: ', logPath)
+log.info('log path: ', logPathManager.getSystemLogPath())
 
 const loggingEnabled = true
 

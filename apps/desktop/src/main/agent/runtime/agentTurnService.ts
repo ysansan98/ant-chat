@@ -8,8 +8,12 @@ import { electronLogger } from '@main/agent/adapters/electronLogger.adapter'
 import { createElectronSessionStore } from '@main/agent/adapters/electronSessionStore.adapter'
 import { electronToolProvider } from '@main/agent/adapters/toolProvider.adapter'
 import { WorkspaceStore } from '@main/store/workspace'
+import { LogPathManager } from '@main/utils/logPathManager'
+import { TaskLogWriter } from '@main/utils/taskLogWriter'
 
 function createRuntimeConfig(): AgentRuntimeConfig {
+  const logPathManager = LogPathManager.getInstance()
+
   return {
     sessionStore: createElectronSessionStore(),
     modelResolver: dbModelResolver,
@@ -18,6 +22,10 @@ function createRuntimeConfig(): AgentRuntimeConfig {
     compactionStrategy: createCompactionStrategy(),
     eventEmitter: createElectronEventEmitter(),
     logger: electronLogger,
+    createTaskLogger: (conversationId: string, userMessageId: string) => {
+      const filePath = logPathManager.getTaskLogPath(conversationId, userMessageId)
+      return new TaskLogWriter(filePath)
+    },
   }
 }
 

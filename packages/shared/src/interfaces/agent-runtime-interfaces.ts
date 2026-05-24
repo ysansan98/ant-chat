@@ -150,6 +150,21 @@ export interface ILogger {
   error: (msg: string, ...args: unknown[]) => void
 }
 
+/**
+ * 按任务的 JSONL 结构化日志写入器。
+ *
+ * write() 是同步 API（零 await），内部通过 fs.createWriteStream
+ * 缓冲写入，libuv 后台异步刷盘，不阻塞事件循环。
+ */
+export interface ITaskLogger {
+  /** 同步写入一条 JSONL 日志事件，无需 await */
+  write: (event: string, payload: Record<string, unknown>) => void
+  /** 关闭日志流：刷盘 + 释放资源 */
+  close: () => void
+  /** 日志文件路径（只读） */
+  readonly filePath: string
+}
+
 // ============================================================
 // Factory Types（适配器层使用，不注入 AgentRuntimeConfig）
 // ============================================================
@@ -173,6 +188,10 @@ export interface CompactionStrategy {
 export interface AgentRuntimeConfig {
   eventEmitter: IAgentEventEmitter
   logger: ILogger
+  /** 创建按任务的结构化日志写入器（每次新任务调用，返回独立的 ITaskLogger 实例） */
+  createTaskLogger?: (conversationId: string, userMessageId: string) => ITaskLogger
+  /** 当前任务的日志写入器（由 runtime 在启动 task 时设置，loop 层直接消费） */
+  taskLogger?: ITaskLogger
   sessionStore?: ISessionStore
   modelResolver?: IModelResolver
   aiProviderFactory?: AIProviderFactory

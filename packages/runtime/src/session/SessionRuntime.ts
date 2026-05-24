@@ -129,6 +129,8 @@ export class SessionRuntime {
       userMessageId: userMessage.id,
     })
 
+    const taskLogger = this.config.createTaskLogger?.(conversation.id, userMessage.id)
+
     const task = await this.startLoopTask(
       {
         conversationId: conversation.id,
@@ -144,6 +146,7 @@ export class SessionRuntime {
         providerName: provider.name,
         providerId: provider.id,
         apiMode,
+        taskLogger,
         temperature: options.chatSettings?.temperature,
         maxTokens: options.chatSettings?.maxTokens,
         compaction: compactionSettings,

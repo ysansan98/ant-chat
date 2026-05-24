@@ -7,6 +7,7 @@ export const GeneralSettingsSchema = z.object({
     mode: z.enum(['none', 'system', 'custom']),
     customProxyUrl: z.string().optional(),
   }),
+  logBasePath: z.string().optional(),
 })
 
 export type GeneralSettingsState = z.infer<typeof GeneralSettingsSchema> & {
