@@ -20,7 +20,7 @@
     "test:unit": "vitest -c ../../vitest.config.ts",
     "test:ui": "vitest -c ../../vitest.ui.config.ts",
     "test:e2e": "pnpm test:e2e:agent-runtime",
-    "test:e2e:agent-runtime": "pnpm rebuild:node && vitest -c ../../vitest.e2e.config.ts",
+    "test:e2e:agent-runtime": "pnpm rebuild:node && cd ../.. && vitest -c vitest.e2e.config.ts",
     "check": "pnpm type-check && pnpm lint && pnpm test:unit",
     "check:all": "pnpm check && pnpm test:ui && pnpm test:e2e",
     "analyze:renderer": "VISUALIZER_RENDERER=true pnpm build",
