@@ -8,6 +8,7 @@ import { useRequest } from 'ahooks'
 import { Settings } from 'lucide-react'
 import React from 'react'
 import { providerApi } from '@/api/providerApi'
+import { ipcRenderer } from '@/utils/ipc-bus'
 import { ModelParameterSettingsPanel } from './ModelParameterSettingsPanel'
 import { renderProviderLogo, SelectModel } from './SelectModel'
 
@@ -19,7 +20,17 @@ interface ModelControlPanelProps {
 export function ModelControlPanel({ value, onChange }: ModelControlPanelProps) {
   const [openPopover, setOpenPopover] = React.useState(false)
   const [panel, setPanel] = React.useState<'select' | 'parameter'>('select')
-  const { data } = useRequest<AllAvailableModelsSchema[], []>(providerApi.getAllAbvailableModels)
+  const { data, refresh } = useRequest<AllAvailableModelsSchema[], []>(providerApi.getAllAbvailableModels)
+
+  React.useEffect(() => {
+    const handleProviderChanged = () => {
+      refresh()
+    }
+    ipcRenderer.on('provider:changed', handleProviderChanged)
+    return () => {
+      ipcRenderer.removeListener('provider:changed', handleProviderChanged)
+    }
+  }, [refresh])
 
   const activeProviderServiceInfo = !value ? data?.[0] : data?.find(item => item.models.some(model => model.id === value))
   const currentModelInfo = activeProviderServiceInfo?.models.find(model => model.id === value)

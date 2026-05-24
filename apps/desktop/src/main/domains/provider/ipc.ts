@@ -1,8 +1,16 @@
 import type { AddServiceProviderModelSchema, AddServiceProviderSchema, AllAvailableModelsSchema, IpcResponse, ServiceProviderModelsSchema, ServiceProviderSchema, UpdateServiceProviderSchema } from '@ant-chat/shared'
 import { createErrorIpcResponse, createIpcResponse } from '@ant-chat/shared'
 import { services } from '@main/db'
+import { getMainWindow } from '@main/window'
 import { IpcMethod, IpcService } from 'electron-ipc-decorator'
 import { getModelsDevModelsByProviderId, getModelsDevProviders } from './modelsDev'
+
+function notifyProviderChanged() {
+  const mainWindow = getMainWindow()
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('provider:changed')
+  }
+}
 
 export class ProviderIpcService extends IpcService {
   static readonly groupName = 'provider'
@@ -22,6 +30,7 @@ export class ProviderIpcService extends IpcService {
   async updateProviderService(serviceData: UpdateServiceProviderSchema): Promise<IpcResponse<ServiceProviderSchema>> {
     try {
       const updatedData = services.updateProviderService(serviceData)
+      notifyProviderChanged()
       return createIpcResponse(true, updatedData)
     }
     catch (error) {
@@ -33,6 +42,7 @@ export class ProviderIpcService extends IpcService {
   async addProviderServices(data: AddServiceProviderSchema): Promise<IpcResponse<ServiceProviderSchema>> {
     try {
       const result = services.addProviderService(data)
+      notifyProviderChanged()
       return createIpcResponse(true, result)
     }
     catch (error) {
@@ -44,6 +54,7 @@ export class ProviderIpcService extends IpcService {
   async deleteProviderService(id: string): Promise<IpcResponse<null>> {
     try {
       await services.deleteProviderService(id)
+      notifyProviderChanged()
       return createIpcResponse(true, null)
     }
     catch (error) {
@@ -119,6 +130,7 @@ export class ProviderIpcService extends IpcService {
   async setModelEnabledStatus(id: string, status: boolean): Promise<IpcResponse<ServiceProviderModelsSchema>> {
     try {
       const result = await services.setModelEnabledStatus(id, status)
+      notifyProviderChanged()
       return createIpcResponse(true, result)
     }
     catch (error) {
@@ -130,6 +142,7 @@ export class ProviderIpcService extends IpcService {
   async addProviderServiceModel(config: AddServiceProviderModelSchema): Promise<IpcResponse<ServiceProviderModelsSchema>> {
     try {
       const result = await services.addServiceProviderModel(config)
+      notifyProviderChanged()
       return createIpcResponse(true, result)
     }
     catch (error) {
@@ -141,6 +154,7 @@ export class ProviderIpcService extends IpcService {
   async deleteProviderServiceModel(id: string): Promise<IpcResponse<null>> {
     try {
       await services.deleteServiceProviderModel(id)
+      notifyProviderChanged()
       return createIpcResponse(true, null)
     }
     catch (error) {
@@ -220,6 +234,7 @@ export class ProviderIpcService extends IpcService {
         }
       }
 
+      notifyProviderChanged()
       return createIpcResponse(true, { added, skipped, duplicates, errors })
     }
     catch (error) {
