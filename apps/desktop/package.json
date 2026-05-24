@@ -26,7 +26,7 @@
     "analyze:renderer": "VISUALIZER_RENDERER=true pnpm build",
     "analyze:main": "VISUALIZER_MAIN=true pnpm build",
     "rebuild:electron": "pnpm dlx electron-rebuild -f -w better-sqlite3",
-    "rebuild:node": "npm rebuild better-sqlite3",
+    "rebuild:node": "cd node_modules/better-sqlite3 && rm -rf build && npx node-gyp rebuild",
     "build": "cross-env NODE_ENV=production electron-vite build",
     "build:win": "pnpm rg:prepare && cross-env NODE_ENV=production electron-vite build && electron-builder --win",
     "build:mac": "pnpm rg:prepare && cross-env NODE_ENV=production electron-vite build && electron-builder --mac",
