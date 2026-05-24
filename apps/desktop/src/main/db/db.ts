@@ -13,7 +13,6 @@ import { initializeData } from './initializeData'
 import * as schema from './schema'
 
 const __dirname = getDirname(import.meta.url)
-const projectPath = process.cwd()
 const DB_PATH = path.join(getAppDataRoot(), isDev ? 'dev.db' : DB_CONFIG.dbFileName)
 
 let _db: BetterSQLite3Database<typeof schema>
@@ -89,7 +88,7 @@ export async function initializeTestDb() {
   }
 
   _db = drizzle(sqlite as Database, { schema })
-  const migrationsFolder = path.join(projectPath, './migrations')
+  const migrationsFolder = path.join(process.cwd(), 'apps/desktop/migrations')
   logger.debug('migrationsFolder for test db => ', migrationsFolder)
   try {
     migrate(_db, { migrationsFolder })
