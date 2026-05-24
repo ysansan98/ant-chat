@@ -1,10 +1,8 @@
 import path from 'node:path'
-import { app } from 'electron'
 import { APP_NAME } from './constants'
 import { isDev } from './env'
 import { getAppHand } from './util'
 
-const RUNTIME_DIR_ENV = 'ANT_CHAT_RUNTIME_DIR'
 const APP_DATA_DIR_ENV = 'ANT_CHAT_APP_DATA_DIR'
 
 /**
@@ -32,21 +30,7 @@ export function getAppDataRoot(): string {
 }
 
 export function getRuntimeDataRoot(): string {
-  const override = process.env[RUNTIME_DIR_ENV]?.trim()
-  if (override) {
-    return path.resolve(override)
-  }
-
-  if (isDev) {
-    return path.join('.tmp', APP_NAME, 'agent')
-  }
-
-  try {
-    return path.join(app.getPath('userData'), 'agent')
-  }
-  catch {
-    return path.join(process.cwd(), '.ant-chat-runtime', 'agent')
-  }
+  return path.join(getAppDataRoot(), 'agent')
 }
 
 export function getAgentTasksDir(): string {
