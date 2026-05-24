@@ -19,11 +19,13 @@ vi.mock('electron', () => {
       on: vi.fn(),
       removeHandler: vi.fn(),
       removeAllListeners: vi.fn(),
+      removeListener: vi.fn(),
     },
     ipcRenderer: {
       invoke: vi.fn(),
       on: vi.fn(),
       removeAllListeners: vi.fn(),
+      removeListener: vi.fn(),
     },
   }
 })
@@ -36,6 +38,7 @@ Object.defineProperty(window, 'electron', {
       invoke: vi.fn(),
       on: vi.fn(),
       removeAllListeners: vi.fn(),
+      removeListener: vi.fn(),
     },
   },
   writable: true,
