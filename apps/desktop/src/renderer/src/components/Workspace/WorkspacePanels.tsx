@@ -203,7 +203,6 @@ export function WorkspacePanels() {
                   key={item.path}
                   item={item}
                   activeConversationId={activeConversationsId}
-                  activeWorkspacePath={currentWorkspacePath}
                   expanded={expandedPaths.has(item.path)}
                   state={getWorkspaceConversationState(
                     item.path,
@@ -230,7 +229,6 @@ export function WorkspacePanels() {
 
 interface WorkspacePanelProps {
   item: WorkspaceItem
-  activeWorkspacePath?: string
   activeConversationId: string
   expanded: boolean
   state?: WorkspaceConversationState
@@ -241,7 +239,6 @@ interface WorkspacePanelProps {
 
 function WorkspacePanel({
   item,
-  activeWorkspacePath,
   activeConversationId,
   expanded,
   state,
@@ -249,8 +246,6 @@ function WorkspacePanel({
   onOpenConversation,
   onCreateConversation,
 }: WorkspacePanelProps) {
-  const isActiveWorkspace = item.path === activeWorkspacePath
-
   return (
     <div className="mb-1">
       <div className="
@@ -283,12 +278,8 @@ function WorkspacePanel({
               variant="ghost"
               size="icon-xs"
               className={`
-                ${isActiveWorkspace
-      ? 'opacity-100'
-      : `
-        opacity-0
-        group-hover:opacity-100
-      `}
+                opacity-0
+                group-hover:opacity-100
               `}
               onClick={(event) => {
                 event.stopPropagation()
