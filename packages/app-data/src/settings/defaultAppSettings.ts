@@ -1,0 +1,61 @@
+import type { AppSettingsState } from '@ant-chat/shared'
+
+export const DEFAULT_APP_SETTINGS: AppSettingsState = {
+  assistantModelId: '',
+  proxySettings: {
+    mode: 'none',
+    customProxyUrl: '',
+  },
+  providers: [
+    {
+      id: 'openai',
+      name: 'OpenAI',
+      baseUrl: 'https://api.openai.com',
+      apiKey: '',
+      apiMode: 'openai',
+      isOfficial: true,
+      isEnabled: false,
+      models: {},
+    },
+    {
+      id: 'google',
+      name: 'Google',
+      baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+      apiKey: '',
+      apiMode: 'google',
+      isOfficial: true,
+      isEnabled: false,
+      models: {},
+    },
+    {
+      id: 'anthropic',
+      name: 'Anthropic',
+      baseUrl: 'https://api.anthropic.com',
+      apiKey: '',
+      apiMode: 'anthropic',
+      isOfficial: true,
+      isEnabled: false,
+      models: {},
+    },
+    {
+      id: 'deepseek',
+      name: 'DeepSeek',
+      baseUrl: 'https://api.deepseek.com',
+      apiKey: '',
+      apiMode: 'deepseek',
+      isOfficial: true,
+      isEnabled: false,
+      models: {},
+    },
+    {
+      id: 'minimax',
+      name: 'MiniMax',
+      baseUrl: 'https://api.minimax.chat/v1',
+      apiKey: '',
+      apiMode: 'openai',
+      isOfficial: false,
+      isEnabled: false,
+      models: {},
+    },
+  ],
+}

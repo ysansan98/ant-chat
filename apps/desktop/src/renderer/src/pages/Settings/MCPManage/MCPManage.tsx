@@ -97,15 +97,11 @@ export default function MCPManage() {
                       setOpen(false)
                     }}
                     onSave={async (e: AddMcpConfigSchema | UpdateMcpConfigSchema) => {
-                      const configWithTimestamp = {
-                        ...e,
-                        createdAt: mode === 'add' ? Date.now() : (editData?.createdAt || Date.now()),
-                        updatedAt: Date.now(),
-                      } as McpConfigSchema
+                      const nextConfig = e as McpConfigSchema
 
                       if (mode === 'add') {
                         try {
-                          await addMcpConfigAction(configWithTimestamp)
+                          await addMcpConfigAction(nextConfig)
                           setOpen(false)
                           await refreshAsync()
                         }
@@ -118,20 +114,20 @@ export default function MCPManage() {
                       if (editData?.serverName && editData?.serverName !== e.serverName) {
                         await deleteMcpConfigAction(editData.serverName)
                         await disconnectMcpServerAction(editData.serverName)
-                        await addMcpConfigAction(configWithTimestamp)
+                        await addMcpConfigAction(nextConfig)
 
                         if (mcpServerRuningStatusMap[editData?.serverName] === 'connected') {
                           await connectMcpServerAction(e.serverName)
                         }
                       }
                       else {
-                        await upadteMcpConfigAction(configWithTimestamp)
+                        await upadteMcpConfigAction(nextConfig)
 
                         // 如果MCP服务是在运行中且修改了 transportType、url、command、args、env 其中之一，需要重新连接
                         if (
                           e.serverName in mcpServerRuningStatusMap
                           && mcpServerRuningStatusMap[e.serverName] === 'connected'
-                          && checkNeedReconnect(editData as McpConfigSchema, configWithTimestamp)
+                          && checkNeedReconnect(editData as McpConfigSchema, nextConfig)
                         ) {
                           await reconnectMcpServerAction(e.serverName)
                         }

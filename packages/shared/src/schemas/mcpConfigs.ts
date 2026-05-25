@@ -6,8 +6,6 @@ export const BaseMcpConfig = z.object({
   description: z.string().optional().nullable(),
   timeout: z.number().optional(),
   transportType: z.enum(['stdio', 'sse']),
-  createdAt: z.number(),
-  updatedAt: z.number(),
 })
 
 export const SSEMcpConfig = BaseMcpConfig.extend({
@@ -28,14 +26,19 @@ export const StdioMcpConfig = BaseMcpConfig.extend({
 export type StdioMcpConfig = z.infer<typeof StdioMcpConfig>
 
 export const AddMcpConfigSchema = z.discriminatedUnion('transportType', [
-  SSEMcpConfig.omit({ updatedAt: true, createdAt: true }),
-  StdioMcpConfig.omit({ updatedAt: true, createdAt: true }),
+  SSEMcpConfig,
+  StdioMcpConfig,
 ])
 export type AddMcpConfigSchema = z.infer<typeof AddMcpConfigSchema>
 
-const _McpConfigSchema = z.discriminatedUnion('transportType', [SSEMcpConfig, StdioMcpConfig])
-export type McpConfigSchema = z.infer<typeof _McpConfigSchema>
-export const McpConfigSchema: z.ZodType = _McpConfigSchema
+export const McpConfigSchema = z.discriminatedUnion('transportType', [SSEMcpConfig, StdioMcpConfig])
+export type McpConfigSchema = z.infer<typeof McpConfigSchema>
+
+export const McpSettingsSchema = z.object({
+  servers: z.record(z.string(), McpConfigSchema),
+})
+
+export type McpSettingsSchema = z.infer<typeof McpSettingsSchema>
 
 export const UpdateMcpConfigSchema = z.discriminatedUnion('transportType', [
   SSEMcpConfig.partial().extend({ serverName: z.string(), transportType: z.literal('sse') }),

@@ -1,6 +1,6 @@
 import type { AddMcpConfigSchema, IpcResponse, McpConfigSchema, McpServer, McpTool, McpToolCallResponse, TextResult, UpdateMcpConfigSchema } from '@ant-chat/shared'
 import { createErrorIpcResponse, createIpcResponse } from '@ant-chat/shared'
-import { services } from '@main/db'
+import { getAppDataServices } from '@main/adapters/appDataContainer'
 import { clientHub } from '@main/mcpClientHub'
 import { sendToRenderer } from '@main/utils/ipc-events'
 import { logger } from '@main/utils/logger'
@@ -14,7 +14,7 @@ export class McpIpcService extends IpcService {
   @IpcMethod()
   async getConfigs(): Promise<IpcResponse<McpConfigSchema[]>> {
     try {
-      const data = await services.getMcpConfigs()
+      const data = getAppDataServices().mcpSettingsRepository.getMcpConfigs()
       return createIpcResponse(true, data)
     }
     catch (error) {
@@ -26,7 +26,10 @@ export class McpIpcService extends IpcService {
   @IpcMethod()
   async getConfigByServerName(serverName: string): Promise<IpcResponse<McpConfigSchema>> {
     try {
-      const data = await services.getMcpConfigByServerName(serverName)
+      const data = getAppDataServices().mcpSettingsRepository.getMcpConfigByServerName(serverName)
+      if (!data) {
+        throw new Error(`MCP server not found: ${serverName}`)
+      }
       return createIpcResponse(true, data)
     }
     catch (error) {
@@ -38,7 +41,7 @@ export class McpIpcService extends IpcService {
   @IpcMethod()
   async addConfig(config: AddMcpConfigSchema): Promise<IpcResponse<McpConfigSchema>> {
     try {
-      const data = await services.addMcpConfig(config)
+      const data = getAppDataServices().mcpSettingsRepository.addMcpConfig(config)
       return createIpcResponse(true, data)
     }
     catch (error) {
@@ -50,7 +53,7 @@ export class McpIpcService extends IpcService {
   @IpcMethod()
   async updateConfig(config: UpdateMcpConfigSchema): Promise<IpcResponse<McpConfigSchema>> {
     try {
-      const data = await services.updateMcpConfig(config)
+      const data = getAppDataServices().mcpSettingsRepository.updateMcpConfig(config)
       return createIpcResponse(true, data)
     }
     catch (error) {
@@ -62,7 +65,7 @@ export class McpIpcService extends IpcService {
   @IpcMethod()
   async deleteConfig(serverName: string): Promise<IpcResponse<null>> {
     try {
-      await services.deleteMcpConfig(serverName)
+      getAppDataServices().mcpSettingsRepository.deleteMcpConfig(serverName)
       return createIpcResponse(true, null)
     }
     catch (error) {

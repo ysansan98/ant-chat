@@ -1,13 +1,11 @@
+import type { z } from 'zod'
 import type { ProxySettings } from './proxy'
-import { z } from 'zod'
+import { AppSettingsSchema } from '../schemas/appSettings'
 
-export const GeneralSettingsSchema = z.object({
-  assistantModelId: z.string(),
-  proxySettings: z.object({
-    mode: z.enum(['none', 'system', 'custom']),
-    customProxyUrl: z.string().optional(),
-  }),
-  logBasePath: z.string().optional(),
+export const GeneralSettingsSchema = AppSettingsSchema.pick({
+  assistantModelId: true,
+  proxySettings: true,
+  logBasePath: true,
 })
 
 export type GeneralSettingsState = z.infer<typeof GeneralSettingsSchema> & {

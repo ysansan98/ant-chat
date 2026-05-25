@@ -1,4 +1,6 @@
 export * from './file'
+export * from './mcp'
 export * from './repositories'
 export * from './services'
+export * from './settings'
 export * from './sqlite'

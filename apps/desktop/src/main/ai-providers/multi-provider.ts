@@ -1,5 +1,5 @@
+import type { ServiceProviderSchema } from '@ant-chat/shared'
 import type { LanguageModelUsage } from 'ai'
-import type { InferSelectModel } from 'drizzle-orm'
 import type { ProviderFormat } from './types'
 import process from 'node:process'
 import { createAnthropic } from '@ai-sdk/anthropic'
@@ -480,7 +480,7 @@ export class MultiProvider {
  * 创建 AI 提供商实例的工厂函数
  */
 export async function createAProvider(
-  provider: InferSelectModel<typeof import('../db/schema').serviceProviderTable>,
+  provider: ServiceProviderSchema,
 ): Promise<MultiProvider> {
   const format = provider.apiMode
 
