@@ -1,7 +1,6 @@
 import type { IMessage } from '@ant-chat/shared'
 import { Button } from '@workspace/ui/components/button'
 import { ArrowDownIcon } from 'lucide-react'
-import { useEffect } from 'react'
 import { Role } from '@/constants'
 import { useAutoScroll } from '@/hooks/useAutoScroll'
 import { useMessageActions } from '@/hooks/useMessageActions'
@@ -37,13 +36,6 @@ function BubbleList({ messages, conversationsId, isAgentRunning }: Props) {
 
   const hasMore = messages.length < messageTotal
   const messageGroups = groupMessages(messages)
-
-  // 当消息数量变化时自动滚动
-  useEffect(() => {
-    if (autoScrollToBottom) {
-      scrollToBottom()
-    }
-  }, [messages.length, autoScrollToBottom, scrollToBottom])
 
   return (
     <InfiniteScroll

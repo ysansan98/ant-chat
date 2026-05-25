@@ -56,10 +56,7 @@ export const InfiniteScroll: React.FC<Props> = ({
 
   const scrollToBottom = () => {
     if (containerRef.current) {
-      containerRef.current?.lastElementChild?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'end',
-      })
+      containerRef.current.scrollTo({ top: containerRef.current.scrollHeight, behavior: 'smooth' })
     }
   }
 
@@ -130,23 +127,19 @@ export const InfiniteScroll: React.FC<Props> = ({
     scrollToElement,
   }))
 
-  // 初始滚动位置控制
+  // 初始滚动位置控制（仅在挂载时执行一次）
   useEffect(() => {
     if (initialScrollPosition === 'none')
       return
 
-    // 如果没有指定初始滚动位置，使用默认行为
     const position = initialScrollPosition || (direction === 'top' ? 'bottom' : 'top')
 
     requestAnimationFrame(() => {
-      if (position === 'bottom' && containerRef.current) {
-        containerRef.current.lastElementChild?.scrollIntoView(false)
-      }
-      else if (position === 'top' && containerRef.current) {
-        containerRef.current.firstElementChild?.scrollIntoView(true)
+      if (containerRef.current) {
+        containerRef.current.scrollTop = position === 'bottom' ? containerRef.current.scrollHeight : 0
       }
     })
-  }, []) // 只在组件挂载时执行一次
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div
@@ -193,8 +186,6 @@ export const InfiniteScroll: React.FC<Props> = ({
           {!hasMore && noMoreComponent}
         </div>
       )}
-      {/* 滚动到底部时，需要借助该元素 */}
-      <div className="h-px"></div>
     </div>
   )
 }
