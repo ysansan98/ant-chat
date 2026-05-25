@@ -33,6 +33,7 @@ export async function editFile(input: EditFileToolInput, pathPolicy: PathPolicy,
     ok: true,
     output: {
       path: path.relative(fs.realpathSync.native(workspacePath), filePath),
+      absolutePath: filePath,
       replacements: edits.length,
     },
   }
@@ -53,6 +54,11 @@ export function createEditFileTool(pathPolicy: PathPolicy, workspacePath: string
     unrestricted,
     inferScope: input => pathPolicy.classifyAccess((input as unknown as EditFileToolInput).path),
     execute: input => editFile(input as unknown as EditFileToolInput, pathPolicy, workspacePath),
+    formatObservation: (result) => {
+      const output = result.output as { path: string, absolutePath?: string, replacements: number } | undefined
+      const displayPath = output?.absolutePath ?? output?.path ?? 'unknown'
+      return `The file ${displayPath} has been updated successfully. (file state is current in your context — no need to Read it back)`
+    },
   })
 }
 
