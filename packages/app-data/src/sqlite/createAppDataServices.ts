@@ -1,8 +1,7 @@
 import type { AppDataDatabase } from './types'
-import { FileSettingsRepository } from '../file'
 import { McpSettingsRepository, McpSettingsStore } from '../mcp'
 import { ConversationService, MessageService, SettingsService } from '../services'
-import { AppSettingsStore, createModelSettingsResolver, ProviderSettingsRepository } from '../settings'
+import { AppSettingsStore, createModelSettingsResolver, GeneralSettingsRepository, ProviderSettingsRepository } from '../settings'
 import { SqliteConversationRepository, SqliteMessageRepository } from './repositories'
 import { initializeAppDataSchema } from './schema'
 import { SqliteMessageSearchService } from './services'
@@ -24,7 +23,7 @@ export function createAppDataServices(options: CreateAppDataServicesOptions) {
     conversationService: new ConversationService(new SqliteConversationRepository(db)),
     messageService: new MessageService(new SqliteMessageRepository(db)),
     messageSearchService: new SqliteMessageSearchService(db),
-    settingsService: new SettingsService(new FileSettingsRepository({
+    settingsService: new SettingsService(new GeneralSettingsRepository({
       filePath: settingsFilePath,
       store: appSettingsStore,
     })),

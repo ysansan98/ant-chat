@@ -2,9 +2,9 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { FileSettingsRepository } from '../fileSettingsRepository'
+import { GeneralSettingsRepository } from '../generalSettingsRepository'
 
-describe('file settings repository', () => {
+describe('general settings repository', () => {
   let dir: string
   let filePath: string
 
@@ -18,7 +18,7 @@ describe('file settings repository', () => {
   })
 
   it('initializes missing settings file with provided settings', async () => {
-    const repository = new FileSettingsRepository({
+    const repository = new GeneralSettingsRepository({
       filePath,
       initialSettings: {
         assistantModelId: 'model-1',
@@ -33,7 +33,7 @@ describe('file settings repository', () => {
   })
 
   it('updates settings with explicit nested proxy merge', async () => {
-    const repository = new FileSettingsRepository({
+    const repository = new GeneralSettingsRepository({
       filePath,
       initialSettings: {
         assistantModelId: 'model-1',
@@ -53,7 +53,7 @@ describe('file settings repository', () => {
 
   it('throws invalid settings file errors with the file path', async () => {
     writeFileSync(filePath, JSON.stringify({ proxySettings: { mode: 'none' } }), 'utf8')
-    const repository = new FileSettingsRepository({ filePath })
+    const repository = new GeneralSettingsRepository({ filePath })
 
     await expect(repository.getGeneralSettings()).rejects.toThrow(`Invalid settings file: ${filePath}`)
   })

@@ -1,7 +1,7 @@
 import type { GeneralSettingsState } from '@ant-chat/shared'
 import type { SettingsRepository } from '../repositories'
 import { GeneralSettingsSchema } from '@ant-chat/shared'
-import { AppSettingsStore } from '../settings'
+import { AppSettingsStore } from './appSettingsStore'
 
 export const DEFAULT_GENERAL_SETTINGS: GeneralSettingsState = {
   assistantModelId: '',
@@ -11,16 +11,16 @@ export const DEFAULT_GENERAL_SETTINGS: GeneralSettingsState = {
   },
 }
 
-export interface FileSettingsRepositoryOptions {
+export interface GeneralSettingsRepositoryOptions {
   filePath: string
   initialSettings?: GeneralSettingsState
   store?: AppSettingsStore
 }
 
-export class FileSettingsRepository implements SettingsRepository {
+export class GeneralSettingsRepository implements SettingsRepository {
   private readonly store: AppSettingsStore
 
-  constructor(options: FileSettingsRepositoryOptions) {
+  constructor(options: GeneralSettingsRepositoryOptions) {
     this.store = options.store ?? new AppSettingsStore({
       filePath: options.filePath,
       initialSettings: options.initialSettings
