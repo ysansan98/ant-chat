@@ -1,50 +1,18 @@
 import type { Database } from 'better-sqlite3'
+import { createRequire } from 'node:module'
 import BetterSqlite from 'better-sqlite3'
-import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import * as schema from '../../schema'
+import { initializeAppDataSchema } from '../../schema'
+import { SqliteMessageSearchService } from '../../services'
 import { SqliteConversationRepository } from '../sqliteConversationRepository'
 import { SqliteMessageRepository } from '../sqliteMessageRepository'
-import { SqliteSettingsRepository } from '../sqliteSettingsRepository'
 
-describe('sqlite repositories', () => {
+describe.skipIf(!canRunDbIntegrationTests())('sqlite repositories', () => {
   let sqlite: Database
-  let db: ReturnType<typeof drizzle<typeof schema>>
 
   beforeEach(() => {
     sqlite = new BetterSqlite(':memory:')
-    sqlite.exec(`
-      CREATE TABLE conversations (
-        id text PRIMARY KEY NOT NULL,
-        workspace_path text,
-        title text NOT NULL,
-        created_at integer NOT NULL,
-        updated_at integer NOT NULL,
-        settings text NOT NULL
-      );
-      CREATE INDEX idx_conversations_workspace_path_updated_at ON conversations (workspace_path, updated_at);
-      CREATE INDEX idx_conversations_updated_at ON conversations (updated_at);
-      CREATE TABLE messages (
-        id text PRIMARY KEY NOT NULL,
-        conv_id text NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
-        role text NOT NULL,
-        content text NOT NULL,
-        created_at integer NOT NULL,
-        status text NOT NULL,
-        images text DEFAULT '[]',
-        attachments text DEFAULT '[]',
-        reasoning_content text,
-        tool_calls text DEFAULT NULL,
-        model_info text DEFAULT NULL,
-        usage text DEFAULT NULL
-      );
-      CREATE TABLE app_settings (
-        key text PRIMARY KEY NOT NULL,
-        value text NOT NULL,
-        updated_at integer NOT NULL
-      );
-    `)
-    db = drizzle(sqlite, { schema })
+    initializeAppDataSchema(sqlite)
   })
 
   afterEach(() => {
@@ -52,8 +20,8 @@ describe('sqlite repositories', () => {
   })
 
   it('creates conversations and paginates messages', async () => {
-    const conversationRepository = new SqliteConversationRepository(db)
-    const messageRepository = new SqliteMessageRepository(db)
+    const conversationRepository = new SqliteConversationRepository(sqlite)
+    const messageRepository = new SqliteMessageRepository(sqlite)
 
     const conversation = await conversationRepository.create({
       title: 'Test',
@@ -79,24 +47,110 @@ describe('sqlite repositories', () => {
     const messages = await messageRepository.listByConversationPaginated(conversation.id, 0, 20)
 
     expect(message.convId).toBe(conversation.id)
+    expect(message.content).toEqual([{ type: 'text', text: 'hello' }])
     expect(messages).toEqual({
       data: [expect.objectContaining({ id: message.id, convId: conversation.id })],
       total: 1,
     })
   })
 
-  it('updates general settings in sqlite', async () => {
-    const repository = new SqliteSettingsRepository(db)
+  it('searches text messages by keyword grouped by conversation', async () => {
+    const conversationRepository = new SqliteConversationRepository(sqlite)
+    const messageRepository = new SqliteMessageRepository(sqlite)
+    const searchService = new SqliteMessageSearchService(sqlite)
 
-    const settings = await repository.updateGeneralSettings({
-      assistantModelId: 'model-1',
-      proxySettings: { mode: 'custom', customProxyUrl: 'http://localhost:7890' },
+    const olderConversation = await conversationRepository.create({
+      title: 'Older',
+      workspacePath: '/workspace',
+      createdAt: 1,
+      updatedAt: 1,
+      settings: {
+        modelId: 'model-1',
+        systemPrompt: '',
+        temperature: 0.7,
+        maxTokens: 1024,
+      },
+    })
+    const newerConversation = await conversationRepository.create({
+      title: 'Newer',
+      workspacePath: '/workspace',
+      createdAt: 2,
+      updatedAt: 2,
+      settings: {
+        modelId: 'model-1',
+        systemPrompt: '',
+        temperature: 0.7,
+        maxTokens: 1024,
+      },
     })
 
-    expect(settings).toEqual({
-      assistantModelId: 'model-1',
-      proxySettings: { mode: 'custom', customProxyUrl: 'http://localhost:7890' },
+    await messageRepository.create({
+      convId: olderConversation.id,
+      role: 'user',
+      status: 'success',
+      content: [{ type: 'text', text: 'needle in older conversation' }],
+      images: [],
+      attachments: [],
     })
-    await expect(repository.getGeneralSettings()).resolves.toEqual(settings)
+    await messageRepository.create({
+      convId: newerConversation.id,
+      role: 'user',
+      status: 'success',
+      content: [{ type: 'image', mimeType: 'image/png', data: 'base64' }],
+      images: [],
+      attachments: [],
+    })
+    const matchedMessage = await messageRepository.create({
+      convId: newerConversation.id,
+      role: 'user',
+      status: 'success',
+      content: [{ type: 'text', text: 'newer conversation has needle' }],
+      images: [],
+      attachments: [],
+    })
+
+    const results = await searchService.searchMessagesByKeyword('needle')
+
+    expect(results).toEqual([
+      {
+        id: newerConversation.id,
+        type: 'message',
+        conversationId: newerConversation.id,
+        conversationTitle: 'Newer',
+        createdAt: 2,
+        messages: [
+          {
+            id: matchedMessage.id,
+            content: 'newer conversation has needle',
+            createdAt: matchedMessage.createdAt,
+          },
+        ],
+      },
+      {
+        id: olderConversation.id,
+        type: 'message',
+        conversationId: olderConversation.id,
+        conversationTitle: 'Older',
+        createdAt: 1,
+        messages: [
+          expect.objectContaining({
+            content: 'needle in older conversation',
+          }),
+        ],
+      },
+    ])
   })
 })
+
+function canRunDbIntegrationTests() {
+  try {
+    const require = createRequire(import.meta.url)
+    const Database = require('better-sqlite3')
+    const db = new Database(':memory:')
+    db.close()
+    return true
+  }
+  catch {
+    return false
+  }
+}

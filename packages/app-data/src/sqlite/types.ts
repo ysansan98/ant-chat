@@ -1,4 +1,3 @@
-import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
-import type * as schema from './schema'
+import type { Database } from 'better-sqlite3'
 
-export type AppDataDatabase = BetterSQLite3Database<typeof schema>
+export type AppDataDatabase = Pick<Database, 'exec' | 'prepare' | 'transaction'>

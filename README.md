@@ -125,8 +125,8 @@ ant-chat/
 │   ├── main/               # 主进程
 │   ├── preload/            # 预加载脚本
 │   └── renderer/           # 渲染进程
-├── migrations/             # 数据库迁移
 ├── packages/
+│   ├── app-data/           # app data services and persistence
 │   ├── mcp-client-hub/     # MCP客户端
 │   └── shared/             # 共享类型和工具
 ├── out/                    # electron-vite 构建产物
@@ -145,10 +145,6 @@ pnpm type-check          # 类型检查
 pnpm test:unit           # 运行单元测试
 pnpm test:ui             # 运行 renderer UI 流程测试(jsdom)
 pnpm test:e2e            # 运行跨模块端到端测试
-
-# 数据库
-pnpm db:generate         # 生成数据库迁移
-pnpm db:migrate          # 执行数据库迁移
 
 # 构建
 pnpm build:mac           # 构建macOS版本

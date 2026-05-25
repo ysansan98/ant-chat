@@ -1,4 +1,6 @@
 export * from './createAppDataServices'
 export * from './repositories'
+export * from './rows'
 export * from './schema'
+export * from './services'
 export * from './types'

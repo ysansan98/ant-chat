@@ -20,9 +20,7 @@
     "check": "pnpm type-check && pnpm lint && pnpm test:unit",
     "check:all": "pnpm check && pnpm test:ui && pnpm test:e2e",
     "lint": "eslint .",
-    "clean": "pnpm -F @ant-chat/desktop clean && rm -rf node_modules",
-    "db:generate": "pnpm -F @ant-chat/desktop db:generate",
-    "db:migrate": "pnpm -F @ant-chat/desktop db:migrate"
+    "clean": "pnpm -F @ant-chat/desktop clean && rm -rf node_modules"
   },
   "dependencies": {
     "zod": "catalog:"

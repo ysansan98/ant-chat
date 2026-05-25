@@ -22,7 +22,6 @@
   },
   "dependencies": {
     "@ant-chat/shared": "workspace:^",
-    "drizzle-orm": "^0.40.0",
     "nanoid": "^5.0.9"
   },
   "devDependencies": {

@@ -14,6 +14,9 @@ describe('skillFsService', () => {
   beforeEach(async () => {
     homeDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'ant-chat-skill-test-'))
     vi.resetModules()
+    vi.doMock('@main/utils/appPaths', () => ({
+      getAppDataRoot: () => path.join(homeDir, '.ant-chat'),
+    }))
   })
 
   afterEach(async () => {

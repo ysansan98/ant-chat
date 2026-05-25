@@ -1,2 +1,0 @@
-ALTER TABLE `service_provider_models` ADD `max_tokens` integer DEFAULT 4096 NOT NULL;--> statement-breakpoint
-ALTER TABLE `service_provider_models` ADD `context_length` integer DEFAULT 2048576 NOT NULL;
