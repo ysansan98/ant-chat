@@ -25,7 +25,7 @@ export async function runRg(args: string[], cwd: string, limit: number): Promise
   const startedAt = Date.now()
   const command = resolveRgCommand()
   return new Promise((resolve) => {
-    const child = spawn(command, args, { cwd, shell: false })
+    const child = spawn(command, args, { cwd, shell: false, stdio: ['ignore', 'pipe', 'pipe'] })
     let stdout = ''
     let stderr = ''
 
