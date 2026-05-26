@@ -17,6 +17,7 @@ import { useMessagesStore } from '../../src/renderer/src/store/messages'
 const mocks = vi.hoisted(() => ({
   agent: {
     approvePendingAction: vi.fn(async () => null),
+    approvePendingActionWithWhitelist: vi.fn(async () => null),
     cancelTask: vi.fn(async () => null),
     listActiveTasks: vi.fn<() => Promise<AgentTaskSnapshot[]>>(async () => []),
     rejectPendingAction: vi.fn(async () => null),
@@ -254,9 +255,11 @@ describe('gui ui flow', () => {
     fireEvent.click(screen.getByTestId('agent-approve'))
     fireEvent.click(screen.getByTestId('agent-reject'))
 
-    expect(mocks.agent.approvePendingAction).toHaveBeenCalledWith({
+    expect(mocks.agent.approvePendingActionWithWhitelist).toHaveBeenCalledWith({
       actionId: 'action-1',
       taskId: 'task-approval',
+      remember: false,
+      workspacePath: undefined,
     })
     expect(mocks.agent.rejectPendingAction).toHaveBeenCalledWith({
       actionId: 'action-1',
