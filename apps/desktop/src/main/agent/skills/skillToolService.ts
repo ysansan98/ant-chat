@@ -1,128 +1,93 @@
-import type { AgentTool, AgentToolResult, SkillManifest } from '@ant-chat/shared'
+import type { AgentTool, SkillManifest } from '@ant-chat/shared'
+import fs from 'node:fs'
+import path from 'node:path'
 import { AGENT_SKILL_INVALID } from '@ant-chat/shared'
 import { skillFsService } from '@main/skills/skillFsService'
 
-const MAX_SKILL_CONTENT_CHARS = 20_000
+const SKILLS_ROOT = skillFsService.getSkillsRoot()
 
-export interface SkillLoadedOutput {
-  type: 'skill_loaded'
-  name: string
-  content: string
-}
+// ---- Fixed Skill Tools ----
 
-export class SkillToolService {
-  constructor(private readonly skills: SkillManifest[]) {}
-
-  getTools(): AgentTool[] {
-    const tools = [
-      this.createUseSkillTool(),
-      this.createInstallSkillFromGithubTool(),
-      ...this.skills
-        .filter(skill => skill.enabled)
-        .map(skill => this.createSkillAliasTool(skill)),
-    ]
-    return tools
-  }
-
-  private createUseSkillTool(): AgentTool {
-    return {
-      name: 'use_skill',
-      source: 'skill',
-      description: 'Load an installed skill into the current agent context before following its instructions.',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          name: { type: 'string', description: 'Installed skill name.' },
-          task: { type: 'string', description: 'Current task that needs the skill.' },
-        },
-        required: ['name'],
-      },
-      operationType: 'skill',
-      inferScope: () => 'workspace',
-      execute: async (input) => {
-        const name = String(input.name || '')
-        return this.loadSkill(name)
-      },
+export function createUseSkillTool(skills: SkillManifest[]): AgentTool {
+  const enabled = skills.filter(s => s.enabled)
+  const lines = [
+    'Load an installed skill. Returns <skill_content> with the SKILL.md instructions to follow, and <skill_files> with absolute paths to companion files (use read_file to access).',
+  ]
+  if (enabled.length > 0) {
+    lines.push('', 'Available skills:')
+    for (const skill of enabled) {
+      lines.push(skill.description
+        ? `- ${skill.name}: ${skill.description}`
+        : `- ${skill.name}`)
     }
   }
-
-  private createInstallSkillFromGithubTool(): AgentTool {
-    return {
-      name: 'install_skill_from_github',
-      source: 'skill',
-      description: 'Install a skill from a GitHub repository or GitHub tree URL into ~/.ant-chat/skills.',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          url: { type: 'string', description: 'GitHub repository URL or tree URL that contains SKILL.md.' },
-          name: { type: 'string', description: 'Optional installed skill name override.' },
-        },
-        required: ['url'],
+  return {
+    name: 'use_skill',
+    source: 'skill',
+    description: lines.join('\n'),
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Name of the skill to load.' },
       },
-      operationType: 'skill',
-      inferScope: () => 'outside',
-      execute: async (input) => {
-        const url = String(input.url || '')
-        const name = typeof input.name === 'string' ? input.name : undefined
-        const manifest = await skillFsService.importFromGithub({ url, name })
-        return {
-          ok: true,
-          output: {
-            installed: manifest.name,
-            path: `${skillFsService.getSkillsRoot()}/${manifest.name}`,
-          },
-        }
-      },
-    }
-  }
-
-  private createSkillAliasTool(skill: SkillManifest): AgentTool {
-    const toolName = `skill_${skill.name.replace(/\W/g, '_')}`
-    return {
-      name: toolName,
-      source: 'skill',
-      description: skill.description
-        ? `Load skill "${skill.name}": ${skill.description}`
-        : `Load skill "${skill.name}" into the current agent context.`,
-      inputSchema: {
-        type: 'object',
-        properties: {
-          task: { type: 'string', description: 'Current task that needs the skill.' },
-        },
-        required: [],
-      },
-      operationType: 'skill',
-      inferScope: () => 'workspace',
-      execute: async () => this.loadSkill(skill.name),
-    }
-  }
-
-  private async loadSkill(name: string): Promise<AgentToolResult> {
-    try {
-      const content = await skillFsService.readSkillMarkdown(name)
-      const output: SkillLoadedOutput = {
-        type: 'skill_loaded',
-        name,
-        content: truncateSkillContent(content),
+      required: ['name'],
+    },
+    operationType: 'skill',
+    inferScope: () => 'workspace',
+    execute: async (input) => {
+      const name = String(input.name || '')
+      try {
+        const content = await skillFsService.readSkillMarkdown(name)
+        const files = await listSkillFiles(name)
+        const output = [
+          `<skill_content name="${name}">`,
+          content,
+          '</skill_content>',
+          '',
+          '<skill_files>',
+          ...files.map(f => `- ${f}`),
+          '</skill_files>',
+        ].join('\n')
+        return { ok: true, output }
       }
-      return { ok: true, output }
-    }
-    catch (error) {
-      return {
-        ok: false,
-        error: error instanceof Error ? error.message : AGENT_SKILL_INVALID,
+      catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : AGENT_SKILL_INVALID }
       }
-    }
+    },
   }
 }
 
-export async function getSkillToolService(): Promise<SkillToolService> {
-  return new SkillToolService(await skillFsService.getEnabledSkills())
+export function createInstallSkillFromGithubTool(): AgentTool {
+  return {
+    name: 'install_skill_from_github',
+    source: 'skill',
+    description: `Install a skill from a GitHub repository into ${SKILLS_ROOT}.`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        url: { type: 'string', description: 'GitHub repository URL that contains SKILL.md.' },
+        name: { type: 'string', description: 'Optional installed skill name override.' },
+      },
+      required: ['url'],
+    },
+    operationType: 'skill',
+    inferScope: () => 'outside',
+    execute: async (input) => {
+      const url = String(input.url || '')
+      const name = typeof input.name === 'string' ? input.name : undefined
+      const manifest = await skillFsService.importFromGithub({ url, name })
+      return { ok: true, output: `Installed skill "${manifest.name}" to ${SKILLS_ROOT}/${manifest.name}` }
+    },
+  }
 }
 
-function truncateSkillContent(content: string): string {
-  if (content.length <= MAX_SKILL_CONTENT_CHARS) {
-    return content
-  }
-  return `${content.slice(0, MAX_SKILL_CONTENT_CHARS)}\n\n[skill content truncated]`
+// ---- Internal Helpers ----
+
+async function listSkillFiles(name: string): Promise<string[]> {
+  const skillPath = path.join(SKILLS_ROOT, name)
+  const entries = await fs.promises.readdir(skillPath, { recursive: true, withFileTypes: true })
+  return entries
+    .filter(e => e.isFile() && e.name !== 'manifest.json' && e.name !== '.index.json')
+    .map(e => path.join(e.parentPath ?? skillPath, e.name))
+    .sort()
 }

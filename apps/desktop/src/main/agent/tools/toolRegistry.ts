@@ -1,6 +1,7 @@
 import type { AgentMode, AgentTool, AgentToolResult, ToolOperationType, ToolScope } from '@ant-chat/shared'
+import { skillFsService } from '../../skills/skillFsService'
 import { getNativeToolService } from '../native-tools/nativeToolService'
-import { getSkillToolService } from '../skills/skillToolService'
+import { createInstallSkillFromGithubTool, createUseSkillTool } from '../skills/skillToolService'
 
 export interface PreparedToolCall {
   toolName: string
@@ -38,7 +39,8 @@ export class ToolRegistry {
     const unrestricted = mode === 'full_managed'
     const nativeTools = getNativeToolService(workspacePath, unrestricted).getTools()
     const relaxedNativeTools = unrestricted ? nativeTools : getNativeToolService(workspacePath, true).getTools()
-    const skillTools = (await getSkillToolService()).getTools()
+    const skills = await skillFsService.getEnabledSkills()
+    const skillTools = [createUseSkillTool(skills), createInstallSkillFromGithubTool()]
     return new ToolRegistry([...nativeTools, ...skillTools], relaxedNativeTools)
   }
 

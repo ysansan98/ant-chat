@@ -1,8 +1,7 @@
 import process from 'node:process'
-import pkg from '../../../package.json'
 
 /** app名称 */
-export const APP_NAME = pkg.name
+export const APP_NAME = 'ant-chat'
 
 /**
  * 数据库名称

@@ -9,6 +9,7 @@ import type {
   ReadFileToolInput,
   WriteFileToolInput,
 } from '@ant-chat/shared'
+import { skillFsService } from '@main/skills/skillFsService'
 import { WorkspaceStore } from '@main/store/workspace'
 import { createPathPolicyByMode } from './pathPolicy'
 import { applyPatch, createApplyPatchTool } from './tools/applyPatchTool'
@@ -41,7 +42,7 @@ export class NativeToolService {
   }
 
   private get pathPolicy() {
-    return createPathPolicyByMode(this.workspacePath, this.unrestricted ? 'unrestricted' : 'workspace')
+    return createPathPolicyByMode(this.workspacePath, this.unrestricted ? 'unrestricted' : 'workspace', [skillFsService.getSkillsRoot()])
   }
 
   async readFile(input: ReadFileToolInput): Promise<AgentToolResult> {

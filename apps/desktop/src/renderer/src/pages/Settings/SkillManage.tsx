@@ -70,7 +70,7 @@ export default function SkillManage() {
         <CardHeader>
           <CardTitle>Skills</CardTitle>
           <CardDescription>
-            {state.data.rootPath || '~/.ant-chat/skills'}
+            {state.data.rootPath || 'Loading...'}
           </CardDescription>
           <CardAction className="flex gap-2">
             <Button

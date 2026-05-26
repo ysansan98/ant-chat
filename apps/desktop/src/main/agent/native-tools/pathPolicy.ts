@@ -6,6 +6,7 @@ export class PathPolicy {
   constructor(
     private readonly workspacePath: string,
     private readonly enforceWorkspaceBoundary: boolean = true,
+    private readonly trustedPaths: string[] = [],
   ) {}
 
   resolveExisting(inputPath: string = '.'): string {
@@ -79,8 +80,21 @@ export class PathPolicy {
       return true
     }
     const workspaceRealPath = fs.realpathSync.native(this.workspacePath)
-    const relativePath = path.relative(workspaceRealPath, candidatePath)
-    return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath))
+    if (isInsideDir(workspaceRealPath, candidatePath)) {
+      return true
+    }
+    for (const trustedPath of this.trustedPaths) {
+      try {
+        const trustedRealPath = fs.realpathSync.native(trustedPath)
+        if (isInsideDir(trustedRealPath, candidatePath)) {
+          return true
+        }
+      }
+      catch {
+        // trusted path may not exist yet, skip
+      }
+    }
+    return false
   }
 
   assertInsideWorkspace(candidatePath: string): void {
@@ -100,12 +114,17 @@ export class PathPolicy {
   }
 }
 
-export function createPathPolicy(workspacePath: string): PathPolicy {
-  return new PathPolicy(fs.realpathSync.native(workspacePath))
+export function createPathPolicy(workspacePath: string, trustedPaths?: string[]): PathPolicy {
+  return new PathPolicy(fs.realpathSync.native(workspacePath), true, trustedPaths ?? [])
 }
 
-export function createPathPolicyByMode(workspacePath: string, mode: 'workspace' | 'unrestricted'): PathPolicy {
-  return new PathPolicy(fs.realpathSync.native(workspacePath), mode === 'workspace')
+export function createPathPolicyByMode(workspacePath: string, mode: 'workspace' | 'unrestricted', trustedPaths?: string[]): PathPolicy {
+  return new PathPolicy(fs.realpathSync.native(workspacePath), mode === 'workspace', trustedPaths ?? [])
+}
+
+function isInsideDir(dirPath: string, candidatePath: string): boolean {
+  const relativePath = path.relative(dirPath, candidatePath)
+  return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath))
 }
 
 function findExistingAncestor(inputPath: string): string {

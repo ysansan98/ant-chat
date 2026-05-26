@@ -16,7 +16,7 @@ const BUILTIN_SKILL_INSTALLER_MD = `# Skill Installer
 
 Install skills from GitHub into the Ant Chat skills directory.
 
-Use this skill when the user asks to install, list, or manage skills from GitHub. Prefer the built-in install_skill_from_github tool for installation. Installed skills are stored under ~/.ant-chat/skills.
+Use this skill when the user asks to install, list, or manage skills from GitHub. Prefer the built-in install_skill_from_github tool for installation. Installed skills are stored under ${SKILL_ROOT}.
 `
 
 export class SkillFsService {
@@ -197,9 +197,7 @@ export class SkillFsService {
     const now = Date.now()
     await fs.promises.mkdir(skillPath, { recursive: true })
     const skillFile = path.join(skillPath, 'SKILL.md')
-    if (!fs.existsSync(skillFile)) {
-      await fs.promises.writeFile(skillFile, BUILTIN_SKILL_INSTALLER_MD, 'utf8')
-    }
+    await fs.promises.writeFile(skillFile, BUILTIN_SKILL_INSTALLER_MD, 'utf8')
     const manifestPath = path.join(skillPath, 'manifest.json')
     if (!fs.existsSync(manifestPath)) {
       await this.writeManifest(skillPath, {
