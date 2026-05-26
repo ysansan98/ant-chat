@@ -1,7 +1,6 @@
 import type {
   AgentTool,
   AgentToolResult,
-  ApplyPatchToolInput,
   EditFileToolInput,
   GlobFilesToolInput,
   GrepFilesToolInput,
@@ -12,7 +11,6 @@ import type {
 import { skillFsService } from '@main/skills/skillFsService'
 import { WorkspaceStore } from '@main/store/workspace'
 import { createPathPolicyByMode } from './pathPolicy'
-import { applyPatch, createApplyPatchTool } from './tools/applyPatchTool'
 import { createBashTool } from './tools/bashTool'
 import { createEditFileTool, editFile } from './tools/editFileTool'
 import { createGlobFilesTool, globFiles } from './tools/globFilesTool'
@@ -36,7 +34,6 @@ export class NativeToolService {
       createGrepFilesTool(policy, this.unrestricted),
       createWriteFileTool(policy, this.workspacePath, this.unrestricted),
       createEditFileTool(policy, this.workspacePath, this.unrestricted),
-      createApplyPatchTool(policy, this.unrestricted),
       createBashTool(this.workspacePath, this.unrestricted),
     ]
   }
@@ -67,10 +64,6 @@ export class NativeToolService {
 
   async editFile(input: EditFileToolInput): Promise<AgentToolResult> {
     return editFile(input, this.pathPolicy, this.workspacePath)
-  }
-
-  async applyPatch(input: ApplyPatchToolInput): Promise<AgentToolResult> {
-    return applyPatch(input, this.pathPolicy)
   }
 }
 

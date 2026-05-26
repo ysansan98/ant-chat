@@ -167,15 +167,6 @@ function getNativeToolSchema(name: string): { description: string, inputSchema: 
           required: ['path', 'edits'],
         },
       }
-    case 'apply_patch':
-      return {
-        description: '按自定义 patch 语法修改文件，必须使用 "*** Begin Patch" / "*** Update File" / "*** End Patch" 格式，不接受 git unified diff',
-        inputSchema: {
-          type: 'object',
-          properties: { patch: { type: 'string' } },
-          required: ['patch'],
-        },
-      }
     case 'bash':
       return {
         description: '执行 shell 命令',

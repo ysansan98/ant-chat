@@ -49,7 +49,7 @@ function getToolOperationType(name: string): ToolOperationType {
   switch (name) {
     case 'read_file': case 'list_dir': case 'glob_files': case 'grep_files':
       return 'read'
-    case 'write_file': case 'edit_file': case 'apply_patch':
+    case 'write_file': case 'edit_file':
       return 'write'
     case 'bash':
       return 'bash'

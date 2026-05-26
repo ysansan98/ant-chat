@@ -66,57 +66,6 @@ describe('native tool service', () => {
     )
   })
 
-  it('apply_patch 支持多文件变更且上下文不匹配时保持原样', async () => {
-    const service = new NativeToolService(workspacePath)
-    fs.mkdirSync(path.join(workspacePath, 'src'))
-    fs.writeFileSync(path.join(workspacePath, 'src/existing.ts'), 'export const value = 1\n')
-    fs.writeFileSync(path.join(workspacePath, 'src/old.ts'), 'old\n')
-
-    await expect(service.applyPatch({
-      patch: `*** Begin Patch
-*** Add File: src/new.ts
-+export const next = 2
-*** Update File: src/existing.ts
-@@
- export const value = 1
-+export const other = 2
-*** Delete File: src/old.ts
-*** End Patch`,
-    })).resolves.toMatchObject({ ok: true })
-
-    expect(fs.readFileSync(path.join(workspacePath, 'src/new.ts'), 'utf8')).toBe('export const next = 2\n')
-    expect(fs.readFileSync(path.join(workspacePath, 'src/existing.ts'), 'utf8')).toBe('export const value = 1\nexport const other = 2\n')
-    expect(fs.existsSync(path.join(workspacePath, 'src/old.ts'))).toBe(false)
-
-    await expect(service.applyPatch({
-      patch: `*** Begin Patch
-*** Update File: src/existing.ts
-@@
- missing context
-+new line
-*** Add File: src/should-not-exist.ts
-+x
-*** End Patch`,
-    })).rejects.toThrow()
-
-    expect(fs.existsSync(path.join(workspacePath, 'src/should-not-exist.ts'))).toBe(false)
-    expect(fs.readFileSync(path.join(workspacePath, 'src/existing.ts'), 'utf8')).toBe('export const value = 1\nexport const other = 2\n')
-  })
-
-  it('apply_patch 整体拒绝越界路径', async () => {
-    const service = new NativeToolService(workspacePath)
-    await expect(service.applyPatch({
-      patch: `*** Begin Patch
-*** Add File: ok.ts
-+ok
-*** Add File: ../bad.ts
-+bad
-*** End Patch`,
-    })).rejects.toThrow(WORKSPACE_INVALID_PATH)
-
-    expect(fs.existsSync(path.join(workspacePath, 'ok.ts'))).toBe(false)
-  })
-
   it('edit_file 支持单文件多处精确替换并保留 CRLF', async () => {
     const service = new NativeToolService(workspacePath)
     fs.mkdirSync(path.join(workspacePath, 'src'))

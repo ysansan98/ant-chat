@@ -81,10 +81,6 @@ export interface EditFileToolInput {
   }>
 }
 
-export interface ApplyPatchToolInput {
-  patch: string
-}
-
 export const WORKSPACE_INVALID_PATH = 'WORKSPACE_INVALID_PATH'
 export const WORKSPACE_DUPLICATED_PATH = 'WORKSPACE_DUPLICATED_PATH'
 export const AGENT_POLICY_BLOCKED = 'AGENT_POLICY_BLOCKED'
