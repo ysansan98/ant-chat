@@ -58,4 +58,5 @@ export const DEFAULT_APP_SETTINGS: AppSettingsState = {
       models: {},
     },
   ],
+  toolApprovalWhitelist: [],
 }

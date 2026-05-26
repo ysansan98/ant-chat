@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { AgentApprovalCard } from '@/components/Agent'
 import { DEFAULT_TITLE } from '@/constants'
 import { useChatSettingsContext } from '@/contexts/chatSettings'
-import { approveAgentAction, rejectAgentAction, startAgentTurn, useAgentStore } from '@/store/agent'
+import { approveAgentActionWithWhitelist, rejectAgentAction, startAgentTurn, useAgentStore } from '@/store/agent'
 import {
   initConversationsTitle,
   upsertConversationAction,
@@ -97,7 +97,15 @@ export default function Chat() {
           ? (
               <AgentApprovalCard
                 pending={pending}
-                onApprove={() => void approveAgentAction({ taskId: agentTask.taskId, actionId: pending.actionId })}
+                workspacePath={currentWorkspacePath}
+                onApprove={(remember, workspacePath) => {
+                  void approveAgentActionWithWhitelist({
+                    taskId: agentTask.taskId,
+                    actionId: pending.actionId,
+                    remember,
+                    workspacePath,
+                  })
+                }}
                 onReject={() => void rejectAgentAction({ taskId: agentTask.taskId, actionId: pending.actionId, reason: '用户拒绝' })}
               />
             )

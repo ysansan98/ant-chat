@@ -1,5 +1,6 @@
 import type { AgentRuntimeConfig, AgentRuntimeStartTaskOptions, AgentTurnResult, StartAgentTurnOptions } from '@ant-chat/shared'
 import { AgentRuntime } from '@ant-chat/runtime'
+import { getAppDataServices } from '@main/adapters/appDataContainer'
 import { createDbAIProvider } from '@main/agent/adapters/aiProviderFactory.adapter'
 import { createCompactionStrategy } from '@main/agent/adapters/compactionStrategy.adapter'
 import { dbModelResolver } from '@main/agent/adapters/dbModelResolver.adapter'
@@ -25,6 +26,9 @@ function createRuntimeConfig(): AgentRuntimeConfig {
     createTaskLogger: (conversationId: string, userMessageId: string) => {
       const filePath = logPathManager.getTaskLogPath(conversationId, userMessageId)
       return new TaskLogWriter(filePath)
+    },
+    getToolApprovalWhitelistEntries: () => {
+      return getAppDataServices().toolApprovalWhitelistRepository.getAll()
     },
   }
 }

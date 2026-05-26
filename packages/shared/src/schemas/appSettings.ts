@@ -22,6 +22,13 @@ export const ProviderSettingsSchema = ServiceProviderSchema.omit({
   models: z.record(z.string(), ProviderModelSettingsSchema),
 })
 
+export const ToolApprovalWhitelistEntrySchema = z.object({
+  toolName: z.string(),
+  toolScope: z.enum(['workspace', 'outside', 'blocked']),
+  pattern: z.string(),
+  workspacePath: z.string().optional(),
+})
+
 export const AppSettingsSchema = z.object({
   assistantModelId: z.string(),
   proxySettings: z.object({
@@ -30,6 +37,7 @@ export const AppSettingsSchema = z.object({
   }),
   logBasePath: z.string().optional(),
   providers: z.array(ProviderSettingsSchema),
+  toolApprovalWhitelist: z.array(ToolApprovalWhitelistEntrySchema).default([]),
 })
 
 export type ProviderModelOverridesSchema = z.infer<typeof ProviderModelOverridesSchema>

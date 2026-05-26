@@ -1,5 +1,5 @@
 import type { AddConversationsSchema, AddMessage, McpToolCall, ModelInfo, UpdateConversationsSchema, UpdateMessageSchema } from '../schemas'
-import type { AgentMode, AgentPendingAction, AgentTaskSnapshot } from './agent-runtime'
+import type { AgentMode, AgentPendingAction, AgentTaskSnapshot, ToolApprovalWhitelistEntry } from './agent-runtime'
 import type { AgentTool } from './agent-tools'
 import type { IAttachment, IConversations, IMessage } from './db-types'
 
@@ -197,6 +197,7 @@ export interface AgentRuntimeConfig {
   aiProviderFactory?: AIProviderFactory
   toolProvider?: ToolProvider
   compactionStrategy?: CompactionStrategy
+  getToolApprovalWhitelistEntries?: () => ToolApprovalWhitelistEntry[]
 }
 
 export interface AgentRuntimeStartTaskOptions {

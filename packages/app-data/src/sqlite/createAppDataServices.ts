@@ -1,7 +1,7 @@
 import type { AppDataDatabase } from './types'
 import { McpSettingsRepository, McpSettingsStore } from '../mcp'
 import { ConversationService, MessageService, SettingsService } from '../services'
-import { AppSettingsStore, createModelSettingsResolver, GeneralSettingsRepository, ProviderSettingsRepository } from '../settings'
+import { AppSettingsStore, createModelSettingsResolver, GeneralSettingsRepository, ProviderSettingsRepository, ToolApprovalWhitelistRepository } from '../settings'
 import { SqliteConversationRepository, SqliteMessageRepository } from './repositories'
 import { initializeAppDataSchema } from './schema'
 import { SqliteMessageSearchService } from './services'
@@ -33,5 +33,6 @@ export function createAppDataServices(options: CreateAppDataServicesOptions) {
       filePath: mcpSettingsFilePath,
       resetInvalidFile: true,
     })),
+    toolApprovalWhitelistRepository: new ToolApprovalWhitelistRepository(appSettingsStore),
   }
 }

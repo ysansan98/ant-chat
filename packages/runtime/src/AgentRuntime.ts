@@ -20,6 +20,7 @@ export class AgentRuntime {
     this.approvalController = createApprovalController(config.eventEmitter)
     this.beforeToolExecuteHook = createBeforeToolExecuteHook(
       this.approvalController.waitForApproval,
+      config.getToolApprovalWhitelistEntries,
     )
     this.sessionRuntime = new SessionRuntime(config, this.listActiveTasks.bind(this), async (input, runtime) => {
       return this.startLoopTask(input, runtime)

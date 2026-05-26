@@ -28,6 +28,7 @@ export interface AgentPendingAction {
   scope: ToolScope
   inputPreview: string
   createdAt: number
+  whitelistPattern?: string
 }
 
 export interface AgentTaskSnapshot {
@@ -67,4 +68,11 @@ export interface RejectPendingActionOptions {
 
 export interface CancelTaskOptions {
   taskId: string
+}
+
+export interface ToolApprovalWhitelistEntry {
+  toolName: string
+  toolScope: ToolScope
+  pattern: string
+  workspacePath?: string
 }

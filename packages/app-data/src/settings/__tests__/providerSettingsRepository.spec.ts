@@ -13,6 +13,7 @@ describe('provider settings repository', () => {
   const initialSettings: AppSettingsState = {
     assistantModelId: '',
     proxySettings: { mode: 'none', customProxyUrl: '' },
+    toolApprovalWhitelist: [],
     providers: [
       {
         id: 'provider-1',

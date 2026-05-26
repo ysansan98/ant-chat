@@ -1,12 +1,14 @@
-import type { AgentPendingAction } from '@ant-chat/shared'
+import type { AgentPendingAction, ToolApprovalWhitelistEntry } from '@ant-chat/shared'
 import type { RuntimeTask } from '../loop/taskStore'
 import type { BeforeToolExecuteHook } from '../loop/types'
 import { randomUUID } from 'node:crypto'
 import { AgentError } from '../AgentError'
 import { decidePolicy } from './policyEngine'
+import { extractInputKey, generatePattern, isWhitelisted } from './toolApprovalWhitelist'
 
 export function createBeforeToolExecuteHook(
   waitForApproval: (task: RuntimeTask) => Promise<{ approved: boolean, reason?: string }>,
+  getWhitelistEntries?: () => ToolApprovalWhitelistEntry[],
 ): BeforeToolExecuteHook {
   return async (input) => {
     const { task, prepared, config, onToolCallContext } = input
@@ -85,13 +87,55 @@ export function createBeforeToolExecuteHook(
       }
     }
 
+    // require_approval — check whitelist before showing dialog
+    if (getWhitelistEntries) {
+      const matchKey = extractInputKey(prepared.toolName, prepared.input)
+      const entries = getWhitelistEntries()
+      const matched = isWhitelisted(
+        entries,
+        prepared.toolName,
+        prepared.scope,
+        matchKey,
+        task.snapshot.workspacePath,
+      )
+      if (matched) {
+        config.logger.info('agent-runtime', {
+          event: 'tool_whitelist_auto_approved',
+          conversationId: task.snapshot.conversationId,
+          userMessageId: task.snapshot.userMessageId,
+          toolName: prepared.toolName,
+          scope: prepared.scope,
+          matchKey,
+          pattern: matched.pattern,
+          workspacePath: task.snapshot.workspacePath,
+        })
+        config.taskLogger?.write('tool_whitelist_auto_approved', {
+          conversationId: task.snapshot.conversationId,
+          userMessageId: task.snapshot.userMessageId,
+          toolName: prepared.toolName,
+          scope: prepared.scope,
+          matchKey,
+          pattern: matched.pattern,
+          workspacePath: task.snapshot.workspacePath,
+        })
+        return { outcome: 'allow' }
+      }
+    }
+
     // require_approval
+    const whitelistPattern = generatePattern(
+      prepared.toolName,
+      prepared.input,
+      prepared.scope,
+      task.snapshot.workspacePath,
+    )
     const pendingAction: AgentPendingAction = {
       actionId: randomUUID(),
       toolName: prepared.toolName,
       operationType: prepared.operationType,
       scope: prepared.scope,
       inputPreview: JSON.stringify(prepared.input).slice(0, 200),
+      whitelistPattern,
       createdAt: Date.now(),
     }
     task.snapshot.status = 'awaiting_approval'

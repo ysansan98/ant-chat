@@ -31,6 +31,7 @@ export function createLocalWebTransport(): AppTransport {
       rejectPendingAction: options => rpc('agent.rejectPendingAction', { options }),
       cancelTask: taskId => rpc('agent.cancelTask', { taskId }),
       listActiveTasks: conversationId => rpc('agent.listActiveTasks', { conversationId }),
+      approvePendingActionWithWhitelist: options => rpc('agent.approvePendingActionWithWhitelist', { options }),
     },
   }
 }

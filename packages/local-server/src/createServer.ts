@@ -14,6 +14,7 @@ export interface LocalServerServices {
     rejectPendingAction?: (options: unknown) => Promise<null> | null
     cancelTask?: (taskId: string) => Promise<null> | null
     listActiveTasks: (conversationId?: string) => Promise<unknown[]> | unknown[]
+    approvePendingActionWithWhitelist?: (options: unknown) => Promise<null> | null
   }
 }
 
@@ -124,6 +125,8 @@ async function dispatchRpc(body: unknown, services: LocalServerServices): Promis
       return requireAgentMethod(services, 'approvePendingAction')(params.options)
     case 'agent.rejectPendingAction':
       return requireAgentMethod(services, 'rejectPendingAction')(params.options)
+    case 'agent.approvePendingActionWithWhitelist':
+      return requireAgentMethod(services, 'approvePendingActionWithWhitelist')(params.options)
     case 'agent.cancelTask':
       return requireCancelTask(services)(stringParam(params.taskId))
     case 'agent.listActiveTasks':
@@ -140,7 +143,7 @@ function parseRpcBody(body: unknown): { method: string, params: Record<string, u
   return { method, params }
 }
 
-function requireAgentMethod(services: LocalServerServices, method: 'startTurn' | 'approvePendingAction' | 'rejectPendingAction') {
+function requireAgentMethod(services: LocalServerServices, method: 'startTurn' | 'approvePendingAction' | 'rejectPendingAction' | 'approvePendingActionWithWhitelist') {
   const handler = services.agentService?.[method]
   if (!handler) {
     throw new Error(`Agent method is not available in local web transport: ${method}`)

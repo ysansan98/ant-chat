@@ -21,10 +21,17 @@ async function listActiveTasks(conversationId?: string): Promise<AgentTaskSnapsh
   return (await getAppTransport()).agent.listActiveTasks(conversationId)
 }
 
+async function approvePendingActionWithWhitelist(
+  options: ApprovePendingActionOptions & { remember: boolean, workspacePath?: string },
+): Promise<null> {
+  return (await getAppTransport()).agent.approvePendingActionWithWhitelist(options)
+}
+
 export default {
   startTurn,
   approvePendingAction,
   rejectPendingAction,
   cancelTask,
   listActiveTasks,
+  approvePendingActionWithWhitelist,
 }

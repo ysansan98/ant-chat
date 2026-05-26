@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createBeforeToolExecuteHook } from '../beforeToolExecute'
-import type { AgentTaskSnapshot, IAgentEventEmitter, ILogger } from '@ant-chat/shared'
+import type { AgentTaskSnapshot, IAgentEventEmitter, ILogger, ToolApprovalWhitelistEntry } from '@ant-chat/shared'
 import type { RuntimeTask } from '../../loop/taskStore'
 
 function createMockEmitter(): IAgentEventEmitter {
@@ -200,5 +200,116 @@ describe('createBeforeToolExecuteHook', () => {
         policy: 'allow',
       }),
     )
+  })
+
+  it('auto-approves when whitelist matches', async () => {
+    const emitter = createMockEmitter()
+    const logger = createMockLogger()
+
+    const whitelist: ToolApprovalWhitelistEntry[] = [{
+      toolName: 'write_file',
+      toolScope: 'workspace',
+      pattern: './src/**',
+    }]
+
+    const hook = createBeforeToolExecuteHook(
+      async () => ({ approved: true }),
+      () => whitelist,
+    )
+    const task = createTask({ mode: 'strict' })
+
+    const result = await hook({
+      task,
+      prepared: { ...createPrepared(), toolName: 'write_file', operationType: 'write', scope: 'workspace', input: { path: '/workspace/src/index.ts' } },
+      config: { eventEmitter: emitter, logger },
+    })
+
+    expect(result).toEqual({ outcome: 'allow' })
+    expect(emitter.emitApprovalRequired).not.toHaveBeenCalled()
+    expect(task.snapshot.status).toBe('running')
+  })
+
+  it('does not auto-approve when whitelist does not match', async () => {
+    const emitter = createMockEmitter()
+    const logger = createMockLogger()
+
+    const whitelist: ToolApprovalWhitelistEntry[] = [{
+      toolName: 'write_file',
+      toolScope: 'workspace',
+      pattern: '/safe-path/**',
+    }]
+
+    let resolveApproval!: (value: { approved: boolean, reason?: string }) => void
+    const waitForApproval = vi.fn().mockImplementation(() => {
+      return new Promise<{ approved: boolean, reason?: string }>((resolve) => {
+        resolveApproval = resolve
+      })
+    })
+
+    const hook = createBeforeToolExecuteHook(waitForApproval, () => whitelist)
+    const task = createTask({ mode: 'strict' })
+
+    const resultPromise = hook({
+      task,
+      prepared: { ...createPrepared(), toolName: 'write_file', operationType: 'write', scope: 'workspace', input: { path: '/workspace/src/index.ts' } },
+      config: { eventEmitter: emitter, logger },
+    })
+
+    expect(task.snapshot.status).toBe('awaiting_approval')
+    resolveApproval({ approved: true })
+    const result = await resultPromise
+    expect(result).toEqual({ outcome: 'allow' })
+  })
+
+  it('sends whitelistPattern and whitelistApplicableScope in pendingAction', async () => {
+    const emitter = createMockEmitter()
+    const logger = createMockLogger()
+
+    let resolveApproval!: (value: { approved: boolean, reason?: string }) => void
+    const waitForApproval = vi.fn().mockImplementation(() => {
+      return new Promise<{ approved: boolean, reason?: string }>((resolve) => {
+        resolveApproval = resolve
+      })
+    })
+
+    const hook = createBeforeToolExecuteHook(waitForApproval, () => [])
+    const task = createTask({ mode: 'strict' })
+
+    const resultPromise = hook({
+      task,
+      prepared: { ...createPrepared(), toolName: 'bash', operationType: 'bash', scope: 'workspace', input: { command: 'git log' } },
+      config: { eventEmitter: emitter, logger },
+    })
+
+    expect(task.snapshot.pendingAction?.whitelistPattern).toBeDefined()
+
+    resolveApproval({ approved: true })
+    await resultPromise
+  })
+
+  it('behaves normally when getWhitelistEntries is not provided (backward compat)', async () => {
+    const emitter = createMockEmitter()
+    const logger = createMockLogger()
+
+    let resolveApproval!: (value: { approved: boolean, reason?: string }) => void
+    const waitForApproval = vi.fn().mockImplementation(() => {
+      return new Promise<{ approved: boolean, reason?: string }>((resolve) => {
+        resolveApproval = resolve
+      })
+    })
+
+    const hook = createBeforeToolExecuteHook(waitForApproval)
+    const task = createTask({ mode: 'strict' })
+
+    const resultPromise = hook({
+      task,
+      prepared: { ...createPrepared(), operationType: 'write', scope: 'workspace' },
+      config: { eventEmitter: emitter, logger },
+    })
+
+    expect(task.snapshot.status).toBe('awaiting_approval')
+    resolveApproval({ approved: true })
+    const result = await resultPromise
+    expect(result).toEqual({ outcome: 'allow' })
   })
 })
