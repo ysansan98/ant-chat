@@ -112,6 +112,9 @@ export class SessionRuntime {
 
     const mode = options.mode ?? 'hybrid'
     const tools = await toolProvider(options.workspacePath, mode)
+    const relaxedTools = mode !== 'full_managed'
+      ? await toolProvider(options.workspacePath, 'full_managed')
+      : undefined
     const systemPrompt = createLoopSystemPrompt(options.workspacePath, options.chatSettings?.systemPrompt)
     const apiMode = provider.apiMode || 'openai'
     const compactionSettings: CompactionSettingsSchema = currentConversation?.settings?.compaction ?? DEFAULT_COMPACTION_SETTINGS
@@ -141,6 +144,7 @@ export class SessionRuntime {
         messages,
         systemPrompt,
         tools,
+        relaxedTools,
         aiProvider,
         modelName: model.model,
         providerName: provider.name,

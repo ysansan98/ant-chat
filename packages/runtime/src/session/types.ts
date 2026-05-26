@@ -12,6 +12,7 @@ export interface RuntimeStartInput {
   messages: LoopMessage[]
   systemPrompt: string
   tools: AgentTool[]
+  relaxedTools?: AgentTool[]
 
   // ===== 能力（外部创建，可调用实例传入）=====
   aiProvider: IAIProvider | null

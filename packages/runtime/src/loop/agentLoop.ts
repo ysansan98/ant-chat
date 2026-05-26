@@ -34,7 +34,7 @@ export async function runAgentLoop(input: {
     maxTokens,
   } = options
 
-  const registry = new ToolRegistry(tools)
+  const registry = new ToolRegistry(tools, options.relaxedTools)
   const toolDefs = registry.listTools()
 
   let step = 0
