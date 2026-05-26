@@ -17,6 +17,7 @@ export default antfu(
     },
     ignores: [
       'docs/**/*.md',
+      'docs/**/*.html',
       '**/out/**',
       '**/dist/**',
       '**/release/**',

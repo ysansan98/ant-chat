@@ -55,3 +55,4 @@ CLAUDE.md
 # bundled ripgrep binaries (build-time downloaded)
 apps/desktop/resources/rg/darwin-arm64/rg
 apps/desktop/resources/rg/win32-x64/rg.exe
+packages/ui/tsconfig.tsbuildinfo
