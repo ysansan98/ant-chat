@@ -1,9 +1,9 @@
 import type { BrowserWindow } from 'electron'
 import { app, Menu } from 'electron'
+import { isDev, isMacOS } from '../utils/env'
+import { logger } from '../utils/logger'
 import { BaseWindow } from './base-window'
 import { openSettingsWindow } from './settings-window'
-import { isDev, isMacOS } from './utils/env'
-import { logger } from './utils/logger'
 
 let mainWindow: null | BrowserWindow = null
 

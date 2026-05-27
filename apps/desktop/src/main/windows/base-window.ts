@@ -1,8 +1,8 @@
 import { join } from 'node:path'
 import process from 'node:process'
 import { BrowserWindow, shell } from 'electron'
-import { isDev, isMacOS, isWindows } from './utils/env'
-import { logger } from './utils/logger'
+import { isDev, isMacOS, isWindows } from '../utils/env'
+import { logger } from '../utils/logger'
 
 export interface BaseWindowOptions {
   type: 'main' | 'settings'

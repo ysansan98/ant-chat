@@ -32,7 +32,7 @@ vi.mock('@main/adapters/appDataContainer', () => ({
   }),
 }))
 
-vi.mock('@main/settings-window', () => ({
+vi.mock('@main/windows/settings-window', () => ({
   getSettingsWindow: () => ({ isDestroyed: () => false, webContents: { send: mocks.settingsSend } }),
   openSettingsWindow: vi.fn(async () => {}),
 }))
@@ -55,7 +55,7 @@ vi.mock('@main/utils/system-proxy', () => ({
   testProxyConnection: vi.fn(async () => true),
 }))
 
-vi.mock('@main/window', () => ({
+vi.mock('@main/windows/window', () => ({
   getMainWindow: () => ({ isDestroyed: () => false, webContents: { send: mocks.mainSend } }),
 }))
 

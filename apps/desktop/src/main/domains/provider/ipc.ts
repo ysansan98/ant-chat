@@ -2,7 +2,7 @@ import type { AddServiceProviderModelSchema, AddServiceProviderSchema, AllAvaila
 import { createErrorIpcResponse, createIpcResponse } from '@ant-chat/shared'
 import { getAppDataServices } from '@main/adapters/appDataContainer'
 import { logger } from '@main/utils/logger'
-import { getMainWindow } from '@main/window'
+import { getMainWindow } from '@main/windows/window'
 import { IpcMethod, IpcService } from 'electron-ipc-decorator'
 import { getModelsDevModelsByProviderId, getModelsDevProviders } from './modelsDev'
 

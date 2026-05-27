@@ -1,6 +1,6 @@
 import type { NotificationOption } from '@ant-chat/shared'
 import { sendToRenderer } from '../utils/ipc-events'
-import { getMainWindow } from '../window'
+import { getMainWindow } from '../windows/window'
 import { logger } from './logger'
 
 type Option = Omit<NotificationOption, 'type'>

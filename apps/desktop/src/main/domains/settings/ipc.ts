@@ -1,12 +1,12 @@
 import type { GeneralSettingsState, IpcResponse } from '@ant-chat/shared'
 import { createErrorIpcResponse, createIpcResponse } from '@ant-chat/shared'
 import { getAppDataServices } from '@main/adapters/appDataContainer'
-import { getSettingsWindow, openSettingsWindow } from '@main/settings-window'
 import { logger } from '@main/utils/logger'
 import { LogPathManager } from '@main/utils/logPathManager'
 import { ProxyManager } from '@main/utils/proxy-manager'
 import { testProxyConnection } from '@main/utils/system-proxy'
-import { getMainWindow } from '@main/window'
+import { getSettingsWindow, openSettingsWindow } from '@main/windows/settings-window'
+import { getMainWindow } from '@main/windows/window'
 import { IpcMethod, IpcService } from 'electron-ipc-decorator'
 
 export class SettingsIpcService extends IpcService {

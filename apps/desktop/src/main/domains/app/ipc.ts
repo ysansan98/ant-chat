@@ -2,7 +2,7 @@ import type { ElectronData } from '@ant-chat/shared'
 import type { Rectangle } from 'electron'
 import { isWindows } from '@main/utils/env'
 import { clipboardWrite } from '@main/utils/util'
-import { getMainWindow } from '@main/window'
+import { getMainWindow } from '@main/windows/window'
 import { app } from 'electron'
 import { IpcMethod, IpcService } from 'electron-ipc-decorator'
 

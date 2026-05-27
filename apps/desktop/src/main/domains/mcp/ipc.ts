@@ -5,7 +5,7 @@ import { getAppDataServices } from '@main/adapters/appDataContainer'
 import { sendToRenderer } from '@main/utils/ipc-events'
 import { logger } from '@main/utils/logger'
 import { Notification } from '@main/utils/notification'
-import { getMainWindow } from '@main/window'
+import { getMainWindow } from '@main/windows/window'
 import { IpcMethod, IpcService } from 'electron-ipc-decorator'
 
 export class McpIpcService extends IpcService {

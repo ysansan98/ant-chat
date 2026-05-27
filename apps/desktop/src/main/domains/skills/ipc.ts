@@ -1,10 +1,10 @@
 import type { ImportSkillFromGithubOptions, IpcResponse, SetSkillEnabledOptions, SkillIndex, SkillManifest } from '@ant-chat/shared'
 import { createErrorIpcResponse, createIpcResponse } from '@ant-chat/shared'
-import { skillManagementService } from '@main/skills/skillManagementService'
 import { logger } from '@main/utils/logger'
-import { getMainWindow } from '@main/window'
+import { getMainWindow } from '@main/windows/window'
 import { dialog } from 'electron'
 import { IpcMethod, IpcService } from 'electron-ipc-decorator'
+import { skillManagementService } from './skillManagementService'
 
 export class SkillsIpcService extends IpcService {
   static readonly groupName = 'skills'

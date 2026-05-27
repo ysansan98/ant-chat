@@ -1,6 +1,6 @@
 import type { IAgentEventEmitter } from '@ant-chat/shared'
 import { sendToRenderer } from '@main/utils/ipc-events'
-import { getMainWindow } from '@main/window'
+import { getMainWindow } from '@main/windows/window'
 
 export function createElectronEventEmitter(): IAgentEventEmitter {
   function ipc(channel: string, data: unknown) {

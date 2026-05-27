@@ -4,7 +4,7 @@ import { createErrorIpcResponse, createIpcResponse } from '@ant-chat/shared'
 import { getAppDataServices } from '@main/adapters/appDataContainer'
 import { sendToRenderer } from '@main/utils/ipc-events'
 import { logger } from '@main/utils/logger'
-import { getMainWindow } from '@main/window'
+import { getMainWindow } from '@main/windows/window'
 import { dialog } from 'electron'
 import { IpcMethod, IpcService } from 'electron-ipc-decorator'
 
