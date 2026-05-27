@@ -71,12 +71,42 @@ function createModel(model: Record<string, any>, providerId: string): ModelsDevM
   }
 }
 
+const FETCH_TIMEOUT_MS = 5000
+
+let cachedDatabase: ModelsDevDatabase | null = null
+let fetchPromise: Promise<ModelsDevDatabase> | null = null
+
 async function fetchModelsDevData(): Promise<ModelsDevDatabase> {
-  const response = await fetch(MODELS_DEV_URL, { cache: 'no-store' })
-  if (!response.ok) {
-    throw new Error(`Models.dev 请求失败: ${response.status}`)
+  if (cachedDatabase) {
+    return cachedDatabase
   }
-  return response.json()
+  if (fetchPromise) {
+    return fetchPromise
+  }
+
+  fetchPromise = (async () => {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+
+    try {
+      const response = await fetch(MODELS_DEV_URL, {
+        cache: 'no-store',
+        signal: controller.signal,
+      })
+      if (!response.ok) {
+        throw new Error(`Models.dev request failed: ${response.status}`)
+      }
+      const data = await response.json()
+      cachedDatabase = data
+      return data
+    }
+    finally {
+      clearTimeout(timeoutId)
+      fetchPromise = null
+    }
+  })()
+
+  return fetchPromise
 }
 
 export async function getModelsDevProviders() {

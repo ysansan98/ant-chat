@@ -1,7 +1,6 @@
-import type { AddServiceProviderModelSchema, AddServiceProviderSchema, AllAvailableModelsSchema, IpcResponse, ModelsDevModel, ProviderSettingsSchema, ServiceProviderModelsSchema, ServiceProviderSchema, UpdateServiceProviderSchema } from '@ant-chat/shared'
+import type { AddServiceProviderModelSchema, AddServiceProviderSchema, AllAvailableModelsSchema, IpcResponse, ModelsDevModel, ServiceProviderModelsSchema, ServiceProviderSchema, UpdateServiceProviderSchema } from '@ant-chat/shared'
 import { createErrorIpcResponse, createIpcResponse } from '@ant-chat/shared'
 import { getAppDataServices } from '@main/adapters/appDataContainer'
-import { logger } from '@main/utils/logger'
 import { getMainWindow } from '@main/windows/window'
 import { IpcMethod, IpcService } from 'electron-ipc-decorator'
 import { getModelsDevModelsByProviderId, getModelsDevProviders } from './modelsDev'
@@ -22,47 +21,6 @@ function toModelFeatures(model: ModelsDevModel) {
         vision: model.vision || undefined,
       }
     : undefined
-}
-
-async function getModelsDevModelMap(providerId: string): Promise<Map<string, ModelsDevModel>> {
-  try {
-    const models = await getModelsDevModelsByProviderId(providerId)
-    return new Map(models.map(model => [model.model, model]))
-  }
-  catch (error) {
-    logger.warn('Failed to load models.dev metadata:', error)
-    return new Map()
-  }
-}
-
-async function resolveProviderModels(provider: ProviderSettingsSchema): Promise<ServiceProviderModelsSchema[]> {
-  const modelsDevMap = await getModelsDevModelMap(provider.id)
-  return Object.entries(provider.models).map(([modelId, config]) => {
-    const metadata = modelsDevMap.get(modelId)
-    const overrides = config.overrides ?? {}
-    return {
-      id: modelId,
-      model: modelId,
-      name: overrides.name ?? metadata?.name ?? modelId,
-      isBuiltin: false,
-      isEnabled: config.isEnabled,
-      maxTokens: overrides.maxTokens ?? metadata?.maxTokens ?? 4096,
-      contextLength: overrides.contextLength ?? metadata?.contextLength ?? 4096,
-      temperature: config.temperature ?? 0.7,
-      modelFeatures: overrides.modelFeatures ?? (metadata ? toModelFeatures(metadata) : undefined),
-      serviceProviderId: provider.id,
-      createdAt: 0,
-    }
-  })
-}
-
-async function resolveModel(providerId: string, modelId: string): Promise<ServiceProviderModelsSchema | null> {
-  const provider = getAppDataServices().providerSettingsRepository.getProviderSettingsById(providerId)
-  if (!provider || !provider.models[modelId]) {
-    return null
-  }
-  const models = await resolveProviderModels(provider)
-  return models.find(model => model.id === modelId) ?? null
 }
 
 export class ProviderIpcService extends IpcService {
@@ -146,16 +104,7 @@ export class ProviderIpcService extends IpcService {
   @IpcMethod()
   async getAllAbvailableModels(): Promise<IpcResponse<AllAvailableModelsSchema[]>> {
     try {
-      const providers = getAppDataServices().providerSettingsRepository.getAllProviderServices().filter(provider => provider.isEnabled)
-      const result = await Promise.all(providers.map(async (provider) => {
-        const providerSettings = getAppDataServices().providerSettingsRepository.getProviderSettingsById(provider.id)
-        return {
-          ...provider,
-          models: providerSettings
-            ? (await resolveProviderModels(providerSettings)).filter(model => model.isEnabled)
-            : [],
-        }
-      }))
+      const result = getAppDataServices().providerSettingsRepository.getAllAvailableModels()
       return createIpcResponse(true, result)
     }
     catch (error) {
@@ -166,8 +115,7 @@ export class ProviderIpcService extends IpcService {
   @IpcMethod()
   async getModelsByServiceProviderId(id: string): Promise<IpcResponse<ServiceProviderModelsSchema[]>> {
     try {
-      const provider = getAppDataServices().providerSettingsRepository.getProviderSettingsById(id)
-      const result = provider ? await resolveProviderModels(provider) : []
+      const result = getAppDataServices().providerSettingsRepository.getModelsByServiceProviderId(id)
       return createIpcResponse(true, result)
     }
     catch (error) {
@@ -178,8 +126,7 @@ export class ProviderIpcService extends IpcService {
   @IpcMethod()
   async getModelById(id: string): Promise<IpcResponse<ServiceProviderModelsSchema>> {
     try {
-      const provider = getAppDataServices().providerSettingsRepository.getServiceProviderByModelId(id)
-      const result = provider ? await resolveModel(provider.id, id) : null
+      const result = getAppDataServices().providerSettingsRepository.getModelById(id)
       if (!result) {
         throw new Error('not found')
       }
@@ -273,7 +220,15 @@ export class ProviderIpcService extends IpcService {
         }
 
         try {
-          getAppDataServices().providerSettingsRepository.addProviderModelReference(providerId, model.model, { temperature: 0.7 })
+          getAppDataServices().providerSettingsRepository.addServiceProviderModel({
+            serviceProviderId: providerId,
+            model: model.model,
+            name: model.name,
+            temperature: 0.7,
+            maxTokens: model.maxTokens ?? 4096,
+            contextLength: model.contextLength ?? 4096,
+            modelFeatures: toModelFeatures(model),
+          })
           seen.add(model.model)
           added.push(displayName)
         }
