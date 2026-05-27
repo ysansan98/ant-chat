@@ -4,6 +4,7 @@
     "composite": true,
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
     "experimentalDecorators": true,
+    "customConditions": ["development"],
     "moduleResolution": "bundler",
     "paths": {
       "@main/*": [

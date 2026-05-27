@@ -3,6 +3,7 @@
     "composite": true,
     "target": "ES2020",
     "baseUrl": ".",
+    "customConditions": ["development"],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "strict": true,

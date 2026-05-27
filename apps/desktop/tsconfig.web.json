@@ -8,6 +8,7 @@
     "moduleDetection": "force",
     "useDefineForClassFields": true,
     "experimentalDecorators": true,
+    "customConditions": ["development"],
     "moduleResolution": "bundler",
 
     "paths": {

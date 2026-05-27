@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build:packages": "pnpm -F @ant-chat/shared build && pnpm -F @ant-chat/agent-core build && pnpm -F @ant-chat/app-data build && pnpm -F @ant-chat/local-server build && pnpm -F @ant-chat/mcp-client-hub build",
-    "dev": "pnpm build:packages && pnpm -F @ant-chat/desktop dev",
+    "dev": "pnpm -F @ant-chat/desktop dev",
     "build": "pnpm build:packages && pnpm -F @ant-chat/desktop build",
     "build:win": "pnpm build:packages && pnpm -F @ant-chat/desktop build:win",
     "build:mac": "pnpm build:packages && pnpm -F @ant-chat/desktop build:mac",

@@ -18,6 +18,7 @@ export default defineConfig(({ command, mode }) => {
   return {
     main: {
       resolve: {
+        conditions: isDev ? ['development'] : [],
         alias: {
           '@main': resolve('src/main'),
         },
@@ -45,6 +46,7 @@ export default defineConfig(({ command, mode }) => {
     renderer: {
       root: resolve('../web'),
       resolve: {
+        conditions: isDev ? ['development'] : [],
         alias: [
           { find: /^shiki\/engine\/javascript$/, replacement: resolve('../../packages/ui/src/lib/shiki-engine-shim.ts') },
           { find: /^shiki$/, replacement: resolve('../../packages/ui/src/lib/shiki-shim.ts') },
