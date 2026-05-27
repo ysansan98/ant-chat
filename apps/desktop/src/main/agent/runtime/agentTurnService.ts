@@ -1,43 +1,13 @@
-import type { AgentRuntimeConfig, AgentRuntimeStartTaskOptions, AgentTurnResult, StartAgentTurnOptions } from '@ant-chat/shared'
-import { AgentRuntime } from '@ant-chat/runtime'
+import type { AgentRuntime } from '@ant-chat/agent-core'
+import type { AgentRuntimeStartTaskOptions, AgentTurnResult, StartAgentTurnOptions } from '@ant-chat/shared'
 import { getAppDataServices } from '@main/adapters/appDataContainer'
-import { createDbAIProvider } from '@main/agent/adapters/aiProviderFactory.adapter'
-import { createCompactionStrategy } from '@main/agent/adapters/compactionStrategy.adapter'
-import { dbModelResolver } from '@main/agent/adapters/dbModelResolver.adapter'
-import { createElectronEventEmitter } from '@main/agent/adapters/electronEventEmitter.adapter'
-import { electronLogger } from '@main/agent/adapters/electronLogger.adapter'
-import { createElectronSessionStore } from '@main/agent/adapters/electronSessionStore.adapter'
-import { electronToolProvider } from '@main/agent/adapters/toolProvider.adapter'
-import { WorkspaceStore } from '@main/store/workspace'
-import { LogPathManager } from '@main/utils/logPathManager'
-import { TaskLogWriter } from '@main/utils/taskLogWriter'
-
-function createRuntimeConfig(): AgentRuntimeConfig {
-  const logPathManager = LogPathManager.getInstance()
-
-  return {
-    sessionStore: createElectronSessionStore(),
-    modelResolver: dbModelResolver,
-    aiProviderFactory: createDbAIProvider,
-    toolProvider: electronToolProvider,
-    compactionStrategy: createCompactionStrategy(),
-    eventEmitter: createElectronEventEmitter(),
-    logger: electronLogger,
-    createTaskLogger: (conversationId: string, userMessageId: string) => {
-      const filePath = logPathManager.getTaskLogPath(conversationId, userMessageId)
-      return new TaskLogWriter(filePath)
-    },
-    getToolApprovalWhitelistEntries: () => {
-      return getAppDataServices().toolApprovalWhitelistRepository.getAll()
-    },
-  }
-}
+import { createDesktopAgentRuntime } from './desktopAgentRuntime'
 
 let _agentRuntime: AgentRuntime | null = null
 
 function getAgentRuntime(): AgentRuntime {
   if (!_agentRuntime) {
-    _agentRuntime = new AgentRuntime(createRuntimeConfig())
+    _agentRuntime = createDesktopAgentRuntime()
   }
   return _agentRuntime
 }
@@ -50,7 +20,7 @@ export const agentRuntime = new Proxy({} as AgentRuntime, {
 
 export async function startAgentTurn(options: StartAgentTurnOptions): Promise<AgentTurnResult> {
   const workspacePath = options.workspacePath
-    ?? WorkspaceStore.getInstance().getCurrentWorkspacePath()
+    ?? getAppDataServices().workspaceService.getCurrentWorkspacePath()
     ?? process.cwd()
 
   const startOptions: AgentRuntimeStartTaskOptions = {

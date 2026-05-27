@@ -3,69 +3,26 @@ import { startAgentTurn } from '../agentTurnService'
 
 const mocks = vi.hoisted(() => ({
   startTask: vi.fn(),
-  createElectronEventEmitter: vi.fn(),
-}))
-
-vi.mock('@main/store/workspace', () => ({
-  WorkspaceStore: {
-    getInstance: () => ({
-      getCurrentWorkspacePath: () => '/workspace',
-    }),
+  workspaceService: {
+    getCurrentWorkspacePath: vi.fn(() => '/workspace'),
   },
 }))
 
-vi.mock('@main/agent/adapters/dbModelResolver.adapter', () => ({
-  dbModelResolver: {},
-}))
-
-vi.mock('@main/agent/adapters/aiProviderFactory.adapter', () => ({
-  createDbAIProvider: vi.fn(),
-}))
-
-vi.mock('@main/agent/adapters/toolProvider.adapter', () => ({
-  electronToolProvider: vi.fn(),
-}))
-
-vi.mock('@main/agent/adapters/electronSessionStore.adapter', () => ({
-  createElectronSessionStore: () => ({}),
-}))
-
-vi.mock('@main/agent/adapters/electronEventEmitter.adapter', () => ({
-  createElectronEventEmitter: () => mocks.createElectronEventEmitter(),
-}))
-
-vi.mock('@main/agent/adapters/electronLogger.adapter', () => ({
-  electronLogger: {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  },
-}))
-
-vi.mock('@main/agent/adapters/compactionStrategy.adapter', () => ({
-  createCompactionStrategy: () => ({
-    summarize: vi.fn(),
+vi.mock('@main/adapters/appDataContainer', () => ({
+  getAppDataServices: () => ({
+    workspaceService: mocks.workspaceService,
   }),
 }))
 
-vi.mock('@ant-chat/runtime', () => ({
-  AgentRuntime: class {
-    startTask = mocks.startTask
-  },
+vi.mock('../desktopAgentRuntime', () => ({
+  createDesktopAgentRuntime: () => ({
+    startTask: mocks.startTask,
+  }),
 }))
 
 describe('agentTurnService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.createElectronEventEmitter.mockReturnValue({
-      emitTaskUpdated: vi.fn(),
-      emitApprovalRequired: vi.fn(),
-      emitTurnStarted: vi.fn(),
-      emitTurnChunk: vi.fn(),
-      emitTurnToolCalls: vi.fn(),
-      emitTurnFinished: vi.fn(),
-      emitCompactionSaved: vi.fn(),
-    })
     mocks.startTask.mockResolvedValue({
       taskId: 't1',
       conversationId: 'c1',

@@ -8,7 +8,7 @@
     "name": "幺叁叁"
   },
   "scripts": {
-    "build:packages": "pnpm -F @ant-chat/shared build && pnpm -F @ant-chat/runtime build && pnpm -F @ant-chat/app-data build && pnpm -F @ant-chat/local-server build && pnpm -F @ant-chat/mcp-client-hub build",
+    "build:packages": "pnpm -F @ant-chat/shared build && pnpm -F @ant-chat/agent-core build && pnpm -F @ant-chat/app-data build && pnpm -F @ant-chat/local-server build && pnpm -F @ant-chat/mcp-client-hub build",
     "dev": "pnpm build:packages && pnpm -F @ant-chat/desktop dev",
     "build": "pnpm build:packages && pnpm -F @ant-chat/desktop build",
     "build:win": "pnpm build:packages && pnpm -F @ant-chat/desktop build:win",
@@ -36,6 +36,7 @@
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "@types/wicg-file-system-access": "^2023.10.5",
     "@vitest/coverage-v8": "4.0.14",
     "@vitest/ui": "4.0.14",
     "cross-env": "^7.0.3",
@@ -47,6 +48,9 @@
     "husky": "^9.1.7",
     "jsdom": "^26.0.0",
     "lint-staged": "^15.3.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-router": "^7.5.3",
     "tsx": "^4.19.3",
     "typescript": "catalog:",
     "typescript-eslint": "catalog:",

@@ -43,11 +43,12 @@ export default defineConfig(({ command, mode }) => {
       },
     },
     renderer: {
+      root: resolve('../web'),
       resolve: {
         alias: [
           { find: /^shiki\/engine\/javascript$/, replacement: resolve('../../packages/ui/src/lib/shiki-engine-shim.ts') },
           { find: /^shiki$/, replacement: resolve('../../packages/ui/src/lib/shiki-shim.ts') },
-          { find: '@', replacement: resolve('src/renderer/src') },
+          { find: '@', replacement: resolve('../web/src') },
         ],
       },
       plugins: [
@@ -72,6 +73,10 @@ export default defineConfig(({ command, mode }) => {
       build: {
         minify: !isDev,
         sourcemap: !!isDev,
+        outDir: resolve('out/renderer'),
+        rollupOptions: {
+          input: resolve('../web/index.html'),
+        },
       },
     },
   }

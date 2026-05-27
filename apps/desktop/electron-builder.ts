@@ -62,11 +62,9 @@ const config: Configuration = {
     '!node_modules/**',
     'node_modules/better-sqlite3',
     'node_modules/electron-log',
-    'node_modules/@google/genai',
 
     'node_modules/electron-store',
     'node_modules/electron-updater',
-    'node_modules/openai',
     'node_modules/undici',
 
     '!**/*.map', // 排除所有 .map 文件

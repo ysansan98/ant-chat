@@ -4,8 +4,7 @@ import { getAppDataServices } from './adapters/appDataContainer'
 import { initializeDb } from './db'
 import { UpdateService } from './domains/update/updateService'
 import { installDevTools } from './plugins/devtools'
-import { skillFsService } from './skills/skillFsService'
-import { WorkspaceStore } from './store/workspace'
+import { skillManagementService } from './skills/skillManagementService'
 import { isDev } from './utils/env'
 import { logger } from './utils/logger'
 import { LogPathManager } from './utils/logPathManager'
@@ -42,10 +41,10 @@ app.whenReady().then(async () => {
   await initializeProxy()
 
   // 初始化默认工作区
-  WorkspaceStore.getInstance().ensureInitialized()
+  getAppDataServices().workspaceService.ensureInitialized()
 
   // 初始化本地 Skill 目录和内置 Skill
-  await skillFsService.ensureInitialized()
+  await skillManagementService.ensureInitialized()
 
   const mainWindow = new MainWindow()
   await mainWindow.createWindow()

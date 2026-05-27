@@ -4,7 +4,13 @@ import { ChatIpcService } from '../ipc'
 const mocks = vi.hoisted(() => ({
   handleInitConversationTitle: vi.fn(),
   conversationService: {
+    list: vi.fn(),
+    create: vi.fn(),
     update: vi.fn(),
+  },
+  workspaceService: {
+    getCurrentWorkspacePath: vi.fn(() => '/workspace'),
+    getDefaultWorkspacePath: vi.fn(() => '/workspace'),
   },
 }))
 
@@ -13,7 +19,7 @@ vi.mock('electron-ipc-decorator', () => ({
   IpcMethod: () => () => {},
 }))
 
-vi.mock('@main/ai-providers/services/conversation-title-service', () => ({
+vi.mock('../conversationTitleService', () => ({
   handleInitConversationTitle: mocks.handleInitConversationTitle,
 }))
 
@@ -21,16 +27,8 @@ vi.mock('@main/adapters/appDataContainer', () => ({
   getAppDataServices: () => ({
     conversationService: mocks.conversationService,
     messageService: {},
+    workspaceService: mocks.workspaceService,
   }),
-}))
-
-vi.mock('@main/store/workspace', () => ({
-  WorkspaceStore: {
-    getInstance: () => ({
-      getCurrentWorkspacePath: () => '/workspace',
-      getDefaultWorkspacePath: () => '/workspace',
-    }),
-  },
 }))
 
 vi.mock('@main/utils/logger', () => ({

@@ -2,7 +2,7 @@ import type { AgentTool, IAgentEventEmitter, IAIProvider, IAIStreamChunk, ILogge
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { AgentRuntime } from '@ant-chat/runtime'
+import { AgentRuntime } from '@ant-chat/agent-core'
 import { useAimock as setupAimock } from '@copilotkit/aimock/vitest'
 import OpenAI from 'openai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'

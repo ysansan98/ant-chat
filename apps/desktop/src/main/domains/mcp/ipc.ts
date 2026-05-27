@@ -1,7 +1,7 @@
 import type { AddMcpConfigSchema, IpcResponse, McpConfigSchema, McpServer, McpTool, McpToolCallResponse, TextResult, UpdateMcpConfigSchema } from '@ant-chat/shared'
+import { clientHub } from '@ant-chat/agent-core'
 import { createErrorIpcResponse, createIpcResponse } from '@ant-chat/shared'
 import { getAppDataServices } from '@main/adapters/appDataContainer'
-import { clientHub } from '@main/mcpClientHub'
 import { sendToRenderer } from '@main/utils/ipc-events'
 import { logger } from '@main/utils/logger'
 import { Notification } from '@main/utils/notification'

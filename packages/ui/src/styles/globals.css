@@ -8,7 +8,6 @@
 @source "../../../apps/**/*.{ts,tsx}";
 @source "../../../components/**/*.{ts,tsx}";
 @source "../../../../node_modules/@ferrucc-io/emoji-picker";
-@source "../../../../src/renderer/src/**/*.{ts,tsx}";
 @source "../**/*.{ts,tsx}";
 @source "../../node_modules/streamdown/dist/*.js";
 

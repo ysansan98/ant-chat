@@ -15,7 +15,7 @@
         "./src/main/*"
       ],
       "@/*": [
-        "./src/renderer/src/*"
+        "../web/src/*"
       ]
     },
     "types": ["node", "wicg-file-system-access"],
@@ -31,9 +31,9 @@
   },
   "include": [
     "src/types/*",
-    "src/renderer/src/env.d.ts",
-    "src/renderer/src/**/*",
-    "src/renderer/src/**/*.tsx",
+    "../web/src/env.d.ts",
+    "../web/src/**/*",
+    "../web/src/**/*.tsx",
     "src/preload/*.d.ts",
     "src/main/**/*.ts",
     "tests/helpers/**/*.ts",

@@ -1,7 +1,7 @@
 {
   "references": [
     { "path": "./packages/shared/tsconfig.json" },
-    { "path": "./packages/runtime/tsconfig.json" },
+    { "path": "./packages/agent-core/tsconfig.json" },
     { "path": "./packages/app-data/tsconfig.json" },
     { "path": "./packages/local-server/tsconfig.json" },
     { "path": "./packages/mcp-client-hub/tsconfig.json" },

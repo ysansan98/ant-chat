@@ -1,13 +1,15 @@
-import type { ConversationService, MessageService, SettingsService } from '@ant-chat/app-data'
+import type { ConversationService, MessageService, SettingsService, WorkspaceService } from '@ant-chat/app-data'
 import type { AddConversationsSchema, AddMessage, UpdateConversationsSchema, UpdateMessageSchema } from '@ant-chat/shared'
 import type { IncomingMessage } from 'node:http'
 import { Buffer } from 'node:buffer'
 import { createServer as createHttpServer } from 'node:http'
+import { searchWorkspaceFiles } from '@ant-chat/app-data'
 
 export interface LocalServerServices {
   conversationService: ConversationService
   messageService: MessageService
   settingsService: SettingsService
+  workspaceService?: Pick<WorkspaceService, 'listWorkspaces' | 'addWorkspace' | 'removeWorkspace' | 'openWorkspace' | 'getCurrentWorkspacePath' | 'getDefaultWorkspacePath'>
   agentService?: {
     startTurn?: (options: unknown) => Promise<unknown> | unknown
     approvePendingAction?: (options: unknown) => Promise<null> | null
@@ -71,6 +73,22 @@ async function routeRequest(url: URL, body: unknown, services: LocalServerServic
     return services.settingsService.resetGeneralSettings()
   }
 
+  if (url.pathname === '/api/workspaces') {
+    return requireWorkspaceService(services).listWorkspaces()
+  }
+
+  if (url.pathname === '/api/workspaces/add') {
+    return requireWorkspaceService(services).addWorkspace(stringParam(asRecord(body).path))
+  }
+
+  if (url.pathname === '/api/workspaces/remove') {
+    return requireWorkspaceService(services).removeWorkspace(stringParam(asRecord(body).path))
+  }
+
+  if (url.pathname === '/api/workspaces/open') {
+    return requireWorkspaceService(services).openWorkspace(stringParam(asRecord(body).path))
+  }
+
   if (url.pathname === '/api/agent/active-tasks') {
     return services.agentService?.listActiveTasks(url.searchParams.get('conversationId') || undefined) ?? []
   }
@@ -119,6 +137,26 @@ async function dispatchRpc(body: unknown, services: LocalServerServices): Promis
       return services.settingsService.updateGeneralSettings(asRecord(params.updates))
     case 'settings.resetSettings':
       return services.settingsService.resetGeneralSettings()
+    case 'workspace.listWorkspaces':
+      return requireWorkspaceService(services).listWorkspaces()
+    case 'workspace.addWorkspace':
+      return requireWorkspaceService(services).addWorkspace(stringParam(params.path))
+    case 'workspace.removeWorkspace':
+      return requireWorkspaceService(services).removeWorkspace(stringParam(params.path))
+    case 'workspace.openWorkspace':
+      return requireWorkspaceService(services).openWorkspace(stringParam(params.path))
+    case 'workspace.getCurrentWorkspacePath':
+      return requireWorkspaceService(services).getCurrentWorkspacePath()
+    case 'workspace.getDefaultWorkspacePath':
+      return requireWorkspaceService(services).getDefaultWorkspacePath()
+    case 'workspace.searchWorkspaceFiles': {
+      const workspaceService = requireWorkspaceService(services)
+      return searchWorkspaceFiles(
+        workspaceService.getCurrentWorkspacePath(),
+        typeof params.query === 'string' ? params.query : '',
+        numberParam(params.limit),
+      )
+    }
     case 'agent.startTurn':
       return requireAgentMethod(services, 'startTurn')(params.options)
     case 'agent.approvePendingAction':
@@ -134,6 +172,13 @@ async function dispatchRpc(body: unknown, services: LocalServerServices): Promis
     default:
       throw new Error(`Unknown local RPC method: ${method}`)
   }
+}
+
+function requireWorkspaceService(services: LocalServerServices): Pick<WorkspaceService, 'listWorkspaces' | 'addWorkspace' | 'removeWorkspace' | 'openWorkspace' | 'getCurrentWorkspacePath' | 'getDefaultWorkspacePath'> {
+  if (!services.workspaceService) {
+    throw new Error('Workspace service is not available in local web transport')
+  }
+  return services.workspaceService
 }
 
 function parseRpcBody(body: unknown): { method: string, params: Record<string, unknown> } {

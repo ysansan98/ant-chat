@@ -1,6 +1,6 @@
 export * from './appSettingsStore'
 export * from './defaultAppSettings'
 export * from './generalSettingsRepository'
-export * from './modelSettingsResolver'
+export * from './modelCatalog'
 export * from './providerSettingsRepository'
 export * from './toolApprovalWhitelistRepository'

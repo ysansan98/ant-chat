@@ -13,6 +13,7 @@ export function getAppDataServices(): AppDataServices {
       db: getDb(),
       settingsFilePath: path.join(getAppDataRoot(), 'settings.json'),
       mcpSettingsFilePath: path.join(getAppDataRoot(), 'mcp.json'),
+      workspaceSettingsFilePath: path.join(getAppDataRoot(), 'workspace.json'),
     })
   }
 

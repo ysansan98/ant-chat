@@ -10,7 +10,7 @@ export default defineConfig({
     alias: {
       '@ant-design/x/es/sender/useSpeech': '@ant-design/x/es/sender/useSpeech',
       '@ant-design/x': '@ant-design/x/es',
-      '@': fileURLToPath(new URL('./apps/desktop/src/renderer/src', import.meta.url)),
+      '@': fileURLToPath(new URL('./apps/web/src', import.meta.url)),
       '@main': fileURLToPath(new URL('./apps/desktop/src/main', import.meta.url)),
     },
     environment: 'jsdom',

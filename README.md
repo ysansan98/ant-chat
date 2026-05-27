@@ -1,6 +1,6 @@
 <div align="center">
 
-<img height="180" src="./src/renderer/public/logo.svg" />
+<img height="180" src="./apps/web/public/logo.svg" />
 
 # Ant Chat
 

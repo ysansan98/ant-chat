@@ -1,10 +1,9 @@
 import type { AddConversationsSchema, handleInitConversationTitleOptions, IConversations, IMessage, IpcPaginatedResponse, IpcResponse, UpdateConversationsSchema } from '@ant-chat/shared'
 import { AddMessage, createErrorIpcResponse, createIpcPaginatedResponse, createIpcResponse, UpdateMessageSchema } from '@ant-chat/shared'
 import { getAppDataServices } from '@main/adapters/appDataContainer'
-import { handleInitConversationTitle } from '@main/ai-providers/services/conversation-title-service'
-import { WorkspaceStore } from '@main/store/workspace'
 import { logger } from '@main/utils/logger'
 import { IpcMethod, IpcService } from 'electron-ipc-decorator'
+import { handleInitConversationTitle } from './conversationTitleService'
 
 export class ChatIpcService extends IpcService {
   static readonly groupName = 'chat'
@@ -29,7 +28,7 @@ export class ChatIpcService extends IpcService {
   @IpcMethod()
   async getConversations(pageIndex: number, pageSize: number): Promise<IpcPaginatedResponse<IConversations[]>> {
     try {
-      const workspaceStore = WorkspaceStore.getInstance()
+      const workspaceStore = getAppDataServices().workspaceService
       const workspacePath = workspaceStore.getCurrentWorkspacePath()
       const includeNullWorkspace = workspacePath === workspaceStore.getDefaultWorkspacePath()
       const { data, total } = await getAppDataServices().conversationService.list(pageIndex, pageSize, workspacePath, includeNullWorkspace)
@@ -44,7 +43,7 @@ export class ChatIpcService extends IpcService {
   @IpcMethod()
   async getWorkspaceConversations(workspacePath: string, pageIndex: number, pageSize: number): Promise<IpcPaginatedResponse<IConversations[]>> {
     try {
-      const workspaceStore = WorkspaceStore.getInstance()
+      const workspaceStore = getAppDataServices().workspaceService
       const includeNullWorkspace = workspacePath === workspaceStore.getDefaultWorkspacePath()
       const { data, total } = await getAppDataServices().conversationService.list(pageIndex, pageSize, workspacePath, includeNullWorkspace)
       return createIpcPaginatedResponse(true, data, '', total)
@@ -72,7 +71,7 @@ export class ChatIpcService extends IpcService {
     try {
       const data = await getAppDataServices().conversationService.create({
         ...conversation,
-        workspacePath: conversation.workspacePath ?? WorkspaceStore.getInstance().getCurrentWorkspacePath(),
+        workspacePath: conversation.workspacePath ?? getAppDataServices().workspaceService.getCurrentWorkspacePath(),
       })
       return createIpcResponse(true, data)
     }

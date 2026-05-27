@@ -1,7 +1,8 @@
-import type { AddConversationsSchema, AddMessage, McpToolCall, ModelInfo, UpdateConversationsSchema, UpdateMessageSchema } from '../schemas'
+import type { AddConversationsSchema, AddMessage, McpToolCall, ModelInfo, ServiceProviderSchema, UpdateConversationsSchema, UpdateMessageSchema } from '../schemas'
 import type { AgentMode, AgentPendingAction, AgentTaskSnapshot, ToolApprovalWhitelistEntry } from './agent-runtime'
 import type { AgentTool } from './agent-tools'
 import type { IAttachment, IConversations, IMessage } from './db-types'
+import type { ImportSkillFromGithubOptions, SkillManifest } from './skill'
 
 // ============================================================
 // LoopMessage & RuntimeToolDefinition（从 runtime 提升到 shared）
@@ -117,12 +118,21 @@ export interface IAgentPathProvider {
 }
 
 // ============================================================
-// Model Resolver（适配器层使用，不注入 AgentRuntimeConfig）
+// Model Catalog
 // ============================================================
 
-export interface IModelResolver {
+export interface AgentModel {
+  id: string
+  model: string
+  name: string
+  serviceProviderId: string
+}
+
+export type AgentProvider = ServiceProviderSchema
+
+export interface IModelCatalog {
   getModelById: (id: string) => Promise<{ id: string, model: string, name: string, serviceProviderId: string } | null>
-  getProviderById: (id: string) => Promise<{ id: string, name: string, apiKey?: string, baseUrl?: string, apiMode?: string } | null>
+  getProviderById: (id: string) => Promise<ServiceProviderSchema | null>
 }
 
 // ============================================================
@@ -169,9 +179,14 @@ export interface ITaskLogger {
 // Factory Types（适配器层使用，不注入 AgentRuntimeConfig）
 // ============================================================
 
-export type AIProviderFactory = (modelId: string, modelResolver: IModelResolver) => Promise<IAIProvider>
+export type AIProviderFactory = (input: { model: AgentModel, provider: AgentProvider }) => Promise<IAIProvider>
 
-export type ToolProvider = (workspacePath: string, mode: AgentMode) => Promise<AgentTool[]>
+export interface SkillReader {
+  getSkillsRoot: () => string
+  getEnabledSkills: () => Promise<SkillManifest[]>
+  readSkillMarkdown: (name: string) => Promise<string>
+  importFromGithub: (options: ImportSkillFromGithubOptions) => Promise<SkillManifest>
+}
 
 // ============================================================
 // Compaction (纯策略回调，外层 onBeforeTurn 中使用)
@@ -181,22 +196,41 @@ export interface CompactionStrategy {
   summarize: (serialized: string, aiProvider: IAIProvider, model: string, abortSignal?: AbortSignal) => Promise<string>
 }
 
+export interface AgentRuntimeHost {
+  eventEmitter: IAgentEventEmitter
+  /** 创建按任务的结构化日志写入器（每次新任务调用，返回独立的 ITaskLogger 实例） */
+  createTaskLogger?: (conversationId: string, userMessageId: string) => ITaskLogger
+  sessionStore: ISessionStore
+  modelCatalog: IModelCatalog
+  skillsRoot?: string
+  getToolApprovalWhitelistEntries?: () => ToolApprovalWhitelistEntry[]
+}
+
+export interface AgentRuntimeOverrides {
+  logger?: ILogger
+  aiProviderFactory?: AIProviderFactory
+  skillReader?: SkillReader
+  compactionStrategy?: CompactionStrategy
+}
+
+export interface AgentRuntimeOptions {
+  host: AgentRuntimeHost
+  overrides?: AgentRuntimeOverrides
+}
+
 // ============================================================
-// Runtime Config（最小化：仅运行环境基础设施）
+// Runtime Config（agent-core 内部扁平形态）
 // ============================================================
 
-export interface AgentRuntimeConfig {
+export interface AgentRuntimeConfig extends AgentRuntimeOverrides {
   eventEmitter: IAgentEventEmitter
-  logger: ILogger
   /** 创建按任务的结构化日志写入器（每次新任务调用，返回独立的 ITaskLogger 实例） */
   createTaskLogger?: (conversationId: string, userMessageId: string) => ITaskLogger
   /** 当前任务的日志写入器（由 runtime 在启动 task 时设置，loop 层直接消费） */
   taskLogger?: ITaskLogger
   sessionStore?: ISessionStore
-  modelResolver?: IModelResolver
-  aiProviderFactory?: AIProviderFactory
-  toolProvider?: ToolProvider
-  compactionStrategy?: CompactionStrategy
+  modelCatalog?: IModelCatalog
+  skillsRoot?: string
   getToolApprovalWhitelistEntries?: () => ToolApprovalWhitelistEntry[]
 }
 

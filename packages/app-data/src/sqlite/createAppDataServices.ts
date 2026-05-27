@@ -1,7 +1,8 @@
 import type { AppDataDatabase } from './types'
 import { McpSettingsRepository, McpSettingsStore } from '../mcp'
 import { ConversationService, MessageService, SettingsService } from '../services'
-import { AppSettingsStore, createModelSettingsResolver, GeneralSettingsRepository, ProviderSettingsRepository, ToolApprovalWhitelistRepository } from '../settings'
+import { AppSettingsStore, createModelCatalog, GeneralSettingsRepository, ProviderSettingsRepository, ToolApprovalWhitelistRepository } from '../settings'
+import { WorkspaceService } from '../workspace'
 import { SqliteConversationRepository, SqliteMessageRepository } from './repositories'
 import { initializeAppDataSchema } from './schema'
 import { SqliteMessageSearchService } from './services'
@@ -10,10 +11,11 @@ export interface CreateAppDataServicesOptions {
   db: AppDataDatabase
   settingsFilePath: string
   mcpSettingsFilePath: string
+  workspaceSettingsFilePath: string
 }
 
 export function createAppDataServices(options: CreateAppDataServicesOptions) {
-  const { db, settingsFilePath, mcpSettingsFilePath } = options
+  const { db, settingsFilePath, mcpSettingsFilePath, workspaceSettingsFilePath } = options
   initializeAppDataSchema(db)
 
   const appSettingsStore = new AppSettingsStore({ filePath: settingsFilePath, resetInvalidFile: true })
@@ -28,11 +30,15 @@ export function createAppDataServices(options: CreateAppDataServicesOptions) {
       store: appSettingsStore,
     })),
     providerSettingsRepository,
-    modelSettingsResolver: createModelSettingsResolver(providerSettingsRepository),
+    modelCatalog: createModelCatalog(providerSettingsRepository),
     mcpSettingsRepository: new McpSettingsRepository(new McpSettingsStore({
       filePath: mcpSettingsFilePath,
       resetInvalidFile: true,
     })),
     toolApprovalWhitelistRepository: new ToolApprovalWhitelistRepository(appSettingsStore),
+    workspaceService: new WorkspaceService({
+      filePath: workspaceSettingsFilePath,
+      resetInvalidFile: true,
+    }),
   }
 }

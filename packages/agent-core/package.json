@@ -1,0 +1,37 @@
+{
+  "name": "@ant-chat/agent-core",
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.cts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "clean": "rm -rf dist node_modules",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.36",
+    "@ai-sdk/deepseek": "^2.0.34",
+    "@ai-sdk/google": "^3.0.20",
+    "@ai-sdk/openai": "^3.0.25",
+    "@ant-chat/mcp-client-hub": "workspace:^",
+    "@ant-chat/shared": "workspace:^",
+    "ai": "^6.0.69",
+    "fflate": "^0.8.2"
+  },
+  "devDependencies": {
+    "tsdown": "catalog:",
+    "vitest": "^4.0.14"
+  }
+}

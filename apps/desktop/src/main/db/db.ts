@@ -14,6 +14,9 @@ const DB_PATH = path.join(getAppDataRoot(), isDev ? 'dev.db' : DB_CONFIG.dbFileN
 let sqlite: Database
 
 export function getDb(): Database {
+  if (!sqlite) {
+    throw new Error('Database is not initialized')
+  }
   return sqlite
 }
 
