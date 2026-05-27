@@ -1,13 +1,13 @@
 import type { AgentRuntimeConfig, AgentRuntimeOptions, AgentRuntimeStartTaskOptions, AgentRuntimeStartTaskResult, AgentTaskSnapshot, ApprovePendingActionOptions, CancelTaskOptions, LoopMessage, RejectPendingActionOptions } from '@ant-chat/shared'
-import type { BeforeToolExecuteHook } from './loop/types'
 import type { RuntimeStartInput, RuntimeStartResult } from './session/types'
+import type { BeforeToolExecuteHook } from './tools/types'
 import { randomUUID } from 'node:crypto'
 import { AgentError } from './AgentError'
 import { runAgentLoop } from './loop/agentLoop'
-import { taskStore } from './loop/taskStore'
 import { createApprovalController } from './policy/approvalController'
 import { createBeforeToolExecuteHook } from './policy/beforeToolExecute'
 import { SessionRuntime } from './session/SessionRuntime'
+import { taskStore } from './taskStore'
 
 export class AgentRuntime {
   private config: AgentRuntimeConfig

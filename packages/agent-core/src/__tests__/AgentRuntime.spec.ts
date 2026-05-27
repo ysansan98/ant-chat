@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { AgentRuntime } from '../AgentRuntime'
-import { taskStore } from '../loop/taskStore'
+import { taskStore } from '../taskStore'
 import type { AgentRuntimeConfig, IAgentEventEmitter, ILogger, ISessionStore } from '@ant-chat/shared'
 import type { RuntimeStartInput } from '../session/types'
 

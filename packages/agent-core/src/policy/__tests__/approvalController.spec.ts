@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApprovalController } from '../approvalController'
-import { taskStore } from '../../loop/taskStore'
+import { taskStore } from '../../taskStore'
 import type { AgentTaskSnapshot, AgentTaskStatus, IAgentEventEmitter } from '@ant-chat/shared'
 
 function createMockEmitter(): IAgentEventEmitter {

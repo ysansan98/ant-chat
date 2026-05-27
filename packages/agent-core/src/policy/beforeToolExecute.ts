@@ -1,6 +1,6 @@
 import type { AgentPendingAction, ToolApprovalWhitelistEntry } from '@ant-chat/shared'
-import type { RuntimeTask } from '../loop/taskStore'
-import type { BeforeToolExecuteHook } from '../loop/types'
+import type { RuntimeTask } from '../taskStore'
+import type { BeforeToolExecuteHook } from '../tools/types'
 import { randomUUID } from 'node:crypto'
 import { AgentError } from '../AgentError'
 import { getAgentLogger } from '../logger'

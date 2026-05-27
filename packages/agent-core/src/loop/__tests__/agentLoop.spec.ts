@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { runAgentLoop } from '../agentLoop'
-import { taskStore } from '../taskStore'
+import { taskStore } from '../../taskStore'
 import type { AgentTool, IAgentEventEmitter, IAIProvider, IAIStreamChunk, ILogger } from '@ant-chat/shared'
 import type { RuntimeStartInput } from '../../session/types'
 

@@ -1,12 +1,12 @@
 import type { AgentRuntimeConfig, AgentTaskSnapshot, LoopMessage, McpToolCall } from '@ant-chat/shared'
 import type { RuntimeStartInput } from '../session/types'
-import type { BeforeToolExecuteHook, ToolCallContext } from './types'
+import type { BeforeToolExecuteHook, ToolCallContext } from '../tools/types'
 import { AgentError } from '../AgentError'
 import { getAgentLogger } from '../logger'
+import { taskStore } from '../taskStore'
+import { createInvalidToolArgsResult, executeToolStep } from '../tools/toolExecution'
+import { ToolRegistry } from '../tools/toolRegistry'
 import { normalizeToolArgs } from './loopContext'
-import { taskStore } from './taskStore'
-import { createInvalidToolArgsResult, executeToolStep } from './toolExecution'
-import { ToolRegistry } from './toolRegistry'
 
 export async function runAgentLoop(input: {
   taskId: string

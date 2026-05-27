@@ -1,5 +1,5 @@
 import type { AgentRuntimeConfig } from '@ant-chat/shared'
-import type { RuntimeTask } from './taskStore'
+import type { RuntimeTask } from '../taskStore'
 import type { PreparedToolCall } from './toolRegistry'
 
 export interface ToolCallContext {

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createBeforeToolExecuteHook } from '../beforeToolExecute'
 import type { AgentTaskSnapshot, IAgentEventEmitter, ILogger, ToolApprovalWhitelistEntry } from '@ant-chat/shared'
-import type { RuntimeTask } from '../../loop/taskStore'
+import type { RuntimeTask } from '../../taskStore'
 
 function createMockEmitter(): IAgentEventEmitter {
   return {

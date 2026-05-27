@@ -1,5 +1,5 @@
 import type { AgentRuntimeConfig, McpToolCall } from '@ant-chat/shared'
-import type { RuntimeTask } from './taskStore'
+import type { RuntimeTask } from '../taskStore'
 import type { PreparedToolCall, ToolRegistry } from './toolRegistry'
 import type { BeforeToolExecuteHook, ToolCallContext } from './types'
 import { randomUUID } from 'node:crypto'
