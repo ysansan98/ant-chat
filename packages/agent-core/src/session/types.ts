@@ -1,4 +1,5 @@
-import type { AgentMode, AgentTool, CompactionSettingsSchema, IAIProvider, ITaskLogger, LoopMessage } from '@ant-chat/shared'
+import type { AgentMode, CompactionSettingsSchema, IAIProvider, ITaskLogger, LoopMessage } from '@ant-chat/shared'
+import type { ToolRegistry } from '../tools/toolRegistry'
 
 export interface RuntimeStartInput {
   // ===== 标识 =====
@@ -11,8 +12,7 @@ export interface RuntimeStartInput {
   // ===== 数据（外部预构建，纯数据传入）=====
   messages: LoopMessage[]
   systemPrompt: string
-  tools: AgentTool[]
-  relaxedTools?: AgentTool[]
+  registry: ToolRegistry
 
   // ===== 能力（外部创建，可调用实例传入）=====
   aiProvider: IAIProvider | null

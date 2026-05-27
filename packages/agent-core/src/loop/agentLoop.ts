@@ -5,7 +5,6 @@ import { AgentError } from '../AgentError'
 import { getAgentLogger } from '../logger'
 import { taskStore } from '../taskStore'
 import { createInvalidToolArgsResult, executeToolStep } from '../tools/toolExecution'
-import { ToolRegistry } from '../tools/toolRegistry'
 import { normalizeToolArgs } from './loopContext'
 
 export async function runAgentLoop(input: {
@@ -27,7 +26,7 @@ export async function runAgentLoop(input: {
   const {
     messages: initialMessages,
     systemPrompt,
-    tools,
+    registry,
     aiProvider,
     modelName,
     providerName,
@@ -36,7 +35,6 @@ export async function runAgentLoop(input: {
     maxTokens,
   } = options
 
-  const registry = new ToolRegistry(tools, options.relaxedTools)
   const toolDefs = registry.listTools()
 
   let step = 0

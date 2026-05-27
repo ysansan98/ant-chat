@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { AgentRuntime } from '../AgentRuntime'
 import { taskStore } from '../taskStore'
+import { ToolRegistry } from '../tools/toolRegistry'
 import type { AgentRuntimeConfig, IAgentEventEmitter, ILogger, ISessionStore } from '@ant-chat/shared'
 import type { RuntimeStartInput } from '../session/types'
 
@@ -127,7 +128,7 @@ function createValidStartInput(overrides: Partial<RuntimeStartInput> = {}): Runt
     prompt: 'test prompt',
     messages: [],
     systemPrompt: 'You are helpful.',
-    tools: [],
+    registry: new ToolRegistry([]),
     aiProvider: null,
     modelName: 'test-model',
     providerName: 'test-provider',

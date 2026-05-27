@@ -19,7 +19,7 @@ import {
   buildConversationContextMessages,
   createLoopSystemPrompt,
 } from '../loop/loopContext'
-import { createRuntimeTools } from '../tools/toolService'
+import { ToolRegistry } from '../tools/toolRegistry'
 import { buildPromptWithTurnContext } from './turnContext'
 
 const DEFAULT_CONVERSATION_TITLE = 'Untitled'
@@ -113,7 +113,7 @@ export class SessionRuntime {
     ]
 
     const mode = options.mode ?? 'hybrid'
-    const { tools, relaxedTools } = await createRuntimeTools({
+    const registry = await ToolRegistry.create({
       config: this.config,
       workspacePath: options.workspacePath,
       mode,
@@ -146,8 +146,7 @@ export class SessionRuntime {
         mode,
         messages,
         systemPrompt,
-        tools,
-        relaxedTools,
+        registry,
         aiProvider,
         modelName: model.model,
         providerName: provider.name,

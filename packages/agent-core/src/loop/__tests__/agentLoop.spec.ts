@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { runAgentLoop } from '../agentLoop'
 import { taskStore } from '../../taskStore'
+import { ToolRegistry } from '../../tools/toolRegistry'
 import type { AgentTool, IAgentEventEmitter, IAIProvider, IAIStreamChunk, ILogger } from '@ant-chat/shared'
 import type { RuntimeStartInput } from '../../session/types'
 
@@ -93,7 +94,7 @@ function createBaseInput(overrides: Partial<RuntimeStartInput> & { taskId?: stri
         { role: 'user', content: [{ type: 'text', text: 'Hello' }] },
       ],
       systemPrompt: 'You are helpful.',
-      tools: [],
+      registry: new ToolRegistry([]),
       aiProvider: null,
       modelName: 'test-model',
       providerName: 'test-provider',
@@ -180,7 +181,7 @@ describe('runAgentLoop', () => {
 
     const { taskId, options } = createBaseInput({
       aiProvider: aiProvider as unknown as IAIProvider,
-      tools: [readTool],
+      registry: new ToolRegistry([readTool]),
     })
     const task = createTask(taskId, options.conversationId)
     taskStore.create(task)
@@ -227,7 +228,7 @@ describe('runAgentLoop', () => {
 
     const { taskId, options } = createBaseInput({
       aiProvider,
-      tools: [readTool],
+      registry: new ToolRegistry([readTool]),
     })
     const task = createTask(taskId, options.conversationId)
     taskStore.create(task)
@@ -280,7 +281,7 @@ describe('runAgentLoop', () => {
       // Second turn (won't be reached due to abort check)
     ])
     options.aiProvider = aiProvider as unknown as IAIProvider
-    options.tools = [slowTool]
+    options.registry = new ToolRegistry([slowTool])
 
     await runAgentLoop({
       taskId,
@@ -376,7 +377,7 @@ describe('runAgentLoop', () => {
 
     const { taskId, options } = createBaseInput({
       aiProvider: aiProvider as unknown as IAIProvider,
-      tools: [readTool],
+      registry: new ToolRegistry([readTool]),
     })
     const task = createTask(taskId, options.conversationId)
     taskStore.create(task)
