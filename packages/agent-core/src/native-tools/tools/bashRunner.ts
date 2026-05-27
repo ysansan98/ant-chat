@@ -5,7 +5,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { AGENT_BASH_COMMAND_BLOCKED, AGENT_BASH_TIMEOUT, WORKSPACE_INVALID_PATH } from '@ant-chat/shared'
-import { createPathPolicyByMode } from './pathPolicy'
+import { createPathPolicyByMode } from '../pathPolicy'
 
 const DEFAULT_TIMEOUT_MS = 10_000
 const MAX_TIMEOUT_MS = 30_000

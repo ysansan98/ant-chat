@@ -1,5 +1,5 @@
 import type { BashToolInput } from '@ant-chat/shared'
-import { preValidateBashScope, runBashTool } from '../bashRunner'
+import { preValidateBashScope, runBashTool } from './bashRunner'
 import { createNativeTool } from './toolFactory'
 
 export function createBashTool(workspacePath: string, unrestricted: boolean) {

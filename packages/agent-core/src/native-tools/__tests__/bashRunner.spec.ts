@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { preValidateBashScope } from '../bashRunner'
+import { preValidateBashScope } from '../tools/bashRunner'
 
 describe('preValidateBashScope', () => {
   let workspacePath: string
