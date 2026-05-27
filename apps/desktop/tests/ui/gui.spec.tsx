@@ -220,7 +220,7 @@ describe('gui ui flow', () => {
 
     await waitFor(() => {
       expect(mocks.agent.startTurn).toHaveBeenCalledWith(expect.objectContaining({
-        chatSettings: expect.objectContaining({ modelId: 'model-1' }),
+        modelConfig: expect.objectContaining({ modelId: 'model-1' }),
         prompt: '检查当前目录',
       }))
     })

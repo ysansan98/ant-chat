@@ -79,7 +79,7 @@ export function useConversationSettings() {
         draft.lastCompactedAt = undefined
       }
     })
-  }, [currentConversationsId, _updateSettings])
+  }, [currentConversationsId, _updateSettings, conversations?.settings])
 
   return {
     settings,

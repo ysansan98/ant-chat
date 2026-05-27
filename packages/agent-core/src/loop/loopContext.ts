@@ -1,7 +1,5 @@
 import type { IMessage, LoopMessage } from '@ant-chat/shared'
-import { truncateText } from '../utils'
 
-const HISTORY_TOOL_RESULT_TRUNCATE = 100000
 const HISTORY_TOOL_CALLS_KEEP = 4
 
 export type NormalizeToolArgsResult
@@ -24,7 +22,7 @@ export function createLoopSystemPrompt(workspacePath: string, customPrompt?: str
     '3. Your output must be either a final answer or paired with an active tool call. Do not output plan-only statements.',
     '4. Work inside the workspace directory. Prefer relative paths.',
     '5. If a tool returns an error, adjust parameters and retry. Do not repeat the same failing call.',
-    '6. Tool results may be truncated. If the output indicates more content, continue reading.',
+    '6. If a tool result indicates more content is available, continue reading.',
     '7. When sufficient information is available, execute the change and provide the final result.',
   ].join('\n')
 }
@@ -108,7 +106,7 @@ export function buildConversationContextMessages(
           type: 'tool-result',
           toolCallId: tool.id,
           toolName: tool.toolName,
-          result: truncateText(toolData, HISTORY_TOOL_RESULT_TRUNCATE),
+          result: toolData,
           isError: !tool.result.success,
         }],
       })

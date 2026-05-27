@@ -15,7 +15,7 @@ export interface StartAgentTurnOptions {
   selectedSkill?: string
   workspacePath?: string
   mode?: AgentMode
-  chatSettings: Omit<ChatSettings, 'model' | 'features'> & {
+  modelConfig: Omit<ChatSettings, 'model' | 'features'> & {
     modelId: string
     features: ChatFeatures
   }

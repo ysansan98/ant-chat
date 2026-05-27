@@ -34,7 +34,7 @@ describe('agentTurnService', () => {
   it('delegates a new turn to AgentRuntime with resolved workspace path', async () => {
     const result = await startAgentTurn({
       prompt: '  inspect project  ',
-      chatSettings: {
+      modelConfig: {
         modelId: 'model-1',
         systemPrompt: '',
         temperature: 0.7,
@@ -74,7 +74,7 @@ describe('agentTurnService', () => {
       selectedSkill: 'review',
       images: [{ uid: 'img-1', name: 'a.png', size: 1, type: 'image/png', data: 'base64' }],
       attachments: [{ uid: 'file-1', name: 'a.txt', size: 1, type: 'text/plain', data: 'text' }],
-      chatSettings: {
+      modelConfig: {
         modelId: 'model-1',
         systemPrompt: 'custom',
         temperature: 0.2,

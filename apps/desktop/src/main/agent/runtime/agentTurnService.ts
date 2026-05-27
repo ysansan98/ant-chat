@@ -25,13 +25,13 @@ export async function startAgentTurn(options: StartAgentTurnOptions): Promise<Ag
 
   const startOptions: AgentRuntimeStartTaskOptions = {
     prompt: options.prompt,
-    modelId: options.chatSettings.modelId,
+    modelId: options.modelConfig.modelId,
     workspacePath,
     mode: options.mode ?? 'hybrid',
     chatSettings: {
-      systemPrompt: options.chatSettings.systemPrompt,
-      temperature: options.chatSettings.temperature,
-      maxTokens: options.chatSettings.maxTokens,
+      systemPrompt: options.modelConfig.systemPrompt,
+      temperature: options.modelConfig.temperature,
+      maxTokens: options.modelConfig.maxTokens,
     },
   }
   if (options.conversationId)

@@ -15,7 +15,7 @@ describe('agent store actions', () => {
   it('调用 agent api', async () => {
     const created = await startAgentTurn({
       prompt: 'p',
-      chatSettings: {
+      modelConfig: {
         modelId: 'model-1',
         systemPrompt: '',
         temperature: 0.7,

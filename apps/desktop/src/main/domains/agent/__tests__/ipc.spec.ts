@@ -27,7 +27,7 @@ describe('agent ipc', () => {
     const service = new AgentIpcService()
     const resp = await service.startTurn({
       prompt: 'p',
-      chatSettings: {
+      modelConfig: {
         modelId: 'model-1',
         systemPrompt: '',
         temperature: 0.7,

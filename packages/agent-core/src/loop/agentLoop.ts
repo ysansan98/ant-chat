@@ -158,6 +158,7 @@ export async function runAgentLoop(input: {
             step,
             config,
             beforeToolExecute,
+            abortSignal: task.abortController.signal,
             onToolCallContext: (context) => {
               lastToolCallContext = context
             },

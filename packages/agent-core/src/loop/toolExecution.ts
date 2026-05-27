@@ -4,10 +4,6 @@ import type { PreparedToolCall, ToolRegistry } from './toolRegistry'
 import type { BeforeToolExecuteHook, ToolCallContext } from './types'
 import { randomUUID } from 'node:crypto'
 import { getAgentLogger } from '../logger'
-import { truncateText } from '../utils'
-
-const DEFAULT_TOOL_OBSERVATION_LIMIT = 4000
-const DEFAULT_TOOL_LOG_PREVIEW_LIMIT = 4000
 
 export interface RequestedToolCall {
   id?: string
@@ -25,6 +21,7 @@ export interface ExecuteToolStepOptions {
   config: AgentRuntimeConfig
   beforeToolExecute: BeforeToolExecuteHook
   onToolCallContext?: (context: ToolCallContext) => void
+  abortSignal?: AbortSignal
 }
 
 export interface ExecuteToolStepResult {
@@ -34,40 +31,99 @@ export interface ExecuteToolStepResult {
   isError: boolean
 }
 
+// ============================================================
+// Pipeline types
+// ============================================================
+
+type ToolPreparation
+  = | { kind: 'ready', prepared: PreparedToolCall, lastToolCallContext: ToolCallContext }
+    | { kind: 'error', error: string, observation: string, lastToolCallContext: ToolCallContext }
+
+interface ToolExecution {
+  result: Awaited<ReturnType<PreparedToolCall['execute']>>
+  errorMsg?: string
+}
+
+// ============================================================
+// Orchestrator
+// ============================================================
+
 export async function executeToolStep(options: ExecuteToolStepOptions): Promise<ExecuteToolStepResult> {
-  const {
-    task,
-    registry,
-    requestedToolCall,
-    currentModelText,
-    currentToolMessages,
-    step,
-    config,
-    beforeToolExecute,
-    onToolCallContext,
-  } = options
+  const { task, registry, requestedToolCall, currentModelText, currentToolMessages, step, config } = options
   const logger = getAgentLogger(config)
 
   logger.info('agent-runtime', { event: 'tool_call_received', conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, step, toolName: requestedToolCall.toolName, input: requestedToolCall.input })
   config.taskLogger?.write('tool_call_received', { conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, step, toolName: requestedToolCall.toolName, input: requestedToolCall.input })
 
-  const prepared = registry.prepare(requestedToolCall.toolName, requestedToolCall.input)
+  const currentToolCall = registerPendingToolCall(requestedToolCall, registry, currentToolMessages)
+  await emitTurnToolCalls(config, task.snapshot.conversationId, currentModelText, currentToolMessages)
 
-  const currentToolCall: McpToolCall = {
-    id: requestedToolCall.id ?? randomUUID(),
-    serverName: prepared.source,
-    toolName: requestedToolCall.toolName,
-    args: requestedToolCall.input,
-    executeState: 'executing',
-  }
-  currentToolMessages.push(currentToolCall)
-  await config.eventEmitter.emitTurnToolCalls({
-    conversationId: task.snapshot.conversationId,
-    text: currentModelText,
-    toolCalls: [...currentToolMessages],
+  // Phase 1: Prepare — validate args and check policy
+  const preparation = await prepareToolStep({
+    task,
+    registry,
+    requestedToolCall,
+    currentToolCall,
+    step,
+    config,
+    beforeToolExecute: options.beforeToolExecute,
+    onToolCallContext: options.onToolCallContext,
   })
 
-  let lastObservation = ''
+  if (preparation.kind === 'error') {
+    return finalizeToolStep(currentToolCall, preparation, task.snapshot.conversationId, config, currentModelText, currentToolMessages)
+  }
+
+  // Abort check between prepare and execute
+  if (options.abortSignal?.aborted) {
+    logger.info('agent-runtime', { event: 'tool_cancelled', conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, step, toolName: requestedToolCall.toolName })
+    return finalizeToolStep(currentToolCall, {
+      kind: 'error',
+      error: 'AGENT_CANCELLED',
+      observation: formatFailure(preparation.prepared, 'AGENT_CANCELLED', requestedToolCall.input),
+      lastToolCallContext: preparation.lastToolCallContext,
+    }, task.snapshot.conversationId, config, currentModelText, currentToolMessages)
+  }
+
+  // Phase 2: Execute
+  const execution = await executePreparedTool(preparation.prepared)
+
+  // Phase 3: Finalize
+  if (execution.errorMsg) {
+    logger.info('agent-runtime', { event: 'tool_failed', conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, toolName: preparation.prepared.toolName, input: requestedToolCall.input, error: execution.errorMsg, workspacePath: task.snapshot.workspacePath, stdout: execution.result.stdout, stderr: execution.result.stderr, exitCode: execution.result.exitCode })
+    config.taskLogger?.write('tool_failed', { conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, toolName: preparation.prepared.toolName, input: requestedToolCall.input, error: execution.errorMsg, workspacePath: task.snapshot.workspacePath, stdout: execution.result.stdout, stderr: execution.result.stderr, exitCode: execution.result.exitCode })
+    return finalizeToolStep(currentToolCall, {
+      kind: 'error',
+      error: execution.errorMsg,
+      observation: formatFailure(preparation.prepared, execution.errorMsg, requestedToolCall.input, execution.result),
+      lastToolCallContext: preparation.lastToolCallContext,
+    }, task.snapshot.conversationId, config, currentModelText, currentToolMessages)
+  }
+
+  return finalizeSuccessToolStep(currentToolCall, preparation, execution.result, task.snapshot.conversationId, config, currentModelText, currentToolMessages)
+}
+
+// ============================================================
+// Phase 1: Prepare — resolve tool, validate, call hook
+// ============================================================
+
+interface PrepareToolStepInput {
+  task: RuntimeTask
+  registry: ToolRegistry
+  requestedToolCall: RequestedToolCall
+  currentToolCall: McpToolCall
+  step: number
+  config: AgentRuntimeConfig
+  beforeToolExecute: BeforeToolExecuteHook
+  onToolCallContext?: (context: ToolCallContext) => void
+}
+
+async function prepareToolStep(input: PrepareToolStepInput): Promise<ToolPreparation> {
+  const { task, registry, requestedToolCall, step, config, beforeToolExecute, onToolCallContext } = input
+  const logger = getAgentLogger(config)
+
+  const prepared = registry.prepare(requestedToolCall.toolName, requestedToolCall.input)
+
   let lastToolCallContext: ToolCallContext = {
     toolName: requestedToolCall.toolName,
     input: requestedToolCall.input,
@@ -79,19 +135,14 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   if (prepared.validationError) {
     logger.info('agent-runtime', { event: 'tool_failed', conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, toolName: prepared.toolName, input: requestedToolCall.input, error: prepared.validationError, workspacePath: task.snapshot.workspacePath })
     config.taskLogger?.write('tool_failed', { conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, toolName: prepared.toolName, input: requestedToolCall.input, error: prepared.validationError, workspacePath: task.snapshot.workspacePath })
-    return finalizeToolError(
-      currentToolCall,
-      prepared.validationError,
-      formatFailure(prepared, prepared.validationError, requestedToolCall.input),
+    return {
+      kind: 'error',
+      error: prepared.validationError,
+      observation: formatFailure(prepared, prepared.validationError, requestedToolCall.input),
       lastToolCallContext,
-      config,
-      task.snapshot.conversationId,
-      currentModelText,
-      currentToolMessages,
-    )
+    }
   }
 
-  // === beforeToolExecute hook: policy decision + approval (injected from policy/) ===
   const beforeResult = await beforeToolExecute({
     task,
     prepared: prepared as PreparedToolCall,
@@ -105,58 +156,113 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   if (beforeResult.outcome === 'block') {
     logger.info('agent-runtime', { event: 'tool_blocked', conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, step, toolName: requestedToolCall.toolName, input: requestedToolCall.input, operationType: prepared.operationType, scope: prepared.scope, policy: 'block', reason: beforeResult.reason, errorCode: beforeResult.errorCode, workspacePath: task.snapshot.workspacePath })
     config.taskLogger?.write('tool_blocked', { conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, step, toolName: requestedToolCall.toolName, input: requestedToolCall.input, operationType: prepared.operationType, scope: prepared.scope, policy: 'block', reason: beforeResult.reason, errorCode: beforeResult.errorCode, workspacePath: task.snapshot.workspacePath })
-    return finalizeToolError(
-      currentToolCall,
-      beforeResult.errorCode,
-      formatFailure(prepared, beforeResult.errorCode, requestedToolCall.input),
+    return {
+      kind: 'error',
+      error: beforeResult.errorCode,
+      observation: formatFailure(prepared, beforeResult.errorCode, requestedToolCall.input),
       lastToolCallContext,
-      config,
-      task.snapshot.conversationId,
-      currentModelText,
-      currentToolMessages,
-    )
+    }
   }
 
+  return { kind: 'ready', prepared: prepared as PreparedToolCall, lastToolCallContext }
+}
+
+// ============================================================
+// Phase 2: Execute — run the prepared tool
+// ============================================================
+
+async function executePreparedTool(prepared: PreparedToolCall): Promise<ToolExecution> {
   const result = await prepared.execute()
   if (!result.ok) {
-    const errorMsg = result.error || 'AGENT_TOOL_EXEC_FAILED'
-    logger.info('agent-runtime', { event: 'tool_failed', conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, toolName: prepared.toolName, input: requestedToolCall.input, error: errorMsg, workspacePath: task.snapshot.workspacePath, stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode })
-    config.taskLogger?.write('tool_failed', { conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, toolName: prepared.toolName, input: requestedToolCall.input, error: errorMsg, workspacePath: task.snapshot.workspacePath, stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode })
-    return finalizeToolError(
-      currentToolCall,
-      errorMsg,
-      formatFailure(prepared, errorMsg, requestedToolCall.input, result),
-      lastToolCallContext,
-      config,
-      task.snapshot.conversationId,
-      currentModelText,
-      currentToolMessages,
-    )
+    return { result, errorMsg: result.error || 'AGENT_TOOL_EXEC_FAILED' }
   }
+  return { result }
+}
+
+// ============================================================
+// Phase 3: Finalize — format output, emit events, build result
+// ============================================================
+
+async function finalizeToolStep(
+  currentToolCall: McpToolCall,
+  preparation: ToolPreparation,
+  conversationId: string,
+  config: AgentRuntimeConfig,
+  currentModelText: string,
+  currentToolMessages: McpToolCall[],
+): Promise<ExecuteToolStepResult> {
+  // Both ready+error and immediate error paths converge here.
+  const error = preparation.kind === 'error' ? preparation.error : undefined
+  const observation = preparation.kind === 'error' ? preparation.observation : ''
+
+  currentToolCall.executeState = 'completed'
+  currentToolCall.result = error
+    ? { success: false, error }
+    : { success: true, data: observation }
+
+  await emitTurnToolCalls(config, conversationId, currentModelText, currentToolMessages)
+
+  return {
+    lastToolCallContext: preparation.lastToolCallContext,
+    toolCallId: currentToolCall.id,
+    toolResultContent: observation,
+    isError: !!error,
+  }
+}
+
+async function finalizeSuccessToolStep(
+  currentToolCall: McpToolCall,
+  preparation: ToolPreparation & { kind: 'ready' },
+  result: ToolExecution['result'],
+  conversationId: string,
+  config: AgentRuntimeConfig,
+  currentModelText: string,
+  currentToolMessages: McpToolCall[],
+): Promise<ExecuteToolStepResult> {
+  const { prepared, lastToolCallContext } = preparation
+  const logger = getAgentLogger(config)
 
   const toolOutputText = getToolOutputText(result)
-  lastObservation = buildObservation(prepared, result, toolOutputText)
-  const shouldTruncate = prepared.truncateObservation !== false
-  const dataText = shouldTruncate ? truncateText(toolOutputText, DEFAULT_TOOL_OBSERVATION_LIMIT) : toolOutputText
-  const logPreview = shouldTruncate ? truncateText(toolOutputText, DEFAULT_TOOL_LOG_PREVIEW_LIMIT) : toolOutputText
+  const observation = buildObservation(prepared, result, toolOutputText)
+
   currentToolCall.executeState = 'completed'
-  currentToolCall.result = {
-    success: true,
-    data: dataText,
-  }
-  await emitToolCalls(config, task.snapshot.conversationId, currentModelText, currentToolMessages)
-  logger.info('agent-runtime', { event: 'tool_completed', conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, toolName: prepared.toolName, input: requestedToolCall.input, outputPreview: logPreview, exitCode: result.exitCode, durationMs: result.durationMs })
-  config.taskLogger?.write('tool_completed', { conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, toolName: prepared.toolName, input: requestedToolCall.input, outputPreview: logPreview, exitCode: result.exitCode, durationMs: result.durationMs })
+  currentToolCall.result = { success: true, data: toolOutputText }
+
+  await emitTurnToolCalls(config, conversationId, currentModelText, currentToolMessages)
+
+  logger.info('agent-runtime', { event: 'tool_completed', conversationId, userMessageId: '', toolName: prepared.toolName, outputPreview: toolOutputText, exitCode: result.exitCode, durationMs: result.durationMs })
+  config.taskLogger?.write('tool_completed', { conversationId, userMessageId: '', toolName: prepared.toolName, outputPreview: toolOutputText, exitCode: result.exitCode, durationMs: result.durationMs })
 
   return {
     lastToolCallContext,
     toolCallId: currentToolCall.id,
-    toolResultContent: lastObservation,
+    toolResultContent: observation,
     isError: false,
   }
 }
 
-async function emitToolCalls(
+// ============================================================
+// Helpers
+// ============================================================
+
+function registerPendingToolCall(
+  requestedToolCall: RequestedToolCall,
+  registry: ToolRegistry,
+  currentToolMessages: McpToolCall[],
+): McpToolCall {
+  const prepared = registry.prepare(requestedToolCall.toolName, requestedToolCall.input)
+  const call: McpToolCall = {
+    id: requestedToolCall.id ?? randomUUID(),
+    serverName: prepared.source,
+    toolName: requestedToolCall.toolName,
+    args: requestedToolCall.input,
+    executeState: 'executing',
+  }
+  currentToolMessages.push(call)
+  return call
+}
+
+async function emitTurnToolCalls(
   config: AgentRuntimeConfig,
   conversationId: string,
   text: string,
@@ -167,27 +273,6 @@ async function emitToolCalls(
     text,
     toolCalls: [...toolMessages],
   })
-}
-
-async function finalizeToolError(
-  currentToolCall: McpToolCall,
-  error: string,
-  lastObservation: string,
-  lastToolCallContext: ToolCallContext,
-  config: AgentRuntimeConfig,
-  conversationId: string,
-  currentModelText: string,
-  currentToolMessages: McpToolCall[],
-): Promise<ExecuteToolStepResult> {
-  currentToolCall.executeState = 'completed'
-  currentToolCall.result = { success: false, error }
-  await emitToolCalls(config, conversationId, currentModelText, currentToolMessages)
-  return {
-    lastToolCallContext,
-    toolCallId: currentToolCall.id,
-    toolResultContent: lastObservation,
-    isError: true,
-  }
 }
 
 function getToolOutputText(result: { output?: unknown, stdout?: string, stderr?: string, exitCode?: number }): string {
@@ -217,10 +302,7 @@ function buildObservation(
   if (prepared.formatObservation) {
     return prepared.formatObservation(result, outputText)
   }
-  const truncated = prepared.truncateObservation !== false
-    ? truncateText(outputText, DEFAULT_TOOL_OBSERVATION_LIMIT)
-    : outputText
-  return `Tool ${prepared.toolName} succeeded, output: ${truncated}`
+  return `Tool ${prepared.toolName} succeeded, output: ${outputText}`
 }
 
 export async function createInvalidToolArgsResult(options: {

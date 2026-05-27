@@ -56,7 +56,7 @@ export default function Chat() {
       selectedSkill,
       mode: agentMode,
       workspacePath: currentWorkspacePath || undefined,
-      chatSettings: {
+      modelConfig: {
         ...settings,
         features,
       },
