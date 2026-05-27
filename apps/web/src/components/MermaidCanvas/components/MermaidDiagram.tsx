@@ -80,7 +80,7 @@ export function MermaidDiagram({ children, className, style }: RenderMermaidProp
       }
       setErrorMessage('')
     }
-  }, [children, theme])
+  }, [children, theme, id])
 
   if (errorMessage) {
     return (
@@ -109,6 +109,8 @@ export function MermaidDiagram({ children, className, style }: RenderMermaidProp
               <>
                 <div
                   ref={containerRef}
+                  role="img"
+                  aria-label="Mermaid diagram"
                   className={`
                     mermaid-container absolute overflow-hidden rounded-md border border-solid
                     border-gray-300

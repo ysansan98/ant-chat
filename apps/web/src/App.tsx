@@ -25,9 +25,17 @@ function AntChatApp() {
     <div className="flex h-dvh w-full overflow-hidden">
       <div className="app-region-drag absolute top-0 left-0 z-9999 h-4 w-full"></div>
       <div
+        role="button"
+        tabIndex={0}
         className="absolute top-[16px] left-[90px] z-9990 cursor-pointer text-slate-600"
         onClick={() => {
           setShowSliderMenu(prev => !prev)
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            setShowSliderMenu(prev => !prev)
+          }
         }}
       >
         <span className={`

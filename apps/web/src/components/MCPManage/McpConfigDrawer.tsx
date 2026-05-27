@@ -437,7 +437,18 @@ function PreviewMcpToolItem({ item }: { item: McpTool }) {
       dark:bg-white/10
     "
     >
-      <div className="flex cursor-pointer items-center justify-between gap-2" onClick={() => setIsExpand(!isExpand)}>
+      <div
+        role="button"
+        tabIndex={0}
+        className="flex cursor-pointer items-center justify-between gap-2"
+        onClick={() => setIsExpand(!isExpand)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            setIsExpand(!isExpand)
+          }
+        }}
+      >
         <div className="">
           <div>{item.name}</div>
           <div className="mt-1 text-xs text-[#a3a3a3]">{item.description}</div>

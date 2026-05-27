@@ -40,7 +40,10 @@ function getAttachmentUrl(item: AttachmentData): string {
   return item.url || ''
 }
 
-export default function MessageContent({ content = '', images = [], attachments = [], reasoningContent = '', status, enableReferenceTokens = false }: Partial<BubbleContent> & { enableReferenceTokens?: boolean }) {
+const EMPTY_IMAGES: NonNullable<BubbleContent['images']> = []
+const EMPTY_ATTACHMENTS: NonNullable<BubbleContent['attachments']> = []
+
+export default function MessageContent({ content = '', images = EMPTY_IMAGES, attachments = EMPTY_ATTACHMENTS, reasoningContent = '', status, enableReferenceTokens = false }: Partial<BubbleContent> & { enableReferenceTokens?: boolean }) {
   if (status === 'error') {
     return (
       <Alert variant="destructive">

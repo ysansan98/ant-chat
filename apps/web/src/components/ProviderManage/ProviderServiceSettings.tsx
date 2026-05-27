@@ -44,8 +44,9 @@ export function ProviderServiceSettings({ item, onChange, onDelete }: ProviderSe
       }
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
-          <label className="font-medium">API URL</label>
+          <label htmlFor="provider-api-url" className="font-medium">API URL</label>
           <Input
+            id="provider-api-url"
             defaultValue={item.baseUrl}
             onBlur={(e) => {
               onChange?.({ id: item.id, baseUrl: e.target.value })
@@ -61,8 +62,9 @@ export function ProviderServiceSettings({ item, onChange, onDelete }: ProviderSe
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="font-medium">API Key</label>
+          <label htmlFor="provider-api-key" className="font-medium">API Key</label>
           <Input
+            id="provider-api-key"
             type="password"
             defaultValue={item.apiKey}
             onBlur={(e) => {
@@ -77,7 +79,7 @@ export function ProviderServiceSettings({ item, onChange, onDelete }: ProviderSe
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="font-medium">模型列表</label>
+          <span className="font-medium">模型列表</span>
           <ModelList serviceProviderId={item.id} />
         </div>
       </div>
@@ -85,7 +87,7 @@ export function ProviderServiceSettings({ item, onChange, onDelete }: ProviderSe
   )
 }
 
-export function getOfficialApiUrl(provider: string) {
+function getOfficialApiUrl(provider: string) {
   if (provider in AI_OFFICIAL_API_INFO) {
     return AI_OFFICIAL_API_INFO[provider].url
   }
@@ -93,7 +95,7 @@ export function getOfficialApiUrl(provider: string) {
   return null
 }
 
-export function getOfficialKeyUrl(provider: string) {
+function getOfficialKeyUrl(provider: string) {
   if (provider in AI_OFFICIAL_API_INFO) {
     return AI_OFFICIAL_API_INFO[provider].keyUrl
   }

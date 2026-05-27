@@ -22,7 +22,7 @@ const options = [
 
 type ThemeMode = (typeof options)[number]['id']
 
-function renderThemeIcon(mode: ThemeMode): ReactNode {
+function ThemeIcon({ mode }: { mode: ThemeMode }): ReactNode {
   if (mode === 'light') {
     return <SunIcon className="size-4" />
   }
@@ -51,7 +51,7 @@ function ThemeOptionsPanel({ mode, onSelect }: ThemeOptionsPanelProps) {
             className="h-8 w-full justify-start px-2 text-sm"
             onClick={() => onSelect(item.id)}
           >
-            {renderThemeIcon(item.id)}
+            <ThemeIcon mode={item.id} />
             {item.label}
           </Button>
         )
@@ -74,7 +74,7 @@ function ThemeButton() {
           className="size-9"
           aria-label="选择主题"
         >
-          {renderThemeIcon(mode)}
+          <ThemeIcon mode={mode} />
         </Button>
       </PopoverTrigger>
 
@@ -101,7 +101,7 @@ export function ThemeMenuItem() {
       <PopoverTrigger asChild>
         <div className="inline-flex w-fit">
           <SidebarNavItem
-            icon={renderThemeIcon(mode)}
+            icon={<ThemeIcon mode={mode} />}
             label="主题"
           />
         </div>

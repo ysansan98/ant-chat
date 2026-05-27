@@ -15,8 +15,11 @@ export function useAutoScroll() {
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     if (e.deltaY < -1) {
-      setAutoScrollToBottom(false)
-      clearScrollTimer()
+      const target = e.currentTarget as HTMLElement
+      if (target.scrollHeight > target.clientHeight) {
+        setAutoScrollToBottom(false)
+        clearScrollTimer()
+      }
     }
     else if (e.deltaY > 1 && e.currentTarget) {
       const target = e.currentTarget as HTMLElement

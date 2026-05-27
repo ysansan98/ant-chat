@@ -8,6 +8,8 @@ export interface KeyValueItem {
   value: string
 }
 
+const EMPTY_KEY_VALUE_ITEMS: KeyValueItem[] = []
+
 interface KeyValueListProps {
   value?: KeyValueItem[]
   onChange?: (items: KeyValueItem[]) => void
@@ -19,7 +21,7 @@ interface KeyValueListProps {
 }
 
 export function KeyValueList({
-  value = [],
+  value = EMPTY_KEY_VALUE_ITEMS,
   onChange,
   label,
   keyPlaceholder = '键',

@@ -127,8 +127,14 @@ export const InfiniteScroll: React.FC<Props> = ({
     scrollToElement,
   }))
 
+  const hasInitializedRef = useRef(false)
+
   // 初始滚动位置控制（仅在挂载时执行一次）
   useEffect(() => {
+    if (hasInitializedRef.current)
+      return
+    hasInitializedRef.current = true
+
     if (initialScrollPosition === 'none')
       return
 
@@ -139,7 +145,7 @@ export const InfiniteScroll: React.FC<Props> = ({
         containerRef.current.scrollTop = position === 'bottom' ? containerRef.current.scrollHeight : 0
       }
     })
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [initialScrollPosition, direction])
 
   return (
     <div

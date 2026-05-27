@@ -111,6 +111,8 @@ export default function ConversationsManage({ showHeader = true }: Conversations
               {items.map(item => (
                 <div
                   key={item.id}
+                  role="button"
+                  tabIndex={0}
                   className={`
                     group flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm
                     transition-colors
@@ -121,6 +123,12 @@ export default function ConversationsManage({ showHeader = true }: Conversations
                   `}
                   onClick={async () => {
                     await setActiveConversationsId(item.id as ConversationsId)
+                  }}
+                  onKeyDown={async (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      await setActiveConversationsId(item.id as ConversationsId)
+                    }
                   }}
                 >
                   <MessageSquare className="size-4 shrink-0 text-muted-foreground" />

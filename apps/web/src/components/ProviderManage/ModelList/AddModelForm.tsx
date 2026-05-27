@@ -65,16 +65,17 @@ export function AddModelFormModal({ open, title, onCancel, onSave }: AddModelFor
         </DialogHeader>
         <div className="flex flex-col gap-4 pt-2">
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium">模型</label>
-            <Input value={model} onChange={e => setModel(e.target.value)} />
+            <label htmlFor="model-id" className="text-sm font-medium">模型</label>
+            <Input id="model-id" value={model} onChange={e => setModel(e.target.value)} />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium">模型名称</label>
-            <Input value={name} onChange={e => setName(e.target.value)} />
+            <label htmlFor="model-name" className="text-sm font-medium">模型名称</label>
+            <Input id="model-name" value={name} onChange={e => setName(e.target.value)} />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium">默认temperature</label>
+            <label htmlFor="model-temperature" className="text-sm font-medium">默认temperature</label>
             <InputNumber
+              id="model-temperature"
               step={0.1}
               min={0}
               max={2}
@@ -84,8 +85,9 @@ export function AddModelFormModal({ open, title, onCancel, onSave }: AddModelFor
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium">最大tokens</label>
+            <label htmlFor="model-max-tokens" className="text-sm font-medium">最大tokens</label>
             <InputNumber
+              id="model-max-tokens"
               min={1000}
               step={1000}
               className="w-full"
@@ -94,8 +96,9 @@ export function AddModelFormModal({ open, title, onCancel, onSave }: AddModelFor
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium">最大上下文</label>
+            <label htmlFor="model-context-length" className="text-sm font-medium">最大上下文</label>
             <InputNumber
+              id="model-context-length"
               min={1000}
               step={1000}
               className="w-full"
@@ -104,16 +107,16 @@ export function AddModelFormModal({ open, title, onCancel, onSave }: AddModelFor
             />
           </div>
           <div className="flex items-center justify-between">
-            <label className="text-sm font-medium">函数调用</label>
-            <Switch checked={functionCall} onCheckedChange={setFunctionCall} />
+            <label htmlFor="model-function-call" className="text-sm font-medium">函数调用</label>
+            <Switch id="model-function-call" checked={functionCall} onCheckedChange={setFunctionCall} />
           </div>
           <div className="flex items-center justify-between">
-            <label className="text-sm font-medium">推理</label>
-            <Switch checked={reasoning} onCheckedChange={setReasoning} />
+            <label htmlFor="model-reasoning" className="text-sm font-medium">推理</label>
+            <Switch id="model-reasoning" checked={reasoning} onCheckedChange={setReasoning} />
           </div>
           <div className="flex items-center justify-between">
-            <label className="text-sm font-medium">视觉</label>
-            <Switch checked={vision} onCheckedChange={setVision} />
+            <label htmlFor="model-vision" className="text-sm font-medium">视觉</label>
+            <Switch id="model-vision" checked={vision} onCheckedChange={setVision} />
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={handleClose}>取消</Button>

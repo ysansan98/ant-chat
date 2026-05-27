@@ -24,6 +24,8 @@ export default function SettingsPage() {
             menus.map(item => (
               <div
                 key={item.id}
+                role="button"
+                tabIndex={0}
                 data-testid={`settings-nav-${item.id}`}
                 className={`
                   flex h-10 cursor-pointer items-center gap-3 rounded-md px-4
@@ -32,6 +34,12 @@ export default function SettingsPage() {
                 `}
                 onClick={() => {
                   navigrate(`/settings/${item.id}`)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    navigrate(`/settings/${item.id}`)
+                  }
                 }}
               >
                 <div>

@@ -40,6 +40,8 @@ export default function ProviderManage() {
           data?.map(item => (
             <div
               key={item.id}
+              role="button"
+              tabIndex={0}
               className={`
                 ${activeProvider?.id === item.id ? 'bg-(--hover-bg-color)' : ''}
                 group flex cursor-pointer items-center justify-between gap-2 rounded-md p-2 px-3
@@ -48,6 +50,12 @@ export default function ProviderManage() {
               `}
               onClick={() => {
                 setActiveProvider(item)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  setActiveProvider(item)
+                }
               }}
             >
               <div className="flex items-center gap-2">

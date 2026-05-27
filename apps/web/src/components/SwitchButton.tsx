@@ -21,7 +21,9 @@ function SwitchButton({
 
   const buttonElement = (
     <div
-      role="switchButton"
+      role="switch"
+      aria-checked={checked}
+      tabIndex={0}
       data-testid={dataTestId}
       className={`
         flex size-8 cursor-pointer items-center justify-center rounded-lg border border-solid
@@ -32,6 +34,12 @@ function SwitchButton({
         borderColor: checked ? token.colorPrimary : 'var(--border)',
       }}
       onClick={() => onChange?.(!checked)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onChange?.(!checked)
+        }
+      }}
     >
       {icon}
     </div>

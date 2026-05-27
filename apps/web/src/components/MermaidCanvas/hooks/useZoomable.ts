@@ -16,28 +16,28 @@ export function useZoomable(initialSize: Size) {
     dispatch(initialSize)
   }, [initialSize])
 
-  const handleWheel = (e: WheelEvent) => {
-    e.preventDefault()
-    const delta = e.deltaY
-    const scaleFactor = delta > 0 ? 0.9 : 1.1
-
-    const newWidth = size.width * scaleFactor
-    const newHeight = size.height * scaleFactor
-
-    if (newWidth > 100 && newHeight > 100) {
-      dispatch({ width: newWidth, height: newHeight })
-    }
-  }
-
   useEffect(() => {
     const container = document.querySelector('.mermaid-container')
     if (!container)
       return
 
-    container.addEventListener('wheel', handleWheel as EventListener, { passive: false })
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const delta = e.deltaY
+      const scaleFactor = delta > 0 ? 0.9 : 1.1
+
+      const newWidth = size.width * scaleFactor
+      const newHeight = size.height * scaleFactor
+
+      if (newWidth > 100 && newHeight > 100) {
+        dispatch({ width: newWidth, height: newHeight })
+      }
+    }
+
+    container.addEventListener('wheel', onWheel as EventListener, { passive: false })
 
     return () => {
-      container.removeEventListener('wheel', handleWheel as EventListener)
+      container.removeEventListener('wheel', onWheel as EventListener)
     }
   }, [size.width, size.height])
 

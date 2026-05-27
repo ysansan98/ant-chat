@@ -110,7 +110,7 @@ export function AddCustomProvider({ onAdd, existingProviderIds, loading }: AddCu
           </DialogHeader>
           <form onSubmit={handleSubmitForm} className="flex flex-col gap-4 pt-2">
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium">从 Models.dev 选择</label>
+              <label htmlFor="models-dev-select" className="text-sm font-medium">从 Models.dev 选择</label>
               <Select
                 onValueChange={(value) => {
                   if (!value) {
@@ -128,7 +128,7 @@ export function AddCustomProvider({ onAdd, existingProviderIds, loading }: AddCu
                   setValue('apiMode', provider.apiMode)
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger id="models-dev-select">
                   <SelectValue placeholder="选择服务商" />
                 </SelectTrigger>
                 <SelectContent>
@@ -146,24 +146,24 @@ export function AddCustomProvider({ onAdd, existingProviderIds, loading }: AddCu
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium">提供商名称 *</label>
-              <Input placeholder="例如：我的自定义 AI" {...register('name', { required: true, minLength: 2, maxLength: 50 })} />
+              <label htmlFor="provider-name" className="text-sm font-medium">提供商名称 *</label>
+              <Input id="provider-name" placeholder="例如：我的自定义 AI" {...register('name', { required: true, minLength: 2, maxLength: 50 })} />
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium">API 地址 *</label>
-              <Input placeholder="https://api.example.com" {...register('baseUrl', { required: true })} />
+              <label htmlFor="provider-base-url" className="text-sm font-medium">API 地址 *</label>
+              <Input id="provider-base-url" placeholder="https://api.example.com" {...register('baseUrl', { required: true })} />
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium">API Key *</label>
-              <Input type="password" placeholder="输入你的API Key" {...register('apiKey', { required: true })} />
+              <label htmlFor="provider-api-key" className="text-sm font-medium">API Key *</label>
+              <Input id="provider-api-key" type="password" placeholder="输入你的API Key" {...register('apiKey', { required: true })} />
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium">API 模式 *</label>
+              <label htmlFor="provider-api-mode" className="text-sm font-medium">API 模式 *</label>
               <Select onValueChange={v => setValue('apiMode', v)} defaultValue="openai">
-                <SelectTrigger>
+                <SelectTrigger id="provider-api-mode">
                   <SelectValue placeholder="选择API兼容模式" />
                 </SelectTrigger>
                 <SelectContent>
@@ -175,8 +175,9 @@ export function AddCustomProvider({ onAdd, existingProviderIds, loading }: AddCu
             </div>
 
             <div className="flex items-center justify-between">
-              <label className="text-sm font-medium">启用状态</label>
+              <label htmlFor="provider-enabled" className="text-sm font-medium">启用状态</label>
               <Switch
+                id="provider-enabled"
                 checked={watch('isEnabled')}
                 onCheckedChange={v => setValue('isEnabled', v)}
               />

@@ -32,7 +32,7 @@ export function SearchBar({ onItemClick }: SearchBarProps) {
     return () => {
       debouncedSearch.cancel()
     }
-  }, [keywords])
+  }, [keywords, debouncedSearch])
 
   React.useEffect(() => {
     if (inputRef.current) {

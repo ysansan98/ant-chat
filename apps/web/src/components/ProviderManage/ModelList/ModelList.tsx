@@ -23,7 +23,7 @@ export function ModelList({ serviceProviderId }: ModelListProps) {
 
   React.useEffect(() => {
     run(serviceProviderId)
-  }, [serviceProviderId])
+  }, [serviceProviderId, run])
 
   if (error) {
     return (

@@ -17,6 +17,8 @@ export function SelectTransportType({ value, onChange }: SelectTransportTypeProp
         options.map(item => (
           <div
             key={item.id}
+            role="button"
+            tabIndex={0}
             className={`
               relative w-[48%] rounded-xl border border-solid p-3 transition-colors
               ${value === item.id ? 'border-primary' : 'border-(--border-color)'}
@@ -25,6 +27,12 @@ export function SelectTransportType({ value, onChange }: SelectTransportTypeProp
             `}
             onClick={() => {
               onChange?.(item.id)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onChange?.(item.id)
+              }
             }}
           >
             <div className="flex gap-2 text-xl">

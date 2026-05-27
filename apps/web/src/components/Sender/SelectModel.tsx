@@ -1,7 +1,7 @@
 import type { AllAvailableModelsSchema } from '@ant-chat/shared'
 import { Input } from '@workspace/ui/components/input'
 import React from 'react'
-import { ProviderLogo } from '../Chat/providerLogo'
+import { ProviderLogoDisplay } from './renderProviderLogo'
 
 export interface SelectModelProps {
   value: string
@@ -33,6 +33,8 @@ export function SelectModel({ value, onChange, options }: SelectModelProps) {
                       {item.models.filter(model => model.name.includes(keyword)).map(model => (
                         <div
                           key={model.id}
+                          role="button"
+                          tabIndex={0}
                           className={`
                             flex cursor-pointer items-center justify-between rounded-md p-2 text-xs
                             hover:bg-(--hover-bg-color)
@@ -41,9 +43,16 @@ export function SelectModel({ value, onChange, options }: SelectModelProps) {
                             onChange?.(model)
                             setKeyword('')
                           }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault()
+                              onChange?.(model)
+                              setKeyword('')
+                            }
+                          }}
                         >
                           <div className="flex items-center gap-1">
-                            {renderProviderLogo(item.id)}
+                            <ProviderLogoDisplay providerServiceId={item.id} />
                             <span className="font-medium">
                               {model.name}
                             </span>
@@ -68,12 +77,4 @@ export function SelectModel({ value, onChange, options }: SelectModelProps) {
 
     </div>
   )
-}
-
-export function renderProviderLogo(providerServiceId: string) {
-  const content = <ProviderLogo id={providerServiceId} size={16} className="size-4" />
-  if (!content) {
-    return null
-  }
-  return <span className="flex items-center justify-center rounded-md bg-white">{content}</span>
 }

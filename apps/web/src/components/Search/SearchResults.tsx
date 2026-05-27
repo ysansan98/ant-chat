@@ -38,11 +38,19 @@ export function SearchResults({ items, keywords, onItemClick }: SearchResultsPro
                     {item.messages.map((message, index) => (
                       <div
                         key={message.id}
+                        role="button"
+                        tabIndex={0}
                         className={`
                           group flex w-full cursor-pointer items-center justify-between p-2 text-xs
                           hover:bg-(--hover-bg-color)
                         `}
                         onClick={() => onItemClick?.(item, message.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            onItemClick?.(item, message.id)
+                          }
+                        }}
                       >
                         <div className="flex items-center gap-2">
                           <span>

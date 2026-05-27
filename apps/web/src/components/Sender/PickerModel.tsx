@@ -10,7 +10,8 @@ import React from 'react'
 import { providerApi } from '@/api/providerApi'
 import { ipcRenderer } from '@/utils/ipc-bus'
 import { ModelParameterSettingsPanel } from './ModelParameterSettingsPanel'
-import { renderProviderLogo, SelectModel } from './SelectModel'
+import { ProviderLogoDisplay } from './renderProviderLogo'
+import { SelectModel } from './SelectModel'
 
 interface ModelControlPanelProps {
   value: string
@@ -64,7 +65,7 @@ export function ModelControlPanel({ value, onChange }: ModelControlPanelProps) {
             hover:bg-(--hover-bg-color)
           `}
           >
-            {renderProviderLogo(activeProviderServiceInfo?.id || '')}
+            <ProviderLogoDisplay providerServiceId={activeProviderServiceInfo?.id || ''} />
             <div className="flex max-w-30 items-center truncate text-xs font-medium">
               <span className="truncate">{currentModelInfo?.name}</span>
               <span className="px-2">›</span>
@@ -72,6 +73,8 @@ export function ModelControlPanel({ value, onChange }: ModelControlPanelProps) {
           </div>
           <div className="flex items-center justify-center overflow-hidden">
             <span
+              role="button"
+              tabIndex={0}
               className={`
                 flex h-full items-center justify-center px-2
                 hover:bg-(--hover-bg-color)
@@ -81,6 +84,14 @@ export function ModelControlPanel({ value, onChange }: ModelControlPanelProps) {
                 event.stopPropagation()
                 setPanel('parameter')
                 setOpenPopover(true)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setPanel('parameter')
+                  setOpenPopover(true)
+                }
               }}
             >
               <Settings size={16} />

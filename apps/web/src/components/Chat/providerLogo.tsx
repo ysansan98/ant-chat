@@ -1,4 +1,4 @@
-export function getProviderLogoUrl(providerId: string) {
+function getProviderLogoUrl(providerId: string) {
   if (!providerId) {
     return null
   }

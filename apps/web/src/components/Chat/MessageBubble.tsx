@@ -70,43 +70,6 @@ export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }:
   const processMessages = shouldCollapseProcess ? messages.slice(0, -1) : []
   const visibleMessages = shouldCollapseProcess ? messages.slice(-1) : messages
 
-  const renderMessageContent = (item: IMessage, content: string) => {
-    const itemIsUser = item.role === Role.USER
-    const itemIsAI = item.role === Role.AI
-
-    if (!itemIsAI) {
-      const pickList = ['status']
-      if (itemIsUser) {
-        pickList.push('images', 'attachments')
-      }
-      const messageContentProps: Partial<BubbleContent> = {
-        ...pick(item, pickList),
-        content,
-      }
-      return <MessageContent {...messageContentProps} enableReferenceTokens={itemIsUser} />
-    }
-
-    return (
-      <>
-        <MessageContent
-          content={content}
-          reasoningContent={item.reasoningContent}
-          status={item.status}
-        />
-        {itemIsAI && item.toolCalls && (
-          <div className="mt-2 flex flex-col gap-2">
-            {item.toolCalls.map(tool => (
-              <McpToolCallPanel
-                key={tool.id}
-                item={tool}
-              />
-            ))}
-          </div>
-        )}
-      </>
-    )
-  }
-
   return (
     <Message
       from={message.role === Role.USER ? 'user' : 'assistant'}
@@ -149,7 +112,7 @@ export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }:
                         key={item.id}
                         data-message-id={item.id}
                       >
-                        {renderMessageContent(item, transformMessageContent(item))}
+                        <MessageContentRenderer item={item} content={transformMessageContent(item)} />
                       </div>
                     ))}
                   </CollapsibleContent>
@@ -167,7 +130,7 @@ export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }:
                   )}
                   data-message-id={item.id}
                 >
-                  {renderMessageContent(item, transformMessageContent(item))}
+                  <MessageContentRenderer item={item} content={transformMessageContent(item)} />
                 </div>
               ))}
             </div>
@@ -182,5 +145,42 @@ export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }:
         </div>
       </div>
     </Message>
+  )
+}
+
+function MessageContentRenderer({ item, content }: { item: IMessage, content: string }) {
+  const itemIsUser = item.role === Role.USER
+  const itemIsAI = item.role === Role.AI
+
+  if (!itemIsAI) {
+    const pickList = ['status']
+    if (itemIsUser) {
+      pickList.push('images', 'attachments')
+    }
+    const messageContentProps: Partial<BubbleContent> = {
+      ...pick(item, pickList),
+      content,
+    }
+    return <MessageContent {...messageContentProps} enableReferenceTokens={itemIsUser} />
+  }
+
+  return (
+    <>
+      <MessageContent
+        content={content}
+        reasoningContent={item.reasoningContent}
+        status={item.status}
+      />
+      {itemIsAI && item.toolCalls && (
+        <div className="mt-2 flex flex-col gap-2">
+          {item.toolCalls.map(tool => (
+            <McpToolCallPanel
+              key={tool.id}
+              item={tool}
+            />
+          ))}
+        </div>
+      )}
+    </>
   )
 }

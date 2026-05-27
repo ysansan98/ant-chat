@@ -18,6 +18,8 @@ export default function Icon({ name, classNames, style, onClick }: IconProps) {
 
   return (
     <div
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
       className={`
         h-[1em] w-[1em] bg-(--ant-color-text)
         ${name}
@@ -25,6 +27,14 @@ export default function Icon({ name, classNames, style, onClick }: IconProps) {
       `}
       style={_style}
       onClick={onClick}
+      onKeyDown={onClick
+        ? (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              onClick()
+            }
+          }
+        : undefined}
     />
   )
 }
