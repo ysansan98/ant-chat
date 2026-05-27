@@ -21,7 +21,7 @@ export async function grepFiles(input: GrepFilesToolInput, pathPolicy: PathPolic
 export function createGrepFilesTool(pathPolicy: PathPolicy, unrestricted: boolean) {
   return createNativeTool({
     name: 'grep_files',
-    description: '按正则搜索文件内容',
+    description: 'Search file contents by regex. By default excludes node_modules, .git, dist, build. To search inside those directories, pass an explicit path argument pointing to them.',
     inputSchema: {
       type: 'object',
       properties: { pattern: { type: 'string' }, path: { type: 'string' }, include: { type: 'string' }, limit: { type: 'number' } },

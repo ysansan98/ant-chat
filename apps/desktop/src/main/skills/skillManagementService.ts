@@ -1,6 +1,6 @@
-import { SkillFsService } from '@ant-chat/agent-core'
+import { SkillFsReader } from '@ant-chat/agent-core'
 import { getSkillsRoot } from './skillsRoot'
 
-export const skillManagementService = new SkillFsService({
+export const skillManagementService = new SkillFsReader({
   skillsRoot: getSkillsRoot(),
 })

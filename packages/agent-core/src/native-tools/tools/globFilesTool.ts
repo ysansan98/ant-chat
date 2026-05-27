@@ -17,7 +17,7 @@ export async function globFiles(input: GlobFilesToolInput, pathPolicy: PathPolic
 export function createGlobFilesTool(pathPolicy: PathPolicy, unrestricted: boolean) {
   return createNativeTool({
     name: 'glob_files',
-    description: '按 glob 模式查找文件',
+    description: 'Find files by glob pattern. Does not support {a,b} brace expansion. By default excludes node_modules, .git, dist, build. To search inside those directories, pass an explicit path argument pointing to them.',
     inputSchema: {
       type: 'object',
       properties: { pattern: { type: 'string' }, path: { type: 'string' }, limit: { type: 'number' } },
