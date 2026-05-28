@@ -38,12 +38,13 @@ function AntChatApp() {
           }
         }}
       >
-        <span className={`
-          text-xl
-          ${showSliderMenu
+        <span
+          className={`
+            text-xl
+            ${showSliderMenu
       ? 'icon-[fluent--panel-left-24-filled]'
-      : `icon-[fluent--panel-left-24-regular]`}
-        `}
+      : 'icon-[fluent--panel-left-24-regular]'}
+          `}
         >
         </span>
       </div>

@@ -57,6 +57,7 @@
   },
   "devDependencies": {
     "@eslint/js": "catalog:",
+    "@iconify-json/fluent": "^1.2.48",
     "@iconify/tailwind4": "^1.0.6",
     "@tailwindcss/vite": "catalog:",
     "@turbo/gen": "^2.8.1",
