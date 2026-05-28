@@ -43,6 +43,7 @@ function createPrepared() {
   return {
     toolName: 'read_file',
     source: 'native' as const,
+    serverName: 'native',
     input: { path: 'test.txt' },
     operationType: 'read' as const,
     scope: 'workspace' as const,

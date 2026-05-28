@@ -253,7 +253,7 @@ function registerPendingToolCall(
   const prepared = registry.prepare(requestedToolCall.toolName, requestedToolCall.input)
   const call: McpToolCall = {
     id: requestedToolCall.id ?? randomUUID(),
-    serverName: prepared.source,
+    serverName: prepared.serverName,
     toolName: requestedToolCall.toolName,
     args: requestedToolCall.input,
     executeState: 'executing',

@@ -59,8 +59,11 @@ export function generatePattern(
     return `${dir}${path.sep}**`
   }
 
-  // skills and other tools: exact match
-  return extractInputKey(toolName, input)
+  if (toolName === 'use_skill' || toolName === 'install_skill_from_github') {
+    return extractInputKey(toolName, input)
+  }
+  // MCP and other unknown tools: whitelist by tool name only, always suggest "*"
+  return '*'
 }
 
 function normalizeInputKey(

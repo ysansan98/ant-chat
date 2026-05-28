@@ -79,7 +79,7 @@ export async function runAgentLoop(input: {
       const stream = aiProvider.streamModel({
         messages: loopMessages,
         chatSettings,
-        tools: toolDefs.map(item => ({ ...item, serverName: 'native' })),
+        tools: toolDefs.map(item => ({ ...item, serverName: item.serverName || 'native' })),
         abortSignal: task.abortController.signal,
       })
 

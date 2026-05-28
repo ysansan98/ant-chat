@@ -1,4 +1,4 @@
-export type ToolOperationType = 'read' | 'write' | 'bash' | 'skill'
+export type ToolOperationType = 'read' | 'write' | 'bash' | 'skill' | 'mcp'
 export type ToolScope = 'workspace' | 'outside' | 'blocked'
 
 export interface AgentToolResult {
@@ -21,6 +21,7 @@ export interface ToolResultView {
 export interface AgentTool {
   name: string
   source: 'mcp' | 'native' | 'skill'
+  serverName?: string
   description?: string
   inputSchema?: {
     type: 'object'
