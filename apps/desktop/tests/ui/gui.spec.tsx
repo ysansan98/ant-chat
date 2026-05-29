@@ -43,6 +43,7 @@ const mocks = vi.hoisted(() => ({
   },
   provider: {
     getAllAbvailableModels: vi.fn(),
+    getModelInfoById: vi.fn(async () => null),
   },
   skill: {
     listSkills: vi.fn(async () => ({ skills: [] })),
