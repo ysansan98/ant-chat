@@ -5,6 +5,9 @@ on:
     tags:
       - v*.*.*
 
+permissions:
+  contents: write
+
 jobs:
   release:
     runs-on: ${{ matrix.os }}
@@ -32,6 +35,9 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Validate release tag
+        run: node -e "const fs = require('node:fs'); const tag = process.env.GITHUB_REF_NAME; const version = JSON.parse(fs.readFileSync('apps/desktop/package.json', 'utf8')).version; const expected = 'v' + version; if (tag !== expected) { console.error('Release tag ' + tag + ' does not match desktop package version ' + version); process.exit(1); } console.log('Release tag ' + tag + ' matches desktop package version ' + version);"
+
       - name: Prepare bundled rg binaries
         run: pnpm -F @ant-chat/desktop rg:prepare
 
@@ -41,6 +47,12 @@ jobs:
           test -f apps/desktop/resources/rg/darwin-arm64/rg
           test -f apps/desktop/resources/rg/win32-x64/rg.exe
           echo "bundled rg binaries are ready"
+
+      - name: Rebuild better-sqlite3
+        run: pnpm -F @ant-chat/desktop rebuild:node
+
+      - name: Build workspace packages
+        run: pnpm build:packages
 
       # macOS 代码签名配置
       # - name: Setup macOS code signing
@@ -69,28 +81,11 @@ jobs:
 
       - name: Build app (Windows)
         if: matrix.os == 'windows-latest'
-        run: pnpm -F @ant-chat/desktop build:win
-        env:
-          # Windows 代码签名环境变量
-          # WIN_CSC_LINK: certificate.p12
-          # WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
-          # GitHub 发布配置
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm -F @ant-chat/desktop build:win -- --publish never
 
       - name: Build app (macOS)
         if: matrix.os == 'macos-latest'
-        run: pnpm -F @ant-chat/desktop build:mac
-        env:
-          # macOS 代码签名环境变量
-          # CSC_LINK: ${{ secrets.CSC_LINK }}
-          # CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          # macOS 公证环境变量（可选）
-          # APPLE_ID: ${{ secrets.APPLE_ID }}
-          # APPLE_ID_PASS: ${{ secrets.APPLE_ID_PASS }}
-          # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          # NOTARIZE: ${{ secrets.NOTARIZE_ENABLED || 'false' }}
-          # GitHub 发布配置
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm -F @ant-chat/desktop build:mac -- --publish never
 
       # 清理敏感文件
       - name: Cleanup sensitive files

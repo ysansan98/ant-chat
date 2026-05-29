@@ -32,3 +32,4 @@ allowBuilds:
   esbuild: true
   msw: true
   protobufjs: true
+  simple-git-hooks: true
