@@ -1,8 +1,8 @@
+import type { AppDataServices } from '@ant-chat/app-data'
 import type { CreateAssistantMessageInput, CreateConversationInput, CreateEventMessageInput, CreateToolMessageInput, CreateUserMessageInput, ISessionStore, UpdateAssistantMessageInput, UpdateConversationInput } from '@ant-chat/shared'
-import { getAppDataServices } from '@main/adapters/appDataContainer'
 
-export function createElectronSessionStore(): ISessionStore {
-  const { conversationService, messageService } = getAppDataServices()
+export function createAppDataSessionStore(appDataServices: AppDataServices): ISessionStore {
+  const { conversationService, messageService } = appDataServices
 
   return {
     async getConversation(id) {
@@ -52,7 +52,10 @@ export function createElectronSessionStore(): ISessionStore {
   }
 }
 
-async function getNullableConversation(conversationService: ReturnType<typeof getAppDataServices>['conversationService'], id: string) {
+async function getNullableConversation(
+  conversationService: AppDataServices['conversationService'],
+  id: string,
+) {
   try {
     return await conversationService.getById(id)
   }

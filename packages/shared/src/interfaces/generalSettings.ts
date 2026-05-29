@@ -5,7 +5,6 @@ import { AppSettingsSchema } from '../schemas/appSettings'
 export const GeneralSettingsSchema = AppSettingsSchema.pick({
   assistantModelId: true,
   proxySettings: true,
-  logBasePath: true,
 })
 
 export type GeneralSettingsState = z.infer<typeof GeneralSettingsSchema> & {

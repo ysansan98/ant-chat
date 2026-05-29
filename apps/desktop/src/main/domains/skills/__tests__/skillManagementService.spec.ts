@@ -14,9 +14,17 @@ describe('skillManagementService', () => {
   beforeEach(async () => {
     homeDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'ant-chat-skill-test-'))
     vi.resetModules()
-    vi.doMock('@main/utils/appPaths', () => ({
-      getAppDataRoot: () => path.join(homeDir, '.ant-chat'),
-    }))
+    vi.doMock('@main/agent/runtime/agentRuntimeEnvironment', async () => {
+      const { SkillFsReader } = await import('@ant-chat/agent-core')
+      const skillsRoot = path.join(homeDir, '.ant-chat', 'skills')
+
+      return {
+        getAgentRuntimeEnvironment: () => ({
+          paths: { skillsRoot },
+          skillManagementService: new SkillFsReader({ skillsRoot }),
+        }),
+      }
+    })
   })
 
   afterEach(async () => {

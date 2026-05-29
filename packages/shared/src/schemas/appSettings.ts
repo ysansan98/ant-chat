@@ -32,7 +32,6 @@ export const AppSettingsSchema = z.object({
     mode: z.enum(['none', 'system', 'custom']),
     customProxyUrl: z.string().optional(),
   }),
-  logBasePath: z.string().optional(),
   providers: z.array(ProviderSettingsSchema),
   toolApprovalWhitelist: z.array(ToolApprovalWhitelistEntrySchema).default([]),
 })

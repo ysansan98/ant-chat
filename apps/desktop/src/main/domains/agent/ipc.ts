@@ -1,6 +1,6 @@
 import type { AgentTurnResult, ApprovePendingActionOptions, CancelTaskOptions, IpcResponse, RejectPendingActionOptions, StartAgentTurnOptions } from '@ant-chat/shared'
 import { createErrorIpcResponse, createIpcResponse } from '@ant-chat/shared'
-import { getAppDataServices } from '@main/adapters/appDataContainer'
+import { getAgentRuntimeEnvironment } from '@main/agent/runtime/agentRuntimeEnvironment'
 import { agentRuntime, startAgentTurn } from '@main/agent/runtime/agentTurnService'
 import { IpcMethod, IpcService } from 'electron-ipc-decorator'
 
@@ -87,19 +87,7 @@ export class AgentIpcService extends IpcService {
     options: ApprovePendingActionOptions & { remember: boolean, workspacePath?: string },
   ): Promise<IpcResponse<null>> {
     try {
-      if (options.remember) {
-        const snapshot = agentRuntime.getTask(options.taskId)
-        const pending = snapshot.pendingAction
-        if (pending?.whitelistPattern) {
-          getAppDataServices().toolApprovalWhitelistRepository.add({
-            toolName: pending.toolName,
-            toolScope: pending.scope,
-            pattern: pending.whitelistPattern,
-            workspacePath: options.workspacePath,
-          })
-        }
-      }
-      agentRuntime.approvePendingAction(options)
+      getAgentRuntimeEnvironment().agentService.approvePendingActionWithWhitelist(options)
       return createIpcResponse(true, null)
     }
     catch (error) {

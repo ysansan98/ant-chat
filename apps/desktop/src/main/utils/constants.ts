@@ -1,20 +1,5 @@
-import process from 'node:process'
-
 /** app名称 */
 export const APP_NAME = 'ant-chat'
-
-/**
- * 数据库名称
- */
-const DB_NAME = process.env.NODE_ENV === 'development' ? 'ant-chat.dev.db' : 'ant-chat.db'
-
-/**
- * 数据库配置
- */
-export const DB_CONFIG = {
-  dbFileName: DB_NAME,
-  timeout: 30 * 1000,
-}
 
 /**
  * app升级 auto-update

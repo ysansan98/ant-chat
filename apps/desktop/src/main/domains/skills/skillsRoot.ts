@@ -1,6 +1,5 @@
-import path from 'node:path'
-import { getAppDataRoot } from '@main/utils/appPaths'
+import { getAgentRuntimeEnvironment } from '@main/agent/runtime/agentRuntimeEnvironment'
 
 export function getSkillsRoot(): string {
-  return path.join(getAppDataRoot(), 'skills')
+  return getAgentRuntimeEnvironment().paths.skillsRoot
 }

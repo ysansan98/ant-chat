@@ -2,28 +2,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { startAgentTurn } from '../agentTurnService'
 
 const mocks = vi.hoisted(() => ({
-  startTask: vi.fn(),
-  workspaceService: {
-    getCurrentWorkspacePath: vi.fn(() => '/workspace'),
-  },
+  startTurn: vi.fn(),
 }))
 
-vi.mock('@main/adapters/appDataContainer', () => ({
-  getAppDataServices: () => ({
-    workspaceService: mocks.workspaceService,
-  }),
-}))
-
-vi.mock('../desktopAgentRuntime', () => ({
-  createDesktopAgentRuntime: () => ({
-    startTask: mocks.startTask,
+vi.mock('../agentRuntimeEnvironment', () => ({
+  getAgentRuntimeEnvironment: () => ({
+    agentService: {
+      startTurn: mocks.startTurn,
+    },
+    runtime: {},
   }),
 }))
 
 describe('agentTurnService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.startTask.mockResolvedValue({
+    mocks.startTurn.mockResolvedValue({
       taskId: 't1',
       conversationId: 'c1',
       userMessageId: 'm1',
@@ -45,15 +39,16 @@ describe('agentTurnService', () => {
       },
     })
 
-    expect(mocks.startTask).toHaveBeenCalledWith({
+    expect(mocks.startTurn).toHaveBeenCalledWith({
       prompt: '  inspect project  ',
-      modelId: 'model-1',
-      workspacePath: '/workspace',
-      mode: 'hybrid',
-      chatSettings: {
+      modelConfig: {
+        modelId: 'model-1',
         systemPrompt: '',
         temperature: 0.7,
         maxTokens: 1024,
+        features: {
+          enableMCP: false,
+        },
       },
     })
     expect(result).toEqual(expect.objectContaining({
@@ -84,17 +79,12 @@ describe('agentTurnService', () => {
       },
     })
 
-    expect(mocks.startTask).toHaveBeenCalledWith(expect.objectContaining({
+    expect(mocks.startTurn).toHaveBeenCalledWith(expect.objectContaining({
       conversationId: 'c1',
       workspacePath: '/explicit-workspace',
       mode: 'strict',
       referencedFiles: ['src/main.ts'],
       selectedSkill: 'review',
-      chatSettings: {
-        systemPrompt: 'custom',
-        temperature: 0.2,
-        maxTokens: 2048,
-      },
     }))
   })
 })

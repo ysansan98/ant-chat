@@ -42,3 +42,5 @@ export function createAppDataServices(options: CreateAppDataServicesOptions) {
     }),
   }
 }
+
+export type AppDataServices = ReturnType<typeof createAppDataServices>

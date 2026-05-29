@@ -7,7 +7,6 @@ const DEFAULT_SETTINGS: GeneralSettingsState = {
     mode: 'none',
     customProxyUrl: '',
   },
-  logBasePath: '',
 }
 
 const schema = {
@@ -32,10 +31,6 @@ const schema = {
           },
         },
         required: ['mode'],
-      },
-      logBasePath: {
-        type: 'string' as const,
-        default: '',
       },
     },
     required: ['assistantModelId', 'proxySettings'],

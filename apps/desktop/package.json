@@ -43,6 +43,7 @@
   },
   "devDependencies": {
     "@ant-chat/agent-core": "workspace:*",
+    "@ant-chat/agent-runtime": "workspace:*",
     "@ant-chat/app-data": "workspace:*",
     "@ant-chat/shared": "workspace:*",
     "@copilotkit/aimock": "^1.16.4",

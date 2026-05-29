@@ -1,6 +1,3 @@
-import { SkillFsReader } from '@ant-chat/agent-core'
-import { getSkillsRoot } from './skillsRoot'
+import { getAgentRuntimeEnvironment } from '@main/agent/runtime/agentRuntimeEnvironment'
 
-export const skillManagementService = new SkillFsReader({
-  skillsRoot: getSkillsRoot(),
-})
+export const skillManagementService = getAgentRuntimeEnvironment().skillManagementService

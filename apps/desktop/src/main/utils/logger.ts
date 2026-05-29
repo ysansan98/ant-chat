@@ -9,7 +9,6 @@ log.transports.file.maxSize = 1024 * 1024 * 5 // 5MB
 log.transports.file.level = 'debug'
 log.transports.console.level = 'info'
 
-// 动态路径：每次写入时通过 LogPathManager 解析，支持运行时切换
 log.transports.file.resolvePathFn = () => logPathManager.getSystemLogPath()
 log.transports.file.format = '{y}-{m}-{d} {h}:{i}:{s} [{level}] {text}'
 

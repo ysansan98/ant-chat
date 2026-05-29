@@ -20,15 +20,3 @@ export function getAppDataRoot(): string {
     return path.join(process.cwd(), '.ant-chat')
   }
 }
-
-export function getRuntimeDataRoot(): string {
-  return path.join(getAppDataRoot(), 'agent')
-}
-
-export function getAgentTasksDir(): string {
-  return path.join(getRuntimeDataRoot(), 'tasks')
-}
-
-export function getAgentLogsDir(): string {
-  return path.join(getRuntimeDataRoot(), 'logs')
-}
