@@ -1,18 +1,15 @@
 import { z } from 'zod'
 import { ServiceProviderSchema } from './serviceProvider'
-import { ModelFeaturesSchema } from './serviceProviderModels'
-
-export const ProviderModelOverridesSchema = z.object({
-  name: z.string().optional(),
-  maxTokens: z.number().optional(),
-  contextLength: z.number().optional(),
-  modelFeatures: ModelFeaturesSchema.optional().nullable(),
-}).optional()
+import { ModelCapabilitiesSchema, ModelCostSchema } from './serviceProviderModels'
 
 export const ProviderModelSettingsSchema = z.object({
   isEnabled: z.boolean(),
   temperature: z.number().min(0).max(2).optional(),
-  overrides: ProviderModelOverridesSchema,
+  name: z.string().optional(),
+  maxTokens: z.number().optional(),
+  contextLength: z.number().optional(),
+  capabilities: ModelCapabilitiesSchema.optional().nullable(),
+  cost: ModelCostSchema,
 })
 
 export const ProviderSettingsSchema = ServiceProviderSchema.omit({
@@ -40,7 +37,6 @@ export const AppSettingsSchema = z.object({
   toolApprovalWhitelist: z.array(ToolApprovalWhitelistEntrySchema).default([]),
 })
 
-export type ProviderModelOverridesSchema = z.infer<typeof ProviderModelOverridesSchema>
 export type ProviderModelSettingsSchema = z.infer<typeof ProviderModelSettingsSchema>
 export type ProviderSettingsSchema = z.infer<typeof ProviderSettingsSchema>
 export type AppSettingsState = z.infer<typeof AppSettingsSchema>

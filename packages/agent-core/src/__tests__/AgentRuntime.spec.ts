@@ -18,7 +18,6 @@ function createMockEmitter(): IAgentEventEmitter {
     emitTurnChunk: vi.fn(),
     emitTurnToolCalls: vi.fn(),
     emitTurnFinished: vi.fn(),
-    emitCompactionSaved: vi.fn(),
   }
 }
 
@@ -87,7 +86,23 @@ function createSessionStore(overrides: Partial<ISessionStore> = {}): ISessionSto
       content: [],
       modelInfo: { provider: 'provider', providerId: 'provider-1', model: 'test-model' },
     })),
-    saveCompactionState: vi.fn(async () => {}),
+    createToolMessage: vi.fn(async data => ({
+      id: 'tool-msg-1',
+      convId: data.convId,
+      createdAt: Date.now(),
+      role: 'tool' as const,
+      status: data.status,
+      content: data.content,
+    })),
+    createEventMessage: vi.fn(async data => ({
+      id: 'event-msg-1',
+      convId: data.convId,
+      createdAt: Date.now(),
+      role: 'event' as const,
+      status: 'success' as const,
+      content: data.content,
+      eventType: data.eventType,
+    })),
     ...overrides,
   }
 }

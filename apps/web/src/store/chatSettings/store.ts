@@ -3,8 +3,6 @@ import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 
 interface ChatSettingsState {
-  /** 联网搜索 */
-  onlineSearch: boolean
   /** MCP */
   enableMCP: boolean
   /** Agent 权限模式 */
@@ -12,7 +10,6 @@ interface ChatSettingsState {
 }
 
 interface ChatSettingsActions {
-  setOnlineSearch: (onlineSearch: boolean) => void
   setEnableMCP: (enableMCP: boolean) => void
   setAgentMode: (agentMode: AgentMode) => void
 }
@@ -21,10 +18,8 @@ export const useChatSttingsStore = create<ChatSettingsState & ChatSettingsAction
   devtools(
     persist(
       set => ({
-        onlineSearch: false,
         enableMCP: false,
         agentMode: 'hybrid',
-        setOnlineSearch: onlineSearch => set({ onlineSearch }),
         setEnableMCP: enableMCP => set({ enableMCP }),
         setAgentMode: agentMode => set({ agentMode }),
       }),

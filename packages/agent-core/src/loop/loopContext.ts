@@ -1,18 +1,13 @@
 import type { IMessage, LoopMessage } from '@ant-chat/shared'
 
-const HISTORY_TOOL_CALLS_KEEP = 4
-
 export type NormalizeToolArgsResult
   = | { ok: true, input: Record<string, unknown> }
     | { ok: false, error: string }
 
-// 构建 agent 循环的系统提示词。消费者可通过 config.systemPrompt 自定义，
-// 使用 {workspacePath} 占位符注入工作区路径。
 export function createLoopSystemPrompt(workspacePath: string, customPrompt?: string): string {
   if (customPrompt) {
     return customPrompt.split('{workspacePath}').join(workspacePath)
   }
-  // 默认英文轻量提示
   return [
     'You are an AI assistant. Your goal is to complete the user\'s task, not to describe what you plan to do.',
     `Workspace path: ${workspacePath}`,
@@ -34,14 +29,16 @@ export function buildConversationContextMessages(
   lastCompactionSummary?: string,
 ): LoopMessage[] {
   const valid = messages
-    .filter((message): message is IMessage & { role: 'user' | 'assistant' } => {
+    .filter((message): message is IMessage & { role: 'user' | 'assistant' | 'tool' } => {
       if (message.id === currentUserMessageId)
         return false
-      if (message.role !== 'user' && message.role !== 'assistant')
+      if (message.role === 'event')
+        return false
+      if (message.role !== 'user' && message.role !== 'assistant' && message.role !== 'tool')
         return false
       if (lastCompactedAt && message.createdAt < lastCompactedAt)
         return false
-      if (message.role === 'user')
+      if (message.role === 'user' || message.role === 'tool')
         return true
       return message.status === 'success' || message.status === 'error' || message.status === 'cancel'
     })
@@ -53,7 +50,6 @@ export function buildConversationContextMessages(
       role: 'user',
       content: [{
         type: 'text',
-        // 将压缩摘要注入上下文，模型基于摘要继续任务
         text: [
           'Previous conversation history has been compressed into the following summary:',
           '<summary>',
@@ -66,51 +62,37 @@ export function buildConversationContextMessages(
   }
 
   for (const message of valid) {
-    const text = extractMessageText(message)
-
-    if (message.role === 'user') {
-      result.push({ role: 'user', content: [{ type: 'text', text }] })
-      continue
-    }
-
     const content: LoopMessage['content'] = []
-    if (text) {
-      content.push({ type: 'text', text })
-    }
-
-    const completedTools = (message.toolCalls || [])
-      .filter(tool => tool.executeState === 'completed')
-      .slice(-HISTORY_TOOL_CALLS_KEEP)
-
-    for (const tool of completedTools) {
-      content.push({
-        type: 'tool-call',
-        toolCallId: tool.id,
-        toolName: tool.toolName,
-        args: tool.args,
-      })
-    }
-
-    result.push({ role: 'assistant', content })
-
-    for (const tool of completedTools) {
-      if (!tool.result) {
-        continue
+    for (const block of message.content) {
+      if (block.type === 'text') {
+        content.push(block)
       }
-      const toolData = tool.result.success
-        ? (tool.result.data || '')
-        : (tool.result.error || '')
-      result.push({
-        role: 'tool',
-        content: [{
+      else if (block.type === 'tool-call' && message.role === 'assistant') {
+        content.push({
+          type: 'tool-call',
+          toolCallId: block.toolCallId,
+          toolName: block.toolName,
+          args: block.args,
+        })
+      }
+      else if (block.type === 'tool-result' && message.role === 'tool') {
+        content.push({
           type: 'tool-result',
-          toolCallId: tool.id,
-          toolName: tool.toolName,
-          result: toolData,
-          isError: !tool.result.success,
-        }],
-      })
+          toolCallId: block.toolCallId,
+          toolName: block.toolName,
+          result: block.result,
+          isError: block.isError,
+        })
+      }
     }
+
+    if (content.length === 0)
+      continue
+
+    result.push({
+      role: message.role as LoopMessage['role'],
+      content,
+    })
   }
 
   return result
@@ -133,18 +115,4 @@ export function normalizeToolArgs(args: unknown): NormalizeToolArgsResult {
     }
   }
   return { ok: false, error: 'args must be an object or a JSON object string' }
-}
-
-function extractMessageText(message: IMessage): string {
-  return (message.content || [])
-    .map((item) => {
-      if (item.type === 'text')
-        return item.text
-      if (item.type === 'error')
-        return `[error] ${item.error}`
-      return ''
-    })
-    .filter(Boolean)
-    .join('\n')
-    .trim()
 }

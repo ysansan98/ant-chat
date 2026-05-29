@@ -1,10 +1,25 @@
 import { z } from 'zod'
 import { ServiceProviderSchema } from './serviceProvider'
 
-export const ModelFeaturesSchema = z.object({
+export const ModelCostSchema = z.object({
+  input: z.number(),
+  output: z.number(),
+  cacheRead: z.number().optional(),
+  cacheWrite: z.number().optional(),
+}).optional()
+
+export type ModelCostSchema = z.infer<typeof ModelCostSchema>
+
+const InputModalitiesSchema = z.array(z.enum(['text', 'image', 'pdf', 'video', 'audio']))
+const OutputModalitiesSchema = z.array(z.enum(['text', 'image']))
+
+export const ModelCapabilitiesSchema = z.object({
   functionCall: z.boolean().optional(),
   reasoning: z.boolean().optional(),
-  vision: z.boolean().optional(),
+  supportsTemperature: z.boolean().optional(),
+  structuredOutput: z.boolean().optional(),
+  inputModalities: InputModalitiesSchema.optional(),
+  outputModalities: OutputModalitiesSchema.optional(),
 })
 
 export const ServiceProviderModelsSchema = z.object({
@@ -16,13 +31,14 @@ export const ServiceProviderModelsSchema = z.object({
   maxTokens: z.number(),
   contextLength: z.number(),
   temperature: z.number().min(0).max(2),
-  modelFeatures: ModelFeaturesSchema.optional().nullable(),
+  capabilities: ModelCapabilitiesSchema.optional().nullable(),
+  cost: ModelCostSchema,
   serviceProviderId: z.string(),
   createdAt: z.number(),
 })
 
 export const AllAvailableModels = ServiceProviderSchema.omit({ isEnabled: true, createdAt: true, updatedAt: true }).extend({
-  models: z.array(ServiceProviderModelsSchema.pick({ id: true, name: true, model: true, modelFeatures: true, serviceProviderId: true, maxTokens: true, contextLength: true, temperature: true })),
+  models: z.array(ServiceProviderModelsSchema.pick({ id: true, name: true, model: true, capabilities: true, serviceProviderId: true, maxTokens: true, contextLength: true, temperature: true, cost: true })),
 })
 
 export const AddServiceProviderModelSchema = ServiceProviderModelsSchema.omit({
@@ -35,7 +51,7 @@ export const AddServiceProviderModelSchema = ServiceProviderModelsSchema.omit({
 // ============================ Schema 转换类型 ============================
 export type AddServiceProviderModelSchema = z.infer<typeof AddServiceProviderModelSchema>
 
-export type ModelFeaturesSchema = z.infer<typeof ModelFeaturesSchema>
+export type ModelCapabilitiesSchema = z.infer<typeof ModelCapabilitiesSchema>
 
 export type AllAvailableModelsSchema = z.infer<typeof AllAvailableModels>
 

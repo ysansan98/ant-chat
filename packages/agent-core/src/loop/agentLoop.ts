@@ -1,4 +1,4 @@
-import type { AgentRuntimeConfig, AgentTaskSnapshot, LoopMessage, McpToolCall } from '@ant-chat/shared'
+import type { AgentRuntimeConfig, AgentTaskSnapshot, LoopMessage, McpToolCall, ToolResultContent } from '@ant-chat/shared'
 import type { RuntimeStartInput } from '../session/types'
 import type { BeforeToolExecuteHook, ToolCallContext } from '../tools/types'
 import { AgentError } from '../AgentError'
@@ -57,6 +57,12 @@ export async function runAgentLoop(input: {
       if (onBeforeTurn) {
         const result = await onBeforeTurn({ messages: loopMessages, step })
         loopMessages = result.messages
+      }
+
+      // === Steering: 检查是否有运行中追加的用户输入 ===
+      const steeringInputs = taskStore.dequeueSteeringInputs(taskId)
+      for (const input of steeringInputs) {
+        loopMessages.push({ role: 'user', content: [{ type: 'text', text: input.text }] })
       }
 
       const chatSettings = {
@@ -186,18 +192,25 @@ export async function runAgentLoop(input: {
       }
       loopMessages.push({ role: 'assistant', content: assistantContent })
 
+      const toolResults: ToolResultContent[] = []
       for (const outcome of outcomes) {
+        const toolResult: ToolResultContent = {
+          type: 'tool-result',
+          toolCallId: outcome.toolCallId,
+          toolName: outcome.toolName,
+          result: outcome.toolResultContent,
+          isError: outcome.isError,
+        }
+        toolResults.push(toolResult)
         loopMessages.push({
           role: 'tool',
-          content: [{
-            type: 'tool-result',
-            toolCallId: outcome.toolCallId,
-            toolName: outcome.toolName,
-            result: outcome.toolResultContent,
-            isError: outcome.isError,
-          }],
+          content: [toolResult],
         })
       }
+      await config.eventEmitter.emitTurnToolResults?.({
+        conversationId: options.conversationId,
+        results: toolResults,
+      })
     }
 
     task.snapshot.status = 'success'

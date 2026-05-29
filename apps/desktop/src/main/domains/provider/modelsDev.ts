@@ -7,8 +7,9 @@ interface ModelsDevModelEntry {
   name?: string
   tool_call?: boolean
   reasoning?: boolean
-  modalities?: { input?: string[] }
+  modalities?: { input?: string[], output?: string[] }
   limit?: { context?: number, output?: number }
+  cost?: { input: number, output: number, cache_read?: number, cache_write?: number }
 }
 
 interface ModelsDevProviderEntry {
@@ -54,9 +55,20 @@ function createModel(model: Record<string, any>, providerId: string): ModelsDevM
   const maxTokens = typeof limit.output === 'number' ? limit.output : undefined
   const toolCall = Boolean(model.tool_call)
   const reasoning = Boolean(model.reasoning)
+  const supportsTemperature = Boolean(model.temperature)
+  const structuredOutput = Boolean(model.structured_output)
   const modalities = model.modalities || {}
   const modalitiesInput = Array.isArray(modalities.input) ? modalities.input : []
-  const vision = modalitiesInput.includes('image')
+  const modalitiesOutput = Array.isArray(modalities.output) ? modalities.output : []
+  const rawCost = model.cost || {}
+  const cost = typeof rawCost.input === 'number' && typeof rawCost.output === 'number'
+    ? {
+        input: rawCost.input,
+        output: rawCost.output,
+        cacheRead: typeof rawCost.cache_read === 'number' ? rawCost.cache_read : undefined,
+        cacheWrite: typeof rawCost.cache_write === 'number' ? rawCost.cache_write : undefined,
+      }
+    : undefined
 
   return {
     id: rawId,
@@ -67,7 +79,13 @@ function createModel(model: Record<string, any>, providerId: string): ModelsDevM
     maxTokens,
     toolCall,
     reasoning,
-    vision,
+    supportsTemperature,
+    structuredOutput,
+    modalities: {
+      input: modalitiesInput,
+      output: modalitiesOutput,
+    },
+    cost,
   }
 }
 

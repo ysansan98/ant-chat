@@ -1,7 +1,6 @@
 import type { IMessage } from '@ant-chat/shared'
 import { Button } from '@workspace/ui/components/button'
 import { ArrowDownIcon } from 'lucide-react'
-import { Role } from '@/constants'
 import { useAutoScroll } from '@/hooks/useAutoScroll'
 import { useMessageActions } from '@/hooks/useMessageActions'
 import { usePagination } from '@/hooks/usePagination'
@@ -16,7 +15,6 @@ interface Props {
 }
 
 function BubbleList({ messages, conversationsId, isAgentRunning }: Props) {
-  // 自动滚动逻辑
   const {
     autoScrollToBottom,
     infiniteScrollRef,
@@ -24,14 +22,12 @@ function BubbleList({ messages, conversationsId, isAgentRunning }: Props) {
     scrollToBottom,
   } = useAutoScroll()
 
-  // 分页逻辑
   const {
     isLoading,
     messageTotal,
     handleLoadMore,
   } = usePagination(conversationsId)
 
-  // 消息操作逻辑
   const { copyMessage } = useMessageActions()
 
   const hasMore = messages.length < messageTotal
@@ -85,15 +81,20 @@ export default BubbleList
 function groupMessages(messages: IMessage[]): IMessage[][] {
   return messages.reduce<IMessage[][]>((groups, message) => {
     const lastGroup = groups.at(-1)
-    const canMergeWithPrevious = message.role === Role.AI && lastGroup?.at(-1)?.role === Role.AI
 
-    if (canMergeWithPrevious && lastGroup) {
+    // Primary: group by turnId
+    if (message.turnId && lastGroup?.at(-1)?.turnId === message.turnId) {
       lastGroup.push(message)
-    }
-    else {
-      groups.push([message])
+      return groups
     }
 
+    // Fallback: group consecutive non-user messages
+    if (message.role !== 'user' && lastGroup?.at(-1)?.role !== 'user') {
+      lastGroup?.push(message)
+      return groups
+    }
+
+    groups.push([message])
     return groups
   }, [])
 }

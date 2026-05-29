@@ -35,7 +35,6 @@ function createMockEmitter(): IAgentEventEmitter {
     emitTurnChunk: vi.fn(),
     emitTurnToolCalls: vi.fn(),
     emitTurnFinished: vi.fn(),
-    emitCompactionSaved: vi.fn(),
   }
 }
 
@@ -75,6 +74,7 @@ function createTask(taskId = 'task-loop-1', conversationId = 'conv-loop-1') {
       logPath: '',
     },
     abortController: new AbortController(),
+    steeringQueue: [],
     pendingResolver: undefined as ((v: { approved: boolean, reason?: string }) => void) | undefined,
   }
 }

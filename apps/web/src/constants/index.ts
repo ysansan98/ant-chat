@@ -1,9 +1,10 @@
 import type { IConversations, IMessage } from '@ant-chat/shared'
 
 export enum Role {
-  SYSTEM = 'system',
   USER = 'user',
   AI = 'assistant',
+  TOOL = 'tool',
+  EVENT = 'event',
 }
 
 export const DEFAULT_TITLE = 'Untitled'

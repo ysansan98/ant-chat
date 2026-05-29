@@ -20,6 +20,7 @@ import {
   createLoopSystemPrompt,
 } from '../loop/loopContext'
 import { clientHub } from '../mcp/clientHub'
+import { taskStore } from '../taskStore'
 import { ToolRegistry } from '../tools/toolRegistry'
 import { buildPromptWithTurnContext } from './turnContext'
 
@@ -80,6 +81,7 @@ export class SessionRuntime {
       content: [{ type: 'text', text: prompt }],
       images: options.images ?? [],
       attachments: options.attachments ?? [],
+      turnId: undefined,
     })
 
     const model = await modelCatalog.getModelById(options.modelId)
@@ -124,17 +126,19 @@ export class SessionRuntime {
     const apiMode = provider.apiMode || 'openai'
     const compactionSettings: CompactionSettingsSchema = currentConversation?.settings?.compaction ?? DEFAULT_COMPACTION_SETTINGS
 
-    const eventEmitter = createStoreBackedEventEmitter(store, this.config.eventEmitter)
+    const turnId = userMessage.id
+    const eventEmitter = createStoreBackedEventEmitter(store, this.config.eventEmitter, turnId)
+
     const onBeforeTurn = createCompactionGate({
       settings: compactionSettings,
       aiProvider,
       modelName: model.model,
       apiMode,
       summarize: (this.config.compactionStrategy ?? createCompactionStrategy()).summarize,
-      eventEmitter,
       logger: getAgentLogger(this.config),
       conversationId: conversation.id,
       userMessageId: userMessage.id,
+      store,
     })
 
     const taskLogger = this.config.createTaskLogger?.(conversation.id, userMessage.id)
@@ -169,6 +173,30 @@ export class SessionRuntime {
       conversation,
     }
   }
+
+  async injectSteering(conversationId: string, text: string): Promise<void> {
+    const store = requireSessionStore(this.config)
+    const activeTasks = this.listActiveTasks(conversationId) as Array<{ taskId: string, userMessageId: string }>
+    if (activeTasks.length === 0)
+      return
+
+    const task = activeTasks[0]
+    const turnId = task.userMessageId
+
+    // Create steering message with same turnId
+    await store.createUserMessage({
+      convId: conversationId,
+      role: 'user',
+      status: 'success',
+      content: [{ type: 'text', text }],
+      images: [],
+      attachments: [],
+      turnId,
+    })
+
+    // Enqueue for the agent loop
+    taskStore.enqueueSteeringInput(task.taskId, { text, turnId })
+  }
 }
 
 function requireSessionStore(config: AgentRuntimeConfig): ISessionStore {
@@ -190,16 +218,30 @@ async function getExistingConversation(store: ISessionStore, id: string) {
   return conversation
 }
 
-function createStoreBackedEventEmitter(store: ISessionStore, delegate: IAgentEventEmitter): IAgentEventEmitter {
-  const turns = new Map<string, {
-    msgId: string
-    modelText: string
-    reasoningText: string
-    latestUsage: Record<string, number> | undefined
-    lastUpdateAt: number
-  }>()
+interface TurnMeta {
+  msgId: string
+  modelText: string
+  reasoningText: string
+  latestUsage: Record<string, number> | undefined
+  lastUpdateAt: number
+  persistedToolCallIds: Set<string>
+}
 
-  async function flushTurn(meta: NonNullable<ReturnType<typeof turns.get>>) {
+function createStoreBackedEventEmitter(store: ISessionStore, delegate: IAgentEventEmitter, turnId: string): IAgentEventEmitter {
+  const turns = new Map<string, TurnMeta>()
+
+  function newTurnMeta(msgId: string): TurnMeta {
+    return {
+      msgId,
+      modelText: '',
+      reasoningText: '',
+      latestUsage: undefined,
+      lastUpdateAt: 0,
+      persistedToolCallIds: new Set(),
+    }
+  }
+
+  async function flushTurn(meta: TurnMeta) {
     const message = await store.updateAssistantMessage(meta.msgId, {
       role: 'assistant',
       status: 'loading',
@@ -225,15 +267,10 @@ function createStoreBackedEventEmitter(store: ISessionStore, delegate: IAgentEve
           providerId: params.model.providerId,
           model: params.model.name,
         },
+        turnId,
       })
       await delegate.emitMessageUpdated?.(msg)
-      turns.set(params.conversationId, {
-        msgId: msg.id,
-        modelText: '',
-        reasoningText: '',
-        latestUsage: undefined,
-        lastUpdateAt: 0,
-      })
+      turns.set(params.conversationId, newTurnMeta(msg.id))
       await delegate.emitTurnStarted(params)
     },
     async emitTurnChunk(params) {
@@ -258,17 +295,46 @@ function createStoreBackedEventEmitter(store: ISessionStore, delegate: IAgentEve
     },
     async emitTurnToolCalls(params) {
       const meta = turns.get(params.conversationId)
-      if (meta) {
-        meta.modelText = params.text
-        const message = await store.updateAssistantMessage(meta.msgId, {
-          role: 'assistant',
-          status: 'success',
-          content: [{ type: 'text', text: params.text }],
-          toolCalls: [...params.toolCalls],
-        })
-        await delegate.emitMessageUpdated?.(message)
+      if (!meta) {
+        await delegate.emitTurnToolCalls(params)
+        return
       }
+
+      meta.modelText = params.text
+
+      // Build content blocks: text + existing tool-call blocks + new tool-call blocks
+      const contentBlocks: Array<Record<string, unknown>> = []
+      if (params.text) {
+        contentBlocks.push({ type: 'text', text: params.text })
+      }
+
+      for (const tc of params.toolCalls) {
+        if (!meta.persistedToolCallIds.has(tc.toolCallId)) {
+          meta.persistedToolCallIds.add(tc.toolCallId)
+        }
+        contentBlocks.push(tc)
+      }
+
+      const message = await store.updateAssistantMessage(meta.msgId, {
+        role: 'assistant',
+        status: 'success',
+        content: contentBlocks as any,
+      })
+      await delegate.emitMessageUpdated?.(message)
       await delegate.emitTurnToolCalls(params)
+    },
+    async emitTurnToolResults(params) {
+      for (const result of params.results) {
+        const msg = await store.createToolMessage({
+          convId: params.conversationId,
+          role: 'tool',
+          status: result.isError ? 'error' : 'success',
+          content: [result],
+          turnId,
+        })
+        await delegate.emitMessageUpdated?.(msg)
+      }
+      await delegate.emitTurnToolResults?.(params)
     },
     async emitTurnFinished(params) {
       const meta = turns.get(params.conversationId)
@@ -280,16 +346,11 @@ function createStoreBackedEventEmitter(store: ISessionStore, delegate: IAgentEve
           content: params.status === 'error'
             ? [{ type: 'error', error: params.text }]
             : [{ type: 'text', text: params.text }],
-          toolCalls: undefined,
         })
         await delegate.emitMessageUpdated?.(message)
         turns.delete(params.conversationId)
       }
       await delegate.emitTurnFinished(params)
-    },
-    async emitCompactionSaved(params) {
-      await store.saveCompactionState(params)
-      await delegate.emitCompactionSaved(params)
     },
   }
 }

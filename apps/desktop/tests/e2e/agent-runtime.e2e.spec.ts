@@ -104,7 +104,6 @@ function createMockEmitter(): IAgentEventEmitter {
     emitTurnChunk: vi.fn(),
     emitTurnToolCalls: vi.fn(),
     emitTurnFinished: vi.fn(),
-    emitCompactionSaved: vi.fn(),
   }
 }
 

@@ -18,6 +18,7 @@ function createTask(overrides: Partial<RuntimeTask['snapshot']> = {}): RuntimeTa
       ...overrides,
     },
     abortController: new AbortController(),
+    steeringQueue: [],
   }
 }
 

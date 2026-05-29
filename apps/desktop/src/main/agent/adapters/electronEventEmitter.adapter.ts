@@ -23,7 +23,7 @@ export function createElectronEventEmitter(): IAgentEventEmitter {
     emitTurnStarted() {},
     emitTurnChunk() {},
     emitTurnToolCalls() {},
+    emitTurnToolResults() {},
     emitTurnFinished() {},
-    emitCompactionSaved() {},
   }
 }

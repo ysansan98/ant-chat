@@ -42,6 +42,7 @@ export interface AppTransport {
     approvePendingAction: (options: ApprovePendingActionOptions) => Promise<null>
     rejectPendingAction: (options: RejectPendingActionOptions) => Promise<null>
     cancelTask: (taskId: string) => Promise<null>
+    injectSteering: (params: { conversationId: string, text: string }) => Promise<null>
     listActiveTasks: (conversationId?: string) => Promise<AgentTaskSnapshot[]>
     approvePendingActionWithWhitelist: (options: ApprovePendingActionOptions & { remember: boolean, workspacePath?: string }) => Promise<null>
   }

@@ -4,7 +4,6 @@ import type {
   IConversations,
   IMessage,
   LanguageModelUsage,
-  McpToolCall,
   MessageContent,
   ModelInfo,
 } from '@ant-chat/shared'
@@ -12,7 +11,6 @@ import {
   AttachmentSchema as AttachmentInput,
   ConversationsSettingsSchema as ConversationSettingsInput,
   LanguageModelUsageSchema,
-  McpToolCallSchema,
   MessageContentSchema,
   ModelInfoSchema,
 } from '@ant-chat/shared'
@@ -30,20 +28,20 @@ export interface ConversationRow {
 export interface MessageRow {
   id: string
   conv_id: string
-  role: 'system' | 'user' | 'assistant'
+  role: string
   content: string
   created_at: number
-  status: 'success' | 'error' | 'loading' | 'typing' | 'cancel'
+  status: string
   images: string | null
   attachments: string | null
   reasoning_content: string | null
-  tool_calls: string | null
   model_info: string | null
   usage: string | null
+  turn_id: string | null
+  event_type: string | null
 }
 
 const AttachmentListInput = z.array(AttachmentInput)
-const ToolCallListInput = z.array(McpToolCallSchema)
 
 export function mapConversationRow(row: ConversationRow): IConversations {
   return {
@@ -60,16 +58,17 @@ export function mapMessageRow(row: MessageRow): IMessage {
   return {
     id: row.id,
     convId: row.conv_id,
-    role: row.role,
+    role: row.role as IMessage['role'],
     content: parseMessageContent(row.content),
     createdAt: row.created_at,
-    status: row.status,
+    status: row.status as IMessage['status'],
     images: parseAttachmentList(row.images ?? '[]'),
     attachments: parseAttachmentList(row.attachments ?? '[]'),
     reasoningContent: row.reasoning_content ?? undefined,
-    toolCalls: parseNullableToolCalls(row.tool_calls),
     modelInfo: parseNullableModelInfo(row.model_info),
     usage: parseNullableUsage(row.usage),
+    turnId: row.turn_id ?? undefined,
+    eventType: row.event_type ?? undefined,
   }
 }
 
@@ -87,13 +86,6 @@ export function parseMessageContent(value: string): MessageContent {
 
 function parseAttachmentList(value: string): AttachmentSchema[] {
   return AttachmentListInput.parse(JSON.parse(value))
-}
-
-function parseNullableToolCalls(value: string | null): McpToolCall[] | undefined {
-  if (value === null)
-    return undefined
-
-  return ToolCallListInput.parse(JSON.parse(value))
 }
 
 function parseNullableModelInfo(value: string | null): ModelInfo | undefined {

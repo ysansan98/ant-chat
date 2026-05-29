@@ -8,6 +8,14 @@ import React from 'react'
 
 type AddModelForm = Omit<AddServiceProviderModelSchema, 'providerServiceId'>
 
+const INPUT_MODALITY_OPTIONS = [
+  { value: 'text', label: '文本' },
+  { value: 'image', label: '图片' },
+  { value: 'pdf', label: 'PDF' },
+  { value: 'video', label: '视频' },
+  { value: 'audio', label: '音频' },
+] as const
+
 interface AddModelFormModalProps {
   open: boolean
   title: string
@@ -24,7 +32,7 @@ export function AddModelFormModal({ open, title, onCancel, onSave }: AddModelFor
   const [contextLength, setContextLength] = React.useState<number | undefined>()
   const [functionCall, setFunctionCall] = React.useState(false)
   const [reasoning, setReasoning] = React.useState(false)
-  const [vision, setVision] = React.useState(false)
+  const [inputModalities, setInputModalities] = React.useState<Set<string>>(new Set(['text']))
 
   const handleClose = () => {
     onCancel?.()
@@ -38,8 +46,24 @@ export function AddModelFormModal({ open, title, onCancel, onSave }: AddModelFor
     setContextLength(undefined)
     setFunctionCall(false)
     setReasoning(false)
-    setVision(false)
+    setInputModalities(new Set(['text']))
   }
+
+  const toggleModality = (modality: string, checked: boolean) => {
+    setInputModalities((prev) => {
+      const next = new Set(prev)
+      if (checked) {
+        next.add(modality)
+      }
+      else {
+        next.delete(modality)
+      }
+      return next
+    })
+  }
+
+  const hasInputModalities = inputModalities.size > 0
+  const hasFeatures = functionCall || reasoning || hasInputModalities
 
   const handleSave = () => {
     onSave?.({
@@ -48,11 +72,13 @@ export function AddModelFormModal({ open, title, onCancel, onSave }: AddModelFor
       temperature,
       maxTokens: maxTokens || 4000,
       contextLength: contextLength || 4000,
-      modelFeatures: {
-        functionCall,
-        reasoning,
-        vision,
-      },
+      capabilities: hasFeatures
+        ? {
+            functionCall: functionCall || undefined,
+            reasoning: reasoning || undefined,
+            inputModalities: hasInputModalities ? Array.from(inputModalities) as ('text' | 'image' | 'pdf' | 'video' | 'audio')[] : undefined,
+          }
+        : undefined,
     } as AddModelForm)
     resetFields()
   }
@@ -114,9 +140,19 @@ export function AddModelFormModal({ open, title, onCancel, onSave }: AddModelFor
             <label htmlFor="model-reasoning" className="text-sm font-medium">推理</label>
             <Switch id="model-reasoning" checked={reasoning} onCheckedChange={setReasoning} />
           </div>
-          <div className="flex items-center justify-between">
-            <label htmlFor="model-vision" className="text-sm font-medium">视觉</label>
-            <Switch id="model-vision" checked={vision} onCheckedChange={setVision} />
+          <div className="flex flex-col gap-2">
+            <span className="text-sm font-medium">支持输入类型</span>
+            <div className="flex flex-col gap-2">
+              {INPUT_MODALITY_OPTIONS.map(opt => (
+                <div key={opt.value} className="flex items-center justify-between">
+                  <span className="text-sm">{opt.label}</span>
+                  <Switch
+                    checked={inputModalities.has(opt.value)}
+                    onCheckedChange={checked => toggleModality(opt.value, checked)}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={handleClose}>取消</Button>

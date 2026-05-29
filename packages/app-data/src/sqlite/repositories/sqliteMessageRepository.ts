@@ -16,9 +16,10 @@ const MESSAGE_COLUMNS = `
   images,
   attachments,
   reasoning_content,
-  tool_calls,
   model_info,
-  usage
+  usage,
+  turn_id,
+  event_type
 `
 
 export class SqliteMessageRepository implements MessageRepository {
@@ -86,11 +87,12 @@ export class SqliteMessageRepository implements MessageRepository {
         images,
         attachments,
         reasoning_content,
-        tool_calls,
         model_info,
-        usage
+        usage,
+        turn_id,
+        event_type
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       RETURNING ${MESSAGE_COLUMNS}
     `).get(
       id,
@@ -102,9 +104,10 @@ export class SqliteMessageRepository implements MessageRepository {
       'images' in message ? stringifyJson(message.images) : stringifyJson([]),
       'attachments' in message ? stringifyJson(message.attachments) : stringifyJson([]),
       'reasoningContent' in message ? message.reasoningContent ?? null : null,
-      'toolCalls' in message ? stringifyNullableJson(message.toolCalls) : null,
       'modelInfo' in message ? stringifyNullableJson(message.modelInfo) : null,
       'usage' in message ? stringifyNullableJson(message.usage) : null,
+      'turnId' in message ? message.turnId ?? null : null,
+      'eventType' in message ? message.eventType ?? null : null,
     )
 
     if (!result) {
@@ -114,7 +117,7 @@ export class SqliteMessageRepository implements MessageRepository {
     return mapMessageRow(result)
   }
 
-  async createAssistant(conversationId: string, modelInfo: AIMessage['modelInfo']): Promise<IMessage> {
+  async createAssistant(conversationId: string, modelInfo: AIMessage['modelInfo'], turnId?: string): Promise<IMessage> {
     return this.create({
       convId: conversationId,
       content: [],
@@ -122,7 +125,8 @@ export class SqliteMessageRepository implements MessageRepository {
       status: 'loading',
       modelInfo,
       reasoningContent: '',
-    })
+      turnId,
+    } as Extract<AddMessage, { role: 'assistant' }>)
   }
 
   async update(message: UpdateMessageSchema): Promise<IMessage> {
@@ -157,10 +161,6 @@ export class SqliteMessageRepository implements MessageRepository {
       fields.push('reasoning_content = ?')
       params.push(message.reasoningContent)
     }
-    if (message.toolCalls !== undefined) {
-      fields.push('tool_calls = ?')
-      params.push(stringifyNullableJson(message.toolCalls))
-    }
     if (message.modelInfo !== undefined) {
       fields.push('model_info = ?')
       params.push(stringifyNullableJson(message.modelInfo))
@@ -168,6 +168,14 @@ export class SqliteMessageRepository implements MessageRepository {
     if (message.usage !== undefined) {
       fields.push('usage = ?')
       params.push(stringifyNullableJson(message.usage))
+    }
+    if (message.turnId !== undefined) {
+      fields.push('turn_id = ?')
+      params.push(message.turnId)
+    }
+    if (message.eventType !== undefined) {
+      fields.push('event_type = ?')
+      params.push(message.eventType)
     }
 
     if (fields.length === 0) {

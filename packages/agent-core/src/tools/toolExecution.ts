@@ -1,4 +1,4 @@
-import type { AgentRuntimeConfig, McpToolCall } from '@ant-chat/shared'
+import type { AgentRuntimeConfig, McpToolCall, ToolCallContent } from '@ant-chat/shared'
 import type { RuntimeTask } from '../taskStore'
 import type { PreparedToolCall, ToolRegistry } from './toolRegistry'
 import type { BeforeToolExecuteHook, ToolCallContext } from './types'
@@ -262,6 +262,16 @@ function registerPendingToolCall(
   return call
 }
 
+function toToolCallContent(tool: McpToolCall): ToolCallContent {
+  return {
+    type: 'tool-call',
+    toolCallId: tool.id,
+    toolName: tool.toolName,
+    args: tool.args,
+    serverName: tool.serverName,
+  }
+}
+
 async function emitTurnToolCalls(
   config: AgentRuntimeConfig,
   conversationId: string,
@@ -271,7 +281,7 @@ async function emitTurnToolCalls(
   await config.eventEmitter.emitTurnToolCalls({
     conversationId,
     text,
-    toolCalls: [...toolMessages],
+    toolCalls: toolMessages.map(toToolCallContent),
   })
 }
 
@@ -334,7 +344,7 @@ export async function createInvalidToolArgsResult(options: {
   await config.eventEmitter.emitTurnToolCalls({
     conversationId,
     text: currentModelText || 'Tool argument error, waiting for model to correct.',
-    toolCalls: [...currentToolMessages],
+    toolCalls: currentToolMessages.map(toToolCallContent),
   })
   return {
     lastToolCallContext: {

@@ -15,6 +15,7 @@ export interface LocalServerServices {
     approvePendingAction?: (options: unknown) => Promise<null> | null
     rejectPendingAction?: (options: unknown) => Promise<null> | null
     cancelTask?: (taskId: string) => Promise<null> | null
+    injectSteering?: (params: { conversationId: string, text: string }) => Promise<null>
     listActiveTasks: (conversationId?: string) => Promise<unknown[]> | unknown[]
     approvePendingActionWithWhitelist?: (options: unknown) => Promise<null> | null
   }
@@ -167,6 +168,12 @@ async function dispatchRpc(body: unknown, services: LocalServerServices): Promis
       return requireAgentMethod(services, 'approvePendingActionWithWhitelist')(params.options)
     case 'agent.cancelTask':
       return requireCancelTask(services)(stringParam(params.taskId))
+    case 'agent.injectSteering': {
+      const fn = services.agentService?.injectSteering
+      if (!fn)
+        throw new Error('Agent method is not available in local web transport: injectSteering')
+      return fn(params as { conversationId: string, text: string })
+    }
     case 'agent.listActiveTasks':
       return services.agentService?.listActiveTasks(optionalStringParam(params.conversationId)) ?? []
     default:

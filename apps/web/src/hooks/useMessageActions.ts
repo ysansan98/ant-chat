@@ -16,6 +16,12 @@ export function useMessageActions() {
       else if (b.type === 'error') {
         data.text += `> [!CAUTION]\n> ${b.error}`
       }
+      else if (b.type === 'tool-call') {
+        data.text += `[Tool: ${b.toolName}]`
+      }
+      else if (b.type === 'tool-result') {
+        data.text += `[Result: ${b.toolName}]`
+      }
       else {
         data.text += `${b.text}`
       }

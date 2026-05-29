@@ -1,9 +1,15 @@
 import type { AgentTaskSnapshot } from '@ant-chat/shared'
 
+export interface SteeringInput {
+  text: string
+  turnId: string
+}
+
 export interface RuntimeTask {
   snapshot: AgentTaskSnapshot
   abortController: AbortController
   pendingResolver?: (value: { approved: boolean, reason?: string }) => void
+  steeringQueue: SteeringInput[]
 }
 
 export class TaskStore {
@@ -27,6 +33,22 @@ export class TaskStore {
       .map(item => item.snapshot)
       .filter(item => ['running', 'awaiting_approval'].includes(item.status))
       .filter(item => !conversationId || item.conversationId === conversationId)
+  }
+
+  enqueueSteeringInput(taskId: string, input: SteeringInput) {
+    const task = this.tasks.get(taskId)
+    if (!task)
+      return
+    task.steeringQueue.push(input)
+  }
+
+  dequeueSteeringInputs(taskId: string): SteeringInput[] {
+    const task = this.tasks.get(taskId)
+    if (!task || task.steeringQueue.length === 0)
+      return []
+    const inputs = [...task.steeringQueue]
+    task.steeringQueue = []
+    return inputs
   }
 
   finish(taskId: string) {

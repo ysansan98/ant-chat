@@ -1,4 +1,4 @@
-import type { AddConversationsSchema, AddMessage, McpToolCall, ModelInfo, ServiceProviderSchema, UpdateConversationsSchema, UpdateMessageSchema } from '../schemas'
+import type { AddConversationsSchema, AddMessage, ModelInfo, ServiceProviderSchema, ToolCallContent, ToolResultContent, UpdateConversationsSchema, UpdateMessageSchema } from '../schemas'
 import type { AgentMode, AgentPendingAction, AgentTaskSnapshot, ToolApprovalWhitelistEntry } from './agent-runtime'
 import type { AgentTool } from './agent-tools'
 import type { IAttachment, IConversations, IMessage } from './db-types'
@@ -12,8 +12,8 @@ export interface LoopMessage {
   role: 'user' | 'assistant' | 'tool'
   content: Array<
     | { type: 'text', text: string }
-    | { type: 'tool-call', toolCallId: string, toolName: string, args: Record<string, unknown> }
-    | { type: 'tool-result', toolCallId: string, toolName: string, result: unknown, isError?: boolean }
+    | ToolCallContent
+    | ToolResultContent
   >
 }
 
@@ -87,9 +87,12 @@ export interface IConversationQuery {
 export type CreateConversationInput = AddConversationsSchema
 export type UpdateConversationInput = Omit<UpdateConversationsSchema, 'id'>
 export type CreateUserMessageInput = Extract<AddMessage, { role: 'user' }>
+export type CreateToolMessageInput = Extract<AddMessage, { role: 'tool' }>
+export type CreateEventMessageInput = Extract<AddMessage, { role: 'event' }>
 export interface CreateAssistantMessageInput {
   conversationId: string
   modelInfo: ModelInfo
+  turnId?: string
 }
 export type UpdateAssistantMessageInput = Omit<UpdateMessageSchema, 'id'>
 
@@ -101,12 +104,9 @@ export interface ISessionStore extends IConversationQuery {
   getMessages: (convId: string) => Promise<IMessage[]>
   createUserMessage: (data: CreateUserMessageInput) => Promise<IMessage>
   createAssistantMessage: (data: CreateAssistantMessageInput) => Promise<IMessage>
+  createToolMessage: (data: CreateToolMessageInput) => Promise<IMessage>
+  createEventMessage: (data: CreateEventMessageInput) => Promise<IMessage>
   updateAssistantMessage: (id: string, patch: UpdateAssistantMessageInput) => Promise<IMessage>
-  saveCompactionState: (input: {
-    conversationId: string
-    summary: string
-    compactedAt: number
-  }) => Promise<void>
 }
 
 // ============================================================
@@ -145,9 +145,9 @@ export interface IAgentEventEmitter {
   emitApprovalRequired: (taskId: string, conversationId: string, pendingAction: AgentPendingAction) => void | Promise<void>
   emitTurnStarted: (params: { conversationId: string, model: { name: string, provider: string, providerId: string } }) => void | Promise<void>
   emitTurnChunk: (params: { conversationId: string, accumulatedText: string, chunk: IAIStreamChunk }) => void | Promise<void>
-  emitTurnToolCalls: (params: { conversationId: string, text: string, toolCalls: McpToolCall[] }) => void | Promise<void>
+  emitTurnToolCalls: (params: { conversationId: string, text: string, toolCalls: ToolCallContent[] }) => void | Promise<void>
+  emitTurnToolResults?: (params: { conversationId: string, results: ToolResultContent[] }) => void | Promise<void>
   emitTurnFinished: (params: { conversationId: string, text: string, status: 'success' | 'error' | 'cancel' }) => void | Promise<void>
-  emitCompactionSaved: (params: { conversationId: string, summary: string, compactedAt: number }) => void | Promise<void>
 }
 
 // ============================================================

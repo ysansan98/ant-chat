@@ -72,6 +72,17 @@ export class AgentIpcService extends IpcService {
   }
 
   @IpcMethod()
+  async injectSteering(params: { conversationId: string, text: string }): Promise<IpcResponse<null>> {
+    try {
+      await agentRuntime.injectSteering(params.conversationId, params.text)
+      return createIpcResponse(true, null)
+    }
+    catch (error) {
+      return createErrorIpcResponse(error as Error)
+    }
+  }
+
+  @IpcMethod()
   async approvePendingActionWithWhitelist(
     options: ApprovePendingActionOptions & { remember: boolean, workspacePath?: string },
   ): Promise<IpcResponse<null>> {

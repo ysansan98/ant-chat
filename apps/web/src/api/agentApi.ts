@@ -27,11 +27,16 @@ async function approvePendingActionWithWhitelist(
   return (await getAppTransport()).agent.approvePendingActionWithWhitelist(options)
 }
 
+async function injectSteering(conversationId: string, text: string): Promise<null> {
+  return (await getAppTransport()).agent.injectSteering({ conversationId, text })
+}
+
 export default {
   startTurn,
   approvePendingAction,
   rejectPendingAction,
   cancelTask,
+  injectSteering,
   listActiveTasks,
   approvePendingActionWithWhitelist,
 }

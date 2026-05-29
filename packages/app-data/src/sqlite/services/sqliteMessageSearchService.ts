@@ -70,13 +70,13 @@ function groupSearchResults(rows: SearchMessageRow[], query: string): SearchResu
 
 function contentToSearchText(content: MessageContent): string {
   return content.reduce((acc, item) => {
-    if (item.type === 'image') {
-      return acc
-    }
     if (item.type === 'text') {
       return acc + item.text
     }
-    return acc + item.error
+    if (item.type === 'error') {
+      return acc + item.error
+    }
+    return acc
   }, '')
 }
 

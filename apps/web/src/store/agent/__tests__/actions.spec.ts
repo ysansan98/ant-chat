@@ -21,7 +21,6 @@ describe('agent store actions', () => {
         temperature: 0.7,
         maxTokens: 1024,
         features: {
-          onlineSearch: false,
           enableMCP: false,
         },
       },

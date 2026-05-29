@@ -29,9 +29,10 @@ export function initializeAppDataSchema(db: AppDataDatabase): void {
       images text DEFAULT '[]',
       attachments text DEFAULT '[]',
       reasoning_content text,
-      tool_calls text DEFAULT NULL,
       model_info text DEFAULT NULL,
-      usage text DEFAULT NULL
+      usage text DEFAULT NULL,
+      turn_id text DEFAULT NULL,
+      event_type text DEFAULT NULL
     );
   `)
 }

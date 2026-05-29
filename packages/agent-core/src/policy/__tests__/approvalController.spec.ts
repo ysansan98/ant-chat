@@ -11,7 +11,6 @@ function createMockEmitter(): IAgentEventEmitter {
     emitTurnChunk: vi.fn(),
     emitTurnToolCalls: vi.fn(),
     emitTurnFinished: vi.fn(),
-    emitCompactionSaved: vi.fn(),
   }
 }
 
@@ -31,6 +30,7 @@ function createRunningTask(taskId: string, conversationId: string) {
       pendingAction: undefined,
     } as AgentTaskSnapshot,
     abortController: new AbortController(),
+    steeringQueue: [],
     pendingResolver: undefined as ((value: { approved: boolean, reason?: string }) => void) | undefined,
   }
 }

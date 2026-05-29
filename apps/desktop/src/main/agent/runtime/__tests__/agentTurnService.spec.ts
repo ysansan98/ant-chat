@@ -40,7 +40,6 @@ describe('agentTurnService', () => {
         temperature: 0.7,
         maxTokens: 1024,
         features: {
-          onlineSearch: false,
           enableMCP: false,
         },
       },
@@ -80,7 +79,6 @@ describe('agentTurnService', () => {
         temperature: 0.2,
         maxTokens: 2048,
         features: {
-          onlineSearch: false,
           enableMCP: false,
         },
       },

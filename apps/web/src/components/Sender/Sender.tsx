@@ -1,4 +1,4 @@
-import type { AgentMode, ChatFeatures, IAttachment, IImage, SkillManifest, WorkspaceFileSearchResult } from '@ant-chat/shared'
+import type { AgentMode, ChatFeatures, IAttachment, IImage, ServiceProviderModelsSchema, SkillManifest, WorkspaceFileSearchResult } from '@ant-chat/shared'
 import type { FileUIPart, LanguageModelUsage } from 'ai'
 import {
   Attachment,
@@ -34,7 +34,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@workspace/ui/components/popover'
-import { Cable, ChevronDownIcon, FolderOpenIcon, GlobeIcon, HandIcon, PaperclipIcon, ShieldAlertIcon, ShieldCheckIcon } from 'lucide-react'
+import { Cable, ChevronDownIcon, FolderOpenIcon, HandIcon, PaperclipIcon, ShieldAlertIcon, ShieldCheckIcon } from 'lucide-react'
 import {
   useEffect,
   useLayoutEffect,
@@ -43,12 +43,12 @@ import {
   useRef,
   useState,
 } from 'react'
+import { providerApi } from '@/api/providerApi'
 import { skillApi } from '@/api/skillApi'
 import workspaceApi from '@/api/workspaceApi'
 import { useChatSettingsContext } from '@/contexts/chatSettings'
 import {
   setAgentMode,
-  setOnlieSearch,
   useChatSttingsStore,
 } from '@/store/chatSettings'
 import {
@@ -311,6 +311,25 @@ function senderDataReducer(state: SenderDataState, action: SenderDataAction): Se
   }
 }
 
+const MODALITY_ACCEPT_MAP: Record<string, string> = {
+  text: 'text/*,.md,.csv,.txt,.json',
+  image: 'image/*',
+  pdf: 'application/pdf',
+  video: 'video/*',
+  audio: 'audio/*',
+}
+
+const DEFAULT_ACCEPT = 'image/*'
+
+function buildAcceptFromModalities(inputModalities?: string[]): string {
+  if (!inputModalities || inputModalities.length === 0)
+    return DEFAULT_ACCEPT
+  return inputModalities
+    .map(m => MODALITY_ACCEPT_MAP[m])
+    .filter(Boolean)
+    .join(',') || DEFAULT_ACCEPT
+}
+
 function Sender({ actions, ...props }: SenderProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const senderRef = useRef<HTMLDivElement | null>(null)
@@ -322,6 +341,7 @@ function Sender({ actions, ...props }: SenderProps) {
   const [referencedFiles, setReferencedFiles] = useState<string[]>([])
   const [selectedSkill, setSelectedSkill] = useState<string>()
   const [textareaScrollTop, setTextareaScrollTop] = useState(0)
+  const [currentModelInfo, setCurrentModelInfo] = useState<ServiceProviderModelsSchema | null>(null)
 
   const [senderData, dispatchSenderData] = useReducer(senderDataReducer, {
     workspaceData: null,
@@ -343,8 +363,20 @@ function Sender({ actions, ...props }: SenderProps) {
   )
 
   const mcpEnabled = useChatSttingsStore(state => state.enableMCP)
-  const onlineSearch = useChatSttingsStore(state => state.onlineSearch)
   const agentMode = useChatSttingsStore(state => state.agentMode)
+
+  const { settings } = useChatSettingsContext()
+
+  useEffect(() => {
+    if (!settings.modelId)
+      return
+    providerApi.getModelInfoById(settings.modelId).then(setCurrentModelInfo)
+  }, [settings.modelId])
+
+  const fileAccept = useMemo(
+    () => buildAcceptFromModalities(currentModelInfo?.capabilities?.inputModalities ?? []),
+    [currentModelInfo?.capabilities?.inputModalities],
+  )
 
   const agentModeOptions: Array<{ value: AgentMode, label: string, icon: React.ReactNode }> = [
     { value: 'strict', label: '默认权限', icon: <HandIcon className="size-4" /> },
@@ -672,7 +704,6 @@ function Sender({ actions, ...props }: SenderProps) {
 
     props.onSubmit?.(message.text, images, attachments, nextReferencedFiles, nextSelectedSkill, {
       enableMCP: mcpEnabled,
-      onlineSearch,
     }, agentMode)
     setDraft('')
     setCursor(0)
@@ -695,7 +726,7 @@ function Sender({ actions, ...props }: SenderProps) {
       )}
 
       <PromptInput
-        accept="image/*,application/pdf,text/*,.md,.mp4"
+        accept={fileAccept}
         data-testid="chat-input-form"
         maxFileSize={20 * 1024 * 1024}
         multiple
@@ -803,15 +834,6 @@ function Sender({ actions, ...props }: SenderProps) {
 
             <SenderAddAttachmentButton />
             <SenderContextUsageButton />
-
-            <PromptInputButton
-              type="button"
-              variant={onlineSearch ? 'secondary' : 'ghost'}
-              onClick={() => setOnlieSearch(!onlineSearch)}
-            >
-              <GlobeIcon className="size-3" />
-              联网搜索
-            </PromptInputButton>
 
             <Popover>
               <PopoverTrigger asChild>

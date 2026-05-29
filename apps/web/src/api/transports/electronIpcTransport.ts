@@ -33,6 +33,7 @@ export function createElectronIpcTransport(): AppTransport {
       approvePendingAction: async options => unwrapIpcResponse(await ipc.agent.approvePendingAction(options)),
       rejectPendingAction: async options => unwrapIpcResponse(await ipc.agent.rejectPendingAction(options)),
       cancelTask: async taskId => unwrapIpcResponse(await ipc.agent.cancelTask({ taskId })),
+      injectSteering: async params => unwrapIpcResponse(await ipc.agent.injectSteering(params)),
       listActiveTasks: async conversationId => unwrapIpcResponse(await ipc.agent.listActiveTasks(conversationId)),
       approvePendingActionWithWhitelist: async options => unwrapIpcResponse(await ipc.agent.approvePendingActionWithWhitelist(options)),
     },

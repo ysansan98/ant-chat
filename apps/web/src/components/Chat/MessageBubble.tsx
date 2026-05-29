@@ -13,9 +13,9 @@ import {
 import { cn } from '@workspace/ui/lib/utils'
 import { pick } from 'lodash-es'
 import { ChevronRightIcon, ShrinkIcon } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Role } from '@/constants'
-import { detectCompactionMarker, transformMessageContent } from '@/utils/messageTransform'
+import { transformMessageContent } from '@/utils/messageTransform'
 import BubbleFooter from './BubbleFooter'
 import { McpToolCallPanel } from './McpToolCallPanel'
 import MessageContent from './MessageContent'
@@ -29,12 +29,32 @@ interface MessageBubbleProps {
 export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }: MessageBubbleProps) {
   const [isProcessOpen, setIsProcessOpen] = useState(false)
   const message = messages[0]
-  const compactionMarker = detectCompactionMarker(message)
   const isUser = message.role === Role.USER
   const isAI = message.role === Role.AI
+  const isEvent = message.role === Role.EVENT
 
-  // 压缩标记：渲染为可折叠分隔线
-  if (compactionMarker) {
+  // 建立 toolCallId → tool-result 消息的索引
+  const toolResultMap = useMemo(() => {
+    const map = new Map<string, IMessage>()
+    for (const m of messages) {
+      if (m.role === 'tool') {
+        for (const block of m.content) {
+          if (block.type === 'tool-result') {
+            map.set(block.toolCallId, m)
+          }
+        }
+      }
+    }
+    return map
+  }, [messages])
+
+  // 事件消息：渲染为可折叠分隔线
+  if (isEvent) {
+    const eventLabel = message.eventType === 'compaction' ? '上下文压缩' : message.eventType
+    const eventText = typeof message.content === 'string'
+      ? message.content
+      : message.content.filter(b => b.type === 'text').map(b => b.text).join('\n')
+
     return (
       <div className="mx-auto flex w-full max-w-(--chat-width) items-center gap-3 py-3">
         <div className="h-px flex-1 bg-border" />
@@ -50,7 +70,7 @@ export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }:
               "
             >
               <ShrinkIcon className="size-3" />
-              上下文压缩
+              {eventLabel}
             </Button>
           </CollapsibleTrigger>
           <CollapsibleContent className="
@@ -58,7 +78,7 @@ export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }:
             text-muted-foreground
           "
           >
-            {compactionMarker.summary}
+            {eventText}
           </CollapsibleContent>
         </Collapsible>
         <div className="h-px flex-1 bg-border" />
@@ -66,9 +86,14 @@ export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }:
     )
   }
 
-  const shouldCollapseProcess = isAI && collapseIntermediate && messages.length > 1
-  const processMessages = shouldCollapseProcess ? messages.slice(0, -1) : []
-  const visibleMessages = shouldCollapseProcess ? messages.slice(-1) : messages
+  // 只展示 non-tool 消息（assistant + user）
+  const nonToolMessages = messages.filter(m => m.role !== 'tool')
+  if (nonToolMessages.length === 0)
+    return null
+
+  const shouldCollapseProcess = isAI && collapseIntermediate && nonToolMessages.length > 1
+  const processMessages = shouldCollapseProcess ? nonToolMessages.slice(0, -1) : []
+  const visibleMessages = shouldCollapseProcess ? nonToolMessages.slice(-1) : nonToolMessages
 
   return (
     <Message
@@ -79,7 +104,7 @@ export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }:
       <div className={cn('flex items-start', isUser && 'justify-end')}>
         <div className={cn('min-w-0 flex-1', isUser && 'flex flex-col items-end')}>
           <AiMessageContent
-            className={isAI && messages.some(item => item.toolCalls?.length)
+            className={isAI && hasToolCallBlocks(messages)
               ? 'w-full'
               : undefined}
           >
@@ -112,7 +137,11 @@ export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }:
                         key={item.id}
                         data-message-id={item.id}
                       >
-                        <MessageContentRenderer item={item} content={transformMessageContent(item)} />
+                        <MessageContentRenderer
+                          item={item}
+                          content={transformMessageContent(item)}
+                          toolResultMap={toolResultMap}
+                        />
                       </div>
                     ))}
                   </CollapsibleContent>
@@ -130,7 +159,11 @@ export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }:
                   )}
                   data-message-id={item.id}
                 >
-                  <MessageContentRenderer item={item} content={transformMessageContent(item)} />
+                  <MessageContentRenderer
+                    item={item}
+                    content={transformMessageContent(item)}
+                    toolResultMap={toolResultMap}
+                  />
                 </div>
               ))}
             </div>
@@ -148,7 +181,43 @@ export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }:
   )
 }
 
-function MessageContentRenderer({ item, content }: { item: IMessage, content: string }) {
+type RenderSegment
+  = | { kind: 'text', text: string, isFirst: boolean }
+    | { kind: 'tool-call', block: IMessage['content'][number] & { type: 'tool-call' } }
+
+function buildRenderSegments(item: IMessage): RenderSegment[] {
+  if (typeof item.content === 'string')
+    return [{ kind: 'text', text: item.content, isFirst: true }]
+
+  const segments: RenderSegment[] = []
+  let isFirstText = true
+
+  for (const block of item.content) {
+    if (block.type === 'text') {
+      segments.push({ kind: 'text', text: block.text, isFirst: isFirstText })
+      isFirstText = false
+    }
+    else if (block.type === 'error') {
+      segments.push({ kind: 'text', text: `> [!CAUTION]\n> ${block.error}`, isFirst: isFirstText })
+      isFirstText = false
+    }
+    else if (block.type === 'tool-call') {
+      segments.push({ kind: 'tool-call', block })
+    }
+  }
+
+  return segments
+}
+
+function MessageContentRenderer({
+  item,
+  content,
+  toolResultMap,
+}: {
+  item: IMessage
+  content: string
+  toolResultMap: Map<string, IMessage>
+}) {
   const itemIsUser = item.role === Role.USER
   const itemIsAI = item.role === Role.AI
 
@@ -164,23 +233,40 @@ function MessageContentRenderer({ item, content }: { item: IMessage, content: st
     return <MessageContent {...messageContentProps} enableReferenceTokens={itemIsUser} />
   }
 
+  const segments = buildRenderSegments(item)
+
   return (
     <>
-      <MessageContent
-        content={content}
-        reasoningContent={item.reasoningContent}
-        status={item.status}
-      />
-      {itemIsAI && item.toolCalls && (
-        <div className="mt-2 flex flex-col gap-2">
-          {item.toolCalls.map(tool => (
-            <McpToolCallPanel
-              key={tool.id}
-              item={tool}
-            />
-          ))}
-        </div>
-      )}
+      {segments.map((seg, i) => {
+        if (seg.kind === 'tool-call') {
+          const resultMsg = toolResultMap.get(seg.block.toolCallId)
+          const resultBlock = resultMsg?.content.find(
+            (b): b is typeof b & { type: 'tool-result' } => b.type === 'tool-result',
+          )
+          return (
+            <div key={seg.block.toolCallId || i} className="my-2">
+              <McpToolCallPanel
+                toolCall={seg.block}
+                toolResult={resultBlock}
+              />
+            </div>
+          )
+        }
+        return (
+          <MessageContent
+            key={i}
+            content={seg.text}
+            reasoningContent={seg.isFirst ? item.reasoningContent : undefined}
+            status={item.status}
+          />
+        )
+      })}
     </>
+  )
+}
+
+function hasToolCallBlocks(msgs: IMessage[]): boolean {
+  return msgs.some(m =>
+    Array.isArray(m.content) && m.content.some(b => b.type === 'tool-call'),
   )
 }

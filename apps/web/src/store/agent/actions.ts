@@ -25,6 +25,10 @@ export async function cancelAgentTask(taskId: string) {
   await agentApi.cancelTask(taskId)
 }
 
+export async function injectSteeringAction(conversationId: string, text: string) {
+  await agentApi.injectSteering(conversationId, text)
+}
+
 export function onAgentStateUpdated(task: Parameters<typeof useAgentStore.getState> extends never ? never : any) {
   useAgentStore.getState().setTask(task)
   if (['running', 'awaiting_approval'].includes(task.status))

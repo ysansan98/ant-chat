@@ -1,4 +1,4 @@
-import type { CreateAssistantMessageInput, CreateConversationInput, CreateUserMessageInput, ISessionStore, UpdateAssistantMessageInput, UpdateConversationInput } from '@ant-chat/shared'
+import type { CreateAssistantMessageInput, CreateConversationInput, CreateEventMessageInput, CreateToolMessageInput, CreateUserMessageInput, ISessionStore, UpdateAssistantMessageInput, UpdateConversationInput } from '@ant-chat/shared'
 import { getAppDataServices } from '@main/adapters/appDataContainer'
 
 export function createElectronSessionStore(): ISessionStore {
@@ -30,21 +30,24 @@ export function createElectronSessionStore(): ISessionStore {
       return await messageService.create(data)
     },
     async createAssistantMessage(data: CreateAssistantMessageInput) {
-      return await messageService.createAssistant(data.conversationId, data.modelInfo)
+      return await messageService.create({
+        convId: data.conversationId,
+        content: [],
+        role: 'assistant',
+        status: 'loading',
+        modelInfo: data.modelInfo,
+        reasoningContent: '',
+        turnId: data.turnId,
+      })
+    },
+    async createToolMessage(data: CreateToolMessageInput) {
+      return await messageService.create(data)
+    },
+    async createEventMessage(data: CreateEventMessageInput) {
+      return await messageService.create(data)
     },
     async updateAssistantMessage(id: string, patch: UpdateAssistantMessageInput) {
       return await messageService.update({ id, ...patch })
-    },
-    async saveCompactionState(input) {
-      const conv = await conversationService.getById(input.conversationId)
-      await conversationService.update({
-        id: input.conversationId,
-        settings: {
-          ...conv.settings,
-          lastCompactedAt: input.compactedAt,
-          lastCompactionSummary: input.summary,
-        },
-      })
     },
   }
 }

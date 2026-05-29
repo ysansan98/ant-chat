@@ -18,17 +18,17 @@ function toServiceProvider(provider: ProviderSettingsSchema): ServiceProviderSch
 }
 
 function toServiceProviderModel(providerId: string, modelId: string, model: ProviderModelSettingsSchema): ServiceProviderModelsSchema {
-  const overrides = model.overrides ?? {}
   return {
     id: modelId,
     model: modelId,
-    name: overrides.name ?? modelId,
+    name: model.name ?? modelId,
     isBuiltin: false,
     isEnabled: model.isEnabled,
-    maxTokens: overrides.maxTokens ?? 4096,
-    contextLength: overrides.contextLength ?? 4096,
+    maxTokens: model.maxTokens ?? 4096,
+    contextLength: model.contextLength ?? 4096,
     temperature: model.temperature ?? 0.7,
-    modelFeatures: overrides.modelFeatures,
+    capabilities: model.capabilities,
+    cost: model.cost,
     serviceProviderId: providerId,
     createdAt: 0,
   }
@@ -159,12 +159,11 @@ export class ProviderSettingsRepository {
     const createdModel: ProviderModelSettingsSchema = {
       isEnabled: true,
       temperature: data.temperature,
-      overrides: {
-        name: data.name,
-        maxTokens: data.maxTokens,
-        contextLength: data.contextLength,
-        modelFeatures: data.modelFeatures,
-      },
+      name: data.name,
+      maxTokens: data.maxTokens,
+      contextLength: data.contextLength,
+      capabilities: data.capabilities,
+      cost: data.cost,
     }
 
     this.store.update((settings) => {

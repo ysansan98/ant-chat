@@ -7,6 +7,13 @@ export interface ModelsDevProvider {
   baseUrl: string
 }
 
+export interface ModelsDevModelCost {
+  input: number
+  output: number
+  cacheRead?: number
+  cacheWrite?: number
+}
+
 export interface ModelsDevModel {
   id: string
   name: string
@@ -16,7 +23,13 @@ export interface ModelsDevModel {
   maxTokens?: number
   toolCall?: boolean
   reasoning?: boolean
-  vision?: boolean
+  supportsTemperature?: boolean
+  structuredOutput?: boolean
+  modalities?: {
+    input?: string[]
+    output?: string[]
+  }
+  cost?: ModelsDevModelCost
 }
 
 export interface ModelsDevImportResult {

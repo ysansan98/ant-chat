@@ -27,12 +27,10 @@ describe('provider settings repository', () => {
           'test-model': {
             isEnabled: true,
             temperature: 0.7,
-            overrides: {
-              name: 'Test Model',
-              maxTokens: 4096,
-              contextLength: 8192,
-              modelFeatures: { functionCall: true },
-            },
+            name: 'Test Model',
+            maxTokens: 4096,
+            contextLength: 8192,
+            capabilities: { functionCall: true },
           },
         },
       },

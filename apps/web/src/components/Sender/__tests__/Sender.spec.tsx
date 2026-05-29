@@ -36,6 +36,28 @@ vi.mock('@/api/skillApi', () => ({
   },
 }))
 
+vi.mock('@/api/providerApi', () => ({
+  providerApi: {
+    getModelInfoById: vi.fn(async () => ({
+      id: 'test-model',
+      model: 'test-model',
+      name: 'Test Model',
+      serviceProviderId: 'test-provider',
+      isBuiltin: false,
+      isEnabled: true,
+      maxTokens: 4096,
+      contextLength: 4096,
+      temperature: 0.7,
+      capabilities: {
+        functionCall: true,
+        reasoning: true,
+        inputModalities: ['text', 'image', 'pdf'],
+      },
+      createdAt: 0,
+    })),
+  },
+}))
+
 function renderSender(onSubmit = vi.fn()) {
   render(
     <TooltipProvider>
@@ -90,7 +112,6 @@ describe('sender reference token overlay', () => {
       workspaceConversations: {},
     })
     useChatSttingsStore.setState({
-      onlineSearch: false,
       enableMCP: false,
       agentMode: 'hybrid',
     })
@@ -139,7 +160,7 @@ describe('sender reference token overlay', () => {
         [],
         ['resume.md'],
         undefined,
-        { enableMCP: false, onlineSearch: false },
+        { enableMCP: false },
         'hybrid',
       )
     })

@@ -98,7 +98,7 @@ export class AgentRuntime {
       prompt: options.prompt,
     }
 
-    taskStore.create({ snapshot, abortController: new AbortController() })
+    taskStore.create({ snapshot, abortController: new AbortController(), steeringQueue: [] })
     await config.eventEmitter.emitTaskUpdated(snapshot)
     void runAgentLoop({
       taskId,
@@ -121,6 +121,10 @@ export class AgentRuntime {
 
   cancelTask(options: CancelTaskOptions): void {
     this.approvalController.cancelTask(options)
+  }
+
+  async injectSteering(conversationId: string, text: string): Promise<void> {
+    await this.sessionRuntime.injectSteering(conversationId, text)
   }
 
   getTask(taskId: string) {

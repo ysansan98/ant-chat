@@ -12,15 +12,29 @@ function notifyProviderChanged() {
   }
 }
 
-function toModelFeatures(model: ModelsDevModel) {
-  const hasFeatures = model.toolCall || model.reasoning || model.vision
-  return hasFeatures
-    ? {
-        functionCall: model.toolCall || undefined,
-        reasoning: model.reasoning || undefined,
-        vision: model.vision || undefined,
-      }
+const KNOWN_INPUT_MODALITIES = new Set(['text', 'image', 'pdf', 'video', 'audio'])
+
+function toModelCapabilities(model: ModelsDevModel) {
+  const hasFeatures = model.toolCall || model.reasoning || model.supportsTemperature || model.structuredOutput
+    || (model.modalities?.input && model.modalities.input.length > 0)
+  if (!hasFeatures)
+    return undefined
+
+  const inputModalities = model.modalities?.input?.length
+    ? model.modalities.input.filter(m => KNOWN_INPUT_MODALITIES.has(m)) as ('text' | 'image' | 'pdf' | 'video' | 'audio')[]
     : undefined
+  const outputModalities = model.modalities?.output?.length
+    ? model.modalities.output.filter(m => m === 'text' || m === 'image') as ('text' | 'image')[]
+    : undefined
+
+  return {
+    functionCall: model.toolCall || undefined,
+    reasoning: model.reasoning || undefined,
+    supportsTemperature: model.supportsTemperature || undefined,
+    structuredOutput: model.structuredOutput || undefined,
+    inputModalities,
+    outputModalities,
+  }
 }
 
 export class ProviderIpcService extends IpcService {
@@ -227,7 +241,8 @@ export class ProviderIpcService extends IpcService {
             temperature: 0.7,
             maxTokens: model.maxTokens ?? 4096,
             contextLength: model.contextLength ?? 4096,
-            modelFeatures: toModelFeatures(model),
+            capabilities: toModelCapabilities(model),
+            cost: model.cost,
           })
           seen.add(model.model)
           added.push(displayName)
