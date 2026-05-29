@@ -1,5 +1,6 @@
 import type {
   AddConversationsSchema,
+  AgentProfileFiles,
   AgentTaskSnapshot,
   AgentTurnResult,
   ApprovePendingActionOptions,
@@ -11,6 +12,7 @@ import type {
   ListWorkspacesData,
   RejectPendingActionOptions,
   StartAgentTurnOptions,
+  UpdateAgentProfileInput,
   UpdateConversationsSchema,
   WorkspaceFileSearchResult,
 } from '@ant-chat/shared'
@@ -36,6 +38,11 @@ export interface AppTransport {
     getSettings: () => Promise<GeneralSettingsState>
     updateSettings: (updates: Partial<GeneralSettingsState>) => Promise<GeneralSettingsState>
     resetSettings: () => Promise<GeneralSettingsState>
+  }
+  profile: {
+    getProfile: () => Promise<AgentProfileFiles>
+    updateProfile: (input: UpdateAgentProfileInput) => Promise<AgentProfileFiles>
+    rollbackSoul: () => Promise<AgentProfileFiles>
   }
   agent: {
     startTurn: (options: StartAgentTurnOptions) => Promise<AgentTurnResult>

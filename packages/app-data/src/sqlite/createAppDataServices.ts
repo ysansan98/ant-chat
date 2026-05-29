@@ -1,5 +1,6 @@
 import type { AppDataDatabase } from './types'
 import { McpSettingsRepository, McpSettingsStore } from '../mcp'
+import { AgentProfileService } from '../profile'
 import { ConversationService, MessageService, SettingsService } from '../services'
 import { AppSettingsStore, createModelCatalog, GeneralSettingsRepository, ProviderSettingsRepository, ToolApprovalWhitelistRepository } from '../settings'
 import { WorkspaceService } from '../workspace'
@@ -11,11 +12,12 @@ export interface CreateAppDataServicesOptions {
   db: AppDataDatabase
   settingsFilePath: string
   mcpSettingsFilePath: string
+  profileRootPath: string
   workspaceSettingsFilePath: string
 }
 
 export function createAppDataServices(options: CreateAppDataServicesOptions) {
-  const { db, settingsFilePath, mcpSettingsFilePath, workspaceSettingsFilePath } = options
+  const { db, settingsFilePath, mcpSettingsFilePath, profileRootPath, workspaceSettingsFilePath } = options
   initializeAppDataSchema(db)
 
   const appSettingsStore = new AppSettingsStore({ filePath: settingsFilePath, resetInvalidFile: true })
@@ -31,6 +33,7 @@ export function createAppDataServices(options: CreateAppDataServicesOptions) {
     })),
     providerSettingsRepository,
     modelCatalog: createModelCatalog(providerSettingsRepository),
+    profileService: new AgentProfileService(profileRootPath),
     mcpSettingsRepository: new McpSettingsRepository(new McpSettingsStore({
       filePath: mcpSettingsFilePath,
       resetInvalidFile: true,

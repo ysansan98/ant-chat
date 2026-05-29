@@ -44,12 +44,15 @@ export class ToolRegistry {
     const skillTools = skillReader
       ? await makeSkillTools(skillReader)
       : []
+    const agentLoopTools = config.profileReader
+      ? [createMemoryTool(config.profileReader)]
+      : []
     const mcpTools = clientHub
       ? createMcpTools(clientHub)
       : []
 
     return new ToolRegistry(
-      [...nativeTools, ...skillTools, ...mcpTools],
+      [...nativeTools, ...skillTools, ...agentLoopTools, ...mcpTools],
       unrestricted ? undefined : relaxedNativeTools,
     )
   }
@@ -111,6 +114,60 @@ export class ToolRegistry {
         inputSchema: tool.inputSchema!,
       }
     })
+  }
+}
+
+function createMemoryTool(profileReader: NonNullable<AgentRuntimeConfig['profileReader']>): AgentTool {
+  return {
+    name: 'memory',
+    source: 'skill',
+    serverName: 'agent-loop',
+    description: [
+      'Edit persistent agent memory files using add, replace, or remove.',
+      'Use target="memory" for the agent personal notes: durable environment facts, project conventions, and tool behavior.',
+      'Use target="user" for the user profile: durable preferences, communication style, and habits.',
+      'Do not use this tool for temporary task progress, chat summaries, file contents, secrets, or SOUL.md. SOUL.md defines the agent identity and is edited only by the user.',
+      'Updates are written to disk, but the current task uses the frozen USER.md/MEMORY.md snapshot already loaded into the system prompt. New values are visible in later tasks.',
+    ].join('\n'),
+    inputSchema: {
+      type: 'object',
+      properties: {
+        target: { type: 'string', enum: ['memory', 'user'], description: 'File to edit: memory edits MEMORY.md, user edits USER.md.' },
+        action: { type: 'string', enum: ['add', 'replace', 'remove'], description: 'Edit action.' },
+        content: { type: 'string', description: 'Required for add and replace. For replace, this becomes the full replacement entry.' },
+        old_text: { type: 'string', description: 'Required for replace and remove. Used only to locate the entry by substring match.' },
+      },
+      required: ['target', 'action'],
+    },
+    operationType: 'skill',
+    inferScope: () => 'workspace',
+    validateInput: (input) => {
+      if (input.target !== 'memory' && input.target !== 'user') {
+        return 'target must be "memory" or "user"'
+      }
+      if (input.action !== 'add' && input.action !== 'replace' && input.action !== 'remove') {
+        return 'action must be "add", "replace", or "remove"'
+      }
+      if (input.action === 'add' && typeof input.content !== 'string') {
+        return 'content is required for add'
+      }
+      if (input.action === 'replace' && (typeof input.old_text !== 'string' || typeof input.content !== 'string')) {
+        return 'old_text and content are required for replace'
+      }
+      if (input.action === 'remove' && typeof input.old_text !== 'string') {
+        return 'old_text is required for remove'
+      }
+      return null
+    },
+    execute: async input => ({
+      ok: true,
+      output: await profileReader.editMemory({
+        target: input.target as 'memory' | 'user',
+        action: input.action as 'add' | 'replace' | 'remove',
+        content: typeof input.content === 'string' ? input.content : undefined,
+        old_text: typeof input.old_text === 'string' ? input.old_text : undefined,
+      }),
+    }),
   }
 }
 

@@ -13,6 +13,7 @@ export function createDesktopAgentHost(): AgentRuntimeHost {
   return {
     sessionStore: createElectronSessionStore(),
     modelCatalog: appDataServices.modelCatalog,
+    profileReader: appDataServices.profileService,
     skillsRoot: getSkillsRoot(),
     eventEmitter: createElectronEventEmitter(),
     createTaskLogger: (conversationId: string, userMessageId: string) => {

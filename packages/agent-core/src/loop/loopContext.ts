@@ -1,25 +1,64 @@
 import type { IMessage, LoopMessage } from '@ant-chat/shared'
 
+export interface LoopSystemPromptProfile {
+  memory?: string
+  soul?: string
+  user?: string
+}
+
 export type NormalizeToolArgsResult
   = | { ok: true, input: Record<string, unknown> }
     | { ok: false, error: string }
 
-export function createLoopSystemPrompt(workspacePath: string, customPrompt?: string): string {
-  if (customPrompt) {
-    return customPrompt.split('{workspacePath}').join(workspacePath)
+export function createLoopSystemPrompt(workspacePath: string, customPrompt?: string, profile?: LoopSystemPromptProfile): string {
+  const basePrompt = customPrompt
+    ? customPrompt.split('{workspacePath}').join(workspacePath)
+    : [
+        'You are an AI assistant. Your goal is to complete the user\'s task, not to describe what you plan to do.',
+        `Workspace path: ${workspacePath}`,
+        'Rules:',
+        '1. Always call tools for file-related requests. Do not guess file contents.',
+        '2. Take the single most valuable next step each turn.',
+        '3. Your output must be either a final answer or paired with an active tool call. Do not output plan-only statements.',
+        '4. Work inside the workspace directory. Prefer relative paths.',
+        '5. If a tool returns an error, adjust parameters and retry. Do not repeat the same failing call.',
+        '6. If a tool result indicates more content is available, continue reading.',
+        '7. When sufficient information is available, execute the change and provide the final result.',
+      ].join('\n')
+
+  const sections = [basePrompt]
+  const memory = profile?.memory?.trim()
+  const soul = profile?.soul?.trim()
+  const user = profile?.user?.trim()
+
+  if (soul) {
+    sections.push([
+      '<agent_behavior>',
+      'The following SOUL.md defines stable agent behavior. Follow it unless the current user instruction explicitly overrides it.',
+      soul,
+      '</agent_behavior>',
+    ].join('\n'))
   }
-  return [
-    'You are an AI assistant. Your goal is to complete the user\'s task, not to describe what you plan to do.',
-    `Workspace path: ${workspacePath}`,
-    'Rules:',
-    '1. Always call tools for file-related requests. Do not guess file contents.',
-    '2. Take the single most valuable next step each turn.',
-    '3. Your output must be either a final answer or paired with an active tool call. Do not output plan-only statements.',
-    '4. Work inside the workspace directory. Prefer relative paths.',
-    '5. If a tool returns an error, adjust parameters and retry. Do not repeat the same failing call.',
-    '6. If a tool result indicates more content is available, continue reading.',
-    '7. When sufficient information is available, execute the change and provide the final result.',
-  ].join('\n')
+
+  if (user) {
+    sections.push([
+      '<user_preferences>',
+      'The following USER.md snapshot contains one durable user preference per line. This snapshot is frozen for the current task; memory tool updates become visible in later tasks.',
+      user,
+      '</user_preferences>',
+    ].join('\n'))
+  }
+
+  if (memory) {
+    sections.push([
+      '<agent_memory>',
+      'The following MEMORY.md snapshot contains one durable agent note per line. This snapshot is frozen for the current task; memory tool updates become visible in later tasks.',
+      memory,
+      '</agent_memory>',
+    ].join('\n'))
+  }
+
+  return sections.join('\n\n')
 }
 
 export function buildConversationContextMessages(

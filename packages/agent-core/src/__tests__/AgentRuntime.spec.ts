@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { AgentRuntime } from '../AgentRuntime'
+import { runAgentLoop } from '../loop/agentLoop'
 import { taskStore } from '../taskStore'
 import { ToolRegistry } from '../tools/toolRegistry'
 import type { AgentRuntimeConfig, IAgentEventEmitter, ILogger, ISessionStore } from '@ant-chat/shared'
@@ -275,6 +276,65 @@ describe('agentRuntime', () => {
       expect(result).toEqual(expect.objectContaining({
         conversationId: 'conv-session',
         userMessageId: 'user-msg-1',
+      }))
+
+      cleanupTasks([result.taskId])
+    })
+
+    it('injects USER.md and SOUL.md into the loop system prompt', async () => {
+      const store = createSessionStore()
+      const config = createSessionConfig({
+        sessionStore: store,
+        profileReader: {
+          readUserProfile: vi.fn(async () => '§Prefer concise Chinese.'),
+          readMemory: vi.fn(async () => '§Use pnpm check.'),
+          readSoul: vi.fn(async () => '# SOUL\n\n- Verify before reporting.'),
+          editMemory: vi.fn(),
+          updateSoul: vi.fn(),
+        },
+      })
+      const runtime = new AgentRuntime(config)
+
+      const result = await runtime.startTask({
+        prompt: 'inspect project',
+        modelId: 'model-1',
+        workspacePath: '/workspace',
+        mode: 'hybrid',
+      })
+
+      expect(runAgentLoop).toHaveBeenCalledWith(expect.objectContaining({
+        options: expect.objectContaining({
+          systemPrompt: expect.stringContaining('<agent_behavior>'),
+        }),
+      }))
+      expect(runAgentLoop).toHaveBeenCalledWith(expect.objectContaining({
+        options: expect.objectContaining({
+          systemPrompt: expect.stringContaining('Prefer concise Chinese.'),
+        }),
+      }))
+      expect(runAgentLoop).toHaveBeenCalledWith(expect.objectContaining({
+        options: expect.objectContaining({
+          systemPrompt: expect.stringContaining('Use pnpm check.'),
+        }),
+      }))
+      const calls = vi.mocked(runAgentLoop).mock.calls
+      const lastCall = calls[calls.length - 1]
+      const registry = lastCall?.[0].options.registry
+      expect(registry?.listTools()).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          name: 'memory',
+          description: expect.stringContaining('target="user"'),
+        }),
+      ]))
+      expect(runAgentLoop).toHaveBeenCalledWith(expect.objectContaining({
+        options: expect.objectContaining({
+          messages: expect.arrayContaining([
+            expect.objectContaining({
+              role: 'user',
+              content: [{ type: 'text', text: 'inspect project' }],
+            }),
+          ]),
+        }),
       }))
 
       cleanupTasks([result.taskId])

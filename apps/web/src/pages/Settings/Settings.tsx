@@ -1,4 +1,4 @@
-import { Cable, Crown, Info, SettingsIcon, SparklesIcon } from 'lucide-react'
+import { Cable, Crown, Info, SettingsIcon, SparklesIcon, UserRoundCogIcon } from 'lucide-react'
 import { Outlet, useLocation, useNavigate } from 'react-router'
 
 export default function SettingsPage() {
@@ -7,6 +7,7 @@ export default function SettingsPage() {
   const activeName = location.pathname.split('/').pop() || 'provider'
   const menus = [
     { id: 'general', name: '通用设置', icon: <SettingsIcon className="size-[1em]" /> },
+    { id: 'profile', name: 'Profile', icon: <UserRoundCogIcon className="size-[1em]" /> },
     { id: 'provider', name: 'AI服务商设置', icon: <Crown className="size-[1em]" /> },
     { id: 'mcp', name: 'MCP设置', icon: <Cable className="size-[1em]" /> },
     { id: 'skills', name: 'Skill设置', icon: <SparklesIcon className="size-[1em]" /> },
