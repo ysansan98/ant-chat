@@ -35,12 +35,8 @@
     "../web/src/env.d.ts",
     "../web/src/**/*",
     "../web/src/**/*.tsx",
+    "../web/tests/**/*.ts",
     "src/preload/*.d.ts",
-    "src/main/**/*.ts",
-    "tests/helpers/**/*.ts",
-    "tests/e2e/**/*.tsx",
-    "tests/setup.common.ts",
-    "tests/setup.ui.ts",
-    "tests/ui/**/*.tsx"
+    "src/main/**/*.ts"
   ]
 }

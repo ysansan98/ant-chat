@@ -3,6 +3,9 @@
   "type": "module",
   "version": "1.0.0-alpha.1",
   "private": true,
+  "scripts": {
+    "test": "vitest run"
+  },
   "dependencies": {
     "@ant-chat/shared": "workspace:*",
     "@electron-toolkit/preload": "^3.0.1",
@@ -29,10 +32,11 @@
     "zustand": "^5.0.3"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
     "@types/lodash-es": "^4.17.12",
     "@types/wicg-file-system-access": "^2023.10.5",
     "vite-plugin-svgr": "^5.2.0",
-    "vitest": "4.0.14"
+    "vitest": "catalog:"
   }
 }

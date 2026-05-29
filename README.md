@@ -143,8 +143,6 @@ pnpm dev                  # 启动开发环境
 pnpm check                # 类型检查 + lint + 单元测试
 pnpm type-check          # 类型检查
 pnpm test:unit           # 运行单元测试
-pnpm test:ui             # 运行 renderer UI 流程测试(jsdom)
-pnpm test:e2e            # 运行跨模块端到端测试
 
 # 构建
 pnpm build:mac           # 构建macOS版本

@@ -31,15 +31,3 @@ vi.mock('electron', () => {
 })
 
 log.transports.file.setAppName('test')
-
-Object.defineProperty(window, 'electron', {
-  value: {
-    ipcRenderer: {
-      invoke: vi.fn(),
-      on: vi.fn(),
-      removeAllListeners: vi.fn(),
-      removeListener: vi.fn(),
-    },
-  },
-  writable: true,
-})

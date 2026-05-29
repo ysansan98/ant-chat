@@ -20,7 +20,6 @@
     "electron.vite.config.*",
     "src/types/**/*.ts",
     "src/main/**/*",
-    "src/preload/**/*",
-    "tests/helpers/**/*.ts"
+    "src/preload/**/*"
   ]
 }

@@ -2,14 +2,11 @@ import type { AgentTool, IAgentEventEmitter, IAIProvider, IAIStreamChunk, ILogge
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { AgentRuntime } from '@ant-chat/agent-core'
 import { useAimock as setupAimock } from '@copilotkit/aimock/vitest'
 import OpenAI from 'openai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@main/window', () => ({
-  getMainWindow: () => null,
-}))
+import { AgentRuntime } from '../AgentRuntime'
+import { ToolRegistry } from '../tools/toolRegistry'
 
 const aimock = setupAimock({ patchEnv: false })
 
@@ -56,7 +53,7 @@ function createAimockAIProvider(baseUrl: string): IAIProvider {
                 }))
               : undefined,
           }
-        }),
+        }) as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         tools: openaiTools?.length ? openaiTools : undefined,
         temperature: opts.chatSettings.temperature ?? 0,
         max_tokens: opts.chatSettings.maxTokens ?? 1024,
@@ -66,17 +63,19 @@ function createAimockAIProvider(baseUrl: string): IAIProvider {
       const message = choice?.message
 
       const text = message?.content ?? ''
-      const toolCalls: IAIStreamChunk['functionCalls'] | undefined = message?.tool_calls?.map(tc => ({
-        toolName: tc.function?.name ?? '',
-        args: (() => {
-          try {
-            return JSON.parse(tc.function?.arguments ?? '{}')
-          }
-          catch {
-            return {}
-          }
-        })(),
-      }))
+      const toolCalls: IAIStreamChunk['functionCalls'] | undefined = message?.tool_calls
+        ?.filter((tc): tc is OpenAI.Chat.Completions.ChatCompletionMessageToolCall & { type: 'function' } => tc.type === 'function')
+        .map(tc => ({
+          toolName: tc.function.name ?? '',
+          args: (() => {
+            try {
+              return JSON.parse(tc.function.arguments ?? '{}')
+            }
+            catch {
+              return {}
+            }
+          })(),
+        }))
 
       yield {
         content: text ? [{ type: 'text', text }] : undefined,
@@ -143,7 +142,7 @@ function getAllMessageText(request: unknown): string {
     .join('\n')
 }
 
-describe('agent-runtime e2e (aimock)', () => {
+describe('agentLoop integration (aimock)', () => {
   let workspacePath: string
 
   beforeEach(async () => {
@@ -195,7 +194,7 @@ describe('agent-runtime e2e (aimock)', () => {
         { role: 'user', content: [{ type: 'text', text: 'inspect workspace' }] },
       ],
       systemPrompt: 'You are a helpful coding assistant. Use tools to inspect the workspace.',
-      tools: [createListDirTool()],
+      registry: new ToolRegistry([createListDirTool()]),
       aiProvider,
       modelName: 'gpt-4o-mini',
       providerName: 'aimock',
@@ -203,7 +202,7 @@ describe('agent-runtime e2e (aimock)', () => {
       apiMode: 'openai',
     })
 
-    // Wait for task to complete (poll up to 5 seconds)
+    // Wait for task to complete (poll up to 12 seconds)
     const startedAt = Date.now()
     let finalStatus = ''
     while (Date.now() - startedAt < 12000) {

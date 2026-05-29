@@ -4,7 +4,10 @@
   "license": "MIT",
   "exports": {
     ".": {
-      "development": { "types": "./src/index.ts", "default": "./src/index.ts" },
+      "development": {
+        "types": "./src/index.ts",
+        "default": "./src/index.ts"
+      },
       "import": "./dist/index.mjs",
       "require": "./dist/index.cjs"
     },
@@ -19,7 +22,8 @@
   "scripts": {
     "build": "tsdown",
     "clean": "rm -rf dist node_modules",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@ant-chat/shared": "workspace:^",
@@ -29,6 +33,6 @@
     "@types/better-sqlite3": "^7.6.8",
     "better-sqlite3": "^12.6.2",
     "tsdown": "catalog:",
-    "vitest": "^4.0.14"
+    "vitest": "catalog:"
   }
 }

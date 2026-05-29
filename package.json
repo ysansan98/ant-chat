@@ -14,11 +14,8 @@
     "build:win": "pnpm build:packages && pnpm -F @ant-chat/desktop build:win",
     "build:mac": "pnpm build:packages && pnpm -F @ant-chat/desktop build:mac",
     "type-check": "tsc -b",
-    "test:unit": "vitest -c ./vitest.config.ts",
-    "test:ui": "vitest -c ./vitest.ui.config.ts",
-    "test:e2e": "pnpm -F @ant-chat/desktop test:e2e",
+    "test:unit": "pnpm -r test",
     "check": "pnpm type-check && pnpm lint && pnpm test:unit",
-    "check:all": "pnpm check && pnpm test:ui && pnpm test:e2e",
     "lint": "eslint .",
     "clean": "pnpm -F @ant-chat/desktop clean && rm -rf node_modules"
   },
@@ -37,8 +34,8 @@
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@types/wicg-file-system-access": "^2023.10.5",
-    "@vitest/coverage-v8": "4.0.14",
-    "@vitest/ui": "4.0.14",
+    "@vitest/coverage-v8": "catalog:",
+    "@vitest/ui": "catalog:",
     "cross-env": "^7.0.3",
     "eslint": "^9.31.0",
     "eslint-plugin-better-tailwindcss": "^4.4.0",
@@ -54,6 +51,6 @@
     "tsx": "^4.19.3",
     "typescript": "catalog:",
     "typescript-eslint": "catalog:",
-    "vitest": "4.0.14"
+    "vitest": "catalog:"
   }
 }
