@@ -43,4 +43,31 @@ describe('localWebTransport', () => {
 
     await expect(transport.settings.getSettings()).rejects.toThrow('failed')
   })
+
+  it('sends profile update through local RPC', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      json: async () => ({
+        success: true,
+        data: {
+          profileRootPath: '/tmp/profile',
+          userMarkdown: '§Use Chinese.',
+          memoryMarkdown: '§Run pnpm check.',
+          soulMarkdown: '# SOUL',
+        },
+      }),
+    })))
+
+    const transport = createLocalWebTransport()
+    const profile = await transport.profile.updateProfile({ soulMarkdown: '# SOUL\n\n- Be direct.' })
+
+    expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:17331/api/rpc', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        method: 'profile.updateProfile',
+        params: { input: { soulMarkdown: '# SOUL\n\n- Be direct.' } },
+      }),
+    })
+    expect(profile.soulMarkdown).toBe('# SOUL')
+  })
 })

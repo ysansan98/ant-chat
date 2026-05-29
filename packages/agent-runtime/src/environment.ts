@@ -43,6 +43,7 @@ export function createAgentRuntimeEnvironment(
     db,
     settingsFilePath: paths.settingsFile,
     mcpSettingsFilePath: paths.mcpSettingsFile,
+    profileRootPath: paths.profileRoot,
     workspaceSettingsFilePath: paths.workspaceSettingsFile,
   })
   return {
@@ -66,6 +67,7 @@ export function createAgentRuntimeEnvironmentFromServices(
       eventEmitter: options.eventEmitter,
       sessionStore: createAppDataSessionStore(appDataServices),
       modelCatalog: appDataServices.modelCatalog,
+      profileReader: appDataServices.profileService,
       skillsRoot: paths.skillsRoot,
       createTaskLogger: createTaskLoggerFactory(paths.taskLogsRoot),
       getToolApprovalWhitelistEntries: () => appDataServices.toolApprovalWhitelistRepository.getAll(),

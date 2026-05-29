@@ -25,6 +25,11 @@ export function createLocalWebTransport(): AppTransport {
       updateSettings: updates => rpc('settings.updateSettings', { updates }),
       resetSettings: () => rpc('settings.resetSettings'),
     },
+    profile: {
+      getProfile: () => rpc('profile.getProfile'),
+      updateProfile: input => rpc('profile.updateProfile', { input }),
+      rollbackSoul: () => rpc('profile.rollbackSoul'),
+    },
     agent: {
       startTurn: options => rpc('agent.startTurn', { options }),
       approvePendingAction: options => rpc('agent.approvePendingAction', { options }),

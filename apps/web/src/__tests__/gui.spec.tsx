@@ -8,6 +8,7 @@ import { createMemoryRouter, Navigate, RouterProvider } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AppWrapper from '../App'
 import { ChatPage } from '../pages/Chat'
+import { ProfileSettings } from '../pages/Settings/Profile'
 import SettingsPage from '../pages/Settings/Settings'
 import { useAgentStore } from '../store/agent'
 import { useConversationsStore } from '../store/conversation'
@@ -45,6 +46,31 @@ const mocks = vi.hoisted(() => ({
     getAllAbvailableModels: vi.fn(),
     getModelInfoById: vi.fn(async () => null),
   },
+  profile: {
+    getProfile: vi.fn(async () => ({
+      profileRootPath: '/tmp/profile',
+      userMarkdown: '§Use Chinese.',
+      memoryMarkdown: '§Run pnpm check.',
+      soulMarkdown: '# SOUL',
+    })),
+    rollbackSoul: vi.fn(async () => ({
+      profileRootPath: '/tmp/profile',
+      userMarkdown: '§Use Chinese.',
+      memoryMarkdown: '§Run pnpm check.',
+      soulMarkdown: '# SOUL rolled back',
+    })),
+    updateProfile: vi.fn(async input => ({
+      profileRootPath: '/tmp/profile',
+      userMarkdown: input.userMarkdown ?? '§Use Chinese.',
+      memoryMarkdown: input.memoryMarkdown ?? '§Run pnpm check.',
+      soulMarkdown: input.soulMarkdown ?? '# SOUL',
+      lastSoulUpdate: {
+        updatedAt: 1,
+        summary: 'Manual SOUL.md update',
+        backupPath: '/tmp/profile/.soul-backups/SOUL.1.md',
+      },
+    })),
+  },
   skill: {
     listSkills: vi.fn(async () => ({ skills: [] })),
   },
@@ -69,6 +95,10 @@ vi.mock('@/api/generalSettingsApi', () => ({
 
 vi.mock('@/api/providerApi', () => ({
   providerApi: mocks.provider,
+}))
+
+vi.mock('@/api/profileApi', () => ({
+  profileApi: mocks.profile,
 }))
 
 vi.mock('@/api/skillApi', () => ({
@@ -169,6 +199,31 @@ describe('gui ui flow', () => {
 
     expect(await screen.findByTestId('settings-nav-general')).toBeInTheDocument()
     expect(screen.getByTestId('settings-nav')).toHaveClass('pt-12')
+  })
+
+  it('edits agent profile files from settings', async () => {
+    renderSettingsWindow('/settings/profile')
+
+    expect(await screen.findByText('Agent Profile')).toBeInTheDocument()
+    const editors = screen.getAllByRole('textbox')
+    fireEvent.change(editors[0], {
+      target: { value: '§Prefer concise answers.' },
+    })
+    fireEvent.change(editors[1], {
+      target: { value: '§pnpm check validates changes.' },
+    })
+    fireEvent.change(editors[2], {
+      target: { value: '# SOUL\n\n- Verify before reporting.' },
+    })
+    fireEvent.click(screen.getByText('Save'))
+
+    await waitFor(() => {
+      expect(mocks.profile.updateProfile).toHaveBeenCalledWith({
+        userMarkdown: '§Prefer concise answers.',
+        memoryMarkdown: '§pnpm check validates changes.',
+        soulMarkdown: '# SOUL\n\n- Verify before reporting.',
+      })
+    })
   })
 
   it('未选择模型时发送消息会提示用户先选择模型', async () => {
@@ -310,6 +365,7 @@ function renderGui(initialPath: string) {
           children: [
             { index: true, element: <Navigate replace to="./general" /> },
             { path: 'general', element: <div data-testid="settings-general-page">通用设置</div> },
+            { path: 'profile', element: <div data-testid="settings-profile-page">Profile</div> },
           ],
         },
       ],
@@ -329,6 +385,7 @@ function renderSettingsWindow(initialPath: string) {
       children: [
         { index: true, element: <Navigate replace to="./general" /> },
         { path: 'general', element: <div data-testid="settings-general-page">General settings</div> },
+        { path: 'profile', element: <ProfileSettings /> },
       ],
     },
     {
@@ -337,6 +394,7 @@ function renderSettingsWindow(initialPath: string) {
       children: [
         { index: true, element: <Navigate replace to="./general" /> },
         { path: 'general', element: <div data-testid="settings-general-page">General settings</div> },
+        { path: 'profile', element: <ProfileSettings /> },
       ],
     },
   ], {

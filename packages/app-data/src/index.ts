@@ -1,5 +1,6 @@
 export * from './file'
 export * from './mcp'
+export * from './profile'
 export * from './repositories'
 export * from './services'
 export * from './settings'

@@ -1,3 +1,4 @@
+export * from './agent-profile'
 export * from './agent-runtime'
 export * from './agent-runtime-electron'
 export * from './agent-runtime-interfaces'

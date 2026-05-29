@@ -28,6 +28,11 @@ export function createElectronIpcTransport(): AppTransport {
       updateSettings: async updates => unwrapIpcResponse(await ipc.settings.updateSettings(updates)),
       resetSettings: async () => unwrapIpcResponse(await ipc.settings.resetSettings()),
     },
+    profile: {
+      getProfile: async () => unwrapIpcResponse(await ipc.profile.getProfile()),
+      updateProfile: async input => unwrapIpcResponse(await ipc.profile.updateProfile(input)),
+      rollbackSoul: async () => unwrapIpcResponse(await ipc.profile.rollbackSoul()),
+    },
     agent: {
       startTurn: async options => unwrapIpcResponse(await ipc.agent.startTurn(options)),
       approvePendingAction: async options => unwrapIpcResponse(await ipc.agent.approvePendingAction(options)),

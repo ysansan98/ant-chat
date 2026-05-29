@@ -122,7 +122,8 @@ export class SessionRuntime {
       mode,
       clientHub,
     })
-    const systemPrompt = createLoopSystemPrompt(options.workspacePath, options.chatSettings?.systemPrompt)
+    const profile = await readPromptProfile(this.config)
+    const systemPrompt = createLoopSystemPrompt(options.workspacePath, options.chatSettings?.systemPrompt, profile)
     const apiMode = provider.apiMode || 'openai'
     const compactionSettings: CompactionSettingsSchema = currentConversation?.settings?.compaction ?? DEFAULT_COMPACTION_SETTINGS
 
@@ -197,6 +198,19 @@ export class SessionRuntime {
     // Enqueue for the agent loop
     taskStore.enqueueSteeringInput(task.taskId, { text, turnId })
   }
+}
+
+async function readPromptProfile(config: AgentRuntimeConfig): Promise<{ memory?: string, soul?: string, user?: string } | undefined> {
+  if (!config.profileReader) {
+    return undefined
+  }
+
+  const [soul, user, memory] = await Promise.all([
+    config.profileReader.readSoul(),
+    config.profileReader.readUserProfile(),
+    config.profileReader.readMemory(),
+  ])
+  return { memory, soul, user }
 }
 
 function requireSessionStore(config: AgentRuntimeConfig): ISessionStore {

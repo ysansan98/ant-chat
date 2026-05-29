@@ -1,5 +1,5 @@
 import type { ConversationService, MessageService, SettingsService, WorkspaceService } from '@ant-chat/app-data'
-import type { AddConversationsSchema, AddMessage, UpdateConversationsSchema, UpdateMessageSchema } from '@ant-chat/shared'
+import type { AddConversationsSchema, AddMessage, AgentProfileFiles, UpdateAgentProfileInput, UpdateConversationsSchema, UpdateMessageSchema } from '@ant-chat/shared'
 import type { IncomingMessage } from 'node:http'
 import { Buffer } from 'node:buffer'
 import { createServer as createHttpServer } from 'node:http'
@@ -9,6 +9,11 @@ export interface LocalServerServices {
   conversationService: ConversationService
   messageService: MessageService
   settingsService: SettingsService
+  profileService?: {
+    readProfile: () => Promise<AgentProfileFiles>
+    updateProfile: (input: UpdateAgentProfileInput) => Promise<AgentProfileFiles>
+    rollbackSoul: () => Promise<AgentProfileFiles>
+  }
   workspaceService?: Pick<WorkspaceService, 'listWorkspaces' | 'addWorkspace' | 'removeWorkspace' | 'openWorkspace' | 'getCurrentWorkspacePath' | 'getDefaultWorkspacePath'>
   agentService?: {
     startTurn?: (options: unknown) => Promise<unknown> | unknown
@@ -138,6 +143,12 @@ async function dispatchRpc(body: unknown, services: LocalServerServices): Promis
       return services.settingsService.updateGeneralSettings(asRecord(params.updates))
     case 'settings.resetSettings':
       return services.settingsService.resetGeneralSettings()
+    case 'profile.getProfile':
+      return requireProfileService(services).readProfile()
+    case 'profile.updateProfile':
+      return requireProfileService(services).updateProfile(params.input as UpdateAgentProfileInput)
+    case 'profile.rollbackSoul':
+      return requireProfileService(services).rollbackSoul()
     case 'workspace.listWorkspaces':
       return requireWorkspaceService(services).listWorkspaces()
     case 'workspace.addWorkspace':
@@ -179,6 +190,13 @@ async function dispatchRpc(body: unknown, services: LocalServerServices): Promis
     default:
       throw new Error(`Unknown local RPC method: ${method}`)
   }
+}
+
+function requireProfileService(services: LocalServerServices): NonNullable<LocalServerServices['profileService']> {
+  if (!services.profileService) {
+    throw new Error('Profile service is not available in local web transport')
+  }
+  return services.profileService
 }
 
 function requireWorkspaceService(services: LocalServerServices): Pick<WorkspaceService, 'listWorkspaces' | 'addWorkspace' | 'removeWorkspace' | 'openWorkspace' | 'getCurrentWorkspacePath' | 'getDefaultWorkspacePath'> {

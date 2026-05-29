@@ -1,4 +1,5 @@
 import type { AddConversationsSchema, AddMessage, ModelInfo, ServiceProviderSchema, ToolCallContent, ToolResultContent, UpdateConversationsSchema, UpdateMessageSchema } from '../schemas'
+import type { AgentProfileReader } from './agent-profile'
 import type { AgentMode, AgentPendingAction, AgentTaskSnapshot, ToolApprovalWhitelistEntry } from './agent-runtime'
 import type { AgentTool } from './agent-tools'
 import type { IAttachment, IConversations, IMessage } from './db-types'
@@ -202,6 +203,7 @@ export interface AgentRuntimeHost {
   createTaskLogger?: (conversationId: string, userMessageId: string) => ITaskLogger
   sessionStore: ISessionStore
   modelCatalog: IModelCatalog
+  profileReader?: AgentProfileReader
   skillsRoot?: string
   getToolApprovalWhitelistEntries?: () => ToolApprovalWhitelistEntry[]
 }
@@ -230,6 +232,7 @@ export interface AgentRuntimeConfig extends AgentRuntimeOverrides {
   taskLogger?: ITaskLogger
   sessionStore?: ISessionStore
   modelCatalog?: IModelCatalog
+  profileReader?: AgentProfileReader
   skillsRoot?: string
   getToolApprovalWhitelistEntries?: () => ToolApprovalWhitelistEntry[]
 }
