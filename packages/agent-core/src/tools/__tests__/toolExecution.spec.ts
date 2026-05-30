@@ -76,8 +76,7 @@ describe('executeToolStep', () => {
 
     expect(result.toolCallId).toBeDefined()
     expect(result.isError).toBe(false)
-    expect(result.toolResultContent).toContain('read_file')
-    expect(result.toolResultContent).toContain('succeeded')
+    expect(result.toolResultContent).toBe('file content')
   })
 
   it('preserves model-provided tool call id', async () => {

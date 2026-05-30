@@ -49,7 +49,7 @@ export function createListDirTool(pathPolicy: PathPolicy, unrestricted: boolean)
       const output = result.output as { path?: string, offset?: number, limit?: number, total?: number, hasMore?: boolean, items?: Array<{ name: string, type: string }> }
       const itemsText = output.items?.map(i => `${i.type === 'directory' ? '[dir]' : '[file]'} ${i.name}`).join('\n') || '(空)'
       return [
-        `工具 list_dir 执行成功: path=${output.path || '.'}, offset=${output.offset || 0}, total=${output.total || 0}, returned=${output.items?.length || 0}, hasMore=${Boolean(output.hasMore)}`,
+        `path=${output.path || '.'}, offset=${output.offset || 0}, total=${output.total || 0}, returned=${output.items?.length || 0}, hasMore=${Boolean(output.hasMore)}`,
         itemsText,
       ].join('\n')
     },

@@ -100,7 +100,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
     }, task.snapshot.conversationId, config, currentModelText, currentToolMessages)
   }
 
-  return finalizeSuccessToolStep(currentToolCall, preparation, execution.result, task.snapshot.conversationId, config, currentModelText, currentToolMessages)
+  return finalizeSuccessToolStep(currentToolCall, preparation, execution.result, task.snapshot.conversationId, task.snapshot.userMessageId, config, currentModelText, currentToolMessages)
 }
 
 // ============================================================
@@ -215,6 +215,7 @@ async function finalizeSuccessToolStep(
   preparation: ToolPreparation & { kind: 'ready' },
   result: ToolExecution['result'],
   conversationId: string,
+  userMessageId: string,
   config: AgentRuntimeConfig,
   currentModelText: string,
   currentToolMessages: McpToolCall[],
@@ -230,8 +231,8 @@ async function finalizeSuccessToolStep(
 
   await emitTurnToolCalls(config, conversationId, currentModelText, currentToolMessages)
 
-  logger.info('agent-runtime', { event: 'tool_completed', conversationId, userMessageId: '', toolName: prepared.toolName, outputPreview: toolOutputText, exitCode: result.exitCode, durationMs: result.durationMs })
-  config.taskLogger?.write('tool_completed', { conversationId, userMessageId: '', toolName: prepared.toolName, outputPreview: toolOutputText, exitCode: result.exitCode, durationMs: result.durationMs })
+  logger.info('agent-runtime', { event: 'tool_completed', conversationId, userMessageId, toolName: prepared.toolName, outputPreview: toolOutputText, exitCode: result.exitCode, durationMs: result.durationMs })
+  config.taskLogger?.write('tool_completed', { conversationId, userMessageId, toolName: prepared.toolName, outputPreview: toolOutputText, exitCode: result.exitCode, durationMs: result.durationMs })
 
   return {
     lastToolCallContext,
@@ -312,7 +313,7 @@ function buildObservation(
   if (prepared.formatObservation) {
     return prepared.formatObservation(result, outputText)
   }
-  return `Tool ${prepared.toolName} succeeded, output: ${outputText}`
+  return outputText
 }
 
 export async function createInvalidToolArgsResult(options: {

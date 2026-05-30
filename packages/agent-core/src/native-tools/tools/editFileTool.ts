@@ -57,7 +57,7 @@ export function createEditFileTool(pathPolicy: PathPolicy, workspacePath: string
     formatObservation: (result) => {
       const output = result.output as { path: string, absolutePath?: string, replacements: number } | undefined
       const displayPath = output?.absolutePath ?? output?.path ?? 'unknown'
-      return `The file ${displayPath} has been updated successfully. (file state is current in your context — no need to Read it back)`
+      return `path=${displayPath}, replacements=${output?.replacements ?? 0}. File state is current in context; no read-back is required.`
     },
   })
 }

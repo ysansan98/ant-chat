@@ -152,10 +152,9 @@ describe('agentLoop integration (aimock)', () => {
     await writeFile(path.join(workspacePath, 'README.md'), '# Test Workspace\n\nE2E test target.\n', 'utf8')
 
     aimock().llm.reset()
-    // Response when tool result contains "list_dir" success
-    // Second turn: after tool result (which contains "succeeded"), return final text
+    // Second turn: after tool result, return final text.
     aimock().llm.on({
-      predicate: request => getAllMessageText(request).includes('Tool list_dir succeeded'),
+      predicate: request => getAllMessageText(request).includes('README.md'),
     }, {
       content: 'The workspace contains a README.md file. Task complete.',
       usage: { prompt_tokens: 12, completion_tokens: 8, total_tokens: 20 },
@@ -164,7 +163,7 @@ describe('agentLoop integration (aimock)', () => {
     aimock().llm.on({
       predicate: (request) => {
         const text = getAllMessageText(request)
-        return text.includes('inspect') && !text.includes('succeeded')
+        return text.includes('inspect') && !text.includes('README.md')
       },
     }, {
       toolCalls: [{ name: 'list_dir', arguments: { path: '.' } }],
