@@ -170,6 +170,58 @@ describe('runAgentLoop', () => {
     )
   })
 
+  it('writes model request diagnostics to the task log', async () => {
+    const aiProvider = createMockAIProvider([
+      [makeTextChunk('Done')],
+    ])
+    const taskLogger = {
+      filePath: '/tmp/task.jsonl',
+      write: vi.fn(),
+      close: vi.fn(),
+    }
+    const readTool = createReadTool()
+
+    const { taskId, options } = createBaseInput({
+      aiProvider: aiProvider as unknown as IAIProvider,
+      registry: new ToolRegistry([readTool]),
+      systemPrompt: [
+        'You are helpful.',
+        'Use persistent memory for durable user preferences.',
+      ].join('\n'),
+      taskLogger,
+    })
+    const task = createTask(taskId, options.conversationId)
+    taskStore.create(task)
+
+    await runAgentLoop({
+      taskId,
+      options,
+      config: { eventEmitter: emitter, logger, taskLogger },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
+    })
+
+    expect(taskLogger.write).toHaveBeenCalledWith('model_request_started', expect.objectContaining({
+      conversationId: options.conversationId,
+      userMessageId: options.userMessageId,
+      model: options.modelName,
+      provider: options.providerName,
+      toolNames: ['read_file'],
+      systemPromptPreview: expect.stringContaining('durable user preferences'),
+      messagesPreview: [
+        expect.objectContaining({
+          role: 'user',
+          content: [{ type: 'text', text: 'Hello' }],
+        }),
+      ],
+    }))
+    expect(taskLogger.write).toHaveBeenCalledWith('model_response_finished', expect.objectContaining({
+      textPreview: 'Done',
+      hasToolCall: false,
+      toolCalls: [],
+    }))
+    expect(taskLogger.close).toHaveBeenCalledTimes(1)
+  })
+
   it('executes tool calls and continues conversation', async () => {
     const readTool = createReadTool()
     const aiProvider = createMockAIProvider([
@@ -327,7 +379,6 @@ describe('runAgentLoop', () => {
       }),
     )
   })
-
   it('uses system prompt returned by onBeforeTurn for the model call', async () => {
     const prompts: string[] = []
     const aiProvider: IAIProvider = {

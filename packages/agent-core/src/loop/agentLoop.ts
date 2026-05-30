@@ -1,4 +1,4 @@
-import type { AgentRuntimeConfig, AgentTaskSnapshot, LoopMessage, McpToolCall, ToolResultContent } from '@ant-chat/shared'
+import type { AgentRuntimeConfig, AgentTaskSnapshot, LoopMessage, McpToolCall, RuntimeToolDefinition, ToolResultContent } from '@ant-chat/shared'
 import type { RuntimeStartInput } from '../session/types'
 import type { BeforeToolExecuteHook, ToolCallContext } from '../tools/types'
 import { AgentError } from '../AgentError'
@@ -83,8 +83,27 @@ export async function runAgentLoop(input: {
 
       currentToolMessages = []
 
-      logger.info('agent-runtime', { event: 'model_request_started', conversationId: options.conversationId, userMessageId: options.userMessageId, step, messageCount: loopMessages.length, toolCount: toolDefs.length })
-      config.taskLogger?.write('model_request_started', { conversationId: options.conversationId, userMessageId: options.userMessageId, step, messageCount: loopMessages.length, toolCount: toolDefs.length })
+      const requestDiagnostics = createModelRequestDiagnostics({
+        messages: loopMessages,
+        systemPrompt,
+        toolDefs,
+      })
+      const requestPayload = {
+        conversationId: options.conversationId,
+        userMessageId: options.userMessageId,
+        step,
+        messageCount: loopMessages.length,
+        toolCount: toolDefs.length,
+        model: modelName,
+        provider: providerName,
+        providerId,
+        apiMode: options.apiMode,
+        temperature,
+        maxTokens,
+        ...requestDiagnostics,
+      }
+      logger.info('agent-runtime', { event: 'model_request_started', ...requestPayload })
+      config.taskLogger?.write('model_request_started', requestPayload)
 
       const stream = aiProvider.streamModel({
         messages: loopMessages,
@@ -120,8 +139,21 @@ export async function runAgentLoop(input: {
         })
       }
 
-      logger.info('agent-runtime', { event: 'model_response_finished', conversationId: options.conversationId, userMessageId: options.userMessageId, step, textPreview: modelText.slice(0, 500), hasToolCall: requestedToolCalls.length > 0 })
-      config.taskLogger?.write('model_response_finished', { conversationId: options.conversationId, userMessageId: options.userMessageId, step, textPreview: modelText.slice(0, 500), hasToolCall: requestedToolCalls.length > 0 })
+      const responsePayload = {
+        conversationId: options.conversationId,
+        userMessageId: options.userMessageId,
+        step,
+        textPreview: modelText.slice(0, 1000),
+        hasToolCall: requestedToolCalls.length > 0,
+        toolCalls: requestedToolCalls.map(call => ({
+          id: call.id,
+          toolName: call.toolName,
+          input: call.input,
+          invalidArgsError: call.invalidArgsError,
+        })),
+      }
+      logger.info('agent-runtime', { event: 'model_response_finished', ...responsePayload })
+      config.taskLogger?.write('model_response_finished', responsePayload)
       currentModelText = modelText.trim()
 
       if (requestedToolCalls.length === 0) {
@@ -274,4 +306,45 @@ async function handleLoopFailure(options: {
   await config.eventEmitter.emitTaskUpdated(task.snapshot)
   getAgentLogger(config).error('[agent-runtime] task_failed', failurePayload)
   config.taskLogger?.write('task_failed', { conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, ...failurePayload })
+}
+
+function createModelRequestDiagnostics(input: {
+  messages: LoopMessage[]
+  systemPrompt: string
+  toolDefs: RuntimeToolDefinition[]
+}) {
+  return {
+    systemPromptPreview: previewText(input.systemPrompt, 4000),
+    messagesPreview: input.messages.map(message => ({
+      role: message.role,
+      content: message.content.map((part) => {
+        if (part.type === 'text') {
+          return { type: 'text', text: previewText(part.text, 2000) }
+        }
+        if (part.type === 'tool-call') {
+          return {
+            type: 'tool-call',
+            toolCallId: part.toolCallId,
+            toolName: part.toolName,
+            args: part.args,
+          }
+        }
+        return {
+          type: 'tool-result',
+          toolCallId: part.toolCallId,
+          toolName: part.toolName,
+          result: typeof part.result === 'string' ? previewText(part.result, 2000) : part.result,
+          isError: part.isError,
+        }
+      }),
+    })),
+    toolNames: input.toolDefs.map(tool => tool.name),
+  }
+}
+
+function previewText(value: string, maxLength: number): string {
+  if (value.length <= maxLength) {
+    return value
+  }
+  return `${value.slice(0, maxLength)}\n...[truncated ${value.length - maxLength} chars]`
 }
