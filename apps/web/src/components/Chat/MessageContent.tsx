@@ -48,8 +48,9 @@ export default function MessageContent({ content = '', images = EMPTY_IMAGES, at
     return (
       <Alert variant="destructive">
         <AlertDescription>
-          <p>Request failed. Check your configuration and try again.</p>
-          {content && <p className="mt-2 whitespace-pre-wrap">{content}</p>}
+          {content
+            ? <p className="whitespace-pre-wrap">{content}</p>
+            : <p>请求失败。请检查配置并重试。</p>}
         </AlertDescription>
       </Alert>
     )

@@ -5,6 +5,7 @@ import { AgentError } from '../AgentError'
 import { getAgentLogger } from '../logger'
 import { taskStore } from '../taskStore'
 import { createInvalidToolArgsResult, executeToolStep } from '../tools/toolExecution'
+import { transformErrorMessage } from '../utils/errorMessages'
 import { normalizeToolArgs } from './loopContext'
 
 export async function runAgentLoop(input: {
@@ -299,7 +300,7 @@ async function handleLoopFailure(options: {
     task.snapshot.errorMessage = error.message
     await config.eventEmitter.emitTurnFinished({
       conversationId: task.snapshot.conversationId,
-      text: `Task failed: ${error.message}`,
+      text: transformErrorMessage(error.message),
       status: 'error',
     })
   }
