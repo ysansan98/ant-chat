@@ -57,6 +57,16 @@ export const DEFAULT_APP_SETTINGS: AppSettingsState = {
       isEnabled: false,
       models: {},
     },
+    {
+      id: 'xiaomi-token-plan-cn',
+      name: 'Xiaomi Token Plan',
+      baseUrl: 'https://token-plan-cn.xiaomimimo.com/v1',
+      apiKey: '',
+      apiMode: 'openai',
+      isOfficial: false,
+      isEnabled: false,
+      models: {},
+    },
   ],
   toolApprovalWhitelist: [],
 }

@@ -30,6 +30,9 @@ export class AppSettingsStore {
         this.write(options.initialSettings ?? DEFAULT_APP_SETTINGS)
       }
     }
+
+    // Merge new builtin providers from defaults into existing settings
+    this.mergeBuiltinProviders()
   }
 
   read(): AppSettingsState {
@@ -48,5 +51,30 @@ export class AppSettingsStore {
 
   update(mutator: (settings: AppSettingsState) => AppSettingsState): AppSettingsState {
     return this.write(mutator(this.read()))
+  }
+
+  /**
+   * Merge new builtin providers from DEFAULT_APP_SETTINGS into existing settings.
+   * Only adds providers that don't exist in user's settings (by id).
+   */
+  private mergeBuiltinProviders(): void {
+    const parsed = AppSettingsSchema.safeParse(this.store.read())
+    if (!parsed.success) {
+      return
+    }
+    const currentSettings = parsed.data
+    const defaultSettings = this.options.initialSettings ?? DEFAULT_APP_SETTINGS
+    const currentProviderIds = new Set(currentSettings.providers.map(p => p.id))
+
+    const newProviders = defaultSettings.providers.filter(
+      p => !currentProviderIds.has(p.id),
+    )
+
+    if (newProviders.length > 0) {
+      this.write({
+        ...currentSettings,
+        providers: [...currentSettings.providers, ...newProviders],
+      })
+    }
   }
 }
