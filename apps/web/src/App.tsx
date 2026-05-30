@@ -27,7 +27,7 @@ function AntChatApp() {
       <div
         role="button"
         tabIndex={0}
-        className="absolute top-[16px] left-[90px] z-9990 cursor-pointer text-slate-600"
+        className="absolute top-4 left-22.5 z-9990 cursor-pointer text-slate-600"
         onClick={() => {
           setShowSliderMenu(prev => !prev)
         }}
@@ -51,7 +51,7 @@ function AntChatApp() {
       <div
         className={`
           overflow-hidden transition-[width,opacity] duration-300 ease-in-out
-          ${showSliderMenu ? 'w-[296px] opacity-100' : 'w-0 opacity-0'}
+          ${showSliderMenu ? 'w-74 opacity-100' : 'w-0 opacity-0'}
         `}
       >
         <SliderMenu />

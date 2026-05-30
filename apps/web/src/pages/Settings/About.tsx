@@ -1,6 +1,5 @@
 import { Button } from '@workspace/ui/components/button'
-import { Card, CardContent, CardDescription } from '@workspace/ui/components/card'
-import { GitBranch, Heart, Info } from 'lucide-react'
+import { Card, CardContent } from '@workspace/ui/components/card'
 import { AboutUpdateSettings } from '@/components/About/AboutUpdateSettings'
 
 export function About() {
@@ -13,7 +12,7 @@ export function About() {
   }
 
   return (
-    <div className="flex flex-col gap-4 space-y-3 p-4">
+    <div className="flex flex-col gap-4 space-y-1 p-4">
       {/* 应用信息卡片 */}
       <Card className="w-full">
         <CardContent className="space-y-3 text-center">
@@ -40,14 +39,15 @@ export function About() {
               variant="outline"
               onClick={handleOpenGitHub}
             >
-              <GitBranch />
+
+              <span className="icon-[mdi--github] size-4"></span>
               GitHub
             </Button>
             <Button
               variant="outline"
               onClick={handleOpenLicense}
             >
-              <Info />
+              <span className="icon-[clarity--balance-line] size-4"></span>
               开源协议
             </Button>
           </div>
@@ -56,23 +56,6 @@ export function About() {
 
       {/* 更新设置 */}
       <AboutUpdateSettings />
-
-      {/* 致谢信息 */}
-      <Card className="w-full">
-        <CardContent className="space-y-1 text-center">
-          <div className="flex items-center justify-center gap-2">
-            <Heart className="size-4 text-red-500" />
-            <CardDescription className="font-semibold text-foreground!">致谢</CardDescription>
-          </div>
-
-          <p className="text-sm text-muted-foreground">
-            感谢所有为开源社区做出贡献的开发者们，
-            以及 Ant Design、Electron、React 等优秀项目的支持。
-          </p>
-
-          <CardDescription>© 2025 Ant Chat. All rights reserved.</CardDescription>
-        </CardContent>
-      </Card>
     </div>
   )
 }

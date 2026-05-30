@@ -54,7 +54,7 @@ export default function SettingsPage() {
           }
         </div>
       </div>
-      <div>
+      <div className="overflow-y-auto">
         <Outlet />
       </div>
     </div>

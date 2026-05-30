@@ -89,14 +89,14 @@ export function AboutUpdateSettings() {
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3 text-sm">
       {/* 版本信息卡片 */}
-      <Card className="w-full">
-        <CardContent className="flex items-center justify-between py-3">
-          <div className="flex items-center gap-3">
+      <Card size="sm" className="w-full ">
+        <CardContent className="flex items-center justify-between">
+          <div className="flex items-center gap-1">
             <CheckCircle className="size-4 text-green-500" />
-            <span className="text-base">当前版本</span>
-            <span className="text-base font-bold">{currentVersion}</span>
+            <span className="">当前版本</span>
+            <span className="font-bold">{currentVersion}</span>
           </div>
           <Button
             onClick={handleCheckUpdate}
@@ -109,7 +109,7 @@ export function AboutUpdateSettings() {
       </Card>
 
       {/* 更新设置卡片 */}
-      <Card className="w-full">
+      <Card size="sm" className="w-full">
         <CardContent className="">
           <div className="flex items-center gap-2 text-base font-semibold">
             <Settings className="size-4" />
