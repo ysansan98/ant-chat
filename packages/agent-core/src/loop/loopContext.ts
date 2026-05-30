@@ -10,6 +10,15 @@ export type NormalizeToolArgsResult
   = | { ok: true, input: Record<string, unknown> }
     | { ok: false, error: string }
 
+const MEMORY_GUIDANCE = [
+  'You have persistent memory across sessions. Save durable facts using the memory tool: user preferences, environment details, tool quirks, and stable conventions.',
+  'The memory snapshot in the system prompt is frozen for the current conversation. Memory tool results return the latest entries after each edit.',
+  'Prioritize facts that reduce future user steering. User preferences and recurring corrections matter more than procedural task details.',
+  'Do not save task progress, session outcomes, completed-work logs, temporary TODO state, PR numbers, issue numbers, commit SHAs, fixed bugs, phase status, file counts, or facts likely to be stale within 7 days.',
+  'Write memories as declarative facts, not instructions. Use "User prefers concise responses" instead of "Always respond concisely". Use "Project uses pytest with xdist" instead of "Run tests with pytest -n 4".',
+  'Procedures and workflows belong in skills, not memory.',
+].join('\n')
+
 export function createLoopSystemPrompt(workspacePath: string, customPrompt?: string, profile?: LoopSystemPromptProfile): string {
   const basePrompt = customPrompt
     ? customPrompt.split('{workspacePath}').join(workspacePath)
@@ -18,18 +27,27 @@ export function createLoopSystemPrompt(workspacePath: string, customPrompt?: str
         `Workspace path: ${workspacePath}`,
         'Rules:',
         '1. Always call tools for file-related requests. Do not guess file contents.',
-        '2. Take the single most valuable next step each turn.',
-        '3. Your output must be either a final answer or paired with an active tool call. Do not output plan-only statements.',
-        '4. Work inside the workspace directory. Prefer relative paths.',
-        '5. If a tool returns an error, adjust parameters and retry. Do not repeat the same failing call.',
-        '6. If a tool result indicates more content is available, continue reading.',
-        '7. When sufficient information is available, execute the change and provide the final result.',
+        '2. Use persistent memory when it is available and the user provides a durable preference, correction, environment fact, or stable convention.',
+        '3. Take the single most valuable next step each turn.',
+        '4. Your output must be either a final answer or paired with an active tool call. Do not output plan-only statements.',
+        '5. Work inside the workspace directory. Prefer relative paths.',
+        '6. If a tool returns an error, adjust parameters and retry. Do not repeat the same failing call.',
+        '7. If a tool result indicates more content is available, continue reading.',
+        '8. When sufficient information is available, execute the change and provide the final result.',
       ].join('\n')
 
   const sections = [basePrompt]
   const memory = profile?.memory?.trim()
   const soul = profile?.soul?.trim()
   const user = profile?.user?.trim()
+
+  if (profile) {
+    sections.push([
+      '<memory_guidance>',
+      MEMORY_GUIDANCE,
+      '</memory_guidance>',
+    ].join('\n'))
+  }
 
   if (soul) {
     sections.push([
@@ -43,7 +61,7 @@ export function createLoopSystemPrompt(workspacePath: string, customPrompt?: str
   if (user) {
     sections.push([
       '<user_preferences>',
-      'The following USER.md snapshot contains one durable user preference per line. This snapshot is frozen for the current task; memory tool updates become visible in later tasks.',
+      'The following USER.md snapshot contains one durable user preference per line. This snapshot is frozen for the current conversation; memory tool results return the latest entries after edits.',
       user,
       '</user_preferences>',
     ].join('\n'))
@@ -52,7 +70,7 @@ export function createLoopSystemPrompt(workspacePath: string, customPrompt?: str
   if (memory) {
     sections.push([
       '<agent_memory>',
-      'The following MEMORY.md snapshot contains one durable agent note per line. This snapshot is frozen for the current task; memory tool updates become visible in later tasks.',
+      'The following MEMORY.md snapshot contains one durable agent note per line. This snapshot is frozen for the current conversation; memory tool results return the latest entries after edits.',
       memory,
       '</agent_memory>',
     ].join('\n'))

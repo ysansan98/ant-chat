@@ -92,6 +92,7 @@ export class AgentProfileService implements AgentProfileReader {
       }
       store.write(next)
       return {
+        entries: parseEntries(next),
         success: true,
         target: input.target,
         usage: `${Math.round((next.length / limit) * 100)}% - ${next.length}/${limit} chars`,

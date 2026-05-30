@@ -328,6 +328,34 @@ describe('runAgentLoop', () => {
     )
   })
 
+  it('uses system prompt returned by onBeforeTurn for the model call', async () => {
+    const prompts: string[] = []
+    const aiProvider: IAIProvider = {
+      async* streamModel(opts) {
+        prompts.push(opts.chatSettings.systemPrompt)
+        yield makeTextChunk('Answer')
+      },
+      complete: vi.fn().mockResolvedValue({ text: 'mock complete' }),
+    }
+
+    const { taskId, options } = createBaseInput({
+      aiProvider,
+      systemPrompt: 'Initial prompt.',
+    })
+    const task = createTask(taskId, options.conversationId)
+    taskStore.create(task)
+
+    await runAgentLoop({
+      taskId,
+      options,
+      config: { eventEmitter: emitter, logger },
+      onBeforeTurn: async () => ({ messages: options.messages, systemPrompt: 'Refreshed prompt.' }),
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
+    })
+
+    expect(prompts).toEqual(['Refreshed prompt.'])
+  })
+
   it('throws when aiProvider is null', async () => {
     const { taskId, options } = createBaseInput({ aiProvider: null })
     const task = createTask(taskId, options.conversationId)

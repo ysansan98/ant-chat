@@ -32,14 +32,14 @@ export class AgentRuntime {
     options: RuntimeStartInput,
     runtime?: {
       eventEmitter?: AgentRuntimeConfig['eventEmitter']
-      onBeforeTurn?: (ctx: { messages: LoopMessage[], step: number }) => Promise<{ messages: LoopMessage[] }>
+      onBeforeTurn?: (ctx: { messages: LoopMessage[], step: number }) => Promise<{ messages: LoopMessage[], systemPrompt?: string }>
     },
   ): Promise<RuntimeStartResult>
   async startTask(
     options: RuntimeStartInput | AgentRuntimeStartTaskOptions,
     runtime?: {
       eventEmitter?: AgentRuntimeConfig['eventEmitter']
-      onBeforeTurn?: (ctx: { messages: LoopMessage[], step: number }) => Promise<{ messages: LoopMessage[] }>
+      onBeforeTurn?: (ctx: { messages: LoopMessage[], step: number }) => Promise<{ messages: LoopMessage[], systemPrompt?: string }>
     },
   ): Promise<RuntimeStartResult | AgentRuntimeStartTaskResult> {
     if (isSessionStartOptions(options)) {
@@ -52,7 +52,7 @@ export class AgentRuntime {
     options: RuntimeStartInput,
     runtime?: {
       eventEmitter?: AgentRuntimeConfig['eventEmitter']
-      onBeforeTurn?: (ctx: { messages: LoopMessage[], step: number }) => Promise<{ messages: LoopMessage[] }>
+      onBeforeTurn?: (ctx: { messages: LoopMessage[], step: number }) => Promise<{ messages: LoopMessage[], systemPrompt?: string }>
     },
   ): Promise<RuntimeStartResult> {
     const missing: string[] = []

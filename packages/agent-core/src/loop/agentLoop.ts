@@ -14,7 +14,7 @@ export async function runAgentLoop(input: {
   onBeforeTurn?: (ctx: {
     messages: LoopMessage[]
     step: number
-  }) => Promise<{ messages: LoopMessage[] }>
+  }) => Promise<{ messages: LoopMessage[], systemPrompt?: string }>
   beforeToolExecute: BeforeToolExecuteHook
 }) {
   const { taskId, options, config, onBeforeTurn, beforeToolExecute } = input
@@ -25,7 +25,7 @@ export async function runAgentLoop(input: {
 
   const {
     messages: initialMessages,
-    systemPrompt,
+    systemPrompt: initialSystemPrompt,
     registry,
     aiProvider,
     modelName,
@@ -43,6 +43,7 @@ export async function runAgentLoop(input: {
   let currentModelText = ''
   let lastToolCallContext: ToolCallContext | null = null
   let loopMessages: LoopMessage[] = [...initialMessages]
+  let systemPrompt = initialSystemPrompt
 
   try {
     for (;;) {
@@ -57,6 +58,9 @@ export async function runAgentLoop(input: {
       if (onBeforeTurn) {
         const result = await onBeforeTurn({ messages: loopMessages, step })
         loopMessages = result.messages
+        if (result.systemPrompt !== undefined) {
+          systemPrompt = result.systemPrompt
+        }
       }
 
       // === Steering: 检查是否有运行中追加的用户输入 ===

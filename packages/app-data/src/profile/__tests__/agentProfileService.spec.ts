@@ -35,17 +35,19 @@ describe('agentProfileService', () => {
   it('edits MEMORY.md and USER.md through the memory tool API', async () => {
     const service = createService()
 
-    await service.editMemory({
+    const memoryResult = await service.editMemory({
       target: 'memory',
       action: 'add',
       content: 'Use pnpm check before commits.',
     })
-    await service.editMemory({
+    const userResult = await service.editMemory({
       target: 'user',
       action: 'add',
       content: 'Prefers concise Chinese replies.',
     })
 
+    expect(memoryResult.entries).toEqual(['Use pnpm check before commits.'])
+    expect(userResult.entries).toEqual(['Prefers concise Chinese replies.'])
     expect(await service.readMemory()).toBe('§Use pnpm check before commits.\n')
     expect(await service.readUserProfile()).toBe('§Prefers concise Chinese replies.\n')
   })
@@ -58,19 +60,21 @@ describe('agentProfileService', () => {
       content: 'Use pnpm check before commits.',
     })
 
-    await service.editMemory({
+    const replaceResult = await service.editMemory({
       target: 'memory',
       action: 'replace',
       old_text: 'pnpm check',
       content: 'Run pnpm check before commits.',
     })
+    expect(replaceResult.entries).toEqual(['Run pnpm check before commits.'])
     expect(await service.readMemory()).toBe('§Run pnpm check before commits.\n')
 
-    await service.editMemory({
+    const removeResult = await service.editMemory({
       target: 'memory',
       action: 'remove',
       old_text: 'Run pnpm check',
     })
+    expect(removeResult.entries).toEqual([])
     expect(await service.readMemory()).toBe('')
   })
 

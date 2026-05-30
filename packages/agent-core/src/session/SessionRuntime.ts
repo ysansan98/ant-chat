@@ -28,6 +28,8 @@ const DEFAULT_CONVERSATION_TITLE = 'Untitled'
 const STREAM_UPDATE_INTERVAL_MS = 80
 
 export class SessionRuntime {
+  private readonly promptProfileSnapshots = new Map<string, { memory?: string, soul?: string, user?: string } | undefined>()
+
   constructor(
     private readonly config: AgentRuntimeConfig,
     private readonly listActiveTasks: (conversationId?: string) => unknown[],
@@ -35,7 +37,7 @@ export class SessionRuntime {
       input: RuntimeStartInput,
       runtime?: {
         eventEmitter?: IAgentEventEmitter
-        onBeforeTurn?: (ctx: { messages: LoopMessage[], step: number }) => Promise<{ messages: LoopMessage[] }>
+        onBeforeTurn?: (ctx: { messages: LoopMessage[], step: number }) => Promise<{ messages: LoopMessage[], systemPrompt?: string }>
       },
     ) => Promise<RuntimeStartResult>,
   ) {}
@@ -122,7 +124,7 @@ export class SessionRuntime {
       mode,
       clientHub,
     })
-    const profile = await readPromptProfile(this.config)
+    const profile = await this.getPromptProfileSnapshot(conversation.id)
     const systemPrompt = createLoopSystemPrompt(options.workspacePath, options.chatSettings?.systemPrompt, profile)
     const apiMode = provider.apiMode || 'openai'
     const compactionSettings: CompactionSettingsSchema = currentConversation?.settings?.compaction ?? DEFAULT_COMPACTION_SETTINGS
@@ -130,7 +132,7 @@ export class SessionRuntime {
     const turnId = userMessage.id
     const eventEmitter = createStoreBackedEventEmitter(store, this.config.eventEmitter, turnId)
 
-    const onBeforeTurn = createCompactionGate({
+    const compactionGate = createCompactionGate({
       settings: compactionSettings,
       aiProvider,
       modelName: model.model,
@@ -141,6 +143,19 @@ export class SessionRuntime {
       userMessageId: userMessage.id,
       store,
     })
+    const onBeforeTurn = async (ctx: { messages: LoopMessage[], step: number }) => {
+      const result = await compactionGate(ctx)
+      if (!result.compacted) {
+        return { messages: result.messages }
+      }
+
+      this.promptProfileSnapshots.delete(conversation.id)
+      const updatedProfile = await this.getPromptProfileSnapshot(conversation.id)
+      return {
+        messages: result.messages,
+        systemPrompt: createLoopSystemPrompt(options.workspacePath, options.chatSettings?.systemPrompt, updatedProfile),
+      }
+    }
 
     const taskLogger = this.config.createTaskLogger?.(conversation.id, userMessage.id)
 
@@ -197,6 +212,13 @@ export class SessionRuntime {
 
     // Enqueue for the agent loop
     taskStore.enqueueSteeringInput(task.taskId, { text, turnId })
+  }
+
+  private async getPromptProfileSnapshot(conversationId: string): Promise<{ memory?: string, soul?: string, user?: string } | undefined> {
+    if (!this.promptProfileSnapshots.has(conversationId)) {
+      this.promptProfileSnapshots.set(conversationId, await readPromptProfile(this.config))
+    }
+    return this.promptProfileSnapshots.get(conversationId)
   }
 }
 

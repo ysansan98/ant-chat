@@ -11,13 +11,13 @@ export function createCompactionGate(params: {
   conversationId: string
   userMessageId: string
   store: ISessionStore
-}): (ctx: { messages: LoopMessage[], step: number }) => Promise<{ messages: LoopMessage[] }> {
+}): (ctx: { messages: LoopMessage[], step: number }) => Promise<{ compacted: boolean, messages: LoopMessage[] }> {
   const { settings, aiProvider, modelName, apiMode, summarize, logger, conversationId, userMessageId, store } = params
   let compactionCount = 0
 
   return async (ctx) => {
     if (!settings.enabled || !aiProvider || !summarize) {
-      return { messages: ctx.messages }
+      return { compacted: false, messages: ctx.messages }
     }
 
     const estimatedTokens = estimateContextTokens(ctx.messages)
@@ -33,7 +33,7 @@ export function createCompactionGate(params: {
     })
 
     if (!compResult.compacted) {
-      return { messages: ctx.messages }
+      return { compacted: false, messages: ctx.messages }
     }
 
     compactionCount++
@@ -50,6 +50,6 @@ export function createCompactionGate(params: {
 
     logger.info('[agent-runtime]', { event: 'context_compacted', conversationId, userMessageId, step: ctx.step, compactionCount, summaryLength: compResult.summaryLength, keptLength: compResult.keptLength, totalMessages: compResult.messages.length })
 
-    return { messages: compResult.messages }
+    return { compacted: true, messages: compResult.messages }
   }
 }

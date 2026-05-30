@@ -126,8 +126,10 @@ function createMemoryTool(profileReader: NonNullable<AgentRuntimeConfig['profile
       'Edit persistent agent memory files using add, replace, or remove.',
       'Use target="memory" for the agent personal notes: durable environment facts, project conventions, and tool behavior.',
       'Use target="user" for the user profile: durable preferences, communication style, and habits.',
-      'Do not use this tool for temporary task progress, chat summaries, file contents, secrets, or SOUL.md. SOUL.md defines the agent identity and is edited only by the user.',
-      'Updates are written to disk, but the current task uses the frozen USER.md/MEMORY.md snapshot already loaded into the system prompt. New values are visible in later tasks.',
+      'Save compact facts that will still matter later and reduce future user steering.',
+      'Write memories as declarative facts, not instructions. Example: "User prefers concise responses", not "Always respond concisely".',
+      'Do not use this tool for temporary task progress, session outcomes, completed-work logs, chat summaries, stale identifiers, file contents, secrets, or SOUL.md. SOUL.md defines the agent identity and is edited only by the user.',
+      'Updates are written to disk. The system prompt uses the conversation-start USER.md/MEMORY.md snapshot, and this tool returns the latest entries after each successful edit.',
     ].join('\n'),
     inputSchema: {
       type: 'object',

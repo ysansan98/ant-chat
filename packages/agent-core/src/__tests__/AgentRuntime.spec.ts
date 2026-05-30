@@ -281,13 +281,15 @@ describe('agentRuntime', () => {
       cleanupTasks([result.taskId])
     })
 
-    it('injects USER.md and SOUL.md into the loop system prompt', async () => {
+    it('uses a conversation-level USER.md and MEMORY.md snapshot in the loop system prompt', async () => {
       const store = createSessionStore()
+      let userMarkdown = '§Prefer concise Chinese.'
+      let memoryMarkdown = '§Use pnpm check.'
       const config = createSessionConfig({
         sessionStore: store,
         profileReader: {
-          readUserProfile: vi.fn(async () => '§Prefer concise Chinese.'),
-          readMemory: vi.fn(async () => '§Use pnpm check.'),
+          readUserProfile: vi.fn(async () => userMarkdown),
+          readMemory: vi.fn(async () => memoryMarkdown),
           readSoul: vi.fn(async () => '# SOUL\n\n- Verify before reporting.'),
           editMemory: vi.fn(),
           updateSoul: vi.fn(),
@@ -314,7 +316,17 @@ describe('agentRuntime', () => {
       }))
       expect(runAgentLoop).toHaveBeenCalledWith(expect.objectContaining({
         options: expect.objectContaining({
+          systemPrompt: expect.stringContaining('<memory_guidance>'),
+        }),
+      }))
+      expect(runAgentLoop).toHaveBeenCalledWith(expect.objectContaining({
+        options: expect.objectContaining({
           systemPrompt: expect.stringContaining('Use pnpm check.'),
+        }),
+      }))
+      expect(runAgentLoop).toHaveBeenCalledWith(expect.objectContaining({
+        options: expect.objectContaining({
+          systemPrompt: expect.not.stringContaining('visible in later tasks'),
         }),
       }))
       const calls = vi.mocked(runAgentLoop).mock.calls
@@ -324,6 +336,12 @@ describe('agentRuntime', () => {
         expect.objectContaining({
           name: 'memory',
           description: expect.stringContaining('target="user"'),
+        }),
+      ]))
+      expect(registry?.listTools()).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          name: 'memory',
+          description: expect.stringContaining('declarative facts'),
         }),
       ]))
       expect(runAgentLoop).toHaveBeenCalledWith(expect.objectContaining({
@@ -337,6 +355,88 @@ describe('agentRuntime', () => {
         }),
       }))
 
+      cleanupTasks([result.taskId])
+
+      userMarkdown = '§Prefer verbose English.'
+      memoryMarkdown = '§Use npm test.'
+      const secondResult = await runtime.startTask({
+        conversationId: 'conv-session',
+        prompt: 'inspect project again',
+        modelId: 'model-1',
+        workspacePath: '/workspace',
+        mode: 'hybrid',
+      })
+
+      const secondCalls = vi.mocked(runAgentLoop).mock.calls
+      const secondCall = secondCalls[secondCalls.length - 1]
+      expect(secondCall?.[0].options.systemPrompt).toContain('Prefer concise Chinese.')
+      expect(secondCall?.[0].options.systemPrompt).toContain('Use pnpm check.')
+      expect(secondCall?.[0].options.systemPrompt).not.toContain('Prefer verbose English.')
+      expect(secondCall?.[0].options.systemPrompt).not.toContain('Use npm test.')
+      cleanupTasks([secondResult.taskId])
+    })
+
+    it('refreshes the profile snapshot when compaction runs', async () => {
+      const conversation = {
+        id: 'conv-session',
+        title: 'Untitled',
+        workspacePath: '/workspace',
+        createdAt: 1,
+        updatedAt: 1,
+        settings: {
+          modelId: 'model-1',
+          systemPrompt: '',
+          temperature: 0.7,
+          maxTokens: 1024,
+          compaction: { enabled: true, thresholdPercent: 10, keepRecentPairs: 1 },
+        },
+      }
+      const store = createSessionStore({
+        getConversation: vi.fn(async () => conversation),
+        createConversation: vi.fn(async () => conversation),
+      })
+      let memoryMarkdown = '§Initial memory.'
+      const readMemory = vi.fn(async () => memoryMarkdown)
+      const readUserProfile = vi.fn(async () => '§Prefer concise Chinese.')
+      const config = createSessionConfig({
+        sessionStore: store,
+        compactionStrategy: { summarize: vi.fn(async () => 'Earlier context summary.') },
+        profileReader: {
+          readUserProfile,
+          readMemory,
+          readSoul: vi.fn(async () => '# SOUL\n\n- Verify before reporting.'),
+          editMemory: vi.fn(),
+          updateSoul: vi.fn(),
+        },
+      })
+      const runtime = new AgentRuntime(config)
+
+      const result = await runtime.startTask({
+        prompt: 'inspect project',
+        modelId: 'model-1',
+        workspacePath: '/workspace',
+        mode: 'hybrid',
+      })
+
+      const loopCalls = vi.mocked(runAgentLoop).mock.calls
+      const loopCall = loopCalls[loopCalls.length - 1]
+      const onBeforeTurn = loopCall?.[0].onBeforeTurn
+      expect(onBeforeTurn).toBeDefined()
+
+      memoryMarkdown = '§Updated memory after compaction.'
+      const turnResult = await onBeforeTurn?.({
+        step: 1,
+        messages: [
+          { role: 'user', content: [{ type: 'text', text: 'x'.repeat(60_000) }] },
+          { role: 'assistant', content: [{ type: 'text', text: 'previous answer' }] },
+          { role: 'user', content: [{ type: 'text', text: 'current request' }] },
+        ],
+      })
+
+      expect(turnResult?.systemPrompt).toContain('Updated memory after compaction.')
+      expect(turnResult?.systemPrompt).not.toContain('Initial memory.')
+      expect(readMemory).toHaveBeenCalledTimes(2)
+      expect(readUserProfile).toHaveBeenCalledTimes(2)
       cleanupTasks([result.taskId])
     })
 

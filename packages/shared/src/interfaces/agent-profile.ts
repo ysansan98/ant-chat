@@ -32,6 +32,7 @@ export interface AgentMemoryEditInput {
 export interface AgentMemoryEditResult {
   success: boolean
   target: AgentMemoryTarget
+  entries: string[]
   usage: string
 }
 
