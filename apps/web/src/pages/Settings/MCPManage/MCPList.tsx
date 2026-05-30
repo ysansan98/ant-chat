@@ -26,7 +26,7 @@ export function MCPList({ items, onTriggerAction }: MCPListProps) {
           >
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-xl">{item.icon}</span>
+                <span className="text-base">{item.icon}</span>
                 <span>{item.serverName}</span>
                 <span>
                   {getMcpServerRunStatus(connectStatusMap, item.serverName)}

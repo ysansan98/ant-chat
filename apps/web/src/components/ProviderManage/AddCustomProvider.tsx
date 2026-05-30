@@ -99,7 +99,7 @@ export function AddCustomProvider({ onAdd, existingProviderIds, loading }: AddCu
         disabled={loading}
         className="w-full"
       >
-        <Plus />
+        <Plus className="size-4" />
         添加自定义提供商
       </Button>
 

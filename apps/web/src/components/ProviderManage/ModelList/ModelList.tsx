@@ -42,7 +42,7 @@ export function ModelList({ serviceProviderId }: ModelListProps) {
             setAddModal(true)
           }}
         >
-          <PlusCircle />
+          <PlusCircle className="size-4" />
           添加模型
         </Button>
         <Button
@@ -90,7 +90,7 @@ export function ModelList({ serviceProviderId }: ModelListProps) {
               last:border-0
             `}
           >
-            <div className="flex items-center gap-1">{item.name}</div>
+            <div className="flex text-sm items-center gap-1">{item.name}</div>
 
             <div className="flex items-center gap-2">
               {item.isBuiltin
@@ -100,7 +100,7 @@ export function ModelList({ serviceProviderId }: ModelListProps) {
                 : (
                     <Button
                       variant="ghost"
-                      size="icon-sm"
+                      size="icon-xs"
                       onClick={async () => {
                         try {
                           await providerApi.deleteServiceProviderModel(item.id)
@@ -113,12 +113,12 @@ export function ModelList({ serviceProviderId }: ModelListProps) {
                         refresh()
                       }}
                     >
-                      <Trash2 />
+                      <Trash2 className="size-4" />
                     </Button>
                   )}
               <Button
                 variant="ghost"
-                size="icon-sm"
+                size="icon-xs"
                 onClick={async () => {
                   await providerApi.setModelEnabledStatus(item.id, !item.isEnabled)
                   refresh()
@@ -126,10 +126,10 @@ export function ModelList({ serviceProviderId }: ModelListProps) {
               >
                 {item.isEnabled
                   ? (
-                      <CheckCircle className="text-green-500" />
+                      <CheckCircle className="text-green-500 size-4" />
                     )
                   : (
-                      <MinusCircle className="text-red-500" />
+                      <MinusCircle className="text-red-500 size-4" />
                     )}
               </Button>
             </div>

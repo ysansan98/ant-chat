@@ -60,14 +60,14 @@ export default function ProviderManage() {
             >
               <div className="flex items-center gap-2">
                 <div className="
-                  flex size-6 shrink-0 items-center justify-center rounded-sm bg-white
+                  flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-sm bg-white
                 "
                 >
                   {(() => {
                     const content = (
-                      <ProviderLogo id={item.id} name={item.name} size={16} className="size-4" />
+                      <ProviderLogo id={item.id} name={item.name} size={14} className="size-3.5" />
                     )
-                    return content || <Logo />
+                    return content || <Logo className="size-3.5" />
                   })()}
                 </div>
 
