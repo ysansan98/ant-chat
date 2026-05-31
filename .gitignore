@@ -48,6 +48,7 @@ apps/desktop/.ant-chat/
 # Agents and skills
 .claude
 .agents
+.worktreeinclude
 skills-lock.json
 AGENTS.md
 CLAUDE.md
