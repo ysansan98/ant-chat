@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { ChatIpcService } from '../ipc'
 
 const mocks = vi.hoisted(() => ({
-  handleInitConversationTitle: vi.fn(),
+  updateTitle: vi.fn(),
   conversationService: {
     list: vi.fn(),
     create: vi.fn(),
@@ -19,8 +19,10 @@ vi.mock('electron-ipc-decorator', () => ({
   IpcMethod: () => () => {},
 }))
 
-vi.mock('../conversationTitleService', () => ({
-  handleInitConversationTitle: mocks.handleInitConversationTitle,
+vi.mock('@ant-chat/agent-runtime', () => ({
+  createConversationTitleService: vi.fn(() => ({
+    updateTitle: mocks.updateTitle,
+  })),
 }))
 
 vi.mock('@main/agent/runtime/agentRuntimeEnvironment', () => ({
@@ -42,7 +44,7 @@ vi.mock('@main/utils/logger', () => ({
 
 describe('chat ipc', () => {
   it('createConversationsTitle returns error response when title generation fails', async () => {
-    mocks.handleInitConversationTitle.mockRejectedValueOnce(new Error('No output generated'))
+    mocks.updateTitle.mockRejectedValueOnce(new Error('No output generated'))
 
     const service = new ChatIpcService()
     const resp = await service.createConversationsTitle({

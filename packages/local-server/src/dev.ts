@@ -5,7 +5,7 @@ import { createServer as createHttpServer } from 'node:http'
 import { resolve } from 'node:path'
 import process from 'node:process'
 import { parseArgs } from 'node:util'
-import { createAgentRuntimeEnvironment, createModelsDevImporter } from '@ant-chat/agent-runtime'
+import { createAgentRuntimeEnvironment, createConversationTitleService, createModelsDevImporter } from '@ant-chat/agent-runtime'
 import { resolveAppDataRoot } from '@ant-chat/shared'
 import { createLocalApiHandler } from './createServer'
 
@@ -64,6 +64,11 @@ function buildServices(env: ReturnType<typeof createAgentRuntimeEnvironment>): L
     },
     workspaceService: env.appDataServices.workspaceService,
     agentService: env.agentService as unknown as LocalServerServices['agentService'],
+    conversationTitleService: createConversationTitleService({
+      providerSettingsRepository: env.appDataServices.providerSettingsRepository,
+      messageService: env.appDataServices.messageService,
+      conversationService: env.appDataServices.conversationService,
+    }),
   }
 }
 

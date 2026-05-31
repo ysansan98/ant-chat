@@ -1,9 +1,9 @@
 import type { AddConversationsSchema, handleInitConversationTitleOptions, IConversations, IMessage, IpcPaginatedResponse, IpcResponse, UpdateConversationsSchema } from '@ant-chat/shared'
+import { createConversationTitleService } from '@ant-chat/agent-runtime'
 import { AddMessage, createErrorIpcResponse, createIpcPaginatedResponse, createIpcResponse, UpdateMessageSchema } from '@ant-chat/shared'
 import { getAgentRuntimeEnvironment } from '@main/agent/runtime/agentRuntimeEnvironment'
 import { logger } from '@main/utils/logger'
 import { IpcMethod, IpcService } from 'electron-ipc-decorator'
-import { handleInitConversationTitle } from './conversationTitleService'
 
 export class ChatIpcService extends IpcService {
   static readonly groupName = 'chat'
@@ -12,12 +12,14 @@ export class ChatIpcService extends IpcService {
   async createConversationsTitle(options: handleInitConversationTitleOptions): Promise<IpcResponse<IConversations>> {
     try {
       logger.info('IPC Event: chat:create-conversations-title', options)
-      const title = await handleInitConversationTitle(options)
-      const udpatedConversations = await getAgentRuntimeEnvironment().appDataServices.conversationService.update({
-        id: options.conversationsId,
-        title,
+      const env = getAgentRuntimeEnvironment()
+      const titleService = createConversationTitleService({
+        providerSettingsRepository: env.appDataServices.providerSettingsRepository,
+        messageService: env.appDataServices.messageService,
+        conversationService: env.appDataServices.conversationService,
       })
-      return createIpcResponse(true, udpatedConversations)
+      const updatedConversations = await titleService.updateTitle(options.conversationsId, options.modelId)
+      return createIpcResponse(true, updatedConversations)
     }
     catch (error) {
       logger.error('初始化会话标题失败:', error)

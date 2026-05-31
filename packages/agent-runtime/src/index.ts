@@ -1,5 +1,7 @@
 export { createAgentRuntimeService } from './agentService'
 export type { AgentRuntimeService } from './agentService'
+export { createConversationTitleService, formatMessagesForContext } from './conversationTitleService'
+export type { ConversationTitleService, ConversationTitleServiceDependencies } from './conversationTitleService'
 export { openAppDataDatabase } from './database'
 export type { OpenAppDataDatabaseOptions } from './database'
 export { createAgentRuntimeEnvironment, createAgentRuntimeEnvironmentFromServices } from './environment'

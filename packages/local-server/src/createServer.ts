@@ -1,4 +1,4 @@
-import type { ImportModelsDevModelsResult, ModelsDevModel, ModelsDevProvider } from '@ant-chat/agent-runtime'
+import type { ConversationTitleService, ImportModelsDevModelsResult, ModelsDevModel, ModelsDevProvider } from '@ant-chat/agent-runtime'
 import type { ConversationRepository, MessageRepository, ProviderSettingsRepository, SettingsRepository, WorkspaceService } from '@ant-chat/app-data'
 import type { AddConversationsSchema, AddMessage, AddServiceProviderModelSchema, AddServiceProviderSchema, AgentProfileFiles, ImportSkillFromGithubOptions, SetSkillEnabledOptions, SkillIndex, SkillManifest, UpdateAgentProfileInput, UpdateConversationsSchema, UpdateMessageSchema, UpdateServiceProviderSchema } from '@ant-chat/shared'
 import type { IncomingMessage, ServerResponse } from 'node:http'
@@ -39,6 +39,7 @@ export interface LocalServerServices {
     listActiveTasks: (conversationId?: string) => Promise<unknown[]> | unknown[]
     approvePendingActionWithWhitelist?: (options: unknown) => Promise<null> | null
   }
+  conversationTitleService?: ConversationTitleService
 }
 
 export type LocalApiHandler = (req: IncomingMessage, res: ServerResponse) => Promise<boolean>
@@ -111,7 +112,7 @@ async function dispatchRpc(body: unknown, services: LocalServerServices): Promis
 
   switch (method) {
     case 'chat.createConversationsTitle':
-      throw new Error('Conversation title generation is not available in local web transport yet')
+      return requireConversationTitleService(services).updateTitle(stringParam(params.conversationsId), stringParam(params.modelId))
     case 'chat.getConversations':
       return services.conversationService.list(numberParam(params.pageIndex), numberParam(params.pageSize))
     case 'chat.getWorkspaceConversations':
@@ -256,6 +257,13 @@ async function dispatchRpc(body: unknown, services: LocalServerServices): Promis
     default:
       throw new Error(`Unknown local RPC method: ${method}`)
   }
+}
+
+function requireConversationTitleService(services: LocalServerServices): NonNullable<LocalServerServices['conversationTitleService']> {
+  if (!services.conversationTitleService) {
+    throw new Error('Conversation title service is not available in local web transport')
+  }
+  return services.conversationTitleService
 }
 
 function requireProfileService(services: LocalServerServices): NonNullable<LocalServerServices['profileService']> {
