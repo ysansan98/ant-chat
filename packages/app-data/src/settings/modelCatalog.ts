@@ -8,10 +8,10 @@ export function createModelCatalog(repository: ProviderSettingsRepository): IMod
       if (!model) {
         return null
       }
-      return { id: model.id, model: model.model, name: model.name, serviceProviderId: model.serviceProviderId }
+      return { id: model.id, model: model.model, name: model.name, providerId: model.providerId }
     },
     getProviderById: async (id) => {
-      const provider = repository.getProviderServiceById(id)
+      const provider = repository.getProviderById(id)
       if (!provider) {
         return null
       }

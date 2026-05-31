@@ -1,18 +1,18 @@
-import type { ServiceProviderSchema, UpdateServiceProviderSchema } from '@ant-chat/shared'
+import type { ProviderConfigSchema, UpdateProviderConfigSchema } from '@ant-chat/shared'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@workspace/ui/components/alert-dialog'
 import { Button } from '@workspace/ui/components/button'
 import { Input } from '@workspace/ui/components/input'
 import { ModelList } from '@/components/ProviderManage/ModelList/ModelList'
 import { AI_OFFICIAL_API_INFO } from '@/constants'
 
-export interface ProviderServiceSettingsProps {
-  item: ServiceProviderSchema | null
+export interface ProviderSettingsPanelProps {
+  item: ProviderConfigSchema | null
   isOffcial?: boolean
-  onChange?: (e: UpdateServiceProviderSchema) => void
+  onChange?: (e: UpdateProviderConfigSchema) => void
   onDelete?: () => void
 }
 
-export function ProviderServiceSettings({ item, onChange, onDelete }: ProviderServiceSettingsProps) {
+export function ProviderSettingsPanel({ item, onChange, onDelete }: ProviderSettingsPanelProps) {
   if (!item) {
     return null
   }
@@ -80,7 +80,7 @@ export function ProviderServiceSettings({ item, onChange, onDelete }: ProviderSe
 
         <div className="flex flex-col gap-1">
           <span className="font-medium">模型列表</span>
-          <ModelList serviceProviderId={item.id} />
+          <ModelList providerId={item.id} />
         </div>
       </div>
     </div>

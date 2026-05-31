@@ -1,4 +1,4 @@
-import type { AgentProfileFiles } from '@ant-chat/shared'
+import type { AgentMemoryFiles } from '@ant-chat/shared'
 import { Button } from '@workspace/ui/components/button'
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@workspace/ui/components/card'
 import { Input } from '@workspace/ui/components/input'
@@ -7,15 +7,15 @@ import { Textarea } from '@workspace/ui/components/textarea'
 import { PlusIcon, RotateCcwIcon, SaveIcon, Trash2Icon } from 'lucide-react'
 import React from 'react'
 import { toast } from 'sonner'
-import { profileApi } from '@/api/profileApi'
+import { memoryApi } from '@/api/memoryApi'
 
-type ProfileState
+type MemoryState
   = | { status: 'loading', data?: undefined }
-    | { status: 'ready', data: AgentProfileFiles }
+    | { status: 'ready', data: AgentMemoryFiles }
     | { status: 'error', data?: undefined, error: string }
 
-export function ProfileSettings() {
-  const [state, setState] = React.useState<ProfileState>({ status: 'loading' })
+export function MemorySettings() {
+  const [state, setState] = React.useState<MemoryState>({ status: 'loading' })
   const [userMarkdown, setUserMarkdown] = React.useState('')
   const [memoryMarkdown, setMemoryMarkdown] = React.useState('')
   const [soulMarkdown, setSoulMarkdown] = React.useState('')
@@ -25,14 +25,14 @@ export function ProfileSettings() {
   const load = React.useCallback(async () => {
     setState({ status: 'loading' })
     try {
-      const data = await profileApi.getProfile()
+      const data = await memoryApi.getMemoryFiles()
       setState({ status: 'ready', data })
       setUserMarkdown(data.userMarkdown)
       setMemoryMarkdown(data.memoryMarkdown)
       setSoulMarkdown(data.soulMarkdown)
     }
     catch (error) {
-      setState({ status: 'error', error: (error as Error).message || 'Failed to load profile.' })
+      setState({ status: 'error', error: (error as Error).message || 'Failed to load memory.' })
     }
   }, [])
 
@@ -43,15 +43,15 @@ export function ProfileSettings() {
   async function save() {
     setSaving(true)
     try {
-      const data = await profileApi.updateProfile({ memoryMarkdown, userMarkdown, soulMarkdown })
+      const data = await memoryApi.updateMemoryFiles({ memoryMarkdown, userMarkdown, soulMarkdown })
       setState({ status: 'ready', data })
       setUserMarkdown(data.userMarkdown)
       setMemoryMarkdown(data.memoryMarkdown)
       setSoulMarkdown(data.soulMarkdown)
-      toast.success('Profile saved')
+      toast.success('Memory saved')
     }
     catch (error) {
-      toast.error((error as Error).message || 'Failed to save profile')
+      toast.error((error as Error).message || 'Failed to save memory')
     }
     finally {
       setSaving(false)
@@ -61,7 +61,7 @@ export function ProfileSettings() {
   async function rollbackSoul() {
     setSaving(true)
     try {
-      const data = await profileApi.rollbackSoul()
+      const data = await memoryApi.rollbackSoul()
       setState({ status: 'ready', data })
       setUserMarkdown(data.userMarkdown)
       setMemoryMarkdown(data.memoryMarkdown)
@@ -81,7 +81,7 @@ export function ProfileSettings() {
       <div className="p-4">
         <Card>
           <CardHeader>
-            <CardTitle>Profile</CardTitle>
+            <CardTitle>记忆</CardTitle>
             <CardDescription>{state.error}</CardDescription>
             <CardAction>
               <Button variant="outline" onClick={() => void load()}>Retry</Button>
@@ -98,9 +98,9 @@ export function ProfileSettings() {
     <div className="flex h-full flex-col gap-4 p-4">
       <Card>
         <CardHeader>
-          <CardTitle>Agent Profile</CardTitle>
+          <CardTitle>记忆</CardTitle>
           <CardDescription>
-            {state.status === 'ready' ? state.data.profileRootPath : 'Loading...'}
+            {state.status === 'ready' ? state.data.memoryRootPath : 'Loading...'}
           </CardDescription>
           <CardAction className="flex gap-2">
             <Button

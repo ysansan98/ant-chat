@@ -1,5 +1,5 @@
-import type { AddConversationsSchema, AddMessage, ModelInfo, ServiceProviderSchema, ToolCallContent, ToolResultContent, UpdateConversationsSchema, UpdateMessageSchema } from '../schemas'
-import type { AgentProfileReader } from './agent-profile'
+import type { AddConversationsSchema, AddMessage, ModelInfo, ProviderConfigSchema, ToolCallContent, ToolResultContent, UpdateConversationsSchema, UpdateMessageSchema } from '../schemas'
+import type { AgentMemoryReader } from './agent-memory'
 import type { AgentMode, AgentPendingAction, AgentTaskSnapshot, ToolApprovalWhitelistEntry } from './agent-runtime'
 import type { AgentTool } from './agent-tools'
 import type { IAttachment, IConversations, IMessage } from './db-types'
@@ -127,14 +127,14 @@ export interface AgentModel {
   id: string
   model: string
   name: string
-  serviceProviderId: string
+  providerId: string
 }
 
-export type AgentProvider = ServiceProviderSchema
+export type AgentProvider = ProviderConfigSchema
 
 export interface IModelCatalog {
-  getModelById: (id: string) => Promise<{ id: string, model: string, name: string, serviceProviderId: string } | null>
-  getProviderById: (id: string) => Promise<ServiceProviderSchema | null>
+  getModelById: (id: string) => Promise<{ id: string, model: string, name: string, providerId: string } | null>
+  getProviderById: (id: string) => Promise<ProviderConfigSchema | null>
 }
 
 // ============================================================
@@ -209,7 +209,7 @@ export interface AgentRuntimeHost {
   createTaskLogger?: (conversationId: string, userMessageId: string) => ITaskLogger
   sessionStore: ISessionStore
   modelCatalog: IModelCatalog
-  profileReader?: AgentProfileReader
+  memoryReader?: AgentMemoryReader
   skillReader?: SkillReader
   mcpClientHub?: RuntimeMcpClientHub
   getToolApprovalWhitelistEntries?: () => ToolApprovalWhitelistEntry[]
@@ -238,7 +238,7 @@ export interface AgentRuntimeConfig extends AgentRuntimeOverrides {
   taskLogger?: ITaskLogger
   sessionStore?: ISessionStore
   modelCatalog?: IModelCatalog
-  profileReader?: AgentProfileReader
+  memoryReader?: AgentMemoryReader
   getToolApprovalWhitelistEntries?: () => ToolApprovalWhitelistEntry[]
   skillReader?: SkillReader
   mcpClientHub?: RuntimeMcpClientHub

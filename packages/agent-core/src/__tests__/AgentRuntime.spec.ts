@@ -113,7 +113,7 @@ function createSessionConfig(overrides: Partial<AgentRuntimeConfig> = {}): Agent
     ...createConfig(),
     sessionStore: createSessionStore(),
     modelCatalog: {
-      getModelById: vi.fn(async () => ({ id: 'model-1', model: 'test-model', name: 'Test Model', serviceProviderId: 'provider-1' })),
+      getModelById: vi.fn(async () => ({ id: 'model-1', model: 'test-model', name: 'Test Model', providerId: 'provider-1' })),
       getProviderById: vi.fn(async () => ({
         id: 'provider-1',
         name: 'provider',
@@ -287,8 +287,8 @@ describe('agentRuntime', () => {
       let memoryMarkdown = '§Use pnpm check.'
       const config = createSessionConfig({
         sessionStore: store,
-        profileReader: {
-          readUserProfile: vi.fn(async () => userMarkdown),
+        memoryReader: {
+          readUserMemory: vi.fn(async () => userMarkdown),
           readMemory: vi.fn(async () => memoryMarkdown),
           readSoul: vi.fn(async () => '# SOUL\n\n- Verify before reporting.'),
           editMemory: vi.fn(),
@@ -376,7 +376,7 @@ describe('agentRuntime', () => {
       cleanupTasks([secondResult.taskId])
     })
 
-    it('refreshes the profile snapshot when compaction runs', async () => {
+    it('refreshes the memory snapshot when compaction runs', async () => {
       const conversation = {
         id: 'conv-session',
         title: 'Untitled',
@@ -397,12 +397,12 @@ describe('agentRuntime', () => {
       })
       let memoryMarkdown = '§Initial memory.'
       const readMemory = vi.fn(async () => memoryMarkdown)
-      const readUserProfile = vi.fn(async () => '§Prefer concise Chinese.')
+      const readUserMemory = vi.fn(async () => '§Prefer concise Chinese.')
       const config = createSessionConfig({
         sessionStore: store,
         compactionStrategy: { summarize: vi.fn(async () => 'Earlier context summary.') },
-        profileReader: {
-          readUserProfile,
+        memoryReader: {
+          readUserMemory,
           readMemory,
           readSoul: vi.fn(async () => '# SOUL\n\n- Verify before reporting.'),
           editMemory: vi.fn(),
@@ -436,7 +436,7 @@ describe('agentRuntime', () => {
       expect(turnResult?.systemPrompt).toContain('Updated memory after compaction.')
       expect(turnResult?.systemPrompt).not.toContain('Initial memory.')
       expect(readMemory).toHaveBeenCalledTimes(2)
-      expect(readUserProfile).toHaveBeenCalledTimes(2)
+      expect(readUserMemory).toHaveBeenCalledTimes(2)
       cleanupTasks([result.taskId])
     })
 

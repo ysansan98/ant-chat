@@ -8,22 +8,22 @@ import { providerApi } from '@/api/providerApi'
 import { AddModelFormModal } from './AddModelForm'
 
 export interface ModelListProps {
-  serviceProviderId: string
+  providerId: string
 }
 
-export function ModelList({ serviceProviderId }: ModelListProps) {
+export function ModelList({ providerId }: ModelListProps) {
   const [openAddModal, setAddModal] = React.useState(false)
   const [isSyncing, setIsSyncing] = React.useState(false)
   const { data, error, refresh, run, mutate } = useRequest(
-    providerApi.getModelsByServiceProviderId,
+    providerApi.listProviderModels,
     {
-      defaultParams: [serviceProviderId],
+      defaultParams: [providerId],
     },
   )
 
   React.useEffect(() => {
-    run(serviceProviderId)
-  }, [serviceProviderId, run])
+    run(providerId)
+  }, [providerId, run])
 
   if (error) {
     return (
@@ -51,7 +51,7 @@ export function ModelList({ serviceProviderId }: ModelListProps) {
           onClick={async () => {
             setIsSyncing(true)
             try {
-              const result = await providerApi.importModelsDevModels(serviceProviderId)
+              const result = await providerApi.importModelsDevModels(providerId)
               if (result.added.length === 0 && result.skipped.length === 0 && result.errors.length === 0) {
                 toast.info('未发现可同步的模型')
               }
@@ -104,7 +104,7 @@ export function ModelList({ serviceProviderId }: ModelListProps) {
                       size="icon-xs"
                       onClick={async () => {
                         try {
-                          await providerApi.deleteServiceProviderModel(item.id)
+                          await providerApi.deleteProviderModel(item.id)
                           toast.success('删除成功')
                         }
                         catch (e: unknown) {
@@ -145,9 +145,9 @@ export function ModelList({ serviceProviderId }: ModelListProps) {
         onClose={() => setAddModal(false)}
         onSave={async (e) => {
           providerApi
-            .addServiceProviderModel({
+            .createProviderModel({
               ...e,
-              serviceProviderId,
+              providerId,
             })
             .then(
               (modelInfo) => {

@@ -21,7 +21,7 @@ vi.mock('electron-ipc-decorator', () => ({
 
 vi.mock('@main/agent/runtime/agentRuntimeEnvironment', () => ({
   getAgentRuntimeEnvironment: () => ({
-    agentService: {
+    agentController: {
       startTurn: mocks.startAgentTurn,
       approvePendingActionWithWhitelist: vi.fn(),
     },

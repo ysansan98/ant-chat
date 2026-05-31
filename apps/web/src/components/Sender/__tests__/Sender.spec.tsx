@@ -42,7 +42,7 @@ vi.mock('@/api/providerApi', () => ({
       id: 'test-model',
       model: 'test-model',
       name: 'Test Model',
-      serviceProviderId: 'test-provider',
+      providerId: 'test-provider',
       isBuiltin: false,
       isEnabled: true,
       maxTokens: 4096,

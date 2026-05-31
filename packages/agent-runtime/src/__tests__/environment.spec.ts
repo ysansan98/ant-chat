@@ -1,7 +1,7 @@
-import type { AppDataServices } from '@ant-chat/app-data'
+import type { AppDataContext } from '@ant-chat/app-data'
 import type { IAgentEventEmitter } from '@ant-chat/shared'
 import { describe, expect, it, vi } from 'vitest'
-import { createAgentRuntimeEnvironmentFromServices } from '../environment'
+import { createAgentRuntimeEnvironmentFromContext } from '../environment'
 import { createAgentRuntimePaths } from '../paths'
 
 const eventEmitter: IAgentEventEmitter = {
@@ -13,12 +13,12 @@ const eventEmitter: IAgentEventEmitter = {
   emitTurnFinished: vi.fn(),
 }
 
-function createFakeAppDataServices(): AppDataServices {
+function createFakeAppDataContext(): AppDataContext {
   return {
-    conversationService: {},
-    messageService: {},
-    messageSearchService: {},
-    settingsService: {},
+    conversationRepository: {},
+    messageRepository: {},
+    messageSearchQuery: {},
+    settingsRepository: {},
     providerSettingsRepository: {},
     modelCatalog: {
       getModelById: vi.fn(),
@@ -32,15 +32,15 @@ function createFakeAppDataServices(): AppDataServices {
     workspaceService: {
       getCurrentWorkspacePath: vi.fn(() => '/workspace'),
     },
-  } as unknown as AppDataServices
+  } as unknown as AppDataContext
 }
 
-describe('createAgentRuntimeEnvironmentFromServices', () => {
+describe('createAgentRuntimeEnvironmentFromContext', () => {
   it('assembles runtime services without opening a database', () => {
     const paths = createAgentRuntimePaths('/data/ant-chat')
-    const env = createAgentRuntimeEnvironmentFromServices({
+    const env = createAgentRuntimeEnvironmentFromContext({
       paths,
-      appDataServices: createFakeAppDataServices(),
+      appDataContext: createFakeAppDataContext(),
       eventEmitter,
     })
 
@@ -48,6 +48,6 @@ describe('createAgentRuntimeEnvironmentFromServices', () => {
     expect(env.paths).toBe(paths)
     expect(env.skillManagementService.getSkillsRoot()).toBe(paths.skillsRoot)
     expect(env.runtime).toBeDefined()
-    expect(env.agentService).toBeDefined()
+    expect(env.agentController).toBeDefined()
   })
 })

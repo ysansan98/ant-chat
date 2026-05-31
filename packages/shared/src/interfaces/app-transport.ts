@@ -2,17 +2,17 @@ import type { IpcPaginatedResponse, IpcResponse } from '../ipc-events'
 import type {
   AddConversationsSchema,
   AddMcpConfigSchema,
-  AddServiceProviderModelSchema,
-  AddServiceProviderSchema,
   AllAvailableModelsSchema,
+  CreateProviderConfigModelSchema,
+  CreateProviderConfigSchema,
   McpConfigSchema,
-  ServiceProviderModelsSchema,
-  ServiceProviderSchema,
+  ProviderConfigModelSchema,
+  ProviderConfigSchema,
   UpdateConversationsSchema,
   UpdateMcpConfigSchema,
-  UpdateServiceProviderSchema,
+  UpdateProviderConfigSchema,
 } from '../schemas'
-import type { AgentProfileFiles, UpdateAgentProfileInput } from './agent-profile'
+import type { AgentMemoryFiles, UpdateAgentMemoryInput } from './agent-memory'
 import type {
   AgentTaskSnapshot,
   ApprovePendingActionOptions,
@@ -69,18 +69,18 @@ export interface AppTransport {
     resetSettings: () => Promise<GeneralSettingsState>
   }
   provider: {
-    getAllProviderServices: () => Promise<ServiceProviderSchema[]>
-    addProviderService: (config: AddServiceProviderSchema) => Promise<ServiceProviderSchema>
-    updateProviderService: (config: UpdateServiceProviderSchema) => Promise<ServiceProviderSchema>
-    deleteProviderService: (id: string) => Promise<null>
-    getProviderServiceById: (id: string) => Promise<ServiceProviderSchema>
-    getProviderServiceByModelId: (id: string) => Promise<ServiceProviderSchema>
+    listProviders: () => Promise<ProviderConfigSchema[]>
+    createProvider: (config: CreateProviderConfigSchema) => Promise<ProviderConfigSchema>
+    updateProvider: (config: UpdateProviderConfigSchema) => Promise<ProviderConfigSchema>
+    deleteProvider: (id: string) => Promise<null>
+    getProviderById: (id: string) => Promise<ProviderConfigSchema>
+    getProviderByModelId: (id: string) => Promise<ProviderConfigSchema>
     getAllAbvailableModels: () => Promise<AllAvailableModelsSchema[]>
-    getModelsByServiceProviderId: (id: string) => Promise<ServiceProviderModelsSchema[]>
-    setModelEnabledStatus: (id: string, status: boolean) => Promise<ServiceProviderModelsSchema>
-    addServiceProviderModel: (config: AddServiceProviderModelSchema) => Promise<ServiceProviderModelsSchema>
-    deleteServiceProviderModel: (id: string) => Promise<null>
-    getModelInfoById: (id: string) => Promise<ServiceProviderModelsSchema>
+    listProviderModels: (id: string) => Promise<ProviderConfigModelSchema[]>
+    setModelEnabledStatus: (id: string, status: boolean) => Promise<ProviderConfigModelSchema>
+    createProviderModel: (config: CreateProviderConfigModelSchema) => Promise<ProviderConfigModelSchema>
+    deleteProviderModel: (id: string) => Promise<null>
+    getModelInfoById: (id: string) => Promise<ProviderConfigModelSchema>
     getModelsDevProviders: () => Promise<ModelsDevProvider[]>
     getModelsDevModelsByProviderId: (providerId: string) => Promise<ModelsDevModel[]>
     importModelsDevModels: (providerId: string) => Promise<ModelsDevImportResult>
@@ -93,10 +93,10 @@ export interface AppTransport {
     deleteSkill: (name: string) => Promise<null>
     rebuildSkillIndex: () => Promise<SkillIndex>
   }
-  profile: {
-    getProfile: () => Promise<AgentProfileFiles>
-    updateProfile: (input: UpdateAgentProfileInput) => Promise<AgentProfileFiles>
-    rollbackSoul: () => Promise<AgentProfileFiles>
+  memory: {
+    getMemoryFiles: () => Promise<AgentMemoryFiles>
+    updateMemoryFiles: (input: UpdateAgentMemoryInput) => Promise<AgentMemoryFiles>
+    rollbackSoul: () => Promise<AgentMemoryFiles>
   }
   agent: {
     startTurn: (options: StartAgentTurnOptions) => Promise<AgentTurnResult>
@@ -165,24 +165,24 @@ export interface AppIpcServices {
     fetchMcpServerTools: (name: string) => Promise<IpcResponse<McpTool[]>>
     initializeMcpServers: () => Promise<IpcResponse<null>>
   }
-  profile: {
-    getProfile: () => Promise<IpcResponse<AgentProfileFiles>>
-    updateProfile: (input: UpdateAgentProfileInput) => Promise<IpcResponse<AgentProfileFiles>>
-    rollbackSoul: () => Promise<IpcResponse<AgentProfileFiles>>
+  memory: {
+    getMemoryFiles: () => Promise<IpcResponse<AgentMemoryFiles>>
+    updateMemoryFiles: (input: UpdateAgentMemoryInput) => Promise<IpcResponse<AgentMemoryFiles>>
+    rollbackSoul: () => Promise<IpcResponse<AgentMemoryFiles>>
   }
   provider: {
-    getAllProviderServices: () => Promise<IpcResponse<ServiceProviderSchema[]>>
-    addProviderServices: (data: AddServiceProviderSchema) => Promise<IpcResponse<ServiceProviderSchema>>
-    updateProviderService: (serviceData: UpdateServiceProviderSchema) => Promise<IpcResponse<ServiceProviderSchema>>
-    deleteProviderService: (id: string) => Promise<IpcResponse<null>>
-    getProviderServicesById: (id: string) => Promise<IpcResponse<ServiceProviderSchema>>
-    getProviderServiceByModelId: (id: string) => Promise<IpcResponse<ServiceProviderSchema>>
+    listProviders: () => Promise<IpcResponse<ProviderConfigSchema[]>>
+    createProvider: (data: CreateProviderConfigSchema) => Promise<IpcResponse<ProviderConfigSchema>>
+    updateProvider: (providerConfig: UpdateProviderConfigSchema) => Promise<IpcResponse<ProviderConfigSchema>>
+    deleteProvider: (id: string) => Promise<IpcResponse<null>>
+    getProviderById: (id: string) => Promise<IpcResponse<ProviderConfigSchema>>
+    getProviderByModelId: (id: string) => Promise<IpcResponse<ProviderConfigSchema>>
     getAllAbvailableModels: () => Promise<IpcResponse<AllAvailableModelsSchema[]>>
-    getModelsByServiceProviderId: (id: string) => Promise<IpcResponse<ServiceProviderModelsSchema[]>>
-    getModelById: (id: string) => Promise<IpcResponse<ServiceProviderModelsSchema>>
-    setModelEnabledStatus: (id: string, status: boolean) => Promise<IpcResponse<ServiceProviderModelsSchema>>
-    addProviderServiceModel: (config: AddServiceProviderModelSchema) => Promise<IpcResponse<ServiceProviderModelsSchema>>
-    deleteProviderServiceModel: (id: string) => Promise<IpcResponse<null>>
+    listProviderModels: (id: string) => Promise<IpcResponse<ProviderConfigModelSchema[]>>
+    getModelById: (id: string) => Promise<IpcResponse<ProviderConfigModelSchema>>
+    setModelEnabledStatus: (id: string, status: boolean) => Promise<IpcResponse<ProviderConfigModelSchema>>
+    createProviderModel: (config: CreateProviderConfigModelSchema) => Promise<IpcResponse<ProviderConfigModelSchema>>
+    deleteProviderModel: (id: string) => Promise<IpcResponse<null>>
     getModelsDevProviders: () => Promise<IpcResponse<ModelsDevProvider[]>>
     getModelsDevModelsByProviderId: (providerId: string) => Promise<IpcResponse<ModelsDevModel[]>>
     importModelsDevModels: (providerId: string) => Promise<IpcResponse<ModelsDevImportResult>>

@@ -44,12 +44,12 @@ describe('localWebTransport', () => {
     await expect(transport.settings.getSettings()).rejects.toThrow('failed')
   })
 
-  it('sends profile update through local RPC', async () => {
+  it('sends memory update through local RPC', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({
       json: async () => ({
         success: true,
         data: {
-          profileRootPath: '/tmp/profile',
+          memoryRootPath: '/tmp/memory',
           userMarkdown: '§Use Chinese.',
           memoryMarkdown: '§Run pnpm check.',
           soulMarkdown: '# SOUL',
@@ -58,16 +58,16 @@ describe('localWebTransport', () => {
     })))
 
     const transport = createLocalWebTransport()
-    const profile = await transport.profile.updateProfile({ soulMarkdown: '# SOUL\n\n- Be direct.' })
+    const memory = await transport.memory.updateMemoryFiles({ soulMarkdown: '# SOUL\n\n- Be direct.' })
 
     expect(fetch).toHaveBeenCalledWith('/api/rpc', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        method: 'profile.updateProfile',
+        method: 'memory.updateMemoryFiles',
         params: { input: { soulMarkdown: '# SOUL\n\n- Be direct.' } },
       }),
     })
-    expect(profile.soulMarkdown).toBe('# SOUL')
+    expect(memory.soulMarkdown).toBe('# SOUL')
   })
 })

@@ -1,4 +1,4 @@
-import type { CompactionSettingsSchema, ServiceProviderModelsSchema } from '@ant-chat/shared'
+import type { CompactionSettingsSchema, ProviderConfigModelSchema } from '@ant-chat/shared'
 import { Label } from '@workspace/ui/components/label'
 import { Separator } from '@workspace/ui/components/separator'
 import { Slider } from '@workspace/ui/components/slider'
@@ -18,7 +18,7 @@ export function ModelParameterSettingsPanel() {
   const { settings, updateSettings } = useChatSettingsContext()
   const compaction = settings.compaction || DEFAULT_COMPACTION
 
-  const [modelInfo, setModelInfo] = useState<ServiceProviderModelsSchema | null>(null)
+  const [modelInfo, setModelInfo] = useState<ProviderConfigModelSchema | null>(null)
 
   useEffect(() => {
     const fetchModelInfo = async () => {

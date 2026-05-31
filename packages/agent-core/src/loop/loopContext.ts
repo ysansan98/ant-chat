@@ -1,6 +1,6 @@
 import type { IMessage, LoopMessage } from '@ant-chat/shared'
 
-export interface LoopSystemPromptProfile {
+export interface LoopSystemPromptMemory {
   memory?: string
   soul?: string
   user?: string
@@ -19,7 +19,7 @@ const MEMORY_GUIDANCE = [
   'Procedures and workflows belong in skills, not memory.',
 ].join('\n')
 
-export function createLoopSystemPrompt(workspacePath: string, customPrompt?: string, profile?: LoopSystemPromptProfile): string {
+export function createLoopSystemPrompt(workspacePath: string, customPrompt?: string, memorySnapshot?: LoopSystemPromptMemory): string {
   const basePrompt = customPrompt
     ? customPrompt.split('{workspacePath}').join(workspacePath)
     : [
@@ -37,11 +37,11 @@ export function createLoopSystemPrompt(workspacePath: string, customPrompt?: str
       ].join('\n')
 
   const sections = [basePrompt]
-  const memory = profile?.memory?.trim()
-  const soul = profile?.soul?.trim()
-  const user = profile?.user?.trim()
+  const memory = memorySnapshot?.memory?.trim()
+  const soul = memorySnapshot?.soul?.trim()
+  const user = memorySnapshot?.user?.trim()
 
-  if (profile) {
+  if (memorySnapshot) {
     sections.push([
       '<memory_guidance>',
       MEMORY_GUIDANCE,

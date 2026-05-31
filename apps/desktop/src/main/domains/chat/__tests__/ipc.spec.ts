@@ -3,7 +3,7 @@ import { ChatIpcService } from '../ipc'
 
 const mocks = vi.hoisted(() => ({
   updateTitle: vi.fn(),
-  conversationService: {
+  conversationRepository: {
     list: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
@@ -20,16 +20,16 @@ vi.mock('electron-ipc-decorator', () => ({
 }))
 
 vi.mock('@ant-chat/agent-runtime', () => ({
-  createConversationTitleService: vi.fn(() => ({
+  createConversationTitleGenerator: vi.fn(() => ({
     updateTitle: mocks.updateTitle,
   })),
 }))
 
 vi.mock('@main/agent/runtime/agentRuntimeEnvironment', () => ({
   getAgentRuntimeEnvironment: () => ({
-    appDataServices: {
-      conversationService: mocks.conversationService,
-      messageService: {},
+    appDataContext: {
+      conversationRepository: mocks.conversationRepository,
+      messageRepository: {},
       workspaceService: mocks.workspaceService,
     },
   }),
@@ -56,6 +56,6 @@ describe('chat ipc', () => {
     if (!resp.success) {
       expect(resp.msg).toContain('No output generated')
     }
-    expect(mocks.conversationService.update).not.toHaveBeenCalled()
+    expect(mocks.conversationRepository.update).not.toHaveBeenCalled()
   })
 })

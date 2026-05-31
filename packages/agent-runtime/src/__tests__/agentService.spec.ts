@@ -1,7 +1,7 @@
 import type { AgentRuntime } from '@ant-chat/agent-core'
-import type { AppDataServices } from '@ant-chat/app-data'
+import type { AppDataContext } from '@ant-chat/app-data'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createAgentRuntimeService } from '../agentService'
+import { createAgentRuntimeController } from '../agentRuntimeController'
 
 const startTask = vi.fn()
 
@@ -15,16 +15,16 @@ const runtime = {
   getTask: vi.fn(),
 } as unknown as AgentRuntime
 
-const appDataServices = {
+const appDataContext = {
   workspaceService: {
     getCurrentWorkspacePath: vi.fn(() => '/workspace'),
   },
   toolApprovalWhitelistRepository: {
     add: vi.fn(),
   },
-} as unknown as AppDataServices
+} as unknown as AppDataContext
 
-describe('createAgentRuntimeService', () => {
+describe('createAgentRuntimeController', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     startTask.mockResolvedValue({
@@ -36,7 +36,7 @@ describe('createAgentRuntimeService', () => {
   })
 
   it('maps app turn options to runtime start options', async () => {
-    const service = createAgentRuntimeService(runtime, appDataServices)
+    const service = createAgentRuntimeController(runtime, appDataContext)
 
     await service.startTurn({
       prompt: 'inspect project',
@@ -65,7 +65,7 @@ describe('createAgentRuntimeService', () => {
   })
 
   it('preserves explicit turn context fields', async () => {
-    const service = createAgentRuntimeService(runtime, appDataServices)
+    const service = createAgentRuntimeController(runtime, appDataContext)
 
     await service.startTurn({
       conversationId: 'c1',

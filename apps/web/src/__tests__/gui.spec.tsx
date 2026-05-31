@@ -8,7 +8,7 @@ import { createMemoryRouter, Navigate, RouterProvider } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AppWrapper from '../App'
 import { ChatPage } from '../pages/Chat'
-import { ProfileSettings } from '../pages/Settings/Profile'
+import { MemorySettings } from '../pages/Settings/Memory'
 import SettingsPage from '../pages/Settings/Settings'
 import { useAgentStore } from '../store/agent'
 import { useConversationsStore } from '../store/conversation'
@@ -46,28 +46,28 @@ const mocks = vi.hoisted(() => ({
     getAllAbvailableModels: vi.fn(),
     getModelInfoById: vi.fn(async () => null),
   },
-  profile: {
-    getProfile: vi.fn(async () => ({
-      profileRootPath: '/tmp/profile',
+  memory: {
+    getMemoryFiles: vi.fn(async () => ({
+      memoryRootPath: '/tmp/memory',
       userMarkdown: '§Use Chinese.',
       memoryMarkdown: '§Run pnpm check.',
       soulMarkdown: '# SOUL',
     })),
     rollbackSoul: vi.fn(async () => ({
-      profileRootPath: '/tmp/profile',
+      memoryRootPath: '/tmp/memory',
       userMarkdown: '§Use Chinese.',
       memoryMarkdown: '§Run pnpm check.',
       soulMarkdown: '# SOUL rolled back',
     })),
-    updateProfile: vi.fn(async input => ({
-      profileRootPath: '/tmp/profile',
+    updateMemoryFiles: vi.fn(async input => ({
+      memoryRootPath: '/tmp/memory',
       userMarkdown: input.userMarkdown ?? '§Use Chinese.',
       memoryMarkdown: input.memoryMarkdown ?? '§Run pnpm check.',
       soulMarkdown: input.soulMarkdown ?? '# SOUL',
       lastSoulUpdate: {
         updatedAt: 1,
         summary: 'Manual SOUL.md update',
-        backupPath: '/tmp/profile/.soul-backups/SOUL.1.md',
+        backupPath: '/tmp/memory/.soul-backups/SOUL.1.md',
       },
     })),
   },
@@ -97,8 +97,8 @@ vi.mock('@/api/providerApi', () => ({
   providerApi: mocks.provider,
 }))
 
-vi.mock('@/api/profileApi', () => ({
-  profileApi: mocks.profile,
+vi.mock('@/api/memoryApi', () => ({
+  memoryApi: mocks.memory,
 }))
 
 vi.mock('@/api/skillApi', () => ({
@@ -219,10 +219,10 @@ describe('gui ui flow', () => {
     expect(screen.getByTestId('settings-nav')).toHaveClass('pt-12')
   })
 
-  it('edits agent profile files from settings', async () => {
-    renderSettingsWindow('/settings/profile')
+  it('edits agent memory files from settings', async () => {
+    renderSettingsWindow('/settings/memory')
 
-    expect(await screen.findByText('Agent Profile')).toBeInTheDocument()
+    expect((await screen.findAllByText('记忆')).length).toBeGreaterThan(0)
 
     const userEntryInput = screen.getByPlaceholderText('Add a user preference...')
     fireEvent.change(userEntryInput, {
@@ -233,7 +233,7 @@ describe('gui ui flow', () => {
     fireEvent.click(screen.getByText('Save'))
 
     await waitFor(() => {
-      expect(mocks.profile.updateProfile).toHaveBeenCalledWith({
+      expect(mocks.memory.updateMemoryFiles).toHaveBeenCalledWith({
         userMarkdown: 'Use Chinese.§Prefer concise answers.',
         memoryMarkdown: '§Run pnpm check.',
         soulMarkdown: '# SOUL',
@@ -261,7 +261,7 @@ describe('gui ui flow', () => {
         id: 'model-1',
         model: 'mock-model',
         name: 'Mock Model',
-        serviceProviderId: 'provider-1',
+        providerId: 'provider-1',
         maxTokens: 1024,
         temperature: 0,
       }],
@@ -380,7 +380,7 @@ function renderGui(initialPath: string) {
           children: [
             { index: true, element: <Navigate replace to="./general" /> },
             { path: 'general', element: <div data-testid="settings-general-page">通用设置</div> },
-            { path: 'profile', element: <div data-testid="settings-profile-page">Profile</div> },
+            { path: 'memory', element: <div data-testid="settings-memory-page">Memory</div> },
           ],
         },
       ],
@@ -400,7 +400,7 @@ function renderSettingsWindow(initialPath: string) {
       children: [
         { index: true, element: <Navigate replace to="./general" /> },
         { path: 'general', element: <div data-testid="settings-general-page">General settings</div> },
-        { path: 'profile', element: <ProfileSettings /> },
+        { path: 'memory', element: <MemorySettings /> },
       ],
     },
     {
@@ -409,7 +409,7 @@ function renderSettingsWindow(initialPath: string) {
       children: [
         { index: true, element: <Navigate replace to="./general" /> },
         { path: 'general', element: <div data-testid="settings-general-page">General settings</div> },
-        { path: 'profile', element: <ProfileSettings /> },
+        { path: 'memory', element: <MemorySettings /> },
       ],
     },
   ], {

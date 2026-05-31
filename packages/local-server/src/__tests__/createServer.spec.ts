@@ -5,11 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createLocalServer } from '../createServer'
 
 const services = {
-  conversationService: {
+  conversationRepository: {
     list: vi.fn(),
   },
-  messageService: {},
-  settingsService: {},
+  messageRepository: {},
+  settingsRepository: {},
 } as unknown as LocalServerServices
 
 let server: ReturnType<typeof createLocalServer>
@@ -17,7 +17,7 @@ let baseUrl: URL
 
 beforeEach(async () => {
   vi.clearAllMocks()
-  services.conversationService.list = vi.fn().mockResolvedValue({ data: [], total: 0 })
+  services.conversationRepository.list = vi.fn().mockResolvedValue({ data: [], total: 0 })
   server = createLocalServer(services)
   await new Promise<void>((resolve) => {
     server.listen(0, '127.0.0.1', resolve)
@@ -67,7 +67,7 @@ describe('createLocalServer', () => {
       success: true,
       data: { data: [], total: 0 },
     })
-    expect(services.conversationService.list).toHaveBeenCalledWith(0, 20)
+    expect(services.conversationRepository.list).toHaveBeenCalledWith(0, 20)
   })
 })
 

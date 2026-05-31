@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { ServiceProviderSchema } from './serviceProvider'
-import { ModelCapabilitiesSchema, ModelCostSchema } from './serviceProviderModels'
+import { ProviderConfigSchema } from './providerConfig'
+import { ModelCapabilitiesSchema, ModelCostSchema } from './providerConfigModels'
 
 export const ProviderModelSettingsSchema = z.object({
   isEnabled: z.boolean(),
@@ -12,7 +12,7 @@ export const ProviderModelSettingsSchema = z.object({
   cost: ModelCostSchema,
 })
 
-export const ProviderSettingsSchema = ServiceProviderSchema.omit({
+export const ProviderSettingsSchema = ProviderConfigSchema.omit({
   createdAt: true,
   updatedAt: true,
 }).extend({

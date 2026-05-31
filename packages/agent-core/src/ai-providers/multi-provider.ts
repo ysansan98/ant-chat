@@ -1,4 +1,4 @@
-import type { ServiceProviderSchema } from '@ant-chat/shared'
+import type { ProviderConfigSchema } from '@ant-chat/shared'
 import type { LanguageModelUsage } from 'ai'
 import type { ProviderFormat } from './types'
 import process from 'node:process'
@@ -480,7 +480,7 @@ export class MultiProvider {
  * 创建 AI 提供商实例的工厂函数
  */
 export async function createAProvider(
-  provider: ServiceProviderSchema,
+  provider: ProviderConfigSchema,
 ): Promise<MultiProvider> {
   const format = provider.apiMode
 

@@ -1,19 +1,19 @@
-import type { ConversationTitleService, ImportModelsDevModelsResult, ModelsDevModel, ModelsDevProvider } from '@ant-chat/agent-runtime'
+import type { ConversationTitleGenerator, ImportModelsDevModelsResult, ModelsDevModel, ModelsDevProvider } from '@ant-chat/agent-runtime'
 import type { ConversationRepository, MessageRepository, ProviderSettingsRepository, SettingsRepository, WorkspaceService } from '@ant-chat/app-data'
-import type { AddConversationsSchema, AddMessage, AddServiceProviderModelSchema, AddServiceProviderSchema, AgentProfileFiles, ImportSkillFromGithubOptions, SetSkillEnabledOptions, SkillIndex, SkillManifest, UpdateAgentProfileInput, UpdateConversationsSchema, UpdateMessageSchema, UpdateServiceProviderSchema } from '@ant-chat/shared'
+import type { AddConversationsSchema, AddMessage, AgentMemoryFiles, CreateProviderConfigModelSchema, CreateProviderConfigSchema, ImportSkillFromGithubOptions, SetSkillEnabledOptions, SkillIndex, SkillManifest, UpdateAgentMemoryInput, UpdateConversationsSchema, UpdateMessageSchema, UpdateProviderConfigSchema } from '@ant-chat/shared'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { Buffer } from 'node:buffer'
 import { createServer as createHttpServer } from 'node:http'
 import { searchWorkspaceFiles } from '@ant-chat/app-data'
 
 export interface LocalServerServices {
-  conversationService: ConversationRepository
-  messageService: MessageRepository
-  settingsService: SettingsRepository
-  profileService?: {
-    readProfile: () => Promise<AgentProfileFiles>
-    updateProfile: (input: UpdateAgentProfileInput) => Promise<AgentProfileFiles>
-    rollbackSoul: () => Promise<AgentProfileFiles>
+  conversationRepository: ConversationRepository
+  messageRepository: MessageRepository
+  settingsRepository: SettingsRepository
+  memoryManager?: {
+    readMemoryFiles: () => Promise<AgentMemoryFiles>
+    updateMemoryFiles: (input: UpdateAgentMemoryInput) => Promise<AgentMemoryFiles>
+    rollbackSoul: () => Promise<AgentMemoryFiles>
   }
   workspaceService?: Pick<WorkspaceService, 'listWorkspaces' | 'addWorkspace' | 'removeWorkspace' | 'openWorkspace' | 'getCurrentWorkspacePath' | 'getDefaultWorkspacePath'>
   providerSettingsRepository?: ProviderSettingsRepository
@@ -30,7 +30,7 @@ export interface LocalServerServices {
     rebuildIndex: () => Promise<SkillManifest[]>
     getSkillsRoot: () => string
   }
-  agentService?: {
+  agentController?: {
     startTurn?: (options: unknown) => Promise<unknown> | unknown
     approvePendingAction?: (options: unknown) => Promise<null> | null
     rejectPendingAction?: (options: unknown) => Promise<null> | null
@@ -39,7 +39,7 @@ export interface LocalServerServices {
     listActiveTasks: (conversationId?: string) => Promise<unknown[]> | unknown[]
     approvePendingActionWithWhitelist?: (options: unknown) => Promise<null> | null
   }
-  conversationTitleService?: ConversationTitleService
+  conversationTitleGenerator?: ConversationTitleGenerator
 }
 
 export type LocalApiHandler = (req: IncomingMessage, res: ServerResponse) => Promise<boolean>
@@ -112,73 +112,73 @@ async function dispatchRpc(body: unknown, services: LocalServerServices): Promis
 
   switch (method) {
     case 'chat.createConversationsTitle':
-      return requireConversationTitleService(services).updateTitle(stringParam(params.conversationsId), stringParam(params.modelId))
+      return requireConversationTitleGenerator(services).updateTitle(stringParam(params.conversationsId), stringParam(params.modelId))
     case 'chat.getConversations':
-      return services.conversationService.list(numberParam(params.pageIndex), numberParam(params.pageSize))
+      return services.conversationRepository.list(numberParam(params.pageIndex), numberParam(params.pageSize))
     case 'chat.getWorkspaceConversations':
-      return services.conversationService.list(numberParam(params.pageIndex), numberParam(params.pageSize), stringParam(params.workspacePath))
+      return services.conversationRepository.list(numberParam(params.pageIndex), numberParam(params.pageSize), stringParam(params.workspacePath))
     case 'chat.getConversationById':
-      return services.conversationService.getById(stringParam(params.id))
+      return services.conversationRepository.getById(stringParam(params.id))
     case 'chat.addConversation':
-      return services.conversationService.create(params.conversation as AddConversationsSchema)
+      return services.conversationRepository.create(params.conversation as AddConversationsSchema)
     case 'chat.updateConversation':
-      return services.conversationService.update(params.conversation as UpdateConversationsSchema)
+      return services.conversationRepository.update(params.conversation as UpdateConversationsSchema)
     case 'chat.deleteConversation':
-      await services.conversationService.delete(stringParam(params.id))
+      await services.conversationRepository.delete(stringParam(params.id))
       return null
     case 'chat.getMessagesByConvId':
-      return services.messageService.listByConversation(stringParam(params.convId))
+      return services.messageRepository.listByConversation(stringParam(params.convId))
     case 'chat.getMessageById':
-      return services.messageService.getById(stringParam(params.id))
+      return services.messageRepository.getById(stringParam(params.id))
     case 'chat.addMessage':
-      return services.messageService.create(params.message as AddMessage)
+      return services.messageRepository.create(params.message as AddMessage)
     case 'chat.updateMessage':
-      return services.messageService.update(params.message as UpdateMessageSchema)
+      return services.messageRepository.update(params.message as UpdateMessageSchema)
     case 'chat.deleteMessage':
-      await services.messageService.delete(stringParam(params.id))
+      await services.messageRepository.delete(stringParam(params.id))
       return null
     case 'chat.getMessagesByConvIdWithPagination':
-      return services.messageService.listByConversationPaginated(stringParam(params.id), numberParam(params.pageIndex), numberParam(params.pageSize))
+      return services.messageRepository.listByConversationPaginated(stringParam(params.id), numberParam(params.pageIndex), numberParam(params.pageSize))
     case 'chat.batchDeleteMessages':
-      await services.messageService.batchDelete(Array.isArray(params.ids) ? params.ids.map(String) : [])
+      await services.messageRepository.batchDelete(Array.isArray(params.ids) ? params.ids.map(String) : [])
       return null
     case 'settings.getSettings':
-      return services.settingsService.getGeneralSettings()
+      return services.settingsRepository.getGeneralSettings()
     case 'settings.updateSettings':
-      return services.settingsService.updateGeneralSettings(asRecord(params.updates))
+      return services.settingsRepository.updateGeneralSettings(asRecord(params.updates))
     case 'settings.resetSettings':
-      return services.settingsService.resetGeneralSettings()
-    case 'provider.getAllProviderServices':
-      return requireProviderRepository(services).getAllProviderServices()
-    case 'provider.addProviderServices':
-      return requireProviderRepository(services).addProviderService(params.config as AddServiceProviderSchema)
-    case 'provider.updateProviderService':
-      return requireProviderRepository(services).updateProviderService(params.config as UpdateServiceProviderSchema)
-    case 'provider.deleteProviderService':
-      requireProviderRepository(services).deleteProviderService(stringParam(params.id))
+      return services.settingsRepository.resetGeneralSettings()
+    case 'provider.listProviders':
+      return requireProviderRepository(services).listProviders()
+    case 'provider.createProvider':
+      return requireProviderRepository(services).createProvider(params.config as CreateProviderConfigSchema)
+    case 'provider.updateProvider':
+      return requireProviderRepository(services).updateProvider(params.config as UpdateProviderConfigSchema)
+    case 'provider.deleteProvider':
+      requireProviderRepository(services).deleteProvider(stringParam(params.id))
       return null
-    case 'provider.getProviderServicesById': {
-      const result = requireProviderRepository(services).getProviderServiceById(stringParam(params.id))
+    case 'provider.getProviderById': {
+      const result = requireProviderRepository(services).getProviderById(stringParam(params.id))
       if (!result)
         throw new Error('not found')
       return result
     }
-    case 'provider.getProviderServiceByModelId': {
-      const result = requireProviderRepository(services).getServiceProviderByModelId(stringParam(params.id))
+    case 'provider.getProviderByModelId': {
+      const result = requireProviderRepository(services).getProviderByModelId(stringParam(params.id))
       if (!result)
         throw new Error('not found')
       return result
     }
     case 'provider.getAllAbvailableModels':
       return requireProviderRepository(services).getAllAvailableModels()
-    case 'provider.getModelsByServiceProviderId':
-      return requireProviderRepository(services).getModelsByServiceProviderId(stringParam(params.id))
+    case 'provider.listProviderModels':
+      return requireProviderRepository(services).listProviderModels(stringParam(params.id))
     case 'provider.setModelEnabledStatus':
       return requireProviderRepository(services).setModelEnabledStatus(stringParam(params.id), booleanParam(params.status))
-    case 'provider.addProviderServiceModel':
-      return requireProviderRepository(services).addServiceProviderModel(params.config as AddServiceProviderModelSchema)
-    case 'provider.deleteProviderServiceModel':
-      requireProviderRepository(services).deleteServiceProviderModel(stringParam(params.id))
+    case 'provider.createProviderModel':
+      return requireProviderRepository(services).createProviderModel(params.config as CreateProviderConfigModelSchema)
+    case 'provider.deleteProviderModel':
+      requireProviderRepository(services).deleteProviderModel(stringParam(params.id))
       return null
     case 'provider.getModelById': {
       const result = requireProviderRepository(services).getModelById(stringParam(params.id))
@@ -210,12 +210,12 @@ async function dispatchRpc(body: unknown, services: LocalServerServices): Promis
       const skills = await skillService.rebuildIndex()
       return { rootPath: skillService.getSkillsRoot(), skills }
     }
-    case 'profile.getProfile':
-      return requireProfileService(services).readProfile()
-    case 'profile.updateProfile':
-      return requireProfileService(services).updateProfile(params.input as UpdateAgentProfileInput)
-    case 'profile.rollbackSoul':
-      return requireProfileService(services).rollbackSoul()
+    case 'memory.getMemoryFiles':
+      return requireMemoryManager(services).readMemoryFiles()
+    case 'memory.updateMemoryFiles':
+      return requireMemoryManager(services).updateMemoryFiles(params.input as UpdateAgentMemoryInput)
+    case 'memory.rollbackSoul':
+      return requireMemoryManager(services).rollbackSoul()
     case 'workspace.listWorkspaces':
       return requireWorkspaceService(services).listWorkspaces()
     case 'workspace.addWorkspace':
@@ -247,30 +247,30 @@ async function dispatchRpc(body: unknown, services: LocalServerServices): Promis
     case 'agent.cancelTask':
       return requireCancelTask(services)(stringParam(params.taskId))
     case 'agent.injectSteering': {
-      const fn = services.agentService?.injectSteering
+      const fn = services.agentController?.injectSteering
       if (!fn)
         throw new Error('Agent method is not available in local web transport: injectSteering')
       return fn(params as { conversationId: string, text: string })
     }
     case 'agent.listActiveTasks':
-      return services.agentService?.listActiveTasks(optionalStringParam(params.conversationId)) ?? []
+      return services.agentController?.listActiveTasks(optionalStringParam(params.conversationId)) ?? []
     default:
       throw new Error(`Unknown local RPC method: ${method}`)
   }
 }
 
-function requireConversationTitleService(services: LocalServerServices): NonNullable<LocalServerServices['conversationTitleService']> {
-  if (!services.conversationTitleService) {
+function requireConversationTitleGenerator(services: LocalServerServices): NonNullable<LocalServerServices['conversationTitleGenerator']> {
+  if (!services.conversationTitleGenerator) {
     throw new Error('Conversation title service is not available in local web transport')
   }
-  return services.conversationTitleService
+  return services.conversationTitleGenerator
 }
 
-function requireProfileService(services: LocalServerServices): NonNullable<LocalServerServices['profileService']> {
-  if (!services.profileService) {
-    throw new Error('Profile service is not available in local web transport')
+function requireMemoryManager(services: LocalServerServices): NonNullable<LocalServerServices['memoryManager']> {
+  if (!services.memoryManager) {
+    throw new Error('Memory manager is not available in local web transport')
   }
-  return services.profileService
+  return services.memoryManager
 }
 
 function requireProviderRepository(services: LocalServerServices): ProviderSettingsRepository {
@@ -311,7 +311,7 @@ function parseRpcBody(body: unknown): { method: string, params: Record<string, u
 }
 
 function requireAgentMethod(services: LocalServerServices, method: 'startTurn' | 'approvePendingAction' | 'rejectPendingAction' | 'approvePendingActionWithWhitelist') {
-  const handler = services.agentService?.[method]
+  const handler = services.agentController?.[method]
   if (!handler) {
     throw new Error(`Agent method is not available in local web transport: ${method}`)
   }
@@ -319,7 +319,7 @@ function requireAgentMethod(services: LocalServerServices, method: 'startTurn' |
 }
 
 function requireCancelTask(services: LocalServerServices) {
-  const handler = services.agentService?.cancelTask
+  const handler = services.agentController?.cancelTask
   if (!handler) {
     throw new Error('Agent method is not available in local web transport: cancelTask')
   }

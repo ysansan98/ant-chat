@@ -52,7 +52,7 @@ export function SelectModel({ value, onChange, options }: SelectModelProps) {
                           }}
                         >
                           <div className="flex items-center gap-1">
-                            <ProviderLogoDisplay providerServiceId={item.id} />
+                            <ProviderLogoDisplay providerId={item.id} />
                             <span className="font-medium">
                               {model.name}
                             </span>

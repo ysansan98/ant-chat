@@ -1,23 +1,23 @@
 import type {
-  AddServiceProviderModelSchema,
-  AddServiceProviderSchema,
   AllAvailableModelsSchema,
+  CreateProviderConfigModelSchema,
+  CreateProviderConfigSchema,
+  ProviderConfigModelSchema,
+  ProviderConfigSchema,
   ProviderModelSettingsSchema,
   ProviderSettingsSchema,
-  ServiceProviderModelsSchema,
-  ServiceProviderSchema,
-  UpdateServiceProviderSchema,
+  UpdateProviderConfigSchema,
 } from '@ant-chat/shared'
 import type { AppSettingsStore } from './appSettingsStore'
-import { AddServiceProviderModelSchema as AddServiceProviderModelValidator, AddServiceProviderSchema as AddServiceProviderValidator, UpdateServiceProviderSchema as UpdateServiceProviderValidator } from '@ant-chat/shared'
+import { CreateProviderConfigModelSchema as CreateProviderConfigModelValidator, CreateProviderConfigSchema as CreateProviderConfigValidator, UpdateProviderConfigSchema as UpdateProviderConfigValidator } from '@ant-chat/shared'
 import { nanoid } from 'nanoid'
 
-function toServiceProvider(provider: ProviderSettingsSchema): ServiceProviderSchema {
-  const { models: _models, ...serviceProvider } = provider
-  return { ...serviceProvider, createdAt: 0, updatedAt: 0 }
+function toProviderConfig(provider: ProviderSettingsSchema): ProviderConfigSchema {
+  const { models: _models, ...providerConfig } = provider
+  return { ...providerConfig, createdAt: 0, updatedAt: 0 }
 }
 
-function toServiceProviderModel(providerId: string, modelId: string, model: ProviderModelSettingsSchema): ServiceProviderModelsSchema {
+function toProviderConfigModel(providerId: string, modelId: string, model: ProviderModelSettingsSchema): ProviderConfigModelSchema {
   return {
     id: modelId,
     model: modelId,
@@ -29,7 +29,7 @@ function toServiceProviderModel(providerId: string, modelId: string, model: Prov
     temperature: model.temperature ?? 0.7,
     capabilities: model.capabilities,
     cost: model.cost,
-    serviceProviderId: providerId,
+    providerId,
     createdAt: 0,
   }
 }
@@ -37,12 +37,12 @@ function toServiceProviderModel(providerId: string, modelId: string, model: Prov
 export class ProviderSettingsRepository {
   constructor(private readonly store: AppSettingsStore) {}
 
-  getAllProviderServices(): ServiceProviderSchema[] {
-    return this.store.read().providers.map(toServiceProvider)
+  listProviders(): ProviderConfigSchema[] {
+    return this.store.read().providers.map(toProviderConfig)
   }
 
-  updateProviderService(config: UpdateServiceProviderSchema): ServiceProviderSchema {
-    const data = UpdateServiceProviderValidator.parse(config)
+  updateProvider(config: UpdateProviderConfigSchema): ProviderConfigSchema {
+    const data = UpdateProviderConfigValidator.parse(config)
     let updatedProvider: ProviderSettingsSchema | null = null
     this.store.update((settings) => {
       const providers = settings.providers.map((provider) => {
@@ -63,11 +63,11 @@ export class ProviderSettingsRepository {
     if (!updatedProvider) {
       throw new Error(`Provider not found: ${data.id}`)
     }
-    return toServiceProvider(updatedProvider)
+    return toProviderConfig(updatedProvider)
   }
 
-  addProviderService(config: AddServiceProviderSchema): ServiceProviderSchema {
-    const data = AddServiceProviderValidator.parse(config)
+  createProvider(config: CreateProviderConfigSchema): ProviderConfigSchema {
+    const data = CreateProviderConfigValidator.parse(config)
     const createdProvider: ProviderSettingsSchema = {
       id: data.id ?? `provider-${nanoid()}`,
       name: data.name,
@@ -86,52 +86,52 @@ export class ProviderSettingsRepository {
       return { ...settings, providers: [...settings.providers, createdProvider] }
     })
 
-    return toServiceProvider(createdProvider)
+    return toProviderConfig(createdProvider)
   }
 
-  deleteProviderService(id: string): void {
+  deleteProvider(id: string): void {
     this.store.update(settings => ({
       ...settings,
       providers: settings.providers.filter(provider => provider.id !== id),
     }))
   }
 
-  getProviderServiceById(id: string): ServiceProviderSchema | null {
+  getProviderById(id: string): ProviderConfigSchema | null {
     const provider = this.store.read().providers.find(provider => provider.id === id)
-    return provider ? toServiceProvider(provider) : null
+    return provider ? toProviderConfig(provider) : null
   }
 
   getProviderSettingsById(id: string): ProviderSettingsSchema | null {
     return this.store.read().providers.find(provider => provider.id === id) ?? null
   }
 
-  getServiceProviderByModelId(id: string): ServiceProviderSchema | null {
+  getProviderByModelId(id: string): ProviderConfigSchema | null {
     const provider = this.store.read().providers.find(provider => Boolean(provider.models[id]))
-    return provider ? toServiceProvider(provider) : null
+    return provider ? toProviderConfig(provider) : null
   }
 
   getAllAvailableModels(): AllAvailableModelsSchema[] {
     return this.store.read().providers.filter(provider => provider.isEnabled).map((provider) => {
-      const { models, ...serviceProvider } = provider
+      const { models, ...providerConfig } = provider
       return {
-        ...serviceProvider,
+        ...providerConfig,
         models: Object.entries(models)
           .filter(([, model]) => model.isEnabled)
-          .map(([modelId, model]) => toServiceProviderModel(provider.id, modelId, model)),
+          .map(([modelId, model]) => toProviderConfigModel(provider.id, modelId, model)),
       }
     })
   }
 
-  getModelsByServiceProviderId(providerServiceId: string): ServiceProviderModelsSchema[] {
-    const provider = this.store.read().providers.find(provider => provider.id === providerServiceId)
+  listProviderModels(providerId: string): ProviderConfigModelSchema[] {
+    const provider = this.store.read().providers.find(provider => provider.id === providerId)
     if (!provider) {
       return []
     }
-    return Object.entries(provider.models).map(([modelId, model]) => toServiceProviderModel(provider.id, modelId, model))
+    return Object.entries(provider.models).map(([modelId, model]) => toProviderConfigModel(provider.id, modelId, model))
   }
 
-  setModelEnabledStatus(id: string, status: boolean): ServiceProviderModelsSchema {
-    let updatedModel: ServiceProviderModelsSchema | null = null
+  setModelEnabledStatus(id: string, status: boolean): ProviderConfigModelSchema {
+    let updatedModel: ProviderConfigModelSchema | null = null
     this.store.update((settings) => {
       const providers = settings.providers.map((provider) => {
         const currentModel = provider.models[id]
@@ -139,7 +139,7 @@ export class ProviderSettingsRepository {
           return provider
         }
         const nextModel = { ...currentModel, isEnabled: status }
-        updatedModel = toServiceProviderModel(provider.id, id, nextModel)
+        updatedModel = toProviderConfigModel(provider.id, id, nextModel)
         const models = { ...provider.models, [id]: nextModel }
         return { ...provider, models }
       })
@@ -154,8 +154,8 @@ export class ProviderSettingsRepository {
     return updatedModel
   }
 
-  addServiceProviderModel(config: AddServiceProviderModelSchema): ServiceProviderModelsSchema {
-    const data = AddServiceProviderModelValidator.parse(config)
+  createProviderModel(config: CreateProviderConfigModelSchema): ProviderConfigModelSchema {
+    const data = CreateProviderConfigModelValidator.parse(config)
     const createdModel: ProviderModelSettingsSchema = {
       isEnabled: true,
       temperature: data.temperature,
@@ -168,7 +168,7 @@ export class ProviderSettingsRepository {
 
     this.store.update((settings) => {
       const providers = settings.providers.map((provider) => {
-        if (provider.id !== data.serviceProviderId) {
+        if (provider.id !== data.providerId) {
           return provider
         }
         if (provider.models[data.model]) {
@@ -176,16 +176,16 @@ export class ProviderSettingsRepository {
         }
         return { ...provider, models: { ...provider.models, [data.model]: createdModel } }
       })
-      if (!settings.providers.some(provider => provider.id === data.serviceProviderId)) {
-        throw new Error(`Provider not found: ${data.serviceProviderId}`)
+      if (!settings.providers.some(provider => provider.id === data.providerId)) {
+        throw new Error(`Provider not found: ${data.providerId}`)
       }
       return { ...settings, providers }
     })
 
-    return toServiceProviderModel(data.serviceProviderId, data.model, createdModel)
+    return toProviderConfigModel(data.providerId, data.model, createdModel)
   }
 
-  addProviderModelReference(providerId: string, modelId: string, options: { temperature?: number } = {}): ServiceProviderModelsSchema {
+  addProviderModelReference(providerId: string, modelId: string, options: { temperature?: number } = {}): ProviderConfigModelSchema {
     const createdModel: ProviderModelSettingsSchema = {
       isEnabled: true,
       temperature: options.temperature,
@@ -207,10 +207,10 @@ export class ProviderSettingsRepository {
       return { ...settings, providers }
     })
 
-    return toServiceProviderModel(providerId, modelId, createdModel)
+    return toProviderConfigModel(providerId, modelId, createdModel)
   }
 
-  deleteServiceProviderModel(id: string): void {
+  deleteProviderModel(id: string): void {
     this.store.update((settings) => {
       const providers = settings.providers.map((provider) => {
         const { [id]: _deletedModel, ...models } = provider.models
@@ -220,11 +220,11 @@ export class ProviderSettingsRepository {
     })
   }
 
-  getModelById(id: string): ServiceProviderModelsSchema | null {
+  getModelById(id: string): ProviderConfigModelSchema | null {
     for (const provider of this.store.read().providers) {
       const model = provider.models[id]
       if (model) {
-        return toServiceProviderModel(provider.id, id, model)
+        return toProviderConfigModel(provider.id, id, model)
       }
     }
     return null

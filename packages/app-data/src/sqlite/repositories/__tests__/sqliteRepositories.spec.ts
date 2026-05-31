@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { initializeAppDataSchema } from '../../schema'
-import { SqliteMessageSearchService } from '../../services'
+import { SqliteMessageSearchQuery } from '../../queries'
 import { SqliteConversationRepository } from '../sqliteConversationRepository'
 import { SqliteMessageRepository } from '../sqliteMessageRepository'
 
@@ -58,7 +58,7 @@ describe.skipIf(!canRunDbIntegrationTests())('sqlite repositories', () => {
   it('searches text messages by keyword grouped by conversation', async () => {
     const conversationRepository = new SqliteConversationRepository(sqlite)
     const messageRepository = new SqliteMessageRepository(sqlite)
-    const searchService = new SqliteMessageSearchService(sqlite)
+    const searchService = new SqliteMessageSearchQuery(sqlite)
 
     const olderConversation = await conversationRepository.create({
       title: 'Older',

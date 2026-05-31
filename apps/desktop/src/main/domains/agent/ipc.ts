@@ -9,7 +9,7 @@ export class AgentIpcService extends IpcService {
   @IpcMethod()
   async startTurn(options: StartAgentTurnOptions): Promise<IpcResponse<AgentTurnResult>> {
     try {
-      const data = await getAgentRuntimeEnvironment().agentService.startTurn(options)
+      const data = await getAgentRuntimeEnvironment().agentController.startTurn(options)
       return createIpcResponse(true, data)
     }
     catch (error) {
@@ -86,7 +86,7 @@ export class AgentIpcService extends IpcService {
     options: ApprovePendingActionOptions & { remember: boolean, workspacePath?: string },
   ): Promise<IpcResponse<null>> {
     try {
-      getAgentRuntimeEnvironment().agentService.approvePendingActionWithWhitelist(options)
+      getAgentRuntimeEnvironment().agentController.approvePendingActionWithWhitelist(options)
       return createIpcResponse(true, null)
     }
     catch (error) {

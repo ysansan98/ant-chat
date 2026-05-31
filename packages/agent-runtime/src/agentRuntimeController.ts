@@ -1,9 +1,9 @@
 import type { AgentRuntime } from '@ant-chat/agent-core'
-import type { AppDataServices } from '@ant-chat/app-data'
+import type { AppDataContext } from '@ant-chat/app-data'
 import type { AgentRuntimeStartTaskOptions, AgentRuntimeStartTaskResult, ApprovePendingActionOptions, CancelTaskOptions, RejectPendingActionOptions, StartAgentTurnOptions } from '@ant-chat/shared'
 import process from 'node:process'
 
-export interface AgentRuntimeService {
+export interface AgentRuntimeController {
   startTurn: (options: StartAgentTurnOptions) => Promise<AgentRuntimeStartTaskResult>
   approvePendingAction: (options: ApprovePendingActionOptions) => null
   rejectPendingAction: (options: RejectPendingActionOptions) => null
@@ -13,10 +13,10 @@ export interface AgentRuntimeService {
   approvePendingActionWithWhitelist: (options: ApprovePendingActionOptions & { remember: boolean, workspacePath?: string }) => null
 }
 
-export function createAgentRuntimeService(runtime: AgentRuntime, appDataServices: AppDataServices): AgentRuntimeService {
+export function createAgentRuntimeController(runtime: AgentRuntime, appDataContext: AppDataContext): AgentRuntimeController {
   return {
     async startTurn(options) {
-      return await runtime.startTask(toRuntimeStartOptions(options, appDataServices))
+      return await runtime.startTask(toRuntimeStartOptions(options, appDataContext))
     },
     approvePendingAction(options) {
       runtime.approvePendingAction(options)
@@ -42,7 +42,7 @@ export function createAgentRuntimeService(runtime: AgentRuntime, appDataServices
         const snapshot = runtime.getTask(options.taskId)
         const pending = snapshot.pendingAction
         if (pending?.whitelistPattern) {
-          appDataServices.toolApprovalWhitelistRepository.add({
+          appDataContext.toolApprovalWhitelistRepository.add({
             toolName: pending.toolName,
             toolScope: pending.scope,
             pattern: pending.whitelistPattern,
@@ -59,10 +59,10 @@ export function createAgentRuntimeService(runtime: AgentRuntime, appDataServices
 
 function toRuntimeStartOptions(
   options: StartAgentTurnOptions,
-  appDataServices: AppDataServices,
+  appDataContext: AppDataContext,
 ): AgentRuntimeStartTaskOptions {
   const workspacePath = options.workspacePath
-    ?? appDataServices.workspaceService.getCurrentWorkspacePath()
+    ?? appDataContext.workspaceService.getCurrentWorkspacePath()
     ?? process.cwd()
 
   const startOptions: AgentRuntimeStartTaskOptions = {

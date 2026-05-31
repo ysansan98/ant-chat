@@ -17,7 +17,7 @@ export class AtomicTextFileStore {
     const dir = dirname(this.filePath)
     mkdirSync(dir, { recursive: true })
 
-    const tmpDir = mkdtempSync(join(tmpdir(), 'ant-chat-profile-'))
+    const tmpDir = mkdtempSync(join(tmpdir(), 'ant-chat-memory-'))
     const tmpPath = join(tmpDir, 'content.tmp')
     try {
       writeFileSync(tmpPath, value === '' || value.endsWith('\n') ? value : `${value}\n`, 'utf8')

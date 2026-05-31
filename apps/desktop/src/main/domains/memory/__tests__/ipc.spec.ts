@@ -1,22 +1,22 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ProfileIpcService } from '../ipc'
+import { MemoryIpcService } from '../ipc'
 
 const mocks = vi.hoisted(() => ({
-  profileService: {
-    readProfile: vi.fn(async () => ({
-      profileRootPath: '/tmp/profile',
+  memoryManager: {
+    readMemoryFiles: vi.fn(async () => ({
+      memoryRootPath: '/tmp/memory',
       userMarkdown: '§Use Chinese.',
       memoryMarkdown: '§Run pnpm check.',
       soulMarkdown: '# SOUL',
     })),
-    updateProfile: vi.fn(async input => ({
-      profileRootPath: '/tmp/profile',
+    updateMemoryFiles: vi.fn(async input => ({
+      memoryRootPath: '/tmp/memory',
       userMarkdown: input.userMarkdown ?? '§Use Chinese.',
       memoryMarkdown: input.memoryMarkdown ?? '§Run pnpm check.',
       soulMarkdown: input.soulMarkdown ?? '# SOUL',
     })),
     rollbackSoul: vi.fn(async () => ({
-      profileRootPath: '/tmp/profile',
+      memoryRootPath: '/tmp/memory',
       userMarkdown: '§Use Chinese.',
       memoryMarkdown: '§Run pnpm check.',
       soulMarkdown: '# SOUL rolled back',
@@ -31,8 +31,8 @@ vi.mock('electron-ipc-decorator', () => ({
 
 vi.mock('@main/agent/runtime/agentRuntimeEnvironment', () => ({
   getAgentRuntimeEnvironment: () => ({
-    appDataServices: {
-      profileService: mocks.profileService,
+    appDataContext: {
+      memoryManager: mocks.memoryManager,
     },
   }),
 }))
@@ -43,10 +43,10 @@ vi.mock('@main/utils/logger', () => ({
   },
 }))
 
-describe('profile ipc', () => {
-  it('reads profile files', async () => {
-    const service = new ProfileIpcService()
-    const response = await service.getProfile()
+describe('memory ipc', () => {
+  it('reads memory files', async () => {
+    const service = new MemoryIpcService()
+    const response = await service.getMemoryFiles()
 
     expect(response.success).toBe(true)
     if (response.success) {
@@ -54,22 +54,22 @@ describe('profile ipc', () => {
     }
   })
 
-  it('updates profile files', async () => {
-    const service = new ProfileIpcService()
-    const response = await service.updateProfile({
+  it('updates memory files', async () => {
+    const service = new MemoryIpcService()
+    const response = await service.updateMemoryFiles({
       userMarkdown: '§Use Chinese.',
       soulMarkdown: '# SOUL\n\n- Be direct.',
     })
 
     expect(response.success).toBe(true)
-    expect(mocks.profileService.updateProfile).toHaveBeenCalledWith({
+    expect(mocks.memoryManager.updateMemoryFiles).toHaveBeenCalledWith({
       userMarkdown: '§Use Chinese.',
       soulMarkdown: '# SOUL\n\n- Be direct.',
     })
   })
 
   it('rolls back SOUL.md', async () => {
-    const service = new ProfileIpcService()
+    const service = new MemoryIpcService()
     const response = await service.rollbackSoul()
 
     expect(response.success).toBe(true)

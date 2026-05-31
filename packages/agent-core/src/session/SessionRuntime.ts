@@ -27,7 +27,7 @@ const DEFAULT_CONVERSATION_TITLE = 'Untitled'
 const STREAM_UPDATE_INTERVAL_MS = 80
 
 export class SessionRuntime {
-  private readonly promptProfileSnapshots = new Map<string, { memory?: string, soul?: string, user?: string } | undefined>()
+  private readonly promptMemorySnapshots = new Map<string, { memory?: string, soul?: string, user?: string } | undefined>()
 
   constructor(
     private readonly config: AgentRuntimeConfig,
@@ -89,7 +89,7 @@ export class SessionRuntime {
     if (!model) {
       throw new Error(`Model not found: ${options.modelId}`)
     }
-    const provider = await modelCatalog.getProviderById(model.serviceProviderId)
+    const provider = await modelCatalog.getProviderById(model.providerId)
     if (!provider) {
       throw new Error(`Provider not found for model: ${model.model}`)
     }
@@ -122,8 +122,8 @@ export class SessionRuntime {
       workspacePath: options.workspacePath,
       mode,
     })
-    const profile = await this.getPromptProfileSnapshot(conversation.id)
-    const systemPrompt = createLoopSystemPrompt(options.workspacePath, options.chatSettings?.systemPrompt, profile)
+    const memory = await this.getPromptMemorySnapshot(conversation.id)
+    const systemPrompt = createLoopSystemPrompt(options.workspacePath, options.chatSettings?.systemPrompt, memory)
     const apiMode = provider.apiMode || 'openai'
     const compactionSettings: CompactionSettingsSchema = currentConversation?.settings?.compaction ?? DEFAULT_COMPACTION_SETTINGS
 
@@ -147,11 +147,11 @@ export class SessionRuntime {
         return { messages: result.messages }
       }
 
-      this.promptProfileSnapshots.delete(conversation.id)
-      const updatedProfile = await this.getPromptProfileSnapshot(conversation.id)
+      this.promptMemorySnapshots.delete(conversation.id)
+      const updatedMemory = await this.getPromptMemorySnapshot(conversation.id)
       return {
         messages: result.messages,
-        systemPrompt: createLoopSystemPrompt(options.workspacePath, options.chatSettings?.systemPrompt, updatedProfile),
+        systemPrompt: createLoopSystemPrompt(options.workspacePath, options.chatSettings?.systemPrompt, updatedMemory),
       }
     }
 
@@ -212,23 +212,23 @@ export class SessionRuntime {
     taskStore.enqueueSteeringInput(task.taskId, { text, turnId })
   }
 
-  private async getPromptProfileSnapshot(conversationId: string): Promise<{ memory?: string, soul?: string, user?: string } | undefined> {
-    if (!this.promptProfileSnapshots.has(conversationId)) {
-      this.promptProfileSnapshots.set(conversationId, await readPromptProfile(this.config))
+  private async getPromptMemorySnapshot(conversationId: string): Promise<{ memory?: string, soul?: string, user?: string } | undefined> {
+    if (!this.promptMemorySnapshots.has(conversationId)) {
+      this.promptMemorySnapshots.set(conversationId, await readPromptMemory(this.config))
     }
-    return this.promptProfileSnapshots.get(conversationId)
+    return this.promptMemorySnapshots.get(conversationId)
   }
 }
 
-async function readPromptProfile(config: AgentRuntimeConfig): Promise<{ memory?: string, soul?: string, user?: string } | undefined> {
-  if (!config.profileReader) {
+async function readPromptMemory(config: AgentRuntimeConfig): Promise<{ memory?: string, soul?: string, user?: string } | undefined> {
+  if (!config.memoryReader) {
     return undefined
   }
 
   const [soul, user, memory] = await Promise.all([
-    config.profileReader.readSoul(),
-    config.profileReader.readUserProfile(),
-    config.profileReader.readMemory(),
+    config.memoryReader.readSoul(),
+    config.memoryReader.readUserMemory(),
+    config.memoryReader.readMemory(),
   ])
   return { memory, soul, user }
 }

@@ -19,23 +19,23 @@ Only give the name, nothing else.
 The name is:
 `
 
-export interface ConversationTitleService {
+export interface ConversationTitleGenerator {
   updateTitle: (conversationsId: string, modelId: string) => Promise<IConversations>
 }
 
-export interface ConversationTitleServiceDependencies {
+export interface ConversationTitleGeneratorDependencies {
   providerSettingsRepository: ProviderSettingsRepository
-  messageService: MessageRepository
-  conversationService: ConversationRepository
+  messageRepository: MessageRepository
+  conversationRepository: ConversationRepository
 }
 
-export function createConversationTitleService(
-  deps: ConversationTitleServiceDependencies,
-): ConversationTitleService {
+export function createConversationTitleGenerator(
+  deps: ConversationTitleGeneratorDependencies,
+): ConversationTitleGenerator {
   let aiProvider: MultiProvider | null = null
 
   async function initializeProvider(providerId: string) {
-    const provider = deps.providerSettingsRepository.getProviderServiceById(providerId)
+    const provider = deps.providerSettingsRepository.getProviderById(providerId)
     if (!provider) {
       throw new Error('Provider not found')
     }
@@ -49,15 +49,15 @@ export function createConversationTitleService(
         throw new Error(`Model not found for id: ${modelId}`)
       }
 
-      const serviceProvider = deps.providerSettingsRepository.getServiceProviderByModelId(modelId)
-      if (!serviceProvider) {
-        throw new Error(`ServiceProvider not found for modelId: ${modelId}`)
+      const providerConfig = deps.providerSettingsRepository.getProviderByModelId(modelId)
+      if (!providerConfig) {
+        throw new Error(`ProviderConfig not found for modelId: ${modelId}`)
       }
 
-      const messages = await deps.messageService.listByConversation(conversationsId)
+      const messages = await deps.messageRepository.listByConversation(conversationsId)
       const context = formatMessagesForContext(messages)
 
-      await initializeProvider(serviceProvider.id)
+      await initializeProvider(providerConfig.id)
 
       if (!aiProvider) {
         throw new Error('AI provider not set')
@@ -68,7 +68,7 @@ export function createConversationTitleService(
         model: modelInfo.model,
       })
 
-      return deps.conversationService.update({ id: conversationsId, title })
+      return deps.conversationRepository.update({ id: conversationsId, title })
     },
   }
 }

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { ServiceProviderSchema } from './serviceProvider'
+import { ProviderConfigSchema } from './providerConfig'
 
 export const ModelCostSchema = z.object({
   input: z.number(),
@@ -22,7 +22,7 @@ export const ModelCapabilitiesSchema = z.object({
   outputModalities: OutputModalitiesSchema.optional(),
 })
 
-export const ServiceProviderModelsSchema = z.object({
+export const ProviderConfigModelSchema = z.object({
   id: z.string(),
   model: z.string(),
   name: z.string(),
@@ -33,15 +33,15 @@ export const ServiceProviderModelsSchema = z.object({
   temperature: z.number().min(0).max(2),
   capabilities: ModelCapabilitiesSchema.optional().nullable(),
   cost: ModelCostSchema,
-  serviceProviderId: z.string(),
+  providerId: z.string(),
   createdAt: z.number(),
 })
 
-export const AllAvailableModels = ServiceProviderSchema.omit({ isEnabled: true, createdAt: true, updatedAt: true }).extend({
-  models: z.array(ServiceProviderModelsSchema.pick({ id: true, name: true, model: true, capabilities: true, serviceProviderId: true, maxTokens: true, contextLength: true, temperature: true, cost: true })),
+export const AllAvailableModels = ProviderConfigSchema.omit({ isEnabled: true, createdAt: true, updatedAt: true }).extend({
+  models: z.array(ProviderConfigModelSchema.pick({ id: true, name: true, model: true, capabilities: true, providerId: true, maxTokens: true, contextLength: true, temperature: true, cost: true })),
 })
 
-export const AddServiceProviderModelSchema = ServiceProviderModelsSchema.omit({
+export const CreateProviderConfigModelSchema = ProviderConfigModelSchema.omit({
   id: true,
   isBuiltin: true,
   isEnabled: true,
@@ -49,10 +49,10 @@ export const AddServiceProviderModelSchema = ServiceProviderModelsSchema.omit({
 })
 
 // ============================ Schema 转换类型 ============================
-export type AddServiceProviderModelSchema = z.infer<typeof AddServiceProviderModelSchema>
+export type CreateProviderConfigModelSchema = z.infer<typeof CreateProviderConfigModelSchema>
 
 export type ModelCapabilitiesSchema = z.infer<typeof ModelCapabilitiesSchema>
 
 export type AllAvailableModelsSchema = z.infer<typeof AllAvailableModels>
 
-export type ServiceProviderModelsSchema = z.infer<typeof ServiceProviderModelsSchema>
+export type ProviderConfigModelSchema = z.infer<typeof ProviderConfigModelSchema>

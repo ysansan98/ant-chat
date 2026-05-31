@@ -5,7 +5,7 @@ export interface AgentRuntimePaths {
   databaseFile: string
   settingsFile: string
   mcpSettingsFile: string
-  profileRoot: string
+  memoryRoot: string
   workspaceSettingsFile: string
   skillsRoot: string
   logsRoot: string
@@ -20,7 +20,7 @@ export function createAgentRuntimePaths(root: string): AgentRuntimePaths {
     databaseFile: path.join(root, 'ant-chat.db'),
     settingsFile: path.join(root, 'settings.json'),
     mcpSettingsFile: path.join(root, 'mcp.json'),
-    profileRoot: path.join(root, 'agent-profile'),
+    memoryRoot: path.join(root, 'agent-memory'),
     workspaceSettingsFile: path.join(root, 'workspace.json'),
     skillsRoot: path.join(root, 'skills'),
     logsRoot,

@@ -1,4 +1,4 @@
-import type { ServiceProviderSchema } from '@ant-chat/shared'
+import type { ProviderConfigSchema } from '@ant-chat/shared'
 import { Button } from '@workspace/ui/components/button'
 import { EmptyState } from '@workspace/ui/components/empty-state'
 import { Switch } from '@workspace/ui/components/switch'
@@ -8,14 +8,14 @@ import { toast } from 'sonner'
 import { providerApi } from '@/api/providerApi'
 import { ProviderLogo } from '@/components/Chat/providerLogo'
 import { AddCustomProvider } from '@/components/ProviderManage/AddCustomProvider'
-import { ProviderServiceSettings } from '@/components/ProviderManage/ProviderServiceSettings'
+import { ProviderSettingsPanel } from '@/components/ProviderManage/ProviderSettingsPanel'
 
 export default function ProviderManage() {
-  const [activeProvider, setActiveProvider] = React.useState<ServiceProviderSchema | null>(null)
-  const { data, error, refresh, loading } = useRequest(providerApi.getAllProviderServices)
+  const [activeProvider, setActiveProvider] = React.useState<ProviderConfigSchema | null>(null)
+  const { data, error, refresh, loading } = useRequest(providerApi.listProviders)
 
-  const handleAddProvider = async (provider: Parameters<typeof providerApi.addProviderService>[0]) => {
-    await providerApi.addProviderService(provider)
+  const handleAddProvider = async (provider: Parameters<typeof providerApi.createProvider>[0]) => {
+    await providerApi.createProvider(provider)
     refresh()
   }
 
@@ -77,7 +77,7 @@ export default function ProviderManage() {
               <Switch
                 checked={item.isEnabled}
                 onCheckedChange={async (e) => {
-                  await providerApi.updateProviderService({ id: item.id, isEnabled: e })
+                  await providerApi.updateProvider({ id: item.id, isEnabled: e })
                   refresh()
                 }}
                 size="sm"
@@ -96,16 +96,16 @@ export default function ProviderManage() {
       {
         activeProvider
           ? (
-              <ProviderServiceSettings
+              <ProviderSettingsPanel
                 key={activeProvider?.id || ''}
                 item={activeProvider}
                 onChange={async (e) => {
-                  await providerApi.updateProviderService(e)
+                  await providerApi.updateProvider(e)
                   refresh()
                 }}
                 onDelete={async () => {
                   try {
-                    await providerApi.deleteProviderService(activeProvider.id)
+                    await providerApi.deleteProvider(activeProvider.id)
                   }
                   catch (e) {
                     toast.error((e as Error).message)

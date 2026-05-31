@@ -66,7 +66,7 @@ export function ModelControlPanel({ value, onChange }: ModelControlPanelProps) {
             hover:bg-(--hover-bg-color)
           `}
           >
-            <ProviderLogoDisplay providerServiceId={activeProviderServiceInfo?.id || ''} />
+            <ProviderLogoDisplay providerId={activeProviderServiceInfo?.id || ''} />
             <div className="flex max-w-30 items-center truncate text-xs font-medium">
               <span className="truncate">{currentModelInfo?.name}</span>
               <span className="px-2">›</span>

@@ -1,4 +1,4 @@
-import type { ProviderFormat } from '../schemas/serviceProvider'
+import type { ProviderFormat } from '../schemas/providerConfig'
 
 export interface ModelsDevProvider {
   id: string

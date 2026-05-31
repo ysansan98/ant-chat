@@ -1,4 +1,4 @@
-import type { AppDataServices } from '@ant-chat/app-data'
+import type { AppDataContext } from '@ant-chat/app-data'
 import { getModelsDevModelsByProviderId, getModelsDevProviders } from './modelsDev'
 
 export interface ImportModelsDevModelsResult {
@@ -14,14 +14,14 @@ export interface ModelsDevImporter {
   importModelsDevModels: (providerId: string) => Promise<ImportModelsDevModelsResult>
 }
 
-export function createModelsDevImporter(appDataServices: AppDataServices): ModelsDevImporter {
+export function createModelsDevImporter(appDataContext: AppDataContext): ModelsDevImporter {
   return {
     getModelsDevProviders,
     getModelsDevModelsByProviderId,
 
     async importModelsDevModels(providerId: string): Promise<ImportModelsDevModelsResult> {
       const models = await getModelsDevModelsByProviderId(providerId)
-      const provider = appDataServices.providerSettingsRepository.getProviderSettingsById(providerId)
+      const provider = appDataContext.providerSettingsRepository.getProviderSettingsById(providerId)
       const existingModelSet = new Set(provider ? Object.keys(provider.models) : [])
       const added: string[] = []
       const skipped: string[] = []
@@ -42,8 +42,8 @@ export function createModelsDevImporter(appDataServices: AppDataServices): Model
         }
 
         try {
-          appDataServices.providerSettingsRepository.addServiceProviderModel({
-            serviceProviderId: providerId,
+          appDataContext.providerSettingsRepository.createProviderModel({
+            providerId,
             model: model.model,
             name: model.name,
             temperature: 0.7,

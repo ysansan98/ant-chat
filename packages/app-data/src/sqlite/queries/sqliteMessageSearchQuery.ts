@@ -11,7 +11,7 @@ interface SearchMessageRow {
   convCreatedAt: number
 }
 
-export class SqliteMessageSearchService {
+export class SqliteMessageSearchQuery {
   constructor(private readonly db: AppDataDatabase) {}
 
   async searchMessagesByKeyword(query: string): Promise<SearchResult[]> {

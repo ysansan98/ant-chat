@@ -5,7 +5,7 @@ import { createServer as createHttpServer } from 'node:http'
 import { resolve } from 'node:path'
 import process from 'node:process'
 import { parseArgs } from 'node:util'
-import { createAgentRuntimeEnvironment, createConversationTitleService, createModelsDevImporter } from '@ant-chat/agent-runtime'
+import { createAgentRuntimeEnvironment, createConversationTitleGenerator, createModelsDevImporter } from '@ant-chat/agent-runtime'
 import { resolveAppDataRoot } from '@ant-chat/shared'
 import { createLocalApiHandler } from './createServer'
 
@@ -52,22 +52,22 @@ function createDevLogger() {
 
 function buildServices(env: ReturnType<typeof createAgentRuntimeEnvironment>): LocalServerServices {
   return {
-    conversationService: env.appDataServices.conversationService,
-    messageService: env.appDataServices.messageService,
-    settingsService: env.appDataServices.settingsService,
-    providerSettingsRepository: env.appDataServices.providerSettingsRepository,
-    modelsDevImporter: createModelsDevImporter(env.appDataServices),
-    profileService: {
-      readProfile: () => env.appDataServices.profileService.readProfile(),
-      updateProfile: input => env.appDataServices.profileService.updateProfile(input),
-      rollbackSoul: () => env.appDataServices.profileService.rollbackSoul(),
+    conversationRepository: env.appDataContext.conversationRepository,
+    messageRepository: env.appDataContext.messageRepository,
+    settingsRepository: env.appDataContext.settingsRepository,
+    providerSettingsRepository: env.appDataContext.providerSettingsRepository,
+    modelsDevImporter: createModelsDevImporter(env.appDataContext),
+    memoryManager: {
+      readMemoryFiles: () => env.appDataContext.memoryManager.readMemoryFiles(),
+      updateMemoryFiles: input => env.appDataContext.memoryManager.updateMemoryFiles(input),
+      rollbackSoul: () => env.appDataContext.memoryManager.rollbackSoul(),
     },
-    workspaceService: env.appDataServices.workspaceService,
-    agentService: env.agentService as unknown as LocalServerServices['agentService'],
-    conversationTitleService: createConversationTitleService({
-      providerSettingsRepository: env.appDataServices.providerSettingsRepository,
-      messageService: env.appDataServices.messageService,
-      conversationService: env.appDataServices.conversationService,
+    workspaceService: env.appDataContext.workspaceService,
+    agentController: env.agentController as unknown as LocalServerServices['agentController'],
+    conversationTitleGenerator: createConversationTitleGenerator({
+      providerSettingsRepository: env.appDataContext.providerSettingsRepository,
+      messageRepository: env.appDataContext.messageRepository,
+      conversationRepository: env.appDataContext.conversationRepository,
     }),
   }
 }

@@ -4,7 +4,7 @@ import { AgentIpcService } from './domains/agent/ipc'
 import { AppIpcService } from './domains/app/ipc'
 import { ChatIpcService } from './domains/chat/ipc'
 import { McpIpcService } from './domains/mcp/ipc'
-import { ProfileIpcService } from './domains/profile/ipc'
+import { MemoryIpcService } from './domains/memory/ipc'
 import { ProviderIpcService } from './domains/provider/ipc'
 import { SearchIpcService } from './domains/search/ipc'
 import { SettingsIpcService } from './domains/settings/ipc'
@@ -17,7 +17,7 @@ export const ipcServiceClasses = [
   AppIpcService,
   ChatIpcService,
   McpIpcService,
-  ProfileIpcService,
+  MemoryIpcService,
   ProviderIpcService,
   SearchIpcService,
   SettingsIpcService,

@@ -2,9 +2,9 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'n
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { AgentProfileService } from '../agentProfileService'
+import { AgentMemoryManager } from '../agentMemoryManager'
 
-describe('agentProfileService', () => {
+describe('agentMemoryManager', () => {
   let rootPath = ''
 
   afterEach(() => {
@@ -15,18 +15,18 @@ describe('agentProfileService', () => {
   })
 
   function createService() {
-    rootPath = mkdtempSync(path.join(tmpdir(), 'ant-chat-profile-'))
-    return new AgentProfileService(rootPath)
+    rootPath = mkdtempSync(path.join(tmpdir(), 'ant-chat-memory-'))
+    return new AgentMemoryManager(rootPath)
   }
 
   it('creates USER.md, MEMORY.md, and SOUL.md on first use', async () => {
     const service = createService()
-    const profile = await service.readProfile()
+    const memory = await service.readMemoryFiles()
 
-    expect(profile.profileRootPath).toBe(rootPath)
-    expect(profile.userMarkdown).toBe('')
-    expect(profile.memoryMarkdown).toBe('')
-    expect(profile.soulMarkdown).toContain('# SOUL')
+    expect(memory.memoryRootPath).toBe(rootPath)
+    expect(memory.userMarkdown).toBe('')
+    expect(memory.memoryMarkdown).toBe('')
+    expect(memory.soulMarkdown).toContain('# SOUL')
     expect(readFileSync(path.join(rootPath, 'USER.md'), 'utf8')).toBe('')
     expect(readFileSync(path.join(rootPath, 'MEMORY.md'), 'utf8')).toBe('')
     expect(readFileSync(path.join(rootPath, 'SOUL.md'), 'utf8')).toContain('Behavior')
@@ -49,7 +49,7 @@ describe('agentProfileService', () => {
     expect(memoryResult.entries).toEqual(['Use pnpm check before commits.'])
     expect(userResult.entries).toEqual(['Prefers concise Chinese replies.'])
     expect(await service.readMemory()).toBe('§Use pnpm check before commits.\n')
-    expect(await service.readUserProfile()).toBe('§Prefers concise Chinese replies.\n')
+    expect(await service.readUserMemory()).toBe('§Prefers concise Chinese replies.\n')
   })
 
   it('replaces and removes entries by old_text substring', async () => {
@@ -128,9 +128,9 @@ describe('agentProfileService', () => {
     expect(result.updated).toBe(true)
     expect(result.meta?.summary).toBe('Add verification rule')
 
-    const profile = await service.readProfile()
-    expect(profile.soulMarkdown).toContain('Always verify with tests.')
-    expect(profile.lastSoulUpdate?.backupPath).toContain('.soul-backups')
+    const memory = await service.readMemoryFiles()
+    expect(memory.soulMarkdown).toContain('Always verify with tests.')
+    expect(memory.lastSoulUpdate?.backupPath).toContain('.soul-backups')
   })
 
   it('rolls back the latest SOUL.md update', async () => {
@@ -141,10 +141,10 @@ describe('agentProfileService', () => {
       summary: 'Change style',
     })
 
-    const profile = await service.rollbackSoul()
+    const memory = await service.rollbackSoul()
 
-    expect(profile.soulMarkdown).toBe(original)
-    expect(profile.lastSoulUpdate).toBeUndefined()
+    expect(memory.soulMarkdown).toBe(original)
+    expect(memory.lastSoulUpdate).toBeUndefined()
   })
 
   it('rejects empty SOUL.md content', async () => {

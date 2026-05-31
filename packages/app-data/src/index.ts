@@ -1,6 +1,6 @@
 export * from './file'
 export * from './mcp'
-export * from './profile'
+export * from './memory'
 export * from './repositories'
 export * from './settings'
 export * from './sqlite'

@@ -41,8 +41,8 @@ export class ToolRegistry {
     const skillTools = skillReader
       ? await makeSkillTools(skillReader)
       : []
-    const agentLoopTools = config.profileReader
-      ? [createMemoryTool(config.profileReader)]
+    const agentLoopTools = config.memoryReader
+      ? [createMemoryTool(config.memoryReader)]
       : []
     const mcpTools = config.mcpClientHub
       ? createMcpTools(config.mcpClientHub)
@@ -114,7 +114,7 @@ export class ToolRegistry {
   }
 }
 
-function createMemoryTool(profileReader: NonNullable<AgentRuntimeConfig['profileReader']>): AgentTool {
+function createMemoryTool(memoryReader: NonNullable<AgentRuntimeConfig['memoryReader']>): AgentTool {
   return {
     name: 'memory',
     source: 'skill',
@@ -122,7 +122,7 @@ function createMemoryTool(profileReader: NonNullable<AgentRuntimeConfig['profile
     description: [
       'Edit persistent agent memory files using add, replace, or remove.',
       'Use target="memory" for the agent personal notes: durable environment facts, project conventions, and tool behavior.',
-      'Use target="user" for the user profile: durable preferences, communication style, and habits.',
+      'Use target="user" for the user memory: durable preferences, communication style, and habits.',
       'Save compact facts that will still matter later and reduce future user steering.',
       'Write memories as declarative facts, not instructions. Example: "User prefers concise responses", not "Always respond concisely".',
       'Do not use this tool for temporary task progress, session outcomes, completed-work logs, chat summaries, stale identifiers, file contents, secrets, or SOUL.md. SOUL.md defines the agent identity and is edited only by the user.',
@@ -160,7 +160,7 @@ function createMemoryTool(profileReader: NonNullable<AgentRuntimeConfig['profile
     },
     execute: async input => ({
       ok: true,
-      output: await profileReader.editMemory({
+      output: await memoryReader.editMemory({
         target: input.target as 'memory' | 'user',
         action: input.action as 'add' | 'replace' | 'remove',
         content: typeof input.content === 'string' ? input.content : undefined,

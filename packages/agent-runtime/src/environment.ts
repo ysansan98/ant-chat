@@ -1,12 +1,12 @@
 import type { AgentRuntime, ILogger } from '@ant-chat/agent-core'
-import type { AppDataServices } from '@ant-chat/app-data'
+import type { AppDataContext } from '@ant-chat/app-data'
 import type { IAgentEventEmitter } from '@ant-chat/shared'
 import type { Database } from 'better-sqlite3'
 import type { AgentRuntimePaths } from './paths'
 import { createAgentRuntime } from '@ant-chat/agent-core'
-import { createAppDataServices } from '@ant-chat/app-data'
+import { createAppDataContext } from '@ant-chat/app-data'
 import { MCPClientHub } from '@ant-chat/mcp-client-hub'
-import { createAgentRuntimeService } from './agentService'
+import { createAgentRuntimeController } from './agentRuntimeController'
 import { openAppDataDatabase } from './database'
 import { createAgentRuntimePaths } from './paths'
 import { createAppDataSessionStore } from './sessionStore'
@@ -20,9 +20,9 @@ export interface CreateAgentRuntimeEnvironmentOptions {
   databaseTimeoutMs?: number
 }
 
-export interface CreateAgentRuntimeEnvironmentFromServicesOptions {
+export interface CreateAgentRuntimeEnvironmentFromContextOptions {
   paths: AgentRuntimePaths
-  appDataServices: AppDataServices
+  appDataContext: AppDataContext
   eventEmitter: IAgentEventEmitter
   logger?: ILogger
 }
@@ -30,11 +30,11 @@ export interface CreateAgentRuntimeEnvironmentFromServicesOptions {
 export interface AgentRuntimeEnvironment {
   paths: AgentRuntimePaths
   db?: Database
-  appDataServices: AppDataServices
+  appDataContext: AppDataContext
   skillManagementService: SkillManagementService
   mcpClientHub: MCPClientHub
   runtime: AgentRuntime
-  agentService: ReturnType<typeof createAgentRuntimeService>
+  agentController: ReturnType<typeof createAgentRuntimeController>
 }
 
 export function createAgentRuntimeEnvironment(
@@ -42,17 +42,17 @@ export function createAgentRuntimeEnvironment(
 ): AgentRuntimeEnvironment {
   const paths = createAgentRuntimePaths(options.appDataRoot)
   const db = openAppDataDatabase(paths.databaseFile, { timeoutMs: options.databaseTimeoutMs })
-  const appDataServices = createAppDataServices({
+  const appDataContext = createAppDataContext({
     db,
     settingsFilePath: paths.settingsFile,
     mcpSettingsFilePath: paths.mcpSettingsFile,
-    profileRootPath: paths.profileRoot,
+    memoryRootPath: paths.memoryRoot,
     workspaceSettingsFilePath: paths.workspaceSettingsFile,
   })
   return {
-    ...createAgentRuntimeEnvironmentFromServices({
+    ...createAgentRuntimeEnvironmentFromContext({
       paths,
-      appDataServices,
+      appDataContext,
       eventEmitter: options.eventEmitter,
       logger: options.logger,
     }),
@@ -60,32 +60,32 @@ export function createAgentRuntimeEnvironment(
   }
 }
 
-export function createAgentRuntimeEnvironmentFromServices(
-  options: CreateAgentRuntimeEnvironmentFromServicesOptions,
+export function createAgentRuntimeEnvironmentFromContext(
+  options: CreateAgentRuntimeEnvironmentFromContextOptions,
 ): AgentRuntimeEnvironment {
-  const { paths, appDataServices } = options
+  const { paths, appDataContext } = options
   const skillManagementService = new SkillManagementService({ skillsRoot: paths.skillsRoot })
   const mcpClientHub = new MCPClientHub()
   const runtime = createAgentRuntime({
     host: {
       eventEmitter: options.eventEmitter,
-      sessionStore: createAppDataSessionStore(appDataServices),
-      modelCatalog: appDataServices.modelCatalog,
-      profileReader: appDataServices.profileService,
+      sessionStore: createAppDataSessionStore(appDataContext),
+      modelCatalog: appDataContext.modelCatalog,
+      memoryReader: appDataContext.memoryManager,
       skillReader: skillManagementService,
       mcpClientHub,
       createTaskLogger: createTaskLoggerFactory(paths.taskLogsRoot),
-      getToolApprovalWhitelistEntries: () => appDataServices.toolApprovalWhitelistRepository.getAll(),
+      getToolApprovalWhitelistEntries: () => appDataContext.toolApprovalWhitelistRepository.getAll(),
     },
     overrides: options.logger ? { logger: options.logger } : undefined,
   })
 
   return {
     paths,
-    appDataServices,
+    appDataContext,
     skillManagementService,
     mcpClientHub,
     runtime,
-    agentService: createAgentRuntimeService(runtime, appDataServices),
+    agentController: createAgentRuntimeController(runtime, appDataContext),
   }
 }

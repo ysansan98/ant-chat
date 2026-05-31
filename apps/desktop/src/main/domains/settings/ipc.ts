@@ -26,7 +26,7 @@ export class SettingsIpcService extends IpcService {
   @IpcMethod()
   async getSettings(): Promise<IpcResponse<GeneralSettingsState>> {
     try {
-      const settings = await getAgentRuntimeEnvironment().appDataServices.settingsService.getGeneralSettings()
+      const settings = await getAgentRuntimeEnvironment().appDataContext.settingsRepository.getGeneralSettings()
       return createIpcResponse(true, settings)
     }
     catch (error) {
@@ -37,7 +37,7 @@ export class SettingsIpcService extends IpcService {
   @IpcMethod()
   async updateSettings(updates: Partial<GeneralSettingsState>): Promise<IpcResponse<GeneralSettingsState>> {
     try {
-      const updatedSettings = await getAgentRuntimeEnvironment().appDataServices.settingsService.updateGeneralSettings(updates)
+      const updatedSettings = await getAgentRuntimeEnvironment().appDataContext.settingsRepository.updateGeneralSettings(updates)
 
       if (updates.proxySettings) {
         await ProxyManager.getInstance().updateProxySettings(updates.proxySettings)
@@ -66,7 +66,7 @@ export class SettingsIpcService extends IpcService {
   @IpcMethod()
   async resetSettings(): Promise<IpcResponse<GeneralSettingsState>> {
     try {
-      const settings = await getAgentRuntimeEnvironment().appDataServices.settingsService.resetGeneralSettings()
+      const settings = await getAgentRuntimeEnvironment().appDataContext.settingsRepository.resetGeneralSettings()
 
       await ProxyManager.getInstance().updateProxySettings(settings.proxySettings)
 

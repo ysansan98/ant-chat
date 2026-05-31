@@ -124,7 +124,7 @@ export class ProxyManager {
       this.originalDispatcher = globalThis.dispatcher
     }
 
-    const settings = await getAgentRuntimeEnvironment().appDataServices.settingsService.getGeneralSettings()
+    const settings = await getAgentRuntimeEnvironment().appDataContext.settingsRepository.getGeneralSettings()
     await this.updateProxySettings(settings.proxySettings)
   }
 

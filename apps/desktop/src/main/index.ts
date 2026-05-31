@@ -25,7 +25,7 @@ app.whenReady().then(async () => {
   await initializeProxy()
 
   // 初始化默认工作区
-  getAgentRuntimeEnvironment().appDataServices.workspaceService.ensureInitialized()
+  getAgentRuntimeEnvironment().appDataContext.workspaceService.ensureInitialized()
 
   // 初始化本地 Skill 目录和内置 Skill
   await getAgentRuntimeEnvironment().skillManagementService.ensureInitialized()

@@ -10,7 +10,7 @@ export class SearchIpcService extends IpcService {
   @IpcMethod()
   async searchByKeyword(query: string): Promise<IpcResponse<SearchResult[]>> {
     try {
-      const data = await getAgentRuntimeEnvironment().appDataServices.messageSearchService.searchMessagesByKeyword(query)
+      const data = await getAgentRuntimeEnvironment().appDataContext.messageSearchQuery.searchMessagesByKeyword(query)
       return createIpcResponse(true, data)
     }
     catch (error) {

@@ -13,7 +13,7 @@ export class McpIpcService extends IpcService {
   @IpcMethod()
   async getConfigs(): Promise<IpcResponse<McpConfigSchema[]>> {
     try {
-      const data = getAgentRuntimeEnvironment().appDataServices.mcpSettingsRepository.getMcpConfigs()
+      const data = getAgentRuntimeEnvironment().appDataContext.mcpSettingsRepository.getMcpConfigs()
       return createIpcResponse(true, data)
     }
     catch (error) {
@@ -25,7 +25,7 @@ export class McpIpcService extends IpcService {
   @IpcMethod()
   async getConfigByServerName(serverName: string): Promise<IpcResponse<McpConfigSchema>> {
     try {
-      const data = getAgentRuntimeEnvironment().appDataServices.mcpSettingsRepository.getMcpConfigByServerName(serverName)
+      const data = getAgentRuntimeEnvironment().appDataContext.mcpSettingsRepository.getMcpConfigByServerName(serverName)
       if (!data) {
         throw new Error(`MCP server not found: ${serverName}`)
       }
@@ -40,7 +40,7 @@ export class McpIpcService extends IpcService {
   @IpcMethod()
   async addConfig(config: AddMcpConfigSchema): Promise<IpcResponse<McpConfigSchema>> {
     try {
-      const data = getAgentRuntimeEnvironment().appDataServices.mcpSettingsRepository.addMcpConfig(config)
+      const data = getAgentRuntimeEnvironment().appDataContext.mcpSettingsRepository.addMcpConfig(config)
       return createIpcResponse(true, data)
     }
     catch (error) {
@@ -52,7 +52,7 @@ export class McpIpcService extends IpcService {
   @IpcMethod()
   async updateConfig(config: UpdateMcpConfigSchema): Promise<IpcResponse<McpConfigSchema>> {
     try {
-      const data = getAgentRuntimeEnvironment().appDataServices.mcpSettingsRepository.updateMcpConfig(config)
+      const data = getAgentRuntimeEnvironment().appDataContext.mcpSettingsRepository.updateMcpConfig(config)
       return createIpcResponse(true, data)
     }
     catch (error) {
@@ -64,7 +64,7 @@ export class McpIpcService extends IpcService {
   @IpcMethod()
   async deleteConfig(serverName: string): Promise<IpcResponse<null>> {
     try {
-      getAgentRuntimeEnvironment().appDataServices.mcpSettingsRepository.deleteMcpConfig(serverName)
+      getAgentRuntimeEnvironment().appDataContext.mcpSettingsRepository.deleteMcpConfig(serverName)
       return createIpcResponse(true, null)
     }
     catch (error) {

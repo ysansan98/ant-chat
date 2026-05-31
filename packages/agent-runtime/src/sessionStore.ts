@@ -1,36 +1,36 @@
-import type { AppDataServices } from '@ant-chat/app-data'
+import type { AppDataContext } from '@ant-chat/app-data'
 import type { CreateAssistantMessageInput, CreateConversationInput, CreateEventMessageInput, CreateToolMessageInput, CreateUserMessageInput, ISessionStore, UpdateAssistantMessageInput, UpdateConversationInput } from '@ant-chat/shared'
 
-export function createAppDataSessionStore(appDataServices: AppDataServices): ISessionStore {
-  const { conversationService, messageService } = appDataServices
+export function createAppDataSessionStore(appDataContext: AppDataContext): ISessionStore {
+  const { conversationRepository, messageRepository } = appDataContext
 
   return {
     async getConversation(id) {
-      return await getNullableConversation(conversationService, id)
+      return await getNullableConversation(conversationRepository, id)
     },
     async getConversationById(id) {
-      return await getNullableConversation(conversationService, id)
+      return await getNullableConversation(conversationRepository, id)
     },
     async createConversation(data: CreateConversationInput) {
-      return await conversationService.create(data)
+      return await conversationRepository.create(data)
     },
     async updateConversation(id: string, patch: UpdateConversationInput) {
-      return await conversationService.update({ id, ...patch })
+      return await conversationRepository.update({ id, ...patch })
     },
     async listConversations() {
-      return (await conversationService.list(0, 1000)).data
+      return (await conversationRepository.list(0, 1000)).data
     },
     async getMessages(convId) {
-      return await messageService.listByConversation(convId)
+      return await messageRepository.listByConversation(convId)
     },
     async getMessagesByConvId(convId) {
-      return await messageService.listByConversation(convId)
+      return await messageRepository.listByConversation(convId)
     },
     async createUserMessage(data: CreateUserMessageInput) {
-      return await messageService.create(data)
+      return await messageRepository.create(data)
     },
     async createAssistantMessage(data: CreateAssistantMessageInput) {
-      return await messageService.create({
+      return await messageRepository.create({
         convId: data.conversationId,
         content: [],
         role: 'assistant',
@@ -41,23 +41,23 @@ export function createAppDataSessionStore(appDataServices: AppDataServices): ISe
       })
     },
     async createToolMessage(data: CreateToolMessageInput) {
-      return await messageService.create(data)
+      return await messageRepository.create(data)
     },
     async createEventMessage(data: CreateEventMessageInput) {
-      return await messageService.create(data)
+      return await messageRepository.create(data)
     },
     async updateAssistantMessage(id: string, patch: UpdateAssistantMessageInput) {
-      return await messageService.update({ id, ...patch })
+      return await messageRepository.update({ id, ...patch })
     },
   }
 }
 
 async function getNullableConversation(
-  conversationService: AppDataServices['conversationService'],
+  conversationRepository: AppDataContext['conversationRepository'],
   id: string,
 ) {
   try {
-    return await conversationService.getById(id)
+    return await conversationRepository.getById(id)
   }
   catch {
     return null

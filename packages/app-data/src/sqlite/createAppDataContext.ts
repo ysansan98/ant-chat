@@ -1,38 +1,38 @@
 import type { AppDataDatabase } from './types'
 import { McpSettingsRepository, McpSettingsStore } from '../mcp'
-import { AgentProfileService } from '../profile'
+import { AgentMemoryManager } from '../memory'
 import { AppSettingsStore, createModelCatalog, GeneralSettingsRepository, ProviderSettingsRepository, ToolApprovalWhitelistRepository } from '../settings'
 import { WorkspaceService } from '../workspace'
+import { SqliteMessageSearchQuery } from './queries'
 import { SqliteConversationRepository, SqliteMessageRepository } from './repositories'
 import { initializeAppDataSchema } from './schema'
-import { SqliteMessageSearchService } from './services'
 
-export interface CreateAppDataServicesOptions {
+export interface CreateAppDataContextOptions {
   db: AppDataDatabase
   settingsFilePath: string
   mcpSettingsFilePath: string
-  profileRootPath: string
+  memoryRootPath: string
   workspaceSettingsFilePath: string
 }
 
-export function createAppDataServices(options: CreateAppDataServicesOptions) {
-  const { db, settingsFilePath, mcpSettingsFilePath, profileRootPath, workspaceSettingsFilePath } = options
+export function createAppDataContext(options: CreateAppDataContextOptions) {
+  const { db, settingsFilePath, mcpSettingsFilePath, memoryRootPath, workspaceSettingsFilePath } = options
   initializeAppDataSchema(db)
 
   const appSettingsStore = new AppSettingsStore({ filePath: settingsFilePath, resetInvalidFile: true })
   const providerSettingsRepository = new ProviderSettingsRepository(appSettingsStore)
 
   return {
-    conversationService: new SqliteConversationRepository(db),
-    messageService: new SqliteMessageRepository(db),
-    messageSearchService: new SqliteMessageSearchService(db),
-    settingsService: new GeneralSettingsRepository({
+    conversationRepository: new SqliteConversationRepository(db),
+    messageRepository: new SqliteMessageRepository(db),
+    messageSearchQuery: new SqliteMessageSearchQuery(db),
+    settingsRepository: new GeneralSettingsRepository({
       filePath: settingsFilePath,
       store: appSettingsStore,
     }),
     providerSettingsRepository,
     modelCatalog: createModelCatalog(providerSettingsRepository),
-    profileService: new AgentProfileService(profileRootPath),
+    memoryManager: new AgentMemoryManager(memoryRootPath),
     mcpSettingsRepository: new McpSettingsRepository(new McpSettingsStore({
       filePath: mcpSettingsFilePath,
       resetInvalidFile: true,
@@ -45,4 +45,4 @@ export function createAppDataServices(options: CreateAppDataServicesOptions) {
   }
 }
 
-export type AppDataServices = ReturnType<typeof createAppDataServices>
+export type AppDataContext = ReturnType<typeof createAppDataContext>

@@ -1,5 +1,5 @@
 import type { ModelsDevModel, ModelsDevProvider } from '@ant-chat/agent-runtime'
-import type { AddServiceProviderModelSchema, AddServiceProviderSchema, AllAvailableModelsSchema, IpcResponse, ServiceProviderModelsSchema, ServiceProviderSchema, UpdateServiceProviderSchema } from '@ant-chat/shared'
+import type { AllAvailableModelsSchema, CreateProviderConfigModelSchema, CreateProviderConfigSchema, IpcResponse, ProviderConfigModelSchema, ProviderConfigSchema, UpdateProviderConfigSchema } from '@ant-chat/shared'
 import { createModelsDevImporter } from '@ant-chat/agent-runtime'
 import { createErrorIpcResponse, createIpcResponse } from '@ant-chat/shared'
 import { getAgentRuntimeEnvironment } from '@main/agent/runtime/agentRuntimeEnvironment'
@@ -17,9 +17,9 @@ export class ProviderIpcService extends IpcService {
   static readonly groupName = 'provider'
 
   @IpcMethod()
-  async getAllProviderServices(): Promise<IpcResponse<ServiceProviderSchema[]>> {
+  async listProviders(): Promise<IpcResponse<ProviderConfigSchema[]>> {
     try {
-      const data = getAgentRuntimeEnvironment().appDataServices.providerSettingsRepository.getAllProviderServices()
+      const data = getAgentRuntimeEnvironment().appDataContext.providerSettingsRepository.listProviders()
       return createIpcResponse(true, data)
     }
     catch (error) {
@@ -28,9 +28,9 @@ export class ProviderIpcService extends IpcService {
   }
 
   @IpcMethod()
-  async updateProviderService(serviceData: UpdateServiceProviderSchema): Promise<IpcResponse<ServiceProviderSchema>> {
+  async updateProvider(providerConfig: UpdateProviderConfigSchema): Promise<IpcResponse<ProviderConfigSchema>> {
     try {
-      const updatedData = getAgentRuntimeEnvironment().appDataServices.providerSettingsRepository.updateProviderService(serviceData)
+      const updatedData = getAgentRuntimeEnvironment().appDataContext.providerSettingsRepository.updateProvider(providerConfig)
       notifyProviderChanged()
       return createIpcResponse(true, updatedData)
     }
@@ -40,9 +40,9 @@ export class ProviderIpcService extends IpcService {
   }
 
   @IpcMethod()
-  async addProviderServices(data: AddServiceProviderSchema): Promise<IpcResponse<ServiceProviderSchema>> {
+  async createProvider(data: CreateProviderConfigSchema): Promise<IpcResponse<ProviderConfigSchema>> {
     try {
-      const result = getAgentRuntimeEnvironment().appDataServices.providerSettingsRepository.addProviderService(data)
+      const result = getAgentRuntimeEnvironment().appDataContext.providerSettingsRepository.createProvider(data)
       notifyProviderChanged()
       return createIpcResponse(true, result)
     }
@@ -52,9 +52,9 @@ export class ProviderIpcService extends IpcService {
   }
 
   @IpcMethod()
-  async deleteProviderService(id: string): Promise<IpcResponse<null>> {
+  async deleteProvider(id: string): Promise<IpcResponse<null>> {
     try {
-      getAgentRuntimeEnvironment().appDataServices.providerSettingsRepository.deleteProviderService(id)
+      getAgentRuntimeEnvironment().appDataContext.providerSettingsRepository.deleteProvider(id)
       notifyProviderChanged()
       return createIpcResponse(true, null)
     }
@@ -64,9 +64,9 @@ export class ProviderIpcService extends IpcService {
   }
 
   @IpcMethod()
-  async getProviderServicesById(id: string): Promise<IpcResponse<ServiceProviderSchema>> {
+  async getProviderById(id: string): Promise<IpcResponse<ProviderConfigSchema>> {
     try {
-      const result = getAgentRuntimeEnvironment().appDataServices.providerSettingsRepository.getProviderServiceById(id)
+      const result = getAgentRuntimeEnvironment().appDataContext.providerSettingsRepository.getProviderById(id)
       if (!result) {
         return createErrorIpcResponse(new Error('not found'))
       }
@@ -78,9 +78,9 @@ export class ProviderIpcService extends IpcService {
   }
 
   @IpcMethod()
-  async getProviderServiceByModelId(id: string): Promise<IpcResponse<ServiceProviderSchema>> {
+  async getProviderByModelId(id: string): Promise<IpcResponse<ProviderConfigSchema>> {
     try {
-      const result = getAgentRuntimeEnvironment().appDataServices.providerSettingsRepository.getServiceProviderByModelId(id)
+      const result = getAgentRuntimeEnvironment().appDataContext.providerSettingsRepository.getProviderByModelId(id)
       if (!result) {
         throw new Error('not found')
       }
@@ -94,7 +94,7 @@ export class ProviderIpcService extends IpcService {
   @IpcMethod()
   async getAllAbvailableModels(): Promise<IpcResponse<AllAvailableModelsSchema[]>> {
     try {
-      const result = getAgentRuntimeEnvironment().appDataServices.providerSettingsRepository.getAllAvailableModels()
+      const result = getAgentRuntimeEnvironment().appDataContext.providerSettingsRepository.getAllAvailableModels()
       return createIpcResponse(true, result)
     }
     catch (error) {
@@ -103,9 +103,9 @@ export class ProviderIpcService extends IpcService {
   }
 
   @IpcMethod()
-  async getModelsByServiceProviderId(id: string): Promise<IpcResponse<ServiceProviderModelsSchema[]>> {
+  async listProviderModels(id: string): Promise<IpcResponse<ProviderConfigModelSchema[]>> {
     try {
-      const result = getAgentRuntimeEnvironment().appDataServices.providerSettingsRepository.getModelsByServiceProviderId(id)
+      const result = getAgentRuntimeEnvironment().appDataContext.providerSettingsRepository.listProviderModels(id)
       return createIpcResponse(true, result)
     }
     catch (error) {
@@ -114,9 +114,9 @@ export class ProviderIpcService extends IpcService {
   }
 
   @IpcMethod()
-  async getModelById(id: string): Promise<IpcResponse<ServiceProviderModelsSchema>> {
+  async getModelById(id: string): Promise<IpcResponse<ProviderConfigModelSchema>> {
     try {
-      const result = getAgentRuntimeEnvironment().appDataServices.providerSettingsRepository.getModelById(id)
+      const result = getAgentRuntimeEnvironment().appDataContext.providerSettingsRepository.getModelById(id)
       if (!result) {
         throw new Error('not found')
       }
@@ -128,9 +128,9 @@ export class ProviderIpcService extends IpcService {
   }
 
   @IpcMethod()
-  async setModelEnabledStatus(id: string, status: boolean): Promise<IpcResponse<ServiceProviderModelsSchema>> {
+  async setModelEnabledStatus(id: string, status: boolean): Promise<IpcResponse<ProviderConfigModelSchema>> {
     try {
-      const result = getAgentRuntimeEnvironment().appDataServices.providerSettingsRepository.setModelEnabledStatus(id, status)
+      const result = getAgentRuntimeEnvironment().appDataContext.providerSettingsRepository.setModelEnabledStatus(id, status)
       notifyProviderChanged()
       return createIpcResponse(true, result)
     }
@@ -140,9 +140,9 @@ export class ProviderIpcService extends IpcService {
   }
 
   @IpcMethod()
-  async addProviderServiceModel(config: AddServiceProviderModelSchema): Promise<IpcResponse<ServiceProviderModelsSchema>> {
+  async createProviderModel(config: CreateProviderConfigModelSchema): Promise<IpcResponse<ProviderConfigModelSchema>> {
     try {
-      const result = getAgentRuntimeEnvironment().appDataServices.providerSettingsRepository.addServiceProviderModel(config)
+      const result = getAgentRuntimeEnvironment().appDataContext.providerSettingsRepository.createProviderModel(config)
       notifyProviderChanged()
       return createIpcResponse(true, result)
     }
@@ -152,9 +152,9 @@ export class ProviderIpcService extends IpcService {
   }
 
   @IpcMethod()
-  async deleteProviderServiceModel(id: string): Promise<IpcResponse<null>> {
+  async deleteProviderModel(id: string): Promise<IpcResponse<null>> {
     try {
-      getAgentRuntimeEnvironment().appDataServices.providerSettingsRepository.deleteServiceProviderModel(id)
+      getAgentRuntimeEnvironment().appDataContext.providerSettingsRepository.deleteProviderModel(id)
       notifyProviderChanged()
       return createIpcResponse(true, null)
     }
@@ -166,7 +166,7 @@ export class ProviderIpcService extends IpcService {
   @IpcMethod()
   async getModelsDevProviders(): Promise<IpcResponse<ModelsDevProvider[]>> {
     try {
-      const modelsDevImporter = createModelsDevImporter(getAgentRuntimeEnvironment().appDataServices)
+      const modelsDevImporter = createModelsDevImporter(getAgentRuntimeEnvironment().appDataContext)
       const result = await modelsDevImporter.getModelsDevProviders()
       return createIpcResponse(true, result)
     }
@@ -178,7 +178,7 @@ export class ProviderIpcService extends IpcService {
   @IpcMethod()
   async getModelsDevModelsByProviderId(providerId: string): Promise<IpcResponse<ModelsDevModel[]>> {
     try {
-      const modelsDevImporter = createModelsDevImporter(getAgentRuntimeEnvironment().appDataServices)
+      const modelsDevImporter = createModelsDevImporter(getAgentRuntimeEnvironment().appDataContext)
       const result = await modelsDevImporter.getModelsDevModelsByProviderId(providerId)
       return createIpcResponse(true, result)
     }
@@ -190,7 +190,7 @@ export class ProviderIpcService extends IpcService {
   @IpcMethod()
   async importModelsDevModels(providerId: string): Promise<IpcResponse<{ added: string[], skipped: string[], duplicates: string[], errors: { model: string, reason: string }[] }>> {
     try {
-      const modelsDevImporter = createModelsDevImporter(getAgentRuntimeEnvironment().appDataServices)
+      const modelsDevImporter = createModelsDevImporter(getAgentRuntimeEnvironment().appDataContext)
       const result = await modelsDevImporter.importModelsDevModels(providerId)
       notifyProviderChanged()
       return createIpcResponse(true, result)

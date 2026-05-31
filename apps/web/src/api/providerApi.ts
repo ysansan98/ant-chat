@@ -1,52 +1,52 @@
-import type { AddServiceProviderModelSchema, AddServiceProviderSchema, AllAvailableModelsSchema, ModelsDevImportResult, ModelsDevModel, ModelsDevProvider, ServiceProviderModelsSchema, ServiceProviderSchema, UpdateServiceProviderSchema } from '@ant-chat/shared'
+import type { AllAvailableModelsSchema, CreateProviderConfigModelSchema, CreateProviderConfigSchema, ModelsDevImportResult, ModelsDevModel, ModelsDevProvider, ProviderConfigModelSchema, ProviderConfigSchema, UpdateProviderConfigSchema } from '@ant-chat/shared'
 import { getAppTransport } from './transports/appTransport'
 
 export const providerApi = {
-  getAllProviderServices: async (): Promise<ServiceProviderSchema[]> => {
-    return (await getAppTransport()).provider.getAllProviderServices()
+  listProviders: async (): Promise<ProviderConfigSchema[]> => {
+    return (await getAppTransport()).provider.listProviders()
   },
 
-  addProviderService: async (config: AddServiceProviderSchema): Promise<ServiceProviderSchema> => {
-    return (await getAppTransport()).provider.addProviderService(config)
+  createProvider: async (config: CreateProviderConfigSchema): Promise<ProviderConfigSchema> => {
+    return (await getAppTransport()).provider.createProvider(config)
   },
 
-  updateProviderService: async (config: UpdateServiceProviderSchema): Promise<ServiceProviderSchema> => {
-    return (await getAppTransport()).provider.updateProviderService(config)
+  updateProvider: async (config: UpdateProviderConfigSchema): Promise<ProviderConfigSchema> => {
+    return (await getAppTransport()).provider.updateProvider(config)
   },
 
-  deleteProviderService: async (id: string): Promise<null> => {
-    return (await getAppTransport()).provider.deleteProviderService(id)
+  deleteProvider: async (id: string): Promise<null> => {
+    return (await getAppTransport()).provider.deleteProvider(id)
   },
 
-  getProviderServiceById: async (id: string): Promise<ServiceProviderSchema> => {
-    return (await getAppTransport()).provider.getProviderServiceById(id)
+  getProviderById: async (id: string): Promise<ProviderConfigSchema> => {
+    return (await getAppTransport()).provider.getProviderById(id)
   },
 
-  getProviderServiceByModelId: async (id: string): Promise<ServiceProviderSchema> => {
-    return (await getAppTransport()).provider.getProviderServiceByModelId(id)
+  getProviderByModelId: async (id: string): Promise<ProviderConfigSchema> => {
+    return (await getAppTransport()).provider.getProviderByModelId(id)
   },
 
   getAllAbvailableModels: async (): Promise<AllAvailableModelsSchema[]> => {
     return (await getAppTransport()).provider.getAllAbvailableModels()
   },
 
-  getModelsByServiceProviderId: async (id: string): Promise<ServiceProviderModelsSchema[]> => {
-    return (await getAppTransport()).provider.getModelsByServiceProviderId(id)
+  listProviderModels: async (id: string): Promise<ProviderConfigModelSchema[]> => {
+    return (await getAppTransport()).provider.listProviderModels(id)
   },
 
-  setModelEnabledStatus: async (id: string, status: boolean): Promise<ServiceProviderModelsSchema> => {
+  setModelEnabledStatus: async (id: string, status: boolean): Promise<ProviderConfigModelSchema> => {
     return (await getAppTransport()).provider.setModelEnabledStatus(id, status)
   },
 
-  addServiceProviderModel: async (config: AddServiceProviderModelSchema): Promise<ServiceProviderModelsSchema> => {
-    return (await getAppTransport()).provider.addServiceProviderModel(config)
+  createProviderModel: async (config: CreateProviderConfigModelSchema): Promise<ProviderConfigModelSchema> => {
+    return (await getAppTransport()).provider.createProviderModel(config)
   },
 
-  deleteServiceProviderModel: async (id: string): Promise<null> => {
-    return (await getAppTransport()).provider.deleteServiceProviderModel(id)
+  deleteProviderModel: async (id: string): Promise<null> => {
+    return (await getAppTransport()).provider.deleteProviderModel(id)
   },
 
-  getModelInfoById: async (id: string): Promise<ServiceProviderModelsSchema> => {
+  getModelInfoById: async (id: string): Promise<ProviderConfigModelSchema> => {
     return (await getAppTransport()).provider.getModelInfoById(id)
   },
 

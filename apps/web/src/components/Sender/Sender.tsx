@@ -1,4 +1,4 @@
-import type { AgentMode, ChatFeatures, IAttachment, IImage, ServiceProviderModelsSchema, SkillManifest, WorkspaceFileSearchResult } from '@ant-chat/shared'
+import type { AgentMode, ChatFeatures, IAttachment, IImage, ProviderConfigModelSchema, SkillManifest, WorkspaceFileSearchResult } from '@ant-chat/shared'
 import type { FileUIPart, LanguageModelUsage } from 'ai'
 import {
   Attachment,
@@ -341,7 +341,7 @@ function Sender({ actions, ...props }: SenderProps) {
   const [referencedFiles, setReferencedFiles] = useState<string[]>([])
   const [selectedSkill, setSelectedSkill] = useState<string>()
   const [textareaScrollTop, setTextareaScrollTop] = useState(0)
-  const [currentModelInfo, setCurrentModelInfo] = useState<ServiceProviderModelsSchema | null>(null)
+  const [currentModelInfo, setCurrentModelInfo] = useState<ProviderConfigModelSchema | null>(null)
 
   const [senderData, dispatchSenderData] = useReducer(senderDataReducer, {
     workspaceData: null,

@@ -57,7 +57,7 @@ describe('provider settings repository', () => {
           expect.objectContaining({
             id: 'test-model',
             model: 'test-model',
-            serviceProviderId: 'provider-1',
+            providerId: 'provider-1',
           }),
         ],
       }),
@@ -65,8 +65,8 @@ describe('provider settings repository', () => {
   })
 
   it('adds models and rejects duplicates in the same provider', () => {
-    const model = repository.addServiceProviderModel({
-      serviceProviderId: 'provider-1',
+    const model = repository.createProviderModel({
+      providerId: 'provider-1',
       model: 'new-model',
       name: 'New Model',
       maxTokens: 1024,
@@ -76,11 +76,11 @@ describe('provider settings repository', () => {
 
     expect(model).toEqual(expect.objectContaining({
       model: 'new-model',
-      serviceProviderId: 'provider-1',
+      providerId: 'provider-1',
       isEnabled: true,
     }))
-    expect(() => repository.addServiceProviderModel({
-      serviceProviderId: 'provider-1',
+    expect(() => repository.createProviderModel({
+      providerId: 'provider-1',
       model: 'new-model',
       name: 'New Model',
       maxTokens: 1024,

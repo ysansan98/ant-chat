@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { SettingsIpcService } from '../ipc'
 
 const mocks = vi.hoisted(() => ({
-  settingsService: {
+  settingsRepository: {
     getGeneralSettings: vi.fn(async () => ({
       assistantModelId: 'model-1',
       proxySettings: { mode: 'none' },
@@ -28,8 +28,8 @@ vi.mock('electron-ipc-decorator', () => ({
 
 vi.mock('@main/agent/runtime/agentRuntimeEnvironment', () => ({
   getAgentRuntimeEnvironment: () => ({
-    appDataServices: {
-      settingsService: mocks.settingsService,
+    appDataContext: {
+      settingsRepository: mocks.settingsRepository,
     },
   }),
 }))
@@ -77,7 +77,7 @@ describe('settings ipc', () => {
     const resp = await service.updateSettings({ proxySettings: { mode: 'custom', customProxyUrl: 'http://localhost:7890' } })
 
     expect(resp.success).toBe(true)
-    expect(mocks.settingsService.updateGeneralSettings).toHaveBeenCalledWith({
+    expect(mocks.settingsRepository.updateGeneralSettings).toHaveBeenCalledWith({
       proxySettings: { mode: 'custom', customProxyUrl: 'http://localhost:7890' },
     })
     expect(mocks.updateProxySettings).toHaveBeenCalledWith({ mode: 'custom', customProxyUrl: 'http://localhost:7890' })

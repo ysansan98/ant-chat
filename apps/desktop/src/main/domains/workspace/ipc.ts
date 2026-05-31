@@ -14,7 +14,7 @@ export class WorkspaceIpcService extends IpcService {
   @IpcMethod()
   async listWorkspaces(): Promise<IpcResponse<ListWorkspacesData>> {
     try {
-      return createIpcResponse(true, getAgentRuntimeEnvironment().appDataServices.workspaceService.listWorkspaces())
+      return createIpcResponse(true, getAgentRuntimeEnvironment().appDataContext.workspaceService.listWorkspaces())
     }
     catch (error) {
       logger.error('获取工作区列表失败:', error)
@@ -25,7 +25,7 @@ export class WorkspaceIpcService extends IpcService {
   @IpcMethod()
   async addWorkspace(path: string): Promise<IpcResponse<ListWorkspacesData>> {
     try {
-      const result = getAgentRuntimeEnvironment().appDataServices.workspaceService.addWorkspace(path)
+      const result = getAgentRuntimeEnvironment().appDataContext.workspaceService.addWorkspace(path)
       this.emitWorkspaceChanged(result.currentWorkspacePath)
       return createIpcResponse(true, result)
     }
@@ -38,7 +38,7 @@ export class WorkspaceIpcService extends IpcService {
   @IpcMethod()
   async removeWorkspace(path: string): Promise<IpcResponse<ListWorkspacesData>> {
     try {
-      const result = getAgentRuntimeEnvironment().appDataServices.workspaceService.removeWorkspace(path)
+      const result = getAgentRuntimeEnvironment().appDataContext.workspaceService.removeWorkspace(path)
       this.emitWorkspaceChanged(result.currentWorkspacePath)
       return createIpcResponse(true, result)
     }
@@ -51,7 +51,7 @@ export class WorkspaceIpcService extends IpcService {
   @IpcMethod()
   async openWorkspace(path: string): Promise<IpcResponse<ListWorkspacesData>> {
     try {
-      const result = getAgentRuntimeEnvironment().appDataServices.workspaceService.openWorkspace(path)
+      const result = getAgentRuntimeEnvironment().appDataContext.workspaceService.openWorkspace(path)
       this.emitWorkspaceChanged(result.currentWorkspacePath)
       return createIpcResponse(true, result)
     }
@@ -77,7 +77,7 @@ export class WorkspaceIpcService extends IpcService {
         return createIpcResponse(true, null)
       }
 
-      const data = getAgentRuntimeEnvironment().appDataServices.workspaceService.addWorkspace(result.filePaths[0])
+      const data = getAgentRuntimeEnvironment().appDataContext.workspaceService.addWorkspace(result.filePaths[0])
       this.emitWorkspaceChanged(data.currentWorkspacePath)
       return createIpcResponse(true, data)
     }
@@ -90,7 +90,7 @@ export class WorkspaceIpcService extends IpcService {
   @IpcMethod()
   async searchWorkspaceFiles(query = '', limit = 50): Promise<IpcResponse<WorkspaceFileSearchResult[]>> {
     try {
-      const workspacePath = getAgentRuntimeEnvironment().appDataServices.workspaceService.getCurrentWorkspacePath()
+      const workspacePath = getAgentRuntimeEnvironment().appDataContext.workspaceService.getCurrentWorkspacePath()
       if (!workspacePath) {
         return createIpcResponse(true, [])
       }

@@ -1,4 +1,4 @@
-import type { AddServiceProviderModelSchema } from '@ant-chat/shared'
+import type { CreateProviderConfigModelSchema } from '@ant-chat/shared'
 import { Button } from '@workspace/ui/components/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@workspace/ui/components/dialog'
 import { Input } from '@workspace/ui/components/input'
@@ -6,7 +6,7 @@ import { InputNumber } from '@workspace/ui/components/input-number'
 import { Switch } from '@workspace/ui/components/switch'
 import React from 'react'
 
-type AddModelForm = Omit<AddServiceProviderModelSchema, 'providerServiceId'>
+type AddModelForm = Omit<CreateProviderConfigModelSchema, 'providerId'>
 
 const INPUT_MODALITY_OPTIONS = [
   { value: 'text', label: '文本' },

@@ -1,5 +1,5 @@
-export interface AgentProfileFiles {
-  profileRootPath: string
+export interface AgentMemoryFiles {
+  memoryRootPath: string
   userMarkdown: string
   memoryMarkdown: string
   soulMarkdown: string
@@ -12,7 +12,7 @@ export interface SoulUpdateMeta {
   backupPath: string
 }
 
-export interface UpdateAgentProfileInput {
+export interface UpdateAgentMemoryInput {
   userMarkdown?: string
   memoryMarkdown?: string
   soulMarkdown?: string
@@ -46,8 +46,8 @@ export interface SoulWriteResult {
   meta?: SoulUpdateMeta
 }
 
-export interface AgentProfileReader {
-  readUserProfile: () => Promise<string>
+export interface AgentMemoryReader {
+  readUserMemory: () => Promise<string>
   readMemory: () => Promise<string>
   readSoul: () => Promise<string>
   editMemory: (input: AgentMemoryEditInput) => Promise<AgentMemoryEditResult>

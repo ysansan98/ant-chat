@@ -1,4 +1,4 @@
-import type { AddServiceProviderSchema } from '@ant-chat/shared'
+import type { CreateProviderConfigSchema } from '@ant-chat/shared'
 import { Button } from '@workspace/ui/components/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@workspace/ui/components/dialog'
 import { Input } from '@workspace/ui/components/input'
@@ -13,7 +13,7 @@ import { toast } from 'sonner'
 import { providerApi } from '@/api/providerApi'
 
 interface AddCustomProviderProps {
-  onAdd: (provider: AddServiceProviderSchema) => Promise<void>
+  onAdd: (provider: CreateProviderConfigSchema) => Promise<void>
   existingProviderIds?: string[]
   loading?: boolean
 }
@@ -54,12 +54,12 @@ export function AddCustomProvider({ onAdd, existingProviderIds, loading }: AddCu
     try {
       setIsSubmitting(true)
 
-      const providerData: AddServiceProviderSchema = {
+      const providerData: CreateProviderConfigSchema = {
         id: selectedModelsDevProviderId || nanoid(),
         name: values.name,
         baseUrl: values.baseUrl,
         apiKey: values.apiKey,
-        apiMode: values.apiMode as AddServiceProviderSchema['apiMode'],
+        apiMode: values.apiMode as CreateProviderConfigSchema['apiMode'],
         isEnabled: values.isEnabled ?? true,
       }
 

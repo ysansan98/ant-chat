@@ -1,8 +1,8 @@
-import type { AgentMemoryEditInput, AgentMemoryEditResult, AgentMemoryTarget, AgentProfileFiles, AgentProfileReader, SoulUpdateMeta, SoulWriteInput, SoulWriteResult, UpdateAgentProfileInput } from '@ant-chat/shared'
+import type { AgentMemoryEditInput, AgentMemoryEditResult, AgentMemoryFiles, AgentMemoryReader, AgentMemoryTarget, SoulUpdateMeta, SoulWriteInput, SoulWriteResult, UpdateAgentMemoryInput } from '@ant-chat/shared'
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { AtomicTextFileStore } from './atomicTextFileStore'
-import { DEFAULT_MEMORY, DEFAULT_SOUL, DEFAULT_USER_PROFILE } from './defaultAgentProfile'
+import { DEFAULT_MEMORY, DEFAULT_SOUL, DEFAULT_USER_PROFILE } from './defaultAgentMemory'
 
 const USER_FILE = 'USER.md'
 const MEMORY_FILE = 'MEMORY.md'
@@ -15,7 +15,7 @@ const LIMITS: Record<AgentMemoryTarget, number> = {
   memory: 2200,
 }
 
-export class AgentProfileService implements AgentProfileReader {
+export class AgentMemoryManager implements AgentMemoryReader {
   private readonly userStore: AtomicTextFileStore
   private readonly memoryStore: AtomicTextFileStore
   private readonly soulStore: AtomicTextFileStore
@@ -23,20 +23,20 @@ export class AgentProfileService implements AgentProfileReader {
   private readonly backupDir: string
   private readonly lockPath: string
 
-  constructor(private readonly profileRootPath: string) {
-    this.userStore = new AtomicTextFileStore(path.join(profileRootPath, USER_FILE))
-    this.memoryStore = new AtomicTextFileStore(path.join(profileRootPath, MEMORY_FILE))
-    this.soulStore = new AtomicTextFileStore(path.join(profileRootPath, SOUL_FILE))
-    this.metaPath = path.join(profileRootPath, META_FILE)
-    this.backupDir = path.join(profileRootPath, BACKUP_DIR)
-    this.lockPath = path.join(profileRootPath, '.memory.lock')
+  constructor(private readonly memoryRootPath: string) {
+    this.userStore = new AtomicTextFileStore(path.join(memoryRootPath, USER_FILE))
+    this.memoryStore = new AtomicTextFileStore(path.join(memoryRootPath, MEMORY_FILE))
+    this.soulStore = new AtomicTextFileStore(path.join(memoryRootPath, SOUL_FILE))
+    this.metaPath = path.join(memoryRootPath, META_FILE)
+    this.backupDir = path.join(memoryRootPath, BACKUP_DIR)
+    this.lockPath = path.join(memoryRootPath, '.memory.lock')
     this.ensureInitialized()
   }
 
-  async readProfile(): Promise<AgentProfileFiles> {
+  async readMemoryFiles(): Promise<AgentMemoryFiles> {
     this.ensureInitialized()
     return {
-      profileRootPath: this.profileRootPath,
+      memoryRootPath: this.memoryRootPath,
       userMarkdown: this.userStore.read(),
       memoryMarkdown: this.memoryStore.read(),
       soulMarkdown: this.soulStore.read(),
@@ -44,7 +44,7 @@ export class AgentProfileService implements AgentProfileReader {
     }
   }
 
-  async readUserProfile(): Promise<string> {
+  async readUserMemory(): Promise<string> {
     this.ensureInitialized()
     return this.userStore.read()
   }
@@ -59,7 +59,7 @@ export class AgentProfileService implements AgentProfileReader {
     return this.soulStore.read()
   }
 
-  async updateProfile(input: UpdateAgentProfileInput): Promise<AgentProfileFiles> {
+  async updateMemoryFiles(input: UpdateAgentMemoryInput): Promise<AgentMemoryFiles> {
     this.ensureInitialized()
     if (input.soulMarkdown !== undefined && !input.soulMarkdown.trim()) {
       throw new Error('SOUL.md content cannot be empty')
@@ -76,7 +76,7 @@ export class AgentProfileService implements AgentProfileReader {
         summary: 'Manual SOUL.md update',
       })
     }
-    return this.readProfile()
+    return this.readMemoryFiles()
   }
 
   async editMemory(input: AgentMemoryEditInput): Promise<AgentMemoryEditResult> {
@@ -128,7 +128,7 @@ export class AgentProfileService implements AgentProfileReader {
     return { updated: true, meta }
   }
 
-  async rollbackSoul(): Promise<AgentProfileFiles> {
+  async rollbackSoul(): Promise<AgentMemoryFiles> {
     this.ensureInitialized()
     const meta = this.readMeta()
     if (!meta) {
@@ -144,11 +144,11 @@ export class AgentProfileService implements AgentProfileReader {
     this.soulStore.write(readFileSync(meta.backupPath, 'utf8'))
     renameSync(this.metaPath, `${this.metaPath}.${Date.now()}.rolled-back`)
 
-    return this.readProfile()
+    return this.readMemoryFiles()
   }
 
   private ensureInitialized(): void {
-    mkdirSync(this.profileRootPath, { recursive: true })
+    mkdirSync(this.memoryRootPath, { recursive: true })
     if (!this.userStore.exists()) {
       this.userStore.write(DEFAULT_USER_PROFILE)
     }
