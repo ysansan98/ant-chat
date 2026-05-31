@@ -165,6 +165,7 @@ export class MultiProvider {
             parts.push({
               type: 'image' as const,
               image: content.data,
+              mimeType: content.mimeType,
             })
           }
         }

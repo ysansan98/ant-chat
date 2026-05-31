@@ -322,6 +322,13 @@ function createModelRequestDiagnostics(input: {
         if (part.type === 'text') {
           return { type: 'text', text: previewText(part.text, 2000) }
         }
+        if (part.type === 'image') {
+          return {
+            type: 'image',
+            mimeType: part.mimeType,
+            dataPreview: `${part.data.slice(0, 100)}...`,
+          }
+        }
         if (part.type === 'tool-call') {
           return {
             type: 'tool-call',

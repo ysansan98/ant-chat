@@ -111,9 +111,17 @@ export class SessionRuntime {
       referencedFiles: options.referencedFiles,
       selectedSkill: options.selectedSkill,
     })
+
+    const userContent: LoopMessage['content'] = [{ type: 'text', text: enrichedPrompt }]
+    if (options.images?.length) {
+      for (const image of options.images) {
+        userContent.push({ type: 'image', mimeType: image.type, data: image.data })
+      }
+    }
+
     const messages: LoopMessage[] = [
       ...contextMessages,
-      { role: 'user', content: [{ type: 'text', text: enrichedPrompt }] },
+      { role: 'user', content: userContent },
     ]
 
     const mode = options.mode ?? 'hybrid'

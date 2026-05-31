@@ -14,6 +14,7 @@ export interface LoopMessage {
   role: 'user' | 'assistant' | 'tool'
   content: Array<
     | { type: 'text', text: string }
+    | { type: 'image', mimeType: string, data: string }
     | ToolCallContent
     | ToolResultContent
   >
