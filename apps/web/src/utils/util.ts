@@ -18,8 +18,13 @@ export function uuid(prefix?: string) {
   return `${prefix || ''}${nanoid()}`
 }
 
-export async function clipboardWrite(data: Electron.Data) {
-  return await ipc.app.clipboardWrite(data)
+export async function clipboardWrite(data: { text?: string }): Promise<void> {
+  if (__APP_RUNTIME__ === 'electron') {
+    await ipc.app.clipboardWrite(data as Electron.Data)
+    return
+  }
+
+  await navigator.clipboard.writeText(data.text ?? '')
 }
 
 export function getSystemPlatform() {
