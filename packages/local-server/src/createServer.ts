@@ -1,6 +1,6 @@
-import type { ConversationService, MessageService, SettingsService, WorkspaceService } from '@ant-chat/app-data'
-import type { AddConversationsSchema, AddMessage, AgentProfileFiles, UpdateAgentProfileInput, UpdateConversationsSchema, UpdateMessageSchema } from '@ant-chat/shared'
-import type { IncomingMessage } from 'node:http'
+import type { ConversationService, MessageService, ProviderSettingsRepository, SettingsService, WorkspaceService } from '@ant-chat/app-data'
+import type { AddConversationsSchema, AddMessage, AddServiceProviderModelSchema, AddServiceProviderSchema, AgentProfileFiles, ImportSkillFromGithubOptions, SetSkillEnabledOptions, SkillIndex, SkillManifest, UpdateAgentProfileInput, UpdateConversationsSchema, UpdateMessageSchema, UpdateServiceProviderSchema } from '@ant-chat/shared'
+import type { IncomingMessage, ServerResponse } from 'node:http'
 import { Buffer } from 'node:buffer'
 import { createServer as createHttpServer } from 'node:http'
 import { searchWorkspaceFiles } from '@ant-chat/app-data'
@@ -15,6 +15,15 @@ export interface LocalServerServices {
     rollbackSoul: () => Promise<AgentProfileFiles>
   }
   workspaceService?: Pick<WorkspaceService, 'listWorkspaces' | 'addWorkspace' | 'removeWorkspace' | 'openWorkspace' | 'getCurrentWorkspacePath' | 'getDefaultWorkspacePath'>
+  providerSettingsRepository?: ProviderSettingsRepository
+  skillService?: {
+    listSkills: () => Promise<SkillIndex>
+    importFromGithub: (options: ImportSkillFromGithubOptions) => Promise<SkillManifest>
+    setEnabled: (name: string, enabled: boolean) => Promise<SkillManifest>
+    deleteSkill: (name: string) => Promise<void>
+    rebuildIndex: () => Promise<SkillManifest[]>
+    getSkillsRoot: () => string
+  }
   agentService?: {
     startTurn?: (options: unknown) => Promise<unknown> | unknown
     approvePendingAction?: (options: unknown) => Promise<null> | null
@@ -26,10 +35,37 @@ export interface LocalServerServices {
   }
 }
 
+export type LocalApiHandler = (req: IncomingMessage, res: ServerResponse) => Promise<boolean>
+
 export function createLocalServer(services: LocalServerServices) {
+  const handleLocalApiRequest = createLocalApiHandler(services)
+
   return createHttpServer(async (req, res) => {
+    const handled = await handleLocalApiRequest(req, res)
+    if (handled)
+      return
+
+    res.writeHead(404, { 'content-type': 'application/json; charset=utf-8' })
+    res.end(JSON.stringify({ success: false, msg: `Unknown local API route: ${req.url || '/'}` }))
+  })
+}
+
+export function createLocalApiHandler(services: LocalServerServices): LocalApiHandler {
+  return async (req, res) => {
     try {
+      writeCorsHeaders(res)
+
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204)
+        res.end()
+        return true
+      }
+
       const url = new URL(req.url || '/', 'http://localhost')
+      if (!isLocalApiRoute(url)) {
+        return false
+      }
+
       const body = await readJsonBody(req)
       const result = await routeRequest(url, body, services)
 
@@ -38,10 +74,22 @@ export function createLocalServer(services: LocalServerServices) {
     }
     catch (error) {
       const message = error instanceof Error ? error.message : String(error)
+      writeCorsHeaders(res)
       res.writeHead(500, { 'content-type': 'application/json; charset=utf-8' })
       res.end(JSON.stringify({ success: false, msg: message }))
     }
-  })
+    return true
+  }
+}
+
+function writeCorsHeaders(res: ServerResponse) {
+  res.setHeader('access-control-allow-origin', 'http://127.0.0.1:5173')
+  res.setHeader('access-control-allow-methods', 'GET,POST,OPTIONS')
+  res.setHeader('access-control-allow-headers', 'content-type')
+}
+
+function isLocalApiRoute(url: URL): boolean {
+  return url.pathname.startsWith('/api/')
 }
 
 async function routeRequest(url: URL, body: unknown, services: LocalServerServices): Promise<unknown> {
@@ -143,6 +191,66 @@ async function dispatchRpc(body: unknown, services: LocalServerServices): Promis
       return services.settingsService.updateGeneralSettings(asRecord(params.updates))
     case 'settings.resetSettings':
       return services.settingsService.resetGeneralSettings()
+    case 'provider.getAllProviderServices':
+      return requireProviderRepository(services).getAllProviderServices()
+    case 'provider.addProviderServices':
+      return requireProviderRepository(services).addProviderService(params.config as AddServiceProviderSchema)
+    case 'provider.updateProviderService':
+      return requireProviderRepository(services).updateProviderService(params.config as UpdateServiceProviderSchema)
+    case 'provider.deleteProviderService':
+      requireProviderRepository(services).deleteProviderService(stringParam(params.id))
+      return null
+    case 'provider.getProviderServicesById': {
+      const result = requireProviderRepository(services).getProviderServiceById(stringParam(params.id))
+      if (!result)
+        throw new Error('not found')
+      return result
+    }
+    case 'provider.getProviderServiceByModelId': {
+      const result = requireProviderRepository(services).getServiceProviderByModelId(stringParam(params.id))
+      if (!result)
+        throw new Error('not found')
+      return result
+    }
+    case 'provider.getAllAbvailableModels':
+      return requireProviderRepository(services).getAllAvailableModels()
+    case 'provider.getModelsByServiceProviderId':
+      return requireProviderRepository(services).getModelsByServiceProviderId(stringParam(params.id))
+    case 'provider.setModelEnabledStatus':
+      return requireProviderRepository(services).setModelEnabledStatus(stringParam(params.id), booleanParam(params.status))
+    case 'provider.addProviderServiceModel':
+      return requireProviderRepository(services).addServiceProviderModel(params.config as AddServiceProviderModelSchema)
+    case 'provider.deleteProviderServiceModel':
+      requireProviderRepository(services).deleteServiceProviderModel(stringParam(params.id))
+      return null
+    case 'provider.getModelById': {
+      const result = requireProviderRepository(services).getModelById(stringParam(params.id))
+      if (!result)
+        throw new Error('not found')
+      return result
+    }
+    case 'provider.getModelsDevProviders':
+    case 'provider.getModelsDevModelsByProviderId':
+    case 'provider.importModelsDevModels':
+      throw new Error(`Provider method is not available in local web transport: ${method}`)
+    case 'skills.listSkills':
+      return requireSkillService(services).listSkills()
+    case 'skills.importSkillFromZip':
+      throw new Error('Skill ZIP import is not available in local web transport')
+    case 'skills.importSkillFromGithub':
+      return requireSkillService(services).importFromGithub(params.options as ImportSkillFromGithubOptions)
+    case 'skills.setSkillEnabled': {
+      const options = params.options as SetSkillEnabledOptions
+      return requireSkillService(services).setEnabled(options.name, options.enabled)
+    }
+    case 'skills.deleteSkill':
+      await requireSkillService(services).deleteSkill(stringParam(params.name))
+      return null
+    case 'skills.rebuildSkillIndex': {
+      const skillService = requireSkillService(services)
+      const skills = await skillService.rebuildIndex()
+      return { rootPath: skillService.getSkillsRoot(), skills }
+    }
     case 'profile.getProfile':
       return requireProfileService(services).readProfile()
     case 'profile.updateProfile':
@@ -197,6 +305,20 @@ function requireProfileService(services: LocalServerServices): NonNullable<Local
     throw new Error('Profile service is not available in local web transport')
   }
   return services.profileService
+}
+
+function requireProviderRepository(services: LocalServerServices): ProviderSettingsRepository {
+  if (!services.providerSettingsRepository) {
+    throw new Error('Provider service is not available in local web transport')
+  }
+  return services.providerSettingsRepository
+}
+
+function requireSkillService(services: LocalServerServices): NonNullable<LocalServerServices['skillService']> {
+  if (!services.skillService) {
+    throw new Error('Skill service is not available in local web transport')
+  }
+  return services.skillService
 }
 
 function requireWorkspaceService(services: LocalServerServices): Pick<WorkspaceService, 'listWorkspaces' | 'addWorkspace' | 'removeWorkspace' | 'openWorkspace' | 'getCurrentWorkspacePath' | 'getDefaultWorkspacePath'> {
@@ -261,6 +383,13 @@ function numberParam(value: unknown): number {
     }
   }
   throw new TypeError('Invalid number parameter')
+}
+
+function booleanParam(value: unknown): boolean {
+  if (typeof value !== 'boolean') {
+    throw new TypeError('Invalid boolean parameter')
+  }
+  return value
 }
 
 async function readJsonBody(req: IncomingMessage): Promise<unknown> {

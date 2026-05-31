@@ -60,6 +60,7 @@
     "@iconify-json/clarity": "^1.2.4",
     "@iconify-json/fluent": "^1.2.48",
     "@iconify-json/mdi": "^1.2.3",
+    "@iconify-json/tdesign": "^1.2.12",
     "@iconify/tailwind4": "^1.0.6",
     "@tailwindcss/vite": "catalog:",
     "@turbo/gen": "^2.8.1",

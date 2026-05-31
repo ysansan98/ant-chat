@@ -19,13 +19,21 @@
   "scripts": {
     "build": "tsdown",
     "clean": "rm -rf dist node_modules",
+    "dev": "tsx --conditions=development src/dev.ts",
+    "predev:web": "pnpm -F @ant-chat/desktop rebuild:node",
+    "dev:web": "tsx --conditions=development src/dev.ts --web",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@ant-chat/agent-runtime": "workspace:^",
     "@ant-chat/app-data": "workspace:^",
     "@ant-chat/shared": "workspace:^"
   },
   "devDependencies": {
-    "tsdown": "catalog:"
+    "tsdown": "catalog:",
+    "tsx": "^4.19.3",
+    "vite": "^8.0.0",
+    "vitest": "catalog:"
   }
 }

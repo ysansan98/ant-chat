@@ -20,7 +20,7 @@ describe('localWebTransport', () => {
     const transport = createLocalWebTransport()
     const settings = await transport.settings.getSettings()
 
-    expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:17331/api/rpc', {
+    expect(fetch).toHaveBeenCalledWith('/api/rpc', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ method: 'settings.getSettings', params: {} }),
@@ -60,7 +60,7 @@ describe('localWebTransport', () => {
     const transport = createLocalWebTransport()
     const profile = await transport.profile.updateProfile({ soulMarkdown: '# SOUL\n\n- Be direct.' })
 
-    expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:17331/api/rpc', {
+    expect(fetch).toHaveBeenCalledWith('/api/rpc', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({

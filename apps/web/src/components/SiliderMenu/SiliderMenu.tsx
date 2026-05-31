@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router'
 import { setActiveConversationsId } from '@/store/messages'
-import { ipc, unwrapIpcResponse } from '@/utils/ipc-bus'
+import { ipc, isElectronRuntime, unwrapIpcResponse } from '@/utils/ipc-bus'
 import { ThemeMenuItem } from '../ThemeButton'
 import { WorkspacePanels } from '../Workspace/WorkspacePanels'
 import { SidebarNavItem } from './SliderMenuItem'
@@ -20,7 +20,12 @@ export function SliderMenu() {
   }
 
   async function openSettings() {
-    await unwrapIpcResponse(await ipc.settings.openSettingsWindow())
+    if (isElectronRuntime()) {
+      await unwrapIpcResponse(await ipc.settings.openSettingsWindow())
+      return
+    }
+
+    navigate('/settings')
   }
 
   return (
@@ -58,7 +63,7 @@ export function SliderMenu() {
             icon={<Settings className="size-4" />}
             label="设置"
             dataTestId="sidebar-settings"
-            active={false}
+            active={location.pathname.startsWith('/settings')}
             onClick={openSettings}
           />
         </div>

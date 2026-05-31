@@ -9,7 +9,6 @@ import { providerApi } from '@/api/providerApi'
 import { ProviderLogo } from '@/components/Chat/providerLogo'
 import { AddCustomProvider } from '@/components/ProviderManage/AddCustomProvider'
 import { ProviderServiceSettings } from '@/components/ProviderManage/ProviderServiceSettings'
-import Logo from '../../../public/logo.svg?react'
 
 export default function ProviderManage() {
   const [activeProvider, setActiveProvider] = React.useState<ServiceProviderSchema | null>(null)
@@ -67,7 +66,7 @@ export default function ProviderManage() {
                     const content = (
                       <ProviderLogo id={item.id} name={item.name} size={14} className="size-3.5" />
                     )
-                    return content || <Logo className="size-3.5" />
+                    return content || <img src="/logo.svg" alt="" className="size-3.5" draggable={false} />
                   })()}
                 </div>
 

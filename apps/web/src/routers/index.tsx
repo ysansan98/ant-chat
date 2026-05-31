@@ -16,6 +16,20 @@ import SettingsApp from '@/SettingsApp'
 const windowType = new URLSearchParams(window.location.search).get('window')
 const isSettingsWindow = windowType === 'settings'
 
+const settingsRoute = {
+  path: 'settings',
+  Component: SettingsPage,
+  children: [
+    { index: true, element: <Navigate to="./general" replace /> },
+    { path: 'general', Component: GeneralSettings },
+    { path: 'profile', Component: ProfileSettings },
+    { path: 'provider', Component: ProviderManage },
+    { path: 'mcp', Component: MCPManage },
+    { path: 'skills', Component: SkillManage },
+    { path: 'about', Component: About },
+  ],
+}
+
 const router = createHashRouter(
   isSettingsWindow
     ? [
@@ -27,19 +41,7 @@ const router = createHashRouter(
               index: true,
               element: <Navigate to="/settings" replace />,
             },
-            {
-              path: 'settings',
-              Component: SettingsPage,
-              children: [
-                { index: true, element: <Navigate to="./general" replace /> },
-                { path: 'general', Component: GeneralSettings },
-                { path: 'profile', Component: ProfileSettings },
-                { path: 'provider', Component: ProviderManage },
-                { path: 'mcp', Component: MCPManage },
-                { path: 'skills', Component: SkillManage },
-                { path: 'about', Component: About },
-              ],
-            },
+            settingsRoute,
           ],
         },
       ]
@@ -56,6 +58,7 @@ const router = createHashRouter(
               path: 'chat',
               Component: ChatPage,
             },
+            settingsRoute,
           ],
         },
       ],

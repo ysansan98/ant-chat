@@ -17,6 +17,7 @@
     "noEmit": true
   },
   "include": [
+    "../web/vite.shared.ts",
     "electron.vite.config.*",
     "src/types/**/*.ts",
     "src/main/**/*",

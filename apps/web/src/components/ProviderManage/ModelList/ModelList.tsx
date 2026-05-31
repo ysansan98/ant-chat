@@ -1,7 +1,7 @@
 import { Button } from '@workspace/ui/components/button'
 import { EmptyState } from '@workspace/ui/components/empty-state'
 import { useRequest } from 'ahooks'
-import { CheckCircle, MinusCircle, PlusCircle, Trash2 } from 'lucide-react'
+import { CheckCircle, MinusCircle, PlusCircle, RefreshCcw, Trash2 } from 'lucide-react'
 import React from 'react'
 import { toast } from 'sonner'
 import { providerApi } from '@/api/providerApi'
@@ -78,6 +78,7 @@ export function ModelList({ serviceProviderId }: ModelListProps) {
             }
           }}
         >
+          <RefreshCcw className="size-4" />
           同步模型列表
         </Button>
       </div>

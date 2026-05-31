@@ -1,14 +1,15 @@
 import { resolve } from 'node:path'
 import process from 'node:process'
-import tailwindcss from '@tailwindcss/vite'
-import react from '@vitejs/plugin-react'
+
 import { codeInspectorPlugin } from 'code-inspector-plugin'
 import { defineConfig } from 'electron-vite'
 import { analyzer } from 'vite-bundle-analyzer'
-import svgr from 'vite-plugin-svgr'
+
+import { createWebRendererViteConfig } from '../web/vite.shared'
 
 export default defineConfig(({ command, mode }) => {
   const isDev = command === 'serve'
+  const webRoot = resolve('../web')
 
   const visualizerPlugin = (type: 'renderer' | 'main') => {
     return process.env[`VISUALIZER_${type.toUpperCase()}`] ? [analyzer({ reportTitle: `${type} process` })] : []
@@ -44,34 +45,15 @@ export default defineConfig(({ command, mode }) => {
       },
     },
     renderer: {
-      root: resolve('../web'),
-      resolve: {
+      ...createWebRendererViteConfig({
         conditions: isDev ? ['development'] : [],
-        alias: [
-          { find: /^shiki\/engine\/javascript$/, replacement: resolve('../../packages/ui/src/lib/shiki-engine-shim.ts') },
-          { find: /^shiki$/, replacement: resolve('../../packages/ui/src/lib/shiki-shim.ts') },
-          { find: '@', replacement: resolve('../web/src') },
-        ],
-      },
-      plugins: [
-        react({
-          babel: {
-            plugins: [
-              ['babel-plugin-react-compiler', {}],
-            ],
-          },
-        }),
-        tailwindcss(),
-        svgr({
-          svgrOptions: { icon: true },
-        }),
-        ...(command === 'build'
+        extraPlugins: command === 'build'
           ? visualizerPlugin('renderer')
-          : [codeInspectorPlugin({ bundler: 'vite' })]),
-      ],
-      worker: {
-        format: 'es',
-      },
+          : [codeInspectorPlugin({ bundler: 'vite' })],
+        runtime: 'electron',
+        rootDir: webRoot,
+      }),
+      root: webRoot,
       build: {
         minify: !isDev,
         sourcemap: !!isDev,

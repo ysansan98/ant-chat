@@ -1,57 +1,55 @@
 import type { AppTransport } from './appTransport'
 
-const LOCAL_API_BASE = 'http://127.0.0.1:17331'
-
 export function createLocalWebTransport(): AppTransport {
   return {
     chat: {
-      createConversationsTitle: options => rpc('chat.createConversationsTitle', { ...options }),
-      getConversations: (pageIndex, pageSize) => rpc('chat.getConversations', { pageIndex, pageSize }),
-      getWorkspaceConversations: (workspacePath, pageIndex, pageSize) => rpc('chat.getWorkspaceConversations', { workspacePath, pageIndex, pageSize }),
-      getConversationById: id => rpc('chat.getConversationById', { id }),
-      addConversation: conversation => rpc('chat.addConversation', { conversation }),
-      updateConversation: conversation => rpc('chat.updateConversation', { conversation }),
-      deleteConversation: id => rpc('chat.deleteConversation', { id }),
-      getMessagesByConvId: convId => rpc('chat.getMessagesByConvId', { convId }),
-      getMessageById: id => rpc('chat.getMessageById', { id }),
-      addMessage: message => rpc('chat.addMessage', { message }),
-      updateMessage: message => rpc('chat.updateMessage', { message }),
-      deleteMessage: id => rpc('chat.deleteMessage', { id }),
-      getMessagesByConvIdWithPagination: (id, pageIndex, pageSize) => rpc('chat.getMessagesByConvIdWithPagination', { id, pageIndex, pageSize }),
-      batchDeleteMessages: ids => rpc('chat.batchDeleteMessages', { ids }),
+      createConversationsTitle: options => localRpc('chat.createConversationsTitle', { ...options }),
+      getConversations: (pageIndex, pageSize) => localRpc('chat.getConversations', { pageIndex, pageSize }),
+      getWorkspaceConversations: (workspacePath, pageIndex, pageSize) => localRpc('chat.getWorkspaceConversations', { workspacePath, pageIndex, pageSize }),
+      getConversationById: id => localRpc('chat.getConversationById', { id }),
+      addConversation: conversation => localRpc('chat.addConversation', { conversation }),
+      updateConversation: conversation => localRpc('chat.updateConversation', { conversation }),
+      deleteConversation: id => localRpc('chat.deleteConversation', { id }),
+      getMessagesByConvId: convId => localRpc('chat.getMessagesByConvId', { convId }),
+      getMessageById: id => localRpc('chat.getMessageById', { id }),
+      addMessage: message => localRpc('chat.addMessage', { message }),
+      updateMessage: message => localRpc('chat.updateMessage', { message }),
+      deleteMessage: id => localRpc('chat.deleteMessage', { id }),
+      getMessagesByConvIdWithPagination: (id, pageIndex, pageSize) => localRpc('chat.getMessagesByConvIdWithPagination', { id, pageIndex, pageSize }),
+      batchDeleteMessages: ids => localRpc('chat.batchDeleteMessages', { ids }),
     },
     settings: {
-      getSettings: () => rpc('settings.getSettings'),
-      updateSettings: updates => rpc('settings.updateSettings', { updates }),
-      resetSettings: () => rpc('settings.resetSettings'),
+      getSettings: () => localRpc('settings.getSettings'),
+      updateSettings: updates => localRpc('settings.updateSettings', { updates }),
+      resetSettings: () => localRpc('settings.resetSettings'),
     },
     profile: {
-      getProfile: () => rpc('profile.getProfile'),
-      updateProfile: input => rpc('profile.updateProfile', { input }),
-      rollbackSoul: () => rpc('profile.rollbackSoul'),
+      getProfile: () => localRpc('profile.getProfile'),
+      updateProfile: input => localRpc('profile.updateProfile', { input }),
+      rollbackSoul: () => localRpc('profile.rollbackSoul'),
     },
     agent: {
-      startTurn: options => rpc('agent.startTurn', { options }),
-      approvePendingAction: options => rpc('agent.approvePendingAction', { options }),
-      rejectPendingAction: options => rpc('agent.rejectPendingAction', { options }),
-      cancelTask: taskId => rpc('agent.cancelTask', { taskId }),
-      injectSteering: params => rpc('agent.injectSteering', params),
-      listActiveTasks: conversationId => rpc('agent.listActiveTasks', { conversationId }),
-      approvePendingActionWithWhitelist: options => rpc('agent.approvePendingActionWithWhitelist', { options }),
+      startTurn: options => localRpc('agent.startTurn', { options }),
+      approvePendingAction: options => localRpc('agent.approvePendingAction', { options }),
+      rejectPendingAction: options => localRpc('agent.rejectPendingAction', { options }),
+      cancelTask: taskId => localRpc('agent.cancelTask', { taskId }),
+      injectSteering: params => localRpc('agent.injectSteering', params),
+      listActiveTasks: conversationId => localRpc('agent.listActiveTasks', { conversationId }),
+      approvePendingActionWithWhitelist: options => localRpc('agent.approvePendingActionWithWhitelist', { options }),
     },
     workspace: {
-      listWorkspaces: () => rpc('workspace.listWorkspaces'),
-      addWorkspace: path => rpc('workspace.addWorkspace', { path }),
-      removeWorkspace: path => rpc('workspace.removeWorkspace', { path }),
-      openWorkspace: path => rpc('workspace.openWorkspace', { path }),
+      listWorkspaces: () => localRpc('workspace.listWorkspaces'),
+      addWorkspace: path => localRpc('workspace.addWorkspace', { path }),
+      removeWorkspace: path => localRpc('workspace.removeWorkspace', { path }),
+      openWorkspace: path => localRpc('workspace.openWorkspace', { path }),
       chooseWorkspace: async () => null,
-      searchWorkspaceFiles: (query, limit = 50) => rpc('workspace.searchWorkspaceFiles', { query, limit }),
+      searchWorkspaceFiles: (query, limit = 50) => localRpc('workspace.searchWorkspaceFiles', { query, limit }),
     },
   }
 }
 
-async function rpc<T>(method: string, params?: Record<string, unknown>): Promise<T> {
-  const response = await fetch(`${LOCAL_API_BASE}/api/rpc`, {
+export async function localRpc<T>(method: string, params?: Record<string, unknown>): Promise<T> {
+  const response = await fetch('/api/rpc', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ method, params: params ?? {} }),

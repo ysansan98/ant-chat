@@ -194,6 +194,24 @@ describe('gui ui flow', () => {
     expect(await screen.findByTestId('chat-input')).toBeInTheDocument()
   })
 
+  it('navigates to settings from chat in browser runtime', async () => {
+    const electron = window.electron
+    window.electron = undefined as unknown as Window['electron']
+
+    try {
+      renderGui('/')
+
+      expect(await screen.findByTestId('chat-input')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByTestId('sidebar-settings'))
+
+      expect(await screen.findByTestId('settings-general-page')).toBeInTheDocument()
+    }
+    finally {
+      window.electron = electron
+    }
+  })
+
   it('reserves top space for native window controls in settings navigation', async () => {
     renderSettingsWindow('/settings/general')
 
@@ -205,23 +223,20 @@ describe('gui ui flow', () => {
     renderSettingsWindow('/settings/profile')
 
     expect(await screen.findByText('Agent Profile')).toBeInTheDocument()
-    const editors = screen.getAllByRole('textbox')
-    fireEvent.change(editors[0], {
-      target: { value: '§Prefer concise answers.' },
+
+    const userEntryInput = screen.getByPlaceholderText('Add a user preference...')
+    fireEvent.change(userEntryInput, {
+      target: { value: 'Prefer concise answers.' },
     })
-    fireEvent.change(editors[1], {
-      target: { value: '§pnpm check validates changes.' },
-    })
-    fireEvent.change(editors[2], {
-      target: { value: '# SOUL\n\n- Verify before reporting.' },
-    })
+    fireEvent.keyDown(userEntryInput, { key: 'Enter' })
+
     fireEvent.click(screen.getByText('Save'))
 
     await waitFor(() => {
       expect(mocks.profile.updateProfile).toHaveBeenCalledWith({
-        userMarkdown: '§Prefer concise answers.',
-        memoryMarkdown: '§pnpm check validates changes.',
-        soulMarkdown: '# SOUL\n\n- Verify before reporting.',
+        userMarkdown: 'Use Chinese.§Prefer concise answers.',
+        memoryMarkdown: '§Run pnpm check.',
+        soulMarkdown: '# SOUL',
       })
     })
   })

@@ -32,7 +32,7 @@ export const ipcRenderer = new Proxy({} as IpcRendererBridge, {
   get(_target, prop: keyof IpcRendererBridge) {
     const renderer = getElectronIpcRenderer()
     if (!renderer) {
-      if (prop === 'on' || prop === 'removeAllListeners') {
+      if (prop === 'on' || prop === 'removeAllListeners' || prop === 'removeListener') {
         return () => undefined
       }
       throw new Error('Electron IPC renderer is not available in this runtime')
