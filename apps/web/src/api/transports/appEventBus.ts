@@ -1,7 +1,12 @@
+import type { IpcRendererEvent } from '@ant-chat/shared'
+
+type AppEventChannel = keyof IpcRendererEvent & string
+type AppEventHandler<K extends AppEventChannel> = (event: unknown, ...args: IpcRendererEvent[K]) => void
+
 export interface AppEventBus {
-  on: (channel: string, handler: (event: unknown, ...args: unknown[]) => void) => void
-  removeListener: (channel: string, handler: (event: unknown, ...args: unknown[]) => void) => void
-  removeAllListeners: (channel?: string) => void
+  on: <K extends AppEventChannel>(channel: K, handler: AppEventHandler<K>) => void
+  removeListener: <K extends AppEventChannel>(channel: K, handler: AppEventHandler<K>) => void
+  removeAllListeners: (channel?: AppEventChannel) => void
 }
 
 // ---- Electron adapter ----
@@ -28,7 +33,6 @@ function createElectronEventBus(): AppEventBus {
 // ---- Web SSE adapter ----
 
 function createSseEventBus(): AppEventBus {
-  // channel → Set<handler>
   const listeners = new Map<string, Set<(event: unknown, ...args: unknown[]) => void>>()
   let eventSource: EventSource | null = null
 
@@ -73,12 +77,12 @@ function createSseEventBus(): AppEventBus {
         listeners.set(channel, handlers)
         bindChannel(channel)
       }
-      handlers.add(handler)
+      handlers.add(handler as (event: unknown, ...args: unknown[]) => void)
     },
     removeListener(channel, handler) {
       const handlers = listeners.get(channel)
       if (handlers) {
-        handlers.delete(handler)
+        handlers.delete(handler as (event: unknown, ...args: unknown[]) => void)
         if (handlers.size === 0) {
           listeners.delete(channel)
         }

@@ -1,12 +1,13 @@
 import type { UpdateInfo, UpdateStatus } from '@ant-chat/shared'
 import { useEffect, useState } from 'react'
-import { ipcRenderer } from '@/utils/ipc-bus'
+import { getAppEventBus } from '@/api/transports/appEventBus'
 
 export function useUpdateNotification() {
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
   const [showNotification, setShowNotification] = useState(false)
 
   useEffect(() => {
+    const eventBus = getAppEventBus()
     const handleUpdateAvailable = (data: { status: UpdateStatus, updateInfo: UpdateInfo | null }) => {
       console.log('收到更新可用通知:', data.updateInfo)
       setUpdateInfo(data.updateInfo)
@@ -18,13 +19,13 @@ export function useUpdateNotification() {
       setShowNotification(false)
     }
 
-    const handleUpdateError = (_: Electron.IpcRendererEvent, error: any) => {
+    const handleUpdateError = (_: unknown, error: any) => {
       console.error('更新检查失败:', error)
       setUpdateInfo(null)
       setShowNotification(false)
     }
 
-    const handleUpdateStatusChanged = (_: Electron.IpcRendererEvent, data: { status: UpdateStatus, updateInfo: UpdateInfo | null }) => {
+    const handleUpdateStatusChanged = (_: unknown, data: { status: UpdateStatus, updateInfo: UpdateInfo | null }) => {
       if (data.status === 'available') {
         handleUpdateAvailable(data)
       }
@@ -33,12 +34,12 @@ export function useUpdateNotification() {
       }
     }
 
-    ipcRenderer.on('update:update-status-changed', handleUpdateStatusChanged)
-    ipcRenderer.on('update:update-error', handleUpdateError)
+    eventBus.on('update:update-status-changed', handleUpdateStatusChanged)
+    eventBus.on('update:update-error', handleUpdateError)
 
     return () => {
-      ipcRenderer.removeAllListeners('update:update-status-changed')
-      ipcRenderer.removeAllListeners('update:update-error')
+      eventBus.removeAllListeners('update:update-status-changed')
+      eventBus.removeAllListeners('update:update-error')
     }
   }, [])
 

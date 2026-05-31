@@ -4,7 +4,7 @@ import { Outlet } from 'react-router'
 import { AppProviders } from './AppProviders'
 import { SliderMenu } from './components/SiliderMenu'
 import { UpdateNotification } from './components/UpdateNotification'
-import { useIpcEventListener } from './hooks/useIpcEventListener'
+import { useAppEventListener } from './hooks/useAppEventListener'
 import { useUpdateNotification } from './hooks/useUpdateNotification'
 
 function AppWrapper() {
@@ -17,7 +17,7 @@ function AppWrapper() {
 }
 
 function AntChatApp() {
-  useIpcEventListener()
+  useAppEventListener()
   const { updateInfo, showNotification, hideNotification } = useUpdateNotification()
   const [showSliderMenu, setShowSliderMenu] = useState(true)
 

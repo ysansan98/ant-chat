@@ -6,8 +6,8 @@ import { Progress } from '@workspace/ui/components/progress'
 import { AlertTriangle, Download } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { getAppEventBus } from '@/api/transports/appEventBus'
 import { updateApi } from '@/api/updateApi'
-import { ipcRenderer } from '@/utils/ipc-bus'
 
 export interface UpdateNotificationProps {
   updateInfo: UpdateInfo
@@ -21,27 +21,28 @@ export function UpdateNotification({ updateInfo, visible, onClose }: UpdateNotif
 
   // 监听下载进度
   useEffect(() => {
-    const handleDownloadProgress = (_: Electron.IpcRendererEvent, progress: ProgressInfo) => {
+    const eventBus = getAppEventBus()
+    const handleDownloadProgress = (_: unknown, progress: ProgressInfo) => {
       setDownloadProgress(progress)
     }
 
-    const handleUpdateDownloaded = (_: Electron.IpcRendererEvent) => {
+    const handleUpdateDownloaded = (_: unknown) => {
       setIsDownloaded(true)
     }
 
-    const handleUpdateError = (_: Electron.IpcRendererEvent, error: any) => {
+    const handleUpdateError = (_: unknown, error: any) => {
       console.error('更新错误:', error)
       toast.error(`更新失败: ${error?.message || error}`)
     }
 
-    ipcRenderer.on('update:download-progress', handleDownloadProgress)
-    ipcRenderer.on('update:update-downloaded', handleUpdateDownloaded)
-    ipcRenderer.on('update:update-error', handleUpdateError)
+    eventBus.on('update:download-progress', handleDownloadProgress)
+    eventBus.on('update:update-downloaded', handleUpdateDownloaded)
+    eventBus.on('update:update-error', handleUpdateError)
 
     return () => {
-      ipcRenderer.removeAllListeners('update:download-progress')
-      ipcRenderer.removeAllListeners('update:update-downloaded')
-      ipcRenderer.removeAllListeners('update:update-error')
+      eventBus.removeAllListeners('update:download-progress')
+      eventBus.removeAllListeners('update:update-downloaded')
+      eventBus.removeAllListeners('update:update-error')
     }
   }, [])
 

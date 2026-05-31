@@ -28,8 +28,10 @@
   "dependencies": {
     "@ant-chat/agent-core": "workspace:^",
     "@ant-chat/app-data": "workspace:^",
+    "@ant-chat/mcp-client-hub": "workspace:^",
     "@ant-chat/shared": "workspace:^",
-    "better-sqlite3": "^12.6.2"
+    "better-sqlite3": "^12.6.2",
+    "fflate": "^0.8.2"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.8",

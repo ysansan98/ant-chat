@@ -1,7 +1,6 @@
 import type { AddMcpConfigSchema, IpcResponse, McpConfigSchema, McpServer, McpTool, McpToolCallResponse, TextResult, UpdateMcpConfigSchema } from '@ant-chat/shared'
-import { clientHub } from '@ant-chat/agent-core'
 import { createErrorIpcResponse, createIpcResponse } from '@ant-chat/shared'
-import { getAppDataServices } from '@main/adapters/appDataContainer'
+import { getAgentRuntimeEnvironment } from '@main/agent/runtime/agentRuntimeEnvironment'
 import { sendToRenderer } from '@main/utils/ipc-events'
 import { logger } from '@main/utils/logger'
 import { Notification } from '@main/utils/notification'
@@ -14,7 +13,7 @@ export class McpIpcService extends IpcService {
   @IpcMethod()
   async getConfigs(): Promise<IpcResponse<McpConfigSchema[]>> {
     try {
-      const data = getAppDataServices().mcpSettingsRepository.getMcpConfigs()
+      const data = getAgentRuntimeEnvironment().appDataServices.mcpSettingsRepository.getMcpConfigs()
       return createIpcResponse(true, data)
     }
     catch (error) {
@@ -26,7 +25,7 @@ export class McpIpcService extends IpcService {
   @IpcMethod()
   async getConfigByServerName(serverName: string): Promise<IpcResponse<McpConfigSchema>> {
     try {
-      const data = getAppDataServices().mcpSettingsRepository.getMcpConfigByServerName(serverName)
+      const data = getAgentRuntimeEnvironment().appDataServices.mcpSettingsRepository.getMcpConfigByServerName(serverName)
       if (!data) {
         throw new Error(`MCP server not found: ${serverName}`)
       }
@@ -41,7 +40,7 @@ export class McpIpcService extends IpcService {
   @IpcMethod()
   async addConfig(config: AddMcpConfigSchema): Promise<IpcResponse<McpConfigSchema>> {
     try {
-      const data = getAppDataServices().mcpSettingsRepository.addMcpConfig(config)
+      const data = getAgentRuntimeEnvironment().appDataServices.mcpSettingsRepository.addMcpConfig(config)
       return createIpcResponse(true, data)
     }
     catch (error) {
@@ -53,7 +52,7 @@ export class McpIpcService extends IpcService {
   @IpcMethod()
   async updateConfig(config: UpdateMcpConfigSchema): Promise<IpcResponse<McpConfigSchema>> {
     try {
-      const data = getAppDataServices().mcpSettingsRepository.updateMcpConfig(config)
+      const data = getAgentRuntimeEnvironment().appDataServices.mcpSettingsRepository.updateMcpConfig(config)
       return createIpcResponse(true, data)
     }
     catch (error) {
@@ -65,7 +64,7 @@ export class McpIpcService extends IpcService {
   @IpcMethod()
   async deleteConfig(serverName: string): Promise<IpcResponse<null>> {
     try {
-      getAppDataServices().mcpSettingsRepository.deleteMcpConfig(serverName)
+      getAgentRuntimeEnvironment().appDataServices.mcpSettingsRepository.deleteMcpConfig(serverName)
       return createIpcResponse(true, null)
     }
     catch (error) {
@@ -76,7 +75,7 @@ export class McpIpcService extends IpcService {
 
   @IpcMethod()
   async getConnections(): Promise<IpcResponse<Pick<McpServer, 'name' | 'config' | 'tools' | 'status'>[]>> {
-    const result: Pick<McpServer, 'name' | 'config' | 'tools' | 'status'>[] = clientHub.connections.map((item) => {
+    const result: Pick<McpServer, 'name' | 'config' | 'tools' | 'status'>[] = getAgentRuntimeEnvironment().mcpClientHub.connections.map((item) => {
       const { server } = item
       const { name, config, tools = [], status } = server
 
@@ -88,13 +87,13 @@ export class McpIpcService extends IpcService {
 
   @IpcMethod()
   async getAllAvailableToolsList(): Promise<IpcResponse<McpTool[]>> {
-    const data = clientHub.getAllAvailableToolsList() as McpTool[]
+    const data = getAgentRuntimeEnvironment().mcpClientHub.getAllAvailableToolsList() as McpTool[]
     return createIpcResponse(true, data)
   }
 
   @IpcMethod()
   async callTool(serverName: string, toolName: string, toolArguments?: Record<string, unknown>): Promise<IpcResponse<McpToolCallResponse>> {
-    const data = await clientHub.callTool(serverName, toolName, toolArguments)
+    const data = await getAgentRuntimeEnvironment().mcpClientHub.callTool(serverName, toolName, toolArguments)
 
     const content = (data.content || [])
       .filter(item => item.type === 'text')
@@ -110,7 +109,7 @@ export class McpIpcService extends IpcService {
     let status: 'connected' | 'disconnected' = 'connected'
     const mainWindow = getMainWindow()
     try {
-      ok = await clientHub.connectToServer(name, mcpConfig)
+      ok = await getAgentRuntimeEnvironment().mcpClientHub.connectToServer(name, mcpConfig)
     }
     catch (e) {
       logger.error('connect mcp server error', e)
@@ -129,7 +128,7 @@ export class McpIpcService extends IpcService {
 
   @IpcMethod()
   async disconnectMcpServer(name: string): Promise<IpcResponse<null>> {
-    const ok = await clientHub.deleteConnection(name)
+    const ok = await getAgentRuntimeEnvironment().mcpClientHub.deleteConnection(name)
     return createIpcResponse(ok, null)
   }
 
@@ -138,8 +137,8 @@ export class McpIpcService extends IpcService {
     let ok = true
     let msg = ''
     try {
-      await clientHub.deleteConnection(name)
-      await clientHub.connectToServer(name, mcpConfig)
+      await getAgentRuntimeEnvironment().mcpClientHub.deleteConnection(name)
+      await getAgentRuntimeEnvironment().mcpClientHub.connectToServer(name, mcpConfig)
     }
     catch (e) {
       ok = false
@@ -151,7 +150,7 @@ export class McpIpcService extends IpcService {
 
   @IpcMethod()
   async fetchMcpServerTools(name: string): Promise<IpcResponse<McpTool[]>> {
-    const data = await clientHub.fetchToolsList(name) as McpTool[]
+    const data = await getAgentRuntimeEnvironment().mcpClientHub.fetchToolsList(name) as McpTool[]
     return createIpcResponse(true, data)
   }
 
@@ -161,14 +160,12 @@ export class McpIpcService extends IpcService {
       if (!mcpConfigs) {
         return createIpcResponse(false, null, 'needs mcpConfig')
       }
-      clientHub.initializeMcpServers(mcpConfigs)
+      getAgentRuntimeEnvironment().mcpClientHub.initializeMcpServers(mcpConfigs)
     }
     else {
-      clientHub.connections
-        .map(item => item.server.name)
-        .forEach((name) => {
-          clientHub.deleteConnection(name)
-        })
+      getAgentRuntimeEnvironment().mcpClientHub.connections.map(item => item.server.name).forEach((name) => {
+        getAgentRuntimeEnvironment().mcpClientHub.deleteConnection(name)
+      })
     }
     return createIpcResponse(true, null)
   }

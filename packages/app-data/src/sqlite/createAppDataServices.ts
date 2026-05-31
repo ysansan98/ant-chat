@@ -1,7 +1,6 @@
 import type { AppDataDatabase } from './types'
 import { McpSettingsRepository, McpSettingsStore } from '../mcp'
 import { AgentProfileService } from '../profile'
-import { ConversationService, MessageService, SettingsService } from '../services'
 import { AppSettingsStore, createModelCatalog, GeneralSettingsRepository, ProviderSettingsRepository, ToolApprovalWhitelistRepository } from '../settings'
 import { WorkspaceService } from '../workspace'
 import { SqliteConversationRepository, SqliteMessageRepository } from './repositories'
@@ -24,13 +23,13 @@ export function createAppDataServices(options: CreateAppDataServicesOptions) {
   const providerSettingsRepository = new ProviderSettingsRepository(appSettingsStore)
 
   return {
-    conversationService: new ConversationService(new SqliteConversationRepository(db)),
-    messageService: new MessageService(new SqliteMessageRepository(db)),
+    conversationService: new SqliteConversationRepository(db),
+    messageService: new SqliteMessageRepository(db),
     messageSearchService: new SqliteMessageSearchService(db),
-    settingsService: new SettingsService(new GeneralSettingsRepository({
+    settingsService: new GeneralSettingsRepository({
       filePath: settingsFilePath,
       store: appSettingsStore,
-    })),
+    }),
     providerSettingsRepository,
     modelCatalog: createModelCatalog(providerSettingsRepository),
     profileService: new AgentProfileService(profileRootPath),

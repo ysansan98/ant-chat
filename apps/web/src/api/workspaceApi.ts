@@ -18,7 +18,11 @@ async function openWorkspace(path: string): Promise<ListWorkspacesData> {
 }
 
 async function chooseWorkspace(): Promise<ListWorkspacesData | null> {
-  return (await getAppTransport()).workspace.chooseWorkspace()
+  const transport = await getAppTransport()
+  if (!transport.capabilities.workspacePicker || !transport.workspace.chooseWorkspace) {
+    return null
+  }
+  return transport.workspace.chooseWorkspace()
 }
 
 async function searchWorkspaceFiles(query: string, limit = 50): Promise<WorkspaceFileSearchResult[]> {

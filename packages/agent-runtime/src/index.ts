@@ -11,4 +11,6 @@ export type { ImportModelsDevModelsResult, ModelsDevImporter } from './modelsDev
 export { createAgentRuntimePaths } from './paths'
 export type { AgentRuntimePaths } from './paths'
 export { createAppDataSessionStore } from './sessionStore'
+export { SkillManagementService } from './skills'
+export type { SkillManagementServiceOptions } from './skills'
 export { createTaskLoggerFactory, TaskLogWriter } from './taskLogWriter'

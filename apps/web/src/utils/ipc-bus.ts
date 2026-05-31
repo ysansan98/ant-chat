@@ -1,5 +1,4 @@
-import type { IpcPaginatedResponse, IpcResponse } from '@ant-chat/shared'
-import type { IpcServices } from '@main/bridge'
+import type { AppIpcServices, IpcPaginatedResponse, IpcResponse } from '@ant-chat/shared'
 import { createIpcProxy } from 'electron-ipc-decorator/client'
 import { pick } from 'lodash-es'
 import { getAppEventBus } from '@/api/transports/appEventBus'
@@ -14,17 +13,17 @@ export function isElectronRuntime(): boolean {
   return Boolean(getElectronIpcRenderer())
 }
 
-export function getIpc(): IpcServices {
+export function getIpc(): AppIpcServices {
   const ipcRenderer = getElectronIpcRenderer()
   if (!ipcRenderer) {
     throw new Error('Electron IPC is not available in this runtime')
   }
 
-  return createIpcProxy<IpcServices>(ipcRenderer)!
+  return createIpcProxy<AppIpcServices>(ipcRenderer)!
 }
 
-export const ipc = new Proxy({} as IpcServices, {
-  get(_target, prop: keyof IpcServices) {
+export const ipc = new Proxy({} as AppIpcServices, {
+  get(_target, prop: keyof AppIpcServices) {
     return getIpc()[prop]
   },
 })

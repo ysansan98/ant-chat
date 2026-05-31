@@ -1,5 +1,5 @@
 import type { ImportModelsDevModelsResult, ModelsDevModel, ModelsDevProvider } from '@ant-chat/agent-runtime'
-import type { ConversationService, MessageService, ProviderSettingsRepository, SettingsService, WorkspaceService } from '@ant-chat/app-data'
+import type { ConversationRepository, MessageRepository, ProviderSettingsRepository, SettingsRepository, WorkspaceService } from '@ant-chat/app-data'
 import type { AddConversationsSchema, AddMessage, AddServiceProviderModelSchema, AddServiceProviderSchema, AgentProfileFiles, ImportSkillFromGithubOptions, SetSkillEnabledOptions, SkillIndex, SkillManifest, UpdateAgentProfileInput, UpdateConversationsSchema, UpdateMessageSchema, UpdateServiceProviderSchema } from '@ant-chat/shared'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { Buffer } from 'node:buffer'
@@ -7,9 +7,9 @@ import { createServer as createHttpServer } from 'node:http'
 import { searchWorkspaceFiles } from '@ant-chat/app-data'
 
 export interface LocalServerServices {
-  conversationService: ConversationService
-  messageService: MessageService
-  settingsService: SettingsService
+  conversationService: ConversationRepository
+  messageService: MessageRepository
+  settingsService: SettingsRepository
   profileService?: {
     readProfile: () => Promise<AgentProfileFiles>
     updateProfile: (input: UpdateAgentProfileInput) => Promise<AgentProfileFiles>
@@ -101,56 +101,6 @@ function isLocalApiRoute(url: URL): boolean {
 async function routeRequest(url: URL, body: unknown, services: LocalServerServices): Promise<unknown> {
   if (url.pathname === '/api/rpc') {
     return dispatchRpc(body, services)
-  }
-
-  if (url.pathname === '/api/conversations' && url.searchParams.has('workspacePath')) {
-    const pageIndex = Number(url.searchParams.get('pageIndex') || 0)
-    const pageSize = Number(url.searchParams.get('pageSize') || 20)
-    const workspacePath = url.searchParams.get('workspacePath') || undefined
-    return services.conversationService.list(pageIndex, pageSize, workspacePath)
-  }
-
-  if (url.pathname === '/api/conversations' && url.searchParams.has('id')) {
-    return services.conversationService.getById(url.searchParams.get('id') || '')
-  }
-
-  if (url.pathname === '/api/messages') {
-    const conversationId = url.searchParams.get('conversationId') || ''
-    const pageIndex = Number(url.searchParams.get('pageIndex') || 0)
-    const pageSize = Number(url.searchParams.get('pageSize') || 20)
-    return services.messageService.listByConversationPaginated(conversationId, pageIndex, pageSize)
-  }
-
-  if (url.pathname === '/api/settings') {
-    return services.settingsService.getGeneralSettings()
-  }
-
-  if (url.pathname === '/api/settings/update') {
-    return services.settingsService.updateGeneralSettings(asRecord(body))
-  }
-
-  if (url.pathname === '/api/settings/reset') {
-    return services.settingsService.resetGeneralSettings()
-  }
-
-  if (url.pathname === '/api/workspaces') {
-    return requireWorkspaceService(services).listWorkspaces()
-  }
-
-  if (url.pathname === '/api/workspaces/add') {
-    return requireWorkspaceService(services).addWorkspace(stringParam(asRecord(body).path))
-  }
-
-  if (url.pathname === '/api/workspaces/remove') {
-    return requireWorkspaceService(services).removeWorkspace(stringParam(asRecord(body).path))
-  }
-
-  if (url.pathname === '/api/workspaces/open') {
-    return requireWorkspaceService(services).openWorkspace(stringParam(asRecord(body).path))
-  }
-
-  if (url.pathname === '/api/agent/active-tasks') {
-    return services.agentService?.listActiveTasks(url.searchParams.get('conversationId') || undefined) ?? []
   }
 
   throw new Error(`Unknown local API route: ${url.pathname}`)
@@ -344,9 +294,11 @@ function requireWorkspaceService(services: LocalServerServices): Pick<WorkspaceS
 }
 
 function parseRpcBody(body: unknown): { method: string, params: Record<string, unknown> } {
-  const data = asRecord(body)
+  const data = asRecord(body, 'RPC body')
   const method = stringParam(data.method)
-  const params = asRecord(data.params)
+  const params = data.params === undefined
+    ? {}
+    : asRecord(data.params, 'RPC params')
   return { method, params }
 }
 
@@ -366,9 +318,9 @@ function requireCancelTask(services: LocalServerServices) {
   return handler
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
+function asRecord(value: unknown, name = 'object'): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return {}
+    throw new TypeError(`Invalid ${name}`)
   }
   return value as Record<string, unknown>
 }

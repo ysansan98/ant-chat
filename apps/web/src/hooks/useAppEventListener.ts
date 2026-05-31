@@ -1,15 +1,16 @@
-import type { NotificationOption } from '@ant-chat/shared'
+import type { AgentPendingAction, AgentTaskSnapshot, IMessage, NotificationOption } from '@ant-chat/shared'
 import { useEffect } from 'react'
 import { toast } from 'sonner'
+import { getAppEventBus } from '@/api/transports/appEventBus'
 import { onAgentApprovalRequired, onAgentStateUpdated } from '@/store/agent'
 import { addStreamingConversationId, removeStreamingConversationId } from '@/store/conversation'
 import { onMcpServerStatusChanged } from '@/store/mcpConfigs/action'
 import { updateMessageActionV2 } from '@/store/messages'
-import { ipcRenderer } from '@/utils/ipc-bus'
 
-export function useIpcEventListener() {
+export function useAppEventListener() {
   useEffect(() => {
-    const handle = (_: Electron.IpcRendererEvent, notif: NotificationOption) => {
+    const eventBus = getAppEventBus()
+    const handle = (_: unknown, notif: NotificationOption) => {
       const { message } = notif
       const desc = notif.description
       const text = `${message}${desc ? `: ${desc}` : ''}`
@@ -28,34 +29,33 @@ export function useIpcEventListener() {
       }
     }
 
-    ipcRenderer.on('common:Notification', handle)
-    ipcRenderer.on('mcp:McpServerStatusChanged', onMcpServerStatusChanged)
-    ipcRenderer.on('message:updated', (_, msg) => {
+    eventBus.on('common:Notification', handle)
+    eventBus.on('mcp:McpServerStatusChanged', onMcpServerStatusChanged as (event: unknown, name: string, status: 'disconnected' | 'connected') => void)
+    eventBus.on('message:updated', (_, msg) => {
       console.log('message:updated => ', msg)
 
       handleStreamingConversationStatus(msg)
       updateMessageActionV2(msg)
     })
 
-    ipcRenderer.on('agent:state-updated', (_, payload) => {
+    eventBus.on('agent:state-updated', (_, payload: { task: AgentTaskSnapshot }) => {
       onAgentStateUpdated(payload.task)
     })
-    ipcRenderer.on('agent:approval-required', (_, payload) => {
+    eventBus.on('agent:approval-required', (_, payload: { taskId: string, conversationId: string, pendingAction: AgentPendingAction }) => {
       onAgentApprovalRequired(payload.taskId, payload.pendingAction)
     })
 
     return () => {
-      ipcRenderer.removeAllListeners('common:Notification')
-      ipcRenderer.removeAllListeners('mcp:McpServerStatusChanged')
-      ipcRenderer.removeAllListeners('message:updated')
-      ipcRenderer.removeAllListeners('agent:state-updated')
-      ipcRenderer.removeAllListeners('agent:approval-required')
+      eventBus.removeAllListeners('common:Notification')
+      eventBus.removeAllListeners('mcp:McpServerStatusChanged')
+      eventBus.removeAllListeners('message:updated')
+      eventBus.removeAllListeners('agent:state-updated')
+      eventBus.removeAllListeners('agent:approval-required')
     }
   }, [])
 }
 
-// 处理对话流式状态的辅助函数
-function handleStreamingConversationStatus(msg: { status: string, convId: string }) {
+function handleStreamingConversationStatus(msg: Pick<IMessage, 'status' | 'convId'>) {
   if (['typing', 'loading'].includes(msg.status)) {
     addStreamingConversationId(msg.convId)
   }

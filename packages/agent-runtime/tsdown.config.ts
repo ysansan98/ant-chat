@@ -6,5 +6,5 @@ export default defineConfig({
   dts: true,
   sourcemap: true,
   clean: true,
-  external: ['@ant-chat/agent-core', '@ant-chat/app-data', '@ant-chat/shared', 'better-sqlite3'],
+  external: ['@ant-chat/agent-core', '@ant-chat/app-data', '@ant-chat/mcp-client-hub', '@ant-chat/shared', 'better-sqlite3'],
 })

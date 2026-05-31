@@ -1,7 +1,10 @@
-import type { AppTransport } from './appTransport'
+import type { AppTransport } from '@ant-chat/shared'
 
 export function createLocalWebTransport(): AppTransport {
   return {
+    capabilities: {
+      workspacePicker: false,
+    },
     chat: {
       createConversationsTitle: options => localRpc('chat.createConversationsTitle', { ...options }),
       getConversations: (pageIndex, pageSize) => localRpc('chat.getConversations', { pageIndex, pageSize }),
@@ -23,6 +26,31 @@ export function createLocalWebTransport(): AppTransport {
       updateSettings: updates => localRpc('settings.updateSettings', { updates }),
       resetSettings: () => localRpc('settings.resetSettings'),
     },
+    provider: {
+      getAllProviderServices: () => localRpc('provider.getAllProviderServices'),
+      addProviderService: config => localRpc('provider.addProviderServices', { config }),
+      updateProviderService: config => localRpc('provider.updateProviderService', { config }),
+      deleteProviderService: id => localRpc('provider.deleteProviderService', { id }),
+      getProviderServiceById: id => localRpc('provider.getProviderServicesById', { id }),
+      getProviderServiceByModelId: id => localRpc('provider.getProviderServiceByModelId', { id }),
+      getAllAbvailableModels: () => localRpc('provider.getAllAbvailableModels'),
+      getModelsByServiceProviderId: id => localRpc('provider.getModelsByServiceProviderId', { id }),
+      setModelEnabledStatus: (id, status) => localRpc('provider.setModelEnabledStatus', { id, status }),
+      addServiceProviderModel: config => localRpc('provider.addProviderServiceModel', { config }),
+      deleteServiceProviderModel: id => localRpc('provider.deleteProviderServiceModel', { id }),
+      getModelInfoById: id => localRpc('provider.getModelById', { id }),
+      getModelsDevProviders: () => localRpc('provider.getModelsDevProviders'),
+      getModelsDevModelsByProviderId: providerId => localRpc('provider.getModelsDevModelsByProviderId', { providerId }),
+      importModelsDevModels: providerId => localRpc('provider.importModelsDevModels', { providerId }),
+    },
+    skills: {
+      listSkills: () => localRpc('skills.listSkills'),
+      importSkillFromZip: () => localRpc('skills.importSkillFromZip'),
+      importSkillFromGithub: options => localRpc('skills.importSkillFromGithub', { options }),
+      setSkillEnabled: options => localRpc('skills.setSkillEnabled', { options }),
+      deleteSkill: name => localRpc('skills.deleteSkill', { name }),
+      rebuildSkillIndex: () => localRpc('skills.rebuildSkillIndex'),
+    },
     profile: {
       getProfile: () => localRpc('profile.getProfile'),
       updateProfile: input => localRpc('profile.updateProfile', { input }),
@@ -42,7 +70,6 @@ export function createLocalWebTransport(): AppTransport {
       addWorkspace: path => localRpc('workspace.addWorkspace', { path }),
       removeWorkspace: path => localRpc('workspace.removeWorkspace', { path }),
       openWorkspace: path => localRpc('workspace.openWorkspace', { path }),
-      chooseWorkspace: async () => null,
       searchWorkspaceFiles: (query, limit = 50) => localRpc('workspace.searchWorkspaceFiles', { query, limit }),
     },
   }

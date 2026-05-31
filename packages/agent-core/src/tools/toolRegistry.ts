@@ -1,10 +1,8 @@
-import type { MCPClientHub } from '@ant-chat/mcp-client-hub'
 import type { AgentMode, AgentRuntimeConfig, AgentTool, AgentToolResult, RuntimeToolDefinition, SkillManifest, SkillReader, ToolOperationType, ToolScope } from '@ant-chat/shared'
 import fs from 'node:fs'
 import path from 'node:path'
 import { AGENT_SKILL_INVALID } from '@ant-chat/shared'
 import { getNativeToolService } from '../native-tools/nativeToolService'
-import { SkillFsReader } from '../skills/skillFsReader'
 import { createMcpTools } from './mcpToolAdapter'
 
 export interface PreparedToolCall {
@@ -25,7 +23,6 @@ export interface CreateRegistryOptions {
   config: AgentRuntimeConfig
   workspacePath: string
   mode: AgentMode
-  clientHub?: MCPClientHub
 }
 
 export class ToolRegistry {
@@ -33,7 +30,7 @@ export class ToolRegistry {
   private readonly relaxedTools: Map<string, AgentTool>
 
   static async create(options: CreateRegistryOptions): Promise<ToolRegistry> {
-    const { config, workspacePath, mode, clientHub } = options
+    const { config, workspacePath, mode } = options
     const unrestricted = mode === 'full_managed'
     const skillReader = resolveSkillReader(config)
     const readableRoots = skillReader ? [skillReader.getSkillsRoot()] : []
@@ -47,8 +44,8 @@ export class ToolRegistry {
     const agentLoopTools = config.profileReader
       ? [createMemoryTool(config.profileReader)]
       : []
-    const mcpTools = clientHub
-      ? createMcpTools(clientHub)
+    const mcpTools = config.mcpClientHub
+      ? createMcpTools(config.mcpClientHub)
       : []
 
     return new ToolRegistry(
@@ -186,10 +183,7 @@ function resolveSkillReader(config: AgentRuntimeConfig): SkillReader | null {
   if (config.skillReader) {
     return config.skillReader
   }
-  if (!config.skillsRoot) {
-    return null
-  }
-  return new SkillFsReader({ skillsRoot: config.skillsRoot })
+  return null
 }
 
 async function makeSkillTools(reader: SkillReader): Promise<AgentTool[]> {

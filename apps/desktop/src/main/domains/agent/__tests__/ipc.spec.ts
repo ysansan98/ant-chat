@@ -4,6 +4,14 @@ import { AgentIpcService } from '../ipc'
 
 const mocks = vi.hoisted(() => ({
   startAgentTurn: vi.fn(async () => ({ taskId: 't2', conversationId: 'c1', userMessageId: 'm1', conversation: { id: 'c1' } })),
+  runtime: {
+    approvePendingAction: vi.fn(),
+    rejectPendingAction: vi.fn(),
+    cancelTask: vi.fn(),
+    getTask: vi.fn(() => ({ taskId: 't1', status: 'running' })),
+    listActiveTasks: vi.fn(() => [{ taskId: 't1', status: 'running' }]),
+    injectSteering: vi.fn(),
+  },
 }))
 
 vi.mock('electron-ipc-decorator', () => ({
@@ -11,15 +19,14 @@ vi.mock('electron-ipc-decorator', () => ({
   IpcMethod: () => () => {},
 }))
 
-vi.mock('@main/agent/runtime/agentTurnService', () => ({
-  agentRuntime: {
-    approvePendingAction: vi.fn(async () => {}),
-    rejectPendingAction: vi.fn(async () => {}),
-    cancelTask: vi.fn(async () => {}),
-    getTask: vi.fn(() => ({ taskId: 't1', status: 'running' })),
-    listActiveTasks: vi.fn(() => [{ taskId: 't1', status: 'running' }]),
-  },
-  startAgentTurn: mocks.startAgentTurn,
+vi.mock('@main/agent/runtime/agentRuntimeEnvironment', () => ({
+  getAgentRuntimeEnvironment: () => ({
+    agentService: {
+      startTurn: mocks.startAgentTurn,
+      approvePendingActionWithWhitelist: vi.fn(),
+    },
+    runtime: mocks.runtime,
+  }),
 }))
 
 describe('agent ipc', () => {

@@ -23,11 +23,13 @@ vi.mock('../conversationTitleService', () => ({
   handleInitConversationTitle: mocks.handleInitConversationTitle,
 }))
 
-vi.mock('@main/adapters/appDataContainer', () => ({
-  getAppDataServices: () => ({
-    conversationService: mocks.conversationService,
-    messageService: {},
-    workspaceService: mocks.workspaceService,
+vi.mock('@main/agent/runtime/agentRuntimeEnvironment', () => ({
+  getAgentRuntimeEnvironment: () => ({
+    appDataServices: {
+      conversationService: mocks.conversationService,
+      messageService: {},
+      workspaceService: mocks.workspaceService,
+    },
   }),
 }))
 

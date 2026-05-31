@@ -8,12 +8,13 @@
     "moduleDetection": "force",
     "useDefineForClassFields": true,
     "experimentalDecorators": true,
+    "baseUrl": ".",
     "customConditions": ["development"],
     "moduleResolution": "bundler",
 
     "paths": {
       "@main/*": [
-        "./src/main/*"
+        "src/main/*"
       ],
       "@/*": [
         "../web/src/*"

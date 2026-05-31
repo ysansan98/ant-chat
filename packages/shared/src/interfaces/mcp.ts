@@ -64,11 +64,15 @@ export interface resourceResult {
   resource: Resource
 }
 
+export interface McpToolContentResult {
+  type: string
+  text?: string
+}
+
 /**
  * Mcp Tool 调用的响应结果
  */
 export interface McpToolCallResponse {
-  // content: (TextResult | ImageResult | AudioResult | resourceResult)[]
-  content: TextResult[]
+  content: McpToolContentResult[]
   isError?: boolean
 }

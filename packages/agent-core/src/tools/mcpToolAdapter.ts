@@ -1,8 +1,7 @@
-import type { MCPClientHub } from '@ant-chat/mcp-client-hub'
-import type { AgentTool, McpTool } from '@ant-chat/shared'
+import type { AgentTool, McpTool, RuntimeMcpClientHub } from '@ant-chat/shared'
 import { DEFAULT_MCP_TOOL_NAME_SEPARATOR } from '@ant-chat/shared'
 
-export function createMcpTools(clientHub: MCPClientHub): AgentTool[] {
+export function createMcpTools(clientHub: RuntimeMcpClientHub): AgentTool[] {
   const tools: AgentTool[] = []
   for (const conn of clientHub.connections) {
     if (conn.server.status !== 'connected')
@@ -17,7 +16,7 @@ export function createMcpTools(clientHub: MCPClientHub): AgentTool[] {
 export function createMcpTool(
   serverName: string,
   mcpTool: McpTool,
-  clientHub: MCPClientHub,
+  clientHub: RuntimeMcpClientHub,
 ): AgentTool {
   return {
     name: `${serverName}${DEFAULT_MCP_TOOL_NAME_SEPARATOR}${mcpTool.name}`,
@@ -31,7 +30,7 @@ export function createMcpTool(
       try {
         const result = await clientHub.callTool(serverName, mcpTool.name, input)
         const output = result.content
-          .filter((c): c is { type: 'text', text: string } => c.type === 'text')
+          .filter((c): c is { type: 'text', text: string } => c.type === 'text' && typeof c.text === 'string')
           .map(c => c.text)
           .join('\n')
         return { ok: !result.isError, output }

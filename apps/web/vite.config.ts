@@ -1,4 +1,3 @@
-import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { defineConfig } from 'vite'
@@ -10,9 +9,6 @@ const rootDir = fileURLToPath(new URL('.', import.meta.url))
 export default defineConfig({
   ...createWebRendererViteConfig({
     conditions: ['development'],
-    extraAliases: [
-      { find: '@main', replacement: resolve(rootDir, '../desktop/src/main') },
-    ],
     runtime: 'web',
     rootDir,
   }),

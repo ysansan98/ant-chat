@@ -359,18 +359,12 @@ importers:
       '@ai-sdk/openai':
         specifier: ^3.0.25
         version: 3.0.37(zod@3.25.76)
-      '@ant-chat/mcp-client-hub':
-        specifier: workspace:^
-        version: link:../mcp-client-hub
       '@ant-chat/shared':
         specifier: workspace:^
         version: link:../shared
       ai:
         specifier: ^6.0.69
         version: 6.0.105(zod@3.25.76)
-      fflate:
-        specifier: ^0.8.2
-        version: 0.8.3
     devDependencies:
       '@copilotkit/aimock':
         specifier: ^1.16.4
@@ -393,12 +387,18 @@ importers:
       '@ant-chat/app-data':
         specifier: workspace:^
         version: link:../app-data
+      '@ant-chat/mcp-client-hub':
+        specifier: workspace:^
+        version: link:../mcp-client-hub
       '@ant-chat/shared':
         specifier: workspace:^
         version: link:../shared
       better-sqlite3:
         specifier: ^12.6.2
         version: 12.6.2
+      fflate:
+        specifier: ^0.8.2
+        version: 0.8.3
     devDependencies:
       '@types/better-sqlite3':
         specifier: ^7.6.8

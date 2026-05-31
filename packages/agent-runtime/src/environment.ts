@@ -3,12 +3,14 @@ import type { AppDataServices } from '@ant-chat/app-data'
 import type { IAgentEventEmitter } from '@ant-chat/shared'
 import type { Database } from 'better-sqlite3'
 import type { AgentRuntimePaths } from './paths'
-import { createAgentRuntime, SkillFsReader } from '@ant-chat/agent-core'
+import { createAgentRuntime } from '@ant-chat/agent-core'
 import { createAppDataServices } from '@ant-chat/app-data'
+import { MCPClientHub } from '@ant-chat/mcp-client-hub'
 import { createAgentRuntimeService } from './agentService'
 import { openAppDataDatabase } from './database'
 import { createAgentRuntimePaths } from './paths'
 import { createAppDataSessionStore } from './sessionStore'
+import { SkillManagementService } from './skills'
 import { createTaskLoggerFactory } from './taskLogWriter'
 
 export interface CreateAgentRuntimeEnvironmentOptions {
@@ -29,7 +31,8 @@ export interface AgentRuntimeEnvironment {
   paths: AgentRuntimePaths
   db?: Database
   appDataServices: AppDataServices
-  skillManagementService: SkillFsReader
+  skillManagementService: SkillManagementService
+  mcpClientHub: MCPClientHub
   runtime: AgentRuntime
   agentService: ReturnType<typeof createAgentRuntimeService>
 }
@@ -61,14 +64,16 @@ export function createAgentRuntimeEnvironmentFromServices(
   options: CreateAgentRuntimeEnvironmentFromServicesOptions,
 ): AgentRuntimeEnvironment {
   const { paths, appDataServices } = options
-  const skillManagementService = new SkillFsReader({ skillsRoot: paths.skillsRoot })
+  const skillManagementService = new SkillManagementService({ skillsRoot: paths.skillsRoot })
+  const mcpClientHub = new MCPClientHub()
   const runtime = createAgentRuntime({
     host: {
       eventEmitter: options.eventEmitter,
       sessionStore: createAppDataSessionStore(appDataServices),
       modelCatalog: appDataServices.modelCatalog,
       profileReader: appDataServices.profileService,
-      skillsRoot: paths.skillsRoot,
+      skillReader: skillManagementService,
+      mcpClientHub,
       createTaskLogger: createTaskLoggerFactory(paths.taskLogsRoot),
       getToolApprovalWhitelistEntries: () => appDataServices.toolApprovalWhitelistRepository.getAll(),
     },
@@ -79,6 +84,7 @@ export function createAgentRuntimeEnvironmentFromServices(
     paths,
     appDataServices,
     skillManagementService,
+    mcpClientHub,
     runtime,
     agentService: createAgentRuntimeService(runtime, appDataServices),
   }

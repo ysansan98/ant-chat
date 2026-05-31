@@ -26,9 +26,11 @@ vi.mock('electron-ipc-decorator', () => ({
   IpcMethod: () => () => {},
 }))
 
-vi.mock('@main/adapters/appDataContainer', () => ({
-  getAppDataServices: () => ({
-    settingsService: mocks.settingsService,
+vi.mock('@main/agent/runtime/agentRuntimeEnvironment', () => ({
+  getAgentRuntimeEnvironment: () => ({
+    appDataServices: {
+      settingsService: mocks.settingsService,
+    },
   }),
 }))
 

@@ -19,14 +19,14 @@ Use this skill when the user asks to install, list, or manage skills from GitHub
 `
 }
 
-export interface SkillFsReaderOptions {
+export interface SkillManagementServiceOptions {
   skillsRoot: string
 }
 
-export class SkillFsReader {
+export class SkillManagementService {
   private readonly skillsRoot: string
 
-  constructor(options: SkillFsReaderOptions) {
+  constructor(options: SkillManagementServiceOptions) {
     this.skillsRoot = options.skillsRoot
   }
 

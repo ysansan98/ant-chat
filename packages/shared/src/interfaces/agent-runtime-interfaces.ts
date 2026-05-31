@@ -3,6 +3,7 @@ import type { AgentProfileReader } from './agent-profile'
 import type { AgentMode, AgentPendingAction, AgentTaskSnapshot, ToolApprovalWhitelistEntry } from './agent-runtime'
 import type { AgentTool } from './agent-tools'
 import type { IAttachment, IConversations, IMessage } from './db-types'
+import type { McpServer, McpToolCallResponse } from './mcp'
 import type { ImportSkillFromGithubOptions, SkillManifest } from './skill'
 
 // ============================================================
@@ -189,6 +190,11 @@ export interface SkillReader {
   importFromGithub: (options: ImportSkillFromGithubOptions) => Promise<SkillManifest>
 }
 
+export interface RuntimeMcpClientHub {
+  connections: Array<{ server: Pick<McpServer, 'name' | 'status' | 'tools'> }>
+  callTool: (serverName: string, toolName: string, toolArguments?: Record<string, unknown>) => Promise<McpToolCallResponse>
+}
+
 // ============================================================
 // Compaction (纯策略回调，外层 onBeforeTurn 中使用)
 // ============================================================
@@ -204,14 +210,14 @@ export interface AgentRuntimeHost {
   sessionStore: ISessionStore
   modelCatalog: IModelCatalog
   profileReader?: AgentProfileReader
-  skillsRoot?: string
+  skillReader?: SkillReader
+  mcpClientHub?: RuntimeMcpClientHub
   getToolApprovalWhitelistEntries?: () => ToolApprovalWhitelistEntry[]
 }
 
 export interface AgentRuntimeOverrides {
   logger?: ILogger
   aiProviderFactory?: AIProviderFactory
-  skillReader?: SkillReader
   compactionStrategy?: CompactionStrategy
 }
 
@@ -233,8 +239,9 @@ export interface AgentRuntimeConfig extends AgentRuntimeOverrides {
   sessionStore?: ISessionStore
   modelCatalog?: IModelCatalog
   profileReader?: AgentProfileReader
-  skillsRoot?: string
   getToolApprovalWhitelistEntries?: () => ToolApprovalWhitelistEntry[]
+  skillReader?: SkillReader
+  mcpClientHub?: RuntimeMcpClientHub
 }
 
 export interface AgentRuntimeStartTaskOptions {

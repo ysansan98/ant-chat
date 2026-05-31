@@ -1,6 +1,6 @@
 import type { Database } from 'better-sqlite3'
+import { spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
-import BetterSqlite from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { initializeAppDataSchema } from '../../schema'
 import { SqliteMessageSearchService } from '../../services'
@@ -11,6 +11,7 @@ describe.skipIf(!canRunDbIntegrationTests())('sqlite repositories', () => {
   let sqlite: Database
 
   beforeEach(() => {
+    const BetterSqlite = loadBetterSqlite()
     sqlite = new BetterSqlite(':memory:')
     initializeAppDataSchema(sqlite)
   })
@@ -143,14 +144,18 @@ describe.skipIf(!canRunDbIntegrationTests())('sqlite repositories', () => {
 })
 
 function canRunDbIntegrationTests() {
-  try {
-    const require = createRequire(import.meta.url)
-    const Database = require('better-sqlite3')
+  const result = spawnSync(process.execPath, ['-e', `
+    const { createRequire } = require('node:module')
+    const requireFromTest = createRequire(${JSON.stringify(import.meta.url)})
+    const Database = requireFromTest('better-sqlite3')
     const db = new Database(':memory:')
     db.close()
-    return true
-  }
-  catch {
-    return false
-  }
+  `], { stdio: 'ignore' })
+
+  return result.status === 0 && result.signal === null
+}
+
+function loadBetterSqlite(): new (filename: string) => Database {
+  const require = createRequire(import.meta.url)
+  return require('better-sqlite3') as new (filename: string) => Database
 }

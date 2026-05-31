@@ -1,9 +1,9 @@
 import { Outlet } from 'react-router'
 import { AppProviders } from '@/AppProviders'
-import { useIpcEventListener } from '@/hooks/useIpcEventListener'
+import { useAppEventListener } from '@/hooks/useAppEventListener'
 
 function SettingsApp() {
-  useIpcEventListener()
+  useAppEventListener()
 
   return (
     <AppProviders>

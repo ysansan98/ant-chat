@@ -19,7 +19,6 @@ import {
   buildConversationContextMessages,
   createLoopSystemPrompt,
 } from '../loop/loopContext'
-import { clientHub } from '../mcp/clientHub'
 import { taskStore } from '../taskStore'
 import { ToolRegistry } from '../tools/toolRegistry'
 import { buildPromptWithTurnContext } from './turnContext'
@@ -122,7 +121,6 @@ export class SessionRuntime {
       config: this.config,
       workspacePath: options.workspacePath,
       mode,
-      clientHub,
     })
     const profile = await this.getPromptProfileSnapshot(conversation.id)
     const systemPrompt = createLoopSystemPrompt(options.workspacePath, options.chatSettings?.systemPrompt, profile)

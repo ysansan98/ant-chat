@@ -1,5 +1,5 @@
 import type { ProxySettings } from '@ant-chat/shared'
-import { getAppDataServices } from '@main/adapters/appDataContainer'
+import { getAgentRuntimeEnvironment } from '@main/agent/runtime/agentRuntimeEnvironment'
 import { logger } from '@main/utils/logger'
 import { Agent, EnvHttpProxyAgent, setGlobalDispatcher } from 'undici'
 import { getSystemProxySettings } from './system-proxy'
@@ -124,7 +124,7 @@ export class ProxyManager {
       this.originalDispatcher = globalThis.dispatcher
     }
 
-    const settings = await getAppDataServices().settingsService.getGeneralSettings()
+    const settings = await getAgentRuntimeEnvironment().appDataServices.settingsService.getGeneralSettings()
     await this.updateProxySettings(settings.proxySettings)
   }
 

@@ -1,8 +1,6 @@
 import process from 'node:process'
 import { app } from 'electron'
-import { getAppDataServices } from './adapters/appDataContainer'
 import { getAgentRuntimeEnvironment } from './agent/runtime/agentRuntimeEnvironment'
-import { skillManagementService } from './domains/skills/skillManagementService'
 import { UpdateService } from './domains/update/updateService'
 import { installDevTools } from './plugins/devtools'
 import { isDev } from './utils/env'
@@ -27,10 +25,10 @@ app.whenReady().then(async () => {
   await initializeProxy()
 
   // 初始化默认工作区
-  getAppDataServices().workspaceService.ensureInitialized()
+  getAgentRuntimeEnvironment().appDataServices.workspaceService.ensureInitialized()
 
   // 初始化本地 Skill 目录和内置 Skill
-  await skillManagementService.ensureInitialized()
+  await getAgentRuntimeEnvironment().skillManagementService.ensureInitialized()
 
   const mainWindow = new MainWindow()
   await mainWindow.createWindow()
