@@ -21,6 +21,7 @@ import {
 } from '../loop/loopContext'
 import { taskStore } from '../taskStore'
 import { ToolRegistry } from '../tools/toolRegistry'
+import { attachmentsToContentBlocks, imagesToContentBlocks } from '../utils/attachmentUtils'
 import { buildPromptWithTurnContext } from './turnContext'
 
 const DEFAULT_CONVERSATION_TITLE = 'Untitled'
@@ -114,9 +115,10 @@ export class SessionRuntime {
 
     const userContent: LoopMessage['content'] = [{ type: 'text', text: enrichedPrompt }]
     if (options.images?.length) {
-      for (const image of options.images) {
-        userContent.push({ type: 'image', mimeType: image.type, data: image.data })
-      }
+      userContent.push(...imagesToContentBlocks(options.images))
+    }
+    if (options.attachments?.length) {
+      userContent.push(...attachmentsToContentBlocks(options.attachments))
     }
 
     const messages: LoopMessage[] = [
