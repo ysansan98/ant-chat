@@ -7,7 +7,7 @@ import type {
   ISessionStore,
   LoopMessage,
 } from '@ant-chat/shared'
-import type { RuntimeStartInput, RuntimeStartResult } from './types'
+import type { BeforeTurnResult, RuntimeStartInput, RuntimeStartResult } from './types'
 import { createProvider } from '../ai-providers/factory'
 import {
   DEFAULT_COMPACTION_SETTINGS,
@@ -37,7 +37,7 @@ export class SessionRuntime {
       input: RuntimeStartInput,
       runtime?: {
         eventEmitter?: IAgentEventEmitter
-        onBeforeTurn?: (ctx: { messages: LoopMessage[], step: number }) => Promise<{ messages: LoopMessage[], systemPrompt?: string }>
+        onBeforeTurn?: (ctx: { messages: LoopMessage[], step: number }) => Promise<BeforeTurnResult>
       },
     ) => Promise<RuntimeStartResult>,
   ) {}
@@ -151,10 +151,10 @@ export class SessionRuntime {
       userMessageId: userMessage.id,
       store,
     })
-    const onBeforeTurn = async (ctx: { messages: LoopMessage[], step: number }) => {
+    const onBeforeTurn = async (ctx: { messages: LoopMessage[], step: number }): Promise<BeforeTurnResult> => {
       const result = await compactionGate(ctx)
       if (!result.compacted) {
-        return { messages: result.messages }
+        return { messages: result.messages, compacted: false }
       }
 
       this.promptMemorySnapshots.delete(conversation.id)
@@ -162,6 +162,7 @@ export class SessionRuntime {
       return {
         messages: result.messages,
         systemPrompt: createLoopSystemPrompt(options.workspacePath, options.chatSettings?.systemPrompt, updatedMemory),
+        compacted: true,
       }
     }
 

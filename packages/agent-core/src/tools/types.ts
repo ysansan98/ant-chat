@@ -14,6 +14,8 @@ export interface BeforeToolExecuteInput {
   task: RuntimeTask
   prepared: PreparedToolCall
   config: AgentRuntimeConfig
+  step?: number
+  toolCallId?: string
   onToolCallContext?: (context: ToolCallContext) => void
 }
 

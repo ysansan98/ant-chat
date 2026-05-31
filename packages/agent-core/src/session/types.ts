@@ -1,6 +1,12 @@
 import type { AgentMode, CompactionSettingsSchema, IAIProvider, ITaskLogger, LoopMessage } from '@ant-chat/shared'
 import type { ToolRegistry } from '../tools/toolRegistry'
 
+export interface BeforeTurnResult {
+  messages: LoopMessage[]
+  systemPrompt?: string
+  compacted?: boolean
+}
+
 export interface RuntimeStartInput {
   // ===== 标识 =====
   conversationId: string

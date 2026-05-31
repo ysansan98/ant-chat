@@ -201,8 +201,12 @@ describe('runAgentLoop', () => {
     })
 
     expect(taskLogger.write).toHaveBeenCalledWith('model_request_started', expect.objectContaining({
+      runId: taskId,
+      taskId,
       conversationId: options.conversationId,
       userMessageId: options.userMessageId,
+      messagesPreviewKind: 'full',
+      contextResetReason: 'initial',
       model: options.modelName,
       provider: options.providerName,
       toolNames: ['read_file'],
@@ -215,11 +219,120 @@ describe('runAgentLoop', () => {
       ],
     }))
     expect(taskLogger.write).toHaveBeenCalledWith('model_response_finished', expect.objectContaining({
+      runId: taskId,
+      taskId,
+      durationMs: expect.any(Number),
       textPreview: 'Done',
       hasToolCall: false,
       toolCalls: [],
     }))
     expect(taskLogger.close).toHaveBeenCalledTimes(1)
+  })
+
+  it('writes only new messages after the first model request', async () => {
+    const taskLogger = {
+      filePath: '/tmp/task.jsonl',
+      write: vi.fn(),
+      close: vi.fn(),
+    }
+    const readTool = createReadTool()
+    const aiProvider = createMockAIProvider([
+      [makeToolCallChunk('read_file', { path: 'test.txt' }, 'tool-call-1')],
+      [makeTextChunk('File contents: file contents here')],
+    ])
+
+    const { taskId, options } = createBaseInput({
+      aiProvider: aiProvider as unknown as IAIProvider,
+      registry: new ToolRegistry([readTool]),
+      taskLogger,
+    })
+    taskStore.create(createTask(taskId, options.conversationId))
+
+    await runAgentLoop({
+      taskId,
+      options,
+      config: { eventEmitter: emitter, logger, taskLogger },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
+    })
+
+    const requestPayloads = taskLogger.write.mock.calls
+      .filter(([event]) => event === 'model_request_started')
+      .map(([, payload]) => payload as Record<string, any>)
+
+    expect(requestPayloads).toHaveLength(2)
+    expect(requestPayloads[0]).toEqual(expect.objectContaining({
+      messagesPreviewKind: 'full',
+      messagesPreviewStartIndex: 0,
+      messagesPreviewCount: 1,
+      contextResetReason: 'initial',
+    }))
+    expect(requestPayloads[1]).toEqual(expect.objectContaining({
+      messagesPreviewKind: 'delta',
+      messagesPreviewStartIndex: 1,
+      messagesPreviewCount: 2,
+      contextResetReason: undefined,
+    }))
+    expect(requestPayloads[1].messagesPreview).toEqual([
+      expect.objectContaining({ role: 'assistant' }),
+      expect.objectContaining({ role: 'tool' }),
+    ])
+  })
+
+  it('writes a full model request snapshot after compaction', async () => {
+    const taskLogger = {
+      filePath: '/tmp/task.jsonl',
+      write: vi.fn(),
+      close: vi.fn(),
+    }
+    const readTool = createReadTool()
+    const aiProvider = createMockAIProvider([
+      [makeToolCallChunk('read_file', { path: 'test.txt' }, 'tool-call-1')],
+      [makeTextChunk('Done after compaction')],
+    ])
+    let beforeTurnCount = 0
+    const onBeforeTurn = vi.fn(async (ctx: { messages: RuntimeStartInput['messages'], step: number }) => {
+      beforeTurnCount++
+      if (beforeTurnCount === 1) {
+        return { messages: ctx.messages, compacted: false }
+      }
+      return {
+        messages: [{ role: 'user' as const, content: [{ type: 'text' as const, text: 'after compaction' }] }],
+        compacted: true,
+      }
+    })
+
+    const { taskId, options } = createBaseInput({
+      aiProvider: aiProvider as unknown as IAIProvider,
+      registry: new ToolRegistry([readTool]),
+      taskLogger,
+    })
+    taskStore.create(createTask(taskId, options.conversationId))
+
+    await runAgentLoop({
+      taskId,
+      options,
+      config: { eventEmitter: emitter, logger, taskLogger },
+      onBeforeTurn,
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
+    })
+
+    const requestPayloads = taskLogger.write.mock.calls
+      .filter(([event]) => event === 'model_request_started')
+      .map(([, payload]) => payload as Record<string, any>)
+
+    expect(requestPayloads).toHaveLength(2)
+    expect(requestPayloads[1]).toEqual(expect.objectContaining({
+      messagesPreviewKind: 'full',
+      messagesPreviewStartIndex: 0,
+      messagesPreviewCount: 1,
+      contextResetReason: 'compaction',
+    }))
+    expect(requestPayloads[1].messagesPreview).toEqual([
+      expect.objectContaining({
+        role: 'user',
+        content: [{ type: 'text', text: 'after compaction' }],
+      }),
+    ])
   })
 
   it('executes tool calls and continues conversation', async () => {

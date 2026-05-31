@@ -1,5 +1,5 @@
 import type { AgentRuntimeConfig, AgentRuntimeOptions, AgentRuntimeStartTaskOptions, AgentRuntimeStartTaskResult, AgentTaskSnapshot, ApprovePendingActionOptions, CancelTaskOptions, LoopMessage, RejectPendingActionOptions } from '@ant-chat/shared'
-import type { RuntimeStartInput, RuntimeStartResult } from './session/types'
+import type { BeforeTurnResult, RuntimeStartInput, RuntimeStartResult } from './session/types'
 import type { BeforeToolExecuteHook } from './tools/types'
 import { randomUUID } from 'node:crypto'
 import { AgentError } from './AgentError'
@@ -32,14 +32,14 @@ export class AgentRuntime {
     options: RuntimeStartInput,
     runtime?: {
       eventEmitter?: AgentRuntimeConfig['eventEmitter']
-      onBeforeTurn?: (ctx: { messages: LoopMessage[], step: number }) => Promise<{ messages: LoopMessage[], systemPrompt?: string }>
+      onBeforeTurn?: (ctx: { messages: LoopMessage[], step: number }) => Promise<BeforeTurnResult>
     },
   ): Promise<RuntimeStartResult>
   async startTask(
     options: RuntimeStartInput | AgentRuntimeStartTaskOptions,
     runtime?: {
       eventEmitter?: AgentRuntimeConfig['eventEmitter']
-      onBeforeTurn?: (ctx: { messages: LoopMessage[], step: number }) => Promise<{ messages: LoopMessage[], systemPrompt?: string }>
+      onBeforeTurn?: (ctx: { messages: LoopMessage[], step: number }) => Promise<BeforeTurnResult>
     },
   ): Promise<RuntimeStartResult | AgentRuntimeStartTaskResult> {
     if (isSessionStartOptions(options)) {
@@ -52,7 +52,7 @@ export class AgentRuntime {
     options: RuntimeStartInput,
     runtime?: {
       eventEmitter?: AgentRuntimeConfig['eventEmitter']
-      onBeforeTurn?: (ctx: { messages: LoopMessage[], step: number }) => Promise<{ messages: LoopMessage[], systemPrompt?: string }>
+      onBeforeTurn?: (ctx: { messages: LoopMessage[], step: number }) => Promise<BeforeTurnResult>
     },
   ): Promise<RuntimeStartResult> {
     const missing: string[] = []

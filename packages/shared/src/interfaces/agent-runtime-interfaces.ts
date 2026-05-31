@@ -52,6 +52,7 @@ export interface IAIStreamChunk {
     reasoningTokens?: number
     cachedInputTokens?: number
   }
+  finishReason?: string
 }
 
 export interface IAIProvider {

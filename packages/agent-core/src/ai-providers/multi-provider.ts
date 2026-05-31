@@ -278,6 +278,7 @@ export class MultiProvider {
 
     // 使用 AI SDK 的流式处理
     let finalUsage: LanguageModelUsage | undefined
+    let finishReason: string | undefined
 
     const result = streamText({
       model: this.createModelClient(model),
@@ -286,8 +287,9 @@ export class MultiProvider {
       maxOutputTokens: maxTokens,
       tools: aiTools,
       abortSignal,
-      onFinish: ({ totalUsage, usage }) => {
+      onFinish: ({ totalUsage, usage, finishReason: reason }) => {
         finalUsage = totalUsage || usage
+        finishReason = reason
       },
     })
 
@@ -328,6 +330,7 @@ export class MultiProvider {
         }
         else if (chunk.type === 'finish') {
           finalUsage = chunk.totalUsage || finalUsage
+          finishReason = (chunk as { finishReason?: string }).finishReason || finishReason
         }
       }
     }
@@ -365,6 +368,7 @@ export class MultiProvider {
     yield {
       content: [],
       usage: normalizedUsage,
+      finishReason,
     }
   }
 

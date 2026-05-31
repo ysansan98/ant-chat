@@ -52,10 +52,10 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   const { task, registry, requestedToolCall, currentModelText, currentToolMessages, step, config } = options
   const logger = getAgentLogger(config)
 
-  logger.info('agent-runtime', { event: 'tool_call_received', conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, step, toolName: requestedToolCall.toolName, input: requestedToolCall.input })
-  config.taskLogger?.write('tool_call_received', { conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, step, toolName: requestedToolCall.toolName, input: requestedToolCall.input })
-
   const currentToolCall = registerPendingToolCall(requestedToolCall, registry, currentToolMessages)
+  const logContext = createToolLogContext(task, step, currentToolCall.id)
+  logger.info('agent-runtime', { event: 'tool_call_received', ...logContext, toolName: requestedToolCall.toolName, input: requestedToolCall.input })
+  config.taskLogger?.write('tool_call_received', { ...logContext, toolName: requestedToolCall.toolName, input: requestedToolCall.input })
   await emitTurnToolCalls(config, task.snapshot.conversationId, currentModelText, currentToolMessages)
 
   // Phase 1: Prepare — validate args and check policy
@@ -76,7 +76,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
 
   // Abort check between prepare and execute
   if (options.abortSignal?.aborted) {
-    logger.info('agent-runtime', { event: 'tool_cancelled', conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, step, toolName: requestedToolCall.toolName })
+    logger.info('agent-runtime', { event: 'tool_cancelled', ...logContext, toolName: requestedToolCall.toolName })
     return finalizeToolStep(currentToolCall, {
       kind: 'error',
       error: 'AGENT_CANCELLED',
@@ -90,8 +90,8 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
 
   // Phase 3: Finalize
   if (execution.errorMsg) {
-    logger.info('agent-runtime', { event: 'tool_failed', conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, toolName: preparation.prepared.toolName, input: requestedToolCall.input, error: execution.errorMsg, workspacePath: task.snapshot.workspacePath, stdout: execution.result.stdout, stderr: execution.result.stderr, exitCode: execution.result.exitCode })
-    config.taskLogger?.write('tool_failed', { conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, toolName: preparation.prepared.toolName, input: requestedToolCall.input, error: execution.errorMsg, workspacePath: task.snapshot.workspacePath, stdout: execution.result.stdout, stderr: execution.result.stderr, exitCode: execution.result.exitCode })
+    logger.info('agent-runtime', { event: 'tool_failed', ...logContext, toolName: preparation.prepared.toolName, input: requestedToolCall.input, error: execution.errorMsg, workspacePath: task.snapshot.workspacePath, stdout: execution.result.stdout, stderr: execution.result.stderr, exitCode: execution.result.exitCode, durationMs: execution.result.durationMs })
+    config.taskLogger?.write('tool_failed', { ...logContext, toolName: preparation.prepared.toolName, input: requestedToolCall.input, error: execution.errorMsg, workspacePath: task.snapshot.workspacePath, stdout: execution.result.stdout, stderr: execution.result.stderr, exitCode: execution.result.exitCode, durationMs: execution.result.durationMs })
     return finalizeToolStep(currentToolCall, {
       kind: 'error',
       error: execution.errorMsg,
@@ -100,7 +100,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
     }, task.snapshot.conversationId, config, currentModelText, currentToolMessages)
   }
 
-  return finalizeSuccessToolStep(currentToolCall, preparation, execution.result, task.snapshot.conversationId, task.snapshot.userMessageId, config, currentModelText, currentToolMessages)
+  return finalizeSuccessToolStep(currentToolCall, preparation, execution.result, logContext, config, currentModelText, currentToolMessages)
 }
 
 // ============================================================
@@ -119,7 +119,7 @@ interface PrepareToolStepInput {
 }
 
 async function prepareToolStep(input: PrepareToolStepInput): Promise<ToolPreparation> {
-  const { task, registry, requestedToolCall, step, config, beforeToolExecute, onToolCallContext } = input
+  const { task, registry, requestedToolCall, currentToolCall, step, config, beforeToolExecute, onToolCallContext } = input
   const logger = getAgentLogger(config)
 
   const prepared = registry.prepare(requestedToolCall.toolName, requestedToolCall.input)
@@ -133,8 +133,9 @@ async function prepareToolStep(input: PrepareToolStepInput): Promise<ToolPrepara
   }
 
   if (prepared.validationError) {
-    logger.info('agent-runtime', { event: 'tool_failed', conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, toolName: prepared.toolName, input: requestedToolCall.input, error: prepared.validationError, workspacePath: task.snapshot.workspacePath })
-    config.taskLogger?.write('tool_failed', { conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, toolName: prepared.toolName, input: requestedToolCall.input, error: prepared.validationError, workspacePath: task.snapshot.workspacePath })
+    const logContext = createToolLogContext(task, step, currentToolCall.id)
+    logger.info('agent-runtime', { event: 'tool_failed', ...logContext, toolName: prepared.toolName, input: requestedToolCall.input, error: prepared.validationError, workspacePath: task.snapshot.workspacePath })
+    config.taskLogger?.write('tool_failed', { ...logContext, toolName: prepared.toolName, input: requestedToolCall.input, error: prepared.validationError, workspacePath: task.snapshot.workspacePath })
     return {
       kind: 'error',
       error: prepared.validationError,
@@ -147,6 +148,8 @@ async function prepareToolStep(input: PrepareToolStepInput): Promise<ToolPrepara
     task,
     prepared: prepared as PreparedToolCall,
     config,
+    step,
+    toolCallId: currentToolCall.id,
     onToolCallContext: (context) => {
       lastToolCallContext = context
       onToolCallContext?.(context)
@@ -154,8 +157,9 @@ async function prepareToolStep(input: PrepareToolStepInput): Promise<ToolPrepara
   })
 
   if (beforeResult.outcome === 'block') {
-    logger.info('agent-runtime', { event: 'tool_blocked', conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, step, toolName: requestedToolCall.toolName, input: requestedToolCall.input, operationType: prepared.operationType, scope: prepared.scope, policy: 'block', reason: beforeResult.reason, errorCode: beforeResult.errorCode, workspacePath: task.snapshot.workspacePath })
-    config.taskLogger?.write('tool_blocked', { conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, step, toolName: requestedToolCall.toolName, input: requestedToolCall.input, operationType: prepared.operationType, scope: prepared.scope, policy: 'block', reason: beforeResult.reason, errorCode: beforeResult.errorCode, workspacePath: task.snapshot.workspacePath })
+    const logContext = createToolLogContext(task, step, currentToolCall.id)
+    logger.info('agent-runtime', { event: 'tool_blocked', ...logContext, toolName: requestedToolCall.toolName, input: requestedToolCall.input, operationType: prepared.operationType, scope: prepared.scope, policy: 'block', reason: beforeResult.reason, errorCode: beforeResult.errorCode, workspacePath: task.snapshot.workspacePath })
+    config.taskLogger?.write('tool_blocked', { ...logContext, toolName: requestedToolCall.toolName, input: requestedToolCall.input, operationType: prepared.operationType, scope: prepared.scope, policy: 'block', reason: beforeResult.reason, errorCode: beforeResult.errorCode, workspacePath: task.snapshot.workspacePath })
     return {
       kind: 'error',
       error: beforeResult.errorCode,
@@ -214,8 +218,7 @@ async function finalizeSuccessToolStep(
   currentToolCall: McpToolCall,
   preparation: ToolPreparation & { kind: 'ready' },
   result: ToolExecution['result'],
-  conversationId: string,
-  userMessageId: string,
+  logContext: ToolLogContext,
   config: AgentRuntimeConfig,
   currentModelText: string,
   currentToolMessages: McpToolCall[],
@@ -229,10 +232,10 @@ async function finalizeSuccessToolStep(
   currentToolCall.executeState = 'completed'
   currentToolCall.result = { success: true, data: toolOutputText }
 
-  await emitTurnToolCalls(config, conversationId, currentModelText, currentToolMessages)
+  await emitTurnToolCalls(config, logContext.conversationId, currentModelText, currentToolMessages)
 
-  logger.info('agent-runtime', { event: 'tool_completed', conversationId, userMessageId, toolName: prepared.toolName, outputPreview: toolOutputText, exitCode: result.exitCode, durationMs: result.durationMs })
-  config.taskLogger?.write('tool_completed', { conversationId, userMessageId, toolName: prepared.toolName, outputPreview: toolOutputText, exitCode: result.exitCode, durationMs: result.durationMs })
+  logger.info('agent-runtime', { event: 'tool_completed', ...logContext, toolName: prepared.toolName, outputPreview: toolOutputText, exitCode: result.exitCode, durationMs: result.durationMs })
+  config.taskLogger?.write('tool_completed', { ...logContext, toolName: prepared.toolName, outputPreview: toolOutputText, exitCode: result.exitCode, durationMs: result.durationMs })
 
   return {
     lastToolCallContext,
@@ -245,6 +248,26 @@ async function finalizeSuccessToolStep(
 // ============================================================
 // Helpers
 // ============================================================
+
+interface ToolLogContext {
+  runId: string
+  taskId: string
+  conversationId: string
+  userMessageId: string
+  step: number
+  toolCallId: string
+}
+
+function createToolLogContext(task: RuntimeTask, step: number, toolCallId: string): ToolLogContext {
+  return {
+    runId: task.snapshot.taskId,
+    taskId: task.snapshot.taskId,
+    conversationId: task.snapshot.conversationId,
+    userMessageId: task.snapshot.userMessageId,
+    step,
+    toolCallId,
+  }
+}
 
 function registerPendingToolCall(
   requestedToolCall: RequestedToolCall,

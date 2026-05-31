@@ -14,6 +14,14 @@ export function createBeforeToolExecuteHook(
   return async (input) => {
     const { task, prepared, config, onToolCallContext } = input
     const logger = getAgentLogger(config)
+    const logContext = {
+      runId: task.snapshot.taskId,
+      taskId: task.snapshot.taskId,
+      conversationId: task.snapshot.conversationId,
+      userMessageId: task.snapshot.userMessageId,
+      step: input.step,
+      toolCallId: input.toolCallId,
+    }
 
     const policyDecision = decidePolicy(
       task.snapshot.mode,
@@ -32,8 +40,7 @@ export function createBeforeToolExecuteHook(
 
     logger.info('agent-runtime', {
       event: 'tool_decision',
-      conversationId: task.snapshot.conversationId,
-      userMessageId: task.snapshot.userMessageId,
+      ...logContext,
       toolName: prepared.toolName,
       input: prepared.input,
       operationType: prepared.operationType,
@@ -42,8 +49,7 @@ export function createBeforeToolExecuteHook(
       workspacePath: task.snapshot.workspacePath,
     })
     config.taskLogger?.write('tool_decision', {
-      conversationId: task.snapshot.conversationId,
-      userMessageId: task.snapshot.userMessageId,
+      ...logContext,
       toolName: prepared.toolName,
       input: prepared.input,
       operationType: prepared.operationType,
@@ -59,8 +65,7 @@ export function createBeforeToolExecuteHook(
     if (policyDecision.type === 'block') {
       logger.info('agent-runtime', {
         event: 'tool_blocked',
-        conversationId: task.snapshot.conversationId,
-        userMessageId: task.snapshot.userMessageId,
+        ...logContext,
         toolName: prepared.toolName,
         input: prepared.input,
         operationType: prepared.operationType,
@@ -71,8 +76,7 @@ export function createBeforeToolExecuteHook(
         workspacePath: task.snapshot.workspacePath,
       })
       config.taskLogger?.write('tool_blocked', {
-        conversationId: task.snapshot.conversationId,
-        userMessageId: task.snapshot.userMessageId,
+        ...logContext,
         toolName: prepared.toolName,
         input: prepared.input,
         operationType: prepared.operationType,
@@ -103,8 +107,7 @@ export function createBeforeToolExecuteHook(
       if (matched) {
         logger.info('agent-runtime', {
           event: 'tool_whitelist_auto_approved',
-          conversationId: task.snapshot.conversationId,
-          userMessageId: task.snapshot.userMessageId,
+          ...logContext,
           toolName: prepared.toolName,
           scope: prepared.scope,
           matchKey,
@@ -112,8 +115,7 @@ export function createBeforeToolExecuteHook(
           workspacePath: task.snapshot.workspacePath,
         })
         config.taskLogger?.write('tool_whitelist_auto_approved', {
-          conversationId: task.snapshot.conversationId,
-          userMessageId: task.snapshot.userMessageId,
+          ...logContext,
           toolName: prepared.toolName,
           scope: prepared.scope,
           matchKey,

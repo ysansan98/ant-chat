@@ -1,5 +1,5 @@
 import type { AgentRuntimeConfig, AgentTaskSnapshot, LoopMessage, McpToolCall, RuntimeToolDefinition, ToolResultContent } from '@ant-chat/shared'
-import type { RuntimeStartInput } from '../session/types'
+import type { BeforeTurnResult, RuntimeStartInput } from '../session/types'
 import type { BeforeToolExecuteHook, ToolCallContext } from '../tools/types'
 import { AgentError } from '../AgentError'
 import { getAgentLogger } from '../logger'
@@ -15,7 +15,7 @@ export async function runAgentLoop(input: {
   onBeforeTurn?: (ctx: {
     messages: LoopMessage[]
     step: number
-  }) => Promise<{ messages: LoopMessage[], systemPrompt?: string }>
+  }) => Promise<BeforeTurnResult>
   beforeToolExecute: BeforeToolExecuteHook
 }) {
   const { taskId, options, config, onBeforeTurn, beforeToolExecute } = input
@@ -45,6 +45,9 @@ export async function runAgentLoop(input: {
   let lastToolCallContext: ToolCallContext | null = null
   let loopMessages: LoopMessage[] = [...initialMessages]
   let systemPrompt = initialSystemPrompt
+  let lastLoggedMessages: LoopMessage[] = []
+  let lastLoggedSystemPrompt = ''
+  const taskStartedAt = Date.now()
 
   try {
     for (;;) {
@@ -56,11 +59,12 @@ export async function runAgentLoop(input: {
         throw new AgentError('AGENT_TOOL_EXEC_FAILED', 'AI provider not ready')
 
       // === Plan A: 外层 compaction hook（agent-loop 完全无感） ===
+      let beforeTurnResult: BeforeTurnResult | undefined
       if (onBeforeTurn) {
-        const result = await onBeforeTurn({ messages: loopMessages, step })
-        loopMessages = result.messages
-        if (result.systemPrompt !== undefined) {
-          systemPrompt = result.systemPrompt
+        beforeTurnResult = await onBeforeTurn({ messages: loopMessages, step })
+        loopMessages = beforeTurnResult.messages
+        if (beforeTurnResult.systemPrompt !== undefined) {
+          systemPrompt = beforeTurnResult.systemPrompt
         }
       }
 
@@ -84,16 +88,30 @@ export async function runAgentLoop(input: {
 
       currentToolMessages = []
 
-      const requestDiagnostics = createModelRequestDiagnostics({
+      const requestPreview = createRequestPreview({
         messages: loopMessages,
+        systemPrompt,
+        lastLoggedMessages,
+        lastLoggedSystemPrompt,
+        step,
+        compacted: beforeTurnResult?.compacted ?? false,
+      })
+      const requestDiagnostics = createModelRequestDiagnostics({
+        messages: requestPreview.messages,
         systemPrompt,
         toolDefs,
       })
       const requestPayload = {
+        runId: taskId,
+        taskId,
         conversationId: options.conversationId,
         userMessageId: options.userMessageId,
         step,
         messageCount: loopMessages.length,
+        messagesPreviewKind: requestPreview.kind,
+        messagesPreviewStartIndex: requestPreview.startIndex,
+        messagesPreviewCount: requestPreview.messages.length,
+        contextResetReason: requestPreview.resetReason,
         toolCount: toolDefs.length,
         model: modelName,
         provider: providerName,
@@ -105,7 +123,10 @@ export async function runAgentLoop(input: {
       }
       logger.info('agent-runtime', { event: 'model_request_started', ...requestPayload })
       config.taskLogger?.write('model_request_started', requestPayload)
+      lastLoggedMessages = [...loopMessages]
+      lastLoggedSystemPrompt = systemPrompt
 
+      const modelStartedAt = Date.now()
       const stream = aiProvider.streamModel({
         messages: loopMessages,
         chatSettings,
@@ -114,9 +135,17 @@ export async function runAgentLoop(input: {
       })
 
       let modelText = ''
+      let usage: Record<string, number | undefined> | undefined
+      let finishReason: string | undefined
       const requestedToolCalls: Array<{ id?: string, toolName: string, input: Record<string, unknown>, invalidArgsError?: string }> = []
 
       for await (const chunk of stream) {
+        if (chunk.usage) {
+          usage = { ...chunk.usage }
+        }
+        if (chunk.finishReason) {
+          finishReason = chunk.finishReason
+        }
         const content = chunk.content || []
         for (const item of content) {
           if (item.type === 'text' && item.text) {
@@ -141,9 +170,14 @@ export async function runAgentLoop(input: {
       }
 
       const responsePayload = {
+        runId: taskId,
+        taskId,
         conversationId: options.conversationId,
         userMessageId: options.userMessageId,
         step,
+        durationMs: Date.now() - modelStartedAt,
+        usage,
+        finishReason,
         textPreview: modelText.slice(0, 1000),
         hasToolCall: requestedToolCalls.length > 0,
         toolCalls: requestedToolCalls.map(call => ({
@@ -252,8 +286,9 @@ export async function runAgentLoop(input: {
 
     task.snapshot.status = 'success'
     await config.eventEmitter.emitTaskUpdated(task.snapshot)
-    logger.info('agent-runtime', { event: 'task_completed', conversationId: options.conversationId, userMessageId: options.userMessageId, finalAnswer })
-    config.taskLogger?.write('task_completed', { conversationId: options.conversationId, userMessageId: options.userMessageId, finalAnswer })
+    const completedPayload = { runId: taskId, taskId, conversationId: options.conversationId, userMessageId: options.userMessageId, durationMs: Date.now() - taskStartedAt, finalAnswer }
+    logger.info('agent-runtime', { event: 'task_completed', ...completedPayload })
+    config.taskLogger?.write('task_completed', completedPayload)
   }
   catch (error) {
     await handleLoopFailure({
@@ -261,6 +296,7 @@ export async function runAgentLoop(input: {
       task,
       error: error as Error,
       lastToolCallContext,
+      durationMs: Date.now() - taskStartedAt,
     })
   }
   finally {
@@ -278,9 +314,15 @@ async function handleLoopFailure(options: {
   task: NonNullable<ReturnType<typeof taskStore.get>>
   error: Error
   lastToolCallContext: ToolCallContext | null
+  durationMs: number
 }) {
-  const { config, task, error, lastToolCallContext } = options
+  const { config, task, error, lastToolCallContext, durationMs } = options
   const failurePayload = {
+    runId: task.snapshot.taskId,
+    taskId: task.snapshot.taskId,
+    conversationId: task.snapshot.conversationId,
+    userMessageId: task.snapshot.userMessageId,
+    durationMs,
     error: error.message,
     stack: error.stack || '',
     workspacePath: task.snapshot.workspacePath,
@@ -306,7 +348,7 @@ async function handleLoopFailure(options: {
   }
   await config.eventEmitter.emitTaskUpdated(task.snapshot)
   getAgentLogger(config).error('[agent-runtime] task_failed', failurePayload)
-  config.taskLogger?.write('task_failed', { conversationId: task.snapshot.conversationId, userMessageId: task.snapshot.userMessageId, ...failurePayload })
+  config.taskLogger?.write('task_failed', failurePayload)
 }
 
 function createModelRequestDiagnostics(input: {
@@ -348,6 +390,51 @@ function createModelRequestDiagnostics(input: {
     })),
     toolNames: input.toolDefs.map(tool => tool.name),
   }
+}
+
+function createRequestPreview(input: {
+  messages: LoopMessage[]
+  systemPrompt: string
+  lastLoggedMessages: LoopMessage[]
+  lastLoggedSystemPrompt: string
+  step: number
+  compacted: boolean
+}): {
+  kind: 'full' | 'delta'
+  messages: LoopMessage[]
+  startIndex: number
+  resetReason?: 'initial' | 'compaction' | 'system_prompt_changed' | 'history_rewritten'
+} {
+  if (input.step === 1) {
+    return { kind: 'full', messages: input.messages, startIndex: 0, resetReason: 'initial' }
+  }
+  if (input.compacted) {
+    return { kind: 'full', messages: input.messages, startIndex: 0, resetReason: 'compaction' }
+  }
+  if (input.systemPrompt !== input.lastLoggedSystemPrompt) {
+    return { kind: 'full', messages: input.messages, startIndex: 0, resetReason: 'system_prompt_changed' }
+  }
+  if (!isMessagePrefix(input.lastLoggedMessages, input.messages)) {
+    return { kind: 'full', messages: input.messages, startIndex: 0, resetReason: 'history_rewritten' }
+  }
+
+  return {
+    kind: 'delta',
+    messages: input.messages.slice(input.lastLoggedMessages.length),
+    startIndex: input.lastLoggedMessages.length,
+  }
+}
+
+function isMessagePrefix(prefix: LoopMessage[], messages: LoopMessage[]): boolean {
+  if (prefix.length > messages.length) {
+    return false
+  }
+  for (let i = 0; i < prefix.length; i++) {
+    if (JSON.stringify(prefix[i]) !== JSON.stringify(messages[i])) {
+      return false
+    }
+  }
+  return true
 }
 
 function previewText(value: string, maxLength: number): string {
