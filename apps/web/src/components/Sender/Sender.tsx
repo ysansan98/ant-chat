@@ -716,6 +716,7 @@ function Sender({ actions, ...props }: SenderProps) {
     <div
       ref={senderRef}
       className={`
+        mx-auto max-w-(--chat-width)
         ${!hasMessage ? 'absolute inset-x-3 top-[50%] translate-y-[-50%]' : ''}
       `}
     >
