@@ -1,3 +1,4 @@
+export * from './appPaths'
 export * from './interfaces'
 export * from './ipc-events'
 export * from './schemas'

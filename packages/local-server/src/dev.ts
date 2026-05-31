@@ -1,153 +1,164 @@
-import type { ApprovePendingActionOptions, IAgentEventEmitter, ILogger, RejectPendingActionOptions, StartAgentTurnOptions } from '@ant-chat/shared'
-import type { Server } from 'node:http'
-import type { ViteDevServer } from 'vite'
+import type { AgentPendingAction, AgentTaskSnapshot, IAgentEventEmitter, IMessage } from '@ant-chat/shared'
+import type { ServerResponse } from 'node:http'
 import type { LocalServerServices } from './createServer'
-import fs from 'node:fs'
 import { createServer as createHttpServer } from 'node:http'
-import path from 'node:path'
+import { resolve } from 'node:path'
 import process from 'node:process'
+import { parseArgs } from 'node:util'
 import { createAgentRuntimeEnvironment } from '@ant-chat/agent-runtime'
-import { createLocalApiHandler, createLocalServer } from './createServer'
+import { resolveAppDataRoot } from '@ant-chat/shared'
+import { createLocalApiHandler } from './createServer'
 
-const DEFAULT_HOST = '127.0.0.1'
-const DEFAULT_API_PORT = 17331
-const DEFAULT_WEB_PORT = 5173
-
-const logger: ILogger = {
-  info: (msg, ...args) => console.info(msg, ...args),
-  warn: (msg, ...args) => console.warn(msg, ...args),
-  error: (msg, ...args) => console.error(msg, ...args),
+const SSE_HEADERS = {
+  'content-type': 'text/event-stream',
+  'cache-control': 'no-cache',
+  'connection': 'keep-alive',
 }
 
-const eventEmitter: IAgentEventEmitter = {
-  emitMessageUpdated() {},
-  emitTaskUpdated() {},
-  emitApprovalRequired() {},
-  emitTurnStarted() {},
-  emitTurnChunk() {},
-  emitTurnToolCalls() {},
-  emitTurnToolResults() {},
-  emitTurnFinished() {},
-}
-
-const webMode = process.argv.includes('--web')
-const workspaceRoot = findWorkspaceRoot(process.cwd())
-const port = Number(process.env.ANT_CHAT_LOCAL_SERVER_PORT ?? (webMode ? DEFAULT_WEB_PORT : DEFAULT_API_PORT))
-if (!Number.isInteger(port) || port <= 0) {
-  throw new Error('ANT_CHAT_LOCAL_SERVER_PORT must be a positive integer')
-}
-
-const appDataRoot = process.env.ANT_CHAT_APP_DATA_ROOT ?? path.join(workspaceRoot, '.ant-chat')
-const environment = createAgentRuntimeEnvironment({
-  appDataRoot,
-  eventEmitter,
-  logger,
-})
-
-environment.appDataServices.workspaceService.ensureInitialized()
-
-const services: LocalServerServices = {
-  conversationService: environment.appDataServices.conversationService,
-  messageService: environment.appDataServices.messageService,
-  settingsService: environment.appDataServices.settingsService,
-  profileService: environment.appDataServices.profileService,
-  workspaceService: environment.appDataServices.workspaceService,
-  providerSettingsRepository: environment.appDataServices.providerSettingsRepository,
-  skillService: environment.skillManagementService,
-  agentService: {
-    startTurn: options => environment.agentService.startTurn(options as StartAgentTurnOptions),
-    approvePendingAction: options => environment.agentService.approvePendingAction(options as ApprovePendingActionOptions),
-    rejectPendingAction: options => environment.agentService.rejectPendingAction(options as RejectPendingActionOptions),
-    cancelTask: taskId => environment.agentService.cancelTask({ taskId }),
-    injectSteering: params => environment.agentService.injectSteering(params),
-    listActiveTasks: conversationId => environment.agentService.listActiveTasks(conversationId),
-    approvePendingActionWithWhitelist: options => environment.agentService.approvePendingActionWithWhitelist(options as ApprovePendingActionOptions & { remember: boolean, workspacePath?: string }),
-  },
-}
-
-let viteServer: ViteDevServer | null = null
-let server: Server | null = null
-
-void main()
-
-function shutdown() {
-  if (!server) {
-    environment.db?.close()
-    process.exit(0)
+// SSE channel names match Electron IPC channel names used by consumers
+function sseBroadcast(clients: Set<ServerResponse>, channel: string, data: unknown) {
+  const payload = `event: ${channel}\ndata: ${JSON.stringify(data)}\n\n`
+  for (const client of clients) {
+    client.write(payload)
   }
-
-  server.close(async () => {
-    await viteServer?.close()
-    environment.db?.close()
-    process.exit(0)
-  })
 }
 
-process.on('SIGINT', shutdown)
-process.on('SIGTERM', shutdown)
+export function createSseEventEmitter(clients: Set<ServerResponse>): IAgentEventEmitter {
+  return {
+    emitMessageUpdated(message: IMessage) {
+      sseBroadcast(clients, 'message:updated', message)
+    },
+    emitTaskUpdated(task: AgentTaskSnapshot) {
+      sseBroadcast(clients, 'agent:state-updated', { task })
+    },
+    emitApprovalRequired(taskId: string, _conversationId: string, pendingAction: AgentPendingAction) {
+      sseBroadcast(clients, 'agent:approval-required', { taskId, pendingAction })
+    },
+    emitTurnStarted() {},
+    emitTurnChunk() {},
+    emitTurnToolCalls() {},
+    emitTurnToolResults() {},
+    emitTurnFinished() {},
+  }
+}
+
+function createDevLogger() {
+  return {
+    info: (msg: string, ...args: unknown[]) => console.log(`[local-server] ${msg}`, ...args),
+    warn: (msg: string, ...args: unknown[]) => console.warn(`[local-server] ${msg}`, ...args),
+    error: (msg: string, ...args: unknown[]) => console.error(`[local-server] ${msg}`, ...args),
+  }
+}
+
+function buildServices(env: ReturnType<typeof createAgentRuntimeEnvironment>): LocalServerServices {
+  return {
+    conversationService: env.appDataServices.conversationService,
+    messageService: env.appDataServices.messageService,
+    settingsService: env.appDataServices.settingsService,
+    providerSettingsRepository: env.appDataServices.providerSettingsRepository,
+    profileService: {
+      readProfile: () => env.appDataServices.profileService.readProfile(),
+      updateProfile: input => env.appDataServices.profileService.updateProfile(input),
+      rollbackSoul: () => env.appDataServices.profileService.rollbackSoul(),
+    },
+    workspaceService: env.appDataServices.workspaceService,
+    agentService: env.agentService as unknown as LocalServerServices['agentService'],
+  }
+}
 
 async function main() {
-  server = webMode ? await createWebDevServer() : createLocalServer(services)
-  server.listen(port, DEFAULT_HOST, () => {
-    console.info(`Ant Chat ${webMode ? 'web dev server' : 'local API'} listening on http://${DEFAULT_HOST}:${port}`)
-    console.info(`App data root: ${appDataRoot}`)
-  })
-}
-
-async function createWebDevServer() {
-  const localApiHandler = createLocalApiHandler(services)
-  const httpServer = createHttpServer(async (req, res) => {
-    if (await localApiHandler(req, res))
-      return
-
-    if (!viteServer) {
-      res.writeHead(503, { 'content-type': 'text/plain; charset=utf-8' })
-      res.end('Vite dev server is not ready')
-      return
-    }
-
-    viteServer.middlewares(req, res, (error: unknown) => {
-      if (error) {
-        if (error instanceof Error)
-          viteServer?.ssrFixStacktrace(error)
-        console.error(error)
-        res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' })
-        res.end(error instanceof Error ? error.message : String(error))
-        return
-      }
-
-      res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' })
-      res.end('Not found')
-    })
-  })
-
-  const { createServer: createViteServer } = await import('vite')
-  viteServer = await createViteServer({
-    configFile: path.join(workspaceRoot, 'apps/web/vite.config.ts'),
-    root: path.join(workspaceRoot, 'apps/web'),
-    server: {
-      middlewareMode: true,
-      hmr: {
-        server: httpServer,
-      },
+  const { values } = parseArgs({
+    options: {
+      port: { type: 'string', default: '3456' },
+      web: { type: 'boolean', default: false },
     },
-    appType: 'spa',
+    strict: false,
   })
 
-  return httpServer
-}
+  const port = Number(values.port) || 3456
+  const withWeb = values.web as boolean
+  const sseClients = new Set<ServerResponse>()
 
-function findWorkspaceRoot(start: string): string {
-  let current = start
-  while (true) {
-    if (fs.existsSync(path.join(current, 'pnpm-workspace.yaml'))) {
-      return current
-    }
+  const env = createAgentRuntimeEnvironment({
+    appDataRoot: resolveAppDataRoot(),
+    eventEmitter: createSseEventEmitter(sseClients),
+    logger: createDevLogger(),
+  })
 
-    const parent = path.dirname(current)
-    if (parent === current) {
-      return start
+  const services = buildServices(env)
+  const handleLocalApi = createLocalApiHandler(services)
+
+  // SSE endpoint: browser connects here for real-time events
+  function handleSse(req: import('node:http').IncomingMessage, res: ServerResponse): boolean {
+    if (req.url === '/api/events' && req.method === 'GET') {
+      for (const [key, value] of Object.entries(SSE_HEADERS)) {
+        res.setHeader(key, value)
+      }
+      res.writeHead(200)
+      res.write(': connected\n\n')
+      sseClients.add(res)
+      req.on('close', () => sseClients.delete(res))
+      return true
     }
-    current = parent
+    return false
   }
+
+  // In --web mode, create Vite dev server for HMR + frontend serving
+  let viteMiddleware: ((req: import('node:http').IncomingMessage, res: ServerResponse, next: () => void) => void) | undefined
+  if (withWeb) {
+    const vite = await import('vite')
+    const webRoot = resolve(process.cwd(), '../../apps/web')
+    const viteServer = await vite.createServer({
+      root: webRoot,
+      server: { middlewareMode: true },
+    })
+    viteMiddleware = viteServer.middlewares as unknown as typeof viteMiddleware
+    console.log(`[local-server] Vite middleware attached (root: ${webRoot})`)
+  }
+
+  const server = createHttpServer(async (req, res) => {
+    if (handleSse(req, res))
+      return
+
+    const handled = await handleLocalApi(req, res)
+    if (handled)
+      return
+
+    // Non-API routes: delegate to Vite if available, otherwise 404
+    if (viteMiddleware) {
+      viteMiddleware(req, res, () => {
+        res.writeHead(404, { 'content-type': 'application/json; charset=utf-8' })
+        res.end(JSON.stringify({ success: false, msg: `Unknown route: ${req.url || '/'}` }))
+      })
+      return
+    }
+
+    res.writeHead(404, { 'content-type': 'application/json; charset=utf-8' })
+    res.end(JSON.stringify({ success: false, msg: `Unknown route: ${req.url || '/'}` }))
+  })
+
+  server.listen(port, '127.0.0.1', () => {
+    console.log(`[local-server] listening on http://127.0.0.1:${port}`)
+    console.log(`[local-server] SSE endpoint: http://127.0.0.1:${port}/api/events`)
+    if (withWeb) {
+      console.log(`[local-server] Web UI: http://127.0.0.1:${port}`)
+    }
+  })
+
+  const shutdown = () => {
+    console.log('\n[local-server] shutting down...')
+    for (const client of sseClients) {
+      client.end()
+    }
+    sseClients.clear()
+    if (env.db) {
+      env.db.close()
+    }
+    server.close(() => process.exit(0))
+  }
+
+  process.on('SIGINT', shutdown)
+  process.on('SIGTERM', shutdown)
 }
+
+main()

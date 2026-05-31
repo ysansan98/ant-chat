@@ -20,7 +20,6 @@
     "build": "tsdown",
     "clean": "rm -rf dist node_modules",
     "dev": "tsx --conditions=development src/dev.ts",
-    "predev:web": "pnpm -F @ant-chat/desktop rebuild:node",
     "dev:web": "tsx --conditions=development src/dev.ts --web",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
