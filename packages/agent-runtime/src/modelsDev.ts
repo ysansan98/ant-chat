@@ -1,5 +1,7 @@
 import type { ModelsDevModel, ModelsDevProvider, ProviderFormat } from '@ant-chat/shared'
 
+export type { ModelsDevModel, ModelsDevProvider }
+
 const MODELS_DEV_URL = 'https://models.dev/api.json'
 
 interface ModelsDevModelEntry {
@@ -114,7 +116,7 @@ async function fetchModelsDevData(): Promise<ModelsDevDatabase> {
       if (!response.ok) {
         throw new Error(`Models.dev request failed: ${response.status}`)
       }
-      const data = await response.json()
+      const data = await response.json() as ModelsDevDatabase
       cachedDatabase = data
       return data
     }
@@ -127,7 +129,7 @@ async function fetchModelsDevData(): Promise<ModelsDevDatabase> {
   return fetchPromise
 }
 
-export async function getModelsDevProviders() {
+export async function getModelsDevProviders(): Promise<ModelsDevProvider[]> {
   const database = await fetchModelsDevData()
   const providers: ModelsDevProvider[] = []
 
@@ -145,7 +147,7 @@ export async function getModelsDevProviders() {
   return providers
 }
 
-export async function getModelsDevModelsByProviderId(providerId: string) {
+export async function getModelsDevModelsByProviderId(providerId: string): Promise<ModelsDevModel[]> {
   const database = await fetchModelsDevData()
   const models: ModelsDevModel[] = []
 

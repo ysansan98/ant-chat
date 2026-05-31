@@ -1,39 +1,15 @@
-import type { AddServiceProviderModelSchema, AddServiceProviderSchema, AllAvailableModelsSchema, IpcResponse, ModelsDevModel, ServiceProviderModelsSchema, ServiceProviderSchema, UpdateServiceProviderSchema } from '@ant-chat/shared'
+import type { ModelsDevModel, ModelsDevProvider } from '@ant-chat/agent-runtime'
+import type { AddServiceProviderModelSchema, AddServiceProviderSchema, AllAvailableModelsSchema, IpcResponse, ServiceProviderModelsSchema, ServiceProviderSchema, UpdateServiceProviderSchema } from '@ant-chat/shared'
+import { createModelsDevImporter } from '@ant-chat/agent-runtime'
 import { createErrorIpcResponse, createIpcResponse } from '@ant-chat/shared'
 import { getAppDataServices } from '@main/adapters/appDataContainer'
 import { getMainWindow } from '@main/windows/window'
 import { IpcMethod, IpcService } from 'electron-ipc-decorator'
-import { getModelsDevModelsByProviderId, getModelsDevProviders } from './modelsDev'
 
 function notifyProviderChanged() {
   const mainWindow = getMainWindow()
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('provider:changed')
-  }
-}
-
-const KNOWN_INPUT_MODALITIES = new Set(['text', 'image', 'pdf', 'video', 'audio'])
-
-function toModelCapabilities(model: ModelsDevModel) {
-  const hasFeatures = model.toolCall || model.reasoning || model.supportsTemperature || model.structuredOutput
-    || (model.modalities?.input && model.modalities.input.length > 0)
-  if (!hasFeatures)
-    return undefined
-
-  const inputModalities = model.modalities?.input?.length
-    ? model.modalities.input.filter(m => KNOWN_INPUT_MODALITIES.has(m)) as ('text' | 'image' | 'pdf' | 'video' | 'audio')[]
-    : undefined
-  const outputModalities = model.modalities?.output?.length
-    ? model.modalities.output.filter(m => m === 'text' || m === 'image') as ('text' | 'image')[]
-    : undefined
-
-  return {
-    functionCall: model.toolCall || undefined,
-    reasoning: model.reasoning || undefined,
-    supportsTemperature: model.supportsTemperature || undefined,
-    structuredOutput: model.structuredOutput || undefined,
-    inputModalities,
-    outputModalities,
   }
 }
 
@@ -188,9 +164,10 @@ export class ProviderIpcService extends IpcService {
   }
 
   @IpcMethod()
-  async getModelsDevProviders(): Promise<IpcResponse<Awaited<ReturnType<typeof getModelsDevProviders>>>> {
+  async getModelsDevProviders(): Promise<IpcResponse<ModelsDevProvider[]>> {
     try {
-      const result = await getModelsDevProviders()
+      const modelsDevImporter = createModelsDevImporter(getAppDataServices())
+      const result = await modelsDevImporter.getModelsDevProviders()
       return createIpcResponse(true, result)
     }
     catch (error) {
@@ -199,9 +176,10 @@ export class ProviderIpcService extends IpcService {
   }
 
   @IpcMethod()
-  async getModelsDevModelsByProviderId(providerId: string): Promise<IpcResponse<Awaited<ReturnType<typeof getModelsDevModelsByProviderId>>>> {
+  async getModelsDevModelsByProviderId(providerId: string): Promise<IpcResponse<ModelsDevModel[]>> {
     try {
-      const result = await getModelsDevModelsByProviderId(providerId)
+      const modelsDevImporter = createModelsDevImporter(getAppDataServices())
+      const result = await modelsDevImporter.getModelsDevModelsByProviderId(providerId)
       return createIpcResponse(true, result)
     }
     catch (error) {
@@ -212,48 +190,10 @@ export class ProviderIpcService extends IpcService {
   @IpcMethod()
   async importModelsDevModels(providerId: string): Promise<IpcResponse<{ added: string[], skipped: string[], duplicates: string[], errors: { model: string, reason: string }[] }>> {
     try {
-      const models = await getModelsDevModelsByProviderId(providerId)
-      const provider = getAppDataServices().providerSettingsRepository.getProviderSettingsById(providerId)
-      const existingModelSet = new Set(provider ? Object.keys(provider.models) : [])
-      const added: string[] = []
-      const skipped: string[] = []
-      const duplicates: string[] = []
-      const errors: { model: string, reason: string }[] = []
-      const seen = new Set(existingModelSet)
-
-      for (const model of models) {
-        const displayName = model.name ? `${model.name} (${model.model})` : model.model
-        if (seen.has(model.model)) {
-          if (existingModelSet.has(model.model)) {
-            skipped.push(displayName)
-          }
-          else {
-            duplicates.push(displayName)
-          }
-          continue
-        }
-
-        try {
-          getAppDataServices().providerSettingsRepository.addServiceProviderModel({
-            serviceProviderId: providerId,
-            model: model.model,
-            name: model.name,
-            temperature: 0.7,
-            maxTokens: model.maxTokens ?? 4096,
-            contextLength: model.contextLength ?? 4096,
-            capabilities: toModelCapabilities(model),
-            cost: model.cost,
-          })
-          seen.add(model.model)
-          added.push(displayName)
-        }
-        catch (error) {
-          errors.push({ model: displayName, reason: (error as Error).message })
-        }
-      }
-
+      const modelsDevImporter = createModelsDevImporter(getAppDataServices())
+      const result = await modelsDevImporter.importModelsDevModels(providerId)
       notifyProviderChanged()
-      return createIpcResponse(true, { added, skipped, duplicates, errors })
+      return createIpcResponse(true, result)
     }
     catch (error) {
       return createErrorIpcResponse(error as Error)

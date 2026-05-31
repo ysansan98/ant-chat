@@ -1,3 +1,4 @@
+import type { ImportModelsDevModelsResult, ModelsDevModel, ModelsDevProvider } from '@ant-chat/agent-runtime'
 import type { ConversationService, MessageService, ProviderSettingsRepository, SettingsService, WorkspaceService } from '@ant-chat/app-data'
 import type { AddConversationsSchema, AddMessage, AddServiceProviderModelSchema, AddServiceProviderSchema, AgentProfileFiles, ImportSkillFromGithubOptions, SetSkillEnabledOptions, SkillIndex, SkillManifest, UpdateAgentProfileInput, UpdateConversationsSchema, UpdateMessageSchema, UpdateServiceProviderSchema } from '@ant-chat/shared'
 import type { IncomingMessage, ServerResponse } from 'node:http'
@@ -16,6 +17,11 @@ export interface LocalServerServices {
   }
   workspaceService?: Pick<WorkspaceService, 'listWorkspaces' | 'addWorkspace' | 'removeWorkspace' | 'openWorkspace' | 'getCurrentWorkspacePath' | 'getDefaultWorkspacePath'>
   providerSettingsRepository?: ProviderSettingsRepository
+  modelsDevImporter?: {
+    getModelsDevProviders: () => Promise<ModelsDevProvider[]>
+    getModelsDevModelsByProviderId: (providerId: string) => Promise<ModelsDevModel[]>
+    importModelsDevModels: (providerId: string) => Promise<ImportModelsDevModelsResult>
+  }
   skillService?: {
     listSkills: () => Promise<SkillIndex>
     importFromGithub: (options: ImportSkillFromGithubOptions) => Promise<SkillManifest>
@@ -230,9 +236,11 @@ async function dispatchRpc(body: unknown, services: LocalServerServices): Promis
       return result
     }
     case 'provider.getModelsDevProviders':
+      return requireModelsDevImporter(services).getModelsDevProviders()
     case 'provider.getModelsDevModelsByProviderId':
+      return requireModelsDevImporter(services).getModelsDevModelsByProviderId(stringParam(params.providerId))
     case 'provider.importModelsDevModels':
-      throw new Error(`Provider method is not available in local web transport: ${method}`)
+      return requireModelsDevImporter(services).importModelsDevModels(stringParam(params.providerId))
     case 'skills.listSkills':
       return requireSkillService(services).listSkills()
     case 'skills.importSkillFromZip':
@@ -312,6 +320,13 @@ function requireProviderRepository(services: LocalServerServices): ProviderSetti
     throw new Error('Provider service is not available in local web transport')
   }
   return services.providerSettingsRepository
+}
+
+function requireModelsDevImporter(services: LocalServerServices): NonNullable<LocalServerServices['modelsDevImporter']> {
+  if (!services.modelsDevImporter) {
+    throw new Error('Models dev importer is not available in local web transport')
+  }
+  return services.modelsDevImporter
 }
 
 function requireSkillService(services: LocalServerServices): NonNullable<LocalServerServices['skillService']> {
