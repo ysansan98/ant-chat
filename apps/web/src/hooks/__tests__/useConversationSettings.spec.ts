@@ -111,9 +111,6 @@ describe('useConversationSettings', () => {
     vi.mocked(useMessagesStore).mockImplementation(cb => cb({
       activeConversationsId: activeId,
       messages: [],
-      pageIndex: 0,
-      pageSize: 0,
-      messageTotal: 0,
       reset(): void {
         throw new Error('Function not implemented.')
       },

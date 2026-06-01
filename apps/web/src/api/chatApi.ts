@@ -52,10 +52,6 @@ async function deleteMessage(id: string): Promise<null> {
   return (await getAppTransport()).chat.deleteMessage(id)
 }
 
-async function getMessagesByConvIdWithPagination(id: string, pageIndex: number, pageSize: number): Promise<{ data: IMessage[], total: number }> {
-  return (await getAppTransport()).chat.getMessagesByConvIdWithPagination(id, pageIndex, pageSize)
-}
-
 async function batchDeleteMessages(ids: string[]): Promise<null> {
   return (await getAppTransport()).chat.batchDeleteMessages(ids)
 }
@@ -73,6 +69,5 @@ export default {
   addMessage,
   updateMessage,
   deleteMessage,
-  getMessagesByConvIdWithPagination,
   batchDeleteMessages,
 }

@@ -9,8 +9,6 @@ export async function clearActiveConversations() {
   useMessagesStore.setState(state => produce(state, (draft) => {
     draft.activeConversationsId = '' as ConversationsId
     draft.messages = []
-    draft.pageIndex = 0
-    draft.messageTotal = 0
   }))
   useConversationsStore.getState().setActiveConversationsId('')
 }
@@ -21,14 +19,11 @@ export async function setActiveConversationsId(id: ConversationsId | '') {
     return
   }
 
-  const { pageSize } = useMessagesStore.getState()
-  const { data: messages, total } = await chatApi.getMessagesByConvIdWithPagination(id, 0, pageSize)
+  const messages = await chatApi.getMessagesByConvId(id)
 
   useMessagesStore.setState(state => produce(state, (draft) => {
     draft.activeConversationsId = id as ConversationsId
     draft.messages.splice(0, draft.messages.length, ...messages)
-    draft.pageIndex = 1
-    draft.messageTotal = total
   }))
   useConversationsStore.getState().setActiveConversationsId(id)
 }
@@ -73,17 +68,6 @@ export async function updateMessageActionV2(message: IMessage) {
     else {
       draft.messages.push(message)
     }
-  }))
-}
-
-export async function nextPageMessagesAction(conversationsId: ConversationsId) {
-  const { pageIndex, pageSize } = useMessagesStore.getState()
-  const { data: messages, total } = await chatApi.getMessagesByConvIdWithPagination(conversationsId, pageIndex, pageSize)
-
-  useMessagesStore.setState(state => produce(state, (draft) => {
-    draft.messages.splice(0, 0, ...messages)
-    draft.pageIndex = pageIndex + 1
-    draft.messageTotal = total
   }))
 }
 

@@ -95,9 +95,6 @@ describe('sender reference token overlay', () => {
     useMessagesStore.setState({
       activeConversationsId: '',
       messages: [],
-      pageIndex: 0,
-      pageSize: 6,
-      messageTotal: 1,
     })
     useConversationsStore.setState({
       activeConversationsId: '',

@@ -22,7 +22,6 @@ export function createElectronIpcTransport(): AppTransport {
       addMessage: async message => unwrapIpcResponse(await ipc.chat.addMessage(message)),
       updateMessage: async message => unwrapIpcResponse(await ipc.chat.updateMessage(message)),
       deleteMessage: async id => unwrapIpcResponse(await ipc.chat.deleteMessage(id)),
-      getMessagesByConvIdWithPagination: async (id, pageIndex, pageSize) => unwrapIpcPaginatedResponse(await ipc.chat.getMessagesByConvIdWithPagination(id, pageIndex, pageSize)),
       batchDeleteMessages: async ids => unwrapIpcResponse(await ipc.chat.batchDeleteMessages(ids)),
     },
     settings: {

@@ -137,8 +137,6 @@ async function dispatchRpc(body: unknown, services: LocalServerServices): Promis
     case 'chat.deleteMessage':
       await services.messageRepository.delete(stringParam(params.id))
       return null
-    case 'chat.getMessagesByConvIdWithPagination':
-      return services.messageRepository.listByConversationPaginated(stringParam(params.id), numberParam(params.pageIndex), numberParam(params.pageSize))
     case 'chat.batchDeleteMessages':
       await services.messageRepository.batchDelete(Array.isArray(params.ids) ? params.ids.map(String) : [])
       return null

@@ -170,18 +170,6 @@ export class ChatIpcService extends IpcService {
   }
 
   @IpcMethod()
-  async getMessagesByConvIdWithPagination(id: string, pageIndex: number, pageSize: number): Promise<IpcPaginatedResponse<IMessage[]>> {
-    try {
-      const { data, total } = await getAgentRuntimeEnvironment().appDataContext.messageRepository.listByConversationPaginated(id, pageIndex, pageSize)
-      return createIpcPaginatedResponse(true, data, '', total)
-    }
-    catch (error) {
-      logger.error(`分页获取会话消息失败. convId: ${id}`, error)
-      return createErrorIpcResponse(error as Error)
-    }
-  }
-
-  @IpcMethod()
   async batchDeleteMessages(ids: string[]): Promise<IpcResponse<null>> {
     try {
       await getAgentRuntimeEnvironment().appDataContext.messageRepository.batchDelete(ids)

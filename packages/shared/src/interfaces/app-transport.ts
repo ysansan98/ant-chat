@@ -60,7 +60,6 @@ export interface AppTransport {
     addMessage: (message: IMessage) => Promise<IMessage>
     updateMessage: (message: IMessage) => Promise<IMessage>
     deleteMessage: (id: string) => Promise<null>
-    getMessagesByConvIdWithPagination: (id: string, pageIndex: number, pageSize: number) => Promise<{ data: IMessage[], total: number }>
     batchDeleteMessages: (ids: string[]) => Promise<null>
   }
   settings: {
@@ -147,7 +146,6 @@ export interface AppIpcServices {
     addMessage: (message: IMessage) => Promise<IpcResponse<IMessage>>
     updateMessage: (message: IMessage) => Promise<IpcResponse<IMessage>>
     deleteMessage: (id: string) => Promise<IpcResponse<null>>
-    getMessagesByConvIdWithPagination: (id: string, pageIndex: number, pageSize: number) => Promise<IpcPaginatedResponse<IMessage[]>>
     batchDeleteMessages: (ids: string[]) => Promise<IpcResponse<null>>
   }
   mcp: {

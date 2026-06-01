@@ -18,7 +18,6 @@ export function createLocalWebTransport(): AppTransport {
       addMessage: message => localRpc('chat.addMessage', { message }),
       updateMessage: message => localRpc('chat.updateMessage', { message }),
       deleteMessage: id => localRpc('chat.deleteMessage', { id }),
-      getMessagesByConvIdWithPagination: (id, pageIndex, pageSize) => localRpc('chat.getMessagesByConvIdWithPagination', { id, pageIndex, pageSize }),
       batchDeleteMessages: ids => localRpc('chat.batchDeleteMessages', { ids }),
     },
     settings: {

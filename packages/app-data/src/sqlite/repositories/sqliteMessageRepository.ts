@@ -39,26 +39,6 @@ export class SqliteMessageRepository implements MessageRepository {
     return data.map(mapMessageRow)
   }
 
-  async listByConversationPaginated(conversationId: string, pageIndex: number, pageSize: number): Promise<{ data: IMessage[], total: number }> {
-    const countResult = this.db.prepare<unknown[], { count: number }>(`
-      SELECT count(1) AS count
-      FROM messages
-      WHERE conv_id = ?
-    `).get(conversationId)
-    const results = this.db.prepare<unknown[], MessageRow>(`
-      SELECT ${MESSAGE_COLUMNS}
-      FROM messages
-      WHERE conv_id = ?
-      ORDER BY created_at DESC
-      LIMIT ? OFFSET ?
-    `).all(conversationId, pageSize, pageIndex * pageSize)
-
-    return {
-      data: results.map(mapMessageRow).reverse(),
-      total: countResult?.count ?? 0,
-    }
-  }
-
   async getById(id: string): Promise<IMessage> {
     const result = this.db.prepare<unknown[], MessageRow>(`
       SELECT ${MESSAGE_COLUMNS}

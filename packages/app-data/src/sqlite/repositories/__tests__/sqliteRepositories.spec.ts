@@ -45,14 +45,11 @@ describe.skipIf(!canRunDbIntegrationTests())('sqlite repositories', () => {
       attachments: [],
     })
 
-    const messages = await messageRepository.listByConversationPaginated(conversation.id, 0, 20)
+    const messages = await messageRepository.listByConversation(conversation.id)
 
     expect(message.convId).toBe(conversation.id)
     expect(message.content).toEqual([{ type: 'text', text: 'hello' }])
-    expect(messages).toEqual({
-      data: [expect.objectContaining({ id: message.id, convId: conversation.id })],
-      total: 1,
-    })
+    expect(messages).toEqual([expect.objectContaining({ id: message.id, convId: conversation.id })])
   })
 
   it('searches text messages by keyword grouped by conversation', async () => {

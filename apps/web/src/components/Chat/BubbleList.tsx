@@ -3,9 +3,7 @@ import { Button } from '@workspace/ui/components/button'
 import { ArrowDownIcon } from 'lucide-react'
 import { useAutoScroll } from '@/hooks/useAutoScroll'
 import { useMessageActions } from '@/hooks/useMessageActions'
-import { usePagination } from '@/hooks/usePagination'
 import { InfiniteScroll } from '../InfiniteScroll'
-import Loading from '../Loading'
 import { MessageBubble } from './MessageBubble'
 
 interface Props {
@@ -14,7 +12,7 @@ interface Props {
   isAgentRunning: boolean
 }
 
-function BubbleList({ messages, conversationsId, isAgentRunning }: Props) {
+function BubbleList({ messages, isAgentRunning }: Props) {
   const {
     autoScrollToBottom,
     infiniteScrollRef,
@@ -22,30 +20,18 @@ function BubbleList({ messages, conversationsId, isAgentRunning }: Props) {
     scrollToBottom,
   } = useAutoScroll()
 
-  const {
-    isLoading,
-    messageTotal,
-    handleLoadMore,
-  } = usePagination(conversationsId)
-
   const { copyMessage } = useMessageActions()
 
-  const hasMore = messages.length < messageTotal
   const messageGroups = groupMessages(messages)
 
   return (
     <InfiniteScroll
       ref={infiniteScrollRef}
       className="relative flex flex-col gap-6 px-4 py-6"
-      hasMore={hasMore}
-      loading={isLoading}
-      onLoadMore={handleLoadMore}
+      hasMore={false}
+      loading={false}
+      onLoadMore={async () => {}}
       direction="top"
-      loadingComponent={(
-        <div className="flex justify-center py-2">
-          <Loading />
-        </div>
-      )}
       onWheel={handleWheel}
     >
       {messageGroups.map(group => (
@@ -83,14 +69,14 @@ function groupMessages(messages: IMessage[]): IMessage[][] {
     const lastGroup = groups.at(-1)
 
     // Primary: group by turnId
-    if (message.turnId && lastGroup?.at(-1)?.turnId === message.turnId) {
+    if (lastGroup && message.turnId && lastGroup.at(-1)?.turnId === message.turnId) {
       lastGroup.push(message)
       return groups
     }
 
     // Fallback: group consecutive non-user messages
-    if (message.role !== 'user' && lastGroup?.at(-1)?.role !== 'user') {
-      lastGroup?.push(message)
+    if (lastGroup && message.role !== 'user' && lastGroup.at(-1)?.role !== 'user') {
+      lastGroup.push(message)
       return groups
     }
 

@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => ({
   },
   chat: {
     getConversationById: vi.fn(),
+    getMessagesByConvId: vi.fn<(id: string) => Promise<IMessage[]>>(async () => []),
     getMessagesByConvIdWithPagination: vi.fn(),
     getWorkspaceConversations: vi.fn(async () => ({ data: [], total: 0 })),
     initConversationsTitle: vi.fn(async () => ({ success: true, data: null })),
@@ -135,10 +136,7 @@ describe('gui ui flow', () => {
 
     useMessagesStore.setState({
       activeConversationsId: '' as any,
-      messageTotal: 1,
       messages: [],
-      pageIndex: 0,
-      pageSize: 6,
     })
     useConversationsStore.setState(createInitialState())
     useAgentStore.setState({ pendingByTask: {}, tasks: {} })
@@ -158,6 +156,7 @@ describe('gui ui flow', () => {
       data: messagesByConversation.get(id) || [],
       total: messagesByConversation.get(id)?.length || 0,
     }))
+    mocks.chat.getMessagesByConvId.mockImplementation(async (id: string) => messagesByConversation.get(id) || [])
     mocks.chat.getConversationById.mockImplementation(async (id: string) => conversationsById.get(id))
     mocks.chat.updateConversation.mockImplementation(async (conversation: Partial<IConversations> & { id: string }) => {
       const current = conversationsById.get(conversation.id) || createConversation(conversation.id)

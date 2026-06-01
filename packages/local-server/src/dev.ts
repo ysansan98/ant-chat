@@ -62,6 +62,7 @@ function buildServices(env: ReturnType<typeof createAgentRuntimeEnvironment>): L
       updateMemoryFiles: input => env.appDataContext.memoryManager.updateMemoryFiles(input),
       rollbackSoul: () => env.appDataContext.memoryManager.rollbackSoul(),
     },
+    skillService: env.skillManagementService,
     workspaceService: env.appDataContext.workspaceService,
     agentController: env.agentController as unknown as LocalServerServices['agentController'],
     conversationTitleGenerator: createConversationTitleGenerator({
