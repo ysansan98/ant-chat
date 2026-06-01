@@ -1,4 +1,5 @@
 import type { AppDataDatabase } from '../types'
+import { Buffer } from 'node:buffer'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { classifyFile } from '@ant-chat/shared'
@@ -12,10 +13,28 @@ interface OldAttachment {
   data: string
 }
 
+export function decodeAttachmentData(data: string): Buffer {
+  const commaIndex = data.indexOf(',')
+  const base64Data = data.startsWith('data:') && commaIndex !== -1
+    ? data.slice(commaIndex + 1)
+    : data
+
+  return Buffer.from(base64Data, 'base64')
+}
+
+function hasColumn(db: AppDataDatabase, table: string, column: string): boolean {
+  const rows = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>
+  return rows.some(row => row.name === column)
+}
+
 export function migrateMessageAttachments(
   db: AppDataDatabase,
   attachmentsRoot: string,
 ): void {
+  if (!hasColumn(db, 'messages', 'images') || !hasColumn(db, 'messages', 'attachments')) {
+    return
+  }
+
   // 检查是否需要迁移
   const needsMigration = db.prepare(`
     SELECT COUNT(*) as count FROM messages
@@ -63,7 +82,7 @@ export function migrateMessageAttachments(
         const imageBlocks = images.map((img) => {
           const fileId = nanoid()
           const filePath = path.join(attachmentsRoot, fileId)
-          fs.writeFileSync(filePath, img.data, 'utf-8')
+          fs.writeFileSync(filePath, decodeAttachmentData(img.data))
 
           // 插入 attachments 表记录
           insertAttachmentStmt.run(
@@ -90,7 +109,7 @@ export function migrateMessageAttachments(
         const attachmentBlocks = attachments.map((att) => {
           const fileId = nanoid()
           const filePath = path.join(attachmentsRoot, fileId)
-          fs.writeFileSync(filePath, att.data, 'utf-8')
+          fs.writeFileSync(filePath, decodeAttachmentData(att.data))
 
           // 插入 attachments 表记录
           insertAttachmentStmt.run(
@@ -148,6 +167,10 @@ export function migrateMessageAttachments(
 
 // 重建 messages 表，删除 images 和 attachments 列
 export function rebuildMessagesTable(db: AppDataDatabase): void {
+  if (!hasColumn(db, 'messages', 'images') || !hasColumn(db, 'messages', 'attachments')) {
+    return
+  }
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS messages_new (
       id text PRIMARY KEY NOT NULL,

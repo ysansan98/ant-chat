@@ -36,6 +36,7 @@ import {
   PopoverTrigger,
 } from '@workspace/ui/components/popover'
 import { Cable, ChevronDownIcon, FolderOpenIcon, HandIcon, PaperclipIcon, ShieldAlertIcon, ShieldCheckIcon } from 'lucide-react'
+import { nanoid } from 'nanoid'
 import {
   useEffect,
   useLayoutEffect,
@@ -99,7 +100,7 @@ async function filePartToAttachment(part: FileUIPart, index: number) {
   const data = await fileToBase64(file)
 
   return {
-    uid: `${filename}-${index}`,
+    uid: (part as FileUIPart & { id?: string }).id ?? nanoid(),
     name: filename,
     size: file.size,
     type: file.type || 'application/octet-stream',
@@ -709,6 +710,7 @@ function Sender({ actions, ...props }: SenderProps) {
           name: file.name,
           media_type: file.type,
           size: file.size,
+          data: file.data,
         })
       }
       else if (category === 'document') {
@@ -721,6 +723,7 @@ function Sender({ actions, ...props }: SenderProps) {
           name: file.name,
           media_type: file.type,
           size: file.size,
+          data: file.data,
         })
       }
       else {
@@ -734,6 +737,7 @@ function Sender({ actions, ...props }: SenderProps) {
           name: file.name,
           media_type: file.type,
           size: file.size,
+          data: file.data,
         })
       }
     })

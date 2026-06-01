@@ -7,6 +7,7 @@ export interface AgentRuntimePaths {
   mcpSettingsFile: string
   memoryRoot: string
   workspaceSettingsFile: string
+  attachmentsRoot: string
   skillsRoot: string
   logsRoot: string
   taskLogsRoot: string
@@ -22,6 +23,7 @@ export function createAgentRuntimePaths(root: string): AgentRuntimePaths {
     mcpSettingsFile: path.join(root, 'mcp.json'),
     memoryRoot: path.join(root, 'agent-memory'),
     workspaceSettingsFile: path.join(root, 'workspace.json'),
+    attachmentsRoot: path.join(root, 'attachments'),
     skillsRoot: path.join(root, 'skills'),
     logsRoot,
     taskLogsRoot: path.join(logsRoot, 'tasks'),

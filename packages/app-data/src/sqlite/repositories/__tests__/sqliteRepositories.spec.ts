@@ -1,6 +1,10 @@
 import type { Database } from 'better-sqlite3'
+import { Buffer } from 'node:buffer'
 import { spawnSync } from 'node:child_process'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { createRequire } from 'node:module'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { initializeAppDataSchema } from '../../schema'
 import { SqliteMessageSearchQuery } from '../../queries'
@@ -9,20 +13,23 @@ import { SqliteMessageRepository } from '../sqliteMessageRepository'
 
 describe.skipIf(!canRunDbIntegrationTests())('sqlite repositories', () => {
   let sqlite: Database
+  let attachmentsRoot: string
 
   beforeEach(() => {
     const BetterSqlite = loadBetterSqlite()
     sqlite = new BetterSqlite(':memory:')
     initializeAppDataSchema(sqlite)
+    attachmentsRoot = mkdtempSync(path.join(tmpdir(), 'ant-chat-repository-attachments-'))
   })
 
   afterEach(() => {
     sqlite.close()
+    rmSync(attachmentsRoot, { force: true, recursive: true })
   })
 
   it('creates conversations and paginates messages', async () => {
     const conversationRepository = new SqliteConversationRepository(sqlite)
-    const messageRepository = new SqliteMessageRepository(sqlite)
+    const messageRepository = new SqliteMessageRepository(sqlite, { attachmentsRoot })
 
     const conversation = await conversationRepository.create({
       title: 'Test',
@@ -52,7 +59,7 @@ describe.skipIf(!canRunDbIntegrationTests())('sqlite repositories', () => {
 
   it('searches text messages by keyword grouped by conversation', async () => {
     const conversationRepository = new SqliteConversationRepository(sqlite)
-    const messageRepository = new SqliteMessageRepository(sqlite)
+    const messageRepository = new SqliteMessageRepository(sqlite, { attachmentsRoot })
     const searchService = new SqliteMessageSearchQuery(sqlite)
 
     const olderConversation = await conversationRepository.create({
@@ -129,6 +136,55 @@ describe.skipIf(!canRunDbIntegrationTests())('sqlite repositories', () => {
         ],
       },
     ])
+  })
+
+  it('persists inline attachment data and stores file references in message content', async () => {
+    const conversationRepository = new SqliteConversationRepository(sqlite)
+    const messageRepository = new SqliteMessageRepository(sqlite, { attachmentsRoot })
+    const bytes = Buffer.from([0x89, 0x50, 0x4E, 0x47])
+
+    const conversation = await conversationRepository.create({
+      title: 'Attachments',
+      workspacePath: '/workspace',
+      createdAt: 1,
+      updatedAt: 1,
+      settings: {
+        modelId: 'model-1',
+        systemPrompt: '',
+        temperature: 0.7,
+        maxTokens: 1024,
+      },
+    })
+
+    const message = await messageRepository.create({
+      convId: conversation.id,
+      role: 'user',
+      status: 'success',
+      content: [
+        { type: 'text', text: 'see image' },
+        {
+          type: 'image-block',
+          source: { type: 'file_id', file_id: 'img-1' },
+          name: 'image.png',
+          media_type: 'image/png',
+          size: bytes.length,
+          data: `data:image/png;base64,${bytes.toString('base64')}`,
+        },
+      ],
+    })
+
+    expect(message.content).toEqual([
+      { type: 'text', text: 'see image' },
+      {
+        type: 'image-block',
+        source: { type: 'file_id', file_id: 'img-1' },
+        name: 'image.png',
+        media_type: 'image/png',
+        size: bytes.length,
+      },
+    ])
+    expect(readFileSync(path.join(attachmentsRoot, 'img-1'))).toEqual(bytes)
+    await expect(messageRepository.loadAttachmentData('img-1')).resolves.toBe(bytes.toString('base64'))
   })
 })
 

@@ -1,5 +1,5 @@
 import type { IMessage, LoadFileDataFn, LoopMessage } from '@ant-chat/shared'
-import { attachmentsToContentBlocks, imagesToContentBlocks } from '../utils/attachmentUtils'
+import { attachmentsToContentBlocks, contentBlocksToLoopMessageContent, imagesToContentBlocks } from '../utils/attachmentUtils'
 
 export interface LoopSystemPromptMemory {
   memory?: string
@@ -122,71 +122,40 @@ export async function buildConversationContextMessages(
 
   for (const message of valid) {
     const content: LoopMessage['content'] = []
-    for (const block of message.content) {
-      if (block.type === 'text') {
-        content.push(block)
-      }
-      else if (block.type === 'tool-call' && message.role === 'assistant') {
-        content.push({
-          type: 'tool-call',
-          toolCallId: block.toolCallId,
-          toolName: block.toolName,
-          args: block.args,
-        })
-      }
-      else if (block.type === 'tool-result' && message.role === 'tool') {
-        content.push({
-          type: 'tool-result',
-          toolCallId: block.toolCallId,
-          toolName: block.toolName,
-          result: block.result,
-          isError: block.isError,
-        })
+    if (message.role === 'user') {
+      content.push(...await contentBlocksToLoopMessageContent(message.content, loadFileData))
+    }
+    else {
+      for (const block of message.content) {
+        if (block.type === 'text') {
+          content.push(block)
+        }
+        else if (block.type === 'tool-call' && message.role === 'assistant') {
+          content.push({
+            type: 'tool-call',
+            toolCallId: block.toolCallId,
+            toolName: block.toolName,
+            args: block.args,
+          })
+        }
+        else if (block.type === 'tool-result' && message.role === 'tool') {
+          content.push({
+            type: 'tool-result',
+            toolCallId: block.toolCallId,
+            toolName: block.toolName,
+            result: block.result,
+            isError: block.isError,
+          })
+        }
       }
     }
 
-    // 处理用户消息中的附件
     if (message.role === 'user') {
-      // 检查是否有旧格式的 images 和 attachments 字段
       if ('images' in message && message.images?.length) {
         content.push(...imagesToContentBlocks(message.images))
       }
       if ('attachments' in message && message.attachments?.length) {
         content.push(...attachmentsToContentBlocks(message.attachments))
-      }
-
-      // 处理新格式的 content blocks（image-block, document, file）
-      if (loadFileData) {
-        for (const block of message.content) {
-          if (block.type === 'image-block' && block.source.type === 'file_id') {
-            const data = await loadFileData(block.source.file_id)
-            if (data) {
-              content.push({
-                type: 'image',
-                mimeType: block.media_type || 'image/jpeg',
-                data,
-              })
-            }
-          }
-          else if (block.type === 'document' && block.source.type === 'file_id') {
-            const data = await loadFileData(block.source.file_id)
-            if (data) {
-              content.push({
-                type: 'text',
-                text: `<document name="${block.name || 'document'}" type="${block.media_type}">\n${data}\n</document>`,
-              })
-            }
-          }
-          else if (block.type === 'file' && block.source.type === 'file_id') {
-            const data = await loadFileData(block.source.file_id)
-            if (data) {
-              content.push({
-                type: 'text',
-                text: `<file name="${block.filename || block.name || 'file'}" type="${block.media_type}">\n${data}\n</file>`,
-              })
-            }
-          }
-        }
       }
     }
 

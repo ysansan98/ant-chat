@@ -26,8 +26,6 @@ export function initializeAppDataSchema(db: AppDataDatabase): void {
       content text NOT NULL,
       created_at integer NOT NULL,
       status text NOT NULL,
-      images text DEFAULT '[]',
-      attachments text DEFAULT '[]',
       reasoning_content text,
       model_info text DEFAULT NULL,
       usage text DEFAULT NULL,

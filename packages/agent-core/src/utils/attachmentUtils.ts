@@ -110,8 +110,7 @@ export async function contentBlocksToLoopMessageContent(
         break
 
       case 'image':
-        // 原有的 image 类型（URL 图片）
-        if (block.url) {
+        if (block.data) {
           result.push({
             type: 'image',
             mimeType: block.mimeType || 'image/jpeg',
@@ -121,9 +120,8 @@ export async function contentBlocksToLoopMessageContent(
         break
 
       case 'image-block':
-        // 新增的图片块
-        if (block.source.type === 'file_id' && loadFileData) {
-          const data = await loadFileData(block.source.file_id)
+        if (block.source.type === 'file_id') {
+          const data = getBase64Payload(block.data) ?? (loadFileData ? await loadFileData(block.source.file_id) : null)
           if (data) {
             result.push({
               type: 'image',
@@ -135,26 +133,34 @@ export async function contentBlocksToLoopMessageContent(
         break
 
       case 'document':
-        // 文档块
-        if (block.source.type === 'file_id' && loadFileData) {
-          const data = await loadFileData(block.source.file_id)
+        if (block.source.type === 'file_id') {
+          const data = getBase64Payload(block.data) ?? (loadFileData ? await loadFileData(block.source.file_id) : null)
           if (data) {
             result.push({
               type: 'text',
-              text: `<document name="${block.name || 'document'}" type="${block.media_type}">\n${data}\n</document>`,
+              text: formatAttachedFileText({
+                data,
+                mediaType: block.media_type,
+                name: block.name || 'document',
+                tagName: 'document',
+              }),
             })
           }
         }
         break
 
       case 'file':
-        // 文件块
-        if (block.source.type === 'file_id' && loadFileData) {
-          const data = await loadFileData(block.source.file_id)
+        if (block.source.type === 'file_id') {
+          const data = getBase64Payload(block.data) ?? (loadFileData ? await loadFileData(block.source.file_id) : null)
           if (data) {
             result.push({
               type: 'text',
-              text: `<file name="${block.filename || block.name || 'file'}" type="${block.media_type}">\n${data}\n</file>`,
+              text: formatAttachedFileText({
+                data,
+                mediaType: block.media_type,
+                name: block.filename || block.name || 'file',
+                tagName: 'file',
+              }),
             })
           }
         }
@@ -175,4 +181,30 @@ export async function contentBlocksToLoopMessageContent(
   }
 
   return result
+}
+
+function getBase64Payload(data?: string): string | null {
+  if (!data) {
+    return null
+  }
+
+  const commaIndex = data.indexOf(',')
+  return data.startsWith('data:') && commaIndex !== -1
+    ? data.slice(commaIndex + 1)
+    : data
+}
+
+function formatAttachedFileText(input: {
+  data: string
+  mediaType?: string
+  name: string
+  tagName: 'document' | 'file'
+}): string {
+  const type = input.mediaType || 'application/octet-stream'
+  if (!isTextAttachment(type, input.name)) {
+    return `[Attached ${input.tagName}: ${input.name} (${type})]`
+  }
+
+  const decoded = Buffer.from(input.data, 'base64').toString('utf-8')
+  return `<${input.tagName} name="${input.name}" type="${type}">\n${decoded}\n</${input.tagName}>`
 }

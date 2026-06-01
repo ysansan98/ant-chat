@@ -48,6 +48,7 @@ export function createAgentRuntimeEnvironment(
     mcpSettingsFilePath: paths.mcpSettingsFile,
     memoryRootPath: paths.memoryRoot,
     workspaceSettingsFilePath: paths.workspaceSettingsFile,
+    attachmentsRootPath: paths.attachmentsRoot,
   })
   return {
     ...createAgentRuntimeEnvironmentFromContext({
@@ -74,6 +75,7 @@ export function createAgentRuntimeEnvironmentFromContext(
       memoryReader: appDataContext.memoryManager,
       skillReader: skillManagementService,
       mcpClientHub,
+      loadFileData: appDataContext.loadAttachmentData,
       createTaskLogger: createTaskLoggerFactory(paths.taskLogsRoot),
       getToolApprovalWhitelistEntries: () => appDataContext.toolApprovalWhitelistRepository.getAll(),
     },

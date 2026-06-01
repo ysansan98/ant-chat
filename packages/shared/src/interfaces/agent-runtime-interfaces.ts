@@ -214,6 +214,8 @@ export interface AgentRuntimeHost {
   memoryReader?: AgentMemoryReader
   skillReader?: SkillReader
   mcpClientHub?: RuntimeMcpClientHub
+  /** 加载附件文件数据（用于将 file_id 转换为 base64 数据） */
+  loadFileData?: (fileId: string) => Promise<string | null>
   getToolApprovalWhitelistEntries?: () => ToolApprovalWhitelistEntry[]
 }
 

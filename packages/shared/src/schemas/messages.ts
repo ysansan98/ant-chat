@@ -81,6 +81,7 @@ export const ImageBlockSchema = z.object({
   name: z.string().optional(),
   media_type: z.string().optional(),
   size: z.number().optional(),
+  data: z.string().optional(),
 })
 
 export type ImageBlock = z.infer<typeof ImageBlockSchema>
@@ -94,6 +95,7 @@ export const DocumentBlockSchema = z.object({
   name: z.string().optional(),
   media_type: z.string().optional(),
   size: z.number().optional(),
+  data: z.string().optional(),
 })
 
 export type DocumentBlock = z.infer<typeof DocumentBlockSchema>
@@ -106,6 +108,7 @@ export const FileBlockSchema = z.object({
   name: z.string().optional(),
   media_type: z.string().optional(),
   size: z.number().optional(),
+  data: z.string().optional(),
 })
 
 export type FileBlock = z.infer<typeof FileBlockSchema>
