@@ -98,7 +98,7 @@ export function buildConversationContextMessages(
         return false
       if (message.role === 'user' || message.role === 'tool')
         return true
-      return message.status === 'success' || message.status === 'error' || message.status === 'cancel'
+      return message.status === 'success' || message.status === 'cancel'
     })
 
   const result: LoopMessage[] = []
