@@ -21,7 +21,7 @@ import {
 } from '../loop/loopContext'
 import { taskStore } from '../taskStore'
 import { ToolRegistry } from '../tools/toolRegistry'
-import { attachmentsToContentBlocks, imagesToContentBlocks } from '../utils/attachmentUtils'
+import { contentBlocksToLoopMessageContent } from '../utils/attachmentUtils'
 import { buildPromptWithTurnContext } from './turnContext'
 
 const DEFAULT_CONVERSATION_TITLE = 'Untitled'
@@ -80,9 +80,7 @@ export class SessionRuntime {
       convId: conversation.id,
       role: 'user',
       status: 'success',
-      content: [{ type: 'text', text: prompt }],
-      images: options.images ?? [],
-      attachments: options.attachments ?? [],
+      content: options.content ?? [{ type: 'text', text: prompt }],
       turnId: undefined,
     })
 
@@ -113,12 +111,14 @@ export class SessionRuntime {
       selectedSkill: options.selectedSkill,
     })
 
-    const userContent: LoopMessage['content'] = [{ type: 'text', text: enrichedPrompt }]
-    if (options.images?.length) {
-      userContent.push(...imagesToContentBlocks(options.images))
+    // 构建用户内容：优先使用 options.content，否则使用 enrichedPrompt
+    let userContent: LoopMessage['content']
+    if (options.content && options.content.length > 0) {
+      // 使用新的 content 格式，转换为 LoopMessage 格式
+      userContent = contentBlocksToLoopMessageContent(options.content)
     }
-    if (options.attachments?.length) {
-      userContent.push(...attachmentsToContentBlocks(options.attachments))
+    else {
+      userContent = [{ type: 'text', text: enrichedPrompt }]
     }
 
     const messages: LoopMessage[] = [
@@ -214,8 +214,6 @@ export class SessionRuntime {
       role: 'user',
       status: 'success',
       content: [{ type: 'text', text }],
-      images: [],
-      attachments: [],
       turnId,
     })
 

@@ -2,7 +2,7 @@ import type { AddConversationsSchema, AddMessage, ModelInfo, ProviderConfigSchem
 import type { AgentMemoryReader } from './agent-memory'
 import type { AgentMode, AgentPendingAction, AgentTaskSnapshot, ToolApprovalWhitelistEntry } from './agent-runtime'
 import type { AgentTool } from './agent-tools'
-import type { IAttachment, IConversations, IMessage } from './db-types'
+import type { IConversations, IMessage, IMessageContent } from './db-types'
 import type { McpServer, McpToolCallResponse } from './mcp'
 import type { ImportSkillFromGithubOptions, SkillManifest } from './skill'
 
@@ -252,8 +252,7 @@ export interface AgentRuntimeStartTaskOptions {
   modelId: string
   workspacePath: string
   mode?: AgentMode
-  images?: IAttachment[]
-  attachments?: IAttachment[]
+  content?: IMessageContent
   referencedFiles?: string[]
   selectedSkill?: string
   chatSettings?: {

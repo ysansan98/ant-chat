@@ -79,10 +79,8 @@ function toRuntimeStartOptions(
 
   if (options.conversationId)
     startOptions.conversationId = options.conversationId
-  if (options.images)
-    startOptions.images = options.images
-  if (options.attachments)
-    startOptions.attachments = options.attachments
+  if (options.content)
+    startOptions.content = options.content
   if (options.referencedFiles)
     startOptions.referencedFiles = options.referencedFiles
   if (options.selectedSkill)

@@ -41,8 +41,6 @@ describe.skipIf(!canRunDbIntegrationTests())('sqlite repositories', () => {
       role: 'user',
       status: 'success',
       content: [{ type: 'text', text: 'hello' }],
-      images: [],
-      attachments: [],
     })
 
     const messages = await messageRepository.listByConversation(conversation.id)
@@ -87,24 +85,18 @@ describe.skipIf(!canRunDbIntegrationTests())('sqlite repositories', () => {
       role: 'user',
       status: 'success',
       content: [{ type: 'text', text: 'needle in older conversation' }],
-      images: [],
-      attachments: [],
     })
     await messageRepository.create({
       convId: newerConversation.id,
       role: 'user',
       status: 'success',
       content: [{ type: 'image', mimeType: 'image/png', data: 'base64' }],
-      images: [],
-      attachments: [],
     })
     const matchedMessage = await messageRepository.create({
       convId: newerConversation.id,
       role: 'user',
       status: 'success',
       content: [{ type: 'text', text: 'newer conversation has needle' }],
-      images: [],
-      attachments: [],
     })
 
     const results = await searchService.searchMessagesByKeyword('needle')

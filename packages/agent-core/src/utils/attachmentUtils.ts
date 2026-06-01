@@ -1,4 +1,4 @@
-import type { IAttachment, LoopMessage } from '@ant-chat/shared'
+import type { IAttachment, IMessageContent, LoopMessage } from '@ant-chat/shared'
 import { Buffer } from 'node:buffer'
 
 const TEXT_MIME_PREFIXES = ['text/', 'application/json', 'application/xml', 'application/javascript', 'application/typescript', 'application/x-yaml', 'application/yaml', 'application/toml']
@@ -90,4 +90,64 @@ export function imagesToContentBlocks(images: IAttachment[]): LoopMessage['conte
     mimeType: image.type,
     data: image.data,
   }))
+}
+
+/**
+ * 将新的 content blocks 格式转换为 LoopMessage['content'] 格式
+ * 注意：对于 file_id 类型，需要先加载文件数据
+ * 这个函数假设文件数据已经加载到 content blocks 中
+ */
+export function contentBlocksToLoopMessageContent(content: IMessageContent): LoopMessage['content'] {
+  const result: LoopMessage['content'] = []
+
+  for (const block of content) {
+    switch (block.type) {
+      case 'text':
+        result.push({ type: 'text', text: block.text })
+        break
+
+      case 'image':
+        // 原有的 image 类型（URL 图片）
+        if (block.url) {
+          result.push({
+            type: 'image',
+            mimeType: block.mimeType || 'image/jpeg',
+            data: block.data,
+          })
+        }
+        break
+
+      case 'image-block':
+        // 新增的图片块（需要先加载数据）
+        // 注意：这里假设 block.source 已经包含 data 字段
+        // 实际使用时需要通过 AttachmentService 加载数据
+        break
+
+      case 'document':
+        // 文档块（需要先加载数据）
+        // 注意：这里假设 block.source 已经包含 data 字段
+        // 实际使用时需要通过 AttachmentService 加载数据
+        break
+
+      case 'file':
+        // 文件块（需要先加载数据）
+        // 注意：这里假设 block.source 已经包含 data 字段
+        // 实际使用时需要通过 AttachmentService 加载数据
+        break
+
+      case 'error':
+        result.push({ type: 'text', text: `Error: ${block.error}` })
+        break
+
+      case 'tool-call':
+        result.push(block)
+        break
+
+      case 'tool-result':
+        result.push(block)
+        break
+    }
+  }
+
+  return result
 }

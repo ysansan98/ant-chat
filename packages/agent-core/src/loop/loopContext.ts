@@ -144,12 +144,34 @@ export function buildConversationContextMessages(
       }
     }
 
+    // 处理用户消息中的附件
     if (message.role === 'user') {
-      if (message.images?.length) {
+      // 检查是否有旧格式的 images 和 attachments 字段
+      if ('images' in message && message.images?.length) {
         content.push(...imagesToContentBlocks(message.images))
       }
-      if (message.attachments?.length) {
+      if ('attachments' in message && message.attachments?.length) {
         content.push(...attachmentsToContentBlocks(message.attachments))
+      }
+
+      // 处理新格式的 content blocks（image-block, document, file）
+      // 注意：这些类型需要先加载文件数据，这里只处理元数据
+      for (const block of message.content) {
+        if (block.type === 'image-block') {
+          // 图片块需要先加载数据，这里跳过
+          // 实际使用时需要通过 AttachmentService 加载数据
+          continue
+        }
+        if (block.type === 'document') {
+          // 文档块需要先加载数据，这里跳过
+          // 实际使用时需要通过 AttachmentService 加载数据
+          continue
+        }
+        if (block.type === 'file') {
+          // 文件块需要先加载数据，这里跳过
+          // 实际使用时需要通过 AttachmentService 加载数据
+          continue
+        }
       }
     }
 

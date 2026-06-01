@@ -129,14 +129,6 @@ export class SqliteMessageRepository implements MessageRepository {
       fields.push('status = ?')
       params.push(message.status)
     }
-    if (message.images !== undefined) {
-      fields.push('images = ?')
-      params.push(stringifyJson(message.images))
-    }
-    if (message.attachments !== undefined) {
-      fields.push('attachments = ?')
-      params.push(stringifyJson(message.attachments))
-    }
     if (message.reasoningContent !== undefined) {
       fields.push('reasoning_content = ?')
       params.push(message.reasoningContent)
