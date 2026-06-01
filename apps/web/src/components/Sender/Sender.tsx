@@ -1,4 +1,4 @@
-import type { AgentMode, ChatFeatures, IAttachment, IImage, ProviderConfigModelSchema, SkillManifest, WorkspaceFileSearchResult } from '@ant-chat/shared'
+import type { AgentMode, ChatFeatures, IMessageContent, ProviderConfigModelSchema, SkillManifest, WorkspaceFileSearchResult } from '@ant-chat/shared'
 import type { FileUIPart, LanguageModelUsage } from 'ai'
 import {
   Attachment,
@@ -75,9 +75,7 @@ import { ReferenceSuggestionPanel } from './ReferenceSuggestionPanel'
 interface SenderProps {
   actions?: React.ReactNode
   onSubmit?: (
-    message: string,
-    images: IImage[],
-    attachments: IAttachment[],
+    content: IMessageContent,
     referencedFiles: string[],
     selectedSkill: string | undefined,
     features: ChatFeatures,
@@ -680,8 +678,6 @@ function Sender({ actions, ...props }: SenderProps) {
   }
 
   async function handleSubmit(message: { text: string, files: FileUIPart[] }) {
-    const images: IImage[] = []
-    const attachments: IAttachment[] = []
     const nextReferencedFiles = syncReferencedFiles(message.text, referencedFiles)
     const nextSelectedSkill = syncSelectedSkill(message.text, selectedSkill)
 
@@ -689,20 +685,65 @@ function Sender({ actions, ...props }: SenderProps) {
       message.files.map((part, index) => filePartToAttachment(part, index)),
     )
 
+    // 构建 content blocks
+    const content: IMessageContent = [
+      { type: 'text', text: message.text },
+    ]
+
+    // 添加文件 content blocks
     files.forEach((file) => {
       if (!file) {
         return
       }
 
       if (file.type.includes('image')) {
-        images.push(file)
+        content.push({
+          type: 'image-block',
+          source: {
+            type: 'file_id',
+            file_id: file.uid,
+          },
+          name: file.name,
+          media_type: file.type,
+          size: file.size,
+        })
       }
       else {
-        attachments.push(file)
+        const isDocument = file.type.startsWith('text/')
+          || file.type.includes('pdf')
+          || file.type.includes('document')
+          || file.type.includes('spreadsheet')
+          || file.type.includes('presentation')
+
+        if (isDocument) {
+          content.push({
+            type: 'document',
+            source: {
+              type: 'file_id',
+              file_id: file.uid,
+            },
+            name: file.name,
+            media_type: file.type,
+            size: file.size,
+          })
+        }
+        else {
+          content.push({
+            type: 'file',
+            source: {
+              type: 'file_id',
+              file_id: file.uid,
+            },
+            filename: file.name,
+            name: file.name,
+            media_type: file.type,
+            size: file.size,
+          })
+        }
       }
     })
 
-    props.onSubmit?.(message.text, images, attachments, nextReferencedFiles, nextSelectedSkill, {
+    props.onSubmit?.(content, nextReferencedFiles, nextSelectedSkill, {
       enableMCP: mcpEnabled,
     }, agentMode)
     setDraft('')

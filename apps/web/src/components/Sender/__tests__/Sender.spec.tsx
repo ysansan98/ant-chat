@@ -152,9 +152,7 @@ describe('sender reference token overlay', () => {
 
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledWith(
-        '看 @resume.md ',
-        [],
-        [],
+        [{ type: 'text', text: '看 @resume.md ' }],
         ['resume.md'],
         undefined,
         { enableMCP: false },
