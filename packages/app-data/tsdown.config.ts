@@ -6,5 +6,5 @@ export default defineConfig({
   dts: true,
   sourcemap: true,
   clean: true,
-  external: ['@ant-chat/shared'],
+  external: ['@ant-chat/shared', 'zod'],
 })
