@@ -1,6 +1,7 @@
 import type { AppDataDatabase } from '../types'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
+import { classifyFile } from '@ant-chat/shared'
 import { nanoid } from 'nanoid'
 
 interface OldAttachment {
@@ -100,13 +101,9 @@ export function migrateMessageAttachments(
             Date.now(),
           )
 
-          const isDocument = att.type.startsWith('text/')
-            || att.type.includes('pdf')
-            || att.type.includes('document')
-            || att.type.includes('spreadsheet')
-            || att.type.includes('presentation')
+          const category = classifyFile(att.name, att.type)
 
-          if (isDocument) {
+          if (category === 'document') {
             return {
               type: 'document',
               source: {

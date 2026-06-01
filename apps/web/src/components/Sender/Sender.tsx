@@ -1,5 +1,6 @@
 import type { AgentMode, ChatFeatures, IMessageContent, ProviderConfigModelSchema, SkillManifest, WorkspaceFileSearchResult } from '@ant-chat/shared'
 import type { FileUIPart, LanguageModelUsage } from 'ai'
+import { classifyFile } from '@ant-chat/shared'
 import {
   Attachment,
   AttachmentInfo,
@@ -696,7 +697,9 @@ function Sender({ actions, ...props }: SenderProps) {
         return
       }
 
-      if (file.type.includes('image')) {
+      const category = classifyFile(file.name, file.type)
+
+      if (category === 'image') {
         content.push({
           type: 'image-block',
           source: {
@@ -708,38 +711,30 @@ function Sender({ actions, ...props }: SenderProps) {
           size: file.size,
         })
       }
+      else if (category === 'document') {
+        content.push({
+          type: 'document',
+          source: {
+            type: 'file_id',
+            file_id: file.uid,
+          },
+          name: file.name,
+          media_type: file.type,
+          size: file.size,
+        })
+      }
       else {
-        const isDocument = file.type.startsWith('text/')
-          || file.type.includes('pdf')
-          || file.type.includes('document')
-          || file.type.includes('spreadsheet')
-          || file.type.includes('presentation')
-
-        if (isDocument) {
-          content.push({
-            type: 'document',
-            source: {
-              type: 'file_id',
-              file_id: file.uid,
-            },
-            name: file.name,
-            media_type: file.type,
-            size: file.size,
-          })
-        }
-        else {
-          content.push({
-            type: 'file',
-            source: {
-              type: 'file_id',
-              file_id: file.uid,
-            },
-            filename: file.name,
-            name: file.name,
-            media_type: file.type,
-            size: file.size,
-          })
-        }
+        content.push({
+          type: 'file',
+          source: {
+            type: 'file_id',
+            file_id: file.uid,
+          },
+          filename: file.name,
+          name: file.name,
+          media_type: file.type,
+          size: file.size,
+        })
       }
     })
 

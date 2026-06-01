@@ -1,4 +1,4 @@
-import type { IAttachment, IMessageContent, LoopMessage } from '@ant-chat/shared'
+import type { IAttachment, IMessageContent, LoadFileDataFn, LoopMessage } from '@ant-chat/shared'
 import { Buffer } from 'node:buffer'
 
 const TEXT_MIME_PREFIXES = ['text/', 'application/json', 'application/xml', 'application/javascript', 'application/typescript', 'application/x-yaml', 'application/yaml', 'application/toml']
@@ -97,8 +97,6 @@ export function imagesToContentBlocks(images: IAttachment[]): LoopMessage['conte
  * 注意：对于 file_id 类型，需要先加载文件数据
  * 这个函数假设文件数据已经加载到 content blocks 中
  */
-export type LoadFileDataFn = (fileId: string) => Promise<string | null>
-
 export async function contentBlocksToLoopMessageContent(
   content: IMessageContent,
   loadFileData?: LoadFileDataFn,

@@ -1,4 +1,4 @@
-import type { IMessage, LoopMessage } from '@ant-chat/shared'
+import type { IMessage, LoadFileDataFn, LoopMessage } from '@ant-chat/shared'
 import { attachmentsToContentBlocks, imagesToContentBlocks } from '../utils/attachmentUtils'
 
 export interface LoopSystemPromptMemory {
@@ -79,8 +79,6 @@ export function createLoopSystemPrompt(workspacePath: string, customPrompt?: str
 
   return sections.join('\n\n')
 }
-
-export type LoadFileDataFn = (fileId: string) => Promise<string | null>
 
 export async function buildConversationContextMessages(
   messages: IMessage[],
