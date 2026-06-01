@@ -94,6 +94,12 @@ const ERROR_MAPPINGS: ErrorMapping[] = [
     message: '对话内容过长，超出模型限制。请尝试缩短输入或开始新对话。',
   },
 
+  // Account balance errors
+  {
+    pattern: /insufficient\s+account\s+balance/i,
+    message: '账户余额不足。请充值后重试。',
+  },
+
   // Content policy errors
   {
     pattern: /content\s+policy/i,
@@ -116,7 +122,7 @@ const ERROR_MAPPINGS: ErrorMapping[] = [
  * // => 'API 密钥无效。请检查 Provider 设置中的 API Key 是否正确。'
  *
  * transformErrorMessage('Some unknown error occurred')
- * // => '请求失败。请检查配置并重试。'
+ * // => 'Some unknown error occurred'
  */
 export function transformErrorMessage(rawMessage: string): string {
   for (const mapping of ERROR_MAPPINGS) {
@@ -125,6 +131,5 @@ export function transformErrorMessage(rawMessage: string): string {
     }
   }
 
-  // Default fallback message
-  return '请求失败。请检查配置并重试。'
+  return rawMessage
 }

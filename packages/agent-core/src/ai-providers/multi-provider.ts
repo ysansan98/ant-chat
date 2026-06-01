@@ -1,3 +1,7 @@
+import type { AnthropicProvider } from '@ai-sdk/anthropic'
+import type { DeepSeekProvider } from '@ai-sdk/deepseek'
+import type { GoogleGenerativeAIProvider } from '@ai-sdk/google'
+import type { OpenAIProvider } from '@ai-sdk/openai'
 import type { ProviderConfigSchema } from '@ant-chat/shared'
 import type { LanguageModelUsage } from 'ai'
 import type { ProviderFormat } from './types'
@@ -7,13 +11,14 @@ import { createDeepSeek } from '@ai-sdk/deepseek'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI } from '@ai-sdk/openai'
 import { dynamicTool, generateText, jsonSchema, streamText } from 'ai'
+import { AgentError } from '../AgentError'
 
 /**
  * 多提供商 AI 提供商
  * 支持 DeepSeek、OpenAI、Gemini、Anthropic 等多种 AI 提供商
  */
 export class MultiProvider {
-  private client: any
+  private client: DeepSeekProvider | OpenAIProvider | GoogleGenerativeAIProvider | AnthropicProvider
   private format: ProviderFormat
   private logger = {
     info: (msg: string, ...args: any[]) => console.log(`[MultiProvider] ${msg}`, ...args),
@@ -34,6 +39,10 @@ export class MultiProvider {
       reasoningTokens: usage.reasoningTokens,
       cachedInputTokens: usage.cachedInputTokens,
     }
+  }
+
+  private normalizeError(error: unknown): Error {
+    return error instanceof Error ? error : new Error(String(error))
   }
 
   constructor(options: {
@@ -296,48 +305,51 @@ export class MultiProvider {
     // 处理流式响应 - 优先使用 fullStream 支持推理内容
     let usedFullStream = false
 
-    try {
-      for await (const chunk of result.fullStream) {
-        usedFullStream = true
+    for await (const chunk of result.fullStream) {
+      usedFullStream = true
 
-        if (chunk.type === 'reasoning-delta') {
-          // 处理推理内容（实时输出）
-          yield {
-            content: [],
-            reasoningContent: chunk.text,
-          }
-        }
-        else if (chunk.type === 'text-delta') {
-          // 处理普通文本内容（实时输出）
-          const content: any[] = [{ type: 'text', text: chunk.text }]
-
-          yield {
-            content,
-          }
-        }
-        else if (chunk.type === 'tool-call') {
-          const toolDef = tools?.find(item => item.name === chunk.toolName)
-          yield {
-            content: [],
-            functionCalls: [{
-              id: chunk.toolCallId,
-              serverName: toolDef?.serverName || 'native',
-              toolName: chunk.toolName,
-              args: (chunk as any).input || {},
-              executeState: 'await' as const,
-            }],
-          }
-        }
-        else if (chunk.type === 'finish') {
-          finalUsage = chunk.totalUsage || finalUsage
-          finishReason = (chunk as { finishReason?: string }).finishReason || finishReason
+      if (chunk.type === 'reasoning-delta') {
+        // 处理推理内容（实时输出）
+        yield {
+          content: [],
+          reasoningContent: chunk.text,
         }
       }
-    }
-    catch (error) {
-      this.logger.warn('fullStream not supported or error occurred:', error)
-    }
+      else if (chunk.type === 'text-delta') {
+        // 处理普通文本内容（实时输出）
+        const content: any[] = [{ type: 'text', text: chunk.text }]
 
+        yield {
+          content,
+        }
+      }
+      else if (chunk.type === 'tool-call') {
+        const toolDef = tools?.find(item => item.name === chunk.toolName)
+        yield {
+          content: [],
+          functionCalls: [{
+            id: chunk.toolCallId,
+            serverName: toolDef?.serverName || 'native',
+            toolName: chunk.toolName,
+            args: (chunk as any).input || {},
+            executeState: 'await' as const,
+          }],
+        }
+      }
+      else if (chunk.type === 'finish') {
+        finalUsage = chunk.totalUsage || finalUsage
+        finishReason = (chunk as { finishReason?: string }).finishReason || finishReason
+      }
+      else if (chunk.type === 'error') {
+        throw this.normalizeError(chunk.error)
+      }
+      else if (chunk.type === 'abort') {
+        throw new AgentError('AGENT_CANCELLED', 'Task cancelled')
+      }
+      else {
+        this.logger.warn('not match chunk type: ', chunk.type)
+      }
+    }
     // 如果模型不支持 fullStream，则使用 textStream
     if (!usedFullStream) {
       this.logger.debug('Using textStream fallback')

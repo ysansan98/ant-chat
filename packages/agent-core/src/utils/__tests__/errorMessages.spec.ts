@@ -115,14 +115,27 @@ describe('transformErrorMessage', () => {
   })
 
   describe('unknown errors', () => {
-    it('returns default message for unknown errors', () => {
-      const result = transformErrorMessage('some unknown error occurred')
-      expect(result).toBe('请求失败。请检查配置并重试。')
+    it('returns raw message for unknown errors', () => {
+      const rawMessage = 'some unknown error occurred'
+      const result = transformErrorMessage(rawMessage)
+      expect(result).toBe(rawMessage)
     })
 
-    it('returns default message for empty string', () => {
+    it('returns raw message for empty string', () => {
       const result = transformErrorMessage('')
-      expect(result).toBe('请求失败。请检查配置并重试。')
+      expect(result).toBe('')
+    })
+
+    it('returns raw provider response body when no pattern matches', () => {
+      const rawMessage = `responseBody: '{\n' +
+    '    "error": {\n' +
+    '        "code": "999",\n' +
+    '        "message": "Unknown server error",\n' +
+    '        "type": "internal_error"\n' +
+    '    }\n' +
+    '}\n'`
+      const result = transformErrorMessage(rawMessage)
+      expect(result).toBe(rawMessage)
     })
   })
 
