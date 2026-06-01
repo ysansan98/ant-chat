@@ -1,5 +1,5 @@
 import type { IMessage, LoadFileDataFn, LoopMessage } from '@ant-chat/shared'
-import { attachmentsToContentBlocks, contentBlocksToLoopMessageContent, imagesToContentBlocks } from '../utils/attachmentUtils'
+import { contentBlocksToLoopMessageContent } from '../utils/attachmentUtils'
 
 export interface LoopSystemPromptMemory {
   memory?: string
@@ -147,15 +147,6 @@ export async function buildConversationContextMessages(
             isError: block.isError,
           })
         }
-      }
-    }
-
-    if (message.role === 'user') {
-      if ('images' in message && message.images?.length) {
-        content.push(...imagesToContentBlocks(message.images))
-      }
-      if ('attachments' in message && message.attachments?.length) {
-        content.push(...attachmentsToContentBlocks(message.attachments))
       }
     }
 

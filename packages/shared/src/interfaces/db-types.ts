@@ -44,8 +44,6 @@ export interface IMessageBase {
 export interface IMessageUser extends IMessageBase {
   role: 'user'
   content: IMessageContent
-  images: IAttachment[]
-  attachments: IAttachment[]
   status: 'success'
 }
 
@@ -84,8 +82,6 @@ export interface IMessage {
   content: IMessageContent
   reasoningContent?: string
   status: 'success' | 'error' | 'loading' | 'typing' | 'cancel'
-  images?: IAttachment[]
-  attachments?: IAttachment[]
   /** 生成当前消息的模型信息 */
   modelInfo?: IModelInfo
   /** token usage for this message */

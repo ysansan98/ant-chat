@@ -1,3 +1,4 @@
+export * from './attachmentFiles'
 export * from './createAppDataContext'
 export * from './queries'
 export * from './repositories'

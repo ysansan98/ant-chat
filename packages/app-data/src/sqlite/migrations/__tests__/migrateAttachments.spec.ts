@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createRequire } from 'node:module'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { getAttachmentFilePath } from '../../attachmentFiles'
 import { initializeAppDataSchema } from '../../schema'
 import { migrateMessageAttachments } from '../migrateAttachments'
 
@@ -96,8 +97,8 @@ describe.skipIf(!canRunDbIntegrationTests())('migrateMessageAttachments', () => 
       size: textBytes.length,
     })
 
-    expect(readFileSync(path.join(attachmentsRoot, imageBlock.source.file_id))).toEqual(imageBytes)
-    expect(readFileSync(path.join(attachmentsRoot, documentBlock.source.file_id))).toEqual(textBytes)
+    expect(readFileSync(getAttachmentFilePath(attachmentsRoot, imageBlock.source.file_id))).toEqual(imageBytes)
+    expect(readFileSync(getAttachmentFilePath(attachmentsRoot, documentBlock.source.file_id))).toEqual(textBytes)
 
     const attachmentRows = sqlite.prepare(`
       SELECT id, name, media_type, size FROM attachments ORDER BY name

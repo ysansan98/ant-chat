@@ -1,9 +1,10 @@
 import type { AppDataDatabase } from '../types'
 import { Buffer } from 'node:buffer'
 import * as fs from 'node:fs'
-import * as path from 'node:path'
+import path from 'node:path'
 import { classifyFile } from '@ant-chat/shared'
 import { nanoid } from 'nanoid'
+import { getAttachmentFilePath } from '../attachmentFiles'
 
 interface OldAttachment {
   uid: string
@@ -81,7 +82,8 @@ export function migrateMessageAttachments(
         // 将 images 保存到文件并创建引用
         const imageBlocks = images.map((img) => {
           const fileId = nanoid()
-          const filePath = path.join(attachmentsRoot, fileId)
+          const filePath = getAttachmentFilePath(attachmentsRoot, fileId)
+          fs.mkdirSync(path.dirname(filePath), { recursive: true })
           fs.writeFileSync(filePath, decodeAttachmentData(img.data))
 
           // 插入 attachments 表记录
@@ -108,7 +110,8 @@ export function migrateMessageAttachments(
         // 将 attachments 保存到文件并创建引用
         const attachmentBlocks = attachments.map((att) => {
           const fileId = nanoid()
-          const filePath = path.join(attachmentsRoot, fileId)
+          const filePath = getAttachmentFilePath(attachmentsRoot, fileId)
+          fs.mkdirSync(path.dirname(filePath), { recursive: true })
           fs.writeFileSync(filePath, decodeAttachmentData(att.data))
 
           // 插入 attachments 表记录

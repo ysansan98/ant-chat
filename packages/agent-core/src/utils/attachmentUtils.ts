@@ -1,4 +1,4 @@
-import type { IAttachment, IMessageContent, LoadFileDataFn, LoopMessage } from '@ant-chat/shared'
+import type { IMessageContent, LoadFileDataFn, LoopMessage } from '@ant-chat/shared'
 import { Buffer } from 'node:buffer'
 
 const TEXT_MIME_PREFIXES = ['text/', 'application/json', 'application/xml', 'application/javascript', 'application/typescript', 'application/x-yaml', 'application/yaml', 'application/toml']
@@ -71,25 +71,6 @@ export function isTextAttachment(mimeType: string, fileName?: string): boolean {
       return true
   }
   return false
-}
-
-export function attachmentsToContentBlocks(attachments: IAttachment[]): LoopMessage['content'] {
-  const blocks: LoopMessage['content'] = []
-  for (const attachment of attachments) {
-    if (isTextAttachment(attachment.type, attachment.name)) {
-      const decoded = Buffer.from(attachment.data, 'base64').toString('utf-8')
-      blocks.push({ type: 'text', text: `<attached_file name="${attachment.name}">\n${decoded}\n</attached_file>` })
-    }
-  }
-  return blocks
-}
-
-export function imagesToContentBlocks(images: IAttachment[]): LoopMessage['content'] {
-  return images.map(image => ({
-    type: 'image' as const,
-    mimeType: image.type,
-    data: image.data,
-  }))
 }
 
 /**

@@ -92,6 +92,7 @@ export class SessionRuntime {
     if (!provider) {
       throw new Error(`Provider not found for model: ${model.model}`)
     }
+    const loadFileData = createCachedLoadFileData(this.config.loadFileData)
 
     const aiProvider = this.config.aiProviderFactory
       ? await this.config.aiProviderFactory({ model, provider })
@@ -103,7 +104,7 @@ export class SessionRuntime {
       userMessage.id,
       currentConversation?.settings?.lastCompactedAt,
       currentConversation?.settings?.lastCompactionSummary,
-      this.config.loadFileData,
+      loadFileData,
     )
 
     const enrichedPrompt = buildPromptWithTurnContext({
@@ -122,7 +123,7 @@ export class SessionRuntime {
         }
         return block
       })
-      userContent = await contentBlocksToLoopMessageContent(contentWithEnrichedPrompt, this.config.loadFileData)
+      userContent = await contentBlocksToLoopMessageContent(contentWithEnrichedPrompt, loadFileData)
     }
     else {
       userContent = [{ type: 'text', text: enrichedPrompt }]
@@ -258,6 +259,24 @@ function requireConfig<T>(value: T | undefined, name: string): T {
     throw new Error(`AgentRuntime missing required config: ${name}`)
   }
   return value
+}
+
+function createCachedLoadFileData(loadFileData: AgentRuntimeConfig['loadFileData']): AgentRuntimeConfig['loadFileData'] {
+  if (!loadFileData) {
+    return undefined
+  }
+
+  const cache = new Map<string, Promise<string | null>>()
+  return (fileId) => {
+    const cached = cache.get(fileId)
+    if (cached) {
+      return cached
+    }
+
+    const next = loadFileData(fileId)
+    cache.set(fileId, next)
+    return next
+  }
 }
 
 async function getExistingConversation(store: ISessionStore, id: string) {

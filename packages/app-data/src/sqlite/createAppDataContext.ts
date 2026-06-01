@@ -28,9 +28,12 @@ export function createAppDataContext(options: CreateAppDataContextOptions) {
   const appSettingsStore = new AppSettingsStore({ filePath: settingsFilePath, resetInvalidFile: true })
   const providerSettingsRepository = new ProviderSettingsRepository(appSettingsStore)
   const messageRepository = new SqliteMessageRepository(db, { attachmentsRoot: attachmentsRootPath })
+  const conversationRepository = new SqliteConversationRepository(db, {
+    prepareConversationAttachmentCleanup: messageRepository.prepareConversationAttachmentCleanup.bind(messageRepository),
+  })
 
   return {
-    conversationRepository: new SqliteConversationRepository(db),
+    conversationRepository,
     messageRepository,
     messageSearchQuery: new SqliteMessageSearchQuery(db),
     loadAttachmentData: messageRepository.loadAttachmentData.bind(messageRepository),

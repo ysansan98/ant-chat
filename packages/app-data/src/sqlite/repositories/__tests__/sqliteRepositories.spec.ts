@@ -6,6 +6,7 @@ import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { getAttachmentFilePath } from '../../attachmentFiles'
 import { initializeAppDataSchema } from '../../schema'
 import { SqliteMessageSearchQuery } from '../../queries'
 import { SqliteConversationRepository } from '../sqliteConversationRepository'
@@ -183,8 +184,72 @@ describe.skipIf(!canRunDbIntegrationTests())('sqlite repositories', () => {
         size: bytes.length,
       },
     ])
-    expect(readFileSync(path.join(attachmentsRoot, 'img-1'))).toEqual(bytes)
+    expect(readFileSync(getAttachmentFilePath(attachmentsRoot, 'img-1'))).toEqual(bytes)
     await expect(messageRepository.loadAttachmentData('img-1')).resolves.toBe(bytes.toString('base64'))
+  })
+
+  it('removes attachment files when messages and conversations are deleted', async () => {
+    const messageRepository = new SqliteMessageRepository(sqlite, { attachmentsRoot })
+    const conversationRepository = new SqliteConversationRepository(sqlite, {
+      prepareConversationAttachmentCleanup: messageRepository.prepareConversationAttachmentCleanup.bind(messageRepository),
+    })
+    const bytes = Buffer.from('file content', 'utf8')
+
+    const conversation = await conversationRepository.create({
+      title: 'Cleanup',
+      workspacePath: '/workspace',
+      createdAt: 1,
+      updatedAt: 1,
+      settings: {
+        modelId: 'model-1',
+        systemPrompt: '',
+        temperature: 0.7,
+        maxTokens: 1024,
+      },
+    })
+
+    const first = await messageRepository.create({
+      convId: conversation.id,
+      role: 'user',
+      status: 'success',
+      content: [
+        { type: 'text', text: 'first' },
+        {
+          type: 'document',
+          source: { type: 'file_id', file_id: 'doc-1' },
+          name: 'doc.txt',
+          media_type: 'text/plain',
+          size: bytes.length,
+          data: bytes.toString('base64'),
+        },
+      ],
+    })
+    await messageRepository.create({
+      convId: conversation.id,
+      role: 'user',
+      status: 'success',
+      content: [
+        { type: 'text', text: 'second' },
+        {
+          type: 'file',
+          source: { type: 'file_id', file_id: 'file-1' },
+          filename: 'archive.zip',
+          media_type: 'application/zip',
+          size: bytes.length,
+          data: bytes.toString('base64'),
+        },
+      ],
+    })
+
+    expect(readFileSync(getAttachmentFilePath(attachmentsRoot, 'doc-1'))).toEqual(bytes)
+    expect(readFileSync(getAttachmentFilePath(attachmentsRoot, 'file-1'))).toEqual(bytes)
+
+    await messageRepository.delete(first.id)
+    await expect(messageRepository.loadAttachmentData('doc-1')).resolves.toBeNull()
+    expect(readFileSync(getAttachmentFilePath(attachmentsRoot, 'file-1'))).toEqual(bytes)
+
+    await conversationRepository.delete(conversation.id)
+    await expect(messageRepository.loadAttachmentData('file-1')).resolves.toBeNull()
   })
 })
 

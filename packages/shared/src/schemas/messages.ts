@@ -81,6 +81,7 @@ export const ImageBlockSchema = z.object({
   name: z.string().optional(),
   media_type: z.string().optional(),
   size: z.number().optional(),
+  // Transport-only payload. App data strips it before persisting message content.
   data: z.string().optional(),
 })
 
@@ -95,6 +96,7 @@ export const DocumentBlockSchema = z.object({
   name: z.string().optional(),
   media_type: z.string().optional(),
   size: z.number().optional(),
+  // Transport-only payload. App data strips it before persisting message content.
   data: z.string().optional(),
 })
 
@@ -108,6 +110,7 @@ export const FileBlockSchema = z.object({
   name: z.string().optional(),
   media_type: z.string().optional(),
   size: z.number().optional(),
+  // Transport-only payload. App data strips it before persisting message content.
   data: z.string().optional(),
 })
 
@@ -195,9 +198,6 @@ const BaseMessage = z.object({
 
 export const UserMessage = BaseMessage.extend({
   role: z.literal('user'),
-  // 移除独立的 images 和 attachments 字段，合并到 content 中
-  // images: z.array(AttachmentSchema),
-  // attachments: z.array(AttachmentSchema),
   status: z.literal('success'),
 })
 
@@ -246,8 +246,6 @@ export const UpdateMessageSchema = BaseMessage.extend({
   role: z.enum(['assistant', 'user', 'tool', 'event']),
   eventType: z.string().optional(),
   ...(AIMessage.pick({ modelInfo: true, reasoningContent: true, usage: true }).shape),
-  // 移除 images 和 attachments 字段
-  // ...(UserMessage.pick({ images: true, attachments: true }).shape),
 }).partial().extend({ id: z.string() })
 
 export type UpdateMessageSchema = z.infer<typeof UpdateMessageSchema>
