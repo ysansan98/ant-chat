@@ -21,7 +21,7 @@ import {
 } from '../loop/loopContext'
 import { taskStore } from '../taskStore'
 import { ToolRegistry } from '../tools/toolRegistry'
-import { attachmentsToContentBlocks, imagesToContentBlocks } from '../utils/attachmentUtils'
+import { contentBlocksToLoopMessageContent } from '../utils/attachmentUtils'
 import { buildPromptWithTurnContext } from './turnContext'
 
 const DEFAULT_CONVERSATION_TITLE = 'Untitled'
@@ -80,9 +80,7 @@ export class SessionRuntime {
       convId: conversation.id,
       role: 'user',
       status: 'success',
-      content: [{ type: 'text', text: prompt }],
-      images: options.images ?? [],
-      attachments: options.attachments ?? [],
+      content: options.content ?? [{ type: 'text', text: prompt }],
       turnId: undefined,
     })
 
@@ -94,17 +92,19 @@ export class SessionRuntime {
     if (!provider) {
       throw new Error(`Provider not found for model: ${model.model}`)
     }
+    const loadFileData = createCachedLoadFileData(this.config.loadFileData)
 
     const aiProvider = this.config.aiProviderFactory
       ? await this.config.aiProviderFactory({ model, provider })
       : await createProvider(provider)
     const currentConversation = await store.getConversation(conversation.id)
     const historyMessages = await store.getMessages(conversation.id)
-    const contextMessages = buildConversationContextMessages(
+    const contextMessages = await buildConversationContextMessages(
       historyMessages,
       userMessage.id,
       currentConversation?.settings?.lastCompactedAt,
       currentConversation?.settings?.lastCompactionSummary,
+      loadFileData,
     )
 
     const enrichedPrompt = buildPromptWithTurnContext({
@@ -113,12 +113,20 @@ export class SessionRuntime {
       selectedSkill: options.selectedSkill,
     })
 
-    const userContent: LoopMessage['content'] = [{ type: 'text', text: enrichedPrompt }]
-    if (options.images?.length) {
-      userContent.push(...imagesToContentBlocks(options.images))
+    // 构建用户内容
+    let userContent: LoopMessage['content']
+    if (options.content && options.content.length > 0) {
+      // 使用新的 content 格式，将 enrichedPrompt 替换到第一个 text block
+      const contentWithEnrichedPrompt = options.content.map((block) => {
+        if (block.type === 'text') {
+          return { ...block, text: enrichedPrompt }
+        }
+        return block
+      })
+      userContent = await contentBlocksToLoopMessageContent(contentWithEnrichedPrompt, loadFileData)
     }
-    if (options.attachments?.length) {
-      userContent.push(...attachmentsToContentBlocks(options.attachments))
+    else {
+      userContent = [{ type: 'text', text: enrichedPrompt }]
     }
 
     const messages: LoopMessage[] = [
@@ -214,8 +222,6 @@ export class SessionRuntime {
       role: 'user',
       status: 'success',
       content: [{ type: 'text', text }],
-      images: [],
-      attachments: [],
       turnId,
     })
 
@@ -253,6 +259,24 @@ function requireConfig<T>(value: T | undefined, name: string): T {
     throw new Error(`AgentRuntime missing required config: ${name}`)
   }
   return value
+}
+
+function createCachedLoadFileData(loadFileData: AgentRuntimeConfig['loadFileData']): AgentRuntimeConfig['loadFileData'] {
+  if (!loadFileData) {
+    return undefined
+  }
+
+  const cache = new Map<string, Promise<string | null>>()
+  return (fileId) => {
+    const cached = cache.get(fileId)
+    if (cached) {
+      return cached
+    }
+
+    const next = loadFileData(fileId)
+    cache.set(fileId, next)
+    return next
+  }
 }
 
 async function getExistingConversation(store: ISessionStore, id: string) {

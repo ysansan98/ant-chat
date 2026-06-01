@@ -6,6 +6,10 @@ import { AddConversationsSchema as AddConversationInput, UpdateConversationsSche
 import { nanoid } from 'nanoid'
 import { mapConversationRow, stringifyJson } from '../rows'
 
+interface SqliteConversationRepositoryOptions {
+  prepareConversationAttachmentCleanup?: (conversationId: string) => () => void
+}
+
 const CONVERSATION_COLUMNS = `
   id,
   workspace_path,
@@ -16,7 +20,10 @@ const CONVERSATION_COLUMNS = `
 `
 
 export class SqliteConversationRepository implements ConversationRepository {
-  constructor(private readonly db: AppDataDatabase) {}
+  constructor(
+    private readonly db: AppDataDatabase,
+    private readonly options: SqliteConversationRepositoryOptions = {},
+  ) {}
 
   async list(pageIndex: number, pageSize: number = 10, workspacePath?: string, includeNullWorkspace = false) {
     const workspaceWhere = getWorkspaceWhere(workspacePath, includeNullWorkspace)
@@ -120,10 +127,16 @@ export class SqliteConversationRepository implements ConversationRepository {
   }
 
   async delete(id: string): Promise<boolean> {
-    const result = this.db.prepare('DELETE FROM conversations WHERE id = ?').run(id)
-    if (result.changes === 0)
-      throw new Error('会话未找到')
+    let cleanupFiles = () => {}
+    const deleteConversation = this.db.transaction(() => {
+      cleanupFiles = this.options.prepareConversationAttachmentCleanup?.(id) ?? cleanupFiles
+      const result = this.db.prepare('DELETE FROM conversations WHERE id = ?').run(id)
+      if (result.changes === 0)
+        throw new Error('会话未找到')
+    })
 
+    deleteConversation()
+    cleanupFiles()
     return true
   }
 

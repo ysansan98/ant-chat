@@ -30,8 +30,6 @@ export function createUserMessage(option: RequireKey<Partial<IMessageUser>, 'con
     createMessageBase(Role.USER),
     {
       status: 'success',
-      attachments: [],
-      images: [],
     },
     option,
   )

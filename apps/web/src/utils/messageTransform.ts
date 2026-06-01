@@ -26,6 +26,15 @@ export function transformMessageContent(message: IMessage): string {
       const label = block.isError ? 'Error' : 'Result'
       return `${acc}${prefix}[${label}: ${block.toolName}]`
     }
+    else if (block.type === 'image-block') {
+      return `${acc}${prefix}[Image: ${block.name || 'image'}]`
+    }
+    else if (block.type === 'document') {
+      return `${acc}${prefix}[Document: ${block.name || block.title || 'document'}]`
+    }
+    else if (block.type === 'file') {
+      return `${acc}${prefix}[File: ${block.filename || block.name || 'file'}]`
+    }
     else {
       return `${acc}${prefix}${block.text}`
     }

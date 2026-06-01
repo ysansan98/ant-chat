@@ -2,7 +2,7 @@ import type { AddConversationsSchema, AddMessage, ModelInfo, ProviderConfigSchem
 import type { AgentMemoryReader } from './agent-memory'
 import type { AgentMode, AgentPendingAction, AgentTaskSnapshot, ToolApprovalWhitelistEntry } from './agent-runtime'
 import type { AgentTool } from './agent-tools'
-import type { IAttachment, IConversations, IMessage } from './db-types'
+import type { IConversations, IMessage, IMessageContent } from './db-types'
 import type { McpServer, McpToolCallResponse } from './mcp'
 import type { ImportSkillFromGithubOptions, SkillManifest } from './skill'
 
@@ -214,6 +214,8 @@ export interface AgentRuntimeHost {
   memoryReader?: AgentMemoryReader
   skillReader?: SkillReader
   mcpClientHub?: RuntimeMcpClientHub
+  /** 加载附件文件数据（用于将 file_id 转换为 base64 数据） */
+  loadFileData?: (fileId: string) => Promise<string | null>
   getToolApprovalWhitelistEntries?: () => ToolApprovalWhitelistEntry[]
 }
 
@@ -244,6 +246,8 @@ export interface AgentRuntimeConfig extends AgentRuntimeOverrides {
   getToolApprovalWhitelistEntries?: () => ToolApprovalWhitelistEntry[]
   skillReader?: SkillReader
   mcpClientHub?: RuntimeMcpClientHub
+  /** 加载附件文件数据（用于将 file_id 转换为 base64 数据） */
+  loadFileData?: (fileId: string) => Promise<string | null>
 }
 
 export interface AgentRuntimeStartTaskOptions {
@@ -252,8 +256,7 @@ export interface AgentRuntimeStartTaskOptions {
   modelId: string
   workspacePath: string
   mode?: AgentMode
-  images?: IAttachment[]
-  attachments?: IAttachment[]
+  content?: IMessageContent
   referencedFiles?: string[]
   selectedSkill?: string
   chatSettings?: {

@@ -13,6 +13,15 @@ export function useMessageActions() {
       if (b.type === 'image') {
         data.text += `![](data:${b.mimeType};base64,${b.data})\n`
       }
+      else if (b.type === 'image-block') {
+        data.text += `[Image: ${b.name || 'image'}]`
+      }
+      else if (b.type === 'document') {
+        data.text += `[Document: ${b.name || b.title || 'document'}]`
+      }
+      else if (b.type === 'file') {
+        data.text += `[File: ${b.filename || b.name || 'file'}]`
+      }
       else if (b.type === 'error') {
         data.text += `> [!CAUTION]\n> ${b.error}`
       }

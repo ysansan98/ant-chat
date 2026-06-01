@@ -222,12 +222,8 @@ function MessageContentRenderer({
   const itemIsAI = item.role === Role.AI
 
   if (!itemIsAI) {
-    const pickList = ['status']
-    if (itemIsUser) {
-      pickList.push('images', 'attachments')
-    }
     const messageContentProps: Partial<BubbleContent> = {
-      ...pick(item, pickList),
+      ...pick(item, ['status']),
       content,
     }
     return <MessageContent {...messageContentProps} enableReferenceTokens={itemIsUser} />

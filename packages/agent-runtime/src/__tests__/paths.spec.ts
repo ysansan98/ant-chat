@@ -13,6 +13,7 @@ describe('createAgentRuntimePaths', () => {
       mcpSettingsFile: path.join('/data/ant-chat', 'mcp.json'),
       memoryRoot: path.join('/data/ant-chat', 'agent-memory'),
       workspaceSettingsFile: path.join('/data/ant-chat', 'workspace.json'),
+      attachmentsRoot: path.join('/data/ant-chat', 'attachments'),
       skillsRoot: path.join('/data/ant-chat', 'skills'),
       logsRoot: path.join('/data/ant-chat', 'logs'),
       taskLogsRoot: path.join('/data/ant-chat', 'logs', 'tasks'),

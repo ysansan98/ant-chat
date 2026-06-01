@@ -74,8 +74,11 @@ describe('createAgentRuntimeController', () => {
       mode: 'strict',
       referencedFiles: ['src/main.ts'],
       selectedSkill: 'review',
-      images: [{ uid: 'img-1', name: 'a.png', size: 1, type: 'image/png', data: 'base64' }],
-      attachments: [{ uid: 'file-1', name: 'a.txt', size: 1, type: 'text/plain', data: 'text' }],
+      content: [
+        { type: 'text', text: 'run it' },
+        { type: 'image-block', source: { type: 'file_id', file_id: 'img-1' }, name: 'a.png', media_type: 'image/png', size: 1 },
+        { type: 'document', source: { type: 'file_id', file_id: 'file-1' }, name: 'a.txt', media_type: 'text/plain', size: 1 },
+      ],
       modelConfig: {
         modelId: 'model-1',
         systemPrompt: 'custom',
@@ -93,8 +96,11 @@ describe('createAgentRuntimeController', () => {
       mode: 'strict',
       referencedFiles: ['src/main.ts'],
       selectedSkill: 'review',
-      images: [{ uid: 'img-1', name: 'a.png', size: 1, type: 'image/png', data: 'base64' }],
-      attachments: [{ uid: 'file-1', name: 'a.txt', size: 1, type: 'text/plain', data: 'text' }],
+      content: [
+        { type: 'text', text: 'run it' },
+        { type: 'image-block', source: { type: 'file_id', file_id: 'img-1' }, name: 'a.png', media_type: 'image/png', size: 1 },
+        { type: 'document', source: { type: 'file_id', file_id: 'file-1' }, name: 'a.txt', media_type: 'text/plain', size: 1 },
+      ],
     }))
   })
 })

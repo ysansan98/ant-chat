@@ -1,5 +1,5 @@
-import type { IMessage, LoopMessage } from '@ant-chat/shared'
-import { attachmentsToContentBlocks, imagesToContentBlocks } from '../utils/attachmentUtils'
+import type { IMessage, LoadFileDataFn, LoopMessage } from '@ant-chat/shared'
+import { contentBlocksToLoopMessageContent } from '../utils/attachmentUtils'
 
 export interface LoopSystemPromptMemory {
   memory?: string
@@ -80,12 +80,13 @@ export function createLoopSystemPrompt(workspacePath: string, customPrompt?: str
   return sections.join('\n\n')
 }
 
-export function buildConversationContextMessages(
+export async function buildConversationContextMessages(
   messages: IMessage[],
   currentUserMessageId: string,
   lastCompactedAt?: number,
   lastCompactionSummary?: string,
-): LoopMessage[] {
+  loadFileData?: LoadFileDataFn,
+): Promise<LoopMessage[]> {
   const valid = messages
     .filter((message): message is IMessage & { role: 'user' | 'assistant' | 'tool' } => {
       if (message.id === currentUserMessageId)
@@ -121,35 +122,31 @@ export function buildConversationContextMessages(
 
   for (const message of valid) {
     const content: LoopMessage['content'] = []
-    for (const block of message.content) {
-      if (block.type === 'text') {
-        content.push(block)
-      }
-      else if (block.type === 'tool-call' && message.role === 'assistant') {
-        content.push({
-          type: 'tool-call',
-          toolCallId: block.toolCallId,
-          toolName: block.toolName,
-          args: block.args,
-        })
-      }
-      else if (block.type === 'tool-result' && message.role === 'tool') {
-        content.push({
-          type: 'tool-result',
-          toolCallId: block.toolCallId,
-          toolName: block.toolName,
-          result: block.result,
-          isError: block.isError,
-        })
-      }
-    }
-
     if (message.role === 'user') {
-      if (message.images?.length) {
-        content.push(...imagesToContentBlocks(message.images))
-      }
-      if (message.attachments?.length) {
-        content.push(...attachmentsToContentBlocks(message.attachments))
+      content.push(...await contentBlocksToLoopMessageContent(message.content, loadFileData))
+    }
+    else {
+      for (const block of message.content) {
+        if (block.type === 'text') {
+          content.push(block)
+        }
+        else if (block.type === 'tool-call' && message.role === 'assistant') {
+          content.push({
+            type: 'tool-call',
+            toolCallId: block.toolCallId,
+            toolName: block.toolName,
+            args: block.args,
+          })
+        }
+        else if (block.type === 'tool-result' && message.role === 'tool') {
+          content.push({
+            type: 'tool-result',
+            toolCallId: block.toolCallId,
+            toolName: block.toolName,
+            result: block.result,
+            isError: block.isError,
+          })
+        }
       }
     }
 

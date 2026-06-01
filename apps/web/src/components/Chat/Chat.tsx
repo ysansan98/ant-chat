@@ -1,4 +1,4 @@
-import type { AgentMode, ChatFeatures, IAttachment, IImage } from '@ant-chat/shared'
+import type { AgentMode, ChatFeatures, IMessageContent } from '@ant-chat/shared'
 import { Skeleton } from '@workspace/ui/components/skeleton'
 import { lazy, Suspense } from 'react'
 import { toast } from 'sonner'
@@ -33,9 +33,7 @@ export default function Chat() {
   const pending = useAgentStore(state => (agentTaskId ? state.pendingByTask[agentTaskId] : undefined))
 
   async function onSubmit(
-    message: string,
-    images: IImage[],
-    attachments: IAttachment[],
+    content: IMessageContent,
     referencedFiles: string[],
     selectedSkill: string | undefined,
     features: ChatFeatures,
@@ -46,12 +44,15 @@ export default function Chat() {
       return
     }
 
+    // 从 content 中提取文本作为 prompt
+    const textBlocks = content.filter(block => block.type === 'text')
+    const prompt = textBlocks.map(block => block.text).join('\n')
+
     const isNewConversation = !activeConversationsId
     const result = await startAgentTurn({
       conversationId: activeConversationsId || undefined,
-      prompt: message,
-      images,
-      attachments,
+      prompt,
+      content,
       referencedFiles,
       selectedSkill,
       mode: agentMode,

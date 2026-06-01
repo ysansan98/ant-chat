@@ -1,5 +1,5 @@
 import type { AgentMode } from './agent-runtime'
-import type { ChatFeatures, IAttachment, IConversations } from './db-types'
+import type { ChatFeatures, IConversations, IMessageContent } from './db-types'
 import type { ChatSettings } from './model-service'
 
 /**
@@ -8,8 +8,7 @@ import type { ChatSettings } from './model-service'
 export interface StartAgentTurnOptions {
   conversationId?: string
   prompt: string
-  images?: IAttachment[]
-  attachments?: IAttachment[]
+  content?: IMessageContent
   referencedFiles?: string[]
   selectedSkill?: string
   workspacePath?: string

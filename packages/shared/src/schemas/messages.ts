@@ -48,6 +48,76 @@ export const ToolResultContentSchema = z.object({
 
 export type ToolResultContent = z.infer<typeof ToolResultContentSchema>
 
+// ============================ 新增：文件引用类型 ============================
+
+// 文件 ID 来源（本地存储）
+export const FileIdSourceSchema = z.object({
+  type: z.literal('file_id'),
+  file_id: z.string(),
+})
+
+export type FileIdSource = z.infer<typeof FileIdSourceSchema>
+
+// URL 来源（远程图片）
+export const UrlSourceSchema = z.object({
+  type: z.literal('url'),
+  url: z.string(),
+})
+
+export type UrlSource = z.infer<typeof UrlSourceSchema>
+
+// 内容来源联合类型
+export const ContentSourceSchema = z.union([
+  FileIdSourceSchema,
+  UrlSourceSchema,
+])
+
+export type ContentSource = z.infer<typeof ContentSourceSchema>
+
+// 图片内容块（通过 file_id 引用本地文件）
+export const ImageBlockSchema = z.object({
+  type: z.literal('image-block'),
+  source: ContentSourceSchema,
+  name: z.string().optional(),
+  media_type: z.string().optional(),
+  size: z.number().optional(),
+  // Transport-only payload. App data strips it before persisting message content.
+  data: z.string().optional(),
+})
+
+export type ImageBlock = z.infer<typeof ImageBlockSchema>
+
+// 文档内容块（通过 file_id 引用本地文件）
+export const DocumentBlockSchema = z.object({
+  type: z.literal('document'),
+  source: ContentSourceSchema,
+  title: z.string().optional(),
+  context: z.string().optional(),
+  name: z.string().optional(),
+  media_type: z.string().optional(),
+  size: z.number().optional(),
+  // Transport-only payload. App data strips it before persisting message content.
+  data: z.string().optional(),
+})
+
+export type DocumentBlock = z.infer<typeof DocumentBlockSchema>
+
+// 文件内容块（通用类型，用于非图片非文档的文件）
+export const FileBlockSchema = z.object({
+  type: z.literal('file'),
+  source: ContentSourceSchema,
+  filename: z.string().optional(),
+  name: z.string().optional(),
+  media_type: z.string().optional(),
+  size: z.number().optional(),
+  // Transport-only payload. App data strips it before persisting message content.
+  data: z.string().optional(),
+})
+
+export type FileBlock = z.infer<typeof FileBlockSchema>
+
+// ============================ 消息内容 Schema ============================
+
 // 消息内容
 export const MessageContentSchema = z.array(z.union([
   TextContentSchema,
@@ -55,6 +125,9 @@ export const MessageContentSchema = z.array(z.union([
   ErrorContentSchema,
   ToolCallContentSchema,
   ToolResultContentSchema,
+  ImageBlockSchema,
+  DocumentBlockSchema,
+  FileBlockSchema,
 ]))
 
 export type MessageContent = z.infer<typeof MessageContentSchema>
@@ -125,8 +198,6 @@ const BaseMessage = z.object({
 
 export const UserMessage = BaseMessage.extend({
   role: z.literal('user'),
-  images: z.array(AttachmentSchema),
-  attachments: z.array(AttachmentSchema),
   status: z.literal('success'),
 })
 
@@ -175,7 +246,6 @@ export const UpdateMessageSchema = BaseMessage.extend({
   role: z.enum(['assistant', 'user', 'tool', 'event']),
   eventType: z.string().optional(),
   ...(AIMessage.pick({ modelInfo: true, reasoningContent: true, usage: true }).shape),
-  ...(UserMessage.pick({ images: true, attachments: true }).shape),
 }).partial().extend({ id: z.string() })
 
 export type UpdateMessageSchema = z.infer<typeof UpdateMessageSchema>

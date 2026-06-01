@@ -26,13 +26,19 @@ export function initializeAppDataSchema(db: AppDataDatabase): void {
       content text NOT NULL,
       created_at integer NOT NULL,
       status text NOT NULL,
-      images text DEFAULT '[]',
-      attachments text DEFAULT '[]',
       reasoning_content text,
       model_info text DEFAULT NULL,
       usage text DEFAULT NULL,
       turn_id text DEFAULT NULL,
       event_type text DEFAULT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS attachments (
+      id text PRIMARY KEY NOT NULL,
+      name text NOT NULL,
+      media_type text NOT NULL,
+      size integer NOT NULL,
+      created_at integer NOT NULL
     );
   `)
 }
