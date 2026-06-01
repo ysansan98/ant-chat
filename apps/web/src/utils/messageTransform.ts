@@ -17,7 +17,7 @@ export function transformMessageContent(message: IMessage): string {
         : `${acc}${prefix}![](data:${block.mimeType};base64,${block.data})`
     }
     else if (block.type === 'error') {
-      return acc ? `${acc}\n> [!CAUTION]\n> ${block.error}` : block.error
+      return acc ? `${acc}\n${block.error}` : block.error
     }
     else if (block.type === 'tool-call') {
       return `${acc}${prefix}[Tool: ${block.toolName}(${JSON.stringify(block.args)})]`

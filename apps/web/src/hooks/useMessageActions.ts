@@ -23,7 +23,7 @@ export function useMessageActions() {
         data.text += `[File: ${b.filename || b.name || 'file'}]`
       }
       else if (b.type === 'error') {
-        data.text += `> [!CAUTION]\n> ${b.error}`
+        data.text += `${b.error}`
       }
       else if (b.type === 'tool-call') {
         data.text += `[Tool: ${b.toolName}]`

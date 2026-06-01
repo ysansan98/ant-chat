@@ -198,7 +198,7 @@ function buildRenderSegments(item: IMessage): RenderSegment[] {
       isFirstText = false
     }
     else if (block.type === 'error') {
-      segments.push({ kind: 'text', text: `> [!CAUTION]\n> ${block.error}`, isFirst: isFirstText })
+      segments.push({ kind: 'text', text: `${block.error}`, isFirst: isFirstText })
       isFirstText = false
     }
     else if (block.type === 'tool-call') {
