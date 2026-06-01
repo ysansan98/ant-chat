@@ -2,6 +2,7 @@
   "name": "ant-chat",
   "version": "1.0.0-alpha.1",
   "private": true,
+  "packageManager": "pnpm@11.2.2",
   "description": "Ant Chat Monorepo",
   "author": {
     "email": "ysansan.tech@icloud.com",
