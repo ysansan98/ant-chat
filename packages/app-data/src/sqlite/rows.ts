@@ -1,5 +1,4 @@
 import type {
-  AttachmentSchema,
   ConversationsSettingsSchema,
   IConversations,
   IMessage,
@@ -8,13 +7,11 @@ import type {
   ModelInfo,
 } from '@ant-chat/shared'
 import {
-  AttachmentSchema as AttachmentInput,
   ConversationsSettingsSchema as ConversationSettingsInput,
   LanguageModelUsageSchema,
   MessageContentSchema,
   ModelInfoSchema,
 } from '@ant-chat/shared'
-import { z } from 'zod'
 
 export interface ConversationRow {
   id: string
@@ -32,16 +29,12 @@ export interface MessageRow {
   content: string
   created_at: number
   status: string
-  images: string | null
-  attachments: string | null
   reasoning_content: string | null
   model_info: string | null
   usage: string | null
   turn_id: string | null
   event_type: string | null
 }
-
-const AttachmentListInput = z.array(AttachmentInput)
 
 export function mapConversationRow(row: ConversationRow): IConversations {
   return {
@@ -62,8 +55,6 @@ export function mapMessageRow(row: MessageRow): IMessage {
     content: parseMessageContent(row.content),
     createdAt: row.created_at,
     status: row.status as IMessage['status'],
-    images: parseAttachmentList(row.images ?? '[]'),
-    attachments: parseAttachmentList(row.attachments ?? '[]'),
     reasoningContent: row.reasoning_content ?? undefined,
     modelInfo: parseNullableModelInfo(row.model_info),
     usage: parseNullableUsage(row.usage),
@@ -82,10 +73,6 @@ function parseConversationSettings(value: string): ConversationsSettingsSchema {
 
 export function parseMessageContent(value: string): MessageContent {
   return MessageContentSchema.parse(JSON.parse(value))
-}
-
-function parseAttachmentList(value: string): AttachmentSchema[] {
-  return AttachmentListInput.parse(JSON.parse(value))
 }
 
 function parseNullableModelInfo(value: string | null): ModelInfo | undefined {

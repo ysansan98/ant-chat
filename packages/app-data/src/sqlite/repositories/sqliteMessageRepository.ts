@@ -13,8 +13,6 @@ const MESSAGE_COLUMNS = `
   content,
   created_at,
   status,
-  images,
-  attachments,
   reasoning_content,
   model_info,
   usage,
@@ -64,15 +62,13 @@ export class SqliteMessageRepository implements MessageRepository {
         content,
         created_at,
         status,
-        images,
-        attachments,
         reasoning_content,
         model_info,
         usage,
         turn_id,
         event_type
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       RETURNING ${MESSAGE_COLUMNS}
     `).get(
       id,
@@ -81,8 +77,6 @@ export class SqliteMessageRepository implements MessageRepository {
       stringifyJson(message.content),
       Date.now(),
       message.status,
-      'images' in message ? stringifyJson(message.images) : stringifyJson([]),
-      'attachments' in message ? stringifyJson(message.attachments) : stringifyJson([]),
       'reasoningContent' in message ? message.reasoningContent ?? null : null,
       'modelInfo' in message ? stringifyNullableJson(message.modelInfo) : null,
       'usage' in message ? stringifyNullableJson(message.usage) : null,

@@ -98,11 +98,12 @@ export class SessionRuntime {
       : await createProvider(provider)
     const currentConversation = await store.getConversation(conversation.id)
     const historyMessages = await store.getMessages(conversation.id)
-    const contextMessages = buildConversationContextMessages(
+    const contextMessages = await buildConversationContextMessages(
       historyMessages,
       userMessage.id,
       currentConversation?.settings?.lastCompactedAt,
       currentConversation?.settings?.lastCompactionSummary,
+      this.config.loadFileData,
     )
 
     const enrichedPrompt = buildPromptWithTurnContext({
@@ -111,11 +112,17 @@ export class SessionRuntime {
       selectedSkill: options.selectedSkill,
     })
 
-    // 构建用户内容：优先使用 options.content，否则使用 enrichedPrompt
+    // 构建用户内容
     let userContent: LoopMessage['content']
     if (options.content && options.content.length > 0) {
-      // 使用新的 content 格式，转换为 LoopMessage 格式
-      userContent = contentBlocksToLoopMessageContent(options.content)
+      // 使用新的 content 格式，将 enrichedPrompt 替换到第一个 text block
+      const contentWithEnrichedPrompt = options.content.map((block) => {
+        if (block.type === 'text') {
+          return { ...block, text: enrichedPrompt }
+        }
+        return block
+      })
+      userContent = await contentBlocksToLoopMessageContent(contentWithEnrichedPrompt, this.config.loadFileData)
     }
     else {
       userContent = [{ type: 'text', text: enrichedPrompt }]

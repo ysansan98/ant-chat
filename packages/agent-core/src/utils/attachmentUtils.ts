@@ -97,7 +97,12 @@ export function imagesToContentBlocks(images: IAttachment[]): LoopMessage['conte
  * 注意：对于 file_id 类型，需要先加载文件数据
  * 这个函数假设文件数据已经加载到 content blocks 中
  */
-export function contentBlocksToLoopMessageContent(content: IMessageContent): LoopMessage['content'] {
+export type LoadFileDataFn = (fileId: string) => Promise<string | null>
+
+export async function contentBlocksToLoopMessageContent(
+  content: IMessageContent,
+  loadFileData?: LoadFileDataFn,
+): Promise<LoopMessage['content']> {
   const result: LoopMessage['content'] = []
 
   for (const block of content) {
@@ -118,21 +123,43 @@ export function contentBlocksToLoopMessageContent(content: IMessageContent): Loo
         break
 
       case 'image-block':
-        // 新增的图片块（需要先加载数据）
-        // 注意：这里假设 block.source 已经包含 data 字段
-        // 实际使用时需要通过 AttachmentService 加载数据
+        // 新增的图片块
+        if (block.source.type === 'file_id' && loadFileData) {
+          const data = await loadFileData(block.source.file_id)
+          if (data) {
+            result.push({
+              type: 'image',
+              mimeType: block.media_type || 'image/jpeg',
+              data,
+            })
+          }
+        }
         break
 
       case 'document':
-        // 文档块（需要先加载数据）
-        // 注意：这里假设 block.source 已经包含 data 字段
-        // 实际使用时需要通过 AttachmentService 加载数据
+        // 文档块
+        if (block.source.type === 'file_id' && loadFileData) {
+          const data = await loadFileData(block.source.file_id)
+          if (data) {
+            result.push({
+              type: 'text',
+              text: `<document name="${block.name || 'document'}" type="${block.media_type}">\n${data}\n</document>`,
+            })
+          }
+        }
         break
 
       case 'file':
-        // 文件块（需要先加载数据）
-        // 注意：这里假设 block.source 已经包含 data 字段
-        // 实际使用时需要通过 AttachmentService 加载数据
+        // 文件块
+        if (block.source.type === 'file_id' && loadFileData) {
+          const data = await loadFileData(block.source.file_id)
+          if (data) {
+            result.push({
+              type: 'text',
+              text: `<file name="${block.filename || block.name || 'file'}" type="${block.media_type}">\n${data}\n</file>`,
+            })
+          }
+        }
         break
 
       case 'error':

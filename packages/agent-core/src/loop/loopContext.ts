@@ -80,12 +80,15 @@ export function createLoopSystemPrompt(workspacePath: string, customPrompt?: str
   return sections.join('\n\n')
 }
 
-export function buildConversationContextMessages(
+export type LoadFileDataFn = (fileId: string) => Promise<string | null>
+
+export async function buildConversationContextMessages(
   messages: IMessage[],
   currentUserMessageId: string,
   lastCompactedAt?: number,
   lastCompactionSummary?: string,
-): LoopMessage[] {
+  loadFileData?: LoadFileDataFn,
+): Promise<LoopMessage[]> {
   const valid = messages
     .filter((message): message is IMessage & { role: 'user' | 'assistant' | 'tool' } => {
       if (message.id === currentUserMessageId)
@@ -155,22 +158,36 @@ export function buildConversationContextMessages(
       }
 
       // 处理新格式的 content blocks（image-block, document, file）
-      // 注意：这些类型需要先加载文件数据，这里只处理元数据
-      for (const block of message.content) {
-        if (block.type === 'image-block') {
-          // 图片块需要先加载数据，这里跳过
-          // 实际使用时需要通过 AttachmentService 加载数据
-          continue
-        }
-        if (block.type === 'document') {
-          // 文档块需要先加载数据，这里跳过
-          // 实际使用时需要通过 AttachmentService 加载数据
-          continue
-        }
-        if (block.type === 'file') {
-          // 文件块需要先加载数据，这里跳过
-          // 实际使用时需要通过 AttachmentService 加载数据
-          continue
+      if (loadFileData) {
+        for (const block of message.content) {
+          if (block.type === 'image-block' && block.source.type === 'file_id') {
+            const data = await loadFileData(block.source.file_id)
+            if (data) {
+              content.push({
+                type: 'image',
+                mimeType: block.media_type || 'image/jpeg',
+                data,
+              })
+            }
+          }
+          else if (block.type === 'document' && block.source.type === 'file_id') {
+            const data = await loadFileData(block.source.file_id)
+            if (data) {
+              content.push({
+                type: 'text',
+                text: `<document name="${block.name || 'document'}" type="${block.media_type}">\n${data}\n</document>`,
+              })
+            }
+          }
+          else if (block.type === 'file' && block.source.type === 'file_id') {
+            const data = await loadFileData(block.source.file_id)
+            if (data) {
+              content.push({
+                type: 'text',
+                text: `<file name="${block.filename || block.name || 'file'}" type="${block.media_type}">\n${data}\n</file>`,
+              })
+            }
+          }
         }
       }
     }
