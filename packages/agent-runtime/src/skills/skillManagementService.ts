@@ -142,7 +142,29 @@ export class SkillManagementService {
         }
         skills.push(manifest)
       }
-      catch {}
+      catch {
+        // Fallback: if manifest.json is missing, build one from SKILL.md frontmatter
+        try {
+          const skillPath = path.join(this.skillsRoot, entry.name)
+          const skillFile = path.join(skillPath, 'SKILL.md')
+          if (fs.existsSync(skillFile)) {
+            const metadata = await readSkillMetadata(skillPath)
+            const now = Date.now()
+            const manifest: SkillManifest = {
+              name: metadata.name || entry.name,
+              version: metadata.version,
+              description: metadata.description,
+              source: 'zip',
+              enabled: true,
+              installedAt: now,
+              updatedAt: now,
+            }
+            await this.writeManifest(skillPath, manifest)
+            skills.push(manifest)
+          }
+        }
+        catch {}
+      }
     }
     skills.sort((a, b) => a.name.localeCompare(b.name, 'en'))
     await fs.promises.writeFile(path.join(this.skillsRoot, INDEX_FILE), JSON.stringify(skills, null, 2), 'utf8')
