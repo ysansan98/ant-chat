@@ -199,6 +199,7 @@ export async function runAgentLoop(input: {
           conversationId: options.conversationId,
           text: finalAnswer,
           status: 'success',
+          durationMs: Date.now() - taskStartedAt,
         })
         break
       }
@@ -334,6 +335,7 @@ async function handleLoopFailure(options: {
       conversationId: task.snapshot.conversationId,
       text: 'Task cancelled.',
       status: 'cancel',
+      durationMs,
     })
   }
   else {
@@ -344,6 +346,7 @@ async function handleLoopFailure(options: {
       conversationId: task.snapshot.conversationId,
       text: transformErrorMessage(error.message),
       status: 'error',
+      durationMs,
     })
   }
   await config.eventEmitter.emitTaskUpdated(task.snapshot)

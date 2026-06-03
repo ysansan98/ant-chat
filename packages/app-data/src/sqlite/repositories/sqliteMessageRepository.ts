@@ -25,7 +25,8 @@ const MESSAGE_COLUMNS = `
   model_info,
   usage,
   turn_id,
-  event_type
+  event_type,
+  duration_ms
 `
 
 export class SqliteMessageRepository implements MessageRepository {
@@ -81,9 +82,10 @@ export class SqliteMessageRepository implements MessageRepository {
             model_info,
             usage,
             turn_id,
-            event_type
+            event_type,
+            duration_ms
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           RETURNING ${MESSAGE_COLUMNS}
         `).get(
           id,
@@ -97,6 +99,7 @@ export class SqliteMessageRepository implements MessageRepository {
           'usage' in message ? stringifyNullableJson(message.usage) : null,
           'turnId' in message ? message.turnId ?? null : null,
           'eventType' in message ? message.eventType ?? null : null,
+          null,
         )
       })
 
@@ -163,6 +166,10 @@ export class SqliteMessageRepository implements MessageRepository {
     if (message.eventType !== undefined) {
       fields.push('event_type = ?')
       params.push(message.eventType)
+    }
+    if (message.durationMs !== undefined) {
+      fields.push('duration_ms = ?')
+      params.push(message.durationMs)
     }
 
     if (fields.length === 0) {

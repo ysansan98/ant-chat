@@ -166,6 +166,7 @@ describe('runAgentLoop', () => {
       expect.objectContaining({
         status: 'success',
         text: 'Hello World',
+        durationMs: expect.any(Number),
       }),
     )
   })
@@ -366,7 +367,7 @@ describe('runAgentLoop', () => {
 
     // Should have finished successfully
     expect(emitter.emitTurnFinished).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'success' }),
+      expect.objectContaining({ status: 'success', durationMs: expect.any(Number) }),
     )
   })
 
@@ -459,7 +460,7 @@ describe('runAgentLoop', () => {
     expect(updated).toBeUndefined()
 
     expect(emitter.emitTurnFinished).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'cancel' }),
+      expect.objectContaining({ status: 'cancel', durationMs: expect.any(Number) }),
     )
   })
 
@@ -533,7 +534,7 @@ describe('runAgentLoop', () => {
     })
 
     expect(emitter.emitTurnFinished).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'error' }),
+      expect.objectContaining({ status: 'error', durationMs: expect.any(Number) }),
     )
   })
 
@@ -582,7 +583,7 @@ describe('runAgentLoop', () => {
     })
 
     expect(emitter.emitTurnFinished).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'success' }),
+      expect.objectContaining({ status: 'success', durationMs: expect.any(Number) }),
     )
   })
 })

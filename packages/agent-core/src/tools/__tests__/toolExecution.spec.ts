@@ -286,6 +286,159 @@ describe('executeToolStep', () => {
       }),
     )
   })
+
+  it('writes durationMs to tool_completed log payload', async () => {
+    const emitter = createMockEmitter()
+    const logger = createMockLogger()
+    const taskLogger = { filePath: '/tmp/task.jsonl', write: vi.fn(), close: vi.fn() }
+    const registry = new ToolRegistry([createReadTool()])
+    const task = createTask()
+
+    await executeToolStep({
+      task,
+      registry,
+      requestedToolCall: { toolName: 'read_file', input: { path: 'test.txt' } },
+      currentModelText: 'Reading...',
+      currentToolMessages: [],
+      step: 1,
+      config: { eventEmitter: emitter, logger, taskLogger },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
+    })
+
+    expect(taskLogger.write).toHaveBeenCalledWith('tool_completed', expect.objectContaining({
+      durationMs: expect.any(Number),
+    }))
+  })
+
+  it('writes durationMs to tool_failed log payload on execution error', async () => {
+    const emitter = createMockEmitter()
+    const logger = createMockLogger()
+    const taskLogger = { filePath: '/tmp/task.jsonl', write: vi.fn(), close: vi.fn() }
+    const tool = createReadTool({
+      execute: async () => ({ ok: false, error: 'AGENT_TOOL_EXEC_FAILED', stderr: 'fail', exitCode: 1 }),
+    })
+    const registry = new ToolRegistry([tool])
+    const task = createTask()
+
+    await executeToolStep({
+      task,
+      registry,
+      requestedToolCall: { toolName: 'read_file', input: { path: 'secret.txt' } },
+      currentModelText: '',
+      currentToolMessages: [],
+      step: 1,
+      config: { eventEmitter: emitter, logger, taskLogger },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
+    })
+
+    expect(taskLogger.write).toHaveBeenCalledWith('tool_failed', expect.objectContaining({
+      durationMs: expect.any(Number),
+    }))
+  })
+
+  it('writes durationMs to tool_failed log payload on validation error', async () => {
+    const emitter = createMockEmitter()
+    const logger = createMockLogger()
+    const taskLogger = { filePath: '/tmp/task.jsonl', write: vi.fn(), close: vi.fn() }
+    const tool = createReadTool({ validateInput: () => 'Path must be absolute' })
+    const registry = new ToolRegistry([tool])
+    const task = createTask()
+
+    await executeToolStep({
+      task,
+      registry,
+      requestedToolCall: { toolName: 'read_file', input: { path: '' } },
+      currentModelText: '',
+      currentToolMessages: [],
+      step: 1,
+      config: { eventEmitter: emitter, logger, taskLogger },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
+    })
+
+    expect(taskLogger.write).toHaveBeenCalledWith('tool_failed', expect.objectContaining({
+      durationMs: expect.any(Number),
+    }))
+  })
+
+  it('writes durationMs to tool_blocked log payload on policy block', async () => {
+    const emitter = createMockEmitter()
+    const logger = createMockLogger()
+    const taskLogger = { filePath: '/tmp/task.jsonl', write: vi.fn(), close: vi.fn() }
+    const registry = new ToolRegistry([createReadTool()])
+    const task = createTask()
+
+    await executeToolStep({
+      task,
+      registry,
+      requestedToolCall: { toolName: 'read_file', input: { path: '' } },
+      currentModelText: '',
+      currentToolMessages: [],
+      step: 1,
+      config: { eventEmitter: emitter, logger, taskLogger },
+      beforeToolExecute: async () => ({
+        outcome: 'block',
+        errorCode: 'AGENT_POLICY_BLOCKED',
+        reason: 'blocked',
+      }),
+    })
+
+    expect(taskLogger.write).toHaveBeenCalledWith('tool_blocked', expect.objectContaining({
+      durationMs: expect.any(Number),
+    }))
+  })
+
+  it('writes durationMs to tool_cancelled log payload on abort', async () => {
+    const emitter = createMockEmitter()
+    const logger = createMockLogger()
+    const taskLogger = { filePath: '/tmp/task.jsonl', write: vi.fn(), close: vi.fn() }
+    const registry = new ToolRegistry([createReadTool()])
+    const task = createTask()
+    const abortController = new AbortController()
+    abortController.abort()
+
+    await executeToolStep({
+      task,
+      registry,
+      requestedToolCall: { toolName: 'read_file', input: { path: 'test.txt' } },
+      currentModelText: '',
+      currentToolMessages: [],
+      step: 1,
+      config: { eventEmitter: emitter, logger, taskLogger },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
+      abortSignal: abortController.signal,
+    })
+
+    expect(taskLogger.write).toHaveBeenCalledWith('tool_cancelled', expect.objectContaining({
+      durationMs: expect.any(Number),
+    }))
+  })
+
+  it('writes toolReportedDurationMs when tool result provides its own durationMs', async () => {
+    const emitter = createMockEmitter()
+    const logger = createMockLogger()
+    const taskLogger = { filePath: '/tmp/task.jsonl', write: vi.fn(), close: vi.fn() }
+    const tool = createReadTool({
+      execute: async () => ({ ok: true, output: 'ok', exitCode: 0, durationMs: 42 }),
+    })
+    const registry = new ToolRegistry([tool])
+    const task = createTask()
+
+    await executeToolStep({
+      task,
+      registry,
+      requestedToolCall: { toolName: 'read_file', input: { path: 'test.txt' } },
+      currentModelText: '',
+      currentToolMessages: [],
+      step: 1,
+      config: { eventEmitter: emitter, logger, taskLogger },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
+    })
+
+    expect(taskLogger.write).toHaveBeenCalledWith('tool_completed', expect.objectContaining({
+      durationMs: expect.any(Number),
+      toolReportedDurationMs: 42,
+    }))
+  })
 })
 
 describe('createInvalidToolArgsResult', () => {

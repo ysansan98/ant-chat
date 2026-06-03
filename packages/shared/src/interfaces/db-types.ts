@@ -57,6 +57,8 @@ export interface IMessageAI extends IMessageBase {
   modelInfo?: IModelInfo
   /** token usage for this message */
   usage?: LanguageModelUsage
+  /** 任务总耗时（毫秒），仅最终态持久化 */
+  durationMs?: number
 }
 
 // Tool 消息（工具执行结果）
@@ -86,6 +88,8 @@ export interface IMessage {
   modelInfo?: IModelInfo
   /** token usage for this message */
   usage?: LanguageModelUsage
+  /** 任务总耗时（毫秒），仅 assistant 消息的最终态持久化 */
+  durationMs?: number
   /** 事件类型（role 为 'event' 时） */
   eventType?: string
   /** 所属 turn 的用户消息 id */

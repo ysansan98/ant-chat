@@ -51,6 +51,7 @@ interface ToolExecution {
 export async function executeToolStep(options: ExecuteToolStepOptions): Promise<ExecuteToolStepResult> {
   const { task, registry, requestedToolCall, currentModelText, currentToolMessages, step, config } = options
   const logger = getAgentLogger(config)
+  const toolStartedAt = Date.now()
 
   const currentToolCall = registerPendingToolCall(requestedToolCall, registry, currentToolMessages)
   const logContext = createToolLogContext(task, step, currentToolCall.id)
@@ -68,6 +69,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
     config,
     beforeToolExecute: options.beforeToolExecute,
     onToolCallContext: options.onToolCallContext,
+    toolStartedAt,
   })
 
   if (preparation.kind === 'error') {
@@ -76,7 +78,9 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
 
   // Abort check between prepare and execute
   if (options.abortSignal?.aborted) {
-    logger.info('agent-runtime', { event: 'tool_cancelled', ...logContext, toolName: requestedToolCall.toolName })
+    const durationMs = Date.now() - toolStartedAt
+    logger.info('agent-runtime', { event: 'tool_cancelled', ...logContext, toolName: requestedToolCall.toolName, durationMs })
+    config.taskLogger?.write('tool_cancelled', { ...logContext, toolName: requestedToolCall.toolName, durationMs })
     return finalizeToolStep(currentToolCall, {
       kind: 'error',
       error: 'AGENT_CANCELLED',
@@ -89,9 +93,11 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   const execution = await executePreparedTool(preparation.prepared)
 
   // Phase 3: Finalize
+  const durationMs = Date.now() - toolStartedAt
   if (execution.errorMsg) {
-    logger.info('agent-runtime', { event: 'tool_failed', ...logContext, toolName: preparation.prepared.toolName, input: requestedToolCall.input, error: execution.errorMsg, workspacePath: task.snapshot.workspacePath, stdout: execution.result.stdout, stderr: execution.result.stderr, exitCode: execution.result.exitCode, durationMs: execution.result.durationMs })
-    config.taskLogger?.write('tool_failed', { ...logContext, toolName: preparation.prepared.toolName, input: requestedToolCall.input, error: execution.errorMsg, workspacePath: task.snapshot.workspacePath, stdout: execution.result.stdout, stderr: execution.result.stderr, exitCode: execution.result.exitCode, durationMs: execution.result.durationMs })
+    const toolReportedDurationMs = execution.result.durationMs
+    logger.info('agent-runtime', { event: 'tool_failed', ...logContext, toolName: preparation.prepared.toolName, input: requestedToolCall.input, error: execution.errorMsg, workspacePath: task.snapshot.workspacePath, stdout: execution.result.stdout, stderr: execution.result.stderr, exitCode: execution.result.exitCode, durationMs, toolReportedDurationMs })
+    config.taskLogger?.write('tool_failed', { ...logContext, toolName: preparation.prepared.toolName, input: requestedToolCall.input, error: execution.errorMsg, workspacePath: task.snapshot.workspacePath, stdout: execution.result.stdout, stderr: execution.result.stderr, exitCode: execution.result.exitCode, durationMs, toolReportedDurationMs })
     return finalizeToolStep(currentToolCall, {
       kind: 'error',
       error: execution.errorMsg,
@@ -100,7 +106,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
     }, task.snapshot.conversationId, config, currentModelText, currentToolMessages)
   }
 
-  return finalizeSuccessToolStep(currentToolCall, preparation, execution.result, logContext, config, currentModelText, currentToolMessages)
+  return finalizeSuccessToolStep(currentToolCall, preparation, execution.result, logContext, config, currentModelText, currentToolMessages, durationMs)
 }
 
 // ============================================================
@@ -116,10 +122,11 @@ interface PrepareToolStepInput {
   config: AgentRuntimeConfig
   beforeToolExecute: BeforeToolExecuteHook
   onToolCallContext?: (context: ToolCallContext) => void
+  toolStartedAt: number
 }
 
 async function prepareToolStep(input: PrepareToolStepInput): Promise<ToolPreparation> {
-  const { task, registry, requestedToolCall, currentToolCall, step, config, beforeToolExecute, onToolCallContext } = input
+  const { task, registry, requestedToolCall, currentToolCall, step, config, beforeToolExecute, onToolCallContext, toolStartedAt } = input
   const logger = getAgentLogger(config)
 
   const prepared = registry.prepare(requestedToolCall.toolName, requestedToolCall.input)
@@ -134,8 +141,9 @@ async function prepareToolStep(input: PrepareToolStepInput): Promise<ToolPrepara
 
   if (prepared.validationError) {
     const logContext = createToolLogContext(task, step, currentToolCall.id)
-    logger.info('agent-runtime', { event: 'tool_failed', ...logContext, toolName: prepared.toolName, input: requestedToolCall.input, error: prepared.validationError, workspacePath: task.snapshot.workspacePath })
-    config.taskLogger?.write('tool_failed', { ...logContext, toolName: prepared.toolName, input: requestedToolCall.input, error: prepared.validationError, workspacePath: task.snapshot.workspacePath })
+    const durationMs = Date.now() - toolStartedAt
+    logger.info('agent-runtime', { event: 'tool_failed', ...logContext, toolName: prepared.toolName, input: requestedToolCall.input, error: prepared.validationError, workspacePath: task.snapshot.workspacePath, durationMs })
+    config.taskLogger?.write('tool_failed', { ...logContext, toolName: prepared.toolName, input: requestedToolCall.input, error: prepared.validationError, workspacePath: task.snapshot.workspacePath, durationMs })
     return {
       kind: 'error',
       error: prepared.validationError,
@@ -158,8 +166,9 @@ async function prepareToolStep(input: PrepareToolStepInput): Promise<ToolPrepara
 
   if (beforeResult.outcome === 'block') {
     const logContext = createToolLogContext(task, step, currentToolCall.id)
-    logger.info('agent-runtime', { event: 'tool_blocked', ...logContext, toolName: requestedToolCall.toolName, input: requestedToolCall.input, operationType: prepared.operationType, scope: prepared.scope, policy: 'block', reason: beforeResult.reason, errorCode: beforeResult.errorCode, workspacePath: task.snapshot.workspacePath })
-    config.taskLogger?.write('tool_blocked', { ...logContext, toolName: requestedToolCall.toolName, input: requestedToolCall.input, operationType: prepared.operationType, scope: prepared.scope, policy: 'block', reason: beforeResult.reason, errorCode: beforeResult.errorCode, workspacePath: task.snapshot.workspacePath })
+    const durationMs = Date.now() - toolStartedAt
+    logger.info('agent-runtime', { event: 'tool_blocked', ...logContext, toolName: requestedToolCall.toolName, input: requestedToolCall.input, operationType: prepared.operationType, scope: prepared.scope, policy: 'block', reason: beforeResult.reason, errorCode: beforeResult.errorCode, workspacePath: task.snapshot.workspacePath, durationMs })
+    config.taskLogger?.write('tool_blocked', { ...logContext, toolName: requestedToolCall.toolName, input: requestedToolCall.input, operationType: prepared.operationType, scope: prepared.scope, policy: 'block', reason: beforeResult.reason, errorCode: beforeResult.errorCode, workspacePath: task.snapshot.workspacePath, durationMs })
     return {
       kind: 'error',
       error: beforeResult.errorCode,
@@ -222,20 +231,22 @@ async function finalizeSuccessToolStep(
   config: AgentRuntimeConfig,
   currentModelText: string,
   currentToolMessages: McpToolCall[],
+  durationMs: number,
 ): Promise<ExecuteToolStepResult> {
   const { prepared, lastToolCallContext } = preparation
   const logger = getAgentLogger(config)
 
   const toolOutputText = getToolOutputText(result)
   const observation = buildObservation(prepared, result, toolOutputText)
+  const toolReportedDurationMs = result.durationMs
 
   currentToolCall.executeState = 'completed'
   currentToolCall.result = { success: true, data: toolOutputText }
 
   await emitTurnToolCalls(config, logContext.conversationId, currentModelText, currentToolMessages)
 
-  logger.info('agent-runtime', { event: 'tool_completed', ...logContext, toolName: prepared.toolName, outputPreview: toolOutputText, exitCode: result.exitCode, durationMs: result.durationMs })
-  config.taskLogger?.write('tool_completed', { ...logContext, toolName: prepared.toolName, outputPreview: toolOutputText, exitCode: result.exitCode, durationMs: result.durationMs })
+  logger.info('agent-runtime', { event: 'tool_completed', ...logContext, toolName: prepared.toolName, outputPreview: toolOutputText, exitCode: result.exitCode, durationMs, toolReportedDurationMs })
+  config.taskLogger?.write('tool_completed', { ...logContext, toolName: prepared.toolName, outputPreview: toolOutputText, exitCode: result.exitCode, durationMs, toolReportedDurationMs })
 
   return {
     lastToolCallContext,

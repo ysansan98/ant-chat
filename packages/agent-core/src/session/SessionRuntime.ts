@@ -415,6 +415,7 @@ function createStoreBackedEventEmitter(store: ISessionStore, delegate: IAgentEve
           content: params.status === 'error'
             ? [{ type: 'error', error: params.text }]
             : [{ type: 'text', text: params.text }],
+          durationMs: params.durationMs,
         })
         await delegate.emitMessageUpdated?.(message)
         turns.delete(params.conversationId)

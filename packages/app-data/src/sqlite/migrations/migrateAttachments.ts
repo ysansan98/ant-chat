@@ -174,6 +174,10 @@ export function rebuildMessagesTable(db: AppDataDatabase): void {
     return
   }
 
+  const hasDurationMs = hasColumn(db, 'messages', 'duration_ms')
+  const durationCol = hasDurationMs ? ', duration_ms' : ''
+  const durationSelect = hasDurationMs ? ', duration_ms' : ''
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS messages_new (
       id text PRIMARY KEY NOT NULL,
@@ -186,12 +190,12 @@ export function rebuildMessagesTable(db: AppDataDatabase): void {
       model_info text DEFAULT NULL,
       usage text DEFAULT NULL,
       turn_id text DEFAULT NULL,
-      event_type text DEFAULT NULL
+      event_type text DEFAULT NULL${durationCol}
     );
 
     INSERT INTO messages_new
     SELECT id, conv_id, role, content, created_at, status,
-           reasoning_content, model_info, usage, turn_id, event_type
+           reasoning_content, model_info, usage, turn_id, event_type${durationSelect}
     FROM messages;
 
     DROP TABLE messages;
@@ -200,4 +204,16 @@ export function rebuildMessagesTable(db: AppDataDatabase): void {
   `)
 
   console.log('Messages table rebuilt without images/attachments columns.')
+}
+
+/**
+ * 幂等迁移：为已有数据库补上 duration_ms 列
+ */
+export function migrateAddDurationMs(db: AppDataDatabase): void {
+  if (hasColumn(db, 'messages', 'duration_ms')) {
+    return
+  }
+
+  db.exec('ALTER TABLE messages ADD COLUMN duration_ms integer DEFAULT NULL')
+  console.log('Added duration_ms column to messages table.')
 }
