@@ -77,7 +77,7 @@ export default function Chat() {
   return (
     <div
       key={currentConversations?.id}
-      className="relative mx-auto grid h-(--mainHeight) w-full grid-rows-[1fr_max-content]"
+      className="relative mx-auto grid h-full w-full grid-rows-[1fr_max-content]"
     >
 
       {
@@ -93,7 +93,7 @@ export default function Chat() {
             )
           : null
       }
-      <div className="px-2 pb-4">
+      <div className="px-3 pb-3 md:px-2 md:pb-4">
         {agentTask && pending
           ? (
               <AgentApprovalCard

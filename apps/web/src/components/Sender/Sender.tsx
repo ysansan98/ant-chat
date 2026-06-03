@@ -757,11 +757,11 @@ function Sender({ actions, ...props }: SenderProps) {
       ref={senderRef}
       className={`
         mx-auto max-w-(--chat-width)
-        ${!hasMessage ? 'absolute inset-x-3 top-[50%] translate-y-[-50%]' : ''}
+        ${!hasMessage ? 'absolute inset-x-4 top-[50%] translate-y-[-50%] md:inset-x-3' : ''}
       `}
     >
       {!hasMessage && (
-        <h1 className="mb-3 py-3 text-center text-4xl text-gray-500">
+        <h1 className="mb-3 py-3 text-center text-2xl text-gray-500 md:text-4xl">
           <TypingEffect text="有什么可以帮忙的？" />
         </h1>
       )}
@@ -836,8 +836,10 @@ function Sender({ actions, ...props }: SenderProps) {
                   data-testid="workspace-switcher"
                   disabled={workspaceLoading}
                   aria-disabled={workspaceSwitchDisabled}
+                  tooltip="切换工作区"
                   className={`
-                    h-8 max-w-52 justify-start border px-2
+                    h-8 justify-start border px-2
+                    md:max-w-52
                     ${workspaceSwitchDisabled
       ? `
         pointer-events-none opacity-100
@@ -847,7 +849,7 @@ function Sender({ actions, ...props }: SenderProps) {
                   `}
                 >
                   <FolderOpenIcon className="size-4 shrink-0" />
-                  <span className="truncate text-xs">{workspaceDisplayName}</span>
+                  <span className="hidden truncate text-xs md:inline">{workspaceDisplayName}</span>
                 </PromptInputButton>
               </PopoverTrigger>
               <PopoverContent align="start" className="w-64 p-1">
@@ -882,13 +884,14 @@ function Sender({ actions, ...props }: SenderProps) {
                   size="sm"
                   type="button"
                   variant="ghost"
+                  tooltip="权限模式"
                   className={`
                     ${agentMode === 'full_managed' ? 'text-orange-600' : ''}
                   `}
                 >
                   {currentAgentModeOption.icon}
-                  {currentAgentModeOption.label}
-                  <ChevronDownIcon className="size-3" />
+                  <span className="hidden md:inline">{currentAgentModeOption.label}</span>
+                  <ChevronDownIcon className="hidden size-3 md:inline" />
                 </PromptInputButton>
               </PopoverTrigger>
               <PopoverContent align="start" className="w-52 p-1">
@@ -919,12 +922,13 @@ function Sender({ actions, ...props }: SenderProps) {
                   size="sm"
                   type="button"
                   variant={mcpEnabled ? 'secondary' : 'ghost'}
+                  tooltip="MCP 工具"
                 >
                   <Cable className="size-3" />
-                  MCP
+                  <span className="hidden md:inline">MCP</span>
                 </PromptInputButton>
               </PopoverTrigger>
-              <PopoverContent align="start" className="w-[340px] p-0">
+              <PopoverContent align="start" className="w-85 p-0">
                 <MCPManagementPanel />
               </PopoverContent>
             </Popover>

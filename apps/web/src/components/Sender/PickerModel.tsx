@@ -67,7 +67,7 @@ export function ModelControlPanel({ value, onChange }: ModelControlPanelProps) {
           `}
           >
             <ProviderLogoDisplay providerId={activeProviderServiceInfo?.id || ''} />
-            <div className="flex max-w-30 items-center truncate text-xs font-medium">
+            <div className="hidden max-w-30 items-center truncate text-xs font-medium md:flex">
               <span className="truncate">{currentModelInfo?.name}</span>
               <span className="px-2">›</span>
             </div>

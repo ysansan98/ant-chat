@@ -26,12 +26,15 @@
   --border-color: #424242;
 }
 
-@media (max-width: 768px) {
+/* 移动端：聊天区域全宽，标题区域缩小 */
+@media (max-width: 767px) {
   :root {
-    --chat-width: 100vw;
+    --chat-width: 100%;
+    --titleHeight: 40px;
   }
 }
 
+/* 超大屏：内容区域定宽居中 */
 @media (min-width: 1096px) {
   :root {
     --chat-width: 800px;

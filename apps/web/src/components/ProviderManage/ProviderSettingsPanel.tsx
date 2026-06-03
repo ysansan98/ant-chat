@@ -21,7 +21,7 @@ export function ProviderSettingsPanel({ item, onChange, onDelete }: ProviderSett
   const officialKeyUrl = getOfficialKeyUrl(item.id)
 
   return (
-    <div className="h-dvh flex-1 overflow-y-auto p-3">
+    <div className="h-full flex-1 overflow-y-auto p-3">
       {
         !item.isOfficial && (
           <div className="flex items-center justify-end">
