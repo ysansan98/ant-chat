@@ -1,5 +1,4 @@
 import type { IMessage } from '@ant-chat/shared'
-import type { BubbleContent } from '@/types/global'
 import {
   MessageContent as AiMessageContent,
   Message,
@@ -10,14 +9,14 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@workspace/ui/components/collapsible'
+import { Separator } from '@workspace/ui/components/separator'
 import { cn } from '@workspace/ui/lib/utils'
-import { pick } from 'lodash-es'
 import { ChevronRightIcon, ShrinkIcon } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Role } from '@/constants'
 import { transformMessageContent } from '@/utils/messageTransform'
+import { AssistantTrace } from './AssistantTrace'
 import BubbleFooter from './BubbleFooter'
-import { McpToolCallPanel } from './McpToolCallPanel'
 import MessageContent from './MessageContent'
 
 interface MessageBubbleProps {
@@ -33,7 +32,7 @@ export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }:
   const isAI = message.role === Role.AI
   const isEvent = message.role === Role.EVENT
 
-  // 建立 toolCallId → tool-result 消息的索引
+  // Build toolCallId → tool-result message index
   const toolResultMap = useMemo(() => {
     const map = new Map<string, IMessage>()
     for (const m of messages) {
@@ -48,7 +47,20 @@ export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }:
     return map
   }, [messages])
 
-  // 事件消息：渲染为可折叠分隔线
+  // Determine if the last assistant message has reasoning / is running (for fold decisions).
+  // Must be computed before early returns to keep hook order stable.
+  const nonToolForFold = messages.filter(m => m.role !== 'tool')
+  const lastNonTool = nonToolForFold[nonToolForFold.length - 1]
+  const isRunning = lastNonTool?.status === 'loading' || lastNonTool?.status === 'typing'
+
+  // Auto-open fold only while the conversation is streaming
+  useEffect(() => {
+    if (collapseIntermediate && isRunning && nonToolForFold.length > 1) {
+      setIsProcessOpen(true)
+    }
+  }, [collapseIntermediate, isRunning, nonToolForFold.length])
+
+  // Event messages: render as collapsible divider
   if (isEvent) {
     const eventLabel = message.eventType === 'compaction' ? '上下文压缩' : message.eventType
     const eventText = typeof message.content === 'string'
@@ -86,14 +98,40 @@ export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }:
     )
   }
 
-  // 只展示 non-tool 消息（assistant + user）
-  const nonToolMessages = messages.filter(m => m.role !== 'tool')
+  // Show only non-tool messages (assistant + user)
+  const nonToolMessages = nonToolForFold
+
   if (nonToolMessages.length === 0)
     return null
 
-  const shouldCollapseProcess = isAI && collapseIntermediate && nonToolMessages.length > 1
-  const processMessages = shouldCollapseProcess ? nonToolMessages.slice(0, -1) : []
-  const visibleMessages = shouldCollapseProcess ? nonToolMessages.slice(-1) : nonToolMessages
+  // Split messages into process (fold) and visible:
+  // - Messages without text → always in fold
+  // - Messages with tool calls → always in fold
+  // - The last message stays visible (its text is the final answer),
+  //   but its reasoning is extracted into a virtual message in the fold
+  const processIds = new Set<string>()
+  const processMessages: IMessage[] = []
+
+  for (const m of nonToolMessages) {
+    if (!messageHasTextContent(m) || messageHasToolCalls(m)) {
+      processMessages.push(m)
+      processIds.add(m.id)
+    }
+  }
+
+  // Extract reasoning from the last message into the fold
+  const lastNonToolMsg = nonToolMessages[nonToolMessages.length - 1]
+  if (lastNonToolMsg?.reasoningContent && !processIds.has(lastNonToolMsg.id)) {
+    processMessages.push({
+      ...lastNonToolMsg,
+      id: `${lastNonToolMsg.id}:reasoning-fold`,
+      content: [],
+    })
+  }
+
+  const visibleMessages = nonToolMessages.filter(m => !processIds.has(m.id))
+
+  const shouldCollapseProcess = isAI && collapseIntermediate && processMessages.length > 0
 
   return (
     <Message
@@ -137,9 +175,8 @@ export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }:
                         key={item.id}
                         data-message-id={item.id}
                       >
-                        <MessageContentRenderer
+                        <AssistantMessageContent
                           item={item}
-                          content={transformMessageContent(item)}
                           toolResultMap={toolResultMap}
                         />
                       </div>
@@ -151,18 +188,17 @@ export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }:
               {visibleMessages.map((item, index) => (
                 <div
                   key={item.id}
-                  className={cn(
-                    (index > 0 || shouldCollapseProcess) && `
-                      border-t border-gray-200 pt-5
-                      dark:border-gray-800
-                    `,
-                  )}
                   data-message-id={item.id}
                 >
-                  <MessageContentRenderer
+                  {
+                    (index > 0 || shouldCollapseProcess) && (
+                      <Separator className="my-3" />
+                    )
+                  }
+                  <AssistantMessageContent
                     item={item}
-                    content={transformMessageContent(item)}
                     toolResultMap={toolResultMap}
+                    showReasoning={false}
                   />
                 </div>
               ))}
@@ -181,84 +217,38 @@ export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }:
   )
 }
 
-type RenderSegment
-  = | { kind: 'text', text: string, isFirst: boolean }
-    | { kind: 'tool-call', block: IMessage['content'][number] & { type: 'tool-call' } }
+// ---- per-message content renderer ----
 
-function buildRenderSegments(item: IMessage): RenderSegment[] {
-  if (typeof item.content === 'string')
-    return [{ kind: 'text', text: item.content, isFirst: true }]
-
-  const segments: RenderSegment[] = []
-  let isFirstText = true
-
-  for (const block of item.content) {
-    if (block.type === 'text') {
-      segments.push({ kind: 'text', text: block.text, isFirst: isFirstText })
-      isFirstText = false
-    }
-    else if (block.type === 'error') {
-      segments.push({ kind: 'text', text: `${block.error}`, isFirst: isFirstText })
-      isFirstText = false
-    }
-    else if (block.type === 'tool-call') {
-      segments.push({ kind: 'tool-call', block })
-    }
-  }
-
-  return segments
-}
-
-function MessageContentRenderer({
+function AssistantMessageContent({
   item,
-  content,
   toolResultMap,
+  showReasoning = true,
 }: {
   item: IMessage
-  content: string
   toolResultMap: Map<string, IMessage>
+  showReasoning?: boolean
 }) {
-  const itemIsUser = item.role === Role.USER
-  const itemIsAI = item.role === Role.AI
-
-  if (!itemIsAI) {
-    const messageContentProps: Partial<BubbleContent> = {
-      ...pick(item, ['status']),
-      content,
-    }
-    return <MessageContent {...messageContentProps} enableReferenceTokens={itemIsUser} />
+  if (item.role !== Role.AI) {
+    return (
+      <MessageContent
+        content={transformMessageContent(item)}
+        status={item.status as 'success' | 'cancel'}
+        enableReferenceTokens
+      />
+    )
   }
 
-  const segments = buildRenderSegments(item)
+  return <AssistantTrace message={item} toolResultMap={toolResultMap} showReasoning={showReasoning} />
+}
 
-  return (
-    <>
-      {segments.map((seg, i) => {
-        if (seg.kind === 'tool-call') {
-          const resultMsg = toolResultMap.get(seg.block.toolCallId)
-          const resultBlock = resultMsg?.content.find(
-            (b): b is typeof b & { type: 'tool-result' } => b.type === 'tool-result',
-          )
-          return (
-            <div key={seg.block.toolCallId || i} className="my-2">
-              <McpToolCallPanel
-                toolCall={seg.block}
-                toolResult={resultBlock}
-              />
-            </div>
-          )
-        }
-        return (
-          <MessageContent
-            key={i}
-            content={seg.text}
-            reasoningContent={seg.isFirst ? item.reasoningContent : undefined}
-            status={item.status}
-          />
-        )
-      })}
-    </>
-  )
+// ---- helpers ----
+
+function messageHasTextContent(msg: IMessage): boolean {
+  return Array.isArray(msg.content) && msg.content.some(b => b.type === 'text' && b.text.length > 0)
+}
+
+function messageHasToolCalls(msg: IMessage): boolean {
+  return Array.isArray(msg.content) && msg.content.some(b => b.type === 'tool-call')
 }
 
 function hasToolCallBlocks(msgs: IMessage[]): boolean {
