@@ -16,7 +16,7 @@ import {
   WrenchIcon,
   XCircleIcon,
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 
 // ---- step types ----
 
@@ -142,44 +142,31 @@ function useTraceAutoExpand(steps: ContentStep[]) {
     return null
   }, [traceSteps])
 
-  const userToggledRef = useRef<Set<string>>(new Set())
-  const prevActiveRef = useRef<string | null>(null)
-  const [openState, setOpenState] = useState<Record<string, boolean>>({})
+  // User overrides: explicit open/close toggles that trump auto-behavior
+  const [userOverrides, setUserOverrides] = useState<Record<string, boolean>>({})
+  const openStateRef = useRef<Record<string, boolean>>({})
 
-  // Sync open state with steps and activeStepId
-  useEffect(() => {
-    setOpenState((prev) => {
-      const next: Record<string, boolean> = {}
-      let changed = false
-      for (const step of traceSteps) {
-        if (userToggledRef.current.has(step.id)) {
-          next[step.id] = prev[step.id] ?? computeDefaultOpen(step)
-        }
-        else if (step.id === activeStepId) {
-          next[step.id] = true
-        }
-        else {
-          next[step.id] = computeDefaultOpen(step)
-        }
-        if (next[step.id] !== prev[step.id])
-          changed = true
+  // Compute open state during render — no useEffect needed
+  const openState = useMemo(() => {
+    const next: Record<string, boolean> = {}
+    for (const step of traceSteps) {
+      if (step.id in userOverrides) {
+        next[step.id] = userOverrides[step.id]
       }
-      return changed ? next : prev
-    })
-  }, [traceSteps, activeStepId])
-
-  // Auto-close previous active when active changes
-  useEffect(() => {
-    const prev = prevActiveRef.current
-    if (prev && prev !== activeStepId && !userToggledRef.current.has(prev)) {
-      setOpenState(s => (s[prev] === true ? { ...s, [prev]: false } : s))
+      else if (step.id === activeStepId) {
+        next[step.id] = true
+      }
+      else {
+        next[step.id] = computeDefaultOpen(step)
+      }
     }
-    prevActiveRef.current = activeStepId
-  }, [activeStepId])
+    openStateRef.current = next
+    return next
+  }, [traceSteps, activeStepId, userOverrides])
 
   const handleToggle = useCallback((stepId: string) => {
-    userToggledRef.current.add(stepId)
-    setOpenState(s => ({ ...s, [stepId]: !s[stepId] }))
+    const currentOpen = openStateRef.current[stepId] ?? false
+    setUserOverrides(prev => ({ ...prev, [stepId]: !currentOpen }))
   }, [])
 
   return { openState, handleToggle, traceSteps, activeStepId }
