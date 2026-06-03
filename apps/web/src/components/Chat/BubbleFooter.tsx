@@ -5,7 +5,7 @@ import {
 } from '@workspace/ui/components/ai-elements/message'
 import { Badge } from '@workspace/ui/components/badge'
 import { ClockIcon, CopyIcon } from 'lucide-react'
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { formatDuration, formatTime } from '@/utils'
 
 interface BubbleFooterProps {
@@ -16,7 +16,24 @@ interface BubbleFooterProps {
   durationMs?: number
 }
 
+const LIVE_TICK_MS = 200
+
 export default function BubbleFooter({ message, onCopy, time, modelInfo, durationMs }: BubbleFooterProps) {
+  const isRunning = message.status === 'loading' || message.status === 'typing'
+  const [liveMs, setLiveMs] = useState<number>(0)
+
+  useEffect(() => {
+    if (!isRunning || durationMs != null)
+      return
+
+    const tick = () => setLiveMs(Date.now() - message.createdAt)
+    tick()
+    const id = setInterval(tick, LIVE_TICK_MS)
+    return () => clearInterval(id)
+  }, [isRunning, durationMs, message.createdAt])
+
+  const displayMs = durationMs ?? (isRunning ? liveMs : undefined)
+
   const copyButton = useMemo(() => (
     <MessageAction
       tooltip="Copy"
@@ -47,11 +64,11 @@ export default function BubbleFooter({ message, onCopy, time, modelInfo, duratio
         )
       }
       {
-        durationMs != null && (
+        displayMs != null && (
           <span className="inline-flex items-center gap-1 text-muted-foreground">
             <ClockIcon className="size-3" />
             耗时
-            {formatDuration(durationMs)}
+            {formatDuration(displayMs)}
           </span>
         )
       }
