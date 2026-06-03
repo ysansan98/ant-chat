@@ -104,33 +104,7 @@ export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }:
   if (nonToolMessages.length === 0)
     return null
 
-  // Split messages into process (fold) and visible:
-  // - Messages without text → always in fold
-  // - Messages with tool calls → always in fold
-  // - The last message stays visible (its text is the final answer),
-  //   but its reasoning is extracted into a virtual message in the fold
-  const processIds = new Set<string>()
-  const processMessages: IMessage[] = []
-
-  for (const m of nonToolMessages) {
-    if (!messageHasTextContent(m) || messageHasToolCalls(m)) {
-      processMessages.push(m)
-      processIds.add(m.id)
-    }
-  }
-
-  // Extract reasoning from the last message into the fold
-  const lastNonToolMsg = nonToolMessages[nonToolMessages.length - 1]
-  if (lastNonToolMsg?.reasoningContent && !processIds.has(lastNonToolMsg.id)) {
-    processMessages.push({
-      ...lastNonToolMsg,
-      id: `${lastNonToolMsg.id}:reasoning-fold`,
-      content: [],
-    })
-  }
-
-  const visibleMessages = nonToolMessages.filter(m => !processIds.has(m.id))
-
+  const { processMessages, visibleMessages } = splitProcessMessages(nonToolMessages)
   const shouldCollapseProcess = isAI && collapseIntermediate && processMessages.length > 0
 
   return (
@@ -249,6 +223,44 @@ function messageHasTextContent(msg: IMessage): boolean {
 
 function messageHasToolCalls(msg: IMessage): boolean {
   return Array.isArray(msg.content) && msg.content.some(b => b.type === 'tool-call')
+}
+
+interface ProcessSplit {
+  processMessages: IMessage[]
+  visibleMessages: IMessage[]
+}
+
+/**
+ * Split non-tool messages into process (fold) and visible:
+ * - Messages without text → fold
+ * - Messages with tool calls → fold
+ * - The last message stays visible (its text is the final answer);
+ *   its reasoning is extracted into a virtual message in the fold.
+ */
+function splitProcessMessages(messages: IMessage[]): ProcessSplit {
+  const processIds = new Set<string>()
+  const processMessages: IMessage[] = []
+
+  for (const m of messages) {
+    if (!messageHasTextContent(m) || messageHasToolCalls(m)) {
+      processMessages.push(m)
+      processIds.add(m.id)
+    }
+  }
+
+  // Extract reasoning from the last message into the fold
+  const lastMsg = messages[messages.length - 1]
+  if (lastMsg?.reasoningContent && !processIds.has(lastMsg.id)) {
+    processMessages.push({
+      ...lastMsg,
+      id: `${lastMsg.id}:reasoning-fold`,
+      content: [],
+    })
+  }
+
+  const visibleMessages = messages.filter(m => !processIds.has(m.id))
+
+  return { processMessages, visibleMessages }
 }
 
 function hasToolCallBlocks(msgs: IMessage[]): boolean {

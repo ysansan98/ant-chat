@@ -17,6 +17,7 @@ import {
   XCircleIcon,
 } from 'lucide-react'
 import { useCallback, useMemo, useRef, useState } from 'react'
+import { isNetworkError } from '@/utils/networkError'
 
 // ---- step types ----
 
@@ -129,7 +130,25 @@ function isTraceStep(step: ContentStep): step is TraceStep {
 function useTraceAutoExpand(steps: ContentStep[]) {
   const traceSteps = useMemo(() => steps.filter(isTraceStep), [steps])
 
+  // Collect child-tool ids so they have entries in openState
+  const childToolEntries = useMemo(() => {
+    const entries: { id: string, isExecuting: boolean }[] = []
+    for (const step of traceSteps) {
+      if (step.type === 'tool-group') {
+        for (const tool of step.tools) {
+          entries.push({ id: tool.id, isExecuting: tool.isExecuting })
+        }
+      }
+    }
+    return entries
+  }, [traceSteps])
+
   const activeStepId = useMemo(() => {
+    // Check child tools first (most granular), then groups, then top-level steps
+    for (const e of childToolEntries) {
+      if (e.isExecuting)
+        return e.id
+    }
     for (let i = traceSteps.length - 1; i >= 0; i--) {
       const step = traceSteps[i]
       if (step.type === 'reasoning' && step.isStreaming)
@@ -140,7 +159,7 @@ function useTraceAutoExpand(steps: ContentStep[]) {
         return step.id
     }
     return null
-  }, [traceSteps])
+  }, [traceSteps, childToolEntries])
 
   // User overrides: explicit open/close toggles that trump auto-behavior
   const [userOverrides, setUserOverrides] = useState<Record<string, boolean>>({})
@@ -149,20 +168,38 @@ function useTraceAutoExpand(steps: ContentStep[]) {
   // Compute open state during render — no useEffect needed
   const openState = useMemo(() => {
     const next: Record<string, boolean> = {}
-    for (const step of traceSteps) {
-      if (step.id in userOverrides) {
-        next[step.id] = userOverrides[step.id]
+
+    function setOpen(id: string, defaultOpen: boolean) {
+      if (id in userOverrides) {
+        next[id] = userOverrides[id]
       }
-      else if (step.id === activeStepId) {
-        next[step.id] = true
+      else if (id === activeStepId) {
+        next[id] = true
       }
       else {
-        next[step.id] = computeDefaultOpen(step)
+        next[id] = defaultOpen
       }
     }
+
+    for (const step of traceSteps) {
+      if (step.type === 'tool-group') {
+        setOpen(step.id, step.isExecuting)
+        for (const tool of step.tools) {
+          setOpen(tool.id, tool.isExecuting)
+        }
+      }
+      else if (step.type === 'reasoning') {
+        setOpen(step.id, step.isStreaming)
+      }
+      else {
+        // single tool
+        setOpen(step.id, step.isExecuting)
+      }
+    }
+
     openStateRef.current = next
     return next
-  }, [traceSteps, activeStepId, userOverrides])
+  }, [traceSteps, activeStepId, userOverrides, childToolEntries])
 
   const handleToggle = useCallback((stepId: string) => {
     const currentOpen = openStateRef.current[stepId] ?? false
@@ -170,14 +207,6 @@ function useTraceAutoExpand(steps: ContentStep[]) {
   }, [])
 
   return { openState, handleToggle, traceSteps, activeStepId }
-}
-
-function computeDefaultOpen(step: TraceStep): boolean {
-  if (step.type === 'reasoning')
-    return step.isStreaming
-  if (step.type === 'tool')
-    return step.isExecuting
-  return step.isExecuting
 }
 
 // ---- sub-components ----
@@ -338,10 +367,12 @@ function ToolGroupItem({
   group,
   open,
   onToggle,
+  openState,
 }: {
   group: Extract<ContentStep, { type: 'tool-group' }>
   open: boolean
   onToggle: (id: string) => void
+  openState: Record<string, boolean>
 }) {
   const toolCount = group.tools.length
 
@@ -376,7 +407,7 @@ function ToolGroupItem({
           <CompactToolItem
             key={tool.id}
             tool={tool}
-            open={!tool.toolResult}
+            open={openState[tool.id] ?? !tool.toolResult}
             onToggle={onToggle}
           />
         ))}
@@ -389,16 +420,18 @@ function TraceStepItem({
   step,
   open,
   onToggle,
+  openState,
 }: {
   step: TraceStep
   open: boolean
   onToggle: (stepId: string) => void
+  openState: Record<string, boolean>
 }) {
   if (step.type === 'reasoning') {
     return <ReasoningStepItem step={step} open={open} onToggle={onToggle} />
   }
   if (step.type === 'tool-group') {
-    return <ToolGroupItem group={step} open={open} onToggle={onToggle} />
+    return <ToolGroupItem group={step} open={open} onToggle={onToggle} openState={openState} />
   }
   return (
     <CompactToolItem
@@ -410,13 +443,6 @@ function TraceStepItem({
 }
 
 // ---- helpers ----
-
-function isNetworkError(text: string): boolean {
-  if (!text)
-    return false
-  const patterns = /network|connection|fetch|abort|timeout|econnrefused|enotfound|socket|disconnected|econnreset|etimedout/i
-  return patterns.test(text)
-}
 
 function getErrorText(message: IMessage): string {
   return message.content
@@ -484,6 +510,7 @@ export function AssistantTrace({ message, toolResultMap, showReasoning = true }:
                   step={step as TraceStep}
                   open={openState[step.id] ?? false}
                   onToggle={handleToggle}
+                  openState={openState}
                 />
               ))}
             </div>
