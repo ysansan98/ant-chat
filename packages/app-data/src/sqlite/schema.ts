@@ -30,7 +30,8 @@ export function initializeAppDataSchema(db: AppDataDatabase): void {
       model_info text DEFAULT NULL,
       usage text DEFAULT NULL,
       turn_id text DEFAULT NULL,
-      event_type text DEFAULT NULL
+      event_type text DEFAULT NULL,
+      duration_ms integer DEFAULT NULL
     );
 
     CREATE TABLE IF NOT EXISTS attachments (

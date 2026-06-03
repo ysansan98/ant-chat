@@ -209,6 +209,7 @@ export const AIMessage = BaseMessage.extend({
   modelInfo: ModelInfoSchema,
   reasoningContent: z.string().optional().nullable(),
   usage: LanguageModelUsageSchema.optional().nullable(),
+  durationMs: z.number().optional(),
 })
 
 export type AIMessage = z.infer<typeof AIMessage>
@@ -245,7 +246,7 @@ export const UpdateMessageSchema = BaseMessage.extend({
   status: AIMessage.shape.status,
   role: z.enum(['assistant', 'user', 'tool', 'event']),
   eventType: z.string().optional(),
-  ...(AIMessage.pick({ modelInfo: true, reasoningContent: true, usage: true }).shape),
+  ...(AIMessage.pick({ modelInfo: true, reasoningContent: true, usage: true, durationMs: true }).shape),
 }).partial().extend({ id: z.string() })
 
 export type UpdateMessageSchema = z.infer<typeof UpdateMessageSchema>

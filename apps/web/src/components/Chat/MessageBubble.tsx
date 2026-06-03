@@ -107,6 +107,10 @@ export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }:
   const { processMessages, visibleMessages } = splitProcessMessages(nonToolMessages)
   const shouldCollapseProcess = isAI && collapseIntermediate && processMessages.length > 0
 
+  // 从最后一个可见消息获取任务耗时
+  const lastVisibleMsg = visibleMessages[visibleMessages.length - 1]
+  const taskDurationMs = lastVisibleMsg?.durationMs
+
   return (
     <Message
       from={message.role === Role.USER ? 'user' : 'assistant'}
@@ -140,7 +144,7 @@ export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }:
                           isProcessOpen ? 'rotate-90' : undefined,
                         )}
                       />
-                      {`execution process (${processMessages.length})`}
+                      {`执行过程(${processMessages.length})`}
                     </Button>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
@@ -184,6 +188,7 @@ export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }:
             time={message.createdAt}
             modelInfo={isAI ? message.modelInfo : undefined}
             onCopy={onCopyMessage}
+            durationMs={isAI ? taskDurationMs : undefined}
           />
         </div>
       </div>
