@@ -115,46 +115,48 @@ function BubbleList({ messages, isAgentRunning }: Props) {
   )
 
   return (
-    <InfiniteScroll
-      ref={infiniteScrollRef}
-      className="relative flex flex-col gap-6 px-4 py-6"
-      hasMore={false}
-      loading={false}
-      onLoadMore={async () => {}}
-      direction="top"
-      onWheel={handleWheel}
-    >
-      {messageGroups.map(group => (
-        <MessageBubble
-          key={group.map(message => message.id).join(':')}
-          messages={group}
-          collapseIntermediate={!isAgentRunning}
-          onCopyMessage={copyMessage}
-        />
-      ))}
+    <div className="relative h-full">
+      <InfiniteScroll
+        ref={infiniteScrollRef}
+        className="flex flex-col gap-6 px-4 py-6"
+        hasMore={false}
+        loading={false}
+        onLoadMore={async () => {}}
+        direction="top"
+        onWheel={handleWheel}
+      >
+        {messageGroups.map(group => (
+          <MessageBubble
+            key={group.map(message => message.id).join(':')}
+            messages={group}
+            collapseIntermediate={!isAgentRunning}
+            onCopyMessage={copyMessage}
+          />
+        ))}
+
+        <Button
+          size="icon-sm"
+          variant="outline"
+          className={`
+            sticky bottom-8 left-1/2 z-10 -translate-x-1/2 rounded-full bg-background shadow-sm
+            transition-opacity duration-300
+            ${autoScrollToBottom
+      ? `opacity-0`
+      : `opacity-100`}
+          `}
+          type="button"
+          onClick={scrollToBottom}
+        >
+          <ArrowDownIcon className="size-4" />
+        </Button>
+      </InfiniteScroll>
 
       <MessageJumpRail
         userMessages={userMessages}
         activeMessageId={activeMessageId}
         onJumpToMessage={handleJumpToMessage}
       />
-
-      <Button
-        size="icon-sm"
-        variant="outline"
-        className={`
-          sticky bottom-8 left-1/2 z-10 -translate-x-1/2 rounded-full bg-background shadow-sm
-          transition-opacity duration-300
-          ${autoScrollToBottom
-      ? `opacity-0`
-      : `opacity-100`}
-        `}
-        type="button"
-        onClick={scrollToBottom}
-      >
-        <ArrowDownIcon className="size-4" />
-      </Button>
-    </InfiniteScroll>
+    </div>
   )
 }
 
