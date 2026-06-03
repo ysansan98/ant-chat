@@ -46,17 +46,17 @@ export default function BubbleFooter({ message, onCopy, time, modelInfo, duratio
           </>
         )
       }
+      <span>
+        {time ? formatTime(time) : ''}
+      </span>
       {
         durationMs != null && (
-          <span className="inline-flex items-center gap-1 text-muted-foreground">
+          <span className="ml-auto inline-flex items-center gap-1 text-muted-foreground">
             <ClockIcon className="size-3" />
             {formatDuration(durationMs)}
           </span>
         )
       }
-      <span>
-        {time ? formatTime(time) : ''}
-      </span>
     </MessageActions>
   )
 }
