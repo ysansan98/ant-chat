@@ -101,19 +101,23 @@ function BubbleList({ messages, isAgentRunning }: Props) {
 
       infiniteScrollRef.current?.scrollToElement(`[data-message-id="${messageId}"]`)
 
-      // 短暂高亮目标消息
+      // 短暂高亮目标消息（内层 bubble 容器）
       const container = infiniteScrollRef.current?.containerRef.current
       if (!container)
         return
-      const el = container.querySelector(`[data-message-id="${messageId}"]`) as HTMLElement | null
-      if (el) {
-        el.style.transition = 'box-shadow 0.3s ease-in-out'
-        el.style.boxShadow = '0 0 0 2px var(--ring)'
-        el.style.borderRadius = 'var(--radius-lg)'
-        setTimeout(() => {
-          el.style.boxShadow = ''
-        }, 1500)
-      }
+      const messageEl = container.querySelector(`[data-message-id="${messageId}"]`)
+      if (!messageEl)
+        return
+      // 选中 MessageContent 内层 div（ai-elements/message.tsx:58），
+      // 即带背景色/圆角的实际气泡容器，而非外层 wrapper
+      const bubble = messageEl.querySelector('.flex.w-fit.min-w-0.max-w-full') as HTMLElement | null
+      const target: HTMLElement = bubble || (messageEl as HTMLElement)
+      target.style.transition = 'box-shadow 0.3s ease-in-out'
+      target.style.boxShadow = '0 0 0 2px var(--ring)'
+      target.style.borderRadius = 'var(--radius-lg)'
+      setTimeout(() => {
+        target.style.boxShadow = ''
+      }, 1500)
     },
     [infiniteScrollRef, setAutoScrollToBottom],
   )
