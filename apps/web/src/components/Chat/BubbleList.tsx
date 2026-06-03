@@ -1,10 +1,12 @@
 import type { IMessage } from '@ant-chat/shared'
 import { Button } from '@workspace/ui/components/button'
 import { ArrowDownIcon } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAutoScroll } from '@/hooks/useAutoScroll'
 import { useMessageActions } from '@/hooks/useMessageActions'
 import { InfiniteScroll } from '../InfiniteScroll'
 import { MessageBubble } from './MessageBubble'
+import { MessageJumpRail } from './MessageJumpRail'
 
 interface Props {
   messages: IMessage[]
@@ -24,6 +26,94 @@ function BubbleList({ messages, isAgentRunning }: Props) {
 
   const messageGroups = groupMessages(messages)
 
+  // ---- 用户消息跳转导航 ----
+
+  const userMessages = useMemo(
+    () => messages.filter(m => m.role === 'user'),
+    [messages],
+  )
+
+  const [activeMessageId, setActiveMessageId] = useState<string | null>(null)
+  const visibilityMapRef = useRef<Map<string, number>>(new Map())
+
+  // 使用 IntersectionObserver 跟踪各用户消息的可见比例
+  useEffect(() => {
+    const container = infiniteScrollRef.current?.containerRef.current
+    if (!container || userMessages.length <= 1) {
+      setActiveMessageId(null)
+      return
+    }
+
+    const userMessageSelector = userMessages
+      .map(m => `[data-message-id="${m.id}"]`)
+      .join(',')
+
+    const elements = container.querySelectorAll(userMessageSelector)
+    if (elements.length === 0)
+      return
+
+    const map = visibilityMapRef.current
+    map.clear()
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const id = (entry.target as HTMLElement).dataset.messageId
+          if (!id)
+            continue
+          if (entry.isIntersecting) {
+            map.set(id, entry.intersectionRatio)
+          }
+          else {
+            map.delete(id)
+          }
+        }
+
+        // 选 intersection ratio 最高的作为 active
+        let bestId: string | null = null
+        let bestRatio = 0
+        for (const [id, ratio] of map) {
+          if (ratio > bestRatio) {
+            bestRatio = ratio
+            bestId = id
+          }
+        }
+        setActiveMessageId(bestId)
+      },
+      {
+        root: container,
+        threshold: [0, 0.25, 0.5, 0.75, 1],
+      },
+    )
+
+    for (const el of elements) {
+      observer.observe(el)
+    }
+
+    return () => observer.disconnect()
+  }, [userMessages, infiniteScrollRef])
+
+  const handleJumpToMessage = useCallback(
+    (messageId: string) => {
+      infiniteScrollRef.current?.scrollToElement(`[data-message-id="${messageId}"]`)
+
+      // 短暂高亮目标消息
+      const container = infiniteScrollRef.current?.containerRef.current
+      if (!container)
+        return
+      const el = container.querySelector(`[data-message-id="${messageId}"]`) as HTMLElement | null
+      if (el) {
+        el.style.transition = 'box-shadow 0.3s ease-in-out'
+        el.style.boxShadow = '0 0 0 2px var(--ring)'
+        el.style.borderRadius = 'var(--radius-lg)'
+        setTimeout(() => {
+          el.style.boxShadow = ''
+        }, 1500)
+      }
+    },
+    [infiniteScrollRef],
+  )
+
   return (
     <InfiniteScroll
       ref={infiniteScrollRef}
@@ -42,6 +132,12 @@ function BubbleList({ messages, isAgentRunning }: Props) {
           onCopyMessage={copyMessage}
         />
       ))}
+
+      <MessageJumpRail
+        userMessages={userMessages}
+        activeMessageId={activeMessageId}
+        onJumpToMessage={handleJumpToMessage}
+      />
 
       <Button
         size="icon-sm"
