@@ -10,14 +10,9 @@ import {
   Attachments,
 } from '@workspace/ui/components/ai-elements/attachments'
 import { MessageResponse } from '@workspace/ui/components/ai-elements/message'
-import {
-  Reasoning,
-  ReasoningContent,
-  ReasoningTrigger,
-} from '@workspace/ui/components/ai-elements/reasoning'
-import { Alert, AlertDescription } from '@workspace/ui/components/alert'
+import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@workspace/ui/components/tooltip'
-import { FileIcon, Loader2Icon, SparklesIcon } from 'lucide-react'
+import { FileIcon, SparklesIcon, XCircleIcon } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { skillApi } from '@/api/skillApi'
 import { tokenizeMessageReferences } from './messageReferenceTokens'
@@ -43,10 +38,16 @@ function getAttachmentUrl(item: AttachmentData): string {
 const EMPTY_IMAGES: NonNullable<BubbleContent['images']> = []
 const EMPTY_ATTACHMENTS: NonNullable<BubbleContent['attachments']> = []
 
-export default function MessageContent({ content = '', images = EMPTY_IMAGES, attachments = EMPTY_ATTACHMENTS, reasoningContent = '', status, enableReferenceTokens = false }: Partial<BubbleContent> & { enableReferenceTokens?: boolean }) {
+export default function MessageContent({ content = '', images = EMPTY_IMAGES, attachments = EMPTY_ATTACHMENTS, status, enableReferenceTokens = false }: Partial<BubbleContent> & { enableReferenceTokens?: boolean }) {
   if (status === 'error') {
+    const title = isNetworkError(content)
+      ? 'Connection interrupted'
+      : 'Request failed'
+
     return (
       <Alert variant="destructive">
+        <XCircleIcon className="size-4" />
+        <AlertTitle>{title}</AlertTitle>
         <AlertDescription>
           {content
             ? <p className="whitespace-pre-wrap">{content}</p>
@@ -59,8 +60,11 @@ export default function MessageContent({ content = '', images = EMPTY_IMAGES, at
   if (status === 'cancel') {
     return (
       <Alert variant="default">
+        <AlertTitle>Cancelled</AlertTitle>
         <AlertDescription>
-          {content && <p className="whitespace-pre-wrap">{content}</p>}
+          {content
+            ? <p className="whitespace-pre-wrap">{content}</p>
+            : <p>Task cancelled.</p>}
         </AlertDescription>
       </Alert>
     )
@@ -72,20 +76,6 @@ export default function MessageContent({ content = '', images = EMPTY_IMAGES, at
 
   return (
     <div className="space-y-3">
-      {reasoningContent && (
-        <Reasoning isStreaming={isStreaming}>
-          <ReasoningTrigger
-            getThinkingMessage={streaming => (
-              <span className="inline-flex items-center gap-1">
-                {streaming ? 'Thinking' : 'Thought complete'}
-                {streaming && <Loader2Icon className="size-3 animate-spin" />}
-              </span>
-            )}
-          />
-          <ReasoningContent>{reasoningContent}</ReasoningContent>
-        </Reasoning>
-      )}
-
       {content && (
         enableReferenceTokens
           ? <ReferenceTokenMessage content={content} />
@@ -125,6 +115,13 @@ export default function MessageContent({ content = '', images = EMPTY_IMAGES, at
       )}
     </div>
   )
+}
+
+function isNetworkError(text: string): boolean {
+  if (!text)
+    return false
+  const patterns = /network|connection|fetch|abort|timeout|econnrefused|enotfound|socket|disconnected|econnreset|etimedout/i
+  return patterns.test(text)
 }
 
 function ReferenceTokenMessage({ content }: { content: string }) {
