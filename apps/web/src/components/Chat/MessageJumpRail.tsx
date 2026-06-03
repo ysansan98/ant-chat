@@ -60,7 +60,7 @@ export function MessageJumpRail({
       <nav
         aria-label="Message navigation"
         className={`
-          absolute right-3 top-1/2 z-20 -translate-y-1/2
+          fixed right-3 top-1/2 z-20 -translate-y-1/2
           hidden md:flex flex-col items-center gap-1.5
           opacity-[0.42] transition-opacity duration-200
           hover:opacity-100 focus-within:opacity-100

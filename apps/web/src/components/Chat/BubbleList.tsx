@@ -115,7 +115,7 @@ function BubbleList({ messages, isAgentRunning }: Props) {
   )
 
   return (
-    <div className="relative h-full">
+    <>
       <InfiniteScroll
         ref={infiniteScrollRef}
         className="flex flex-col gap-6 px-4 py-6"
@@ -156,7 +156,7 @@ function BubbleList({ messages, isAgentRunning }: Props) {
         activeMessageId={activeMessageId}
         onJumpToMessage={handleJumpToMessage}
       />
-    </div>
+    </>
   )
 }
 
