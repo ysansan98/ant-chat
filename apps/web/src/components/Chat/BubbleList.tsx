@@ -122,7 +122,7 @@ function BubbleList({ messages, isAgentRunning }: Props) {
     <>
       <InfiniteScroll
         ref={infiniteScrollRef}
-        className="flex flex-col gap-6 px-4 py-6"
+        className="flex flex-col gap-6 px-4 py-6 scroll-pt-6"
         hasMore={false}
         loading={false}
         onLoadMore={async () => {}}

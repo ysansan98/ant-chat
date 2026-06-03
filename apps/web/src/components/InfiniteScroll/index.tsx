@@ -67,7 +67,7 @@ export const InfiniteScroll: React.FC<Props> = ({
       if (element) {
         element.scrollIntoView({
           behavior: 'smooth',
-          block: 'center',
+          block: 'start',
         })
       }
     }

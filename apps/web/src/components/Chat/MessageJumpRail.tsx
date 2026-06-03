@@ -90,11 +90,7 @@ export function MessageJumpRail({
                   onClick={() => onJumpToMessage(message.id)}
                 />
               </TooltipTrigger>
-              <TooltipContent
-                side="left"
-                sideOffset={12}
-                className="border-border bg-card text-foreground shadow-none"
-              >
+              <TooltipContent side="left" sideOffset={12}>
                 <p className="max-w-48 line-clamp-3 text-xs leading-relaxed whitespace-pre-wrap">
                   {summaries[index]}
                 </p>
