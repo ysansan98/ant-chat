@@ -15,6 +15,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@workspace/ui/component
 import { FileIcon, SparklesIcon, XCircleIcon } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { skillApi } from '@/api/skillApi'
+import { isNetworkError } from '@/utils/networkError'
 import { tokenizeMessageReferences } from './messageReferenceTokens'
 
 function toAttachmentData(item: NonNullable<BubbleContent['attachments']>[number]): AttachmentData {
@@ -115,13 +116,6 @@ export default function MessageContent({ content = '', images = EMPTY_IMAGES, at
       )}
     </div>
   )
-}
-
-function isNetworkError(text: string): boolean {
-  if (!text)
-    return false
-  const patterns = /network|connection|fetch|abort|timeout|econnrefused|enotfound|socket|disconnected|econnreset|etimedout/i
-  return patterns.test(text)
 }
 
 function ReferenceTokenMessage({ content }: { content: string }) {
