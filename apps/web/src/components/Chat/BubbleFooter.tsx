@@ -4,18 +4,19 @@ import {
   MessageActions,
 } from '@workspace/ui/components/ai-elements/message'
 import { Badge } from '@workspace/ui/components/badge'
-import { CopyIcon } from 'lucide-react'
+import { ClockIcon, CopyIcon } from 'lucide-react'
 import { useMemo } from 'react'
-import { formatTime } from '@/utils'
+import { formatDuration, formatTime } from '@/utils'
 
 interface BubbleFooterProps {
   message: IMessage
   onCopy?: (message: IMessage) => void
   time?: number
   modelInfo?: IModelInfo
+  durationMs?: number
 }
 
-export default function BubbleFooter({ message, onCopy, time, modelInfo }: BubbleFooterProps) {
+export default function BubbleFooter({ message, onCopy, time, modelInfo, durationMs }: BubbleFooterProps) {
   const copyButton = useMemo(() => (
     <MessageAction
       tooltip="Copy"
@@ -43,6 +44,14 @@ export default function BubbleFooter({ message, onCopy, time, modelInfo }: Bubbl
             <Badge variant="outline">{modelInfo.provider}</Badge>
             <Badge variant="secondary">{modelInfo.model}</Badge>
           </>
+        )
+      }
+      {
+        durationMs != null && (
+          <span className="inline-flex items-center gap-1 text-muted-foreground">
+            <ClockIcon className="size-3" />
+            {formatDuration(durationMs)}
+          </span>
         )
       }
       <span>

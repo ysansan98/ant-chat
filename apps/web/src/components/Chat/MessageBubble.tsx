@@ -15,7 +15,6 @@ import { ChevronRightIcon, ShrinkIcon } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Role } from '@/constants'
 import { transformMessageContent } from '@/utils/messageTransform'
-import { formatDuration } from '@/utils/time'
 import { AssistantTrace } from './AssistantTrace'
 import BubbleFooter from './BubbleFooter'
 import MessageContent from './MessageContent'
@@ -108,11 +107,9 @@ export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }:
   const { processMessages, visibleMessages } = splitProcessMessages(nonToolMessages)
   const shouldCollapseProcess = isAI && collapseIntermediate && processMessages.length > 0
 
-  // 从最后一个可见消息（最终 answer）获取任务耗时
+  // 从最后一个可见消息获取任务耗时
   const lastVisibleMsg = visibleMessages[visibleMessages.length - 1]
-  const durationTitle = lastVisibleMsg?.durationMs != null
-    ? formatDuration(lastVisibleMsg.durationMs)
-    : `execution process (${processMessages.length})`
+  const taskDurationMs = lastVisibleMsg?.durationMs
 
   return (
     <Message
@@ -147,7 +144,7 @@ export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }:
                           isProcessOpen ? 'rotate-90' : undefined,
                         )}
                       />
-                      {durationTitle}
+                      {`执行过程(${processMessages.length})`}
                     </Button>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
@@ -191,6 +188,7 @@ export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }:
             time={message.createdAt}
             modelInfo={isAI ? message.modelInfo : undefined}
             onCopy={onCopyMessage}
+            durationMs={isAI ? taskDurationMs : undefined}
           />
         </div>
       </div>
