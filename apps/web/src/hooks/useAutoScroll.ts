@@ -53,6 +53,7 @@ export function useAutoScroll() {
 
   return {
     autoScrollToBottom,
+    setAutoScrollToBottom,
     infiniteScrollRef,
     handleWheel,
     scrollToBottom,

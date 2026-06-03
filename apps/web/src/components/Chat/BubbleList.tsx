@@ -17,6 +17,7 @@ interface Props {
 function BubbleList({ messages, isAgentRunning }: Props) {
   const {
     autoScrollToBottom,
+    setAutoScrollToBottom,
     infiniteScrollRef,
     handleWheel,
     scrollToBottom,
@@ -95,6 +96,9 @@ function BubbleList({ messages, isAgentRunning }: Props) {
 
   const handleJumpToMessage = useCallback(
     (messageId: string) => {
+      // 关闭自动滚动，防止跳转后被拉回底部
+      setAutoScrollToBottom(false)
+
       infiniteScrollRef.current?.scrollToElement(`[data-message-id="${messageId}"]`)
 
       // 短暂高亮目标消息
@@ -111,7 +115,7 @@ function BubbleList({ messages, isAgentRunning }: Props) {
         }, 1500)
       }
     },
-    [infiniteScrollRef],
+    [infiniteScrollRef, setAutoScrollToBottom],
   )
 
   return (
