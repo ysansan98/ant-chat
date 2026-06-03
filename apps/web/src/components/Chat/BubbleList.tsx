@@ -99,9 +99,6 @@ function BubbleList({ messages, isAgentRunning }: Props) {
       // 关闭自动滚动，防止跳转后被拉回底部
       setAutoScrollToBottom(false)
 
-      infiniteScrollRef.current?.scrollToElement(`[data-message-id="${messageId}"]`)
-
-      // 短暂高亮目标消息（内层 bubble 容器）
       const container = infiniteScrollRef.current?.containerRef.current
       if (!container)
         return
@@ -112,11 +109,18 @@ function BubbleList({ messages, isAgentRunning }: Props) {
       // 即带背景色/圆角的实际气泡容器，而非外层 wrapper
       const bubble = messageEl.querySelector('.flex.w-fit.min-w-0.max-w-full') as HTMLElement | null
       const target: HTMLElement = bubble || (messageEl as HTMLElement)
+
+      // 设置 scroll-margin 留出顶部呼吸空间，再滚动
+      target.style.scrollMarginTop = '1.5rem'
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+
+      // 高亮效果
       target.style.transition = 'box-shadow 0.3s ease-in-out'
       target.style.boxShadow = '0 0 0 2px var(--ring)'
       target.style.borderRadius = 'var(--radius-lg)'
       setTimeout(() => {
         target.style.boxShadow = ''
+        target.style.scrollMarginTop = ''
       }, 1500)
     },
     [infiniteScrollRef, setAutoScrollToBottom],
@@ -126,7 +130,7 @@ function BubbleList({ messages, isAgentRunning }: Props) {
     <>
       <InfiniteScroll
         ref={infiniteScrollRef}
-        className="flex flex-col gap-6 px-4 py-6 scroll-pt-6"
+        className="flex flex-col gap-6 px-4 py-6"
         hasMore={false}
         loading={false}
         onLoadMore={async () => {}}
