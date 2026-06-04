@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { AgentApprovalCard } from '@/components/Agent'
 import { DEFAULT_TITLE } from '@/constants'
 import { useChatSettingsContext } from '@/contexts/chatSettings'
+import { useBuiltinCommandSubmit } from '@/hooks/useBuiltinCommandSubmit'
 import { approveAgentActionWithWhitelist, rejectAgentAction, startAgentTurn, useAgentStore } from '@/store/agent'
 import {
   initConversationsTitle,
@@ -32,6 +33,16 @@ export default function Chat() {
   const agentTaskId = agentTask?.taskId
   const pending = useAgentStore(state => (agentTaskId ? state.pendingByTask[agentTaskId] : undefined))
 
+  const { commandRunning, submitCommand } = useBuiltinCommandSubmit({
+    settings: {
+      modelId: settings.modelId || '',
+      systemPrompt: settings.systemPrompt,
+      temperature: settings.temperature,
+      maxTokens: settings.maxTokens,
+    },
+    currentWorkspacePath,
+  })
+
   async function onSubmit(
     content: IMessageContent,
     referencedFiles: string[],
@@ -44,10 +55,16 @@ export default function Chat() {
       return
     }
 
-    // 从 content 中提取文本作为 prompt
     const textBlocks = content.filter(block => block.type === 'text')
-    const prompt = textBlocks.map(block => block.text).join('\n')
+    const draftText = textBlocks.map(block => block.text).join('\n')
 
+    // Try built-in command first
+    const handled = await submitCommand(draftText, referencedFiles, selectedSkill)
+    if (handled)
+      return
+
+    // Regular agent turn
+    const prompt = draftText
     const isNewConversation = !activeConversationsId
     const result = await startAgentTurn({
       conversationId: activeConversationsId || undefined,
@@ -65,9 +82,7 @@ export default function Chat() {
     upsertConversationAction(result.conversation)
     await setActiveConversationsId(result.conversationId)
 
-    // 初始化会话标题
     if (currentConversations?.title === DEFAULT_TITLE || isNewConversation) {
-      // 1s后再次初始化会话标题, 避免请求频繁导致的标题未更新
       setTimeout(() => {
         void initConversationsTitle(result.conversationId)
       }, 1000)
@@ -112,6 +127,7 @@ export default function Chat() {
             )
           : null}
         <Sender
+          disabled={commandRunning}
           actions={(
             <ModelControlPanel
               value={settings.modelId}

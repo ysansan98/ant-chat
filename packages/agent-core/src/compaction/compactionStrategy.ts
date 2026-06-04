@@ -35,9 +35,20 @@ const MAX_SUMMARY_TOKENS = 3200
 
 export function createCompactionStrategy(): CompactionStrategy {
   return {
-    async summarize(serialized: string, aiProvider: IAIProvider, model: string, abortSignal?: AbortSignal) {
+    async summarize(serialized: string, aiProvider: IAIProvider, model: string, abortSignal?: AbortSignal, instruction?: string) {
+      const instructionBlock = instruction
+        ? [
+            '',
+            '<user-instruction>',
+            'The user provided the following guidance for this compression. Prioritize preserving content relevant to the instruction and feel free to omit content the instruction says to ignore:',
+            instruction,
+            '</user-instruction>',
+          ].join('\n')
+        : ''
+
       const userMessage = [
         'Compress the following prior conversation history into a structured continuation summary:',
+        instructionBlock,
         '',
         '<conversation>',
         serialized,

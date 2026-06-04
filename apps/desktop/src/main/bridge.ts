@@ -3,6 +3,7 @@ import { createServices } from 'electron-ipc-decorator'
 import { AgentIpcService } from './domains/agent/ipc'
 import { AppIpcService } from './domains/app/ipc'
 import { ChatIpcService } from './domains/chat/ipc'
+import { CommandsIpcService } from './domains/commands/ipc'
 import { McpIpcService } from './domains/mcp/ipc'
 import { MemoryIpcService } from './domains/memory/ipc'
 import { ProviderIpcService } from './domains/provider/ipc'
@@ -16,6 +17,7 @@ export const ipcServiceClasses = [
   AgentIpcService,
   AppIpcService,
   ChatIpcService,
+  CommandsIpcService,
   McpIpcService,
   MemoryIpcService,
   ProviderIpcService,

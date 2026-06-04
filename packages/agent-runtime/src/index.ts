@@ -1,5 +1,7 @@
 export { createAgentRuntimeController } from './agentRuntimeController'
 export type { AgentRuntimeController } from './agentRuntimeController'
+export { createCommandController } from './commandController'
+export type { CommandController, CommandControllerDeps } from './commandController'
 export { createConversationTitleGenerator, formatMessagesForContext } from './conversationTitleGenerator'
 export type { ConversationTitleGenerator, ConversationTitleGeneratorDependencies } from './conversationTitleGenerator'
 export { openAppDataDatabase } from './database'

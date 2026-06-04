@@ -65,6 +65,7 @@ function buildServices(env: ReturnType<typeof createAgentRuntimeEnvironment>): L
     skillService: env.skillManagementService,
     workspaceService: env.appDataContext.workspaceService,
     agentController: env.agentController as unknown as LocalServerServices['agentController'],
+    commandController: env.commandController,
     conversationTitleGenerator: createConversationTitleGenerator({
       providerSettingsRepository: env.appDataContext.providerSettingsRepository,
       messageRepository: env.appDataContext.messageRepository,
