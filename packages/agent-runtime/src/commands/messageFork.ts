@@ -111,7 +111,9 @@ function messageToAddMessage(
       return {
         ...base,
         role: 'event' as const,
-        status: 'success' as const,
+        status: (msg.status === 'loading' || msg.status === 'error' || msg.status === 'success')
+          ? msg.status
+          : 'success',
         eventType: msg.eventType || 'unknown',
       }
 
