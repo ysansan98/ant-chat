@@ -68,6 +68,10 @@ describe('commandController task guard', () => {
       modelConfig: { modelId: 'm1', systemPrompt: '', temperature: 0.7, maxTokens: 4096 },
       workspacePath: '/ws',
     })
+    expect(result.status).toBe('success')
+    if (result.status !== 'success') {
+      throw new Error('Expected /new to succeed')
+    }
     expect(result.conversationId).toBe('new-conv')
   })
 
@@ -94,6 +98,9 @@ describe('commandController task guard', () => {
     // Model lookup is attempted (not blocked by enabled:false) but fails
     // with structured error status instead of throwing.
     expect(result.status).toBe('error')
+    if (result.status !== 'error') {
+      throw new Error('Expected /compact to fail')
+    }
     expect(result.errorMessage).toContain('Model not found')
   })
 
@@ -210,6 +217,9 @@ describe('compact command error and cancellation', () => {
     })
 
     expect(result.status).toBe('error')
+    if (result.status !== 'error') {
+      throw new Error('Expected /compact to fail')
+    }
     expect(result.errorMessage).toContain('Model not found')
     expect(deps.appDataContext.messageRepository.update).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'event-1', status: 'error' }),
@@ -239,6 +249,53 @@ describe('compact command error and cancellation', () => {
     expect(deps.appDataContext.modelCatalog.getModelById).not.toHaveBeenCalled()
     // No loading event should be created
     expect(deps.appDataContext.messageRepository.create).not.toHaveBeenCalled()
+  })
+
+  it('cancelCommand waits until the loading event is deleted', async () => {
+    const deps = mockDeps()
+    deps.appDataContext.conversationRepository.getById.mockResolvedValue({
+      id: 'conv-1',
+      title: 'Test',
+      settings: {},
+    })
+    deps.appDataContext.messageRepository.listByConversation.mockResolvedValue([
+      { id: 'm1', role: 'user', content: [{ type: 'text', text: 'hello' }], createdAt: 1 },
+    ])
+    deps.appDataContext.messageRepository.create.mockResolvedValue({ id: 'event-1' })
+
+    let rejectModelLookup: (reason?: unknown) => void
+    deps.appDataContext.modelCatalog.getModelById.mockReturnValue(new Promise((_, reject) => {
+      rejectModelLookup = reject
+    }))
+
+    const cc = createCommandController(deps as any)
+    const runPromise = cc.runBuiltinCommand({
+      id: 'compact',
+      conversationId: 'conv-1',
+      modelConfig: { modelId: 'm1', systemPrompt: '', temperature: 0, maxTokens: 0 },
+      workspacePath: '',
+    })
+
+    await new Promise(r => setTimeout(r, 10))
+
+    let cancelResolved = false
+    const cancelPromise = cc.cancelCommand('conv-1').then((result) => {
+      cancelResolved = true
+      return result
+    })
+
+    await Promise.resolve()
+    expect(cancelResolved).toBe(false)
+    expect(deps.appDataContext.messageRepository.delete).not.toHaveBeenCalled()
+
+    rejectModelLookup!(new Error('cancelled upstream request'))
+
+    const cancelResult = await cancelPromise
+    const runResult = await runPromise
+
+    expect(cancelResult?.status).toBe('cancelled')
+    expect(runResult.status).toBe('cancelled')
+    expect(deps.appDataContext.messageRepository.delete).toHaveBeenCalledWith('event-1')
   })
 })
 
@@ -270,6 +327,9 @@ describe('fork command', () => {
     })
 
     expect(result.status).toBe('success')
+    if (result.status !== 'success') {
+      throw new Error('Expected /fork to succeed')
+    }
     expect(result.conversationId).toBe('fork-conv')
 
     // The event message should be created with status 'error', not hardcoded 'success'

@@ -52,7 +52,7 @@ export function useBuiltinCommandSubmit(options: UseBuiltinCommandSubmitOptions)
         workspacePath: options.currentWorkspacePath || '',
       })
 
-      if (result.conversation) {
+      if (result.status === 'success' && result.conversation) {
         upsertConversationAction(result.conversation)
         await setActiveConversationsId(result.conversation.id)
       }

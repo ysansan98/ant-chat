@@ -115,7 +115,7 @@ export async function runCompact(params: {
       : -1
     const lastCompactedAt = firstKeptIndex >= 0
       ? messages[firstKeptIndex].createdAt
-      : messages[messages.length - 1]?.createdAt ?? Date.now()
+      : (messages[messages.length - 1]?.createdAt ?? Date.now()) + 1
 
     await appDataContext.conversationRepository.update({
       id: conversationId,

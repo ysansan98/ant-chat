@@ -53,7 +53,7 @@ function getContextWindow(providerFormat: string): number {
   return CONTEXT_WINDOWS[providerFormat] ?? DEFAULT_CONTEXT_WINDOW
 }
 
-function findCutPointByPairs(messages: LoopMessage[], keepRecentPairs: number): number {
+function findCutPointByPairs(messages: LoopMessage[], keepRecentPairs: number, force = false): number {
   let userCount = 0
 
   for (let i = messages.length - 1; i >= 0; i--) {
@@ -63,6 +63,10 @@ function findCutPointByPairs(messages: LoopMessage[], keepRecentPairs: number): 
         return i
       }
     }
+  }
+
+  if (force) {
+    return messages.length > 1 ? 1 : messages.length
   }
 
   return 0
@@ -155,7 +159,7 @@ export async function compactMessages(input: CompactionInput): Promise<Compactio
     log.info(`forced compaction: estimated=${estimatedTokens}, window=${contextWindow}, bypassing threshold`)
   }
 
-  const cutIndex = findCutPointByPairs(messages, settings.keepRecentPairs)
+  const cutIndex = findCutPointByPairs(messages, settings.keepRecentPairs, force)
   if (cutIndex <= 0) {
     log.warn('no safe cut point found, skipping compaction')
     return { messages, compacted: false, summaryError: 'Not enough messages to create a safe cut point' }

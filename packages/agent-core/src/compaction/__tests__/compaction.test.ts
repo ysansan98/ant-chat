@@ -62,10 +62,31 @@ describe('compactMessages force mode', () => {
     expect(result.summaryText).toBeUndefined()
   })
 
-  it('force: true on short conversation returns summaryError when cut point is 0', async () => {
+  it('force: true on short conversation still compacts with a fallback cut point', async () => {
     const messages = [
       { role: 'user' as const, content: [{ type: 'text' as const, text: 'hello' }] },
       { role: 'assistant' as const, content: [{ type: 'text' as const, text: 'hi' }] },
+    ]
+    const summarize = vi.fn().mockResolvedValue('short summary')
+    const result = await compactMessages({
+      messages,
+      settings: DEFAULT_COMPACTION_SETTINGS,
+      aiProvider: mockAiProvider(),
+      model: 'test-model',
+      providerFormat: 'openai',
+      summarize,
+      force: true,
+    })
+    expect(result.compacted).toBe(true)
+    expect(result.summaryText).toBe('short summary')
+    expect(result.summarizedCount).toBe(1)
+    expect(result.keptLength).toBe(1)
+    expect(summarize).toHaveBeenCalledOnce()
+  })
+
+  it('force: true on a single-message conversation summarizes the whole conversation', async () => {
+    const messages = [
+      { role: 'user' as const, content: [{ type: 'text' as const, text: 'hello' }] },
     ]
     const result = await compactMessages({
       messages,
@@ -73,11 +94,13 @@ describe('compactMessages force mode', () => {
       aiProvider: mockAiProvider(),
       model: 'test-model',
       providerFormat: 'openai',
-      summarize: async () => 'should not be called',
+      summarize: async () => 'single summary',
       force: true,
     })
-    expect(result.compacted).toBe(false)
-    expect(result.summaryError).toContain('Not enough messages')
+    expect(result.compacted).toBe(true)
+    expect(result.summaryText).toBe('single summary')
+    expect(result.summarizedCount).toBe(1)
+    expect(result.keptLength).toBe(0)
   })
 
   it('returns summarizedCount matching toSummarize length', async () => {

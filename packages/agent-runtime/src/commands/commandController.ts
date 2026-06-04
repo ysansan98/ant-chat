@@ -13,7 +13,7 @@ export interface CommandControllerDeps {
 
 export interface CommandController {
   runBuiltinCommand: (params: RunBuiltinCommandParams) => Promise<RunBuiltinCommandResult>
-  cancelCommand: (conversationId: string) => void
+  cancelCommand: (conversationId: string) => Promise<RunBuiltinCommandResult | undefined>
 }
 
 export function createCommandController(deps: CommandControllerDeps): CommandController {
@@ -38,12 +38,13 @@ export function createCommandController(deps: CommandControllerDeps): CommandCon
     }
   }
 
-  function cancelCommand(conversationId: string) {
+  async function cancelCommand(conversationId: string): Promise<RunBuiltinCommandResult | undefined> {
     const ctrl = abortControllers.get(conversationId)
     if (ctrl) {
       log(`cancelling command for ${conversationId}`)
       ctrl.abort()
     }
+    return activeCommands.get(conversationId)
   }
 
   return {

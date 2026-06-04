@@ -60,15 +60,24 @@ export interface RunBuiltinCommandParams {
   workspacePath: string
 }
 
-export interface RunBuiltinCommandResult {
-  /** Execution status of the command. Optional during migration; will become required after all call sites are updated. */
-  status?: 'success' | 'error' | 'cancelled'
-  /** For /new and /fork: the created conversation */
-  conversation?: IConversations
-  /** For /new and /fork: the new conversation id */
-  conversationId?: string
-  /** For /compact: compaction summary text (success) or error message (error) */
-  summaryText?: string
-  /** Error detail when status is 'error' or 'cancelled' */
-  errorMessage?: string
-}
+export type RunBuiltinCommandResult
+  = | {
+    status: 'success'
+    /** For /new and /fork: the created conversation */
+    conversation?: IConversations
+    /** For /new and /fork: the new conversation id */
+    conversationId?: string
+    /** For /compact: compaction summary text */
+    summaryText?: string
+  }
+  | {
+    status: 'error'
+    /** Error detail when status is 'error'. */
+    errorMessage: string
+    /** For /compact: error text persisted in the event message. */
+    summaryText?: string
+  }
+  | {
+    status: 'cancelled'
+    summaryText?: string
+  }
