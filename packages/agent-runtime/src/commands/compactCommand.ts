@@ -1,6 +1,6 @@
 import type { AppDataContext } from '@ant-chat/app-data'
 import type { ILogger, RunBuiltinCommandResult } from '@ant-chat/shared'
-import { compactMessages, createCompactionStrategy, createProvider, estimateContextTokens, getContextWindow } from '@ant-chat/agent-core'
+import { compactMessages, createCompactionStrategy, createProvider, DEFAULT_COMPACTION_SETTINGS, estimateContextTokens, getContextWindow } from '@ant-chat/agent-core'
 import { messagesToLoopMessages } from './messageConversion'
 
 export async function runCompact(params: {
@@ -21,8 +21,10 @@ export async function runCompact(params: {
     throw new Error(`Conversation not found: ${conversationId}`)
   }
 
-  const compactionSettings = conversation.settings?.compaction
-  if (!compactionSettings?.enabled) {
+  // Fall back to defaults when conversation has no explicit compaction settings,
+  // matching the behavior in SessionRuntime that applies DEFAULT_COMPACTION_SETTINGS.
+  const compactionSettings = conversation.settings?.compaction ?? DEFAULT_COMPACTION_SETTINGS
+  if (!compactionSettings.enabled) {
     await appDataContext.messageRepository.create({
       convId: conversationId,
       role: 'event',
