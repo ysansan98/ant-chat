@@ -83,19 +83,23 @@ export function createLoopSystemPrompt(workspacePath: string, customPrompt?: str
 export async function buildConversationContextMessages(
   messages: IMessage[],
   currentUserMessageId: string,
-  lastCompactedAt?: number,
   lastCompactionSummary?: string,
+  lastCompactedMessageId?: string,
   loadFileData?: LoadFileDataFn,
 ): Promise<LoopMessage[]> {
+  const compactionBoundaryIndex = lastCompactedMessageId
+    ? messages.findIndex(message => message.id === lastCompactedMessageId)
+    : -1
+
   const valid = messages
-    .filter((message): message is IMessage & { role: 'user' | 'assistant' | 'tool' } => {
+    .filter((message, index): message is IMessage & { role: 'user' | 'assistant' | 'tool' } => {
       if (message.id === currentUserMessageId)
         return false
       if (message.role === 'event')
         return false
       if (message.role !== 'user' && message.role !== 'assistant' && message.role !== 'tool')
         return false
-      if (lastCompactedAt && message.createdAt < lastCompactedAt)
+      if (compactionBoundaryIndex >= 0 && index <= compactionBoundaryIndex)
         return false
       if (message.role === 'user' || message.role === 'tool')
         return true
@@ -104,7 +108,7 @@ export async function buildConversationContextMessages(
 
   const result: LoopMessage[] = []
 
-  if (lastCompactionSummary && lastCompactedAt) {
+  if (lastCompactionSummary && lastCompactedMessageId) {
     result.push({
       role: 'user',
       content: [{

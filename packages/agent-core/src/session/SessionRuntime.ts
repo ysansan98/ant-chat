@@ -102,8 +102,8 @@ export class SessionRuntime {
     const contextMessages = await buildConversationContextMessages(
       historyMessages,
       userMessage.id,
-      currentConversation?.settings?.lastCompactedAt,
       currentConversation?.settings?.lastCompactionSummary,
+      currentConversation?.settings?.lastCompactedMessageId,
       loadFileData,
     )
 

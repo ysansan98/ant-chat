@@ -11,7 +11,6 @@ export const DEFAULT_SETTINGS: ConversationsSettingsSchema = {
     thresholdPercent: 70,
     keepRecentPairs: 3,
   },
-  lastCompactedAt: undefined,
 }
 
 export const ChatSettingsContext = createContext<{

@@ -29,8 +29,8 @@ export const ConversationsSettingsSchema = z.object({
   temperature: z.number(),
   maxTokens: z.number(),
   compaction: CompactionSettingsSchema.optional(),
-  /** 上次压缩的时间戳。早于此时间的消息已被摘要替代 */
-  lastCompactedAt: z.number().optional(),
+  /** 上次压缩事件消息 id。上下文重建时只注入该消息之后的历史 */
+  lastCompactedMessageId: z.string().optional(),
   /** 上次压缩生成的摘要文本，上下文重建时注入，不显示在聊天中 */
   lastCompactionSummary: z.string().optional(),
 })

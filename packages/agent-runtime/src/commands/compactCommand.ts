@@ -104,24 +104,11 @@ export async function runCompact(params: {
     // Success: persist summary and update settings
     const { summaryText, summarizedCount } = compactResult
 
-    // Compute lastCompactedAt: timestamp of the first kept message
-    const filteredIndices = messages
-      .map((m, i) => (m.role === 'user' || m.role === 'assistant' || m.role === 'tool') ? i : -1)
-      .filter(i => i >= 0)
-    const firstKeptIndex = summarizedCount !== undefined
-      && summarizedCount > 0
-      && summarizedCount < filteredIndices.length
-      ? filteredIndices[summarizedCount]
-      : -1
-    const lastCompactedAt = firstKeptIndex >= 0
-      ? messages[firstKeptIndex].createdAt
-      : (messages[messages.length - 1]?.createdAt ?? Date.now()) + 1
-
     await appDataContext.conversationRepository.update({
       id: conversationId,
       settings: {
         ...conversation.settings,
-        lastCompactedAt,
+        lastCompactedMessageId: loadingEvent.id,
         lastCompactionSummary: summaryText,
       },
     })
@@ -132,7 +119,7 @@ export async function runCompact(params: {
       content: [{ type: 'text', text: summaryText }],
     })
 
-    log(`compaction complete: summary=${compactResult.summaryLength} chars, summarized=${summarizedCount}, kept=${compactResult.keptLength}, cutAt=${lastCompactedAt}`)
+    log(`compaction complete: summary=${compactResult.summaryLength} chars, summarized=${summarizedCount}, kept=${compactResult.keptLength}, boundary=${loadingEvent.id}`)
 
     return { status: 'success', summaryText }
   }
