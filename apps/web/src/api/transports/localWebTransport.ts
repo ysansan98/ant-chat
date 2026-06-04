@@ -71,6 +71,9 @@ export function createLocalWebTransport(): AppTransport {
       openWorkspace: path => localRpc('workspace.openWorkspace', { path }),
       searchWorkspaceFiles: (query, limit = 50) => localRpc('workspace.searchWorkspaceFiles', { query, limit }),
     },
+    commands: {
+      runBuiltinCommand: params => localRpc('commands.runBuiltinCommand', params as unknown as Record<string, unknown>),
+    },
   }
 }
 

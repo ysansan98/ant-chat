@@ -76,5 +76,8 @@ export function createElectronIpcTransport(): AppTransport {
       chooseWorkspace: async () => unwrapIpcResponse(await ipc.workspace.chooseWorkspace()),
       searchWorkspaceFiles: async (query, limit = 50) => unwrapIpcResponse(await ipc.workspace.searchWorkspaceFiles(query, limit)),
     },
+    commands: {
+      runBuiltinCommand: async params => unwrapIpcResponse(await ipc.commands.runBuiltinCommand(params)),
+    },
   }
 }

@@ -1,6 +1,6 @@
-import type { ConversationTitleGenerator, ImportModelsDevModelsResult, ModelsDevModel, ModelsDevProvider } from '@ant-chat/agent-runtime'
+import type { CommandController, ConversationTitleGenerator, ImportModelsDevModelsResult, ModelsDevModel, ModelsDevProvider } from '@ant-chat/agent-runtime'
 import type { ConversationRepository, MessageRepository, ProviderSettingsRepository, SettingsRepository, WorkspaceService } from '@ant-chat/app-data'
-import type { AddConversationsSchema, AddMessage, AgentMemoryFiles, CreateProviderConfigModelSchema, CreateProviderConfigSchema, ImportSkillFromGithubOptions, SetSkillEnabledOptions, SkillIndex, SkillManifest, UpdateAgentMemoryInput, UpdateConversationsSchema, UpdateMessageSchema, UpdateProviderConfigSchema } from '@ant-chat/shared'
+import type { AddConversationsSchema, AddMessage, AgentMemoryFiles, CreateProviderConfigModelSchema, CreateProviderConfigSchema, ImportSkillFromGithubOptions, RunBuiltinCommandParams, SetSkillEnabledOptions, SkillIndex, SkillManifest, UpdateAgentMemoryInput, UpdateConversationsSchema, UpdateMessageSchema, UpdateProviderConfigSchema } from '@ant-chat/shared'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { Buffer } from 'node:buffer'
 import { createServer as createHttpServer } from 'node:http'
@@ -39,6 +39,7 @@ export interface LocalServerServices {
     listActiveTasks: (conversationId?: string) => Promise<unknown[]> | unknown[]
     approvePendingActionWithWhitelist?: (options: unknown) => Promise<null> | null
   }
+  commandController?: CommandController
   conversationTitleGenerator?: ConversationTitleGenerator
 }
 
@@ -252,6 +253,12 @@ async function dispatchRpc(body: unknown, services: LocalServerServices): Promis
     }
     case 'agent.listActiveTasks':
       return services.agentController?.listActiveTasks(optionalStringParam(params.conversationId)) ?? []
+    case 'commands.runBuiltinCommand': {
+      const cc = services.commandController
+      if (!cc)
+        throw new Error('Command controller is not available in local web transport')
+      return cc.runBuiltinCommand(params as unknown as RunBuiltinCommandParams)
+    }
     default:
       throw new Error(`Unknown local RPC method: ${method}`)
   }
