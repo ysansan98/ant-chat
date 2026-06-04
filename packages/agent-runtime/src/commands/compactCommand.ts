@@ -21,18 +21,12 @@ export async function runCompact(params: {
     throw new Error(`Conversation not found: ${conversationId}`)
   }
 
-  // Fall back to defaults when conversation has no explicit compaction settings,
-  // matching the behavior in SessionRuntime that applies DEFAULT_COMPACTION_SETTINGS.
-  const compactionSettings = conversation.settings?.compaction ?? DEFAULT_COMPACTION_SETTINGS
-  if (!compactionSettings.enabled) {
-    await appDataContext.messageRepository.create({
-      convId: conversationId,
-      role: 'event',
-      status: 'success',
-      content: [{ type: 'text', text: 'Context is already compact enough.' }],
-      eventType: 'compaction',
-    })
-    return { summaryText: 'Context is already compact enough.' }
+  // Use defaults as fallback for missing settings, but ignore the `enabled`
+  // flag — it controls auto-compaction during agent turns, not manual /compact.
+  const stored = conversation.settings?.compaction
+  const compactionSettings = {
+    ...DEFAULT_COMPACTION_SETTINGS,
+    ...(stored ? { thresholdPercent: stored.thresholdPercent, keepRecentPairs: stored.keepRecentPairs } : {}),
   }
 
   const messages = await appDataContext.messageRepository.listByConversation(conversationId)

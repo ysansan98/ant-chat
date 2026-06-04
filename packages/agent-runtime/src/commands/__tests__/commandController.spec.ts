@@ -69,21 +69,25 @@ describe('commandController task guard', () => {
     expect(result.conversationId).toBe('new-conv')
   })
 
-  it('allows /compact when no active task (compaction disabled -> short-circuit)', async () => {
+  it('/compact ignores compaction.enabled flag (manual override)', async () => {
     const deps = mockDeps()
+    // enabled: false does NOT block manual /compact — the command proceeds past
+    // the settings check to the model lookup, which fails because it's unmocked.
     deps.appDataContext.conversationRepository.getById.mockResolvedValue({
       id: 'conv-1',
-      settings: { compaction: { enabled: false } },
+      settings: { compaction: { enabled: false, thresholdPercent: 70, keepRecentPairs: 3 } },
     })
+    deps.appDataContext.messageRepository.listByConversation.mockResolvedValue([])
     const cc = createCommandController(deps as any)
 
-    const result = await cc.runBuiltinCommand({
-      id: 'compact',
-      conversationId: 'conv-1',
-      modelConfig: { modelId: 'm1', systemPrompt: '', temperature: 0, maxTokens: 0 },
-      workspacePath: '',
-    })
-    expect(result.summaryText).toBe('Context is already compact enough.')
+    await expect(
+      cc.runBuiltinCommand({
+        id: 'compact',
+        conversationId: 'conv-1',
+        modelConfig: { modelId: 'm1', systemPrompt: '', temperature: 0, maxTokens: 0 },
+        workspacePath: '',
+      }),
+    ).rejects.toThrow('Model not found') // reaches model lookup, not blocked by enabled:false
   })
 
   it('rejects unknown command id', async () => {
