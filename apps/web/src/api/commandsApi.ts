@@ -5,6 +5,11 @@ async function runBuiltinCommand(params: RunBuiltinCommandParams): Promise<RunBu
   return (await getAppTransport()).commands.runBuiltinCommand(params)
 }
 
+async function cancelCommand(conversationId: string): Promise<null> {
+  return (await getAppTransport()).commands.cancelCommand(conversationId)
+}
+
 export default {
   runBuiltinCommand,
+  cancelCommand,
 }

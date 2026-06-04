@@ -16,4 +16,15 @@ export class CommandsIpcService extends IpcService {
       return createErrorIpcResponse(error as Error)
     }
   }
+
+  @IpcMethod()
+  async cancelCommand(conversationId: string): Promise<IpcResponse<null>> {
+    try {
+      getAgentRuntimeEnvironment().commandController.cancelCommand(conversationId)
+      return createIpcResponse(true, null)
+    }
+    catch (error) {
+      return createErrorIpcResponse(error as Error)
+    }
+  }
 }
