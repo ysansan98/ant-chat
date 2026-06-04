@@ -202,7 +202,7 @@ export interface RuntimeMcpClientHub {
 // ============================================================
 
 export interface CompactionStrategy {
-  summarize: (serialized: string, aiProvider: IAIProvider, model: string, abortSignal?: AbortSignal) => Promise<string>
+  summarize: (serialized: string, aiProvider: IAIProvider, model: string, abortSignal?: AbortSignal, instruction?: string) => Promise<string>
 }
 
 export interface AgentRuntimeHost {

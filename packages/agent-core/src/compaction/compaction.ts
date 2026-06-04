@@ -110,9 +110,11 @@ export interface CompactionInput {
   providerFormat: string
   abortSignal?: AbortSignal
   logger?: ILogger
-  summarize: (serialized: string, aiProvider: IAIProvider, model: string, abortSignal?: AbortSignal) => Promise<string>
+  summarize: (serialized: string, aiProvider: IAIProvider, model: string, abortSignal?: AbortSignal, instruction?: string) => Promise<string>
   /** Pre-computed token estimate to avoid double computation */
   preEstimatedTokens?: number
+  /** Optional user instruction for what to preserve or ignore during compaction */
+  instruction?: string
 }
 
 export interface CompactionResult {
@@ -124,7 +126,7 @@ export interface CompactionResult {
 }
 
 export async function compactMessages(input: CompactionInput): Promise<CompactionResult> {
-  const { messages, settings, aiProvider, model, providerFormat, abortSignal, logger: log = defaultLogger(), summarize, preEstimatedTokens } = input
+  const { messages, settings, aiProvider, model, providerFormat, abortSignal, logger: log = defaultLogger(), summarize, preEstimatedTokens, instruction } = input
 
   if (!settings.enabled) {
     return { messages, compacted: false }
@@ -155,7 +157,7 @@ export async function compactMessages(input: CompactionInput): Promise<Compactio
 
   let summary: string
   try {
-    summary = await summarize(serialized, aiProvider, model, abortSignal)
+    summary = await summarize(serialized, aiProvider, model, abortSignal, instruction)
   }
   catch {
     log.warn('summary failed, keeping original messages')

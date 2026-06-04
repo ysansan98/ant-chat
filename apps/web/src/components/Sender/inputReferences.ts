@@ -5,6 +5,11 @@ export interface ActiveReferenceTrigger {
   end: number
 }
 
+export interface ParsedCommand {
+  id: string
+  argument?: string
+}
+
 interface ReferenceTokenRange {
   type: 'file' | 'skill'
   start: number

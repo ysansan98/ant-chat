@@ -1,6 +1,6 @@
-import type { AgentMode, ChatFeatures, IMessageContent, ProviderConfigModelSchema, SkillManifest, WorkspaceFileSearchResult } from '@ant-chat/shared'
+import type { AgentMode, BuiltinCommand, ChatFeatures, IMessageContent, ProviderConfigModelSchema, SkillManifest, WorkspaceFileSearchResult } from '@ant-chat/shared'
 import type { FileUIPart, LanguageModelUsage } from 'ai'
-import { classifyFile } from '@ant-chat/shared'
+import { BUILTIN_COMMANDS, classifyFile } from '@ant-chat/shared'
 import {
   Attachment,
   AttachmentInfo,
@@ -75,6 +75,7 @@ import MCPManagementPanel from './MCPManagementPanel'
 import { ReferenceSuggestionPanel } from './ReferenceSuggestionPanel'
 
 interface SenderProps {
+  disabled?: boolean
   actions?: React.ReactNode
   onSubmit?: (
     content: IMessageContent,
@@ -330,7 +331,7 @@ function buildAcceptFromModalities(inputModalities?: string[]): string {
     .join(',') || DEFAULT_ACCEPT
 }
 
-function Sender({ actions, ...props }: SenderProps) {
+function Sender({ disabled = false, actions, ...props }: SenderProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const senderRef = useRef<HTMLDivElement | null>(null)
   const [workspaceLoading, setWorkspaceLoading] = useState(false)
@@ -406,10 +407,22 @@ function Sender({ actions, ...props }: SenderProps) {
       )
       .slice(0, 20)
   }, [activeReferenceTrigger, enabledSkills])
+
+  const filteredCommands = useMemo(() => {
+    if (!activeReferenceTrigger || activeReferenceTrigger.type !== 'skill') {
+      return []
+    }
+    const query = activeReferenceTrigger.query.toLowerCase()
+    return BUILTIN_COMMANDS.filter(cmd =>
+      cmd.id.includes(query)
+      || cmd.description.toLowerCase().includes(query),
+    )
+  }, [activeReferenceTrigger])
+
   const suggestionItemCount = activeReferenceTrigger?.type === 'file'
     ? senderData.fileResults.length
     : activeReferenceTrigger?.type === 'skill'
-      ? filteredSkills.length
+      ? filteredCommands.length + filteredSkills.length
       : 0
 
   const canSwitchWorkspace = !activeConversationsId && !hasMessage && !loading
@@ -565,6 +578,21 @@ function Sender({ actions, ...props }: SenderProps) {
     })
   }
 
+  function selectCommandReference(command: BuiltinCommand) {
+    if (!activeReferenceTrigger || activeReferenceTrigger.type !== 'skill') {
+      return
+    }
+
+    const token = `/${command.id}`
+    const next = insertReferenceToken(draft, activeReferenceTrigger, token)
+    updateDraft(next.text, next.cursor)
+    // Do NOT set selectedSkill for built-in commands — they go through the command channel
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus()
+      textareaRef.current?.setSelectionRange(next.cursor, next.cursor)
+    })
+  }
+
   function selectHighlightedReference() {
     if (!activeReferenceTrigger || suggestionItemCount === 0) {
       return false
@@ -576,7 +604,13 @@ function Sender({ actions, ...props }: SenderProps) {
       return true
     }
 
-    selectSkillReference(filteredSkills[index])
+    // Commands come first, then skills
+    if (index < filteredCommands.length) {
+      selectCommandReference(filteredCommands[index])
+      return true
+    }
+
+    selectSkillReference(filteredSkills[index - filteredCommands.length])
     return true
   }
 
@@ -742,7 +776,7 @@ function Sender({ actions, ...props }: SenderProps) {
       }
     })
 
-    props.onSubmit?.(content, nextReferencedFiles, nextSelectedSkill, {
+    await props.onSubmit?.(content, nextReferencedFiles, nextSelectedSkill, {
       enableMCP: mcpEnabled,
     }, agentMode)
     setDraft('')
@@ -795,6 +829,7 @@ function Sender({ actions, ...props }: SenderProps) {
                 placeholder:text-muted-foreground
               "
               data-testid="chat-input"
+              disabled={disabled}
               value={draft}
               onChange={(event) => {
                 updateDraft(event.currentTarget.value, event.currentTarget.selectionStart)
@@ -803,19 +838,20 @@ function Sender({ actions, ...props }: SenderProps) {
               onKeyDown={handleTextareaKeyDown}
               onKeyUp={handleTextareaKeyUp}
               onScroll={event => setTextareaScrollTop(event.currentTarget.scrollTop)}
-              placeholder="Enter发送消息，Shift+Enter换行"
+              placeholder={disabled ? '指令执行中...' : 'Enter发送消息，Shift+Enter换行'}
             />
           </div>
           <ReferenceSuggestionPanel
             trigger={activeReferenceTrigger}
             files={senderData.fileResults}
             skills={filteredSkills}
+            builtinCommands={filteredCommands}
             hasWorkspace={Boolean(senderData.workspaceData?.currentWorkspacePath)}
-            hasEnabledSkills={enabledSkills.length > 0}
             highlightedIndex={senderData.highlightedIndex}
             anchorRect={senderData.suggestionAnchorRect}
             onSelectFile={selectFileReference}
             onSelectSkill={selectSkillReference}
+            onSelectCommand={selectCommandReference}
           />
         </PromptInputBody>
 
@@ -934,12 +970,12 @@ function Sender({ actions, ...props }: SenderProps) {
 
           <PromptInputSubmit
             size="sm"
-            data-testid={loading ? 'chat-cancel' : 'chat-submit'}
+            data-testid={loading || disabled ? 'chat-cancel' : 'chat-submit'}
             onStop={props.onCancel}
-            status={loading ? 'streaming' : 'ready'}
+            status={loading ? 'streaming' : disabled ? 'submitted' : 'ready'}
             variant={loading ? 'outline' : 'default'}
           >
-            {loading ? '停止' : '发送'}
+            {loading ? '停止' : disabled ? '执行中' : '发送'}
           </PromptInputSubmit>
         </PromptInputFooter>
       </PromptInput>

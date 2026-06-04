@@ -62,7 +62,11 @@ export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }:
 
   // Event messages: render as collapsible divider
   if (isEvent) {
-    const eventLabel = message.eventType === 'compaction' ? '上下文压缩' : message.eventType
+    const eventLabel = message.eventType === 'compaction'
+      ? '上下文压缩'
+      : message.eventType === 'fork'
+        ? '会话 Fork'
+        : message.eventType
     const eventText = typeof message.content === 'string'
       ? message.content
       : message.content.filter(b => b.type === 'text').map(b => b.text).join('\n')

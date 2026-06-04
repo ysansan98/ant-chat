@@ -20,6 +20,7 @@ import type {
   RejectPendingActionOptions,
 } from './agent-runtime'
 import type { AgentTurnResult, StartAgentTurnOptions } from './agent-runtime-electron'
+import type { RunBuiltinCommandParams, RunBuiltinCommandResult } from './builtin-command'
 import type { handleInitConversationTitleOptions } from './conversation-title'
 import type { IConversations, IMessage } from './db-types'
 import type { GeneralSettingsState } from './generalSettings'
@@ -113,6 +114,9 @@ export interface AppTransport {
     openWorkspace: (path: string) => Promise<ListWorkspacesData>
     chooseWorkspace?: () => Promise<ListWorkspacesData | null>
     searchWorkspaceFiles: (query: string, limit?: number) => Promise<WorkspaceFileSearchResult[]>
+  }
+  commands: {
+    runBuiltinCommand: (params: RunBuiltinCommandParams) => Promise<RunBuiltinCommandResult>
   }
 }
 
@@ -221,5 +225,8 @@ export interface AppIpcServices {
     openWorkspace: (path: string) => Promise<IpcResponse<ListWorkspacesData>>
     chooseWorkspace: () => Promise<IpcResponse<ListWorkspacesData | null>>
     searchWorkspaceFiles: (query?: string, limit?: number) => Promise<IpcResponse<WorkspaceFileSearchResult[]>>
+  }
+  commands: {
+    runBuiltinCommand: (params: RunBuiltinCommandParams) => Promise<IpcResponse<RunBuiltinCommandResult>>
   }
 }

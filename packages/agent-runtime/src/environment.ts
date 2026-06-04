@@ -7,6 +7,7 @@ import { createAgentRuntime } from '@ant-chat/agent-core'
 import { createAppDataContext } from '@ant-chat/app-data'
 import { MCPClientHub } from '@ant-chat/mcp-client-hub'
 import { createAgentRuntimeController } from './agentRuntimeController'
+import { createCommandController } from './commandController'
 import { openAppDataDatabase } from './database'
 import { createAgentRuntimePaths } from './paths'
 import { createAppDataSessionStore } from './sessionStore'
@@ -35,6 +36,7 @@ export interface AgentRuntimeEnvironment {
   mcpClientHub: MCPClientHub
   runtime: AgentRuntime
   agentController: ReturnType<typeof createAgentRuntimeController>
+  commandController: ReturnType<typeof createCommandController>
 }
 
 export function createAgentRuntimeEnvironment(
@@ -89,5 +91,11 @@ export function createAgentRuntimeEnvironmentFromContext(
     mcpClientHub,
     runtime,
     agentController: createAgentRuntimeController(runtime, appDataContext),
+    commandController: createCommandController({
+      appDataContext,
+      eventEmitter: options.eventEmitter,
+      logger: options.logger,
+      listActiveTasks: conversationId => runtime.listActiveTasks(conversationId),
+    }),
   }
 }
