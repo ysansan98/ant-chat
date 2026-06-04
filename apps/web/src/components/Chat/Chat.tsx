@@ -139,8 +139,8 @@ export default function Chat() {
             />
           )}
           onSubmit={onSubmit}
-          onCancel={() => {
-            cancelCommand()
+          onCancel={async () => {
+            await cancelCommand()
             void abortActiveRequest(activeConversationsId)
           }}
         />
