@@ -259,6 +259,13 @@ async function dispatchRpc(body: unknown, services: LocalServerServices): Promis
         throw new Error('Command controller is not available in local web transport')
       return cc.runBuiltinCommand(params as unknown as RunBuiltinCommandParams)
     }
+    case 'commands.cancelCommand': {
+      const cc = services.commandController
+      if (!cc)
+        throw new Error('Command controller is not available in local web transport')
+      cc.cancelCommand(stringParam(params.conversationId))
+      return null
+    }
     default:
       throw new Error(`Unknown local RPC method: ${method}`)
   }

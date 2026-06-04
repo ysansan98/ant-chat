@@ -1,6 +1,6 @@
 import type { IMessage } from '@ant-chat/shared'
 import { Button } from '@workspace/ui/components/button'
-import { ArrowDownIcon } from 'lucide-react'
+import { ArrowDownIcon, Loader2Icon } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAutoScroll } from '@/hooks/useAutoScroll'
 import { useMessageActions } from '@/hooks/useMessageActions'
@@ -12,9 +12,10 @@ interface Props {
   messages: IMessage[]
   conversationsId: string
   isAgentRunning: boolean
+  isCompacting?: boolean
 }
 
-function BubbleList({ messages, isAgentRunning }: Props) {
+function BubbleList({ messages, isAgentRunning, isCompacting = false }: Props) {
   const {
     autoScrollToBottom,
     setAutoScrollToBottom,
@@ -130,7 +131,7 @@ function BubbleList({ messages, isAgentRunning }: Props) {
     <>
       <InfiniteScroll
         ref={infiniteScrollRef}
-        className="flex flex-col gap-6 px-4 py-6"
+        className="font-message flex flex-col gap-6 px-4 py-6"
         hasMore={false}
         loading={false}
         onLoadMore={async () => {}}
@@ -145,6 +146,17 @@ function BubbleList({ messages, isAgentRunning }: Props) {
             onCopyMessage={copyMessage}
           />
         ))}
+
+        {isCompacting && (
+          <div className="mx-auto flex w-full max-w-(--chat-width) items-center gap-3 py-3">
+            <div className="h-px flex-1 bg-border" />
+            <span className="flex h-7 shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+              <Loader2Icon className="size-3 animate-spin" />
+              正在压缩上下文
+            </span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
+        )}
 
         <Button
           size="icon-sm"
@@ -176,6 +188,12 @@ export default BubbleList
 
 function groupMessages(messages: IMessage[]): IMessage[][] {
   return messages.reduce<IMessage[][]>((groups, message) => {
+    // Event messages always start a new group so MessageBubble renders them as dividers
+    if (message.role === 'event') {
+      groups.push([message])
+      return groups
+    }
+
     const lastGroup = groups.at(-1)
 
     // Primary: group by turnId

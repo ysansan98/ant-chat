@@ -1,5 +1,6 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { toast } from 'sonner'
+import chatApi from '@/api/chatApi'
 import commandsApi from '@/api/commandsApi'
 import { parseBuiltinCommand } from '@/components/Sender/builtinCommandParser'
 import { upsertConversationAction } from '@/store/conversation'
@@ -15,14 +16,13 @@ interface UseBuiltinCommandSubmitOptions {
   currentWorkspacePath?: string
 }
 
-/**
- * Intercepts built-in commands before the regular agent turn.
- * - `commandRunning`: true while a command (e.g. /compact) is executing
- * - `submitCommand`: returns `true` if a command was handled, `false` to fall through
- */
+/** Minimum duration (ms) to show the loading indicator for perceptible feedback. */
+const MIN_LOADING_MS = 600
+
 export function useBuiltinCommandSubmit(options: UseBuiltinCommandSubmitOptions) {
   const activeConversationsId = useMessagesStore(state => state.activeConversationsId)
   const [commandRunning, setCommandRunning] = useState(false)
+  const runningRef = useRef(false)
 
   const submitCommand = useCallback(async (
     draftText: string,
@@ -34,7 +34,10 @@ export function useBuiltinCommandSubmit(options: UseBuiltinCommandSubmitOptions)
       return false
     }
 
+    const startTime = Date.now()
+    runningRef.current = true
     setCommandRunning(true)
+
     try {
       const result = await commandsApi.runBuiltinCommand({
         id: command.id,
@@ -55,19 +58,38 @@ export function useBuiltinCommandSubmit(options: UseBuiltinCommandSubmitOptions)
       }
 
       if (command.id === 'compact' && activeConversationsId) {
+        const updatedConv = await chatApi.getConversationById(activeConversationsId)
+        upsertConversationAction(updatedConv)
         await setActiveConversationsId(activeConversationsId)
+      }
+
+      // Ensure the loading indicator is visible for at least MIN_LOADING_MS
+      const elapsed = Date.now() - startTime
+      if (elapsed < MIN_LOADING_MS) {
+        await new Promise(resolve => setTimeout(resolve, MIN_LOADING_MS - elapsed))
       }
 
       return true
     }
     catch (error) {
+      const elapsed = Date.now() - startTime
+      if (elapsed < MIN_LOADING_MS) {
+        await new Promise(resolve => setTimeout(resolve, MIN_LOADING_MS - elapsed))
+      }
       toast.error((error as Error).message)
       throw error
     }
     finally {
+      runningRef.current = false
       setCommandRunning(false)
     }
   }, [activeConversationsId, options.settings, options.currentWorkspacePath])
 
-  return { commandRunning, submitCommand }
+  const cancelCommand = useCallback(() => {
+    if (activeConversationsId) {
+      commandsApi.cancelCommand(activeConversationsId)
+    }
+  }, [activeConversationsId])
+
+  return { commandRunning, submitCommand, cancelCommand }
 }

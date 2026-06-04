@@ -9,121 +9,166 @@ export async function runCompact(params: {
   instruction: string | undefined
   modelConfig: { modelId: string, systemPrompt: string, temperature: number, maxTokens: number }
   logger?: ILogger
+  abortSignal?: AbortSignal
 }): Promise<RunBuiltinCommandResult> {
-  const { appDataContext, conversationId, instruction, modelConfig, logger } = params
+  const { appDataContext, conversationId, instruction, modelConfig, logger, abortSignal } = params
 
   function log(msg: string) {
     logger?.info(`[compact] ${msg}`)
+    console.log(`[compact] ${msg}`)
   }
+
+  log(`start: convId=${conversationId}, modelId=${modelConfig.modelId}, hasInstruction=${!!instruction}`)
 
   const conversation = await appDataContext.conversationRepository.getById(conversationId)
   if (!conversation) {
     throw new Error(`Conversation not found: ${conversationId}`)
   }
+  log(`conversation found: title=${conversation.title}, hasCompactionSettings=${!!conversation.settings?.compaction}`)
 
-  // Use defaults as fallback for missing settings, but ignore the `enabled`
-  // flag — it controls auto-compaction during agent turns, not manual /compact.
   const stored = conversation.settings?.compaction
   const compactionSettings = {
     ...DEFAULT_COMPACTION_SETTINGS,
-    ...(stored ? { thresholdPercent: stored.thresholdPercent, keepRecentPairs: stored.keepRecentPairs } : {}),
+    thresholdPercent: 0,
+    ...(stored ? { keepRecentPairs: stored.keepRecentPairs } : {}),
   }
+  log(`compactionSettings: thresholdPercent=0 (manual override), keepRecentPairs=${compactionSettings.keepRecentPairs}`)
 
   const messages = await appDataContext.messageRepository.listByConversation(conversationId)
+  log(`messages loaded: total=${messages.length}`)
   const loopMessages = messagesToLoopMessages(messages)
+  log(`loopMessages converted: total=${loopMessages.length}`)
 
-  // Get model and provider info for AI provider creation
   const modelInfo = await appDataContext.modelCatalog.getModelById(modelConfig.modelId)
   if (!modelInfo) {
     throw new Error(`Model not found: ${modelConfig.modelId}`)
   }
+  log(`model found: name=${modelInfo.model}, providerId=${modelInfo.providerId}`)
 
   const provider = await appDataContext.modelCatalog.getProviderById(modelInfo.providerId)
   if (!provider) {
     throw new Error(`Provider not found: ${modelInfo.providerId}`)
   }
+  log(`provider found: apiMode=${provider.apiMode || 'openai'}`)
 
   const aiProvider = await createProvider(provider)
   const apiMode = provider.apiMode || 'openai'
+  log(`aiProvider created`)
 
-  // Estimate tokens before compaction
   const estimatedTokens = estimateContextTokens(loopMessages)
   const contextWindow = getContextWindow(apiMode)
-  const thresholdPercent = compactionSettings.thresholdPercent
-  const thresholdTokens = Math.floor(contextWindow * thresholdPercent / 100)
+  const thresholdTokens = Math.floor(contextWindow * compactionSettings.thresholdPercent / 100)
 
-  log(`context check: estimated=${estimatedTokens}, window=${contextWindow}, threshold=${thresholdPercent}% (${thresholdTokens} tokens)`)
+  log(`context check: estimated=${estimatedTokens}, window=${contextWindow}, threshold=0% (${thresholdTokens} tokens)`)
 
-  // If under threshold, write "already compact" event
   if (estimatedTokens <= thresholdTokens) {
+    const msg = `Context is already compact enough (${estimatedTokens} tokens used, threshold is ${thresholdTokens}).`
     await appDataContext.messageRepository.create({
       convId: conversationId,
       role: 'event',
       status: 'success',
-      content: [{ type: 'text', text: 'Context is already compact enough.' }],
+      content: [{ type: 'text', text: msg }],
       eventType: 'compaction',
     })
-    return { summaryText: 'Context is already compact enough.' }
+    return { summaryText: msg }
   }
 
-  const compactionStrategy = createCompactionStrategy()
-  const result = await compactMessages({
-    messages: loopMessages,
-    preEstimatedTokens: estimatedTokens,
-    settings: compactionSettings,
-    aiProvider,
-    model: modelInfo.model,
-    providerFormat: apiMode,
-    logger,
-    summarize: compactionStrategy.summarize,
-    instruction,
-  })
+  log(`invoking LLM compaction...`)
 
-  if (!result.compacted) {
-    await appDataContext.messageRepository.create({
-      convId: conversationId,
-      role: 'event',
-      status: 'success',
-      content: [{ type: 'text', text: 'Context is already compact enough.' }],
-      eventType: 'compaction',
-    })
-    return { summaryText: 'Context is already compact enough.' }
-  }
-
-  // Write compaction event message
-  await appDataContext.messageRepository.create({
+  // Create a loading event that the UI can render immediately after messages refresh
+  const loadingEvent = await appDataContext.messageRepository.create({
     convId: conversationId,
     role: 'event',
-    status: 'success',
-    content: [{ type: 'text', text: result.summaryText || '' }],
+    status: 'loading',
+    content: [{ type: 'text', text: 'Compacting context...' }],
     eventType: 'compaction',
   })
 
-  // Determine the cut-point timestamp from the original messages so
-  // the next turn's context builder only filters summarized messages,
-  // not the recently retained ones.
-  const keptLength = result.keptLength ?? 0
-  const summarizedCount = loopMessages.length - keptLength
-  const filteredIndices = messages
-    .map((m, i) => (m.role === 'user' || m.role === 'assistant' || m.role === 'tool') ? i : -1)
-    .filter(i => i >= 0)
-  const firstKeptIndex = summarizedCount > 0 && summarizedCount < filteredIndices.length
-    ? filteredIndices[summarizedCount]
-    : -1
-  const lastCompactedAt = firstKeptIndex >= 0
-    ? messages[firstKeptIndex].createdAt
-    : messages[messages.length - 1]?.createdAt ?? Date.now()
+  let compactionFailed = false
+  let errorText = ''
+  let summaryText = ''
 
-  await appDataContext.conversationRepository.update({
-    id: conversationId,
-    settings: {
-      ...conversation.settings,
-      lastCompactedAt,
-      lastCompactionSummary: result.summaryText || '',
-    },
-  })
+  const compactionStrategy = createCompactionStrategy()
+  try {
+    const compactResult = await compactMessages({
+      messages: loopMessages,
+      preEstimatedTokens: estimatedTokens,
+      settings: compactionSettings,
+      aiProvider,
+      model: modelInfo.model,
+      providerFormat: apiMode,
+      logger,
+      summarize: compactionStrategy.summarize,
+      instruction,
+      abortSignal,
+    })
 
-  log(`compaction complete: summary=${result.summaryLength} chars, kept=${result.keptLength} msgs, cutAt=${lastCompactedAt}`)
+    if (abortSignal?.aborted) {
+      await appDataContext.messageRepository.delete(loadingEvent.id)
+      return { summaryText: '' }
+    }
 
-  return { summaryText: result.summaryText }
+    if (!compactResult.compacted) {
+      compactionFailed = true
+      errorText = compactResult.summaryError || 'Compaction did not produce a result.'
+    }
+    else if (!compactResult.summaryText?.trim()) {
+      compactionFailed = true
+      errorText = 'Compaction summarization returned empty response.'
+    }
+    else {
+      summaryText = compactResult.summaryText
+
+      // Determine cut-point for settings
+      const keptLength = compactResult.keptLength ?? 0
+      const summarizedCount = loopMessages.length - keptLength
+      const filteredIndices = messages
+        .map((m, i) => (m.role === 'user' || m.role === 'assistant' || m.role === 'tool') ? i : -1)
+        .filter(i => i >= 0)
+      const firstKeptIndex = summarizedCount > 0 && summarizedCount < filteredIndices.length
+        ? filteredIndices[summarizedCount]
+        : -1
+      const lastCompactedAt = firstKeptIndex >= 0
+        ? messages[firstKeptIndex].createdAt
+        : messages[messages.length - 1]?.createdAt ?? Date.now()
+
+      await appDataContext.conversationRepository.update({
+        id: conversationId,
+        settings: {
+          ...conversation.settings,
+          lastCompactedAt,
+          lastCompactionSummary: summaryText,
+        },
+      })
+
+      log(`compaction complete: summary=${compactResult.summaryLength} chars, kept=${compactResult.keptLength} msgs, cutAt=${lastCompactedAt}`)
+    }
+  }
+  catch (err) {
+    if (abortSignal?.aborted) {
+      log('compaction cancelled by user')
+      await appDataContext.messageRepository.delete(loadingEvent.id)
+      return { summaryText: '' }
+    }
+    compactionFailed = true
+    errorText = err instanceof Error ? err.message : String(err)
+  }
+
+  // Update the loading event to its final state
+  if (compactionFailed) {
+    await appDataContext.messageRepository.update({
+      id: loadingEvent.id,
+      status: 'error',
+      content: [{ type: 'text', text: errorText }],
+    })
+  }
+  else {
+    await appDataContext.messageRepository.update({
+      id: loadingEvent.id,
+      status: 'success',
+      content: [{ type: 'text', text: summaryText }],
+    })
+  }
+
+  return { summaryText }
 }

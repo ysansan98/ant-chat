@@ -71,13 +71,16 @@ describe('commandController task guard', () => {
 
   it('/compact ignores compaction.enabled flag (manual override)', async () => {
     const deps = mockDeps()
-    // enabled: false does NOT block manual /compact — the command proceeds past
-    // the settings check to the model lookup, which fails because it's unmocked.
+    // enabled: false does NOT block manual /compact. With thresholdPercent forced
+    // to 0, any non-empty conversation triggers the compaction path → model lookup.
     deps.appDataContext.conversationRepository.getById.mockResolvedValue({
       id: 'conv-1',
       settings: { compaction: { enabled: false, thresholdPercent: 70, keepRecentPairs: 3 } },
     })
-    deps.appDataContext.messageRepository.listByConversation.mockResolvedValue([])
+    // Enough content to surpass thresholdPercent=0
+    deps.appDataContext.messageRepository.listByConversation.mockResolvedValue([
+      { id: 'm1', role: 'user', content: [{ type: 'text', text: 'x'.repeat(100) }], createdAt: 1 },
+    ])
     const cc = createCommandController(deps as any)
 
     await expect(

@@ -123,6 +123,8 @@ export interface CompactionResult {
   summaryText?: string
   summaryLength?: number
   keptLength?: number
+  /** Error message when summarization fails. */
+  summaryError?: string
 }
 
 export async function compactMessages(input: CompactionInput): Promise<CompactionResult> {
@@ -159,9 +161,10 @@ export async function compactMessages(input: CompactionInput): Promise<Compactio
   try {
     summary = await summarize(serialized, aiProvider, model, abortSignal, instruction)
   }
-  catch {
-    log.warn('summary failed, keeping original messages')
-    return { messages, compacted: false }
+  catch (err) {
+    const reason = err instanceof Error ? err.message : String(err)
+    log.warn(`summary failed: ${reason}, keeping original messages`)
+    return { messages, compacted: false, summaryError: reason }
   }
 
   const summaryMessage: LoopMessage = {

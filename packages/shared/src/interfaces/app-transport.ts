@@ -117,6 +117,7 @@ export interface AppTransport {
   }
   commands: {
     runBuiltinCommand: (params: RunBuiltinCommandParams) => Promise<RunBuiltinCommandResult>
+    cancelCommand: (conversationId: string) => Promise<null>
   }
 }
 
@@ -228,5 +229,6 @@ export interface AppIpcServices {
   }
   commands: {
     runBuiltinCommand: (params: RunBuiltinCommandParams) => Promise<IpcResponse<RunBuiltinCommandResult>>
+    cancelCommand: (conversationId: string) => Promise<IpcResponse<null>>
   }
 }

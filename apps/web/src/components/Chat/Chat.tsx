@@ -33,7 +33,7 @@ export default function Chat() {
   const agentTaskId = agentTask?.taskId
   const pending = useAgentStore(state => (agentTaskId ? state.pendingByTask[agentTaskId] : undefined))
 
-  const { commandRunning, submitCommand } = useBuiltinCommandSubmit({
+  const { commandRunning, submitCommand, cancelCommand } = useBuiltinCommandSubmit({
     settings: {
       modelId: settings.modelId || '',
       systemPrompt: settings.systemPrompt,
@@ -103,6 +103,7 @@ export default function Chat() {
                   messages={messages}
                   conversationsId={activeConversationsId}
                   isAgentRunning={Boolean(agentTask)}
+                  isCompacting={commandRunning}
                 />
               </Suspense>
             )
@@ -139,6 +140,7 @@ export default function Chat() {
           )}
           onSubmit={onSubmit}
           onCancel={() => {
+            cancelCommand()
             void abortActiveRequest(activeConversationsId)
           }}
         />
