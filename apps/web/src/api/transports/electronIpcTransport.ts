@@ -78,6 +78,7 @@ export function createElectronIpcTransport(): AppTransport {
     },
     commands: {
       runBuiltinCommand: async params => unwrapIpcResponse(await ipc.commands.runBuiltinCommand(params)),
+      cancelCommand: async conversationId => unwrapIpcResponse(await ipc.commands.cancelCommand(conversationId)),
     },
   }
 }

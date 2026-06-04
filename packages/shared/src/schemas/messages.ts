@@ -223,7 +223,7 @@ export type ToolMessage = z.infer<typeof ToolMessage>
 
 export const EventMessage = BaseMessage.extend({
   role: z.literal('event'),
-  status: z.literal('success'),
+  status: z.enum(['success', 'loading', 'error']),
   eventType: z.string(),
 })
 

@@ -72,7 +72,7 @@ export interface IMessageTool extends IMessageBase {
 export interface IMessageEvent extends IMessageBase {
   role: 'event'
   content: IMessageContent
-  status: 'success'
+  status: 'success' | 'loading' | 'error'
   eventType: string
 }
 

@@ -8,25 +8,35 @@ export interface CommandControllerDeps {
   appDataContext: AppDataContext
   eventEmitter: IAgentEventEmitter
   logger?: ILogger
-  /** Must return active tasks for the given conversation. Used for concurrency guard. */
   listActiveTasks: (conversationId?: string) => AgentTaskSnapshot[]
 }
 
 export interface CommandController {
   runBuiltinCommand: (params: RunBuiltinCommandParams) => Promise<RunBuiltinCommandResult>
+  cancelCommand: (conversationId: string) => void
 }
 
 export function createCommandController(deps: CommandControllerDeps): CommandController {
-  const { appDataContext, eventEmitter: _eventEmitter, logger, listActiveTasks } = deps
+  const { appDataContext, logger, listActiveTasks } = deps
+  const abortControllers = new Map<string, AbortController>()
 
   function log(msg: string) {
     logger?.info(`[command-controller] ${msg}`)
+    console.log(`[command-controller] ${msg}`)
   }
 
   function guardConversationIdle(conversationId: string) {
     const active = listActiveTasks(conversationId)
     if (active.some(t => ['running', 'awaiting_approval'].includes(t.status))) {
       throw new Error('Agent task is running, cannot execute command')
+    }
+  }
+
+  function cancelCommand(conversationId: string) {
+    const ctrl = abortControllers.get(conversationId)
+    if (ctrl) {
+      log(`cancelling command for ${conversationId}`)
+      ctrl.abort()
     }
   }
 
@@ -40,7 +50,22 @@ export function createCommandController(deps: CommandControllerDeps): CommandCon
             throw new Error('/compact requires an active conversation')
           }
           guardConversationIdle(params.conversationId)
-          return runCompact({ appDataContext, conversationId: params.conversationId, instruction: params.argument, modelConfig: params.modelConfig, logger })
+
+          const ctrl = new AbortController()
+          abortControllers.set(params.conversationId, ctrl)
+          try {
+            return await runCompact({
+              appDataContext,
+              conversationId: params.conversationId,
+              instruction: params.argument,
+              modelConfig: params.modelConfig,
+              logger,
+              abortSignal: ctrl.signal,
+            })
+          }
+          finally {
+            abortControllers.delete(params.conversationId)
+          }
         }
 
         case 'new': {
@@ -59,5 +84,6 @@ export function createCommandController(deps: CommandControllerDeps): CommandCon
           throw new Error(`Unknown built-in command: ${params.id}`)
       }
     },
+    cancelCommand,
   }
 }

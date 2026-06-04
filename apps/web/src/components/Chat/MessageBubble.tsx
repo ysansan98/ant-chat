@@ -9,9 +9,14 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@workspace/ui/components/collapsible'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@workspace/ui/components/popover'
 import { Separator } from '@workspace/ui/components/separator'
 import { cn } from '@workspace/ui/lib/utils'
-import { ChevronRightIcon, ShrinkIcon } from 'lucide-react'
+import { ChevronRightIcon, Loader2Icon, ShrinkIcon } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Role } from '@/constants'
 import { transformMessageContent } from '@/utils/messageTransform'
@@ -47,11 +52,12 @@ export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }:
     return map
   }, [messages])
 
-  // Determine if the last assistant message has reasoning / is running (for fold decisions).
-  // Must be computed before early returns to keep hook order stable.
-  const nonToolForFold = messages.filter(m => m.role !== 'tool')
+  // Determine if the last assistant message is running (for fold decisions).
+  // Exclude tool and event messages — only assistant streaming should auto-expand.
+  const nonToolForFold = messages.filter(m => m.role !== 'tool' && m.role !== 'event')
   const lastNonTool = nonToolForFold[nonToolForFold.length - 1]
-  const isRunning = lastNonTool?.status === 'loading' || lastNonTool?.status === 'typing'
+  const isRunning = lastNonTool?.role === 'assistant'
+    && (lastNonTool?.status === 'loading' || lastNonTool?.status === 'typing')
 
   // Auto-open fold only while the conversation is streaming
   useEffect(() => {
@@ -62,41 +68,86 @@ export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }:
 
   // Event messages: render as collapsible divider
   if (isEvent) {
-    const eventLabel = message.eventType === 'compaction'
-      ? '上下文压缩'
+    const isCompaction = message.eventType === 'compaction'
+    const isCompacting = isCompaction && message.status === 'loading'
+    const isCompactError = isCompaction && message.status === 'error'
+
+    const eventLabel = isCompaction
+      ? isCompacting
+        ? '正在压缩上下文'
+        : isCompactError
+          ? '上下文压缩失败'
+          : '上下文已压缩'
       : message.eventType === 'fork'
         ? '会话 Fork'
         : message.eventType
+
     const eventText = typeof message.content === 'string'
       ? message.content
       : message.content.filter(b => b.type === 'text').map(b => b.text).join('\n')
 
+    const hasSummary = isCompaction && !isCompacting && !isCompactError && eventText.length > 0
+
     return (
       <div className="mx-auto flex w-full max-w-(--chat-width) items-center gap-3 py-3">
         <div className="h-px flex-1 bg-border" />
-        <Collapsible>
-          <CollapsibleTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="
-                h-7 gap-1.5 text-xs text-muted-foreground
-                hover:text-foreground
-              "
-            >
-              <ShrinkIcon className="size-3" />
-              {eventLabel}
-            </Button>
-          </CollapsibleTrigger>
-          <CollapsibleContent className="
-            mt-2 max-h-40 overflow-y-auto rounded-lg bg-muted/50 p-3 text-xs whitespace-pre-wrap
-            text-muted-foreground
-          "
-          >
-            {eventText}
-          </CollapsibleContent>
-        </Collapsible>
+        {isCompacting
+          ? (
+              <span className="flex h-7 shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+                <Loader2Icon className="size-3 animate-spin" />
+                {eventLabel}
+              </span>
+            )
+          : isCompactError
+            ? (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 gap-1.5 text-xs text-destructive hover:text-destructive"
+                    >
+                      <ShrinkIcon className="size-3" />
+                      {eventLabel}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    align="center"
+                    className="max-h-64 max-w-lg overflow-y-auto text-xs whitespace-pre-wrap text-destructive"
+                  >
+                    {eventText}
+                  </PopoverContent>
+                </Popover>
+              )
+            : hasSummary
+              ? (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        <ShrinkIcon className="size-3" />
+                        {eventLabel}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      align="center"
+                      className="max-h-64 max-w-lg overflow-y-auto text-xs whitespace-pre-wrap"
+                    >
+                      {eventText}
+                    </PopoverContent>
+                  </Popover>
+                )
+              : (
+                  <span className="flex h-7 shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+                    <ShrinkIcon className="size-3" />
+                    {eventLabel}
+                  </span>
+                )}
         <div className="h-px flex-1 bg-border" />
       </div>
     )

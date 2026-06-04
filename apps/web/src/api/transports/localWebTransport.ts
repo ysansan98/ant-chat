@@ -73,6 +73,7 @@ export function createLocalWebTransport(): AppTransport {
     },
     commands: {
       runBuiltinCommand: params => localRpc('commands.runBuiltinCommand', params as unknown as Record<string, unknown>),
+      cancelCommand: conversationId => localRpc('commands.cancelCommand', { conversationId }),
     },
   }
 }
