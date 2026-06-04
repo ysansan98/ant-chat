@@ -15,7 +15,6 @@ export async function runCompact(params: {
 
   function log(msg: string) {
     logger?.info(`[compact] ${msg}`)
-    console.log(`[compact] ${msg}`)
   }
 
   log(`start: convId=${conversationId}, modelId=${modelConfig.modelId}, hasInstruction=${!!instruction}`)

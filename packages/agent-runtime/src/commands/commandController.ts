@@ -22,7 +22,6 @@ export function createCommandController(deps: CommandControllerDeps): CommandCon
 
   function log(msg: string) {
     logger?.info(`[command-controller] ${msg}`)
-    console.log(`[command-controller] ${msg}`)
   }
 
   function guardConversationIdle(conversationId: string) {
