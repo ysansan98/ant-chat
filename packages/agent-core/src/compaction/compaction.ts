@@ -115,6 +115,8 @@ export interface CompactionInput {
   preEstimatedTokens?: number
   /** Optional user instruction for what to preserve or ignore during compaction */
   instruction?: string
+  /** When true, skips enabled and thresholdPercent checks, forces LLM compaction attempt. */
+  force?: boolean
 }
 
 export interface CompactionResult {
@@ -125,29 +127,38 @@ export interface CompactionResult {
   keptLength?: number
   /** Error message when summarization fails. */
   summaryError?: string
+  /** Number of messages that were summarized. Use to locate cut point in original message list. */
+  summarizedCount?: number
 }
 
 export async function compactMessages(input: CompactionInput): Promise<CompactionResult> {
-  const { messages, settings, aiProvider, model, providerFormat, abortSignal, logger: log = defaultLogger(), summarize, preEstimatedTokens, instruction } = input
+  const { messages, settings, aiProvider, model, providerFormat, abortSignal, logger: log = defaultLogger(), summarize, preEstimatedTokens, instruction, force } = input
 
-  if (!settings.enabled) {
+  // When not forced, respect enabled flag
+  if (!force && !settings.enabled) {
     return { messages, compacted: false }
   }
 
   const estimatedTokens = preEstimatedTokens ?? estimateContextTokens(messages)
   const contextWindow = getContextWindow(providerFormat)
-  const thresholdTokens = Math.floor(contextWindow * settings.thresholdPercent / 100)
 
-  log.info(`context check: estimated=${estimatedTokens}, window=${contextWindow}, threshold=${settings.thresholdPercent}% (${thresholdTokens} tokens)`)
+  // When not forced, check threshold; forced mode bypasses threshold
+  if (!force) {
+    const thresholdTokens = Math.floor(contextWindow * settings.thresholdPercent / 100)
+    log.info(`context check: estimated=${estimatedTokens}, window=${contextWindow}, threshold=${settings.thresholdPercent}% (${thresholdTokens} tokens)`)
 
-  if (estimatedTokens <= thresholdTokens) {
-    return { messages, compacted: false }
+    if (estimatedTokens <= thresholdTokens) {
+      return { messages, compacted: false }
+    }
+  }
+  else {
+    log.info(`forced compaction: estimated=${estimatedTokens}, window=${contextWindow}, bypassing threshold`)
   }
 
   const cutIndex = findCutPointByPairs(messages, settings.keepRecentPairs)
   if (cutIndex <= 0) {
     log.warn('no safe cut point found, skipping compaction')
-    return { messages, compacted: false }
+    return { messages, compacted: false, summaryError: 'Not enough messages to create a safe cut point' }
   }
 
   const toSummarize = messages.slice(0, cutIndex)
@@ -171,7 +182,6 @@ export async function compactMessages(input: CompactionInput): Promise<Compactio
     role: 'user',
     content: [{
       type: 'text',
-      // 将压缩摘要注入为一条 user 消息，供模型后续对话参考
       text: [
         'Previous conversation history has been compressed into the following summary:',
         '<summary>',
@@ -192,6 +202,7 @@ export async function compactMessages(input: CompactionInput): Promise<Compactio
     summaryText: summary,
     summaryLength: summary.length,
     keptLength: toKeep.length,
+    summarizedCount: toSummarize.length,
   }
 }
 
