@@ -19,6 +19,7 @@ export interface CommandController {
 export function createCommandController(deps: CommandControllerDeps): CommandController {
   const { appDataContext, logger, listActiveTasks } = deps
   const abortControllers = new Map<string, AbortController>()
+  const activeCommands = new Map<string, Promise<RunBuiltinCommandResult>>()
 
   function log(msg: string) {
     logger?.info(`[command-controller] ${msg}`)
@@ -28,6 +29,12 @@ export function createCommandController(deps: CommandControllerDeps): CommandCon
     const active = listActiveTasks(conversationId)
     if (active.some(t => ['running', 'awaiting_approval'].includes(t.status))) {
       throw new Error('Agent task is running, cannot execute command')
+    }
+  }
+
+  function guardNoActiveCommand(conversationId: string) {
+    if (activeCommands.has(conversationId)) {
+      throw new Error('A command is already running for this conversation')
     }
   }
 
@@ -49,21 +56,27 @@ export function createCommandController(deps: CommandControllerDeps): CommandCon
             throw new Error('/compact requires an active conversation')
           }
           guardConversationIdle(params.conversationId)
+          guardNoActiveCommand(params.conversationId)
 
           const ctrl = new AbortController()
           abortControllers.set(params.conversationId, ctrl)
+
+          const commandPromise = runCompact({
+            appDataContext,
+            conversationId: params.conversationId,
+            instruction: params.argument,
+            modelConfig: params.modelConfig,
+            logger,
+            abortSignal: ctrl.signal,
+          })
+
+          activeCommands.set(params.conversationId, commandPromise)
           try {
-            return await runCompact({
-              appDataContext,
-              conversationId: params.conversationId,
-              instruction: params.argument,
-              modelConfig: params.modelConfig,
-              logger,
-              abortSignal: ctrl.signal,
-            })
+            return await commandPromise
           }
           finally {
             abortControllers.delete(params.conversationId)
+            activeCommands.delete(params.conversationId)
           }
         }
 
@@ -76,7 +89,17 @@ export function createCommandController(deps: CommandControllerDeps): CommandCon
             throw new Error('/fork requires an active conversation')
           }
           guardConversationIdle(params.conversationId)
-          return runFork({ appDataContext, sourceConversationId: params.conversationId, workspacePath: params.workspacePath })
+          guardNoActiveCommand(params.conversationId)
+
+          const commandPromise = runFork({ appDataContext, sourceConversationId: params.conversationId, workspacePath: params.workspacePath })
+
+          activeCommands.set(params.conversationId, commandPromise)
+          try {
+            return await commandPromise
+          }
+          finally {
+            activeCommands.delete(params.conversationId)
+          }
         }
 
         default:
