@@ -49,7 +49,7 @@ export async function runFork(params: {
     idMap.set(msg.id, created.id)
   }
 
-  return { conversation: forkConversation, conversationId: forkConversation.id }
+  return { status: 'success' as const, conversation: forkConversation, conversationId: forkConversation.id }
 }
 
 /**

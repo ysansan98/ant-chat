@@ -10,7 +10,9 @@ function mockDeps(overrides: { activeTasks?: Array<{ status: string }> } = {}) {
     },
     messageRepository: {
       listByConversation: vi.fn(),
-      create: vi.fn(),
+      create: vi.fn().mockReturnValue({ id: 'loading-1' }),
+      update: vi.fn(),
+      delete: vi.fn(),
     },
     modelCatalog: {
       getModelById: vi.fn(),
@@ -71,8 +73,8 @@ describe('commandController task guard', () => {
 
   it('/compact ignores compaction.enabled flag (manual override)', async () => {
     const deps = mockDeps()
-    // enabled: false does NOT block manual /compact. With thresholdPercent forced
-    // to 0, any non-empty conversation triggers the compaction path → model lookup.
+    // enabled: false does NOT block manual /compact. With force:true,
+    // any non-empty conversation triggers the compaction path -> model lookup.
     deps.appDataContext.conversationRepository.getById.mockResolvedValue({
       id: 'conv-1',
       settings: { compaction: { enabled: false, thresholdPercent: 70, keepRecentPairs: 3 } },
@@ -83,14 +85,16 @@ describe('commandController task guard', () => {
     ])
     const cc = createCommandController(deps as any)
 
-    await expect(
-      cc.runBuiltinCommand({
-        id: 'compact',
-        conversationId: 'conv-1',
-        modelConfig: { modelId: 'm1', systemPrompt: '', temperature: 0, maxTokens: 0 },
-        workspacePath: '',
-      }),
-    ).rejects.toThrow('Model not found') // reaches model lookup, not blocked by enabled:false
+    const result = await cc.runBuiltinCommand({
+      id: 'compact',
+      conversationId: 'conv-1',
+      modelConfig: { modelId: 'm1', systemPrompt: '', temperature: 0, maxTokens: 0 },
+      workspacePath: '',
+    })
+    // Model lookup is attempted (not blocked by enabled:false) but fails
+    // with structured error status instead of throwing.
+    expect(result.status).toBe('error')
+    expect(result.errorMessage).toContain('Model not found')
   })
 
   it('rejects unknown command id', async () => {
