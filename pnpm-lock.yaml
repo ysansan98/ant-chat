@@ -554,6 +554,9 @@ importers:
       lucide-react:
         specifier: 'catalog:'
         version: 1.11.0(react@19.2.4)
+      lxgw-wenkai-lite-webfont:
+        specifier: ^1.7.0
+        version: 1.7.0
       media-chrome:
         specifier: ^4.19.0
         version: 4.19.0(react@19.2.4)
@@ -6556,6 +6559,9 @@ packages:
     resolution: {integrity: sha512-UOhjdztXCgdBReRcIhsvz2siIBogfv/lhJEIViCpLt924dO+GDms9T7DNoucI23s6kEPpe988m5N0D2ajnzb2g==}
     peerDependencies:
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
+
+  lxgw-wenkai-lite-webfont@1.7.0:
+    resolution: {integrity: sha512-VcQYNRpdXAxaZsJ18rfT1mmAreGqkIFNZ/9pdVLbT2Tkb+2lLWJDXq4zYxMEk9AcecSnxO31R2LHh5ieLlxjRg==}
 
   lz-string@1.5.0:
     resolution: {integrity: sha512-h5bgJWpxJNswbU7qCrV0tIKQCaS3blPDrqKWx+QxzuzL1zGUzij9XCWLrSLsJPu5t+eWA/ycetzYAO5IOMcWAQ==}
@@ -15309,6 +15315,8 @@ snapshots:
   lucide-react@1.11.0(react@19.2.4):
     dependencies:
       react: 19.2.4
+
+  lxgw-wenkai-lite-webfont@1.7.0: {}
 
   lz-string@1.5.0: {}
 

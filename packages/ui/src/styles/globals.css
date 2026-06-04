@@ -1,6 +1,9 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
+@import 'lxgw-wenkai-lite-webfont/lxgwwenkailite-light.css';
+@import 'lxgw-wenkai-lite-webfont/lxgwwenkailite-regular.css';
+@import 'lxgw-wenkai-lite-webfont/lxgwwenkailite-bold.css';
 @import '@fontsource-variable/jetbrains-mono';
 @import 'streamdown/styles.css';
 
@@ -14,7 +17,7 @@
 @plugin "@iconify/tailwind4";
 
 @theme inline {
-  --font-sans: 'Nunito Sans', Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'LXGW WenKai Lite', 'Nunito Sans', Inter, ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
   --font-serif: 'Merriweather', Georgia, Cambria, 'Times New Roman', serif;
   --font-heading: var(--font-sans);
@@ -118,7 +121,7 @@
   --chart-5: oklch(70% 0.11 330);
   --radius: 0.8rem;
   --letter-spacing: 0em;
-  --font-sans: 'Nunito Sans', Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'LXGW WenKai Lite', 'Nunito Sans', Inter, ui-sans-serif, system-ui, sans-serif;
   --font-serif: 'Merriweather', Georgia, Cambria, 'Times New Roman', serif;
   --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
   --radius-sm: 0.1875rem;
@@ -186,7 +189,7 @@
   --chart-5: oklch(76% 0.08 320);
   --radius: 0.8rem;
   --letter-spacing: 0em;
-  --font-sans: 'Nunito Sans', Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'LXGW WenKai Lite', 'Nunito Sans', Inter, ui-sans-serif, system-ui, sans-serif;
   --font-serif: 'Merriweather', Georgia, Cambria, 'Times New Roman', serif;
   --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
   --radius-sm: 0.1875rem;
