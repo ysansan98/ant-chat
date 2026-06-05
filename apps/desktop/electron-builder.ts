@@ -61,7 +61,6 @@ const config: Configuration = {
     'out/**/*',
     '!node_modules/**',
     'node_modules/better-sqlite3',
-    'node_modules/electron-log',
 
     'node_modules/electron-store',
     'node_modules/electron-updater',

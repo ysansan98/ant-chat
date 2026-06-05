@@ -2,10 +2,10 @@ import type { AgentPendingAction, AgentTaskSnapshot, IAgentEventEmitter, IMessag
 import type { ServerResponse } from 'node:http'
 import type { LocalServerServices } from './createServer'
 import { createServer as createHttpServer } from 'node:http'
-import { resolve } from 'node:path'
+import { join, resolve } from 'node:path'
 import process from 'node:process'
 import { parseArgs } from 'node:util'
-import { createAgentRuntimeEnvironment, createConversationTitleGenerator, createModelsDevImporter } from '@ant-chat/agent-runtime'
+import { createAgentRuntimeEnvironment, createAgentRuntimePaths, createConversationTitleGenerator, createModelsDevImporter, createSystemLogger } from '@ant-chat/agent-runtime'
 import { resolveAppDataRoot } from '@ant-chat/shared'
 import { createLocalApiHandler } from './createServer'
 
@@ -42,12 +42,13 @@ export function createSseEventEmitter(clients: Set<ServerResponse>): IAgentEvent
   }
 }
 
-function createDevLogger() {
-  return {
-    info: (msg: string, ...args: unknown[]) => console.log(`[local-server] ${msg}`, ...args),
-    warn: (msg: string, ...args: unknown[]) => console.warn(`[local-server] ${msg}`, ...args),
-    error: (msg: string, ...args: unknown[]) => console.error(`[local-server] ${msg}`, ...args),
-  }
+function createLocalServerLogger(appDataRoot: string) {
+  return createSystemLogger({
+    console,
+    filePath: join(createAgentRuntimePaths(appDataRoot).logsRoot, 'local-server.log'),
+    source: 'local-server',
+    writeDebugToConsole: true,
+  })
 }
 
 function buildServices(env: ReturnType<typeof createAgentRuntimeEnvironment>): LocalServerServices {
@@ -86,11 +87,13 @@ async function main() {
   const port = Number(values.port) || 3456
   const withWeb = values.web as boolean
   const sseClients = new Set<ServerResponse>()
+  const appDataRoot = resolveAppDataRoot()
+  const logger = createLocalServerLogger(appDataRoot)
 
   const env = createAgentRuntimeEnvironment({
-    appDataRoot: resolveAppDataRoot(),
+    appDataRoot,
     eventEmitter: createSseEventEmitter(sseClients),
-    logger: createDevLogger(),
+    logger,
   })
 
   const services = buildServices(env)
@@ -121,7 +124,7 @@ async function main() {
       server: { middlewareMode: true },
     })
     viteMiddleware = viteServer.middlewares as unknown as typeof viteMiddleware
-    console.log(`[local-server] Vite middleware attached (root: ${webRoot})`)
+    logger.info('Vite middleware attached', { root: webRoot })
   }
 
   const server = createHttpServer(async (req, res) => {
@@ -146,15 +149,15 @@ async function main() {
   })
 
   server.listen(port, '127.0.0.1', () => {
-    console.log(`[local-server] listening on http://127.0.0.1:${port}`)
-    console.log(`[local-server] SSE endpoint: http://127.0.0.1:${port}/api/events`)
+    logger.info(`listening on http://127.0.0.1:${port}`)
+    logger.info(`SSE endpoint: http://127.0.0.1:${port}/api/events`)
     if (withWeb) {
-      console.log(`[local-server] Web UI: http://127.0.0.1:${port}`)
+      logger.info(`Web UI: http://127.0.0.1:${port}`)
     }
   })
 
   const shutdown = () => {
-    console.log('\n[local-server] shutting down...')
+    logger.info('shutting down')
     for (const client of sseClients) {
       client.end()
     }

@@ -150,9 +150,6 @@ importers:
       electron-ipc-decorator:
         specifier: ^1.0.0
         version: 1.0.0(electron@40.6.1)
-      electron-log:
-        specifier: ^5.4.0
-        version: 5.4.4
       electron-store:
         specifier: ^8.0.0
         version: 8.2.0
@@ -4922,10 +4919,6 @@ packages:
     engines: {node: '>=18.0.0'}
     peerDependencies:
       electron: '>=32.0.0'
-
-  electron-log@5.4.4:
-    resolution: {integrity: sha512-istWgaXjBfURBSS8LWVW9C3jsc6+ac+tY1lXrQEOTp0lVj+a4OlO1Tmqb36GgnEUDv92DGC9VI1HNXwJinWpgA==}
-    engines: {node: '>= 14'}
 
   electron-publish@26.9.0:
     resolution: {integrity: sha512-gsy+U7JfDuD1lPOrCXeECDQoUsWjFah3s1Fv3pqKnjdJuKYDDvGdvC74kLHVG6nl5G0uQ7YN0eftCQ4rUmhvVw==}
@@ -13438,8 +13431,6 @@ snapshots:
   electron-ipc-decorator@1.0.0(electron@40.6.1):
     dependencies:
       electron: 40.6.1
-
-  electron-log@5.4.4: {}
 
   electron-publish@26.9.0:
     dependencies:

@@ -7,5 +7,5 @@ export default defineConfig({
   // exports: true,
   sourcemap: true,
   clean: true,
-  external: ['electron', 'electron-store', 'electron-log', 'zod'],
+  external: ['electron', 'electron-store', 'zod'],
 })

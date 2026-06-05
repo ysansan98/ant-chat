@@ -35,7 +35,6 @@
   "dependencies": {
     "better-sqlite3": "^12.6.2",
     "electron-ipc-decorator": "^1.0.0",
-    "electron-log": "^5.4.0",
     "electron-store": "^8.0.0",
     "electron-updater": "^6.2.0",
     "nanoid": "^5.0.9",
