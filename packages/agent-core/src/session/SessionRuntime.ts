@@ -148,6 +148,8 @@ export class SessionRuntime {
     const turnId = userMessage.id
     const eventEmitter = createStoreBackedEventEmitter(store, this.config.eventEmitter, turnId)
 
+    const taskLogger = this.config.createTaskLogger?.(conversation.id, userMessage.id)
+
     const compactionGate = createCompactionGate({
       settings: compactionSettings,
       aiProvider,
@@ -155,6 +157,7 @@ export class SessionRuntime {
       apiMode,
       summarize: (this.config.compactionStrategy ?? createCompactionStrategy()).summarize,
       logger: getAgentLogger(this.config),
+      taskLogger,
       conversationId: conversation.id,
       userMessageId: userMessage.id,
       store,
@@ -173,8 +176,6 @@ export class SessionRuntime {
         compacted: true,
       }
     }
-
-    const taskLogger = this.config.createTaskLogger?.(conversation.id, userMessage.id)
 
     const task = await this.startLoopTask(
       {

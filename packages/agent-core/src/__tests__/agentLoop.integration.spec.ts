@@ -222,6 +222,6 @@ describe('agentLoop integration (aimock)', () => {
 
     expect(['success', 'cancelled']).toContain(finalStatus)
     expect(emitter.emitTurnFinished).toHaveBeenCalled()
-    expect(logger.info).toHaveBeenCalled()
+    expect(logger.info).not.toHaveBeenCalled()
   })
 })

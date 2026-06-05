@@ -228,6 +228,7 @@ describe('runAgentLoop', () => {
       toolCalls: [],
     }))
     expect(taskLogger.close).toHaveBeenCalledTimes(1)
+    expect(logger.info).not.toHaveBeenCalled()
   })
 
   it('writes only new messages after the first model request', async () => {

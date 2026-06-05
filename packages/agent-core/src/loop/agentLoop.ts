@@ -2,7 +2,7 @@ import type { AgentRuntimeConfig, AgentTaskSnapshot, LoopMessage, McpToolCall, R
 import type { BeforeTurnResult, RuntimeStartInput } from '../session/types'
 import type { BeforeToolExecuteHook, ToolCallContext } from '../tools/types'
 import { AgentError } from '../AgentError'
-import { getAgentLogger } from '../logger'
+import { createAgentTraceLogger } from '../agentTraceLogger'
 import { taskStore } from '../taskStore'
 import { createInvalidToolArgsResult, executeToolStep } from '../tools/toolExecution'
 import { transformErrorMessage } from '../utils/errorMessages'
@@ -19,7 +19,7 @@ export async function runAgentLoop(input: {
   beforeToolExecute: BeforeToolExecuteHook
 }) {
   const { taskId, options, config, onBeforeTurn, beforeToolExecute } = input
-  const logger = getAgentLogger(config)
+  const traceLogger = createAgentTraceLogger(config)
   const task = taskStore.get(taskId)
   if (!task)
     throw new AgentError('AGENT_TASK_NOT_FOUND', 'Task not found')
@@ -121,8 +121,7 @@ export async function runAgentLoop(input: {
         maxTokens,
         ...requestDiagnostics,
       }
-      logger.info('agent-runtime', { event: 'model_request_started', ...requestPayload })
-      config.taskLogger?.write('model_request_started', requestPayload)
+      traceLogger.write('model_request_started', requestPayload)
       lastLoggedMessages = [...loopMessages]
       lastLoggedSystemPrompt = systemPrompt
 
@@ -187,8 +186,7 @@ export async function runAgentLoop(input: {
           invalidArgsError: call.invalidArgsError,
         })),
       }
-      logger.info('agent-runtime', { event: 'model_response_finished', ...responsePayload })
-      config.taskLogger?.write('model_response_finished', responsePayload)
+      traceLogger.write('model_response_finished', responsePayload)
       currentModelText = modelText.trim()
 
       if (requestedToolCalls.length === 0) {
@@ -288,8 +286,7 @@ export async function runAgentLoop(input: {
     task.snapshot.status = 'success'
     await config.eventEmitter.emitTaskUpdated(task.snapshot)
     const completedPayload = { runId: taskId, taskId, conversationId: options.conversationId, userMessageId: options.userMessageId, durationMs: Date.now() - taskStartedAt, finalAnswer }
-    logger.info('agent-runtime', { event: 'task_completed', ...completedPayload })
-    config.taskLogger?.write('task_completed', completedPayload)
+    traceLogger.write('task_completed', completedPayload)
   }
   catch (error) {
     await handleLoopFailure({
@@ -305,8 +302,7 @@ export async function runAgentLoop(input: {
     if (['success', 'failed', 'cancelled'].includes(task.snapshot.status)) {
       taskStore.finish(task.snapshot.taskId)
     }
-    // 确保 taskLogger 在 loop 结束时关闭（刷盘 + 释放资源）
-    config.taskLogger?.close()
+    traceLogger.close()
   }
 }
 
@@ -350,8 +346,7 @@ async function handleLoopFailure(options: {
     })
   }
   await config.eventEmitter.emitTaskUpdated(task.snapshot)
-  getAgentLogger(config).error('[agent-runtime] task_failed', failurePayload)
-  config.taskLogger?.write('task_failed', failurePayload)
+  createAgentTraceLogger(config).write('task_failed', failurePayload)
 }
 
 function createModelRequestDiagnostics(input: {

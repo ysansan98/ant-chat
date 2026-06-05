@@ -3,7 +3,7 @@ import type { RuntimeTask } from '../taskStore'
 import type { BeforeToolExecuteHook } from '../tools/types'
 import { randomUUID } from 'node:crypto'
 import { AgentError } from '../AgentError'
-import { getAgentLogger } from '../logger'
+import { createAgentTraceLogger } from '../agentTraceLogger'
 import { decidePolicy } from './policyEngine'
 import { extractInputKey, generatePattern, isWhitelisted } from './toolApprovalWhitelist'
 
@@ -13,7 +13,7 @@ export function createBeforeToolExecuteHook(
 ): BeforeToolExecuteHook {
   return async (input) => {
     const { task, prepared, config, onToolCallContext } = input
-    const logger = getAgentLogger(config)
+    const traceLogger = createAgentTraceLogger(config)
     const logContext = {
       runId: task.snapshot.taskId,
       taskId: task.snapshot.taskId,
@@ -38,17 +38,7 @@ export function createBeforeToolExecuteHook(
     }
     onToolCallContext?.(context)
 
-    logger.info('agent-runtime', {
-      event: 'tool_decision',
-      ...logContext,
-      toolName: prepared.toolName,
-      input: prepared.input,
-      operationType: prepared.operationType,
-      scope: prepared.scope,
-      policy: policyDecision.type,
-      workspacePath: task.snapshot.workspacePath,
-    })
-    config.taskLogger?.write('tool_decision', {
+    traceLogger.write('tool_decision', {
       ...logContext,
       toolName: prepared.toolName,
       input: prepared.input,
@@ -63,29 +53,6 @@ export function createBeforeToolExecuteHook(
     }
 
     if (policyDecision.type === 'block') {
-      logger.info('agent-runtime', {
-        event: 'tool_blocked',
-        ...logContext,
-        toolName: prepared.toolName,
-        input: prepared.input,
-        operationType: prepared.operationType,
-        scope: prepared.scope,
-        policy: policyDecision.type,
-        reason: policyDecision.reason,
-        errorCode: policyDecision.errorCode,
-        workspacePath: task.snapshot.workspacePath,
-      })
-      config.taskLogger?.write('tool_blocked', {
-        ...logContext,
-        toolName: prepared.toolName,
-        input: prepared.input,
-        operationType: prepared.operationType,
-        scope: prepared.scope,
-        policy: policyDecision.type,
-        reason: policyDecision.reason,
-        errorCode: policyDecision.errorCode,
-        workspacePath: task.snapshot.workspacePath,
-      })
       return {
         outcome: 'block',
         errorCode: policyDecision.errorCode,
@@ -105,16 +72,7 @@ export function createBeforeToolExecuteHook(
         task.snapshot.workspacePath,
       )
       if (matched) {
-        logger.info('agent-runtime', {
-          event: 'tool_whitelist_auto_approved',
-          ...logContext,
-          toolName: prepared.toolName,
-          scope: prepared.scope,
-          matchKey,
-          pattern: matched.pattern,
-          workspacePath: task.snapshot.workspacePath,
-        })
-        config.taskLogger?.write('tool_whitelist_auto_approved', {
+        traceLogger.write('tool_whitelist_auto_approved', {
           ...logContext,
           toolName: prepared.toolName,
           scope: prepared.scope,
