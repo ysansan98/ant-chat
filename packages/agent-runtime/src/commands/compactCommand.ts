@@ -1,7 +1,6 @@
 import type { AppDataContext } from '@ant-chat/app-data'
 import type { ILogger, RunBuiltinCommandResult } from '@ant-chat/shared'
-import { compactMessages, createCompactionStrategy, createProvider, DEFAULT_COMPACTION_SETTINGS, estimateContextTokens } from '@ant-chat/agent-core'
-import { messagesToLoopMessages } from './messageConversion'
+import { buildConversationContextMessages, compactMessages, createCompactionStrategy, createProvider, DEFAULT_COMPACTION_SETTINGS, estimateContextTokens } from '@ant-chat/agent-core'
 
 export async function runCompact(params: {
   appDataContext: AppDataContext
@@ -34,8 +33,8 @@ export async function runCompact(params: {
 
   const messages = await appDataContext.messageRepository.listByConversation(conversationId)
   log(`messages loaded: total=${messages.length}`)
-  const loopMessages = messagesToLoopMessages(messages)
-  log(`loopMessages converted: total=${loopMessages.length}`)
+  const loopMessages = await buildConversationContextMessages(messages)
+  log(`contextMessages built: total=${loopMessages.length}`)
   if (loopMessages.length === 0) {
     return { status: 'success', summaryText: 'No messages to compact.' }
   }
@@ -105,30 +104,7 @@ export async function runCompact(params: {
     }
     else {
       summaryText = compactResult.summaryText
-
-      const summarizedCount = compactResult.summarizedCount ?? 0
-      const filteredIndices = messages
-        .map((m, i) => (m.role === 'user' || m.role === 'assistant' || m.role === 'tool') ? i : -1)
-        .filter(i => i >= 0)
-      const lastCompactedMessage = summarizedCount > 0
-        ? messages[filteredIndices[summarizedCount - 1]]
-        : summarizedCount >= filteredIndices.length
-          ? messages[messages.length - 1]
-          : undefined
-      if (!lastCompactedMessage) {
-        throw new Error('Compaction did not identify a message boundary.')
-      }
-
-      await appDataContext.conversationRepository.update({
-        id: conversationId,
-        settings: {
-          ...conversation.settings,
-          lastCompactedMessageId: lastCompactedMessage.id,
-          lastCompactionSummary: summaryText,
-        },
-      })
-
-      log(`compaction complete: summary=${compactResult.summaryLength} chars, kept=${compactResult.keptLength} msgs, boundary=${lastCompactedMessage.id}`)
+      log(`compaction complete: summary=${compactResult.summaryLength} chars, kept=${compactResult.keptLength} msgs`)
     }
   }
   catch (err) {

@@ -29,10 +29,6 @@ export const ConversationsSettingsSchema = z.object({
   temperature: z.number(),
   maxTokens: z.number(),
   compaction: CompactionSettingsSchema.optional(),
-  /** Last message included in the compaction summary. Earlier messages are replaced by the summary. */
-  lastCompactedMessageId: z.string().optional(),
-  /** Last compaction summary injected when rebuilding context. It is not shown in chat. */
-  lastCompactionSummary: z.string().optional(),
 })
 
 export type ConversationsSettingsSchema = z.infer<typeof ConversationsSettingsSchema>

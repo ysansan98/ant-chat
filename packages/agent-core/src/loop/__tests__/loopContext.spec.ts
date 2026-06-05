@@ -14,7 +14,7 @@ function textMessage(id: string, role: 'user' | 'assistant', text: string): IMes
 }
 
 describe('buildConversationContextMessages', () => {
-  it('replaces messages up to lastCompactedMessageId with the compaction summary', async () => {
+  it('replaces messages up to the latest manual compaction event with the event summary', async () => {
     const messages = [
       textMessage('u1', 'user', 'old user'),
       textMessage('a1', 'assistant', 'old assistant'),
@@ -34,8 +34,6 @@ describe('buildConversationContextMessages', () => {
     const result = await buildConversationContextMessages(
       messages,
       'current',
-      'a1',
-      'old summary',
     )
 
     expect(result).toEqual([
@@ -46,7 +44,7 @@ describe('buildConversationContextMessages', () => {
           text: [
             'Previous conversation history has been compressed into the following summary:',
             '<summary>',
-            'old summary',
+            'event summary',
             '</summary>',
             'Continue the task based on the above summary and subsequent conversation.',
           ].join('\n'),
@@ -59,12 +57,44 @@ describe('buildConversationContextMessages', () => {
     ])
   })
 
-  it('rejects a missing compaction boundary id', async () => {
+  it('ignores automatic compaction events when rebuilding persisted conversation context', async () => {
+    const messages = [
+      textMessage('u1', 'user', 'old user'),
+      {
+        id: 'auto-evt-1',
+        convId: 'conv-1',
+        createdAt: 1,
+        role: 'event' as const,
+        status: 'success' as const,
+        eventType: 'compaction',
+        turnId: 'u1',
+        content: [{ type: 'text' as const, text: 'automatic summary' }],
+      },
+      textMessage('current', 'user', 'current prompt'),
+    ]
+
+    const result = await buildConversationContextMessages(messages, 'current')
+
+    expect(result).toEqual([
+      {
+        role: 'user',
+        content: [{ type: 'text', text: 'old user' }],
+      },
+    ])
+  })
+
+  it('rejects a manual compaction event without summary text', async () => {
     await expect(buildConversationContextMessages(
-      [textMessage('u1', 'user', 'old user')],
+      [{
+        id: 'evt-1',
+        convId: 'conv-1',
+        createdAt: 1,
+        role: 'event' as const,
+        status: 'success' as const,
+        eventType: 'compaction',
+        content: [{ type: 'text' as const, text: '  ' }],
+      }],
       'current',
-      'missing-id',
-      'old summary',
-    )).rejects.toThrow('Compaction boundary message not found: missing-id')
+    )).rejects.toThrow('Compaction event missing summary text: evt-1')
   })
 })

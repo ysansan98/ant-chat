@@ -82,26 +82,22 @@ export function createLoopSystemPrompt(workspacePath: string, customPrompt?: str
 
 export async function buildConversationContextMessages(
   messages: IMessage[],
-  currentUserMessageId: string,
-  lastCompactedMessageId?: string,
-  lastCompactionSummary?: string,
+  currentUserMessageId?: string,
   loadFileData?: LoadFileDataFn,
 ): Promise<LoopMessage[]> {
-  const lastCompactedIndex = lastCompactedMessageId
-    ? messages.findIndex(message => message.id === lastCompactedMessageId)
-    : -1
-  if (lastCompactedMessageId && lastCompactedIndex < 0) {
-    throw new Error(`Compaction boundary message not found: ${lastCompactedMessageId}`)
-  }
+  const latestCompactionEventIndex = findLatestManualCompactionEventIndex(messages)
+  const latestCompactionEvent = latestCompactionEventIndex >= 0
+    ? messages[latestCompactionEventIndex]
+    : undefined
   const valid = messages
     .filter((message, index): message is IMessage & { role: 'user' | 'assistant' | 'tool' } => {
-      if (message.id === currentUserMessageId)
+      if (currentUserMessageId && message.id === currentUserMessageId)
         return false
       if (message.role === 'event')
         return false
       if (message.role !== 'user' && message.role !== 'assistant' && message.role !== 'tool')
         return false
-      if (lastCompactedIndex >= 0 && index <= lastCompactedIndex)
+      if (latestCompactionEventIndex >= 0 && index <= latestCompactionEventIndex)
         return false
       if (message.role === 'user' || message.role === 'tool')
         return true
@@ -110,7 +106,8 @@ export async function buildConversationContextMessages(
 
   const result: LoopMessage[] = []
 
-  if (lastCompactionSummary && lastCompactedIndex >= 0) {
+  if (latestCompactionEvent) {
+    const summary = getManualCompactionSummaryText(latestCompactionEvent)
     result.push({
       role: 'user',
       content: [{
@@ -118,7 +115,7 @@ export async function buildConversationContextMessages(
         text: [
           'Previous conversation history has been compressed into the following summary:',
           '<summary>',
-          lastCompactionSummary,
+          summary,
           '</summary>',
           'Continue the task based on the above summary and subsequent conversation.',
         ].join('\n'),
@@ -166,6 +163,34 @@ export async function buildConversationContextMessages(
   }
 
   return result
+}
+
+function findLatestManualCompactionEventIndex(messages: IMessage[]): number {
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const message = messages[index]
+    if (
+      message.role === 'event'
+      && message.eventType === 'compaction'
+      && message.status === 'success'
+      && !message.turnId
+    ) {
+      return index
+    }
+  }
+  return -1
+}
+
+function getManualCompactionSummaryText(message: IMessage): string {
+  const summary = message.content
+    .filter((block): block is { type: 'text', text: string } => block.type === 'text')
+    .map(block => block.text)
+    .join('\n')
+    .trim()
+
+  if (!summary) {
+    throw new Error(`Compaction event missing summary text: ${message.id}`)
+  }
+  return summary
 }
 
 export function normalizeToolArgs(args: unknown): NormalizeToolArgsResult {

@@ -1,6 +1,19 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createCommandController } from '../commandController'
 
+const summarizeMock = vi.hoisted(() =>
+  vi.fn(async (_serialized: string) => 'new compact summary'),
+)
+
+vi.mock('@ant-chat/agent-core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@ant-chat/agent-core')>()
+  return {
+    ...actual,
+    createProvider: vi.fn(async () => ({})),
+    createCompactionStrategy: vi.fn(() => ({ summarize: summarizeMock })),
+  }
+})
+
 function mockDeps(overrides: { activeTasks?: Array<{ status: string }> } = {}) {
   const appDataContext = {
     conversationRepository: {
@@ -243,6 +256,60 @@ describe('compact command error and cancellation', () => {
     expect(result.summaryText).toContain('No messages')
     expect(deps.appDataContext.modelCatalog.getModelById).not.toHaveBeenCalled()
     expect(deps.appDataContext.messageRepository.create).not.toHaveBeenCalled()
+  })
+
+  it('/compact summarizes from the latest manual compaction summary instead of older raw messages', async () => {
+    summarizeMock.mockClear()
+    const deps = mockDeps()
+    deps.appDataContext.conversationRepository.getById.mockResolvedValue({
+      id: 'conv-1',
+      title: 'Test',
+      settings: { compaction: { enabled: true, thresholdPercent: 70, keepRecentPairs: 1 } },
+    })
+    deps.appDataContext.messageRepository.listByConversation.mockResolvedValue([
+      { id: 'u1', convId: 'conv-1', role: 'user', status: 'success', content: [{ type: 'text', text: 'old raw user' }], createdAt: 1 },
+      { id: 'a1', convId: 'conv-1', role: 'assistant', status: 'success', content: [{ type: 'text', text: 'old raw assistant' }], createdAt: 2 },
+      {
+        id: 'evt-1',
+        convId: 'conv-1',
+        role: 'event',
+        status: 'success',
+        eventType: 'compaction',
+        content: [{ type: 'text', text: 'previous compact summary' }],
+        createdAt: 3,
+      },
+      { id: 'a2', convId: 'conv-1', role: 'assistant', status: 'success', content: [{ type: 'text', text: 'after summary answer' }], createdAt: 4 },
+      { id: 'u2', convId: 'conv-1', role: 'user', status: 'success', content: [{ type: 'text', text: 'new user request' }], createdAt: 5 },
+    ])
+    deps.appDataContext.messageRepository.create.mockResolvedValue({ id: 'event-2' })
+    deps.appDataContext.modelCatalog.getModelById.mockResolvedValue({ id: 'm1', model: 'test-model', providerId: 'provider-1' })
+    deps.appDataContext.modelCatalog.getProviderById.mockResolvedValue({
+      id: 'provider-1',
+      name: 'provider',
+      apiMode: 'openai',
+      apiKey: 'test-key',
+      baseUrl: 'https://example.com',
+      isOfficial: false,
+      isEnabled: true,
+      createdAt: 1,
+      updatedAt: 1,
+    })
+
+    const cc = createCommandController(deps as any)
+    const result = await cc.runBuiltinCommand({
+      id: 'compact',
+      conversationId: 'conv-1',
+      modelConfig: { modelId: 'm1', systemPrompt: '', temperature: 0, maxTokens: 0 },
+      workspacePath: '',
+    })
+
+    expect(result.status).toBe('success')
+    const serialized = summarizeMock.mock.calls[0]?.[0]
+    expect(serialized).toContain('previous compact summary')
+    expect(serialized).toContain('after summary answer')
+    expect(serialized).not.toContain('old raw user')
+    expect(serialized).not.toContain('old raw assistant')
+    expect(deps.appDataContext.conversationRepository.update).not.toHaveBeenCalled()
   })
 
   it('cancelCommand waits until the loading event is deleted', async () => {
