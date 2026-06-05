@@ -4,15 +4,18 @@ import type {
   AgentRuntimeStartTaskResult,
   CompactionSettingsSchema,
   IAgentEventEmitter,
+  IAIProvider,
+  ILogger,
   ISessionStore,
   LoopMessage,
 } from '@ant-chat/shared'
 import type { BeforeTurnResult, RuntimeStartInput, RuntimeStartResult } from './types'
 import { createProvider } from '../ai-providers/factory'
 import {
+  compactMessages,
   DEFAULT_COMPACTION_SETTINGS,
+  estimateContextTokens,
 } from '../compaction/compaction'
-import { createCompactionGate } from '../compaction/compactionGate'
 import { createCompactionStrategy } from '../compaction/compactionStrategy'
 import { getAgentLogger } from '../logger'
 import {
@@ -76,14 +79,6 @@ export class SessionRuntime {
       throw new Error('AGENT_TASK_ALREADY_RUNNING')
     }
 
-    const userMessage = await store.createUserMessage({
-      convId: conversation.id,
-      role: 'user',
-      status: 'success',
-      content: options.content ?? [{ type: 'text', text: prompt }],
-      turnId: undefined,
-    })
-
     const model = await modelCatalog.getModelById(options.modelId)
     if (!model) {
       throw new Error(`Model not found: ${options.modelId}`)
@@ -98,12 +93,6 @@ export class SessionRuntime {
       ? await this.config.aiProviderFactory({ model, provider })
       : await createProvider(provider)
     const currentConversation = await store.getConversation(conversation.id)
-    const historyMessages = await store.getMessages(conversation.id)
-    const contextMessages = await buildConversationContextMessages(
-      historyMessages,
-      userMessage.id,
-      loadFileData,
-    )
 
     const enrichedPrompt = buildPromptWithTurnContext({
       prompt,
@@ -127,8 +116,41 @@ export class SessionRuntime {
       userContent = [{ type: 'text', text: enrichedPrompt }]
     }
 
+    const historyMessages = await store.getMessages(conversation.id)
+    const contextMessages = await buildConversationContextMessages(
+      historyMessages,
+      undefined,
+      loadFileData,
+    )
+
+    const apiMode = provider.apiMode || 'openai'
+    const compactionSettings: CompactionSettingsSchema = currentConversation?.settings?.compaction ?? DEFAULT_COMPACTION_SETTINGS
+    const preTurnCompaction = await compactPersistedHistoryBeforeTurn({
+      contextMessages,
+      pendingUserMessage: { role: 'user', content: userContent },
+      settings: compactionSettings,
+      aiProvider,
+      modelName: model.model,
+      apiMode,
+      summarize: (this.config.compactionStrategy ?? createCompactionStrategy()).summarize,
+      logger: getAgentLogger(this.config),
+      conversationId: conversation.id,
+      store,
+    })
+    if (preTurnCompaction.compacted) {
+      this.promptMemorySnapshots.delete(conversation.id)
+    }
+
+    const userMessage = await store.createUserMessage({
+      convId: conversation.id,
+      role: 'user',
+      status: 'success',
+      content: options.content ?? [{ type: 'text', text: prompt }],
+      turnId: undefined,
+    })
+
     const messages: LoopMessage[] = [
-      ...contextMessages,
+      ...preTurnCompaction.messages,
       { role: 'user', content: userContent },
     ]
 
@@ -140,40 +162,11 @@ export class SessionRuntime {
     })
     const memory = await this.getPromptMemorySnapshot(conversation.id)
     const systemPrompt = createLoopSystemPrompt(options.workspacePath, options.chatSettings?.systemPrompt, memory)
-    const apiMode = provider.apiMode || 'openai'
-    const compactionSettings: CompactionSettingsSchema = currentConversation?.settings?.compaction ?? DEFAULT_COMPACTION_SETTINGS
 
     const turnId = userMessage.id
     const eventEmitter = createStoreBackedEventEmitter(store, this.config.eventEmitter, turnId)
 
     const taskLogger = this.config.createTaskLogger?.(conversation.id, userMessage.id)
-
-    const compactionGate = createCompactionGate({
-      settings: compactionSettings,
-      aiProvider,
-      modelName: model.model,
-      apiMode,
-      summarize: (this.config.compactionStrategy ?? createCompactionStrategy()).summarize,
-      logger: getAgentLogger(this.config),
-      taskLogger,
-      conversationId: conversation.id,
-      userMessageId: userMessage.id,
-      store,
-    })
-    const onBeforeTurn = async (ctx: { messages: LoopMessage[], step: number }): Promise<BeforeTurnResult> => {
-      const result = await compactionGate(ctx)
-      if (!result.compacted) {
-        return { messages: result.messages, compacted: false }
-      }
-
-      this.promptMemorySnapshots.delete(conversation.id)
-      const updatedMemory = await this.getPromptMemorySnapshot(conversation.id)
-      return {
-        messages: result.messages,
-        systemPrompt: createLoopSystemPrompt(options.workspacePath, options.chatSettings?.systemPrompt, updatedMemory),
-        compacted: true,
-      }
-    }
 
     const task = await this.startLoopTask(
       {
@@ -195,7 +188,7 @@ export class SessionRuntime {
         maxTokens: options.chatSettings?.maxTokens,
         compaction: compactionSettings,
       },
-      { eventEmitter, onBeforeTurn },
+      { eventEmitter },
     )
 
     return {
@@ -234,6 +227,50 @@ export class SessionRuntime {
     }
     return this.promptMemorySnapshots.get(conversationId)
   }
+}
+
+async function compactPersistedHistoryBeforeTurn(params: {
+  contextMessages: LoopMessage[]
+  pendingUserMessage: LoopMessage
+  settings: CompactionSettingsSchema
+  aiProvider: IAIProvider | null
+  modelName: string
+  apiMode: string
+  summarize?: (serialized: string, aiProvider: IAIProvider, model: string, abortSignal?: AbortSignal) => Promise<string>
+  logger: ILogger
+  conversationId: string
+  store: ISessionStore
+}): Promise<{ compacted: boolean, messages: LoopMessage[] }> {
+  const { contextMessages, pendingUserMessage, settings, aiProvider, modelName, apiMode, summarize, logger, conversationId, store } = params
+  if (!settings.enabled || !aiProvider || !summarize) {
+    return { compacted: false, messages: contextMessages }
+  }
+
+  const estimatedTokens = estimateContextTokens([...contextMessages, pendingUserMessage])
+  const result = await compactMessages({
+    messages: contextMessages,
+    preEstimatedTokens: estimatedTokens,
+    settings,
+    aiProvider,
+    model: modelName,
+    providerFormat: apiMode,
+    logger,
+    summarize,
+  })
+
+  if (!result.compacted) {
+    return { compacted: false, messages: contextMessages }
+  }
+
+  await store.createEventMessage({
+    convId: conversationId,
+    role: 'event',
+    status: 'success',
+    content: [{ type: 'text', text: result.summaryText || '' }],
+    eventType: 'compaction',
+  })
+
+  return { compacted: true, messages: result.messages }
 }
 
 async function readPromptMemory(config: AgentRuntimeConfig): Promise<{ memory?: string, soul?: string, user?: string } | undefined> {

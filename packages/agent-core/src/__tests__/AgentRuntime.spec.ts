@@ -376,7 +376,7 @@ describe('agentRuntime', () => {
       cleanupTasks([secondResult.taskId])
     })
 
-    it('refreshes the memory snapshot when compaction runs', async () => {
+    it('compacts persisted history before writing the new user message and refreshes memory', async () => {
       const conversation = {
         id: 'conv-session',
         title: 'Untitled',
@@ -391,9 +391,12 @@ describe('agentRuntime', () => {
           compaction: { enabled: true, thresholdPercent: 10, keepRecentPairs: 1 },
         },
       }
+      let historyMessages: Awaited<ReturnType<ISessionStore['getMessages']>> = []
       const store = createSessionStore({
         getConversation: vi.fn(async () => conversation),
+        getConversationById: vi.fn(async () => conversation),
         createConversation: vi.fn(async () => conversation),
+        getMessages: vi.fn(async () => historyMessages),
       })
       let memoryMarkdown = '§Initial memory.'
       const readMemory = vi.fn(async () => memoryMarkdown)
@@ -411,8 +414,26 @@ describe('agentRuntime', () => {
       })
       const runtime = new AgentRuntime(config)
 
-      const result = await runtime.startTask({
-        prompt: 'inspect project',
+      const firstResult = await runtime.startTask({
+        conversationId: 'conv-session',
+        prompt: 'inspect project first',
+        modelId: 'model-1',
+        workspacePath: '/workspace',
+        mode: 'hybrid',
+      })
+      cleanupTasks([firstResult.taskId])
+
+      memoryMarkdown = '§Updated memory after compaction.'
+      historyMessages = [
+        { id: 'u1', convId: 'conv-session', createdAt: 1, role: 'user', status: 'success', content: [{ type: 'text', text: 'x'.repeat(60_000) }] },
+        { id: 'a1', convId: 'conv-session', createdAt: 2, role: 'assistant', status: 'success', content: [{ type: 'text', text: 'previous answer' }] },
+        { id: 'u2', convId: 'conv-session', createdAt: 3, role: 'user', status: 'success', content: [{ type: 'text', text: 'recent request' }] },
+        { id: 'a2', convId: 'conv-session', createdAt: 4, role: 'assistant', status: 'success', content: [{ type: 'text', text: 'recent answer' }] },
+      ]
+
+      const secondResult = await runtime.startTask({
+        conversationId: 'conv-session',
+        prompt: 'inspect project again',
         modelId: 'model-1',
         workspacePath: '/workspace',
         mode: 'hybrid',
@@ -420,24 +441,40 @@ describe('agentRuntime', () => {
 
       const loopCalls = vi.mocked(runAgentLoop).mock.calls
       const loopCall = loopCalls[loopCalls.length - 1]
-      const onBeforeTurn = loopCall?.[0].onBeforeTurn
-      expect(onBeforeTurn).toBeDefined()
-
-      memoryMarkdown = '§Updated memory after compaction.'
-      const turnResult = await onBeforeTurn?.({
-        step: 1,
-        messages: [
-          { role: 'user', content: [{ type: 'text', text: 'x'.repeat(60_000) }] },
-          { role: 'assistant', content: [{ type: 'text', text: 'previous answer' }] },
-          { role: 'user', content: [{ type: 'text', text: 'current request' }] },
-        ],
+      const loopOptions = loopCall?.[0].options
+      expect(loopCall?.[0].onBeforeTurn).toBeUndefined()
+      expect(loopOptions?.systemPrompt).toContain('Updated memory after compaction.')
+      expect(loopOptions?.systemPrompt).not.toContain('Initial memory.')
+      expect(loopOptions?.messages).toEqual([
+        {
+          role: 'user',
+          content: [{
+            type: 'text',
+            text: [
+              'Previous conversation history has been compressed into the following summary:',
+              '<summary>',
+              'Earlier context summary.',
+              '</summary>',
+              'Continue the task based on the above summary and subsequent conversation.',
+            ].join('\n'),
+          }],
+        },
+        { role: 'user', content: [{ type: 'text', text: 'recent request' }] },
+        { role: 'assistant', content: [{ type: 'text', text: 'recent answer' }] },
+        { role: 'user', content: [{ type: 'text', text: 'inspect project again' }] },
+      ])
+      expect(store.createEventMessage).toHaveBeenCalledWith({
+        convId: 'conv-session',
+        role: 'event',
+        status: 'success',
+        content: [{ type: 'text', text: 'Earlier context summary.' }],
+        eventType: 'compaction',
       })
-
-      expect(turnResult?.systemPrompt).toContain('Updated memory after compaction.')
-      expect(turnResult?.systemPrompt).not.toContain('Initial memory.')
+      expect(vi.mocked(store.createEventMessage).mock.invocationCallOrder[0])
+        .toBeLessThan(vi.mocked(store.createUserMessage).mock.invocationCallOrder[1])
       expect(readMemory).toHaveBeenCalledTimes(2)
       expect(readUserMemory).toHaveBeenCalledTimes(2)
-      cleanupTasks([result.taskId])
+      cleanupTasks([secondResult.taskId])
     })
 
     it('does not create user message when conversation already has an active task', async () => {
