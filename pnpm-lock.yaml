@@ -551,9 +551,9 @@ importers:
       lucide-react:
         specifier: 'catalog:'
         version: 1.11.0(react@19.2.4)
-      lxgw-wenkai-lite-webfont:
-        specifier: ^1.7.0
-        version: 1.7.0
+      lxgw-wenkai-mono-gb-screen-webfont:
+        specifier: ^1.0.1
+        version: 1.0.1
       media-chrome:
         specifier: ^4.19.0
         version: 4.19.0(react@19.2.4)
@@ -6553,8 +6553,8 @@ packages:
     peerDependencies:
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
-  lxgw-wenkai-lite-webfont@1.7.0:
-    resolution: {integrity: sha512-VcQYNRpdXAxaZsJ18rfT1mmAreGqkIFNZ/9pdVLbT2Tkb+2lLWJDXq4zYxMEk9AcecSnxO31R2LHh5ieLlxjRg==}
+  lxgw-wenkai-mono-gb-screen-webfont@1.0.1:
+    resolution: {integrity: sha512-GuJbWOsusYJjPifhhIVH25WEADKnaRPrbSLlhjDN/FtFOwa8sCj7s/FAYOGkzbM/7jEAFp7DM+6ImEQuXSSzxg==, tarball: https://r.cnpmjs.org/lxgw-wenkai-mono-gb-screen-webfont/-/lxgw-wenkai-mono-gb-screen-webfont-1.0.1.tgz}
 
   lz-string@1.5.0:
     resolution: {integrity: sha512-h5bgJWpxJNswbU7qCrV0tIKQCaS3blPDrqKWx+QxzuzL1zGUzij9XCWLrSLsJPu5t+eWA/ycetzYAO5IOMcWAQ==}
@@ -15307,7 +15307,7 @@ snapshots:
     dependencies:
       react: 19.2.4
 
-  lxgw-wenkai-lite-webfont@1.7.0: {}
+  lxgw-wenkai-mono-gb-screen-webfont@1.0.1: {}
 
   lz-string@1.5.0: {}
 
