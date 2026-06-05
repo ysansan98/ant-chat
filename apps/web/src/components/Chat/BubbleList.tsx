@@ -110,9 +110,17 @@ function BubbleList({ messages, isCompacting = false }: Props) {
       const bubble = messageEl.querySelector('.flex.w-fit.min-w-0.max-w-full') as HTMLElement | null
       const target: HTMLElement = bubble || (messageEl as HTMLElement)
 
-      // 设置 scroll-margin 留出顶部呼吸空间，再滚动
-      target.style.scrollMarginTop = '1.5rem'
-      target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      // 手动计算容器内偏移量，只滚动 InfiniteScroll 容器，
+      // 避免 scrollIntoView 触发窗口级别的滚动导致整个页面上移
+      const scrollMargin = 24 // 1.5rem 呼吸空间
+      const containerRect = container.getBoundingClientRect()
+      const targetRect = target.getBoundingClientRect()
+      const offsetTop = targetRect.top - containerRect.top + container.scrollTop - scrollMargin
+
+      container.scrollTo({
+        top: Math.max(0, offsetTop),
+        behavior: 'smooth',
+      })
 
       // 高亮效果
       target.style.transition = 'box-shadow 0.3s ease-in-out'
@@ -120,7 +128,6 @@ function BubbleList({ messages, isCompacting = false }: Props) {
       target.style.borderRadius = 'var(--radius-lg)'
       setTimeout(() => {
         target.style.boxShadow = ''
-        target.style.scrollMarginTop = ''
       }, 1500)
     },
     [infiniteScrollRef, setAutoScrollToBottom],
