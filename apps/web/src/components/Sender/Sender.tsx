@@ -688,6 +688,11 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
       event.preventDefault()
       selectHighlightedReference()
     }
+
+    if (event.key === 'Tab' && suggestionItemCount > 0) {
+      event.preventDefault()
+      selectHighlightedReference()
+    }
   }
 
   function updateCursorFromTextarea(element: HTMLTextAreaElement) {
@@ -706,7 +711,7 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
   }
 
   function handleTextareaKeyUp(event: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].includes(event.key)) {
+    if (['ArrowDown', 'ArrowUp', 'Enter', 'Escape', 'Tab'].includes(event.key)) {
       return
     }
 
