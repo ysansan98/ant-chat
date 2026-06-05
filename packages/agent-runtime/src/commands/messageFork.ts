@@ -15,7 +15,7 @@ export async function runFork(params: {
 
   const sourceMessages = await appDataContext.messageRepository.listByConversation(sourceConversationId)
 
-  // Create fork conversation with title "原标题 fork"
+  // Create fork conversation with title "<source title> fork".
   const forkTitle = `${sourceConversation.title} fork`
   const forkConversation = await appDataContext.conversationRepository.create({
     workspacePath,
@@ -37,7 +37,7 @@ export async function runFork(params: {
     eventType: 'fork',
   })
 
-  // Copy messages in order, tracking old→new ID mapping for turnId references
+  // Copy messages in order, tracking old-to-new ID mapping for turnId references.
   const idMap = new Map<string, string>()
   // Stable mapping for tool-call/tool-result IDs so pairs stay linked
   const toolCallIdMap = new Map<string, string>()
@@ -49,13 +49,13 @@ export async function runFork(params: {
     idMap.set(msg.id, created.id)
   }
 
-  return { conversation: forkConversation, conversationId: forkConversation.id }
+  return { status: 'success', conversation: forkConversation, conversationId: forkConversation.id }
 }
 
 /**
  * Convert a source message to an AddMessage shape for the fork conversation.
  * Remaps tool-call / tool-result IDs via a stable map so pairs stay linked,
- * and remaps turnId via the provided idMap (sourceId → forkId).
+ * and remaps turnId via the provided idMap (sourceId to forkId).
  */
 function messageToAddMessage(
   msg: IMessage,
@@ -108,10 +108,13 @@ function messageToAddMessage(
       }
 
     case 'event':
+      if (msg.status !== 'success' && msg.status !== 'loading' && msg.status !== 'error') {
+        throw new Error(`Invalid event message status: ${msg.status}`)
+      }
       return {
         ...base,
         role: 'event' as const,
-        status: 'success' as const,
+        status: msg.status,
         eventType: msg.eventType || 'unknown',
       }
 

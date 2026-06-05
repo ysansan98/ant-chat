@@ -43,8 +43,8 @@ export function useConversationSettings() {
     if (has(options, 'compaction')) {
       updatedSettings.compaction = options.compaction
     }
-    if (has(options, 'lastCompactedAt')) {
-      updatedSettings.lastCompactedAt = options.lastCompactedAt
+    if (has(options, 'lastCompactedMessageId')) {
+      updatedSettings.lastCompactedMessageId = options.lastCompactedMessageId
     }
 
     if (currentConversationsId) {
@@ -68,7 +68,7 @@ export function useConversationSettings() {
         draft.temperature = conversations.settings.temperature || 0.7
         draft.maxTokens = conversations.settings.maxTokens || 1000
         draft.compaction = conversations.settings.compaction || DEFAULT_COMPACTION
-        draft.lastCompactedAt = conversations.settings.lastCompactedAt
+        draft.lastCompactedMessageId = conversations.settings.lastCompactedMessageId
       }
       else {
         draft.modelId = ''
@@ -76,7 +76,7 @@ export function useConversationSettings() {
         draft.temperature = 0.7
         draft.maxTokens = 1000
         draft.compaction = DEFAULT_COMPACTION
-        draft.lastCompactedAt = undefined
+        draft.lastCompactedMessageId = undefined
       }
     })
   }, [currentConversationsId, _updateSettings, conversations?.settings])

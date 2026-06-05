@@ -13,16 +13,16 @@ export interface CommandControllerDeps {
 
 export interface CommandController {
   runBuiltinCommand: (params: RunBuiltinCommandParams) => Promise<RunBuiltinCommandResult>
-  cancelCommand: (conversationId: string) => void
+  cancelCommand: (conversationId: string) => Promise<RunBuiltinCommandResult | undefined>
 }
 
 export function createCommandController(deps: CommandControllerDeps): CommandController {
   const { appDataContext, logger, listActiveTasks } = deps
   const abortControllers = new Map<string, AbortController>()
+  const activeCommands = new Map<string, Promise<RunBuiltinCommandResult>>()
 
   function log(msg: string) {
     logger?.info(`[command-controller] ${msg}`)
-    console.log(`[command-controller] ${msg}`)
   }
 
   function guardConversationIdle(conversationId: string) {
@@ -32,12 +32,19 @@ export function createCommandController(deps: CommandControllerDeps): CommandCon
     }
   }
 
-  function cancelCommand(conversationId: string) {
+  function guardNoActiveCommand(conversationId: string) {
+    if (activeCommands.has(conversationId)) {
+      throw new Error('A command is already running for this conversation')
+    }
+  }
+
+  async function cancelCommand(conversationId: string): Promise<RunBuiltinCommandResult | undefined> {
     const ctrl = abortControllers.get(conversationId)
     if (ctrl) {
       log(`cancelling command for ${conversationId}`)
       ctrl.abort()
     }
+    return activeCommands.get(conversationId)
   }
 
   return {
@@ -50,21 +57,25 @@ export function createCommandController(deps: CommandControllerDeps): CommandCon
             throw new Error('/compact requires an active conversation')
           }
           guardConversationIdle(params.conversationId)
+          guardNoActiveCommand(params.conversationId)
 
           const ctrl = new AbortController()
           abortControllers.set(params.conversationId, ctrl)
+          const commandPromise = runCompact({
+            appDataContext,
+            conversationId: params.conversationId,
+            instruction: params.argument,
+            modelConfig: params.modelConfig,
+            logger,
+            abortSignal: ctrl.signal,
+          })
+          activeCommands.set(params.conversationId, commandPromise)
           try {
-            return await runCompact({
-              appDataContext,
-              conversationId: params.conversationId,
-              instruction: params.argument,
-              modelConfig: params.modelConfig,
-              logger,
-              abortSignal: ctrl.signal,
-            })
+            return await commandPromise
           }
           finally {
             abortControllers.delete(params.conversationId)
+            activeCommands.delete(params.conversationId)
           }
         }
 
@@ -77,7 +88,16 @@ export function createCommandController(deps: CommandControllerDeps): CommandCon
             throw new Error('/fork requires an active conversation')
           }
           guardConversationIdle(params.conversationId)
-          return runFork({ appDataContext, sourceConversationId: params.conversationId, workspacePath: params.workspacePath })
+          guardNoActiveCommand(params.conversationId)
+
+          const commandPromise = runFork({ appDataContext, sourceConversationId: params.conversationId, workspacePath: params.workspacePath })
+          activeCommands.set(params.conversationId, commandPromise)
+          try {
+            return await commandPromise
+          }
+          finally {
+            activeCommands.delete(params.conversationId)
+          }
         }
 
         default:

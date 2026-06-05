@@ -52,7 +52,7 @@ export function useBuiltinCommandSubmit(options: UseBuiltinCommandSubmitOptions)
         workspacePath: options.currentWorkspacePath || '',
       })
 
-      if (result.conversation) {
+      if (result.status === 'success' && result.conversation) {
         upsertConversationAction(result.conversation)
         await setActiveConversationsId(result.conversation.id)
       }
@@ -85,9 +85,12 @@ export function useBuiltinCommandSubmit(options: UseBuiltinCommandSubmitOptions)
     }
   }, [activeConversationsId, options.settings, options.currentWorkspacePath])
 
-  const cancelCommand = useCallback(() => {
+  const cancelCommand = useCallback(async () => {
     if (activeConversationsId) {
-      commandsApi.cancelCommand(activeConversationsId)
+      await commandsApi.cancelCommand(activeConversationsId)
+      const updatedConv = await chatApi.getConversationById(activeConversationsId)
+      upsertConversationAction(updatedConv)
+      await setActiveConversationsId(activeConversationsId)
     }
   }, [activeConversationsId])
 

@@ -263,7 +263,7 @@ async function dispatchRpc(body: unknown, services: LocalServerServices): Promis
       const cc = services.commandController
       if (!cc)
         throw new Error('Command controller is not available in local web transport')
-      cc.cancelCommand(stringParam(params.conversationId))
+      await cc.cancelCommand(stringParam(params.conversationId))
       return null
     }
     default:

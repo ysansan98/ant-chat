@@ -60,11 +60,22 @@ export interface RunBuiltinCommandParams {
   workspacePath: string
 }
 
-export interface RunBuiltinCommandResult {
-  /** For /new and /fork: the created conversation */
-  conversation?: IConversations
-  /** For /new and /fork: the new conversation id */
-  conversationId?: string
-  /** For /compact: compaction summary text */
-  summaryText?: string
-}
+export type RunBuiltinCommandResult
+  = | {
+    status: 'success'
+    /** For /new and /fork: the created conversation. */
+    conversation?: IConversations
+    /** For /new and /fork: the new conversation id. */
+    conversationId?: string
+    /** For /compact: compaction summary text. */
+    summaryText?: string
+  }
+  | {
+    status: 'error'
+    errorMessage: string
+    summaryText?: string
+  }
+  | {
+    status: 'cancelled'
+    summaryText?: string
+  }

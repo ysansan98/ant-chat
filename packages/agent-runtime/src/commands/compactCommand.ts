@@ -1,6 +1,6 @@
 import type { AppDataContext } from '@ant-chat/app-data'
 import type { ILogger, RunBuiltinCommandResult } from '@ant-chat/shared'
-import { compactMessages, createCompactionStrategy, createProvider, DEFAULT_COMPACTION_SETTINGS, estimateContextTokens, getContextWindow } from '@ant-chat/agent-core'
+import { compactMessages, createCompactionStrategy, createProvider, DEFAULT_COMPACTION_SETTINGS, estimateContextTokens } from '@ant-chat/agent-core'
 import { messagesToLoopMessages } from './messageConversion'
 
 export async function runCompact(params: {
@@ -15,7 +15,6 @@ export async function runCompact(params: {
 
   function log(msg: string) {
     logger?.info(`[compact] ${msg}`)
-    console.log(`[compact] ${msg}`)
   }
 
   log(`start: convId=${conversationId}, modelId=${modelConfig.modelId}, hasInstruction=${!!instruction}`)
@@ -29,49 +28,20 @@ export async function runCompact(params: {
   const stored = conversation.settings?.compaction
   const compactionSettings = {
     ...DEFAULT_COMPACTION_SETTINGS,
-    thresholdPercent: 0,
     ...(stored ? { keepRecentPairs: stored.keepRecentPairs } : {}),
   }
-  log(`compactionSettings: thresholdPercent=0 (manual override), keepRecentPairs=${compactionSettings.keepRecentPairs}`)
+  log(`compactionSettings: force=true, keepRecentPairs=${compactionSettings.keepRecentPairs}`)
 
   const messages = await appDataContext.messageRepository.listByConversation(conversationId)
   log(`messages loaded: total=${messages.length}`)
   const loopMessages = messagesToLoopMessages(messages)
   log(`loopMessages converted: total=${loopMessages.length}`)
-
-  const modelInfo = await appDataContext.modelCatalog.getModelById(modelConfig.modelId)
-  if (!modelInfo) {
-    throw new Error(`Model not found: ${modelConfig.modelId}`)
+  if (loopMessages.length === 0) {
+    return { status: 'success', summaryText: 'No messages to compact.' }
   }
-  log(`model found: name=${modelInfo.model}, providerId=${modelInfo.providerId}`)
-
-  const provider = await appDataContext.modelCatalog.getProviderById(modelInfo.providerId)
-  if (!provider) {
-    throw new Error(`Provider not found: ${modelInfo.providerId}`)
-  }
-  log(`provider found: apiMode=${provider.apiMode || 'openai'}`)
-
-  const aiProvider = await createProvider(provider)
-  const apiMode = provider.apiMode || 'openai'
-  log(`aiProvider created`)
 
   const estimatedTokens = estimateContextTokens(loopMessages)
-  const contextWindow = getContextWindow(apiMode)
-  const thresholdTokens = Math.floor(contextWindow * compactionSettings.thresholdPercent / 100)
-
-  log(`context check: estimated=${estimatedTokens}, window=${contextWindow}, threshold=0% (${thresholdTokens} tokens)`)
-
-  if (estimatedTokens <= thresholdTokens) {
-    const msg = `Context is already compact enough (${estimatedTokens} tokens used, threshold is ${thresholdTokens}).`
-    await appDataContext.messageRepository.create({
-      convId: conversationId,
-      role: 'event',
-      status: 'success',
-      content: [{ type: 'text', text: msg }],
-      eventType: 'compaction',
-    })
-    return { summaryText: msg }
-  }
+  log(`context check: estimated=${estimatedTokens}, force=true`)
 
   log(`invoking LLM compaction...`)
 
@@ -90,6 +60,22 @@ export async function runCompact(params: {
 
   const compactionStrategy = createCompactionStrategy()
   try {
+    const modelInfo = await appDataContext.modelCatalog.getModelById(modelConfig.modelId)
+    if (!modelInfo) {
+      throw new Error(`Model not found: ${modelConfig.modelId}`)
+    }
+    log(`model found: name=${modelInfo.model}, providerId=${modelInfo.providerId}`)
+
+    const provider = await appDataContext.modelCatalog.getProviderById(modelInfo.providerId)
+    if (!provider) {
+      throw new Error(`Provider not found: ${modelInfo.providerId}`)
+    }
+    log(`provider found: apiMode=${provider.apiMode || 'openai'}`)
+
+    const aiProvider = await createProvider(provider)
+    const apiMode = provider.apiMode || 'openai'
+    log(`aiProvider created`)
+
     const compactResult = await compactMessages({
       messages: loopMessages,
       preEstimatedTokens: estimatedTokens,
@@ -101,11 +87,12 @@ export async function runCompact(params: {
       summarize: compactionStrategy.summarize,
       instruction,
       abortSignal,
+      force: true,
     })
 
     if (abortSignal?.aborted) {
       await appDataContext.messageRepository.delete(loadingEvent.id)
-      return { summaryText: '' }
+      return { status: 'cancelled', summaryText: '' }
     }
 
     if (!compactResult.compacted) {
@@ -119,36 +106,36 @@ export async function runCompact(params: {
     else {
       summaryText = compactResult.summaryText
 
-      // Determine cut-point for settings
-      const keptLength = compactResult.keptLength ?? 0
-      const summarizedCount = loopMessages.length - keptLength
+      const summarizedCount = compactResult.summarizedCount ?? 0
       const filteredIndices = messages
         .map((m, i) => (m.role === 'user' || m.role === 'assistant' || m.role === 'tool') ? i : -1)
         .filter(i => i >= 0)
-      const firstKeptIndex = summarizedCount > 0 && summarizedCount < filteredIndices.length
-        ? filteredIndices[summarizedCount]
-        : -1
-      const lastCompactedAt = firstKeptIndex >= 0
-        ? messages[firstKeptIndex].createdAt
-        : messages[messages.length - 1]?.createdAt ?? Date.now()
+      const lastCompactedMessage = summarizedCount > 0
+        ? messages[filteredIndices[summarizedCount - 1]]
+        : summarizedCount >= filteredIndices.length
+          ? messages[messages.length - 1]
+          : undefined
+      if (!lastCompactedMessage) {
+        throw new Error('Compaction did not identify a message boundary.')
+      }
 
       await appDataContext.conversationRepository.update({
         id: conversationId,
         settings: {
           ...conversation.settings,
-          lastCompactedAt,
+          lastCompactedMessageId: lastCompactedMessage.id,
           lastCompactionSummary: summaryText,
         },
       })
 
-      log(`compaction complete: summary=${compactResult.summaryLength} chars, kept=${compactResult.keptLength} msgs, cutAt=${lastCompactedAt}`)
+      log(`compaction complete: summary=${compactResult.summaryLength} chars, kept=${compactResult.keptLength} msgs, boundary=${lastCompactedMessage.id}`)
     }
   }
   catch (err) {
     if (abortSignal?.aborted) {
       log('compaction cancelled by user')
       await appDataContext.messageRepository.delete(loadingEvent.id)
-      return { summaryText: '' }
+      return { status: 'cancelled', summaryText: '' }
     }
     compactionFailed = true
     errorText = err instanceof Error ? err.message : String(err)
@@ -170,5 +157,9 @@ export async function runCompact(params: {
     })
   }
 
-  return { summaryText }
+  if (compactionFailed) {
+    return { status: 'error', errorMessage: errorText, summaryText: errorText }
+  }
+
+  return { status: 'success', summaryText }
 }

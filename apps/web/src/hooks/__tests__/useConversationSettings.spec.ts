@@ -43,7 +43,7 @@ describe('useConversationSettings', () => {
       temperature: 0.7,
       maxTokens: 1000,
       compaction: defaultCompaction,
-      lastCompactedAt: undefined,
+      lastCompactedMessageId: undefined,
     })
   })
 
@@ -69,7 +69,7 @@ describe('useConversationSettings', () => {
       temperature: 0.5,
       maxTokens: 500,
       compaction: defaultCompaction,
-      lastCompactedAt: undefined,
+      lastCompactedMessageId: undefined,
     })
   })
 
@@ -146,7 +146,7 @@ describe('useConversationSettings', () => {
       temperature: 0.7,
       maxTokens: 1000,
       compaction: defaultCompaction,
-      lastCompactedAt: undefined,
+      lastCompactedMessageId: undefined,
     })
   })
 })
