@@ -1,6 +1,7 @@
 # Build output
 out
-build
+build/*
+!build/entitlements.mac.plist
 release
 
 # Database
