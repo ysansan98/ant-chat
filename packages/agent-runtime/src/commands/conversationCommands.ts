@@ -23,5 +23,5 @@ export async function runNew(params: {
     updatedAt: Date.now(),
   })
 
-  return { conversation, conversationId: conversation.id }
+  return { status: 'success', conversation, conversationId: conversation.id }
 }

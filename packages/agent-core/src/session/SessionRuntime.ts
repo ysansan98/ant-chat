@@ -102,7 +102,7 @@ export class SessionRuntime {
     const contextMessages = await buildConversationContextMessages(
       historyMessages,
       userMessage.id,
-      currentConversation?.settings?.lastCompactedAt,
+      currentConversation?.settings?.lastCompactedMessageId,
       currentConversation?.settings?.lastCompactionSummary,
       loadFileData,
     )
@@ -113,10 +113,10 @@ export class SessionRuntime {
       selectedSkill: options.selectedSkill,
     })
 
-    // 构建用户内容
+    // Build user content.
     let userContent: LoopMessage['content']
     if (options.content && options.content.length > 0) {
-      // 使用新的 content 格式，将 enrichedPrompt 替换到第一个 text block
+      // Preserve content blocks while replacing the visible user prompt text.
       const contentWithEnrichedPrompt = options.content.map((block) => {
         if (block.type === 'text') {
           return { ...block, text: enrichedPrompt }

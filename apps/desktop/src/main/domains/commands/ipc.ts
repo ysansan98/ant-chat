@@ -20,7 +20,7 @@ export class CommandsIpcService extends IpcService {
   @IpcMethod()
   async cancelCommand(conversationId: string): Promise<IpcResponse<null>> {
     try {
-      getAgentRuntimeEnvironment().commandController.cancelCommand(conversationId)
+      await getAgentRuntimeEnvironment().commandController.cancelCommand(conversationId)
       return createIpcResponse(true, null)
     }
     catch (error) {

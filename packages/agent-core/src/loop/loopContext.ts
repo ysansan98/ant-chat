@@ -83,19 +83,25 @@ export function createLoopSystemPrompt(workspacePath: string, customPrompt?: str
 export async function buildConversationContextMessages(
   messages: IMessage[],
   currentUserMessageId: string,
-  lastCompactedAt?: number,
+  lastCompactedMessageId?: string,
   lastCompactionSummary?: string,
   loadFileData?: LoadFileDataFn,
 ): Promise<LoopMessage[]> {
+  const lastCompactedIndex = lastCompactedMessageId
+    ? messages.findIndex(message => message.id === lastCompactedMessageId)
+    : -1
+  if (lastCompactedMessageId && lastCompactedIndex < 0) {
+    throw new Error(`Compaction boundary message not found: ${lastCompactedMessageId}`)
+  }
   const valid = messages
-    .filter((message): message is IMessage & { role: 'user' | 'assistant' | 'tool' } => {
+    .filter((message, index): message is IMessage & { role: 'user' | 'assistant' | 'tool' } => {
       if (message.id === currentUserMessageId)
         return false
       if (message.role === 'event')
         return false
       if (message.role !== 'user' && message.role !== 'assistant' && message.role !== 'tool')
         return false
-      if (lastCompactedAt && message.createdAt < lastCompactedAt)
+      if (lastCompactedIndex >= 0 && index <= lastCompactedIndex)
         return false
       if (message.role === 'user' || message.role === 'tool')
         return true
@@ -104,7 +110,7 @@ export async function buildConversationContextMessages(
 
   const result: LoopMessage[] = []
 
-  if (lastCompactionSummary && lastCompactedAt) {
+  if (lastCompactionSummary && lastCompactedIndex >= 0) {
     result.push({
       role: 'user',
       content: [{

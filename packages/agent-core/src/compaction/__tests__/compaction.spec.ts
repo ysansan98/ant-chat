@@ -22,7 +22,7 @@ describe('estimateContextTokens', () => {
   it('estimates text messages by length / 4 + overhead', () => {
     const msg = makeTextMsg('user', 'Hello World') // 11 chars
     const tokens = estimateContextTokens([msg])
-    // 11/4 ≈ 3 + 4 overhead = 7
+    // 11/4 is about 3, plus 4 overhead equals 7.
     expect(tokens).toBeGreaterThan(0)
     expect(tokens).toBe(Math.ceil(11 / 4) + 4)
   })
@@ -47,6 +47,86 @@ describe('estimateContextTokens', () => {
     const total = estimateContextTokens(msgs)
     const single = estimateContextTokens([msgs[0]])
     expect(total).toBeGreaterThan(single)
+  })
+})
+
+describe('compactMessages force mode', () => {
+  const noopAiProvider = {} as IAIProvider
+
+  it('skips enabled and threshold checks when forced', async () => {
+    const summarize = vi.fn().mockResolvedValue('forced summary')
+    const messages = [
+      makeTextMsg('user', 'Q1'),
+      makeTextMsg('assistant', 'A1'),
+      makeTextMsg('user', 'Q2'),
+      makeTextMsg('assistant', 'A2'),
+    ]
+
+    const result = await compactMessages({
+      messages,
+      settings: { ...DEFAULT_COMPACTION_SETTINGS, enabled: false, thresholdPercent: 90 },
+      aiProvider: noopAiProvider,
+      model: 'test-model',
+      providerFormat: 'openai',
+      preEstimatedTokens: 1,
+      summarize,
+      force: true,
+    })
+
+    expect(result.compacted).toBe(true)
+    expect(result.summaryText).toBe('forced summary')
+    expect(result.summarizedCount).toBe(1)
+    expect(result.keptLength).toBe(3)
+    expect(summarize).toHaveBeenCalledOnce()
+  })
+
+  it('can summarize a single-message conversation when forced', async () => {
+    const messages = [makeTextMsg('user', 'Only message')]
+
+    const result = await compactMessages({
+      messages,
+      settings: DEFAULT_COMPACTION_SETTINGS,
+      aiProvider: noopAiProvider,
+      model: 'test-model',
+      providerFormat: 'openai',
+      summarize: async () => 'single summary',
+      force: true,
+    })
+
+    expect(result.compacted).toBe(true)
+    expect(result.summaryText).toBe('single summary')
+    expect(result.summarizedCount).toBe(1)
+    expect(result.keptLength).toBe(0)
+  })
+
+  it('returns summarizedCount matching the summarized prefix', async () => {
+    const messages = [
+      makeTextMsg('user', 'Q1'),
+      makeTextMsg('assistant', 'A1'),
+      makeTextMsg('user', 'Q2'),
+      makeTextMsg('assistant', 'A2'),
+      makeTextMsg('user', 'Q3'),
+      makeTextMsg('assistant', 'A3'),
+      makeTextMsg('user', 'Q4'),
+      makeTextMsg('assistant', 'A4'),
+      makeTextMsg('user', 'Q5'),
+      makeTextMsg('assistant', 'A5'),
+    ]
+
+    const result = await compactMessages({
+      messages,
+      settings: { ...DEFAULT_COMPACTION_SETTINGS, keepRecentPairs: 3 },
+      aiProvider: noopAiProvider,
+      model: 'test-model',
+      providerFormat: 'openai',
+      preEstimatedTokens: 100_000,
+      summarize: async () => 'summary',
+    })
+
+    expect(result.compacted).toBe(true)
+    expect(result.summarizedCount).toBe(4)
+    expect(result.keptLength).toBe(6)
+    expect(result.summarizedCount! + result.keptLength!).toBe(messages.length)
   })
 })
 
@@ -98,7 +178,7 @@ describe('compactMessages', () => {
     const summary = 'This is a summary of previous conversation.'
     const summarize = vi.fn().mockResolvedValue(summary)
 
-    // Need enough user messages: keepRecentPairs=3 → need >3 user messages for a cut point
+    // Need enough user messages: keepRecentPairs=3 requires more than 3 user messages for a cut point.
     // 4 user-assistant pairs = 8 messages, cutIndex will be at the 2nd message
     const messages = [
       makeTextMsg('user', 'Q1'),
@@ -137,7 +217,7 @@ describe('compactMessages', () => {
   it('keeps recent user-assistant pairs', async () => {
     const summarize = vi.fn().mockResolvedValue('summary')
 
-    // 5 pairs, keepRecentPairs=3 → keeps last 3 pairs (Q3-Q5 + their A's)
+    // 5 pairs, keepRecentPairs=3 keeps last 3 pairs (Q3-Q5 + their A's).
     const messages = [
       makeTextMsg('user', 'Q1'),
       makeTextMsg('assistant', 'A1'),
