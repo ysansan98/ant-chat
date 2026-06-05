@@ -17,7 +17,7 @@ import {
 import { Separator } from '@workspace/ui/components/separator'
 import { cn } from '@workspace/ui/lib/utils'
 import { ChevronRightIcon, Loader2Icon, ShrinkIcon } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Role } from '@/constants'
 import { transformMessageContent } from '@/utils/messageTransform'
 import { AssistantTrace } from './AssistantTrace'
@@ -26,12 +26,10 @@ import MessageContent from './MessageContent'
 
 interface MessageBubbleProps {
   messages: IMessage[]
-  collapseIntermediate: boolean
   onCopyMessage: (message: IMessage) => void
 }
 
-export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }: MessageBubbleProps) {
-  const [isProcessOpen, setIsProcessOpen] = useState(false)
+export function MessageBubble({ messages, onCopyMessage }: MessageBubbleProps) {
   const message = messages[0]
   const isUser = message.role === Role.USER
   const isAI = message.role === Role.AI
@@ -58,13 +56,6 @@ export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }:
   const lastNonTool = nonToolForFold[nonToolForFold.length - 1]
   const isRunning = lastNonTool?.role === 'assistant'
     && (lastNonTool?.status === 'loading' || lastNonTool?.status === 'typing')
-
-  // Auto-open fold only while the conversation is streaming
-  useEffect(() => {
-    if (collapseIntermediate && isRunning && nonToolForFold.length > 1) {
-      setIsProcessOpen(true)
-    }
-  }, [collapseIntermediate, isRunning, nonToolForFold.length])
 
   // Event messages: render as collapsible divider
   if (isEvent) {
@@ -160,7 +151,7 @@ export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }:
     return null
 
   const { processMessages, visibleMessages } = splitProcessMessages(nonToolMessages)
-  const shouldCollapseProcess = isAI && collapseIntermediate && processMessages.length > 0
+  const shouldShowProcess = isAI && processMessages.length > 0
 
   // 从最后一个可见消息获取任务耗时
   const lastVisibleMsg = visibleMessages[visibleMessages.length - 1]
@@ -180,42 +171,13 @@ export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }:
               : undefined}
           >
             <div className={cn('space-y-5', isUser && 'space-y-3')}>
-              {shouldCollapseProcess && (
-                <Collapsible
-                  className="mb-0"
-                  open={isProcessOpen}
-                  onOpenChange={setIsProcessOpen}
-                >
-                  <CollapsibleTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="mb-1 h-7 px-2 text-gray-500"
-                    >
-                      <ChevronRightIcon
-                        className={cn(
-                          'size-4 transition-transform',
-                          isProcessOpen ? 'rotate-90' : undefined,
-                        )}
-                      />
-                      {`执行过程(${processMessages.length})`}
-                    </Button>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    {processMessages.map(item => (
-                      <div
-                        key={item.id}
-                        data-message-id={item.id}
-                      >
-                        <AssistantMessageContent
-                          item={item}
-                          toolResultMap={toolResultMap}
-                        />
-                      </div>
-                    ))}
-                  </CollapsibleContent>
-                </Collapsible>
+              {shouldShowProcess && (
+                <ProcessMessagesPanel
+                  key={isRunning ? 'running' : 'settled'}
+                  processMessages={processMessages}
+                  toolResultMap={toolResultMap}
+                  defaultOpen={isRunning}
+                />
               )}
 
               {visibleMessages.map((item, index) => (
@@ -224,7 +186,7 @@ export function MessageBubble({ messages, collapseIntermediate, onCopyMessage }:
                   data-message-id={item.id}
                 >
                   {
-                    (index > 0 || shouldCollapseProcess) && (
+                    (index > 0 || shouldShowProcess) && (
                       <Separator className="my-3" />
                     )
                   }
@@ -273,6 +235,56 @@ function AssistantMessageContent({
   }
 
   return <AssistantTrace message={item} toolResultMap={toolResultMap} showReasoning={showReasoning} />
+}
+
+function ProcessMessagesPanel({
+  processMessages,
+  toolResultMap,
+  defaultOpen,
+}: {
+  processMessages: IMessage[]
+  toolResultMap: Map<string, IMessage>
+  defaultOpen: boolean
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+
+  return (
+    <Collapsible
+      className="mb-0"
+      open={open}
+      onOpenChange={setOpen}
+    >
+      <CollapsibleTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="mb-1 h-7 px-2 text-gray-500"
+        >
+          <ChevronRightIcon
+            className={cn(
+              'size-4 transition-transform',
+              open ? 'rotate-90' : undefined,
+            )}
+          />
+          {`执行过程(${processMessages.length})`}
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        {processMessages.map(item => (
+          <div
+            key={item.id}
+            data-message-id={item.id}
+          >
+            <AssistantMessageContent
+              item={item}
+              toolResultMap={toolResultMap}
+            />
+          </div>
+        ))}
+      </CollapsibleContent>
+    </Collapsible>
+  )
 }
 
 // ---- helpers ----

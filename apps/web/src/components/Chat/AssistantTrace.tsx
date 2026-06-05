@@ -199,7 +199,7 @@ function useTraceAutoExpand(steps: ContentStep[]) {
 
     openStateRef.current = next
     return next
-  }, [traceSteps, activeStepId, userOverrides, childToolEntries])
+  }, [traceSteps, activeStepId, userOverrides])
 
   const handleToggle = useCallback((stepId: string) => {
     const currentOpen = openStateRef.current[stepId] ?? false
@@ -242,7 +242,7 @@ function ReasoningStepItem({
       >
         <BrainIcon className="size-3 shrink-0" />
         <span className="text-xs">
-          {step.isStreaming ? 'Thinking...' : 'Thought complete'}
+          {step.isStreaming ? 'Thinking' : 'Thought complete'}
         </span>
         {step.isStreaming && <Loader2Icon className="size-3 animate-spin" />}
         <CollapseChevron open={open} />

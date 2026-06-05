@@ -11,11 +11,10 @@ import { MessageJumpRail } from './MessageJumpRail'
 interface Props {
   messages: IMessage[]
   conversationsId: string
-  isAgentRunning: boolean
   isCompacting?: boolean
 }
 
-function BubbleList({ messages, isAgentRunning, isCompacting = false }: Props) {
+function BubbleList({ messages, isCompacting = false }: Props) {
   const {
     autoScrollToBottom,
     setAutoScrollToBottom,
@@ -142,7 +141,6 @@ function BubbleList({ messages, isAgentRunning, isCompacting = false }: Props) {
           <MessageBubble
             key={group.map(message => message.id).join(':')}
             messages={group}
-            collapseIntermediate={!isAgentRunning}
             onCopyMessage={copyMessage}
           />
         ))}
