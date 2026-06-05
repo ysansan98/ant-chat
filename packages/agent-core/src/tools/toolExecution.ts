@@ -3,7 +3,7 @@ import type { RuntimeTask } from '../taskStore'
 import type { PreparedToolCall, ToolRegistry } from './toolRegistry'
 import type { BeforeToolExecuteHook, ToolCallContext } from './types'
 import { randomUUID } from 'node:crypto'
-import { getAgentLogger } from '../logger'
+import { createAgentTraceLogger } from '../agentTraceLogger'
 
 export interface RequestedToolCall {
   id?: string
@@ -50,13 +50,12 @@ interface ToolExecution {
 
 export async function executeToolStep(options: ExecuteToolStepOptions): Promise<ExecuteToolStepResult> {
   const { task, registry, requestedToolCall, currentModelText, currentToolMessages, step, config } = options
-  const logger = getAgentLogger(config)
+  const traceLogger = createAgentTraceLogger(config)
   const toolStartedAt = Date.now()
 
   const currentToolCall = registerPendingToolCall(requestedToolCall, registry, currentToolMessages)
   const logContext = createToolLogContext(task, step, currentToolCall.id)
-  logger.info('agent-runtime', { event: 'tool_call_received', ...logContext, toolName: requestedToolCall.toolName, input: requestedToolCall.input })
-  config.taskLogger?.write('tool_call_received', { ...logContext, toolName: requestedToolCall.toolName, input: requestedToolCall.input })
+  traceLogger.write('tool_call_received', { ...logContext, toolName: requestedToolCall.toolName, input: requestedToolCall.input })
   await emitTurnToolCalls(config, task.snapshot.conversationId, currentModelText, currentToolMessages)
 
   // Phase 1: Prepare — validate args and check policy
@@ -79,8 +78,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   // Abort check between prepare and execute
   if (options.abortSignal?.aborted) {
     const durationMs = Date.now() - toolStartedAt
-    logger.info('agent-runtime', { event: 'tool_cancelled', ...logContext, toolName: requestedToolCall.toolName, durationMs })
-    config.taskLogger?.write('tool_cancelled', { ...logContext, toolName: requestedToolCall.toolName, durationMs })
+    traceLogger.write('tool_cancelled', { ...logContext, toolName: requestedToolCall.toolName, durationMs })
     return finalizeToolStep(currentToolCall, {
       kind: 'error',
       error: 'AGENT_CANCELLED',
@@ -96,8 +94,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   const durationMs = Date.now() - toolStartedAt
   if (execution.errorMsg) {
     const toolReportedDurationMs = execution.result.durationMs
-    logger.info('agent-runtime', { event: 'tool_failed', ...logContext, toolName: preparation.prepared.toolName, input: requestedToolCall.input, error: execution.errorMsg, workspacePath: task.snapshot.workspacePath, stdout: execution.result.stdout, stderr: execution.result.stderr, exitCode: execution.result.exitCode, durationMs, toolReportedDurationMs })
-    config.taskLogger?.write('tool_failed', { ...logContext, toolName: preparation.prepared.toolName, input: requestedToolCall.input, error: execution.errorMsg, workspacePath: task.snapshot.workspacePath, stdout: execution.result.stdout, stderr: execution.result.stderr, exitCode: execution.result.exitCode, durationMs, toolReportedDurationMs })
+    traceLogger.write('tool_failed', { ...logContext, toolName: preparation.prepared.toolName, input: requestedToolCall.input, error: execution.errorMsg, workspacePath: task.snapshot.workspacePath, stdout: execution.result.stdout, stderr: execution.result.stderr, exitCode: execution.result.exitCode, durationMs, toolReportedDurationMs })
     return finalizeToolStep(currentToolCall, {
       kind: 'error',
       error: execution.errorMsg,
@@ -127,7 +124,7 @@ interface PrepareToolStepInput {
 
 async function prepareToolStep(input: PrepareToolStepInput): Promise<ToolPreparation> {
   const { task, registry, requestedToolCall, currentToolCall, step, config, beforeToolExecute, onToolCallContext, toolStartedAt } = input
-  const logger = getAgentLogger(config)
+  const traceLogger = createAgentTraceLogger(config)
 
   const prepared = registry.prepare(requestedToolCall.toolName, requestedToolCall.input)
 
@@ -142,8 +139,7 @@ async function prepareToolStep(input: PrepareToolStepInput): Promise<ToolPrepara
   if (prepared.validationError) {
     const logContext = createToolLogContext(task, step, currentToolCall.id)
     const durationMs = Date.now() - toolStartedAt
-    logger.info('agent-runtime', { event: 'tool_failed', ...logContext, toolName: prepared.toolName, input: requestedToolCall.input, error: prepared.validationError, workspacePath: task.snapshot.workspacePath, durationMs })
-    config.taskLogger?.write('tool_failed', { ...logContext, toolName: prepared.toolName, input: requestedToolCall.input, error: prepared.validationError, workspacePath: task.snapshot.workspacePath, durationMs })
+    traceLogger.write('tool_failed', { ...logContext, toolName: prepared.toolName, input: requestedToolCall.input, error: prepared.validationError, workspacePath: task.snapshot.workspacePath, durationMs })
     return {
       kind: 'error',
       error: prepared.validationError,
@@ -167,8 +163,7 @@ async function prepareToolStep(input: PrepareToolStepInput): Promise<ToolPrepara
   if (beforeResult.outcome === 'block') {
     const logContext = createToolLogContext(task, step, currentToolCall.id)
     const durationMs = Date.now() - toolStartedAt
-    logger.info('agent-runtime', { event: 'tool_blocked', ...logContext, toolName: requestedToolCall.toolName, input: requestedToolCall.input, operationType: prepared.operationType, scope: prepared.scope, policy: 'block', reason: beforeResult.reason, errorCode: beforeResult.errorCode, workspacePath: task.snapshot.workspacePath, durationMs })
-    config.taskLogger?.write('tool_blocked', { ...logContext, toolName: requestedToolCall.toolName, input: requestedToolCall.input, operationType: prepared.operationType, scope: prepared.scope, policy: 'block', reason: beforeResult.reason, errorCode: beforeResult.errorCode, workspacePath: task.snapshot.workspacePath, durationMs })
+    traceLogger.write('tool_blocked', { ...logContext, toolName: requestedToolCall.toolName, input: requestedToolCall.input, operationType: prepared.operationType, scope: prepared.scope, policy: 'block', reason: beforeResult.reason, errorCode: beforeResult.errorCode, workspacePath: task.snapshot.workspacePath, durationMs })
     return {
       kind: 'error',
       error: beforeResult.errorCode,
@@ -234,7 +229,7 @@ async function finalizeSuccessToolStep(
   durationMs: number,
 ): Promise<ExecuteToolStepResult> {
   const { prepared, lastToolCallContext } = preparation
-  const logger = getAgentLogger(config)
+  const traceLogger = createAgentTraceLogger(config)
 
   const toolOutputText = getToolOutputText(result)
   const observation = buildObservation(prepared, result, toolOutputText)
@@ -245,8 +240,7 @@ async function finalizeSuccessToolStep(
 
   await emitTurnToolCalls(config, logContext.conversationId, currentModelText, currentToolMessages)
 
-  logger.info('agent-runtime', { event: 'tool_completed', ...logContext, toolName: prepared.toolName, outputPreview: toolOutputText, exitCode: result.exitCode, durationMs, toolReportedDurationMs })
-  config.taskLogger?.write('tool_completed', { ...logContext, toolName: prepared.toolName, outputPreview: toolOutputText, exitCode: result.exitCode, durationMs, toolReportedDurationMs })
+  traceLogger.write('tool_completed', { ...logContext, toolName: prepared.toolName, outputPreview: toolOutputText, exitCode: result.exitCode, durationMs, toolReportedDurationMs })
 
   return {
     lastToolCallContext,

@@ -438,6 +438,7 @@ describe('executeToolStep', () => {
       durationMs: expect.any(Number),
       toolReportedDurationMs: 42,
     }))
+    expect(logger.info).not.toHaveBeenCalled()
   })
 })
 

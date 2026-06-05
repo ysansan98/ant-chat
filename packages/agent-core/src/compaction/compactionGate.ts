@@ -1,4 +1,4 @@
-import type { CompactionSettingsSchema, IAIProvider, ILogger, ISessionStore, LoopMessage } from '@ant-chat/shared'
+import type { CompactionSettingsSchema, IAIProvider, ILogger, ISessionStore, ITaskLogger, LoopMessage } from '@ant-chat/shared'
 import { compactMessages, estimateContextTokens } from './compaction'
 
 export function createCompactionGate(params: {
@@ -8,11 +8,12 @@ export function createCompactionGate(params: {
   apiMode: string
   summarize?: (serialized: string, aiProvider: IAIProvider, model: string, abortSignal?: AbortSignal) => Promise<string>
   logger: ILogger
+  taskLogger?: ITaskLogger
   conversationId: string
   userMessageId: string
   store: ISessionStore
 }): (ctx: { messages: LoopMessage[], step: number }) => Promise<{ compacted: boolean, messages: LoopMessage[] }> {
-  const { settings, aiProvider, modelName, apiMode, summarize, logger, conversationId, userMessageId, store } = params
+  const { settings, aiProvider, modelName, apiMode, summarize, logger, taskLogger, conversationId, userMessageId, store } = params
   let compactionCount = 0
 
   return async (ctx) => {
@@ -48,7 +49,7 @@ export function createCompactionGate(params: {
       turnId: userMessageId,
     })
 
-    logger.info('[agent-runtime]', { event: 'context_compacted', conversationId, userMessageId, step: ctx.step, compactionCount, summaryLength: compResult.summaryLength, keptLength: compResult.keptLength, totalMessages: compResult.messages.length })
+    taskLogger?.write('context_compacted', { conversationId, userMessageId, step: ctx.step, compactionCount, summaryLength: compResult.summaryLength, keptLength: compResult.keptLength, totalMessages: compResult.messages.length })
 
     return { compacted: true, messages: compResult.messages }
   }
