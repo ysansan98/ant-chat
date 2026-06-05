@@ -74,7 +74,7 @@ export async function runAgentLoop(input: {
         loopMessages.push({ role: 'user', content: [{ type: 'text', text: input.text }] })
       }
 
-      const chatSettings = {
+      const modelSettings = {
         model: modelName,
         temperature,
         maxTokens,
@@ -128,7 +128,7 @@ export async function runAgentLoop(input: {
       const modelStartedAt = Date.now()
       const stream = aiProvider.streamModel({
         messages: loopMessages,
-        chatSettings,
+        modelSettings,
         tools: toolDefs.map(item => ({ ...item, serverName: item.serverName || 'native' })),
         abortSignal: task.abortController.signal,
       })

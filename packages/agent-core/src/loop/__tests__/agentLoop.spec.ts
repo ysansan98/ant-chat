@@ -498,7 +498,7 @@ describe('runAgentLoop', () => {
     const prompts: string[] = []
     const aiProvider: IAIProvider = {
       async* streamModel(opts) {
-        prompts.push(opts.chatSettings.systemPrompt)
+        prompts.push(opts.modelSettings.systemPrompt)
         yield makeTextChunk('Answer')
       },
       complete: vi.fn().mockResolvedValue({ text: 'mock complete' }),

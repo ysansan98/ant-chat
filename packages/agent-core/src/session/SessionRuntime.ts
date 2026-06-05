@@ -69,9 +69,9 @@ export class SessionRuntime {
           workspacePath: options.workspacePath,
           settings: {
             modelId: options.modelId,
-            systemPrompt: options.chatSettings?.systemPrompt ?? '',
-            temperature: options.chatSettings?.temperature ?? 0.7,
-            maxTokens: options.chatSettings?.maxTokens ?? 4096,
+            systemPrompt: options.modelSettings?.systemPrompt ?? '',
+            temperature: options.modelSettings?.temperature ?? 0.7,
+            maxTokens: options.modelSettings?.maxTokens ?? 4096,
           },
         })
 
@@ -161,7 +161,7 @@ export class SessionRuntime {
       mode,
     })
     const memory = await this.getPromptMemorySnapshot(conversation.id)
-    const systemPrompt = createLoopSystemPrompt(options.workspacePath, options.chatSettings?.systemPrompt, memory)
+    const systemPrompt = createLoopSystemPrompt(options.workspacePath, options.modelSettings?.systemPrompt, memory)
 
     const turnId = userMessage.id
     const eventEmitter = createStoreBackedEventEmitter(store, this.config.eventEmitter, turnId)
@@ -184,8 +184,8 @@ export class SessionRuntime {
         providerId: provider.id,
         apiMode,
         taskLogger,
-        temperature: options.chatSettings?.temperature,
-        maxTokens: options.chatSettings?.maxTokens,
+        temperature: options.modelSettings?.temperature,
+        maxTokens: options.modelSettings?.maxTokens,
         compaction: compactionSettings,
       },
       { eventEmitter },

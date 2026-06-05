@@ -58,7 +58,7 @@ export interface IAIStreamChunk {
 export interface IAIProvider {
   streamModel: (options: {
     messages: LoopMessage[]
-    chatSettings: {
+    modelSettings: {
       model: string
       temperature?: number
       maxTokens?: number
@@ -70,7 +70,7 @@ export interface IAIProvider {
 
   complete: (options: {
     messages: Array<{ role: 'user' | 'assistant' | 'system', content: string }>
-    chatSettings: {
+    modelSettings: {
       model: string
       systemPrompt: string
       maxTokens?: number
@@ -259,7 +259,7 @@ export interface AgentRuntimeStartTaskOptions {
   content?: IMessageContent
   referencedFiles?: string[]
   selectedSkill?: string
-  chatSettings?: {
+  modelSettings?: {
     systemPrompt?: string
     temperature?: number
     maxTokens?: number

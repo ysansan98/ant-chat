@@ -62,7 +62,7 @@ describe('multiProvider', () => {
     try {
       for await (const _chunk of provider.streamModel({
         messages: [],
-        chatSettings: {
+        modelSettings: {
           model: 'test-model',
           systemPrompt: '',
         },

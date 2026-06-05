@@ -1,6 +1,6 @@
 import type { ChatFeatures } from './db-types'
 
-export interface ChatSettings {
+export interface ModelSettings {
   systemPrompt: string
   temperature: number
   maxTokens: number

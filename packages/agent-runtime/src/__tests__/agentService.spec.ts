@@ -56,7 +56,7 @@ describe('createAgentRuntimeController', () => {
       modelId: 'model-1',
       workspacePath: '/workspace',
       mode: 'hybrid',
-      chatSettings: {
+      modelSettings: {
         systemPrompt: 'custom',
         temperature: 0.2,
         maxTokens: 2048,

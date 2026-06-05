@@ -29,7 +29,7 @@ function createAimockAIProvider(baseUrl: string): IAIProvider {
 
       // Use non-streaming call for reliability, wrapped as a single-chunk stream
       const completion = await client.chat.completions.create({
-        model: opts.chatSettings.model,
+        model: opts.modelSettings.model,
         messages: opts.messages.map((m) => {
           const textParts = m.content.filter(c => c.type === 'text')
           const toolCallParts = m.content.filter(c => c.type === 'tool-call')
@@ -55,8 +55,8 @@ function createAimockAIProvider(baseUrl: string): IAIProvider {
           }
         }) as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         tools: openaiTools?.length ? openaiTools : undefined,
-        temperature: opts.chatSettings.temperature ?? 0,
-        max_tokens: opts.chatSettings.maxTokens ?? 1024,
+        temperature: opts.modelSettings.temperature ?? 0,
+        max_tokens: opts.modelSettings.maxTokens ?? 1024,
       })
 
       const choice = completion.choices?.[0]
@@ -84,7 +84,7 @@ function createAimockAIProvider(baseUrl: string): IAIProvider {
     },
     complete: async (opts) => {
       const res = await client.chat.completions.create({
-        model: opts.chatSettings.model,
+        model: opts.modelSettings.model,
         messages: opts.messages.map(m => ({ role: m.role as 'user' | 'assistant' | 'system', content: m.content })),
       })
       return { text: res.choices?.[0]?.message?.content ?? '' }

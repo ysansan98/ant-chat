@@ -1,6 +1,6 @@
 import type { AgentMode } from './agent-runtime'
 import type { ChatFeatures, IConversations, IMessageContent } from './db-types'
-import type { ChatSettings } from './model-service'
+import type { ModelSettings } from './model-service'
 
 /**
  * App transport input for starting an agent turn.
@@ -13,7 +13,7 @@ export interface StartAgentTurnOptions {
   selectedSkill?: string
   workspacePath?: string
   mode?: AgentMode
-  modelConfig: Omit<ChatSettings, 'model' | 'features'> & {
+  modelConfig: Omit<ModelSettings, 'model' | 'features'> & {
     modelId: string
     features: ChatFeatures
   }

@@ -257,7 +257,7 @@ describe('agentRuntime', () => {
         modelId: 'model-1',
         workspacePath: '/workspace',
         mode: 'hybrid',
-        chatSettings: {
+        modelSettings: {
           systemPrompt: '',
           temperature: 0.7,
           maxTokens: 1024,

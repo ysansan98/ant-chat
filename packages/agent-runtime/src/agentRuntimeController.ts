@@ -70,7 +70,7 @@ function toRuntimeStartOptions(
     modelId: options.modelConfig.modelId,
     workspacePath,
     mode: options.mode ?? 'hybrid',
-    chatSettings: {
+    modelSettings: {
       systemPrompt: options.modelConfig.systemPrompt,
       temperature: options.modelConfig.temperature,
       maxTokens: options.modelConfig.maxTokens,

@@ -255,7 +255,7 @@ export class MultiProvider {
    */
   async* streamModel(options: {
     messages: any[]
-    chatSettings: {
+    modelSettings: {
       model: string
       temperature?: number
       maxTokens?: number
@@ -269,8 +269,8 @@ export class MultiProvider {
     }>
     abortSignal?: AbortSignal
   }) {
-    const { messages, chatSettings, abortSignal, tools } = options
-    const { model, temperature, maxTokens, systemPrompt } = chatSettings
+    const { messages, modelSettings, abortSignal, tools } = options
+    const { model, temperature, maxTokens, systemPrompt } = modelSettings
 
     // 构建 AI SDK 格式的消息
     const aiSdkMessages = this.transformToAISdkMessages(messages, systemPrompt)
@@ -389,15 +389,15 @@ export class MultiProvider {
    */
   async complete(options: {
     messages: Array<{ role: 'user' | 'assistant' | 'system', content: string }>
-    chatSettings: {
+    modelSettings: {
       model: string
       systemPrompt: string
       maxTokens?: number
     }
     abortSignal?: AbortSignal
   }): Promise<{ text: string }> {
-    const { messages, chatSettings, abortSignal } = options
-    const { model, systemPrompt, maxTokens } = chatSettings
+    const { messages, modelSettings, abortSignal } = options
+    const { model, systemPrompt, maxTokens } = modelSettings
 
     const aiSdkMessages: any[] = []
     if (systemPrompt) {

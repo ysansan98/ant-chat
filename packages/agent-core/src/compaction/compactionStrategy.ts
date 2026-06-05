@@ -57,7 +57,7 @@ export function createCompactionStrategy(): CompactionStrategy {
 
       const result = await aiProvider.complete({
         messages: [{ role: 'user', content: userMessage }],
-        chatSettings: {
+        modelSettings: {
           model,
           systemPrompt: SUMMARIZATION_SYSTEM_PROMPT,
           maxTokens: MAX_SUMMARY_TOKENS,
