@@ -25,7 +25,6 @@ export const SHIKI_LANGUAGES = {
   markdown: () => import('@shikijs/langs/markdown'),
   mdx: () => import('@shikijs/langs/mdx'),
   c: () => import('@shikijs/langs/c'),
-  cpp: () => import('@shikijs/langs/cpp'),
   csharp: () => import('@shikijs/langs/csharp'),
   php: () => import('@shikijs/langs/php'),
   ruby: () => import('@shikijs/langs/ruby'),
