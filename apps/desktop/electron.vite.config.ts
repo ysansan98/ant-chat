@@ -1,19 +1,11 @@
 import { resolve } from 'node:path'
-import process from 'node:process'
-
-import { codeInspectorPlugin } from 'code-inspector-plugin'
 import { defineConfig } from 'electron-vite'
-import { analyzer } from 'vite-bundle-analyzer'
 
-import { createWebRendererViteConfig } from '../web/vite.shared'
+import { createWebRendererViteConfig, visualizerPlugin } from '../web/vite.shared'
 
 export default defineConfig(({ command, mode }) => {
   const isDev = command === 'serve'
   const webRoot = resolve('../web')
-
-  const visualizerPlugin = (type: 'renderer' | 'main') => {
-    return process.env[`VISUALIZER_${type.toUpperCase()}`] ? [analyzer({ reportTitle: `${type} process` })] : []
-  }
 
   console.info('command: ', command, 'mode: ', mode)
   return {
@@ -46,10 +38,9 @@ export default defineConfig(({ command, mode }) => {
     },
     renderer: {
       ...createWebRendererViteConfig({
+        command,
+        mode,
         conditions: isDev ? ['development'] : [],
-        extraPlugins: command === 'build'
-          ? visualizerPlugin('renderer')
-          : [codeInspectorPlugin({ bundler: 'vite' })],
         runtime: 'electron',
         rootDir: webRoot,
       }),

@@ -5,7 +5,9 @@
   "private": true,
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build": "vite build",
+    "analyze:build": "VISUALIZER_RENDERER=true vite build"
   },
   "dependencies": {
     "@ant-chat/shared": "workspace:*",
@@ -39,8 +41,10 @@
     "@types/lodash-es": "^4.17.12",
     "@types/wicg-file-system-access": "^2023.10.5",
     "@vitejs/plugin-react": "^5.2.0",
+    "code-inspector-plugin": "catalog:",
     "tailwindcss": "catalog:",
     "vite": "^8.0.0",
+    "vite-bundle-analyzer": "catalog:",
     "vite-plugin-svgr": "^5.2.0",
     "vitest": "catalog:"
   }
