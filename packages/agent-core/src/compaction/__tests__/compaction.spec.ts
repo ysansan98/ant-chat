@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { compactMessages, DEFAULT_COMPACTION_SETTINGS, estimateContextTokens, getContextWindow } from '../compaction'
+import { compactMessages, DEFAULT_COMPACTION_SETTINGS, estimateContextTokens, getContextWindow, planCompaction } from '../compaction'
 import type { IAIProvider, LoopMessage } from '@ant-chat/shared'
 
 function makeTextMsg(role: LoopMessage['role'], text: string): LoopMessage {
@@ -50,11 +50,42 @@ describe('estimateContextTokens', () => {
   })
 })
 
-describe('compactMessages force mode', () => {
+describe('compactMessages manual trigger', () => {
   const noopAiProvider = {} as IAIProvider
 
-  it('skips enabled and threshold checks when forced', async () => {
-    const summarize = vi.fn().mockResolvedValue('forced summary')
+  it('skips enabled and threshold checks with enough compactable history', async () => {
+    const summarize = vi.fn().mockResolvedValue({
+      text: 'manual summary',
+      usage: { inputTokens: 9000, outputTokens: 300, totalTokens: 9300 },
+    })
+    const messages = [
+      makeTextMsg('user', 'Q1'.repeat(20_000)),
+      makeTextMsg('assistant', 'A1'),
+      makeTextMsg('user', 'Q2'),
+      makeTextMsg('assistant', 'A2'),
+    ]
+
+    const result = await compactMessages({
+      messages,
+      settings: { ...DEFAULT_COMPACTION_SETTINGS, enabled: false, thresholdPercent: 90, keepRecentPairs: 1 },
+      aiProvider: noopAiProvider,
+      model: 'test-model',
+      providerFormat: 'openai',
+      preEstimatedTokens: 1,
+      summarize,
+      trigger: 'manual',
+    })
+
+    expect(result.compacted).toBe(true)
+    expect(result.summaryText).toBe('manual summary')
+    expect(result.summarizedCount).toBe(2)
+    expect(result.keptLength).toBe(2)
+    expect(result.usage).toEqual({ inputTokens: 9000, outputTokens: 300, totalTokens: 9300 })
+    expect(summarize).toHaveBeenCalledOnce()
+  })
+
+  it('does not summarize a short conversation', async () => {
+    const summarize = vi.fn().mockResolvedValue({ text: 'unused summary' })
     const messages = [
       makeTextMsg('user', 'Q1'),
       makeTextMsg('assistant', 'A1'),
@@ -64,44 +95,22 @@ describe('compactMessages force mode', () => {
 
     const result = await compactMessages({
       messages,
-      settings: { ...DEFAULT_COMPACTION_SETTINGS, enabled: false, thresholdPercent: 90 },
+      settings: { ...DEFAULT_COMPACTION_SETTINGS, keepRecentPairs: 1 },
       aiProvider: noopAiProvider,
       model: 'test-model',
       providerFormat: 'openai',
-      preEstimatedTokens: 1,
       summarize,
-      force: true,
+      trigger: 'manual',
     })
 
-    expect(result.compacted).toBe(true)
-    expect(result.summaryText).toBe('forced summary')
-    expect(result.summarizedCount).toBe(1)
-    expect(result.keptLength).toBe(3)
-    expect(summarize).toHaveBeenCalledOnce()
-  })
-
-  it('can summarize a single-message conversation when forced', async () => {
-    const messages = [makeTextMsg('user', 'Only message')]
-
-    const result = await compactMessages({
-      messages,
-      settings: DEFAULT_COMPACTION_SETTINGS,
-      aiProvider: noopAiProvider,
-      model: 'test-model',
-      providerFormat: 'openai',
-      summarize: async () => 'single summary',
-      force: true,
-    })
-
-    expect(result.compacted).toBe(true)
-    expect(result.summaryText).toBe('single summary')
-    expect(result.summarizedCount).toBe(1)
-    expect(result.keptLength).toBe(0)
+    expect(result.compacted).toBe(false)
+    expect(result.skipReason).toBe('insufficient-history')
+    expect(summarize).not.toHaveBeenCalled()
   })
 
   it('returns summarizedCount matching the summarized prefix', async () => {
     const messages = [
-      makeTextMsg('user', 'Q1'),
+      makeTextMsg('user', 'Q1'.repeat(20_000)),
       makeTextMsg('assistant', 'A1'),
       makeTextMsg('user', 'Q2'),
       makeTextMsg('assistant', 'A2'),
@@ -120,13 +129,52 @@ describe('compactMessages force mode', () => {
       model: 'test-model',
       providerFormat: 'openai',
       preEstimatedTokens: 100_000,
-      summarize: async () => 'summary',
+      summarize: async () => ({ text: 'summary' }),
+      trigger: 'manual',
     })
 
     expect(result.compacted).toBe(true)
     expect(result.summarizedCount).toBe(4)
     expect(result.keptLength).toBe(6)
     expect(result.summarizedCount! + result.keptLength!).toBe(messages.length)
+  })
+
+  it('preserves usage when the summary is empty', async () => {
+    const messages = [
+      makeTextMsg('user', 'Q1'.repeat(20_000)),
+      makeTextMsg('assistant', 'A1'),
+      makeTextMsg('user', 'Q2'),
+    ]
+    const result = await compactMessages({
+      messages,
+      settings: { ...DEFAULT_COMPACTION_SETTINGS, keepRecentPairs: 1 },
+      aiProvider: noopAiProvider,
+      model: 'test-model',
+      providerFormat: 'openai',
+      summarize: async () => ({
+        text: ' ',
+        usage: { inputTokens: 8500, outputTokens: 1, totalTokens: 8501 },
+      }),
+      trigger: 'manual',
+    })
+
+    expect(result.compacted).toBe(false)
+    expect(result.summaryError).toBe('上下文压缩返回了空摘要。')
+    expect(result.usage).toEqual({ inputTokens: 8500, outputTokens: 1, totalTokens: 8501 })
+  })
+
+  it('plans manual compaction by compactable prefix tokens', () => {
+    const shortPlan = planCompaction({
+      messages: [
+        makeTextMsg('user', 'short'),
+        makeTextMsg('assistant', 'answer'),
+        makeTextMsg('user', 'recent'),
+      ],
+      settings: { ...DEFAULT_COMPACTION_SETTINGS, keepRecentPairs: 1 },
+      providerFormat: 'openai',
+      trigger: 'manual',
+    })
+    expect(shortPlan).toEqual({ eligible: false, reason: 'insufficient-history' })
   })
 })
 
@@ -155,7 +203,7 @@ describe('compactMessages', () => {
       aiProvider: noopAiProvider,
       model: 'test-model',
       providerFormat: 'openai',
-      summarize: async () => 'summary',
+      summarize: async () => ({ text: 'summary' }),
     })
     expect(result.compacted).toBe(false)
     expect(result.messages).toBe(messages)
@@ -169,19 +217,19 @@ describe('compactMessages', () => {
       aiProvider: noopAiProvider,
       model: 'test-model',
       providerFormat: 'openai',
-      summarize: async () => 'summary',
+      summarize: async () => ({ text: 'summary' }),
     })
     expect(result.compacted).toBe(false)
   })
 
   it('compacts when over threshold with sufficient user pairs', async () => {
     const summary = 'This is a summary of previous conversation.'
-    const summarize = vi.fn().mockResolvedValue(summary)
+    const summarize = vi.fn().mockResolvedValue({ text: summary })
 
     // Need enough user messages: keepRecentPairs=3 requires more than 3 user messages for a cut point.
     // 4 user-assistant pairs = 8 messages, cutIndex will be at the 2nd message
     const messages = [
-      makeTextMsg('user', 'Q1'),
+      makeTextMsg('user', 'Q1'.repeat(20_000)),
       makeTextMsg('assistant', 'A1'),
       makeTextMsg('user', 'Q2'),
       makeTextMsg('assistant', 'A2'),
@@ -215,11 +263,11 @@ describe('compactMessages', () => {
   })
 
   it('keeps recent user-assistant pairs', async () => {
-    const summarize = vi.fn().mockResolvedValue('summary')
+    const summarize = vi.fn().mockResolvedValue({ text: 'summary' })
 
     // 5 pairs, keepRecentPairs=3 keeps last 3 pairs (Q3-Q5 + their A's).
     const messages = [
-      makeTextMsg('user', 'Q1'),
+      makeTextMsg('user', 'Q1'.repeat(20_000)),
       makeTextMsg('assistant', 'A1'),
       makeTextMsg('user', 'Q2'),
       makeTextMsg('assistant', 'A2'),
@@ -260,7 +308,7 @@ describe('compactMessages', () => {
   it('returns unchanged when summary function throws', async () => {
     const summarize = vi.fn().mockRejectedValue(new Error('summarization failed'))
     const messages = [
-      makeTextMsg('user', 'Q1'),
+      makeTextMsg('user', 'Q1'.repeat(20_000)),
       makeTextMsg('assistant', 'A1'),
       makeTextMsg('user', 'Q2'),
       makeTextMsg('assistant', 'A2'),
@@ -285,7 +333,7 @@ describe('compactMessages', () => {
   })
 
   it('returns unchanged when no safe cut point found', async () => {
-    const summarize = vi.fn().mockResolvedValue('summary')
+    const summarize = vi.fn().mockResolvedValue({ text: 'summary' })
 
     // Only 1 user message, need to keep 3 pairs
     const messages = [

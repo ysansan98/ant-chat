@@ -26,6 +26,7 @@ const MESSAGE_COLUMNS = `
   usage,
   turn_id,
   event_type,
+  compacted_through_message_id,
   duration_ms
 `
 
@@ -44,6 +45,7 @@ export class SqliteMessageRepository implements MessageRepository {
       SELECT ${MESSAGE_COLUMNS}
       FROM messages
       WHERE conv_id = ?
+      ORDER BY created_at ASC, rowid ASC
     `).all(conversationId)
 
     return data.map(mapMessageRow)
@@ -83,9 +85,10 @@ export class SqliteMessageRepository implements MessageRepository {
             usage,
             turn_id,
             event_type,
+            compacted_through_message_id,
             duration_ms
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           RETURNING ${MESSAGE_COLUMNS}
         `).get(
           id,
@@ -99,6 +102,7 @@ export class SqliteMessageRepository implements MessageRepository {
           'usage' in message ? stringifyNullableJson(message.usage) : null,
           'turnId' in message ? message.turnId ?? null : null,
           'eventType' in message ? message.eventType ?? null : null,
+          'compactedThroughMessageId' in message ? message.compactedThroughMessageId ?? null : null,
           null,
         )
       })
@@ -166,6 +170,10 @@ export class SqliteMessageRepository implements MessageRepository {
     if (message.eventType !== undefined) {
       fields.push('event_type = ?')
       params.push(message.eventType)
+    }
+    if (message.compactedThroughMessageId !== undefined) {
+      fields.push('compacted_through_message_id = ?')
+      params.push(message.compactedThroughMessageId)
     }
     if (message.durationMs !== undefined) {
       fields.push('duration_ms = ?')

@@ -4,6 +4,7 @@ import { MultiProvider } from '../multi-provider'
 
 const mocks = vi.hoisted(() => ({
   createOpenAI: vi.fn(),
+  generateText: vi.fn(),
   streamText: vi.fn(),
 }))
 
@@ -25,7 +26,7 @@ vi.mock('@ai-sdk/openai', () => ({
 
 vi.mock('ai', () => ({
   dynamicTool: vi.fn(),
-  generateText: vi.fn(),
+  generateText: mocks.generateText,
   jsonSchema: vi.fn(schema => schema),
   streamText: mocks.streamText,
 }))
@@ -78,6 +79,41 @@ describe('multiProvider', () => {
     expect(thrown).toMatchObject({
       code: 'AGENT_CANCELLED',
       message: 'Task cancelled',
+    })
+  })
+
+  it('returns normalized usage for non-streaming completion', async () => {
+    mocks.generateText.mockResolvedValue({
+      text: 'summary',
+      usage: {
+        inputTokens: 9000,
+        outputTokens: 300,
+        totalTokens: 9300,
+        reasoningTokens: 20,
+        cachedInputTokens: 100,
+      },
+    })
+    const provider = new MultiProvider({
+      apiKey: 'test-key',
+      baseUrl: 'https://example.test',
+      format: 'openai',
+    })
+
+    await expect(provider.complete({
+      messages: [{ role: 'user', content: 'compact this' }],
+      modelSettings: {
+        model: 'test-model',
+        systemPrompt: 'summarize',
+      },
+    })).resolves.toEqual({
+      text: 'summary',
+      usage: {
+        inputTokens: 9000,
+        outputTokens: 300,
+        totalTokens: 9300,
+        reasoningTokens: 20,
+        cachedInputTokens: 100,
+      },
     })
   })
 })

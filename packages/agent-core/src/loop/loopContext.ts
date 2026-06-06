@@ -85,10 +85,30 @@ export async function buildConversationContextMessages(
   currentUserMessageId?: string,
   loadFileData?: LoadFileDataFn,
 ): Promise<LoopMessage[]> {
-  const latestCompactionEventIndex = findLatestManualCompactionEventIndex(messages)
+  const entries = await buildConversationContextEntries(messages, currentUserMessageId, loadFileData)
+  return entries.map(entry => entry.message)
+}
+
+export interface ConversationContextEntry {
+  message: LoopMessage
+  sourceMessageId: string
+}
+
+export async function buildConversationContextEntries(
+  messages: IMessage[],
+  currentUserMessageId?: string,
+  loadFileData?: LoadFileDataFn,
+): Promise<ConversationContextEntry[]> {
+  const latestCompactionEventIndex = findLatestCompactionEventIndex(messages)
   const latestCompactionEvent = latestCompactionEventIndex >= 0
     ? messages[latestCompactionEventIndex]
     : undefined
+  const compactedThroughMessageIndex = latestCompactionEvent?.compactedThroughMessageId
+    ? messages.findIndex(message => message.id === latestCompactionEvent.compactedThroughMessageId)
+    : -1
+  if (latestCompactionEvent?.compactedThroughMessageId && compactedThroughMessageIndex < 0) {
+    throw new Error(`Compaction boundary message not found: ${latestCompactionEvent.compactedThroughMessageId}`)
+  }
   const valid = messages
     .filter((message, index): message is IMessage & { role: 'user' | 'assistant' | 'tool' } => {
       if (currentUserMessageId && message.id === currentUserMessageId)
@@ -97,29 +117,32 @@ export async function buildConversationContextMessages(
         return false
       if (message.role !== 'user' && message.role !== 'assistant' && message.role !== 'tool')
         return false
-      if (latestCompactionEventIndex >= 0 && index <= latestCompactionEventIndex)
+      if (compactedThroughMessageIndex >= 0 && index <= compactedThroughMessageIndex)
         return false
       if (message.role === 'user' || message.role === 'tool')
         return true
       return message.status === 'success' || message.status === 'cancel'
     })
 
-  const result: LoopMessage[] = []
+  const result: ConversationContextEntry[] = []
 
   if (latestCompactionEvent) {
-    const summary = getManualCompactionSummaryText(latestCompactionEvent)
+    const summary = getCompactionSummaryText(latestCompactionEvent)
     result.push({
-      role: 'user',
-      content: [{
-        type: 'text',
-        text: [
-          'Previous conversation history has been compressed into the following summary:',
-          '<summary>',
-          summary,
-          '</summary>',
-          'Continue the task based on the above summary and subsequent conversation.',
-        ].join('\n'),
-      }],
+      sourceMessageId: latestCompactionEvent.compactedThroughMessageId!,
+      message: {
+        role: 'user',
+        content: [{
+          type: 'text',
+          text: [
+            'Previous conversation history has been compressed into the following summary:',
+            '<summary>',
+            summary,
+            '</summary>',
+            'Continue the task based on the above summary and subsequent conversation.',
+          ].join('\n'),
+        }],
+      },
     })
   }
 
@@ -157,22 +180,25 @@ export async function buildConversationContextMessages(
       continue
 
     result.push({
-      role: message.role as LoopMessage['role'],
-      content,
+      sourceMessageId: message.id,
+      message: {
+        role: message.role as LoopMessage['role'],
+        content,
+      },
     })
   }
 
   return result
 }
 
-function findLatestManualCompactionEventIndex(messages: IMessage[]): number {
+function findLatestCompactionEventIndex(messages: IMessage[]): number {
   for (let index = messages.length - 1; index >= 0; index--) {
     const message = messages[index]
     if (
       message.role === 'event'
       && message.eventType === 'compaction'
       && message.status === 'success'
-      && !message.turnId
+      && message.compactedThroughMessageId
     ) {
       return index
     }
@@ -180,7 +206,7 @@ function findLatestManualCompactionEventIndex(messages: IMessage[]): number {
   return -1
 }
 
-function getManualCompactionSummaryText(message: IMessage): string {
+function getCompactionSummaryText(message: IMessage): string {
   const summary = message.content
     .filter((block): block is { type: 'text', text: string } => block.type === 'text')
     .map(block => block.text)

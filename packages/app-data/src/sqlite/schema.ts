@@ -31,6 +31,7 @@ export function initializeAppDataSchema(db: AppDataDatabase): void {
       usage text DEFAULT NULL,
       turn_id text DEFAULT NULL,
       event_type text DEFAULT NULL,
+      compacted_through_message_id text DEFAULT NULL,
       duration_ms integer DEFAULT NULL
     );
 

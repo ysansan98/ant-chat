@@ -1,6 +1,6 @@
 import type { AppDataContext } from '@ant-chat/app-data'
-import type { ILogger, RunBuiltinCommandResult } from '@ant-chat/shared'
-import { buildConversationContextMessages, compactMessages, createCompactionStrategy, createProvider, DEFAULT_COMPACTION_SETTINGS, estimateContextTokens } from '@ant-chat/agent-core'
+import type { ILogger, LanguageModelUsage, RunBuiltinCommandResult } from '@ant-chat/shared'
+import { buildConversationContextEntries, compactMessages, createCompactionStrategy, createProvider, DEFAULT_COMPACTION_SETTINGS, estimateContextTokens, planCompaction } from '@ant-chat/agent-core'
 
 export async function runCompact(params: {
   appDataContext: AppDataContext
@@ -20,7 +20,7 @@ export async function runCompact(params: {
 
   const conversation = await appDataContext.conversationRepository.getById(conversationId)
   if (!conversation) {
-    throw new Error(`Conversation not found: ${conversationId}`)
+    throw new Error(`未找到会话：${conversationId}`)
   }
   log(`conversation found: title=${conversation.title}, hasCompactionSettings=${!!conversation.settings?.compaction}`)
 
@@ -29,52 +29,70 @@ export async function runCompact(params: {
     ...DEFAULT_COMPACTION_SETTINGS,
     ...(stored ? { keepRecentPairs: stored.keepRecentPairs } : {}),
   }
-  log(`compactionSettings: force=true, keepRecentPairs=${compactionSettings.keepRecentPairs}`)
+  log(`compactionSettings: trigger=manual, keepRecentPairs=${compactionSettings.keepRecentPairs}`)
 
   const messages = await appDataContext.messageRepository.listByConversation(conversationId)
   log(`messages loaded: total=${messages.length}`)
-  const loopMessages = await buildConversationContextMessages(messages)
+  const contextEntries = await buildConversationContextEntries(messages)
+  const loopMessages = contextEntries.map(entry => entry.message)
   log(`contextMessages built: total=${loopMessages.length}`)
   if (loopMessages.length === 0) {
-    return { status: 'success', summaryText: 'No messages to compact.' }
+    return { status: 'success', summaryText: '当前上下文不足，无需压缩。' }
   }
 
   const estimatedTokens = estimateContextTokens(loopMessages)
-  log(`context check: estimated=${estimatedTokens}, force=true`)
+  const plan = planCompaction({
+    messages: loopMessages,
+    settings: compactionSettings,
+    trigger: 'manual',
+    preEstimatedTokens: estimatedTokens,
+  })
+  if (!plan.eligible) {
+    log(`compaction skipped: reason=${plan.reason}`)
+    return { status: 'success', summaryText: '当前上下文不足，无需压缩。' }
+  }
 
-  log(`invoking LLM compaction...`)
+  let modelInfo: Awaited<ReturnType<AppDataContext['modelCatalog']['getModelById']>>
+  let provider: Awaited<ReturnType<AppDataContext['modelCatalog']['getProviderById']>>
+  try {
+    modelInfo = await appDataContext.modelCatalog.getModelById(modelConfig.modelId)
+    if (!modelInfo) {
+      throw new Error(`未找到压缩模型：${modelConfig.modelId}`)
+    }
+    log(`model found: name=${modelInfo.model}, providerId=${modelInfo.providerId}`)
 
-  // Create a loading event that the UI can render immediately after messages refresh
+    provider = await appDataContext.modelCatalog.getProviderById(modelInfo.providerId)
+    if (!provider) {
+      throw new Error(`未找到模型对应的 Provider：${modelInfo.providerId}`)
+    }
+  }
+  catch (err) {
+    if (abortSignal?.aborted) {
+      return { status: 'cancelled', summaryText: '' }
+    }
+    const errorMessage = err instanceof Error ? err.message : String(err)
+    return { status: 'error', errorMessage, summaryText: errorMessage }
+  }
+  const apiMode = provider.apiMode || 'openai'
+  log(`provider found: apiMode=${apiMode}`)
+
   const loadingEvent = await appDataContext.messageRepository.create({
     convId: conversationId,
     role: 'event',
     status: 'loading',
-    content: [{ type: 'text', text: 'Compacting context...' }],
+    content: [{ type: 'text', text: '正在压缩上下文...' }],
     eventType: 'compaction',
   })
 
   let compactionFailed = false
   let errorText = ''
   let summaryText = ''
+  let compactionUsage: LanguageModelUsage | undefined
 
   const compactionStrategy = createCompactionStrategy()
   try {
-    const modelInfo = await appDataContext.modelCatalog.getModelById(modelConfig.modelId)
-    if (!modelInfo) {
-      throw new Error(`Model not found: ${modelConfig.modelId}`)
-    }
-    log(`model found: name=${modelInfo.model}, providerId=${modelInfo.providerId}`)
-
-    const provider = await appDataContext.modelCatalog.getProviderById(modelInfo.providerId)
-    if (!provider) {
-      throw new Error(`Provider not found: ${modelInfo.providerId}`)
-    }
-    log(`provider found: apiMode=${provider.apiMode || 'openai'}`)
-
     const aiProvider = await createProvider(provider)
-    const apiMode = provider.apiMode || 'openai'
     log(`aiProvider created`)
-
     const compactResult = await compactMessages({
       messages: loopMessages,
       preEstimatedTokens: estimatedTokens,
@@ -86,8 +104,10 @@ export async function runCompact(params: {
       summarize: compactionStrategy.summarize,
       instruction,
       abortSignal,
-      force: true,
+      trigger: 'manual',
+      plan,
     })
+    compactionUsage = compactResult.usage
 
     if (abortSignal?.aborted) {
       await appDataContext.messageRepository.delete(loadingEvent.id)
@@ -96,14 +116,30 @@ export async function runCompact(params: {
 
     if (!compactResult.compacted) {
       compactionFailed = true
-      errorText = compactResult.summaryError || 'Compaction did not produce a result.'
+      errorText = compactResult.summaryError || '上下文压缩未生成结果。'
     }
     else if (!compactResult.summaryText?.trim()) {
       compactionFailed = true
-      errorText = 'Compaction summarization returned empty response.'
+      errorText = '上下文压缩返回了空摘要。'
     }
     else {
       summaryText = compactResult.summaryText
+      const compactedThroughMessageId = contextEntries[compactResult.summarizedCount! - 1]?.sourceMessageId
+      if (!compactedThroughMessageId) {
+        throw new Error('Compaction did not produce a persisted message boundary.')
+      }
+      await appDataContext.messageRepository.update({
+        id: loadingEvent.id,
+        status: 'success',
+        content: [{ type: 'text', text: summaryText }],
+        modelInfo: {
+          provider: provider.name,
+          providerId: provider.id,
+          model: modelInfo.model,
+        },
+        usage: compactResult.usage,
+        compactedThroughMessageId,
+      })
       log(`compaction complete: summary=${compactResult.summaryLength} chars, kept=${compactResult.keptLength} msgs`)
     }
   }
@@ -117,22 +153,19 @@ export async function runCompact(params: {
     errorText = err instanceof Error ? err.message : String(err)
   }
 
-  // Update the loading event to its final state
   if (compactionFailed) {
     await appDataContext.messageRepository.update({
       id: loadingEvent.id,
       status: 'error',
       content: [{ type: 'text', text: errorText }],
+      modelInfo: {
+        provider: provider.name,
+        providerId: provider.id,
+        model: modelInfo.model,
+      },
+      usage: compactionUsage,
     })
   }
-  else {
-    await appDataContext.messageRepository.update({
-      id: loadingEvent.id,
-      status: 'success',
-      content: [{ type: 'text', text: summaryText }],
-    })
-  }
-
   if (compactionFailed) {
     return { status: 'error', errorMessage: errorText, summaryText: errorText }
   }

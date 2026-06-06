@@ -3,12 +3,15 @@ import type {
   AgentRuntimeStartTaskOptions,
   AgentRuntimeStartTaskResult,
   CompactionSettingsSchema,
+  CompactionStrategy,
   IAgentEventEmitter,
   IAIProvider,
   ILogger,
   ISessionStore,
   LoopMessage,
+  ModelInfo,
 } from '@ant-chat/shared'
+import type { ConversationContextEntry } from '../loop/loopContext'
 import type { BeforeTurnResult, RuntimeStartInput, RuntimeStartResult } from './types'
 import { createProvider } from '../ai-providers/factory'
 import {
@@ -19,7 +22,7 @@ import {
 import { createCompactionStrategy } from '../compaction/compactionStrategy'
 import { getAgentLogger } from '../logger'
 import {
-  buildConversationContextMessages,
+  buildConversationContextEntries,
   createLoopSystemPrompt,
 } from '../loop/loopContext'
 import { taskStore } from '../taskStore'
@@ -117,7 +120,7 @@ export class SessionRuntime {
     }
 
     const historyMessages = await store.getMessages(conversation.id)
-    const contextMessages = await buildConversationContextMessages(
+    const contextEntries = await buildConversationContextEntries(
       historyMessages,
       undefined,
       loadFileData,
@@ -126,7 +129,7 @@ export class SessionRuntime {
     const apiMode = provider.apiMode || 'openai'
     const compactionSettings: CompactionSettingsSchema = currentConversation?.settings?.compaction ?? DEFAULT_COMPACTION_SETTINGS
     const preTurnCompaction = await compactPersistedHistoryBeforeTurn({
-      contextMessages,
+      contextEntries,
       pendingUserMessage: { role: 'user', content: userContent },
       settings: compactionSettings,
       aiProvider,
@@ -135,6 +138,11 @@ export class SessionRuntime {
       summarize: (this.config.compactionStrategy ?? createCompactionStrategy()).summarize,
       logger: getAgentLogger(this.config),
       conversationId: conversation.id,
+      modelInfo: {
+        provider: provider.name,
+        providerId: provider.id,
+        model: model.model,
+      },
       store,
     })
     if (preTurnCompaction.compacted) {
@@ -230,18 +238,20 @@ export class SessionRuntime {
 }
 
 async function compactPersistedHistoryBeforeTurn(params: {
-  contextMessages: LoopMessage[]
+  contextEntries: ConversationContextEntry[]
   pendingUserMessage: LoopMessage
   settings: CompactionSettingsSchema
   aiProvider: IAIProvider | null
   modelName: string
   apiMode: string
-  summarize?: (serialized: string, aiProvider: IAIProvider, model: string, abortSignal?: AbortSignal) => Promise<string>
+  summarize?: CompactionStrategy['summarize']
   logger: ILogger
   conversationId: string
+  modelInfo: ModelInfo
   store: ISessionStore
 }): Promise<{ compacted: boolean, messages: LoopMessage[] }> {
-  const { contextMessages, pendingUserMessage, settings, aiProvider, modelName, apiMode, summarize, logger, conversationId, store } = params
+  const { contextEntries, pendingUserMessage, settings, aiProvider, modelName, apiMode, summarize, logger, conversationId, modelInfo, store } = params
+  const contextMessages = contextEntries.map(entry => entry.message)
   if (!settings.enabled || !aiProvider || !summarize) {
     return { compacted: false, messages: contextMessages }
   }
@@ -259,7 +269,22 @@ async function compactPersistedHistoryBeforeTurn(params: {
   })
 
   if (!result.compacted) {
+    if (result.usage) {
+      await store.createEventMessage({
+        convId: conversationId,
+        role: 'event',
+        status: 'error',
+        content: [{ type: 'text', text: result.summaryError || '上下文压缩未生成结果。' }],
+        eventType: 'compaction',
+        modelInfo,
+        usage: result.usage,
+      })
+    }
     return { compacted: false, messages: contextMessages }
+  }
+  const compactedThroughMessageId = contextEntries[result.summarizedCount! - 1]?.sourceMessageId
+  if (!compactedThroughMessageId) {
+    throw new Error('Compaction did not produce a persisted message boundary.')
   }
 
   await store.createEventMessage({
@@ -268,6 +293,9 @@ async function compactPersistedHistoryBeforeTurn(params: {
     status: 'success',
     content: [{ type: 'text', text: result.summaryText || '' }],
     eventType: 'compaction',
+    compactedThroughMessageId,
+    modelInfo,
+    usage: result.usage,
   })
 
   return { compacted: true, messages: result.messages }

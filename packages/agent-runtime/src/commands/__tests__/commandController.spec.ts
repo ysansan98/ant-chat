@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from 'vitest'
 import { createCommandController } from '../commandController'
 
 const summarizeMock = vi.hoisted(() =>
-  vi.fn(async (_serialized: string) => 'new compact summary'),
+  vi.fn(async (_serialized: string) => ({
+    text: 'new compact summary',
+    usage: { inputTokens: 10000, outputTokens: 250, totalTokens: 10250 },
+  })),
 )
 
 vi.mock('@ant-chat/agent-core', async (importOriginal) => {
@@ -40,6 +43,15 @@ function mockDeps(overrides: { activeTasks?: Array<{ status: string }> } = {}) {
       ? vi.fn(() => overrides.activeTasks)
       : vi.fn(() => []),
   }
+}
+
+function compressibleMessages(conversationId = 'conv-1') {
+  return [
+    { id: 'u1', convId: conversationId, role: 'user', status: 'success', content: [{ type: 'text', text: 'x'.repeat(40_000) }], createdAt: 1 },
+    { id: 'a1', convId: conversationId, role: 'assistant', status: 'success', content: [{ type: 'text', text: 'first answer' }], createdAt: 2 },
+    { id: 'u2', convId: conversationId, role: 'user', status: 'success', content: [{ type: 'text', text: 'recent request' }], createdAt: 3 },
+    { id: 'a2', convId: conversationId, role: 'assistant', status: 'success', content: [{ type: 'text', text: 'recent answer' }], createdAt: 4 },
+  ]
 }
 
 describe('commandController task guard', () => {
@@ -90,16 +102,11 @@ describe('commandController task guard', () => {
 
   it('/compact ignores compaction.enabled flag (manual override)', async () => {
     const deps = mockDeps()
-    // enabled: false does NOT block manual /compact. force=true means any
-    // non-empty conversation triggers the compaction path and model lookup.
     deps.appDataContext.conversationRepository.getById.mockResolvedValue({
       id: 'conv-1',
-      settings: { compaction: { enabled: false, thresholdPercent: 70, keepRecentPairs: 3 } },
+      settings: { compaction: { enabled: false, thresholdPercent: 70, keepRecentPairs: 1 } },
     })
-    // Enough content to surpass thresholdPercent=0
-    deps.appDataContext.messageRepository.listByConversation.mockResolvedValue([
-      { id: 'm1', role: 'user', content: [{ type: 'text', text: 'x'.repeat(100) }], createdAt: 1 },
-    ])
+    deps.appDataContext.messageRepository.listByConversation.mockResolvedValue(compressibleMessages())
     const cc = createCommandController(deps as any)
 
     deps.appDataContext.messageRepository.create.mockResolvedValue({ id: 'event-1' })
@@ -116,7 +123,7 @@ describe('commandController task guard', () => {
     if (result.status !== 'error') {
       throw new Error('Expected /compact to fail')
     }
-    expect(result.errorMessage).toContain('Model not found')
+    expect(result.errorMessage).toContain('未找到压缩模型')
   })
 
   it('rejects unknown command id', async () => {
@@ -197,9 +204,9 @@ describe('commandController command concurrency', () => {
     ])
 
     expect(r1.status).toBe('success')
-    expect(r1.summaryText).toContain('No messages')
+    expect(r1.summaryText).toContain('无需压缩')
     expect(r2.status).toBe('success')
-    expect(r2.summaryText).toContain('No messages')
+    expect(r2.summaryText).toContain('无需压缩')
   })
 })
 
@@ -209,11 +216,9 @@ describe('compact command error and cancellation', () => {
     deps.appDataContext.conversationRepository.getById.mockResolvedValue({
       id: 'conv-1',
       title: 'Test',
-      settings: {},
+      settings: { compaction: { enabled: true, thresholdPercent: 70, keepRecentPairs: 1 } },
     })
-    deps.appDataContext.messageRepository.listByConversation.mockResolvedValue([
-      { id: 'm1', role: 'user', content: [{ type: 'text', text: 'hello' }], createdAt: 1 },
-    ])
+    deps.appDataContext.messageRepository.listByConversation.mockResolvedValue(compressibleMessages())
     deps.appDataContext.messageRepository.create.mockResolvedValue({ id: 'event-1' })
     deps.appDataContext.modelCatalog.getModelById.mockResolvedValue(null)
 
@@ -229,10 +234,8 @@ describe('compact command error and cancellation', () => {
     if (result.status !== 'error') {
       throw new Error('Expected /compact to fail')
     }
-    expect(result.errorMessage).toContain('Model not found')
-    expect(deps.appDataContext.messageRepository.update).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'event-1', status: 'error' }),
-    )
+    expect(result.errorMessage).toContain('未找到压缩模型')
+    expect(deps.appDataContext.messageRepository.create).not.toHaveBeenCalled()
   })
 
   it('/compact with empty messages returns success without creating loading event', async () => {
@@ -253,7 +256,7 @@ describe('compact command error and cancellation', () => {
     })
 
     expect(result.status).toBe('success')
-    expect(result.summaryText).toContain('No messages')
+    expect(result.summaryText).toContain('无需压缩')
     expect(deps.appDataContext.modelCatalog.getModelById).not.toHaveBeenCalled()
     expect(deps.appDataContext.messageRepository.create).not.toHaveBeenCalled()
   })
@@ -275,7 +278,8 @@ describe('compact command error and cancellation', () => {
         role: 'event',
         status: 'success',
         eventType: 'compaction',
-        content: [{ type: 'text', text: 'previous compact summary' }],
+        compactedThroughMessageId: 'a1',
+        content: [{ type: 'text', text: `previous compact summary ${'x'.repeat(40_000)}` }],
         createdAt: 3,
       },
       { id: 'a2', convId: 'conv-1', role: 'assistant', status: 'success', content: [{ type: 'text', text: 'after summary answer' }], createdAt: 4 },
@@ -310,18 +314,28 @@ describe('compact command error and cancellation', () => {
     expect(serialized).not.toContain('old raw user')
     expect(serialized).not.toContain('old raw assistant')
     expect(deps.appDataContext.conversationRepository.update).not.toHaveBeenCalled()
+    expect(deps.appDataContext.messageRepository.update).toHaveBeenCalledWith({
+      id: 'event-2',
+      status: 'success',
+      content: [{ type: 'text', text: 'new compact summary' }],
+      modelInfo: {
+        provider: 'provider',
+        providerId: 'provider-1',
+        model: 'test-model',
+      },
+      usage: { inputTokens: 10000, outputTokens: 250, totalTokens: 10250 },
+      compactedThroughMessageId: 'a2',
+    })
   })
 
-  it('cancelCommand waits until the loading event is deleted', async () => {
+  it('cancelCommand waits for model lookup without creating a loading event', async () => {
     const deps = mockDeps()
     deps.appDataContext.conversationRepository.getById.mockResolvedValue({
       id: 'conv-1',
       title: 'Test',
-      settings: {},
+      settings: { compaction: { enabled: true, thresholdPercent: 70, keepRecentPairs: 1 } },
     })
-    deps.appDataContext.messageRepository.listByConversation.mockResolvedValue([
-      { id: 'm1', role: 'user', content: [{ type: 'text', text: 'hello' }], createdAt: 1 },
-    ])
+    deps.appDataContext.messageRepository.listByConversation.mockResolvedValue(compressibleMessages())
     deps.appDataContext.messageRepository.create.mockResolvedValue({ id: 'event-1' })
 
     let rejectModelLookup: (reason?: unknown) => void
@@ -356,7 +370,8 @@ describe('compact command error and cancellation', () => {
 
     expect(cancelResult?.status).toBe('cancelled')
     expect(runResult.status).toBe('cancelled')
-    expect(deps.appDataContext.messageRepository.delete).toHaveBeenCalledWith('event-1')
+    expect(deps.appDataContext.messageRepository.create).not.toHaveBeenCalled()
+    expect(deps.appDataContext.messageRepository.delete).not.toHaveBeenCalled()
   })
 })
 
@@ -375,9 +390,22 @@ describe('fork command', () => {
     })
     deps.appDataContext.messageRepository.listByConversation.mockResolvedValue([
       { id: 'm1', role: 'user', content: [{ type: 'text', text: 'hello' }], createdAt: 1 },
-      { id: 'm2', role: 'event', status: 'error', eventType: 'compaction', content: [{ type: 'text', text: 'fail' }], createdAt: 2 },
+      {
+        id: 'm2',
+        role: 'event',
+        status: 'error',
+        eventType: 'compaction',
+        content: [{ type: 'text', text: 'fail' }],
+        compactedThroughMessageId: 'm1',
+        modelInfo: { provider: 'provider', providerId: 'provider-1', model: 'model-1' },
+        usage: { inputTokens: 100, outputTokens: 10, totalTokens: 110 },
+        createdAt: 2,
+      },
     ])
-    deps.appDataContext.messageRepository.create.mockResolvedValue({ id: 'new-id' })
+    deps.appDataContext.messageRepository.create
+      .mockResolvedValueOnce({ id: 'fork-event' })
+      .mockResolvedValueOnce({ id: 'fork-m1' })
+      .mockResolvedValueOnce({ id: 'fork-m2' })
 
     const cc = createCommandController(deps as any)
     const result = await cc.runBuiltinCommand({
@@ -399,7 +427,12 @@ describe('fork command', () => {
       return arg.role === 'event' && arg.eventType === 'compaction'
     })
     expect(eventCall).toBeDefined()
-    expect((eventCall![0] as Record<string, unknown>).status).toBe('error')
+    expect(eventCall![0]).toEqual(expect.objectContaining({
+      status: 'error',
+      compactedThroughMessageId: 'fork-m1',
+      modelInfo: { provider: 'provider', providerId: 'provider-1', model: 'model-1' },
+      usage: { inputTokens: 100, outputTokens: 10, totalTokens: 110 },
+    }))
   })
 
   it('/fork is blocked by concurrency guard', async () => {

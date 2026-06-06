@@ -395,7 +395,7 @@ export class MultiProvider {
       maxTokens?: number
     }
     abortSignal?: AbortSignal
-  }): Promise<{ text: string }> {
+  }): Promise<{ text: string, usage?: ReturnType<MultiProvider['normalizeUsage']> }> {
     const { messages, modelSettings, abortSignal } = options
     const { model, systemPrompt, maxTokens } = modelSettings
 
@@ -414,7 +414,10 @@ export class MultiProvider {
       abortSignal,
     })
 
-    return { text: result.text }
+    return {
+      text: result.text,
+      usage: this.normalizeUsage(result.usage),
+    }
   }
 
   /**

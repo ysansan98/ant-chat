@@ -1,4 +1,4 @@
-import type { CompactionSettingsSchema, IAIProvider, ILogger, LoopMessage } from '@ant-chat/shared'
+import type { CompactionSettingsSchema, IAIProvider, ILogger, LanguageModelUsage, LoopMessage } from '@ant-chat/shared'
 
 const CONTEXT_WINDOWS: Record<string, number> = {
   anthropic: 200_000,
@@ -9,6 +9,7 @@ const CONTEXT_WINDOWS: Record<string, number> = {
 
 const DEFAULT_CONTEXT_WINDOW = 128_000
 const TOOL_RESULT_MAX_LENGTH = 2000
+export const MIN_COMPACTABLE_TOKENS = 8_000
 
 export const DEFAULT_COMPACTION_SETTINGS: Readonly<CompactionSettingsSchema> = Object.freeze({
   enabled: true,
@@ -53,7 +54,7 @@ function getContextWindow(providerFormat: string): number {
   return CONTEXT_WINDOWS[providerFormat] ?? DEFAULT_CONTEXT_WINDOW
 }
 
-function findCutPointByPairs(messages: LoopMessage[], keepRecentPairs: number, force = false): number {
+function findCutPointByPairs(messages: LoopMessage[], keepRecentPairs: number): number {
   let userCount = 0
 
   for (let i = messages.length - 1; i >= 0; i--) {
@@ -63,10 +64,6 @@ function findCutPointByPairs(messages: LoopMessage[], keepRecentPairs: number, f
         return i
       }
     }
-  }
-
-  if (force) {
-    return messages.length > 1 ? 1 : messages.length
   }
 
   return 0
@@ -114,13 +111,30 @@ export interface CompactionInput {
   providerFormat: string
   abortSignal?: AbortSignal
   logger?: ILogger
-  summarize: (serialized: string, aiProvider: IAIProvider, model: string, abortSignal?: AbortSignal, instruction?: string) => Promise<string>
+  summarize: (serialized: string, aiProvider: IAIProvider, model: string, abortSignal?: AbortSignal, instruction?: string) => Promise<{
+    text: string
+    usage?: LanguageModelUsage
+  }>
   /** Pre-computed token estimate to avoid double computation */
   preEstimatedTokens?: number
   /** Optional user instruction for what to preserve or ignore during compaction */
   instruction?: string
-  /** When true, skips enabled and threshold checks and forces a compaction attempt. */
-  force?: boolean
+  trigger?: CompactionTrigger
+  plan?: EligibleCompactionPlan
+}
+
+export type CompactionTrigger = 'automatic' | 'manual'
+export type CompactionSkipReason = 'disabled' | 'below-threshold' | 'insufficient-history'
+
+export interface EligibleCompactionPlan {
+  eligible: true
+  cutIndex: number
+  sourceTokens: number
+}
+
+export type CompactionPlan = EligibleCompactionPlan | {
+  eligible: false
+  reason: CompactionSkipReason
 }
 
 export interface CompactionResult {
@@ -133,36 +147,59 @@ export interface CompactionResult {
   summaryError?: string
   /** Number of messages included in the summary. */
   summarizedCount?: number
+  usage?: LanguageModelUsage
+  skipReason?: CompactionSkipReason
+}
+
+export function planCompaction(input: {
+  messages: LoopMessage[]
+  settings: CompactionSettingsSchema
+  providerFormat?: string
+  trigger?: CompactionTrigger
+  preEstimatedTokens?: number
+}): CompactionPlan {
+  const { messages, settings, providerFormat, preEstimatedTokens, trigger = 'automatic' } = input
+  if (trigger === 'automatic' && !settings.enabled) {
+    return { eligible: false, reason: 'disabled' }
+  }
+
+  if (trigger === 'automatic') {
+    const estimatedTokens = preEstimatedTokens ?? estimateContextTokens(messages)
+    const contextWindow = getContextWindow(providerFormat ?? '')
+    const thresholdTokens = Math.floor(contextWindow * settings.thresholdPercent / 100)
+    if (estimatedTokens <= thresholdTokens) {
+      return { eligible: false, reason: 'below-threshold' }
+    }
+  }
+
+  const cutIndex = findCutPointByPairs(messages, settings.keepRecentPairs)
+  if (cutIndex <= 0) {
+    return { eligible: false, reason: 'insufficient-history' }
+  }
+
+  const sourceTokens = estimateContextTokens(messages.slice(0, cutIndex))
+  if (sourceTokens < MIN_COMPACTABLE_TOKENS) {
+    return { eligible: false, reason: 'insufficient-history' }
+  }
+
+  return { eligible: true, cutIndex, sourceTokens }
 }
 
 export async function compactMessages(input: CompactionInput): Promise<CompactionResult> {
-  const { messages, settings, aiProvider, model, providerFormat, abortSignal, logger: log = defaultLogger(), summarize, preEstimatedTokens, instruction, force = false } = input
-
-  if (!force && !settings.enabled) {
-    return { messages, compacted: false }
+  const { messages, settings, aiProvider, model, providerFormat, abortSignal, logger: log = defaultLogger(), summarize, preEstimatedTokens, instruction, trigger = 'automatic' } = input
+  const plan = input.plan ?? planCompaction({
+    messages,
+    settings,
+    providerFormat,
+    trigger,
+    preEstimatedTokens,
+  })
+  if (!plan.eligible) {
+    log.info(`compaction skipped: reason=${plan.reason}`)
+    return { messages, compacted: false, skipReason: plan.reason }
   }
 
-  const estimatedTokens = preEstimatedTokens ?? estimateContextTokens(messages)
-  const contextWindow = getContextWindow(providerFormat)
-
-  if (!force) {
-    const thresholdTokens = Math.floor(contextWindow * settings.thresholdPercent / 100)
-    log.info(`context check: estimated=${estimatedTokens}, window=${contextWindow}, threshold=${settings.thresholdPercent}% (${thresholdTokens} tokens)`)
-
-    if (estimatedTokens <= thresholdTokens) {
-      return { messages, compacted: false }
-    }
-  }
-  else {
-    log.info(`forced compaction: estimated=${estimatedTokens}, window=${contextWindow}, bypassing threshold`)
-  }
-
-  const cutIndex = findCutPointByPairs(messages, settings.keepRecentPairs, force)
-  if (cutIndex <= 0) {
-    log.warn('no safe cut point found, skipping compaction')
-    return { messages, compacted: false }
-  }
-
+  const { cutIndex } = plan
   const toSummarize = messages.slice(0, cutIndex)
   const toKeep = messages.slice(cutIndex)
 
@@ -170,14 +207,23 @@ export async function compactMessages(input: CompactionInput): Promise<Compactio
 
   const serialized = serializeMessages(toSummarize)
 
-  let summary: string
+  let summaryResult: { text: string, usage?: LanguageModelUsage }
   try {
-    summary = await summarize(serialized, aiProvider, model, abortSignal, instruction)
+    summaryResult = await summarize(serialized, aiProvider, model, abortSignal, instruction)
   }
   catch (err) {
     const reason = err instanceof Error ? err.message : String(err)
     log.warn(`summary failed: ${reason}, keeping original messages`)
     return { messages, compacted: false, summaryError: reason }
+  }
+  const summary = summaryResult.text
+  if (!summary.trim()) {
+    return {
+      messages,
+      compacted: false,
+      summaryError: '上下文压缩返回了空摘要。',
+      usage: summaryResult.usage,
+    }
   }
 
   const summaryMessage: LoopMessage = {
@@ -206,6 +252,7 @@ export async function compactMessages(input: CompactionInput): Promise<Compactio
     summaryLength: summary.length,
     keptLength: toKeep.length,
     summarizedCount: toSummarize.length,
+    usage: summaryResult.usage,
   }
 }
 

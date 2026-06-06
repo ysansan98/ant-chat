@@ -1,4 +1,4 @@
-import type { AddConversationsSchema, AddMessage, ModelInfo, ProviderConfigSchema, ToolCallContent, ToolResultContent, UpdateConversationsSchema, UpdateMessageSchema } from '../schemas'
+import type { AddConversationsSchema, AddMessage, LanguageModelUsage, ModelInfo, ProviderConfigSchema, ToolCallContent, ToolResultContent, UpdateConversationsSchema, UpdateMessageSchema } from '../schemas'
 import type { AgentMemoryReader } from './agent-memory'
 import type { AgentMode, AgentPendingAction, AgentTaskSnapshot, ToolApprovalWhitelistEntry } from './agent-runtime'
 import type { AgentTool } from './agent-tools'
@@ -76,7 +76,7 @@ export interface IAIProvider {
       maxTokens?: number
     }
     abortSignal?: AbortSignal
-  }) => Promise<{ text: string }>
+  }) => Promise<{ text: string, usage?: LanguageModelUsage }>
 }
 
 // ============================================================
@@ -202,7 +202,10 @@ export interface RuntimeMcpClientHub {
 // ============================================================
 
 export interface CompactionStrategy {
-  summarize: (serialized: string, aiProvider: IAIProvider, model: string, abortSignal?: AbortSignal, instruction?: string) => Promise<string>
+  summarize: (serialized: string, aiProvider: IAIProvider, model: string, abortSignal?: AbortSignal, instruction?: string) => Promise<{
+    text: string
+    usage?: LanguageModelUsage
+  }>
 }
 
 export interface AgentRuntimeHost {

@@ -403,7 +403,12 @@ describe('agentRuntime', () => {
       const readUserMemory = vi.fn(async () => '§Prefer concise Chinese.')
       const config = createSessionConfig({
         sessionStore: store,
-        compactionStrategy: { summarize: vi.fn(async () => 'Earlier context summary.') },
+        compactionStrategy: {
+          summarize: vi.fn(async () => ({
+            text: 'Earlier context summary.',
+            usage: { inputTokens: 12000, outputTokens: 300, totalTokens: 12300 },
+          })),
+        },
         memoryReader: {
           readUserMemory,
           readMemory,
@@ -469,6 +474,17 @@ describe('agentRuntime', () => {
         status: 'success',
         content: [{ type: 'text', text: 'Earlier context summary.' }],
         eventType: 'compaction',
+        compactedThroughMessageId: 'a1',
+        modelInfo: {
+          provider: 'provider',
+          providerId: 'provider-1',
+          model: 'test-model',
+        },
+        usage: {
+          inputTokens: 12000,
+          outputTokens: 300,
+          totalTokens: 12300,
+        },
       })
       expect(vi.mocked(store.createEventMessage).mock.invocationCallOrder[0])
         .toBeLessThan(vi.mocked(store.createUserMessage).mock.invocationCallOrder[1])

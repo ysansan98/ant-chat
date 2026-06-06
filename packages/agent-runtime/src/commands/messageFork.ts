@@ -116,6 +116,11 @@ function messageToAddMessage(
         role: 'event' as const,
         status: msg.status,
         eventType: msg.eventType || 'unknown',
+        modelInfo: msg.modelInfo,
+        usage: msg.usage,
+        compactedThroughMessageId: msg.compactedThroughMessageId
+          ? idMap.get(msg.compactedThroughMessageId)
+          : undefined,
       }
 
     default:

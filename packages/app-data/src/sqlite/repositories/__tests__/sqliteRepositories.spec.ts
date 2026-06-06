@@ -5,12 +5,33 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getAttachmentFilePath } from '../../attachmentFiles'
 import { initializeAppDataSchema } from '../../schema'
 import { SqliteMessageSearchQuery } from '../../queries'
 import { SqliteConversationRepository } from '../sqliteConversationRepository'
 import { SqliteMessageRepository } from '../sqliteMessageRepository'
+
+describe('sqlite message repository', () => {
+  it('lists conversation messages by creation time and insertion order', async () => {
+    let preparedSql = ''
+    const all = vi.fn(() => [])
+    const prepare = vi.fn((sql: string) => {
+      preparedSql = sql
+      return { all }
+    })
+    const repository = new SqliteMessageRepository({
+      prepare,
+    } as never)
+
+    await repository.listByConversation('conv-1')
+
+    expect(prepare).toHaveBeenCalledOnce()
+    expect(preparedSql.replace(/\s+/g, ' ').trim())
+      .toContain('WHERE conv_id = ? ORDER BY created_at ASC, rowid ASC')
+    expect(all).toHaveBeenCalledWith('conv-1')
+  })
+})
 
 describe.skipIf(!canRunDbIntegrationTests())('sqlite repositories', () => {
   let sqlite: Database
@@ -56,6 +77,56 @@ describe.skipIf(!canRunDbIntegrationTests())('sqlite repositories', () => {
     expect(message.convId).toBe(conversation.id)
     expect(message.content).toEqual([{ type: 'text', text: 'hello' }])
     expect(messages).toEqual([expect.objectContaining({ id: message.id, convId: conversation.id })])
+  })
+
+  it('persists compaction boundary, model info, and usage on event messages', async () => {
+    const conversationRepository = new SqliteConversationRepository(sqlite)
+    const messageRepository = new SqliteMessageRepository(sqlite, { attachmentsRoot })
+    const conversation = await conversationRepository.create({
+      title: 'Compaction',
+      workspacePath: '/workspace',
+      createdAt: 1,
+      updatedAt: 1,
+      settings: {
+        modelId: 'model-1',
+        systemPrompt: '',
+        temperature: 0.7,
+        maxTokens: 1024,
+      },
+    })
+
+    const event = await messageRepository.create({
+      convId: conversation.id,
+      role: 'event',
+      status: 'success',
+      eventType: 'compaction',
+      content: [{ type: 'text', text: 'summary' }],
+      compactedThroughMessageId: 'message-boundary',
+      modelInfo: {
+        provider: 'provider',
+        providerId: 'provider-1',
+        model: 'model-1',
+      },
+      usage: {
+        inputTokens: 9000,
+        outputTokens: 300,
+        totalTokens: 9300,
+      },
+    })
+
+    expect(event).toEqual(expect.objectContaining({
+      compactedThroughMessageId: 'message-boundary',
+      modelInfo: {
+        provider: 'provider',
+        providerId: 'provider-1',
+        model: 'model-1',
+      },
+      usage: {
+        inputTokens: 9000,
+        outputTokens: 300,
+        totalTokens: 9300,
+      },
+    }))
   })
 
   it('searches text messages by keyword grouped by conversation', async () => {

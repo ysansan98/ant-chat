@@ -64,7 +64,7 @@ export function createCompactionStrategy(): CompactionStrategy {
         },
         abortSignal,
       })
-      return result.text
+      return result
     },
   }
 }

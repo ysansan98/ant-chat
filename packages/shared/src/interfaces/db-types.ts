@@ -74,6 +74,9 @@ export interface IMessageEvent extends IMessageBase {
   content: IMessageContent
   status: 'success' | 'loading' | 'error'
   eventType: string
+  modelInfo?: IModelInfo
+  usage?: LanguageModelUsage
+  compactedThroughMessageId?: string
 }
 
 export interface IMessage {
@@ -94,6 +97,8 @@ export interface IMessage {
   eventType?: string
   /** 所属 turn 的用户消息 id */
   turnId?: string
+  /** Last persisted message represented by a compaction summary. */
+  compactedThroughMessageId?: string
 }
 
 // 消息内容

@@ -225,6 +225,9 @@ export const EventMessage = BaseMessage.extend({
   role: z.literal('event'),
   status: z.enum(['success', 'loading', 'error']),
   eventType: z.string(),
+  modelInfo: ModelInfoSchema.optional(),
+  usage: LanguageModelUsageSchema.optional(),
+  compactedThroughMessageId: z.string().optional(),
 })
 
 export type EventMessage = z.infer<typeof EventMessage>
@@ -246,6 +249,7 @@ export const UpdateMessageSchema = BaseMessage.extend({
   status: AIMessage.shape.status,
   role: z.enum(['assistant', 'user', 'tool', 'event']),
   eventType: z.string().optional(),
+  compactedThroughMessageId: z.string().optional(),
   ...(AIMessage.pick({ modelInfo: true, reasoningContent: true, usage: true, durationMs: true }).shape),
 }).partial().extend({ id: z.string() })
 

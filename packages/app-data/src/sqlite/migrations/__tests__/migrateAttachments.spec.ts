@@ -8,7 +8,7 @@ import { createRequire } from 'node:module'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { getAttachmentFilePath } from '../../attachmentFiles'
 import { initializeAppDataSchema } from '../../schema'
-import { migrateMessageAttachments } from '../migrateAttachments'
+import { migrateAddCompactionBoundary, migrateMessageAttachments } from '../migrateAttachments'
 
 describe.skipIf(!canRunDbIntegrationTests())('migrateMessageAttachments', () => {
   let sqlite: Database
@@ -118,6 +118,25 @@ describe.skipIf(!canRunDbIntegrationTests())('migrateMessageAttachments', () => 
         size: textBytes.length,
       },
     ])
+  })
+})
+
+describe.skipIf(!canRunDbIntegrationTests())('migrateAddCompactionBoundary', () => {
+  it('adds the compaction boundary column once', () => {
+    const BetterSqlite = loadBetterSqlite()
+    const sqlite = new BetterSqlite(':memory:')
+    sqlite.exec(`
+      CREATE TABLE messages (
+        id text PRIMARY KEY NOT NULL
+      );
+    `)
+
+    migrateAddCompactionBoundary(sqlite)
+    migrateAddCompactionBoundary(sqlite)
+
+    const columns = sqlite.prepare('PRAGMA table_info(messages)').all() as Array<{ name: string }>
+    expect(columns.some(column => column.name === 'compacted_through_message_id')).toBe(true)
+    sqlite.close()
   })
 })
 

@@ -34,6 +34,7 @@ export interface MessageRow {
   usage: string | null
   turn_id: string | null
   event_type: string | null
+  compacted_through_message_id: string | null
   duration_ms: number | null
 }
 
@@ -61,6 +62,7 @@ export function mapMessageRow(row: MessageRow): IMessage {
     usage: parseNullableUsage(row.usage),
     turnId: row.turn_id ?? undefined,
     eventType: row.event_type ?? undefined,
+    compactedThroughMessageId: row.compacted_through_message_id ?? undefined,
     durationMs: row.duration_ms ?? undefined,
   }
 }

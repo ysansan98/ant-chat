@@ -177,6 +177,9 @@ export function rebuildMessagesTable(db: AppDataDatabase): void {
   const hasDurationMs = hasColumn(db, 'messages', 'duration_ms')
   const durationCol = hasDurationMs ? ', duration_ms' : ''
   const durationSelect = hasDurationMs ? ', duration_ms' : ''
+  const hasCompactionBoundary = hasColumn(db, 'messages', 'compacted_through_message_id')
+  const compactionBoundaryCol = hasCompactionBoundary ? ', compacted_through_message_id' : ''
+  const compactionBoundarySelect = hasCompactionBoundary ? ', compacted_through_message_id' : ''
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS messages_new (
@@ -190,12 +193,12 @@ export function rebuildMessagesTable(db: AppDataDatabase): void {
       model_info text DEFAULT NULL,
       usage text DEFAULT NULL,
       turn_id text DEFAULT NULL,
-      event_type text DEFAULT NULL${durationCol}
+      event_type text DEFAULT NULL${compactionBoundaryCol}${durationCol}
     );
 
     INSERT INTO messages_new
     SELECT id, conv_id, role, content, created_at, status,
-           reasoning_content, model_info, usage, turn_id, event_type${durationSelect}
+           reasoning_content, model_info, usage, turn_id, event_type${compactionBoundarySelect}${durationSelect}
     FROM messages;
 
     DROP TABLE messages;
@@ -216,4 +219,13 @@ export function migrateAddDurationMs(db: AppDataDatabase): void {
 
   db.exec('ALTER TABLE messages ADD COLUMN duration_ms integer DEFAULT NULL')
   console.log('Added duration_ms column to messages table.')
+}
+
+export function migrateAddCompactionBoundary(db: AppDataDatabase): void {
+  if (hasColumn(db, 'messages', 'compacted_through_message_id')) {
+    return
+  }
+
+  db.exec('ALTER TABLE messages ADD COLUMN compacted_through_message_id text DEFAULT NULL')
+  console.log('Added compacted_through_message_id column to messages table.')
 }

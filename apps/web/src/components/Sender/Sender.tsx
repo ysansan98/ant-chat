@@ -72,6 +72,7 @@ import {
 } from './inputReferences'
 import MCPManagementPanel from './MCPManagementPanel'
 import { ReferenceSuggestionPanel } from './ReferenceSuggestionPanel'
+import { calculateSessionUsage } from './sessionUsage'
 
 interface SenderProps {
   disabled?: boolean
@@ -163,39 +164,10 @@ function SenderContextUsageButton() {
   const latestUsage = latestAssistantMessage?.usage
 
   // Cumulative token consumption across the whole session
-  const sessionUsage = useMemo((): LanguageModelUsage | undefined => {
-    let input = 0
-    let output = 0
-    let reasoning = 0
-    let cache = 0
-    for (const msg of messages) {
-      if (msg.role === 'assistant' && msg.usage) {
-        input += msg.usage.inputTokens || 0
-        output += msg.usage.outputTokens || 0
-        reasoning += msg.usage.reasoningTokens || 0
-        cache += msg.usage.cachedInputTokens || 0
-      }
-    }
-    const total = input + output + reasoning + cache
-    if (total === 0)
-      return undefined
-    return {
-      inputTokens: input,
-      outputTokens: output,
-      totalTokens: total,
-      reasoningTokens: reasoning,
-      cachedInputTokens: cache,
-      inputTokenDetails: {
-        noCacheTokens: undefined,
-        cacheReadTokens: undefined,
-        cacheWriteTokens: undefined,
-      },
-      outputTokenDetails: {
-        reasoningTokens: undefined,
-        textTokens: undefined,
-      },
-    }
-  }, [messages])
+  const sessionUsage = useMemo(
+    (): LanguageModelUsage | undefined => calculateSessionUsage(messages),
+    [messages],
+  )
 
   const maxTokens = settings.maxTokens || 1
   // Use latest request's totalTokens to approximate context window fill
