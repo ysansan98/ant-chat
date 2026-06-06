@@ -8,9 +8,21 @@
 @custom-variant dark (&:is(.dark *));
 @source "../../../apps/**/*.{ts,tsx}";
 @source "../../../components/**/*.{ts,tsx}";
-@source "../../../../node_modules/@ferrucc-io/emoji-picker";
 @source "../**/*.{ts,tsx}";
 @source "../../node_modules/streamdown/dist/*.js";
+
+@keyframes shimmer {
+  from {
+    background-position: 100% center;
+  }
+  to {
+    background-position: 0% center;
+  }
+}
+
+@utility animate-shimmer {
+  animation: shimmer var(--shimmer-duration, 2s) linear infinite;
+}
 
 @plugin "@iconify/tailwind4";
 

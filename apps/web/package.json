@@ -12,7 +12,6 @@
   "dependencies": {
     "@ant-chat/shared": "workspace:*",
     "@electron-toolkit/preload": "^3.0.1",
-    "@ferrucc-io/emoji-picker": "^0.0.44",
     "@workspace/ui": "workspace:*",
     "ahooks": "^3.8.4",
     "ai": "^6.0.69",
@@ -23,7 +22,6 @@
     "lodash-es": "^4.17.21",
     "lucide-react": "catalog:",
     "mermaid": "^11.5.0",
-    "motion": "^12.23.5",
     "nanoid": "^5.0.9",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

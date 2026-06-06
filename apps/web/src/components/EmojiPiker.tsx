@@ -1,7 +1,7 @@
-import { EmojiPicker } from '@ferrucc-io/emoji-picker'
 import { Button } from '@workspace/ui/components/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@workspace/ui/components/popover'
 import React from 'react'
+import { EmojiGrid } from './EmojiPicker/EmojiGrid'
 
 export interface EmojiPickerProps {
   value?: string
@@ -23,13 +23,7 @@ export function EmojiPickerHoc({ value, onChange }: EmojiPickerProps) {
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-72 p-0" align="start">
-        <div className="">
-          <EmojiPicker className="border-(--border-color)" onEmojiSelect={handleEmojiSelect}>
-            <EmojiPicker.Group>
-              <EmojiPicker.List containerHeight={200} />
-            </EmojiPicker.Group>
-          </EmojiPicker>
-        </div>
+        <EmojiGrid onEmojiSelect={handleEmojiSelect} containerHeight={200} />
       </PopoverContent>
     </Popover>
   )

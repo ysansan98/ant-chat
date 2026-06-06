@@ -1,10 +1,27 @@
-import { AnimatePresence, motion } from 'motion/react'
 import React from 'react'
 import { setActiveConversationsId } from '@/store/messages'
 import { SearchBar } from './SearchBar'
 
 export function SearchContainer() {
   const [openModal, setOpenModal] = React.useState(false)
+  const [visible, setVisible] = React.useState(false)
+
+  // Handle enter/exit transitions with a mounted state
+  React.useEffect(() => {
+    if (openModal) {
+      setVisible(true)
+    }
+  }, [openModal])
+
+  function handleClose() {
+    setOpenModal(false)
+  }
+
+  function handleTransitionEnd() {
+    if (!openModal) {
+      setVisible(false)
+    }
+  }
 
   React.useEffect(
     () => {
@@ -14,7 +31,7 @@ export function SearchContainer() {
       const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
           e.preventDefault()
-          setOpenModal(!openModal)
+          setOpenModal(prev => !prev)
         }
 
         if (!openModal) {
@@ -35,34 +52,29 @@ export function SearchContainer() {
         window.removeEventListener('keydown', handleKeyDown)
       }
     },
+    [openModal],
   )
 
-  return (
-    <AnimatePresence>
-      {
-        openModal
-          ? (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 z-50 bg-black/10 backdrop-blur-sm"
-                onClick={(e) => {
-                  if (e.target === e.currentTarget) {
-                    setOpenModal(false)
-                  }
-                }}
-              >
-                <SearchBar onItemClick={(item, _) => {
-                  setOpenModal(false)
-                  setActiveConversationsId(item.conversationId)
-                }}
-                />
-              </motion.div>
-            )
-          : null
-      }
-    </AnimatePresence>
+  if (!visible && !openModal) {
+    return null
+  }
 
+  return (
+    <div
+      className={`fixed inset-0 z-50 bg-black/10 backdrop-blur-sm transition-opacity duration-200 ${openModal ? 'opacity-100' : 'opacity-0'}`}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          handleClose()
+        }
+      }}
+      onTransitionEnd={handleTransitionEnd}
+    >
+      <SearchBar
+        onItemClick={(item, _) => {
+          handleClose()
+          setActiveConversationsId(item.conversationId)
+        }}
+      />
+    </div>
   )
 }
