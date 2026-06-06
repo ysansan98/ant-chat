@@ -1,6 +1,6 @@
 import type { IMessage } from '@ant-chat/shared'
 import { Button } from '@workspace/ui/components/button'
-import { ArrowDownIcon, Loader2Icon } from 'lucide-react'
+import { ArrowDownIcon } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAutoScroll } from '@/hooks/useAutoScroll'
 import { useMessageActions } from '@/hooks/useMessageActions'
@@ -11,10 +11,9 @@ import { MessageJumpRail } from './MessageJumpRail'
 interface Props {
   messages: IMessage[]
   conversationsId: string
-  isCompacting?: boolean
 }
 
-function BubbleList({ messages, isCompacting = false }: Props) {
+function BubbleList({ messages }: Props) {
   const {
     autoScrollToBottom,
     setAutoScrollToBottom,
@@ -151,17 +150,6 @@ function BubbleList({ messages, isCompacting = false }: Props) {
             onCopyMessage={copyMessage}
           />
         ))}
-
-        {isCompacting && (
-          <div className="mx-auto flex w-full max-w-(--chat-width) items-center gap-3 py-3">
-            <div className="h-px flex-1 bg-border" />
-            <span className="flex h-7 shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
-              <Loader2Icon className="size-3 animate-spin" />
-              正在压缩上下文
-            </span>
-            <div className="h-px flex-1 bg-border" />
-          </div>
-        )}
 
         <Button
           size="icon-sm"

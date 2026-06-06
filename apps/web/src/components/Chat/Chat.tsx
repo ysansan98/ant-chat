@@ -102,7 +102,6 @@ export default function Chat() {
                 <BubbleList
                   messages={messages}
                   conversationsId={activeConversationsId}
-                  isCompacting={commandRunning}
                 />
               </Suspense>
             )
