@@ -9,18 +9,6 @@ import {
   Attachments,
 } from '@workspace/ui/components/ai-elements/attachments'
 import {
-  Context,
-  ContextCacheUsage,
-  ContextContent,
-  ContextContentBody,
-  ContextContentFooter,
-  ContextContentHeader,
-  ContextInputUsage,
-  ContextOutputUsage,
-  ContextReasoningUsage,
-  ContextTrigger,
-} from '@workspace/ui/components/ai-elements/context'
-import {
   PromptInput,
   PromptInputBody,
   PromptInputButton,
@@ -30,6 +18,17 @@ import {
   PromptInputTools,
   usePromptInputAttachments,
 } from '@workspace/ui/components/ai-elements/prompt-input'
+import {
+  ContextUsage,
+  ContextUsageBody,
+  ContextUsageCache,
+  ContextUsageContent,
+  ContextUsageHeader,
+  ContextUsageInput,
+  ContextUsageOutput,
+  ContextUsageReasoning,
+  ContextUsageTrigger,
+} from '@workspace/ui/components/context-usage'
 import {
   Popover,
   PopoverContent,
@@ -161,60 +160,79 @@ function SenderContextUsageButton() {
     .reverse()
     .find(msg => msg.role === 'assistant')
 
-  const usage = latestAssistantMessage?.usage
-  const contextUsage: LanguageModelUsage | undefined = usage
-    ? {
-        inputTokens: usage.inputTokens,
-        outputTokens: usage.outputTokens,
-        totalTokens: usage.totalTokens,
-        reasoningTokens: usage.reasoningTokens,
-        cachedInputTokens: usage.cachedInputTokens,
-        inputTokenDetails: {
-          noCacheTokens: undefined,
-          cacheReadTokens: undefined,
-          cacheWriteTokens: undefined,
-        },
-        outputTokenDetails: {
-          reasoningTokens: undefined,
-          textTokens: undefined,
-        },
+  const latestUsage = latestAssistantMessage?.usage
+
+  // Cumulative token consumption across the whole session
+  const sessionUsage = useMemo((): LanguageModelUsage | undefined => {
+    let input = 0
+    let output = 0
+    let reasoning = 0
+    let cache = 0
+    for (const msg of messages) {
+      if (msg.role === 'assistant' && msg.usage) {
+        input += msg.usage.inputTokens || 0
+        output += msg.usage.outputTokens || 0
+        reasoning += msg.usage.reasoningTokens || 0
+        cache += msg.usage.cachedInputTokens || 0
       }
-    : undefined
+    }
+    const total = input + output + reasoning + cache
+    if (total === 0)
+      return undefined
+    return {
+      inputTokens: input,
+      outputTokens: output,
+      totalTokens: total,
+      reasoningTokens: reasoning,
+      cachedInputTokens: cache,
+      inputTokenDetails: {
+        noCacheTokens: undefined,
+        cacheReadTokens: undefined,
+        cacheWriteTokens: undefined,
+      },
+      outputTokenDetails: {
+        reasoningTokens: undefined,
+        textTokens: undefined,
+      },
+    }
+  }, [messages])
+
   const maxTokens = settings.maxTokens || 1
-  const usedTokens = contextUsage?.totalTokens
-    ?? ((contextUsage?.inputTokens || 0) + (contextUsage?.outputTokens || 0))
+  // Use latest request's totalTokens to approximate context window fill
+  const usedTokens = latestUsage?.totalTokens
+    ?? ((latestUsage?.inputTokens || 0) + (latestUsage?.outputTokens || 0))
+
+  const hasUsage = sessionUsage !== undefined
 
   return (
-    <Context
+    <ContextUsage
       maxTokens={maxTokens}
-      modelId={settings.modelId || undefined}
-      usage={contextUsage}
+      usage={sessionUsage}
       usedTokens={Math.max(0, usedTokens)}
     >
-      <ContextTrigger
+      <ContextUsageTrigger
         size="sm"
         type="button"
         variant="ghost"
       />
-      <ContextContent align="start" className="w-72">
-        <ContextContentHeader />
-        <ContextContentBody className="space-y-2">
-          {contextUsage
+      <ContextUsageContent align="start" className="w-72">
+        <ContextUsageHeader />
+        <ContextUsageBody className="space-y-2">
+          {hasUsage
             ? (
                 <>
-                  <ContextInputUsage />
-                  <ContextOutputUsage />
-                  <ContextReasoningUsage />
-                  <ContextCacheUsage />
+                  <ContextUsageInput />
+                  <ContextUsageOutput />
+                  <ContextUsageReasoning />
+                  <ContextUsageCache />
                 </>
               )
             : (
                 <div className="text-xs text-gray-500">No usage yet</div>
               )}
-        </ContextContentBody>
-        <ContextContentFooter />
-      </ContextContent>
-    </Context>
+        </ContextUsageBody>
+      </ContextUsageContent>
+    </ContextUsage>
   )
 }
 
