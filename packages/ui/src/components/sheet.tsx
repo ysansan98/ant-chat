@@ -66,7 +66,7 @@ function SheetContent({
         data-slot="sheet-content"
         data-side={side}
         className={cn(
-          'fixed top-0 z-50 flex h-dvh w-80 max-w-[100vw] flex-col gap-4 bg-background p-6 shadow-lg ring-1 ring-foreground/10 duration-200 outline-none',
+          'fixed top-0 z-50 flex h-dvh w-80 max-w-[100vw] flex-col gap-4 border-border/70 bg-background p-6 shadow-lg duration-200 outline-none data-[side=left]:border-r data-[side=right]:border-l',
           side === 'right' ? 'right-0' : 'left-0',
           slideIn,
           'data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0',

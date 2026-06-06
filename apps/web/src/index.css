@@ -10,9 +10,9 @@
 }
 
 :root {
-  /* 交互相关颜色 */
-  --hover-bg-color: color-mix(in oklab, #000 3%, transparent);
-  --border-color: #d9d9d9;
+  /* Interaction colors */
+  --hover-bg-color: color-mix(in oklab, var(--foreground) 5%, transparent);
+  --border-color: var(--border);
 
   --appBarHeight: 0px;
   --mainHeight: 100dvh;
@@ -22,8 +22,8 @@
 }
 
 .dark:root {
-  --hover-bg-color: color-mix(in oklab, #fff 10%, transparent);
-  --border-color: #424242;
+  --hover-bg-color: color-mix(in oklab, var(--foreground) 10%, transparent);
+  --border-color: var(--border);
 }
 
 @media (max-width: 768px) {
@@ -62,6 +62,6 @@ body,
 }
 
 .app-bar {
-  /* 让这个区域可以拖动整个窗口 */
+  /* Let this area drag the Electron window. */
   -webkit-app-region: drag;
 }

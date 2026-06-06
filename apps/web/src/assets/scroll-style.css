@@ -1,37 +1,37 @@
-/* 整个滚动条 */
+/* Scrollbar */
 *::-webkit-scrollbar {
-  width: 5px; /* 竖向滚动条宽度 */
-  height: 5px; /* 横向滚动条高度 */
+  width: 5px; /* Vertical scrollbar width */
+  height: 5px; /* Horizontal scrollbar height */
 }
 
-/* 滚动槽 */
+/* Scrollbar track */
 *::-webkit-scrollbar-track {
-  background: #f1f1f1; /* 滚动槽背景色 */
-  border-radius: 5px; /* 圆角 */
+  background: var(--muted); /* Track background */
+  border-radius: 5px; /* Radius */
 }
 
-/* 滚动滑块 */
+/* Scrollbar thumb */
 *::-webkit-scrollbar-thumb {
-  background: #888; /* 滑块背景色 */
-  border-radius: 5px; /* 圆角 */
+  background: color-mix(in oklab, var(--muted-foreground) 45%, transparent); /* Thumb background */
+  border-radius: 5px; /* Radius */
 }
 
-/* 鼠标悬停在滚动滑块上 */
+/* Thumb hover state */
 *::-webkit-scrollbar-thumb:hover {
-  background: #555; /* 滑块悬停背景色 */
+  background: color-mix(in oklab, var(--muted-foreground) 65%, transparent); /* Thumb hover background */
 }
 
-/* 鼠标按下滚动滑块 */
+/* Thumb active state */
 *::-webkit-scrollbar-thumb:active {
-  background: #333; /* 滑块点击背景色 */
+  background: color-mix(in oklab, var(--muted-foreground) 80%, transparent); /* Thumb active background */
 }
 
-/* 滚动条两端的按钮 */
+/* Scrollbar buttons */
 *::-webkit-scrollbar-button {
-  display: none; /* 隐藏按钮 */
+  display: none; /* Hide buttons */
 }
 
-/* 滚动条角落 */
+/* Scrollbar corner */
 *::-webkit-scrollbar-corner {
-  background: transparent; /* 角落背景色 */
+  background: transparent; /* Corner background */
 }

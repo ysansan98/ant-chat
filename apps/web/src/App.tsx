@@ -27,7 +27,7 @@ function AntChatApp() {
       <div
         role="button"
         tabIndex={0}
-        className="absolute top-4 left-22.5 z-9990 cursor-pointer text-slate-600"
+        className="absolute top-4 left-22.5 z-9990 cursor-pointer text-muted-foreground hover:text-foreground"
         onClick={() => {
           setShowSliderMenu(prev => !prev)
         }}
