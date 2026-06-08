@@ -4,9 +4,8 @@
 
 # Ant Chat
 
-基于 Electron 和 `ant-design-x` 的现代化 AI 聊天桌面应用，支持多模型提供商、MCP协议集成和本地数据存储
+通用 AI Agent，支持多模型、工具调用、MCP 协议和技能扩展，提供桌面端和 Web 端
 
-[![codecov](https://codecov.io/gh/whitexie/ant-chat/branch/main/graph/badge.svg?token=ZF0U1B9XI1)](https://codecov.io/gh/whitexie/ant-chat)
 [![CI](https://github.com/whitexie/ant-chat/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/whitexie/ant-chat/actions/workflows/ci.yml)
 
 [下载应用](https://github.com/whitexie/ant-chat/releases) | [功能特性](#功能特性-) | [开发指南](#开发指南-)
@@ -17,37 +16,60 @@
 
 ### 🤖 多AI提供商支持
 
+- **Anthropic Claude** - Claude系列模型
 - **OpenAI** - GPT系列模型
-- **Google Gemini** - Gemini Pro/Flash 系列，支持联网搜索
+- **Google Gemini** - Gemini Pro/Flash 系列
 - **DeepSeek** - DeepSeek系列模型，支持深度思考过程显示
 - **自定义 API** - 支持兼容OpenAI格式的API
 
-### 💬 智能聊天体验
+### 🔧 工具系统
 
-- 🔤 **实时打字效果** - 模拟真实对话体验
-- 📝 **Markdown 渲染** - 支持语法高亮、表格、列表等
-- 🎨 **代码块预览** - HTML代码块实时预览
-- 📊 **Mermaid图表** - 支持流程图、时序图等可视化图表
-- 📎 **附件上传** - 支持图片和文件上传（Gemini模型）
-- 🌐 **联网搜索** - 实时获取网络信息（仅Gemini支持）
+- **文件操作** - 读取、写入、编辑文件，支持精确文本替换
+- **Shell 命令** - 执行 bash 命令，三级安全策略保护
+- **文件搜索** - 基于 ripgrep 的 glob 和正则搜索
+- **目录浏览** - 列出目录内容
 
-### 💾 数据管理
+### 🛡️ 安全策略
 
-- 📦 **本地存储** - 基于SQLite的本地数据库存储
-- 📂 **会话管理** - 对话历史管理、分组、导入/导出
-- ♾️ **无限滚动** - 大量消息的高效加载
+- **三级模式** - strict（严格审批）、hybrid（工作区自动放行）、full_managed（全部自动放行）
+- **白名单系统** - 支持 glob 模式匹配，可记住审批决策
+- **工作区隔离** - 强制工作区边界，防止路径逃逸
 
-### 🎨 用户界面
+### 🧠 记忆系统
 
-- 🌙 **主题切换** - 暗黑/亮色主题，支持跟随系统
-- ⚡ **性能优化** - React 19 + 现代化构建工具
-- 🎯 **智能交互** - 消息状态显示、中断生成等
+- **持久化记忆** - SOUL.md（身份）、USER.md（偏好）、MEMORY.md（笔记）
+- **声明式存储** - 每条记忆以 `§` 前缀标记
+- **注入防护** - 检测并拒绝包含 XML 标签的输入
+
+### 💬 对话体验
+
+- **实时流式输出** - 打字效果，支持推理内容展示
+- **Markdown 渲染** - 语法高亮、表格、Mermaid 图表、代码预览
+- **上下文压缩** - 自动压缩长对话历史，保留关键信息
 
 ### 🔌 MCP协议支持
 
 - **Model Context Protocol** - 扩展AI能力的标准协议
-- **插件生态** - 支持各种MCP工具和服务
+- **多传输协议** - 支持 Stdio 和 HTTP/SSE
 - **动态配置** - 灵活的MCP服务配置管理
+
+### 🎯 技能系统
+
+- **技能管理** - 安装、启用、禁用、删除技能
+- **多来源** - 从 GitHub 或本地 ZIP 包导入
+- **自主安装** - Agent 可自动从 GitHub 安装所需技能
+- **内置技能** - 自带 skill-installer 技能，用于管理其他技能
+
+### 🎨 用户界面
+
+- **主题切换** - 暗黑/亮色主题，支持跟随系统
+- **Kami 纸感主题** - 基于 shadcn/ui 的 Paper UI 设计风格
+- **AI 专用组件** - 40+ 组件：推理链、工具调用、终端、代码块等
+
+### 🌐 多端支持
+
+- **桌面端** - Electron 跨平台桌面应用
+- **Web端** - 纯浏览器应用，无需安装
 
 ## 技术栈 🛠️
 
@@ -60,9 +82,13 @@
 
 ### UI组件
 
-- **Ant Design X** - 专为AI应用设计的组件库
-- **Ant Design** - 企业级UI设计语言
+- **shadcn/ui** - 可复用UI组件库
 - **TailwindCSS** - 原子化CSS框架
+- **Kami 纸感主题** - Paper UI 设计风格
+
+### AI集成
+
+- **Vercel AI SDK** - 统一的AI模型调用接口，支持多家提供商
 
 ### 状态管理与存储
 
@@ -72,9 +98,9 @@
 
 ### 开发工具
 
-- **ESLint** - 代码质量检查
+- **ESLint** - 代码质量检查（@antfu/eslint-config）
 - **Vitest** - 单元测试框架
-- **Husky** - Git hooks工具
+- **simple-git-hooks** - Git hooks工具
 - **Electron Builder** - 应用打包工具
 
 ## 安装使用 📦
@@ -89,14 +115,13 @@
 
 - **macOS**: 10.15+ (Intel/Apple Silicon)
 - **Windows**: Windows 10+ (x64)
-- **Linux**: Ubuntu 18.04+ / 同等版本
 
 ## 开发指南 🚀
 
 ### 环境要求
 
 - Node.js 22+
-- pnpm 10+
+- pnpm 11+
 - Python 3.x (用于node-gyp)
 
 ### 快速开始
@@ -121,37 +146,45 @@ pnpm build:win    # Windows
 
 ```
 ant-chat/
-├── src/
-│   ├── main/               # 主进程
-│   ├── preload/            # 预加载脚本
-│   └── renderer/           # 渲染进程
+├── apps/
+│   ├── desktop/            # Electron 桌面应用
+│   │   ├── src/
+│   │   │   ├── main/       # 主进程
+│   │   │   ├── preload/    # 预加载脚本
+│   │   │   └── renderer/   # 渲染进程
+│   │   └── ...
+│   └── web/                # Web 应用
+│       ├── src/
+│       └── ...
 ├── packages/
-│   ├── app-data/           # app data services and persistence
-│   ├── mcp-client-hub/     # MCP客户端
-│   └── shared/             # 共享类型和工具
+│   ├── agent-core/         # 代理核心模块
+│   ├── agent-runtime/      # 代理运行时
+│   ├── app-data/           # 应用数据层
+│   ├── local-server/       # 本地服务器
+│   ├── mcp-client-hub/     # MCP 客户端中心
+│   ├── shared/             # 共享类型和工具
+│   └── ui/                 # UI 组件库 (shadcn/ui + Kami 主题)
 ├── out/                    # electron-vite 构建产物
 ├── release/                # electron-builder 发布产物
-├── .github/               # GitHub Actions
-└── docs/                  # 文档
+├── .github/                # GitHub Actions
+└── docs/                   # 文档
 ```
 
 ### 开发脚本
 
 ```bash
 # 开发
-pnpm dev                  # 启动开发环境
+pnpm dev                  # 启动桌面端开发环境
+pnpm dev:web              # 启动Web端开发环境
 pnpm check                # 类型检查 + lint + 单元测试
-pnpm type-check          # 类型检查
-pnpm test:unit           # 运行单元测试
+pnpm type-check           # 类型检查
+pnpm test:unit            # 运行单元测试
 
 # 构建
-pnpm build:mac           # 构建macOS版本
-pnpm build:win           # 构建Windows版本
+pnpm build                # 构建桌面端
+pnpm build:mac            # 构建macOS版本
+pnpm build:win            # 构建Windows版本
 ```
-
-### 测试与质量检查
-
-测试分层、CI、本地质量检查和运行产物约定见 [docs/engineering/testing.md](./docs/engineering/testing.md)。
 
 ## 贡献指南 🤝
 
@@ -185,7 +218,8 @@ pnpm build:win           # 构建Windows版本
 
 感谢以下优秀的开源项目：
 
-- [Ant Design X](https://github.com/ant-design/x) - AI应用组件库
+- [Kami](https://github.com/tw93/kami) - 纸感设计风格灵感来源
+- [shadcn/ui](https://github.com/shadcn-ui/ui) - 可复用UI组件库
 - [Electron](https://electronjs.org/) - 跨平台桌面应用框架
 - [React](https://reactjs.org/) - 用户界面库
 
