@@ -94,7 +94,7 @@ function buildContentSteps(
           id: block.toolCallId,
           toolCall: block,
           toolResult: resultBlock as ToolResultContent | undefined,
-          isExecuting: !resultBlock,
+          isExecuting: block.executeState === 'executing' || (!resultBlock && block.executeState !== 'completed'),
         })
       }
       else {

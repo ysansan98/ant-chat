@@ -33,6 +33,7 @@ export const ToolCallContentSchema = z.object({
   toolName: z.string(),
   args: z.record(z.unknown()),
   serverName: z.string().optional(),
+  executeState: z.enum(['executing', 'completed']).optional(),
 })
 
 export type ToolCallContent = z.infer<typeof ToolCallContentSchema>

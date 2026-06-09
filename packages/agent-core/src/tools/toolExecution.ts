@@ -298,6 +298,7 @@ function toToolCallContent(tool: McpToolCall): ToolCallContent {
     toolName: tool.toolName,
     args: tool.args,
     serverName: tool.serverName,
+    executeState: tool.executeState === 'await' ? undefined : tool.executeState,
   }
 }
 

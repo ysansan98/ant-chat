@@ -55,7 +55,11 @@ export function MessageBubble({ messages, onCopyMessage }: MessageBubbleProps) {
   const nonToolForFold = messages.filter(m => m.role !== 'tool' && m.role !== 'event')
   const lastNonTool = nonToolForFold[nonToolForFold.length - 1]
   const isRunning = lastNonTool?.role === 'assistant'
-    && (lastNonTool?.status === 'loading' || lastNonTool?.status === 'typing')
+    && (
+      lastNonTool?.status === 'loading'
+      || lastNonTool?.status === 'typing'
+      || hasExecutingToolCalls(lastNonTool, toolResultMap)
+    )
 
   // Event messages: render as collapsible divider
   if (isEvent) {
@@ -338,5 +342,14 @@ function splitProcessMessages(messages: IMessage[]): ProcessSplit {
 function hasToolCallBlocks(msgs: IMessage[]): boolean {
   return msgs.some(m =>
     Array.isArray(m.content) && m.content.some(b => b.type === 'tool-call'),
+  )
+}
+
+function hasExecutingToolCalls(msg: IMessage, toolResultMap: Map<string, IMessage>): boolean {
+  if (!Array.isArray(msg.content))
+    return false
+  return msg.content.some(b =>
+    b.type === 'tool-call'
+    && (b.executeState === 'executing' || !toolResultMap.has(b.toolCallId)),
   )
 }

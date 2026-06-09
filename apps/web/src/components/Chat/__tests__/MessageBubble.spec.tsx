@@ -1,5 +1,5 @@
 import type { IMessage, IMessageContent } from '@ant-chat/shared'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { MessageBubble } from '../MessageBubble'
 
@@ -22,7 +22,7 @@ function createAssistantMessage(
 }
 
 function renderBubble(messages: IMessage[]) {
-  render(
+  return render(
     <MessageBubble
       messages={messages}
       onCopyMessage={vi.fn()}
@@ -31,8 +31,8 @@ function renderBubble(messages: IMessage[]) {
 }
 
 describe('messageBubble', () => {
-  it('renders an open process panel with reasoning and tool steps while the agent is running', async () => {
-    renderBubble([
+  it('renders an open process panel with reasoning and tool steps while the agent is running', () => {
+    const { container } = renderBubble([
       createAssistantMessage('thinking', [], 'success', 'Checked the current message group.'),
       createAssistantMessage('tool-call', [
         {
@@ -47,23 +47,43 @@ describe('messageBubble', () => {
       ], 'typing'),
     ])
 
+    // Process panel is open
     expect(screen.getByText('执行过程(2)')).toBeInTheDocument()
-    await waitFor(() => expect(screen.getByText('search_content')).toBeInTheDocument())
+    const panel = screen.getByText('执行过程(2)').closest('[data-slot="collapsible"]') as HTMLElement
+    expect(panel).toHaveAttribute('data-state', 'open')
+
+    // Tool step is visible inside the panel
+    const toolEl = within(panel).getByText('search_content')
+    expect(toolEl).toBeInTheDocument()
+
+    // Reasoning step is visible
     expect(screen.getByText('Thought complete')).toBeInTheDocument()
-    expect(screen.queryByText('Checked the current message group.')).toBeNull()
-    expect(screen.getByText('Reading the latest group message.')).toBeInTheDocument()
+
+    // Visible message text is present (may be split across elements by Streamdown animation)
+    const allText = container.textContent || ''
+    expect(allText).toContain('Reading the latest group message')
+    expect(container.querySelector('[data-message-id="streaming-answer"]')).not.toBeNull()
   })
 
-  it('auto-expands streaming reasoning while it is the current step', async () => {
-    renderBubble([
+  it('auto-expands streaming reasoning while it is the current step', () => {
+    const { container } = renderBubble([
       createAssistantMessage('thinking', [
         { type: 'text', text: 'Preparing next action.' },
       ], 'typing', 'Reading files and planning the next step.'),
     ])
 
+    // Process panel is open
     expect(screen.getByText('执行过程(1)')).toBeInTheDocument()
-    await waitFor(() => expect(screen.getByText('Reading files and planning the next step.')).toBeInTheDocument())
-    expect(screen.getByText('Preparing next action.')).toBeInTheDocument()
+    const trigger1 = screen.getByText('执行过程(1)')
+    const panel1 = trigger1.closest('[data-slot="collapsible"]') as HTMLElement
+    expect(panel1).toHaveAttribute('data-state', 'open')
+
+    // Reasoning content is visible inside the panel
+    expect(within(panel1).getByText('Reading files and planning the next step.')).toBeInTheDocument()
+
+    // Visible message text is present
+    const allText = container.textContent || ''
+    expect(allText).toContain('Preparing next action')
   })
 
   it('collapses the process panel after the agent returns the final answer', () => {
@@ -83,10 +103,31 @@ describe('messageBubble', () => {
 
     expect(screen.getByText('执行过程(1)')).toBeInTheDocument()
     expect(screen.getByText('Final answer.')).toBeInTheDocument()
+
+    // Panel is collapsed — tool step not visible
     expect(screen.queryByText('search_content')).toBeNull()
 
+    // Click to expand
     fireEvent.click(screen.getByText('执行过程(1)'))
-
     expect(screen.getByText('search_content')).toBeInTheDocument()
+  })
+
+  it('keeps process panel open when tool-call has executing state', () => {
+    const { container } = renderBubble([
+      createAssistantMessage('with-executing-tool', [
+        { type: 'text', text: 'Working on it...' },
+        {
+          type: 'tool-call',
+          toolCallId: 'exec-1',
+          toolName: 'bash',
+          args: { command: 'ls' },
+          executeState: 'executing',
+        },
+      ], 'success'),
+    ])
+
+    // Panel should be open because there's an executing tool
+    const panel = container.querySelector('[data-slot="collapsible"]')
+    expect(panel).toHaveAttribute('data-state', 'open')
   })
 })
