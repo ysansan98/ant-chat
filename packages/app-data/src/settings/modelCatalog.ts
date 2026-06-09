@@ -8,7 +8,13 @@ export function createModelCatalog(repository: ProviderSettingsRepository): IMod
       if (!model) {
         return null
       }
-      return { id: model.id, model: model.model, name: model.name, providerId: model.providerId }
+      return {
+        id: model.id,
+        model: model.model,
+        name: model.name,
+        providerId: model.providerId,
+        contextLength: model.contextLength,
+      }
     },
     getProviderById: async (id) => {
       const provider = repository.getProviderById(id)

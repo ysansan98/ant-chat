@@ -8,6 +8,7 @@ import type {
 } from '@ant-chat/shared'
 import {
   ConversationsSettingsSchema as ConversationSettingsInput,
+  DEFAULT_COMPACTION_SETTINGS,
   LanguageModelUsageSchema,
   MessageContentSchema,
   ModelInfoSchema,
@@ -72,7 +73,22 @@ export function stringifyJson(value: unknown): string {
 }
 
 function parseConversationSettings(value: string): ConversationsSettingsSchema {
-  return ConversationSettingsInput.parse(JSON.parse(value))
+  const settings = JSON.parse(value) as Record<string, unknown>
+  const compaction = settings.compaction
+  if (
+    compaction
+    && typeof compaction === 'object'
+    && !Array.isArray(compaction)
+    && !('keepRecentTokens' in compaction)
+    && 'keepRecentPairs' in compaction
+  ) {
+    settings.compaction = {
+      ...compaction,
+      keepRecentTokens: DEFAULT_COMPACTION_SETTINGS.keepRecentTokens,
+    }
+    delete (settings.compaction as Record<string, unknown>).keepRecentPairs
+  }
+  return ConversationSettingsInput.parse(settings)
 }
 
 export function parseMessageContent(value: string): MessageContent {

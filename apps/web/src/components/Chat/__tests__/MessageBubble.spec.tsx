@@ -31,6 +31,23 @@ function renderBubble(messages: IMessage[]) {
 }
 
 describe('messageBubble', () => {
+  it('renders a loading indicator for an active compaction event', () => {
+    const { container } = renderBubble([
+      {
+        id: 'compact-event',
+        convId: 'conv-1',
+        role: 'event',
+        status: 'loading',
+        content: [{ type: 'text', text: '正在压缩上下文...' }],
+        eventType: 'compaction',
+        createdAt: 1,
+      },
+    ])
+
+    expect(screen.getByText('正在压缩上下文')).toBeInTheDocument()
+    expect(container.querySelector('.animate-spin')).not.toBeNull()
+  })
+
   it('renders an open process panel with reasoning and tool steps while the agent is running', () => {
     const { container } = renderBubble([
       createAssistantMessage('thinking', [], 'success', 'Checked the current message group.'),

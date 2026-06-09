@@ -1,21 +1,9 @@
-import type { CompactionSettingsSchema, IAIProvider, ILogger, LanguageModelUsage, LoopMessage } from '@ant-chat/shared'
+import type { CompactionSettingsSchema, IAIProvider, ILogger, IMessage, LanguageModelUsage, LoopMessage } from '@ant-chat/shared'
+import { DEFAULT_COMPACTION_SETTINGS } from '@ant-chat/shared'
 
-const CONTEXT_WINDOWS: Record<string, number> = {
-  anthropic: 200_000,
-  deepseek: 128_000,
-  openai: 128_000,
-  google: 1_000_000,
-}
-
-const DEFAULT_CONTEXT_WINDOW = 128_000
 const TOOL_RESULT_MAX_LENGTH = 2000
-export const MIN_COMPACTABLE_TOKENS = 8_000
 
-export const DEFAULT_COMPACTION_SETTINGS: Readonly<CompactionSettingsSchema> = Object.freeze({
-  enabled: true,
-  thresholdPercent: 70,
-  keepRecentPairs: 3,
-})
+export { DEFAULT_COMPACTION_SETTINGS }
 
 function defaultLogger(): ILogger {
   return {
@@ -36,7 +24,9 @@ function estimateMessageTokens(msg: LoopMessage): number {
       total += estimateTextTokens(part.text)
     }
     else if (part.type === 'tool-call') {
-      total += estimateTextTokens(JSON.stringify(part.args)) + 10
+      total += estimateTextTokens(part.toolName)
+        + estimateTextTokens(JSON.stringify(part.args))
+        + 10
     }
     else if (part.type === 'tool-result') {
       const resultStr = typeof part.result === 'string' ? part.result : JSON.stringify(part.result)
@@ -50,23 +40,71 @@ function estimateContextTokens(messages: LoopMessage[]): number {
   return messages.reduce((sum, msg) => sum + estimateMessageTokens(msg), 0)
 }
 
-function getContextWindow(providerFormat: string): number {
-  return CONTEXT_WINDOWS[providerFormat] ?? DEFAULT_CONTEXT_WINDOW
+export interface ContextTokenEntry {
+  message: LoopMessage
+  usage?: LanguageModelUsage
+  status?: IMessage['status']
 }
 
-function findCutPointByPairs(messages: LoopMessage[], keepRecentPairs: number): number {
-  let userCount = 0
+function getUsageTokens(usage: LanguageModelUsage | undefined): number {
+  if (!usage) {
+    return 0
+  }
+  if (usage.totalTokens !== undefined) {
+    return usage.totalTokens
+  }
+  return (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0)
+}
 
-  for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i].role === 'user') {
-      userCount++
-      if (userCount >= keepRecentPairs) {
-        return i
+export function calculateContextTokens(
+  entries: ContextTokenEntry[],
+  pendingUserMessage?: LoopMessage,
+): number {
+  for (let index = entries.length - 1; index >= 0; index--) {
+    const entry = entries[index]
+    if (entry.message.role !== 'assistant' || entry.status !== 'success') {
+      continue
+    }
+    const usageTokens = getUsageTokens(entry.usage)
+    if (usageTokens <= 0) {
+      continue
+    }
+    const trailingMessages = entries.slice(index + 1).map(item => item.message)
+    return usageTokens
+      + estimateContextTokens(trailingMessages)
+      + (pendingUserMessage ? estimateContextTokens([pendingUserMessage]) : 0)
+  }
+
+  return estimateContextTokens([
+    ...entries.map(entry => entry.message),
+    ...(pendingUserMessage ? [pendingUserMessage] : []),
+  ])
+}
+
+function findCutPointByTokens(messages: LoopMessage[], keepRecentTokens: number): number {
+  const validCutPoints = messages
+    .map((message, index) => message.role === 'tool' ? -1 : index)
+    .filter(index => index >= 0)
+
+  if (validCutPoints.length === 0) {
+    return 0
+  }
+
+  let accumulatedTokens = 0
+  let cutIndex = validCutPoints[0]
+
+  for (let index = messages.length - 1; index >= 0; index--) {
+    accumulatedTokens += estimateMessageTokens(messages[index])
+    if (accumulatedTokens >= keepRecentTokens) {
+      const nextValidCutPoint = validCutPoints.find(point => point >= index)
+      if (nextValidCutPoint !== undefined) {
+        cutIndex = nextValidCutPoint
       }
+      break
     }
   }
 
-  return 0
+  return cutIndex
 }
 
 function serializeMessages(messages: LoopMessage[]): string {
@@ -108,18 +146,17 @@ export interface CompactionInput {
   settings: CompactionSettingsSchema
   aiProvider: IAIProvider
   model: string
-  providerFormat: string
   abortSignal?: AbortSignal
   logger?: ILogger
   summarize: (serialized: string, aiProvider: IAIProvider, model: string, abortSignal?: AbortSignal, instruction?: string) => Promise<{
     text: string
     usage?: LanguageModelUsage
   }>
-  /** Pre-computed token estimate to avoid double computation */
-  preEstimatedTokens?: number
   /** Optional user instruction for what to preserve or ignore during compaction */
   instruction?: string
   trigger?: CompactionTrigger
+  contextTokens?: number
+  contextLength?: number
   plan?: EligibleCompactionPlan
 }
 
@@ -129,7 +166,7 @@ export type CompactionSkipReason = 'disabled' | 'below-threshold' | 'insufficien
 export interface EligibleCompactionPlan {
   eligible: true
   cutIndex: number
-  sourceTokens: number
+  toSummarizeCount: number
 }
 
 export type CompactionPlan = EligibleCompactionPlan | {
@@ -154,45 +191,43 @@ export interface CompactionResult {
 export function planCompaction(input: {
   messages: LoopMessage[]
   settings: CompactionSettingsSchema
-  providerFormat?: string
   trigger?: CompactionTrigger
-  preEstimatedTokens?: number
+  contextTokens?: number
+  contextLength?: number
 }): CompactionPlan {
-  const { messages, settings, providerFormat, preEstimatedTokens, trigger = 'automatic' } = input
+  const { messages, settings, contextTokens, contextLength, trigger = 'automatic' } = input
   if (trigger === 'automatic' && !settings.enabled) {
     return { eligible: false, reason: 'disabled' }
   }
 
   if (trigger === 'automatic') {
-    const estimatedTokens = preEstimatedTokens ?? estimateContextTokens(messages)
-    const contextWindow = getContextWindow(providerFormat ?? '')
-    const thresholdTokens = Math.floor(contextWindow * settings.thresholdPercent / 100)
-    if (estimatedTokens <= thresholdTokens) {
+    if (contextTokens === undefined || contextLength === undefined) {
+      throw new Error('Automatic compaction requires contextTokens and contextLength.')
+    }
+    const thresholdTokens = contextLength * settings.thresholdPercent / 100
+    if (contextTokens <= thresholdTokens) {
       return { eligible: false, reason: 'below-threshold' }
     }
   }
 
-  const cutIndex = findCutPointByPairs(messages, settings.keepRecentPairs)
-  if (cutIndex <= 0) {
+  const cutIndex = findCutPointByTokens(messages, settings.keepRecentTokens)
+  const toSummarizeCount = cutIndex
+  const minimumCount = trigger === 'manual' ? 3 : 1
+  if (toSummarizeCount < minimumCount) {
     return { eligible: false, reason: 'insufficient-history' }
   }
 
-  const sourceTokens = estimateContextTokens(messages.slice(0, cutIndex))
-  if (sourceTokens < MIN_COMPACTABLE_TOKENS) {
-    return { eligible: false, reason: 'insufficient-history' }
-  }
-
-  return { eligible: true, cutIndex, sourceTokens }
+  return { eligible: true, cutIndex, toSummarizeCount }
 }
 
 export async function compactMessages(input: CompactionInput): Promise<CompactionResult> {
-  const { messages, settings, aiProvider, model, providerFormat, abortSignal, logger: log = defaultLogger(), summarize, preEstimatedTokens, instruction, trigger = 'automatic' } = input
+  const { messages, settings, aiProvider, model, abortSignal, logger: log = defaultLogger(), summarize, instruction, trigger = 'automatic', contextTokens, contextLength } = input
   const plan = input.plan ?? planCompaction({
     messages,
     settings,
-    providerFormat,
     trigger,
-    preEstimatedTokens,
+    contextTokens,
+    contextLength,
   })
   if (!plan.eligible) {
     log.info(`compaction skipped: reason=${plan.reason}`)
@@ -256,4 +291,4 @@ export async function compactMessages(input: CompactionInput): Promise<Compactio
   }
 }
 
-export { estimateContextTokens, getContextWindow }
+export { estimateContextTokens }

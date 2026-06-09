@@ -51,8 +51,6 @@ export interface AgentTaskSnapshot {
     contextWindow: number
     usagePercent: number
   }
-  /** 最近一次压缩的时间戳 */
-  lastCompactionAt?: number
 }
 
 export interface ApprovePendingActionOptions {

@@ -440,7 +440,7 @@ function createConversation(id: string): IConversations {
     settings: {
       compaction: {
         enabled: true,
-        keepRecentPairs: 3,
+        keepRecentTokens: 20_000,
         thresholdPercent: 70,
       },
       maxTokens: 1000,

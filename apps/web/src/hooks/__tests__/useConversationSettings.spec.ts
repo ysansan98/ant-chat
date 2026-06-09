@@ -24,7 +24,7 @@ vi.mock('use-immer', async () => {
 const defaultCompaction = {
   enabled: true,
   thresholdPercent: 70,
-  keepRecentPairs: 3,
+  keepRecentTokens: 20_000,
 }
 
 describe('useConversationSettings', () => {
@@ -102,6 +102,42 @@ describe('useConversationSettings', () => {
     expect(result.current.settings.temperature).toBe(0.9)
     expect(result.current.settings.systemPrompt).toBe('You are a bot')
     expect(result.current.settings.maxTokens).toBe(500)
+  })
+
+  it('should persist the compaction token retention target', async () => {
+    vi.mocked(useMessagesStore).mockReturnValue('conv3')
+    vi.mocked(getConversationByIdAction).mockReturnValue({
+      id: 'conv3',
+      title: 'Test Conversation',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      settings: {
+        modelId: 'gpt-3',
+        systemPrompt: '',
+        temperature: 0.7,
+        maxTokens: 4096,
+        compaction: defaultCompaction,
+      },
+    })
+
+    const { result } = renderHook(() => useConversationSettings())
+    await act(async () => {
+      await result.current.updateSettings({
+        compaction: {
+          ...defaultCompaction,
+          keepRecentTokens: 32_000,
+        },
+      })
+    })
+
+    expect(updateConversationsSettingsAction).toHaveBeenCalledWith('conv3', {
+      compaction: {
+        enabled: true,
+        thresholdPercent: 70,
+        keepRecentTokens: 32_000,
+      },
+    })
+    expect(result.current.settings.compaction?.keepRecentTokens).toBe(32_000)
   })
 
   it('should reset to default settings when conversation changes to undefined', () => {

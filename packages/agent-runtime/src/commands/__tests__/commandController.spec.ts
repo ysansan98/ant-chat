@@ -37,7 +37,9 @@ function mockDeps(overrides: { activeTasks?: Array<{ status: string }> } = {}) {
   }
   return {
     appDataContext: appDataContext as any,
-    eventEmitter: {} as any,
+    eventEmitter: {
+      emitMessageUpdated: vi.fn(),
+    } as any,
     logger: undefined,
     listActiveTasks: overrides.activeTasks
       ? vi.fn(() => overrides.activeTasks)
@@ -49,8 +51,9 @@ function compressibleMessages(conversationId = 'conv-1') {
   return [
     { id: 'u1', convId: conversationId, role: 'user', status: 'success', content: [{ type: 'text', text: 'x'.repeat(40_000) }], createdAt: 1 },
     { id: 'a1', convId: conversationId, role: 'assistant', status: 'success', content: [{ type: 'text', text: 'first answer' }], createdAt: 2 },
-    { id: 'u2', convId: conversationId, role: 'user', status: 'success', content: [{ type: 'text', text: 'recent request' }], createdAt: 3 },
-    { id: 'a2', convId: conversationId, role: 'assistant', status: 'success', content: [{ type: 'text', text: 'recent answer' }], createdAt: 4 },
+    { id: 'a1-follow-up', convId: conversationId, role: 'assistant', status: 'success', content: [{ type: 'text', text: 'first answer follow-up' }], createdAt: 3 },
+    { id: 'u2', convId: conversationId, role: 'user', status: 'success', content: [{ type: 'text', text: 'recent request' }], createdAt: 4 },
+    { id: 'a2', convId: conversationId, role: 'assistant', status: 'success', content: [{ type: 'text', text: 'recent answer' }], createdAt: 5 },
   ]
 }
 
@@ -104,7 +107,7 @@ describe('commandController task guard', () => {
     const deps = mockDeps()
     deps.appDataContext.conversationRepository.getById.mockResolvedValue({
       id: 'conv-1',
-      settings: { compaction: { enabled: false, thresholdPercent: 70, keepRecentPairs: 1 } },
+      settings: { compaction: { enabled: false, thresholdPercent: 70, keepRecentTokens: 16 } },
     })
     deps.appDataContext.messageRepository.listByConversation.mockResolvedValue(compressibleMessages())
     const cc = createCommandController(deps as any)
@@ -211,12 +214,64 @@ describe('commandController command concurrency', () => {
 })
 
 describe('compact command error and cancellation', () => {
+  it('/compact emits loading and completed event messages', async () => {
+    const deps = mockDeps()
+    deps.appDataContext.conversationRepository.getById.mockResolvedValue({
+      id: 'conv-1',
+      title: 'Test',
+      settings: { compaction: { enabled: true, thresholdPercent: 70, keepRecentTokens: 16 } },
+    })
+    deps.appDataContext.messageRepository.listByConversation.mockResolvedValue(compressibleMessages())
+    deps.appDataContext.modelCatalog.getModelById.mockResolvedValue({ id: 'm1', model: 'test-model', providerId: 'provider-1' })
+    deps.appDataContext.modelCatalog.getProviderById.mockResolvedValue({
+      id: 'provider-1',
+      name: 'provider',
+      apiMode: 'openai',
+      apiKey: 'test-key',
+      baseUrl: 'https://example.com',
+      isOfficial: false,
+      isEnabled: true,
+      createdAt: 1,
+      updatedAt: 1,
+    })
+
+    const loadingEvent = {
+      id: 'event-1',
+      convId: 'conv-1',
+      role: 'event',
+      status: 'loading',
+      content: [{ type: 'text', text: '正在压缩上下文...' }],
+      eventType: 'compaction',
+      createdAt: 6,
+    }
+    const completedEvent = {
+      ...loadingEvent,
+      status: 'success',
+      content: [{ type: 'text', text: 'new compact summary' }],
+      compactedThroughMessageId: 'a1-follow-up',
+    }
+    deps.appDataContext.messageRepository.create.mockResolvedValue(loadingEvent)
+    deps.appDataContext.messageRepository.update.mockResolvedValue(completedEvent)
+
+    const cc = createCommandController(deps as any)
+    const result = await cc.runBuiltinCommand({
+      id: 'compact',
+      conversationId: 'conv-1',
+      modelConfig: { modelId: 'm1', systemPrompt: '', temperature: 0, maxTokens: 0 },
+      workspacePath: '',
+    })
+
+    expect(result.status).toBe('success')
+    expect(deps.eventEmitter.emitMessageUpdated).toHaveBeenNthCalledWith(1, loadingEvent)
+    expect(deps.eventEmitter.emitMessageUpdated).toHaveBeenNthCalledWith(2, completedEvent)
+  })
+
   it('/compact returns error status when model is not found', async () => {
     const deps = mockDeps()
     deps.appDataContext.conversationRepository.getById.mockResolvedValue({
       id: 'conv-1',
       title: 'Test',
-      settings: { compaction: { enabled: true, thresholdPercent: 70, keepRecentPairs: 1 } },
+      settings: { compaction: { enabled: true, thresholdPercent: 70, keepRecentTokens: 16 } },
     })
     deps.appDataContext.messageRepository.listByConversation.mockResolvedValue(compressibleMessages())
     deps.appDataContext.messageRepository.create.mockResolvedValue({ id: 'event-1' })
@@ -261,13 +316,43 @@ describe('compact command error and cancellation', () => {
     expect(deps.appDataContext.messageRepository.create).not.toHaveBeenCalled()
   })
 
+  it('/compact skips when the summarized prefix has two messages', async () => {
+    const deps = mockDeps()
+    deps.appDataContext.conversationRepository.getById.mockResolvedValue({
+      id: 'conv-1',
+      title: 'Test',
+      settings: { compaction: { enabled: false, thresholdPercent: 100, keepRecentTokens: 16 } },
+    })
+    deps.appDataContext.messageRepository.listByConversation.mockResolvedValue([
+      { id: 'u1', convId: 'conv-1', role: 'user', status: 'success', content: [{ type: 'text', text: 'old request' }], createdAt: 1 },
+      { id: 'a1', convId: 'conv-1', role: 'assistant', status: 'success', content: [{ type: 'text', text: 'old answer' }], createdAt: 2 },
+      { id: 'u2', convId: 'conv-1', role: 'user', status: 'success', content: [{ type: 'text', text: 'recent request' }], createdAt: 3 },
+      { id: 'a2', convId: 'conv-1', role: 'assistant', status: 'success', content: [{ type: 'text', text: 'recent answer' }], createdAt: 4 },
+    ])
+
+    const cc = createCommandController(deps as any)
+    const result = await cc.runBuiltinCommand({
+      id: 'compact',
+      conversationId: 'conv-1',
+      modelConfig: { modelId: 'm1', systemPrompt: '', temperature: 0, maxTokens: 0 },
+      workspacePath: '',
+    })
+
+    expect(result).toEqual({
+      status: 'success',
+      summaryText: '当前上下文不足，无需压缩。',
+    })
+    expect(deps.appDataContext.modelCatalog.getModelById).not.toHaveBeenCalled()
+    expect(deps.appDataContext.messageRepository.create).not.toHaveBeenCalled()
+  })
+
   it('/compact summarizes from the latest manual compaction summary instead of older raw messages', async () => {
     summarizeMock.mockClear()
     const deps = mockDeps()
     deps.appDataContext.conversationRepository.getById.mockResolvedValue({
       id: 'conv-1',
       title: 'Test',
-      settings: { compaction: { enabled: true, thresholdPercent: 70, keepRecentPairs: 1 } },
+      settings: { compaction: { enabled: true, thresholdPercent: 70, keepRecentTokens: 8 } },
     })
     deps.appDataContext.messageRepository.listByConversation.mockResolvedValue([
       { id: 'u1', convId: 'conv-1', role: 'user', status: 'success', content: [{ type: 'text', text: 'old raw user' }], createdAt: 1 },
@@ -283,7 +368,8 @@ describe('compact command error and cancellation', () => {
         createdAt: 3,
       },
       { id: 'a2', convId: 'conv-1', role: 'assistant', status: 'success', content: [{ type: 'text', text: 'after summary answer' }], createdAt: 4 },
-      { id: 'u2', convId: 'conv-1', role: 'user', status: 'success', content: [{ type: 'text', text: 'new user request' }], createdAt: 5 },
+      { id: 'a2-follow-up', convId: 'conv-1', role: 'assistant', status: 'success', content: [{ type: 'text', text: 'after summary follow-up' }], createdAt: 5 },
+      { id: 'u2', convId: 'conv-1', role: 'user', status: 'success', content: [{ type: 'text', text: 'new user request' }], createdAt: 6 },
     ])
     deps.appDataContext.messageRepository.create.mockResolvedValue({ id: 'event-2' })
     deps.appDataContext.modelCatalog.getModelById.mockResolvedValue({ id: 'm1', model: 'test-model', providerId: 'provider-1' })
@@ -324,7 +410,7 @@ describe('compact command error and cancellation', () => {
         model: 'test-model',
       },
       usage: { inputTokens: 10000, outputTokens: 250, totalTokens: 10250 },
-      compactedThroughMessageId: 'a2',
+      compactedThroughMessageId: 'a2-follow-up',
     })
   })
 
@@ -333,7 +419,7 @@ describe('compact command error and cancellation', () => {
     deps.appDataContext.conversationRepository.getById.mockResolvedValue({
       id: 'conv-1',
       title: 'Test',
-      settings: { compaction: { enabled: true, thresholdPercent: 70, keepRecentPairs: 1 } },
+      settings: { compaction: { enabled: true, thresholdPercent: 70, keepRecentTokens: 16 } },
     })
     deps.appDataContext.messageRepository.listByConversation.mockResolvedValue(compressibleMessages())
     deps.appDataContext.messageRepository.create.mockResolvedValue({ id: 'event-1' })

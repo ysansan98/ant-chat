@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getAttachmentFilePath } from '../../attachmentFiles'
 import { initializeAppDataSchema } from '../../schema'
 import { SqliteMessageSearchQuery } from '../../queries'
+import { mapConversationRow } from '../../rows'
 import { SqliteConversationRepository } from '../sqliteConversationRepository'
 import { SqliteMessageRepository } from '../sqliteMessageRepository'
 
@@ -30,6 +31,35 @@ describe('sqlite message repository', () => {
     expect(preparedSql.replace(/\s+/g, ' ').trim())
       .toContain('WHERE conv_id = ? ORDER BY created_at ASC, rowid ASC')
     expect(all).toHaveBeenCalledWith('conv-1')
+  })
+})
+
+describe('sqlite row mapping', () => {
+  it('migrates legacy keepRecentPairs settings to the default token target', () => {
+    const conversation = mapConversationRow({
+      id: 'conv-1',
+      workspace_path: '/workspace',
+      title: 'Legacy compaction settings',
+      created_at: 1,
+      updated_at: 1,
+      settings: JSON.stringify({
+        modelId: 'model-1',
+        systemPrompt: '',
+        temperature: 0.7,
+        maxTokens: 4096,
+        compaction: {
+          enabled: true,
+          thresholdPercent: 70,
+          keepRecentPairs: 3,
+        },
+      }),
+    })
+
+    expect(conversation.settings.compaction).toEqual({
+      enabled: true,
+      thresholdPercent: 70,
+      keepRecentTokens: 20_000,
+    })
   })
 })
 

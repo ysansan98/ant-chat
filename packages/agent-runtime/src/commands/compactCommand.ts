@@ -1,16 +1,17 @@
 import type { AppDataContext } from '@ant-chat/app-data'
-import type { ILogger, LanguageModelUsage, RunBuiltinCommandResult } from '@ant-chat/shared'
-import { buildConversationContextEntries, compactMessages, createCompactionStrategy, createProvider, DEFAULT_COMPACTION_SETTINGS, estimateContextTokens, planCompaction } from '@ant-chat/agent-core'
+import type { IAgentEventEmitter, ILogger, LanguageModelUsage, RunBuiltinCommandResult } from '@ant-chat/shared'
+import { buildConversationContextEntries, compactMessages, createCompactionStrategy, createProvider, DEFAULT_COMPACTION_SETTINGS, planCompaction } from '@ant-chat/agent-core'
 
 export async function runCompact(params: {
   appDataContext: AppDataContext
+  eventEmitter: IAgentEventEmitter
   conversationId: string
   instruction: string | undefined
   modelConfig: { modelId: string, systemPrompt: string, temperature: number, maxTokens: number }
   logger?: ILogger
   abortSignal?: AbortSignal
 }): Promise<RunBuiltinCommandResult> {
-  const { appDataContext, conversationId, instruction, modelConfig, logger, abortSignal } = params
+  const { appDataContext, eventEmitter, conversationId, instruction, modelConfig, logger, abortSignal } = params
 
   function log(msg: string) {
     logger?.info(`[compact] ${msg}`)
@@ -27,9 +28,9 @@ export async function runCompact(params: {
   const stored = conversation.settings?.compaction
   const compactionSettings = {
     ...DEFAULT_COMPACTION_SETTINGS,
-    ...(stored ? { keepRecentPairs: stored.keepRecentPairs } : {}),
+    ...(stored ? { keepRecentTokens: stored.keepRecentTokens } : {}),
   }
-  log(`compactionSettings: trigger=manual, keepRecentPairs=${compactionSettings.keepRecentPairs}`)
+  log(`compactionSettings: trigger=manual, keepRecentTokens=${compactionSettings.keepRecentTokens}`)
 
   const messages = await appDataContext.messageRepository.listByConversation(conversationId)
   log(`messages loaded: total=${messages.length}`)
@@ -40,12 +41,10 @@ export async function runCompact(params: {
     return { status: 'success', summaryText: '当前上下文不足，无需压缩。' }
   }
 
-  const estimatedTokens = estimateContextTokens(loopMessages)
   const plan = planCompaction({
     messages: loopMessages,
     settings: compactionSettings,
     trigger: 'manual',
-    preEstimatedTokens: estimatedTokens,
   })
   if (!plan.eligible) {
     log(`compaction skipped: reason=${plan.reason}`)
@@ -73,8 +72,7 @@ export async function runCompact(params: {
     const errorMessage = err instanceof Error ? err.message : String(err)
     return { status: 'error', errorMessage, summaryText: errorMessage }
   }
-  const apiMode = provider.apiMode || 'openai'
-  log(`provider found: apiMode=${apiMode}`)
+  log(`provider found: apiMode=${provider.apiMode || 'openai'}`)
 
   const loadingEvent = await appDataContext.messageRepository.create({
     convId: conversationId,
@@ -83,6 +81,7 @@ export async function runCompact(params: {
     content: [{ type: 'text', text: '正在压缩上下文...' }],
     eventType: 'compaction',
   })
+  await eventEmitter.emitMessageUpdated?.(loadingEvent)
 
   let compactionFailed = false
   let errorText = ''
@@ -95,11 +94,9 @@ export async function runCompact(params: {
     log(`aiProvider created`)
     const compactResult = await compactMessages({
       messages: loopMessages,
-      preEstimatedTokens: estimatedTokens,
       settings: compactionSettings,
       aiProvider,
       model: modelInfo.model,
-      providerFormat: apiMode,
       logger,
       summarize: compactionStrategy.summarize,
       instruction,
@@ -124,11 +121,11 @@ export async function runCompact(params: {
     }
     else {
       summaryText = compactResult.summaryText
-      const compactedThroughMessageId = contextEntries[compactResult.summarizedCount! - 1]?.sourceMessageId
+      const compactedThroughMessageId = contextEntries[plan.toSummarizeCount - 1]?.sourceMessageId
       if (!compactedThroughMessageId) {
         throw new Error('Compaction did not produce a persisted message boundary.')
       }
-      await appDataContext.messageRepository.update({
+      const completedEvent = await appDataContext.messageRepository.update({
         id: loadingEvent.id,
         status: 'success',
         content: [{ type: 'text', text: summaryText }],
@@ -140,6 +137,7 @@ export async function runCompact(params: {
         usage: compactResult.usage,
         compactedThroughMessageId,
       })
+      await eventEmitter.emitMessageUpdated?.(completedEvent)
       log(`compaction complete: summary=${compactResult.summaryLength} chars, kept=${compactResult.keptLength} msgs`)
     }
   }
@@ -154,7 +152,7 @@ export async function runCompact(params: {
   }
 
   if (compactionFailed) {
-    await appDataContext.messageRepository.update({
+    const failedEvent = await appDataContext.messageRepository.update({
       id: loadingEvent.id,
       status: 'error',
       content: [{ type: 'text', text: errorText }],
@@ -165,6 +163,7 @@ export async function runCompact(params: {
       },
       usage: compactionUsage,
     })
+    await eventEmitter.emitMessageUpdated?.(failedEvent)
   }
   if (compactionFailed) {
     return { status: 'error', errorMessage: errorText, summaryText: errorText }

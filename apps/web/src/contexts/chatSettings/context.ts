@@ -1,4 +1,5 @@
 import type { ConversationsSettingsSchema } from '@ant-chat/shared'
+import { DEFAULT_COMPACTION_SETTINGS } from '@ant-chat/shared'
 import { createContext } from 'react'
 
 export const DEFAULT_SETTINGS: ConversationsSettingsSchema = {
@@ -6,11 +7,7 @@ export const DEFAULT_SETTINGS: ConversationsSettingsSchema = {
   systemPrompt: '',
   temperature: 0.7,
   maxTokens: 1000,
-  compaction: {
-    enabled: true,
-    thresholdPercent: 70,
-    keepRecentPairs: 3,
-  },
+  compaction: DEFAULT_COMPACTION_SETTINGS,
 }
 
 export const ChatSettingsContext = createContext<{

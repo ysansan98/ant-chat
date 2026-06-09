@@ -1,6 +1,6 @@
 import type { IMessage } from '@ant-chat/shared'
 import { describe, expect, it } from 'vitest'
-import { buildConversationContextMessages } from '../loopContext'
+import { buildConversationContextEntries, buildConversationContextMessages } from '../loopContext'
 
 function textMessage(id: string, role: 'user' | 'assistant', text: string): IMessage {
   return {
@@ -59,6 +59,56 @@ describe('buildConversationContextMessages', () => {
       {
         role: 'assistant',
         content: [{ type: 'text', text: 'kept assistant' }],
+      },
+    ])
+  })
+
+  it('keeps usage only for persisted assistant messages after the compaction boundary', async () => {
+    const messages: IMessage[] = [
+      {
+        ...textMessage('a1', 'assistant', 'old assistant'),
+        usage: { totalTokens: 9000 },
+      },
+      {
+        id: 'evt-1',
+        convId: 'conv-1',
+        createdAt: 2,
+        role: 'event',
+        status: 'success',
+        eventType: 'compaction',
+        compactedThroughMessageId: 'a1',
+        content: [{ type: 'text', text: 'event summary' }],
+      },
+      textMessage('u2', 'user', 'kept user'),
+      {
+        ...textMessage('a2', 'assistant', 'kept assistant'),
+        usage: { inputTokens: 600, outputTokens: 400 },
+      },
+    ]
+
+    const result = await buildConversationContextEntries(messages)
+
+    expect(result).toEqual([
+      {
+        sourceMessageId: 'a1',
+        message: expect.objectContaining({ role: 'user' }),
+      },
+      {
+        sourceMessageId: 'u2',
+        message: {
+          role: 'user',
+          content: [{ type: 'text', text: 'kept user' }],
+        },
+        status: 'success',
+      },
+      {
+        sourceMessageId: 'a2',
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'kept assistant' }],
+        },
+        status: 'success',
+        usage: { inputTokens: 600, outputTokens: 400 },
       },
     ])
   })

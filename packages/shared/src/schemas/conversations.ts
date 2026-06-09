@@ -16,11 +16,17 @@ export const CompactionSettingsSchema = z.object({
   enabled: z.boolean(),
   /** Context usage threshold percentage that triggers compaction. */
   thresholdPercent: z.number().min(10).max(90),
-  /** Recent conversation pairs kept after compaction. */
-  keepRecentPairs: z.number().min(1).max(10),
+  /** Target number of recent context tokens kept after compaction. */
+  keepRecentTokens: z.number().int().min(1000).max(1_000_000),
 })
 
 export type CompactionSettingsSchema = z.infer<typeof CompactionSettingsSchema>
+
+export const DEFAULT_COMPACTION_SETTINGS: Readonly<CompactionSettingsSchema> = Object.freeze({
+  enabled: true,
+  thresholdPercent: 70,
+  keepRecentTokens: 20_000,
+})
 
 // Conversation settings
 export const ConversationsSettingsSchema = z.object({

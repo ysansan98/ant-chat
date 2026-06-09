@@ -1,4 +1,5 @@
 import type { CompactionSettingsSchema, ProviderConfigModelSchema } from '@ant-chat/shared'
+import { DEFAULT_COMPACTION_SETTINGS } from '@ant-chat/shared'
 import { Label } from '@workspace/ui/components/label'
 import { Separator } from '@workspace/ui/components/separator'
 import { Slider } from '@workspace/ui/components/slider'
@@ -8,15 +9,9 @@ import { useEffect, useState } from 'react'
 import { providerApi } from '@/api/providerApi'
 import { useChatSettingsContext } from '@/contexts/chatSettings'
 
-const DEFAULT_COMPACTION: CompactionSettingsSchema = {
-  enabled: true,
-  thresholdPercent: 80,
-  keepRecentPairs: 3,
-}
-
 export function ModelParameterSettingsPanel() {
   const { settings, updateSettings } = useChatSettingsContext()
-  const compaction = settings.compaction || DEFAULT_COMPACTION
+  const compaction = settings.compaction || DEFAULT_COMPACTION_SETTINGS
 
   const [modelInfo, setModelInfo] = useState<ProviderConfigModelSchema | null>(null)
 
@@ -81,11 +76,11 @@ export function ModelParameterSettingsPanel() {
 
       <Separator className="my-4" />
 
-      <h4 className="mb-3 text-sm font-medium text-muted-foreground">上下文压缩</h4>
+      <h4 className="mb-3 text-sm font-medium text-muted-foreground">Context compaction</h4>
 
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <Label htmlFor="compaction-enabled">启用压缩</Label>
+          <Label htmlFor="compaction-enabled">Enable compaction</Label>
           <Switch
             id="compaction-enabled"
             size="sm"
@@ -96,7 +91,7 @@ export function ModelParameterSettingsPanel() {
 
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <Label htmlFor="compaction-threshold">触发阈值</Label>
+            <Label htmlFor="compaction-threshold">Trigger threshold</Label>
             <span className="text-xs text-muted-foreground tabular-nums">
               {compaction.thresholdPercent}
               %
@@ -114,21 +109,22 @@ export function ModelParameterSettingsPanel() {
 
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <Label htmlFor="compaction-pairs">保留最近</Label>
+            <Label htmlFor="compaction-retained-tokens">Retention target</Label>
             <span className="text-xs text-muted-foreground tabular-nums">
-              {compaction.keepRecentPairs}
-              {' '}
-              对
+              {`${Math.round(compaction.keepRecentTokens / 1000)}k tokens`}
             </span>
           </div>
           <Slider
-            id="compaction-pairs"
-            min={1}
-            max={10}
-            step={1}
-            value={[compaction.keepRecentPairs]}
-            onValueChange={([v]) => updateCompaction({ keepRecentPairs: v })}
+            id="compaction-retained-tokens"
+            min={1000}
+            max={Math.max(compaction.keepRecentTokens, modelInfo?.contextLength ?? 100_000)}
+            step={1000}
+            value={[compaction.keepRecentTokens]}
+            onValueChange={([v]) => updateCompaction({ keepRecentTokens: v })}
           />
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            This is a target. The actual retained context may be slightly larger to keep complete messages and tool calls intact.
+          </p>
         </div>
       </div>
     </div>

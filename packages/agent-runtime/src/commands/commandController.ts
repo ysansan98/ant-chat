@@ -17,7 +17,7 @@ export interface CommandController {
 }
 
 export function createCommandController(deps: CommandControllerDeps): CommandController {
-  const { appDataContext, logger, listActiveTasks } = deps
+  const { appDataContext, eventEmitter, logger, listActiveTasks } = deps
   const abortControllers = new Map<string, AbortController>()
   const activeCommands = new Map<string, Promise<RunBuiltinCommandResult>>()
 
@@ -63,6 +63,7 @@ export function createCommandController(deps: CommandControllerDeps): CommandCon
           abortControllers.set(params.conversationId, ctrl)
           const commandPromise = runCompact({
             appDataContext,
+            eventEmitter,
             conversationId: params.conversationId,
             instruction: params.argument,
             modelConfig: params.modelConfig,

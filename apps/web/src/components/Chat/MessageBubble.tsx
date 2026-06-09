@@ -3,6 +3,9 @@ import {
   MessageContent as AiMessageContent,
   Message,
 } from '@workspace/ui/components/ai-elements/message'
+import {
+  Shimmer,
+} from '@workspace/ui/components/ai-elements/shimmer'
 import { Button } from '@workspace/ui/components/button'
 import {
   Collapsible,
@@ -90,7 +93,9 @@ export function MessageBubble({ messages, onCopyMessage }: MessageBubbleProps) {
           ? (
               <span className="flex h-7 shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
                 <Loader2Icon className="size-3 animate-spin" />
-                {eventLabel}
+                <Shimmer>
+                  {eventLabel as string}
+                </Shimmer>
               </span>
             )
           : isCompactError

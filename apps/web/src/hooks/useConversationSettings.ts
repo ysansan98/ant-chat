@@ -1,22 +1,17 @@
-import type { CompactionSettingsSchema, ConversationsSettingsSchema } from '@ant-chat/shared'
+import type { ConversationsSettingsSchema } from '@ant-chat/shared'
+import { DEFAULT_COMPACTION_SETTINGS } from '@ant-chat/shared'
 import { has } from 'lodash-es'
 import { useEffect } from 'react'
 import { useImmer } from 'use-immer'
 import { getConversationByIdAction, updateConversationsSettingsAction } from '@/store/conversation'
 import { useMessagesStore } from '@/store/messages'
 
-const DEFAULT_COMPACTION: CompactionSettingsSchema = {
-  enabled: true,
-  thresholdPercent: 70,
-  keepRecentPairs: 3,
-}
-
 const DEFAULT_SETTINGS: ConversationsSettingsSchema = {
   modelId: '',
   systemPrompt: '',
   temperature: 0.7,
   maxTokens: 1000,
-  compaction: DEFAULT_COMPACTION,
+  compaction: DEFAULT_COMPACTION_SETTINGS,
 }
 
 export function useConversationSettings() {
@@ -64,14 +59,14 @@ export function useConversationSettings() {
         draft.systemPrompt = conversations.settings.systemPrompt || ''
         draft.temperature = conversations.settings.temperature || 0.7
         draft.maxTokens = conversations.settings.maxTokens || 1000
-        draft.compaction = conversations.settings.compaction || DEFAULT_COMPACTION
+        draft.compaction = conversations.settings.compaction || DEFAULT_COMPACTION_SETTINGS
       }
       else {
         draft.modelId = ''
         draft.systemPrompt = ''
         draft.temperature = 0.7
         draft.maxTokens = 1000
-        draft.compaction = DEFAULT_COMPACTION
+        draft.compaction = DEFAULT_COMPACTION_SETTINGS
       }
     })
   }, [currentConversationsId, _updateSettings, conversations?.settings])

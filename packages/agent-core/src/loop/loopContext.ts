@@ -1,4 +1,4 @@
-import type { IMessage, LoadFileDataFn, LoopMessage } from '@ant-chat/shared'
+import type { IMessage, LanguageModelUsage, LoadFileDataFn, LoopMessage } from '@ant-chat/shared'
 import { contentBlocksToLoopMessageContent } from '../utils/attachmentUtils'
 
 export interface LoopSystemPromptMemory {
@@ -92,6 +92,8 @@ export async function buildConversationContextMessages(
 export interface ConversationContextEntry {
   message: LoopMessage
   sourceMessageId: string
+  usage?: LanguageModelUsage
+  status?: IMessage['status']
 }
 
 export async function buildConversationContextEntries(
@@ -181,6 +183,8 @@ export async function buildConversationContextEntries(
 
     result.push({
       sourceMessageId: message.id,
+      status: message.status,
+      usage: message.role === 'assistant' ? message.usage : undefined,
       message: {
         role: message.role as LoopMessage['role'],
         content,

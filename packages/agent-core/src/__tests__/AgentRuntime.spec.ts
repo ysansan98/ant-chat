@@ -100,9 +100,21 @@ function createSessionStore(overrides: Partial<ISessionStore> = {}): ISessionSto
       convId: data.convId,
       createdAt: Date.now(),
       role: 'event' as const,
-      status: 'success' as const,
+      status: data.status,
       content: data.content,
       eventType: data.eventType,
+    })),
+    updateEventMessage: vi.fn(async (id, patch) => ({
+      id,
+      convId: conversation.id,
+      createdAt: Date.now(),
+      role: 'event' as const,
+      status: patch.status ?? 'loading',
+      content: patch.content ?? [],
+      eventType: patch.eventType ?? 'compaction',
+      modelInfo: patch.modelInfo ?? undefined,
+      usage: patch.usage ?? undefined,
+      compactedThroughMessageId: patch.compactedThroughMessageId ?? undefined,
     })),
     ...overrides,
   }
@@ -113,7 +125,13 @@ function createSessionConfig(overrides: Partial<AgentRuntimeConfig> = {}): Agent
     ...createConfig(),
     sessionStore: createSessionStore(),
     modelCatalog: {
-      getModelById: vi.fn(async () => ({ id: 'model-1', model: 'test-model', name: 'Test Model', providerId: 'provider-1' })),
+      getModelById: vi.fn(async () => ({
+        id: 'model-1',
+        model: 'test-model',
+        name: 'Test Model',
+        providerId: 'provider-1',
+        contextLength: 128_000,
+      })),
       getProviderById: vi.fn(async () => ({
         id: 'provider-1',
         name: 'provider',
@@ -388,7 +406,7 @@ describe('agentRuntime', () => {
           systemPrompt: '',
           temperature: 0.7,
           maxTokens: 1024,
-          compaction: { enabled: true, thresholdPercent: 10, keepRecentPairs: 1 },
+          compaction: { enabled: true, thresholdPercent: 70, keepRecentTokens: 16 },
         },
       }
       let historyMessages: Awaited<ReturnType<ISessionStore['getMessages']>> = []
@@ -403,6 +421,26 @@ describe('agentRuntime', () => {
       const readUserMemory = vi.fn(async () => '§Prefer concise Chinese.')
       const config = createSessionConfig({
         sessionStore: store,
+        modelCatalog: {
+          getModelById: vi.fn(async () => ({
+            id: 'model-1',
+            model: 'test-model',
+            name: 'Test Model',
+            providerId: 'provider-1',
+            contextLength: 20_000,
+          })),
+          getProviderById: vi.fn(async () => ({
+            id: 'provider-1',
+            name: 'provider',
+            apiMode: 'openai' as const,
+            apiKey: 'test-key',
+            baseUrl: 'https://example.com',
+            isOfficial: false,
+            isEnabled: true,
+            createdAt: 1,
+            updatedAt: 1,
+          })),
+        },
         compactionStrategy: {
           summarize: vi.fn(async () => ({
             text: 'Earlier context summary.',
@@ -471,6 +509,12 @@ describe('agentRuntime', () => {
       expect(store.createEventMessage).toHaveBeenCalledWith({
         convId: 'conv-session',
         role: 'event',
+        status: 'loading',
+        content: [{ type: 'text', text: '正在压缩上下文...' }],
+        eventType: 'compaction',
+      })
+      expect(store.updateEventMessage).toHaveBeenCalledWith('event-msg-1', {
+        role: 'event',
         status: 'success',
         content: [{ type: 'text', text: 'Earlier context summary.' }],
         eventType: 'compaction',
@@ -488,9 +532,259 @@ describe('agentRuntime', () => {
       })
       expect(vi.mocked(store.createEventMessage).mock.invocationCallOrder[0])
         .toBeLessThan(vi.mocked(store.createUserMessage).mock.invocationCallOrder[1])
+      expect(vi.mocked(store.updateEventMessage).mock.invocationCallOrder[0])
+        .toBeLessThan(vi.mocked(store.createUserMessage).mock.invocationCallOrder[1])
       expect(readMemory).toHaveBeenCalledTimes(2)
       expect(readUserMemory).toHaveBeenCalledTimes(2)
       cleanupTasks([secondResult.taskId])
+    })
+
+    it('triggers automatic compaction from the latest assistant usage plus the pending user message', async () => {
+      const conversation = {
+        id: 'conv-session',
+        title: 'Untitled',
+        workspacePath: '/workspace',
+        createdAt: 1,
+        updatedAt: 1,
+        settings: {
+          modelId: 'model-1',
+          systemPrompt: '',
+          temperature: 0.7,
+          maxTokens: 1024,
+          compaction: { enabled: true, thresholdPercent: 70, keepRecentTokens: 8 },
+        },
+      }
+      const historyMessages: Awaited<ReturnType<ISessionStore['getMessages']>> = [
+        { id: 'u1', convId: 'conv-session', createdAt: 1, role: 'user', status: 'success', content: [{ type: 'text', text: 'old request' }] },
+        {
+          id: 'a1',
+          convId: 'conv-session',
+          createdAt: 2,
+          role: 'assistant',
+          status: 'success',
+          content: [{ type: 'text', text: 'old answer' }],
+          usage: { totalTokens: 6900 },
+        },
+        { id: 'u2', convId: 'conv-session', createdAt: 3, role: 'user', status: 'success', content: [{ type: 'text', text: 'recent request' }] },
+      ]
+      const store = createSessionStore({
+        getConversation: vi.fn(async () => conversation),
+        getConversationById: vi.fn(async () => conversation),
+        getMessages: vi.fn(async () => historyMessages),
+      })
+      const config = createSessionConfig({
+        sessionStore: store,
+        modelCatalog: {
+          getModelById: vi.fn(async () => ({
+            id: 'model-1',
+            model: 'test-model',
+            name: 'Test Model',
+            providerId: 'provider-1',
+            contextLength: 10_000,
+          })),
+          getProviderById: vi.fn(async () => ({
+            id: 'provider-1',
+            name: 'provider',
+            apiMode: 'openai' as const,
+            apiKey: 'test-key',
+            baseUrl: 'https://example.com',
+            isOfficial: false,
+            isEnabled: true,
+            createdAt: 1,
+            updatedAt: 1,
+          })),
+        },
+        compactionStrategy: {
+          summarize: vi.fn(async () => ({ text: 'usage-based summary' })),
+        },
+      })
+
+      const runtime = new AgentRuntime(config)
+      const result = await runtime.startTask({
+        conversationId: 'conv-session',
+        prompt: 'x'.repeat(400),
+        modelId: 'model-1',
+        workspacePath: '/workspace',
+        mode: 'hybrid',
+      })
+
+      expect(store.createEventMessage).toHaveBeenCalledOnce()
+      expect(store.updateEventMessage).toHaveBeenCalledWith('event-msg-1', expect.objectContaining({
+        status: 'success',
+        compactedThroughMessageId: 'a1',
+      }))
+      cleanupTasks([result.taskId])
+    })
+
+    it('updates the automatic compaction event to error when summarization fails without usage', async () => {
+      const conversation = {
+        id: 'conv-session',
+        title: 'Untitled',
+        workspacePath: '/workspace',
+        createdAt: 1,
+        updatedAt: 1,
+        settings: {
+          modelId: 'model-1',
+          systemPrompt: '',
+          temperature: 0.7,
+          maxTokens: 1024,
+          compaction: { enabled: true, thresholdPercent: 70, keepRecentTokens: 8 },
+        },
+      }
+      const historyMessages: Awaited<ReturnType<ISessionStore['getMessages']>> = [
+        { id: 'u1', convId: 'conv-session', createdAt: 1, role: 'user', status: 'success', content: [{ type: 'text', text: 'x'.repeat(60_000) }] },
+        { id: 'a1', convId: 'conv-session', createdAt: 2, role: 'assistant', status: 'success', content: [{ type: 'text', text: 'previous answer' }] },
+        { id: 'u2', convId: 'conv-session', createdAt: 3, role: 'user', status: 'success', content: [{ type: 'text', text: 'recent request' }] },
+      ]
+      const store = createSessionStore({
+        getConversation: vi.fn(async () => conversation),
+        getConversationById: vi.fn(async () => conversation),
+        getMessages: vi.fn(async () => historyMessages),
+      })
+      const config = createSessionConfig({
+        sessionStore: store,
+        modelCatalog: {
+          getModelById: vi.fn(async () => ({
+            id: 'model-1',
+            model: 'test-model',
+            name: 'Test Model',
+            providerId: 'provider-1',
+            contextLength: 20_000,
+          })),
+          getProviderById: vi.fn(async () => ({
+            id: 'provider-1',
+            name: 'provider',
+            apiMode: 'openai' as const,
+            apiKey: 'test-key',
+            baseUrl: 'https://example.com',
+            isOfficial: false,
+            isEnabled: true,
+            createdAt: 1,
+            updatedAt: 1,
+          })),
+        },
+        compactionStrategy: {
+          summarize: vi.fn(async () => {
+            throw new Error('summary provider failed')
+          }),
+        },
+      })
+
+      const runtime = new AgentRuntime(config)
+      const result = await runtime.startTask({
+        conversationId: 'conv-session',
+        prompt: 'inspect project',
+        modelId: 'model-1',
+        workspacePath: '/workspace',
+        mode: 'hybrid',
+      })
+
+      expect(store.createEventMessage).toHaveBeenCalledWith({
+        convId: 'conv-session',
+        role: 'event',
+        status: 'loading',
+        content: [{ type: 'text', text: '正在压缩上下文...' }],
+        eventType: 'compaction',
+      })
+      expect(store.updateEventMessage).toHaveBeenCalledWith('event-msg-1', {
+        role: 'event',
+        status: 'error',
+        content: [{ type: 'text', text: 'summary provider failed' }],
+        eventType: 'compaction',
+        modelInfo: {
+          provider: 'provider',
+          providerId: 'provider-1',
+          model: 'test-model',
+        },
+        usage: undefined,
+      })
+      expect(vi.mocked(store.updateEventMessage).mock.invocationCallOrder[0])
+        .toBeLessThan(vi.mocked(store.createUserMessage).mock.invocationCallOrder[0])
+      cleanupTasks([result.taskId])
+    })
+
+    it('ignores assistant usage before the latest compaction checkpoint', async () => {
+      const conversation = {
+        id: 'conv-session',
+        title: 'Untitled',
+        workspacePath: '/workspace',
+        createdAt: 1,
+        updatedAt: 1,
+        settings: {
+          modelId: 'model-1',
+          systemPrompt: '',
+          temperature: 0.7,
+          maxTokens: 1024,
+          compaction: { enabled: true, thresholdPercent: 70, keepRecentTokens: 8 },
+        },
+      }
+      const historyMessages: Awaited<ReturnType<ISessionStore['getMessages']>> = [
+        {
+          id: 'a1',
+          convId: 'conv-session',
+          createdAt: 1,
+          role: 'assistant',
+          status: 'success',
+          content: [{ type: 'text', text: 'old answer' }],
+          usage: { totalTokens: 9000 },
+        },
+        {
+          id: 'evt-1',
+          convId: 'conv-session',
+          createdAt: 2,
+          role: 'event',
+          status: 'success',
+          eventType: 'compaction',
+          compactedThroughMessageId: 'a1',
+          content: [{ type: 'text', text: 'short summary' }],
+        },
+        { id: 'u2', convId: 'conv-session', createdAt: 3, role: 'user', status: 'success', content: [{ type: 'text', text: 'recent request' }] },
+        { id: 'a2', convId: 'conv-session', createdAt: 4, role: 'assistant', status: 'success', content: [{ type: 'text', text: 'recent answer' }] },
+      ]
+      const store = createSessionStore({
+        getConversation: vi.fn(async () => conversation),
+        getConversationById: vi.fn(async () => conversation),
+        getMessages: vi.fn(async () => historyMessages),
+      })
+      const config = createSessionConfig({
+        sessionStore: store,
+        modelCatalog: {
+          getModelById: vi.fn(async () => ({
+            id: 'model-1',
+            model: 'test-model',
+            name: 'Test Model',
+            providerId: 'provider-1',
+            contextLength: 10_000,
+          })),
+          getProviderById: vi.fn(async () => ({
+            id: 'provider-1',
+            name: 'provider',
+            apiMode: 'openai' as const,
+            apiKey: 'test-key',
+            baseUrl: 'https://example.com',
+            isOfficial: false,
+            isEnabled: true,
+            createdAt: 1,
+            updatedAt: 1,
+          })),
+        },
+        compactionStrategy: {
+          summarize: vi.fn(async () => ({ text: 'unused summary' })),
+        },
+      })
+
+      const runtime = new AgentRuntime(config)
+      const result = await runtime.startTask({
+        conversationId: 'conv-session',
+        prompt: 'inspect project',
+        modelId: 'model-1',
+        workspacePath: '/workspace',
+        mode: 'hybrid',
+      })
+
+      expect(store.createEventMessage).not.toHaveBeenCalled()
+      expect(store.updateEventMessage).not.toHaveBeenCalled()
+      cleanupTasks([result.taskId])
     })
 
     it('does not create user message when conversation already has an active task', async () => {

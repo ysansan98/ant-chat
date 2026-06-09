@@ -99,6 +99,7 @@ export interface CreateAssistantMessageInput {
   turnId?: string
 }
 export type UpdateAssistantMessageInput = Omit<UpdateMessageSchema, 'id'>
+export type UpdateEventMessageInput = Omit<UpdateMessageSchema, 'id'>
 
 export interface ISessionStore extends IConversationQuery {
   getConversation: (id: string) => Promise<IConversations | null>
@@ -111,6 +112,7 @@ export interface ISessionStore extends IConversationQuery {
   createToolMessage: (data: CreateToolMessageInput) => Promise<IMessage>
   createEventMessage: (data: CreateEventMessageInput) => Promise<IMessage>
   updateAssistantMessage: (id: string, patch: UpdateAssistantMessageInput) => Promise<IMessage>
+  updateEventMessage: (id: string, patch: UpdateEventMessageInput) => Promise<IMessage>
 }
 
 // ============================================================
@@ -130,12 +132,13 @@ export interface AgentModel {
   model: string
   name: string
   providerId: string
+  contextLength: number
 }
 
 export type AgentProvider = ProviderConfigSchema
 
 export interface IModelCatalog {
-  getModelById: (id: string) => Promise<{ id: string, model: string, name: string, providerId: string } | null>
+  getModelById: (id: string) => Promise<AgentModel | null>
   getProviderById: (id: string) => Promise<ProviderConfigSchema | null>
 }
 

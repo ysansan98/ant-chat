@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { compactMessages, DEFAULT_COMPACTION_SETTINGS, estimateContextTokens, getContextWindow, planCompaction } from '../compaction'
+import { calculateContextTokens, compactMessages, DEFAULT_COMPACTION_SETTINGS, estimateContextTokens, planCompaction } from '../compaction'
 import type { IAIProvider, LoopMessage } from '@ant-chat/shared'
 
 function makeTextMsg(role: LoopMessage['role'], text: string): LoopMessage {
@@ -30,7 +30,12 @@ describe('estimateContextTokens', () => {
   it('estimates tool-call messages by JSON length + overhead', () => {
     const msg = makeToolCallMsg('tc1', 'bash', { command: 'ls' })
     const tokens = estimateContextTokens([msg])
-    expect(tokens).toBeGreaterThan(0)
+    expect(tokens).toBe(
+      Math.ceil('bash'.length / 4)
+      + Math.ceil(JSON.stringify({ command: 'ls' }).length / 4)
+      + 10
+      + 4,
+    )
   })
 
   it('estimates tool-result messages with string result', () => {
@@ -50,6 +55,89 @@ describe('estimateContextTokens', () => {
   })
 })
 
+describe('calculateContextTokens', () => {
+  it('uses totalTokens without double counting token details', () => {
+    const result = calculateContextTokens([
+      {
+        message: makeTextMsg('assistant', 'measured response'),
+        status: 'success',
+        usage: {
+          inputTokens: 700,
+          outputTokens: 300,
+          totalTokens: 1000,
+          cachedInputTokens: 500,
+          reasoningTokens: 200,
+        },
+      },
+    ])
+
+    expect(result).toBe(1000)
+  })
+
+  it('falls back to inputTokens plus outputTokens', () => {
+    const result = calculateContextTokens([
+      {
+        message: makeTextMsg('assistant', 'measured response'),
+        status: 'success',
+        usage: {
+          inputTokens: 700,
+          outputTokens: 300,
+          cachedInputTokens: 500,
+          reasoningTokens: 200,
+        },
+      },
+    ])
+
+    expect(result).toBe(1000)
+  })
+
+  it('uses the latest valid successful assistant usage plus trailing messages', () => {
+    const trailingUser = makeTextMsg('user', '12345678')
+    const pendingUser = makeTextMsg('user', '1234')
+    const result = calculateContextTokens([
+      {
+        message: makeTextMsg('assistant', 'older measured response'),
+        status: 'success',
+        usage: { totalTokens: 500 },
+      },
+      {
+        message: makeTextMsg('assistant', 'failed response'),
+        status: 'error',
+        usage: { totalTokens: 9000 },
+      },
+      {
+        message: makeTextMsg('assistant', 'latest measured response'),
+        status: 'success',
+        usage: { totalTokens: 1000 },
+      },
+      {
+        message: trailingUser,
+        status: 'success',
+      },
+    ], pendingUser)
+
+    expect(result).toBe(
+      1000
+      + estimateContextTokens([trailingUser])
+      + estimateContextTokens([pendingUser]),
+    )
+  })
+
+  it('estimates all messages when no valid assistant usage exists', () => {
+    const messages = [
+      makeTextMsg('user', 'question'),
+      makeTextMsg('assistant', 'cancelled answer'),
+    ]
+    const pendingUser = makeTextMsg('user', 'next question')
+    const result = calculateContextTokens([
+      { message: messages[0], status: 'success' },
+      { message: messages[1], status: 'cancel', usage: { totalTokens: 9000 } },
+    ], pendingUser)
+
+    expect(result).toBe(estimateContextTokens([...messages, pendingUser]))
+  })
+})
+
 describe('compactMessages manual trigger', () => {
   const noopAiProvider = {} as IAIProvider
 
@@ -61,24 +149,23 @@ describe('compactMessages manual trigger', () => {
     const messages = [
       makeTextMsg('user', 'Q1'.repeat(20_000)),
       makeTextMsg('assistant', 'A1'),
+      makeTextMsg('assistant', 'A1 follow-up'),
       makeTextMsg('user', 'Q2'),
       makeTextMsg('assistant', 'A2'),
     ]
 
     const result = await compactMessages({
       messages,
-      settings: { ...DEFAULT_COMPACTION_SETTINGS, enabled: false, thresholdPercent: 90, keepRecentPairs: 1 },
+      settings: { ...DEFAULT_COMPACTION_SETTINGS, enabled: false, thresholdPercent: 90, keepRecentTokens: 10 },
       aiProvider: noopAiProvider,
       model: 'test-model',
-      providerFormat: 'openai',
-      preEstimatedTokens: 1,
       summarize,
       trigger: 'manual',
     })
 
     expect(result.compacted).toBe(true)
     expect(result.summaryText).toBe('manual summary')
-    expect(result.summarizedCount).toBe(2)
+    expect(result.summarizedCount).toBe(3)
     expect(result.keptLength).toBe(2)
     expect(result.usage).toEqual({ inputTokens: 9000, outputTokens: 300, totalTokens: 9300 })
     expect(summarize).toHaveBeenCalledOnce()
@@ -95,10 +182,9 @@ describe('compactMessages manual trigger', () => {
 
     const result = await compactMessages({
       messages,
-      settings: { ...DEFAULT_COMPACTION_SETTINGS, keepRecentPairs: 1 },
+      settings: { ...DEFAULT_COMPACTION_SETTINGS, keepRecentTokens: 10 },
       aiProvider: noopAiProvider,
       model: 'test-model',
-      providerFormat: 'openai',
       summarize,
       trigger: 'manual',
     })
@@ -124,11 +210,9 @@ describe('compactMessages manual trigger', () => {
 
     const result = await compactMessages({
       messages,
-      settings: { ...DEFAULT_COMPACTION_SETTINGS, keepRecentPairs: 3 },
+      settings: { ...DEFAULT_COMPACTION_SETTINGS, keepRecentTokens: 30 },
       aiProvider: noopAiProvider,
       model: 'test-model',
-      providerFormat: 'openai',
-      preEstimatedTokens: 100_000,
       summarize: async () => ({ text: 'summary' }),
       trigger: 'manual',
     })
@@ -143,14 +227,14 @@ describe('compactMessages manual trigger', () => {
     const messages = [
       makeTextMsg('user', 'Q1'.repeat(20_000)),
       makeTextMsg('assistant', 'A1'),
+      makeTextMsg('assistant', 'A1 follow-up'),
       makeTextMsg('user', 'Q2'),
     ]
     const result = await compactMessages({
       messages,
-      settings: { ...DEFAULT_COMPACTION_SETTINGS, keepRecentPairs: 1 },
+      settings: { ...DEFAULT_COMPACTION_SETTINGS, keepRecentTokens: 5 },
       aiProvider: noopAiProvider,
       model: 'test-model',
-      providerFormat: 'openai',
       summarize: async () => ({
         text: ' ',
         usage: { inputTokens: 8500, outputTokens: 1, totalTokens: 8501 },
@@ -163,32 +247,140 @@ describe('compactMessages manual trigger', () => {
     expect(result.usage).toEqual({ inputTokens: 8500, outputTokens: 1, totalTokens: 8501 })
   })
 
-  it('plans manual compaction by compactable prefix tokens', () => {
-    const shortPlan = planCompaction({
+  it('skips manual compaction when the token cut leaves two messages to summarize', () => {
+    const plan = planCompaction({
       messages: [
         makeTextMsg('user', 'short'),
         makeTextMsg('assistant', 'answer'),
         makeTextMsg('user', 'recent'),
+        makeTextMsg('assistant', 'recent answer'),
       ],
-      settings: { ...DEFAULT_COMPACTION_SETTINGS, keepRecentPairs: 1 },
-      providerFormat: 'openai',
+      settings: { ...DEFAULT_COMPACTION_SETTINGS, keepRecentTokens: 10 },
       trigger: 'manual',
     })
-    expect(shortPlan).toEqual({ eligible: false, reason: 'insufficient-history' })
+    expect(plan).toEqual({ eligible: false, reason: 'insufficient-history' })
+  })
+
+  it('runs manual compaction when the token cut leaves three messages to summarize', () => {
+    const plan = planCompaction({
+      messages: [
+        makeTextMsg('user', 'first'),
+        makeTextMsg('assistant', 'first answer'),
+        makeTextMsg('assistant', 'additional assistant message'),
+        makeTextMsg('user', 'recent'),
+        makeTextMsg('assistant', 'recent answer'),
+      ],
+      settings: { enabled: false, thresholdPercent: 100, keepRecentTokens: 10 },
+      trigger: 'manual',
+    })
+    expect(plan).toEqual({
+      eligible: true,
+      cutIndex: 3,
+      toSummarizeCount: 3,
+    })
   })
 })
 
-describe('getContextWindow', () => {
-  it('returns known provider window sizes', () => {
-    expect(getContextWindow('anthropic')).toBe(200_000)
-    expect(getContextWindow('deepseek')).toBe(128_000)
-    expect(getContextWindow('openai')).toBe(128_000)
-    expect(getContextWindow('google')).toBe(1_000_000)
+describe('planCompaction automatic trigger', () => {
+  const messages = [
+    makeTextMsg('user', 'Q1'),
+    makeTextMsg('assistant', 'A1'),
+    makeTextMsg('user', 'Q2'),
+    makeTextMsg('assistant', 'A2'),
+  ]
+
+  it('uses the provided model context length and threshold percentage', () => {
+    expect(planCompaction({
+      messages,
+      settings: { ...DEFAULT_COMPACTION_SETTINGS, thresholdPercent: 50, keepRecentTokens: 10 },
+      trigger: 'automatic',
+      contextTokens: 4001,
+      contextLength: 8000,
+    })).toEqual({
+      eligible: true,
+      cutIndex: 2,
+      toSummarizeCount: 2,
+    })
+
+    expect(planCompaction({
+      messages,
+      settings: { ...DEFAULT_COMPACTION_SETTINGS, thresholdPercent: 50, keepRecentTokens: 10 },
+      trigger: 'automatic',
+      contextTokens: 4000,
+      contextLength: 8000,
+    })).toEqual({ eligible: false, reason: 'below-threshold' })
   })
 
-  it('returns default window for unknown providers', () => {
-    expect(getContextWindow('unknown')).toBe(128_000)
-    expect(getContextWindow('')).toBe(128_000)
+  it('can keep from an assistant message without forcing a user message boundary', () => {
+    const messages = [
+      makeTextMsg('user', 'old request'),
+      makeTextMsg('assistant', 'old answer'),
+      makeTextMsg('user', 'recent request'),
+      makeTextMsg('assistant', 'recent answer'),
+    ]
+    const keepRecentTokens = estimateContextTokens(messages.slice(1))
+
+    expect(planCompaction({
+      messages,
+      settings: { ...DEFAULT_COMPACTION_SETTINGS, keepRecentTokens },
+      trigger: 'automatic',
+      contextTokens: 9000,
+      contextLength: 10_000,
+    })).toEqual({
+      eligible: true,
+      cutIndex: 1,
+      toSummarizeCount: 1,
+    })
+  })
+
+  it('does not keep from a tool message when the token budget is reached there', () => {
+    const messages = [
+      makeTextMsg('user', 'old request'),
+      makeToolCallMsg('tc1', 'bash', { command: 'printf old' }),
+      makeToolResultMsg('tc1', 'bash', 'tool output that reaches the budget'),
+      makeTextMsg('user', 'recent request'),
+      makeTextMsg('assistant', 'recent answer'),
+    ]
+    const keepRecentTokens = estimateContextTokens(messages.slice(2))
+
+    expect(planCompaction({
+      messages,
+      settings: { ...DEFAULT_COMPACTION_SETTINGS, keepRecentTokens },
+      trigger: 'automatic',
+      contextTokens: 9000,
+      contextLength: 10_000,
+    })).toEqual({
+      eligible: true,
+      cutIndex: 3,
+      toSummarizeCount: 3,
+    })
+  })
+
+  it('may keep slightly more than the token target to preserve a complete message', () => {
+    const messages = [
+      makeTextMsg('user', 'old request'),
+      makeTextMsg('assistant', 'old answer'),
+      makeTextMsg('user', 'x'.repeat(80)),
+      makeTextMsg('assistant', 'recent answer'),
+    ]
+    const keepRecentTokens = estimateContextTokens([messages[3]]) + 1
+    const plan = planCompaction({
+      messages,
+      settings: { ...DEFAULT_COMPACTION_SETTINGS, keepRecentTokens },
+      trigger: 'automatic',
+      contextTokens: 9000,
+      contextLength: 10_000,
+    })
+
+    expect(plan).toEqual({
+      eligible: true,
+      cutIndex: 2,
+      toSummarizeCount: 2,
+    })
+    if (!plan.eligible) {
+      throw new Error('Expected compaction plan to be eligible')
+    }
+    expect(estimateContextTokens(messages.slice(plan.cutIndex))).toBeGreaterThan(keepRecentTokens)
   })
 })
 
@@ -202,7 +394,6 @@ describe('compactMessages', () => {
       settings: { ...DEFAULT_COMPACTION_SETTINGS, enabled: false },
       aiProvider: noopAiProvider,
       model: 'test-model',
-      providerFormat: 'openai',
       summarize: async () => ({ text: 'summary' }),
     })
     expect(result.compacted).toBe(false)
@@ -216,18 +407,17 @@ describe('compactMessages', () => {
       settings: DEFAULT_COMPACTION_SETTINGS,
       aiProvider: noopAiProvider,
       model: 'test-model',
-      providerFormat: 'openai',
+      contextTokens: 1,
+      contextLength: 100,
       summarize: async () => ({ text: 'summary' }),
     })
     expect(result.compacted).toBe(false)
   })
 
-  it('compacts when over threshold with sufficient user pairs', async () => {
+  it('compacts when over threshold with sufficient history outside the token target', async () => {
     const summary = 'This is a summary of previous conversation.'
     const summarize = vi.fn().mockResolvedValue({ text: summary })
 
-    // Need enough user messages: keepRecentPairs=3 requires more than 3 user messages for a cut point.
-    // 4 user-assistant pairs = 8 messages, cutIndex will be at the 2nd message
     const messages = [
       makeTextMsg('user', 'Q1'.repeat(20_000)),
       makeTextMsg('assistant', 'A1'),
@@ -241,11 +431,11 @@ describe('compactMessages', () => {
 
     const result = await compactMessages({
       messages,
-      settings: DEFAULT_COMPACTION_SETTINGS,
+      settings: { ...DEFAULT_COMPACTION_SETTINGS, keepRecentTokens: 30 },
       aiProvider: noopAiProvider,
       model: 'test-model',
-      providerFormat: 'openai',
-      preEstimatedTokens: 100_000,
+      contextTokens: 100_000,
+      contextLength: 128_000,
       summarize,
     })
 
@@ -262,10 +452,9 @@ describe('compactMessages', () => {
     }
   })
 
-  it('keeps recent user-assistant pairs', async () => {
+  it('keeps recent messages within the token target', async () => {
     const summarize = vi.fn().mockResolvedValue({ text: 'summary' })
 
-    // 5 pairs, keepRecentPairs=3 keeps last 3 pairs (Q3-Q5 + their A's).
     const messages = [
       makeTextMsg('user', 'Q1'.repeat(20_000)),
       makeTextMsg('assistant', 'A1'),
@@ -281,11 +470,11 @@ describe('compactMessages', () => {
 
     const result = await compactMessages({
       messages,
-      settings: { ...DEFAULT_COMPACTION_SETTINGS, keepRecentPairs: 3 },
+      settings: { ...DEFAULT_COMPACTION_SETTINGS, keepRecentTokens: 30 },
       aiProvider: noopAiProvider,
       model: 'test-model',
-      providerFormat: 'openai',
-      preEstimatedTokens: 100_000,
+      contextTokens: 100_000,
+      contextLength: 128_000,
       summarize,
     })
 
@@ -320,11 +509,11 @@ describe('compactMessages', () => {
 
     const result = await compactMessages({
       messages,
-      settings: DEFAULT_COMPACTION_SETTINGS,
+      settings: { ...DEFAULT_COMPACTION_SETTINGS, keepRecentTokens: 30 },
       aiProvider: noopAiProvider,
       model: 'test-model',
-      providerFormat: 'openai',
-      preEstimatedTokens: 100_000,
+      contextTokens: 100_000,
+      contextLength: 128_000,
       summarize,
     })
 
@@ -343,11 +532,11 @@ describe('compactMessages', () => {
 
     const result = await compactMessages({
       messages,
-      settings: { ...DEFAULT_COMPACTION_SETTINGS, keepRecentPairs: 3 },
+      settings: { ...DEFAULT_COMPACTION_SETTINGS, keepRecentTokens: 30 },
       aiProvider: noopAiProvider,
       model: 'test-model',
-      providerFormat: 'openai',
-      preEstimatedTokens: 100_000,
+      contextTokens: 100_000,
+      contextLength: 128_000,
       summarize,
     })
 
