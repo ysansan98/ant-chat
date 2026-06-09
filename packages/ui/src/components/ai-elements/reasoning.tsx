@@ -215,6 +215,13 @@ export type ReasoningContentProps = ComponentProps<
 
 const streamdownPlugins = { cjk, code, math, mermaid }
 
+const reasoningAnimated = {
+  animation: 'fadeIn' as const,
+  duration: 200,
+  sep: 'char' as const,
+  stagger: 0,
+}
+
 export const ReasoningContent = memo(
   ({ className, children, ...props }: ReasoningContentProps) => (
     <CollapsibleContent
@@ -225,7 +232,9 @@ export const ReasoningContent = memo(
       )}
       {...props}
     >
-      <Streamdown plugins={streamdownPlugins}>{children}</Streamdown>
+      <Streamdown animated={reasoningAnimated} plugins={streamdownPlugins}>
+        {children}
+      </Streamdown>
     </CollapsibleContent>
   ),
 )

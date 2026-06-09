@@ -220,6 +220,7 @@ pnpm build:win            # 构建Windows版本
 
 - [Kami](https://github.com/tw93/kami) - 纸感设计风格灵感来源
 - [shadcn/ui](https://github.com/shadcn-ui/ui) - 可复用UI组件库
+- [lobe-ui](https://github.com/lobehub/lobe-ui) - 流式渲染速率控制实现参考
 - [Electron](https://electronjs.org/) - 跨平台桌面应用框架
 - [React](https://reactjs.org/) - 用户界面库
 

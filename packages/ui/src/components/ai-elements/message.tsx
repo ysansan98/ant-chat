@@ -17,6 +17,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@workspace/ui/components/tooltip'
+import { useSmoothContent } from '@workspace/ui/hooks/useSmoothContent'
 import { cn } from '@workspace/ui/lib/utils'
 import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
 import {
@@ -332,17 +333,36 @@ export type MessageResponseProps = ComponentProps<typeof Streamdown>
 
 const streamdownPlugins = { cjk, code, math, mermaid }
 
+const streamAnimated = {
+  animation: 'fadeIn' as const,
+  duration: 280,
+  easing: 'cubic-bezier(0.33, 0, 0.67, 1)',
+  sep: 'char' as const,
+  stagger: 0,
+}
+
 export const MessageResponse = memo(
-  ({ className, ...props }: MessageResponseProps) => (
-    <Streamdown
-      className={cn(
-        'size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0',
-        className,
-      )}
-      plugins={streamdownPlugins}
-      {...props}
-    />
-  ),
+  ({ className, children, isAnimating, ...props }: MessageResponseProps) => {
+    const smoothed = useSmoothContent(
+      typeof children === 'string' ? children : '',
+      isAnimating ?? false,
+    )
+
+    return (
+      <Streamdown
+        className={cn(
+          'size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0',
+          className,
+        )}
+        plugins={streamdownPlugins}
+        animated={streamAnimated}
+        isAnimating={isAnimating}
+        {...props}
+      >
+        {smoothed}
+      </Streamdown>
+    )
+  },
   (prevProps, nextProps) =>
     prevProps.children === nextProps.children
     && nextProps.isAnimating === prevProps.isAnimating,
