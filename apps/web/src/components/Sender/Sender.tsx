@@ -1,6 +1,6 @@
 import type { AgentMode, BuiltinCommand, ChatFeatures, IMessageContent, ProviderConfigModelSchema, SkillManifest, WorkspaceFileSearchResult } from '@ant-chat/shared'
 import type { FileUIPart, LanguageModelUsage } from 'ai'
-import { BUILTIN_COMMANDS, classifyFile } from '@ant-chat/shared'
+import { BUILTIN_COMMANDS, calculateContextTokens, classifyFile } from '@ant-chat/shared'
 import {
   Attachment,
   AttachmentInfo,
@@ -158,12 +158,6 @@ function SenderContextUsageButton() {
   const { settings } = useChatSettingsContext()
   const messages = useMessagesStore(state => state.messages)
 
-  const latestAssistantMessage = [...messages]
-    .reverse()
-    .find(msg => msg.role === 'assistant')
-
-  const latestUsage = latestAssistantMessage?.usage
-
   // Cumulative token consumption across the whole session
   const sessionUsage = useMemo(
     (): LanguageModelUsage | undefined => calculateSessionUsage(messages),
@@ -171,9 +165,15 @@ function SenderContextUsageButton() {
   )
 
   const maxTokens = settings.maxTokens || 1
-  // Use latest request's totalTokens to approximate context window fill
-  const usedTokens = latestUsage?.totalTokens
-    ?? ((latestUsage?.inputTokens || 0) + (latestUsage?.outputTokens || 0))
+  // Calculate current context token count using the same logic as compaction
+  const usedTokens = useMemo(() => {
+    const entries = messages.map(msg => ({
+      message: msg,
+      usage: msg.usage,
+      status: msg.status,
+    }))
+    return calculateContextTokens(entries)
+  }, [messages])
 
   const hasUsage = sessionUsage !== undefined
 

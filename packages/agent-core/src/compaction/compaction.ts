@@ -1,5 +1,5 @@
-import type { CompactionSettingsSchema, IAIProvider, ILogger, IMessage, LanguageModelUsage, LoopMessage } from '@ant-chat/shared'
-import { DEFAULT_COMPACTION_SETTINGS } from '@ant-chat/shared'
+import type { CompactionSettingsSchema, IAIProvider, ILogger, LanguageModelUsage, LoopMessage } from '@ant-chat/shared'
+import { DEFAULT_COMPACTION_SETTINGS, estimateMessageTokens } from '@ant-chat/shared'
 
 const TOOL_RESULT_MAX_LENGTH = 2000
 
@@ -11,74 +11,6 @@ function defaultLogger(): ILogger {
     warn: (msg: string, ...args: unknown[]) => console.warn(`[compaction] ${msg}`, ...args),
     error: (msg: string, ...args: unknown[]) => console.error(`[compaction] ${msg}`, ...args),
   }
-}
-
-function estimateTextTokens(text: string): number {
-  return Math.ceil(text.length / 4)
-}
-
-function estimateMessageTokens(msg: LoopMessage): number {
-  let total = 0
-  for (const part of msg.content) {
-    if (part.type === 'text') {
-      total += estimateTextTokens(part.text)
-    }
-    else if (part.type === 'tool-call') {
-      total += estimateTextTokens(part.toolName)
-        + estimateTextTokens(JSON.stringify(part.args))
-        + 10
-    }
-    else if (part.type === 'tool-result') {
-      const resultStr = typeof part.result === 'string' ? part.result : JSON.stringify(part.result)
-      total += estimateTextTokens(resultStr) + 10
-    }
-  }
-  return total + 4
-}
-
-function estimateContextTokens(messages: LoopMessage[]): number {
-  return messages.reduce((sum, msg) => sum + estimateMessageTokens(msg), 0)
-}
-
-export interface ContextTokenEntry {
-  message: LoopMessage
-  usage?: LanguageModelUsage
-  status?: IMessage['status']
-}
-
-function getUsageTokens(usage: LanguageModelUsage | undefined): number {
-  if (!usage) {
-    return 0
-  }
-  if (usage.totalTokens !== undefined) {
-    return usage.totalTokens
-  }
-  return (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0)
-}
-
-export function calculateContextTokens(
-  entries: ContextTokenEntry[],
-  pendingUserMessage?: LoopMessage,
-): number {
-  for (let index = entries.length - 1; index >= 0; index--) {
-    const entry = entries[index]
-    if (entry.message.role !== 'assistant' || entry.status !== 'success') {
-      continue
-    }
-    const usageTokens = getUsageTokens(entry.usage)
-    if (usageTokens <= 0) {
-      continue
-    }
-    const trailingMessages = entries.slice(index + 1).map(item => item.message)
-    return usageTokens
-      + estimateContextTokens(trailingMessages)
-      + (pendingUserMessage ? estimateContextTokens([pendingUserMessage]) : 0)
-  }
-
-  return estimateContextTokens([
-    ...entries.map(entry => entry.message),
-    ...(pendingUserMessage ? [pendingUserMessage] : []),
-  ])
 }
 
 function findCutPointByTokens(messages: LoopMessage[], keepRecentTokens: number): number {
@@ -291,4 +223,4 @@ export async function compactMessages(input: CompactionInput): Promise<Compactio
   }
 }
 
-export { estimateContextTokens }
+export { calculateContextTokens, estimateContextTokens } from '@ant-chat/shared'
