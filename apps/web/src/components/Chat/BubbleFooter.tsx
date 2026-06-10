@@ -5,7 +5,7 @@ import {
 } from '@workspace/ui/components/ai-elements/message'
 import { Badge } from '@workspace/ui/components/badge'
 import { ClockIcon, CopyIcon } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useReducer, useRef } from 'react'
 import { formatDuration, formatTime } from '@/utils'
 
 interface BubbleFooterProps {
@@ -20,19 +20,30 @@ const LIVE_TICK_MS = 200
 
 export default function BubbleFooter({ message, onCopy, time, modelInfo, durationMs }: BubbleFooterProps) {
   const isRunning = message.status === 'loading' || message.status === 'typing'
-  const [liveMs, setLiveMs] = useState<number>(0)
+  const startRef = useRef(message.createdAt)
+  const [elapsedMs, dispatchElapsed] = useReducer((_prev: number, action: number) => action, 0)
 
   useEffect(() => {
     if (!isRunning || durationMs != null)
       return
 
-    const tick = () => setLiveMs(Date.now() - message.createdAt)
-    tick()
-    const id = setInterval(tick, LIVE_TICK_MS)
-    return () => clearInterval(id)
+    startRef.current = message.createdAt
+    dispatchElapsed(Date.now() - startRef.current)
+
+    let frameId: number
+    let lastTick = 0
+    const animate = (time: number) => {
+      if (time - lastTick >= LIVE_TICK_MS) {
+        lastTick = time
+        dispatchElapsed(Date.now() - startRef.current)
+      }
+      frameId = requestAnimationFrame(animate)
+    }
+    frameId = requestAnimationFrame(animate)
+    return () => cancelAnimationFrame(frameId)
   }, [isRunning, durationMs, message.createdAt])
 
-  const displayMs = durationMs ?? (isRunning ? liveMs : undefined)
+  const displayMs = durationMs ?? (isRunning ? elapsedMs : undefined)
 
   const copyButton = useMemo(() => (
     <MessageAction

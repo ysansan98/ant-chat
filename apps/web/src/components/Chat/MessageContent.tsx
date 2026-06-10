@@ -96,7 +96,7 @@ export default function MessageContent({ content = '', images = EMPTY_IMAGES, at
                 <img
                   src={getAttachmentUrl(item)}
                   alt={item.filename || 'Image'}
-                  className="max-h-[360px] max-w-[520px] rounded-md object-contain"
+                  className="max-h-90 max-w-130 rounded-md object-contain"
                 />
               </AttachmentHoverCardContent>
             </AttachmentHoverCard>
@@ -158,7 +158,7 @@ function ReferenceTokenMessage({ content }: { content: string }) {
             <TooltipTrigger asChild>
               <span
                 className="
-                  inline-flex max-w-full translate-y-[2px] items-center gap-1 rounded-md border
+                  inline-flex max-w-full translate-y-0.5 items-center gap-1 rounded-md border
                   bg-muted px-1.5 py-0.5 text-xs text-foreground
                 "
               >
