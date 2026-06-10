@@ -34,6 +34,7 @@ import {
 } from '@/constants/workspaceEvents'
 import { switchWorkspaceConversationsAction, useConversationsStore } from '@/store/conversation'
 import { setActiveConversationsId } from '@/store/messages'
+import { WorkspaceDirectoryPickerDialog } from './WorkspaceDirectoryPickerDialog'
 
 interface WorkspaceSelectorProps {
   compact?: boolean
@@ -54,6 +55,7 @@ export function WorkspaceSelector({ compact = false }: WorkspaceSelectorProps) {
   )
   const [notice, setNotice] = useState<NoticeState | null>(null)
   const [removeTarget, setRemoveTarget] = useState<WorkspaceItem | null>(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
   const compactClass = compact
     ? `
       text-slate-500
@@ -105,17 +107,20 @@ export function WorkspaceSelector({ compact = false }: WorkspaceSelectorProps) {
     await switchWorkspaceConversationsAction(data.currentWorkspacePath)
   }
 
-  async function handleChooseWorkspace() {
+  function handleChooseWorkspace() {
+    setPickerOpen(true)
+  }
+
+  async function handlePickerConfirm(path: string) {
+    setPickerOpen(false)
     setLoading(true)
     setNotice(null)
     try {
-      const data = await workspaceApi.chooseWorkspace()
+      const data = await workspaceApi.addWorkspace(path)
       await applyWorkspaceData(data)
-      if (data) {
-        emitWorkspaceChanged()
-        setNotice({ type: 'success', message: '工作区已添加' })
-        setOpen(false)
-      }
+      emitWorkspaceChanged()
+      setNotice({ type: 'success', message: '工作区已添加' })
+      setOpen(false)
     }
     catch (error) {
       setNotice({ type: 'error', message: (error as Error).message })
@@ -270,6 +275,12 @@ export function WorkspaceSelector({ compact = false }: WorkspaceSelectorProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <WorkspaceDirectoryPickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        onConfirm={handlePickerConfirm}
+      />
     </>
   )
 }

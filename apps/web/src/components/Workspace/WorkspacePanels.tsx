@@ -25,6 +25,7 @@ import {
   useConversationsStore,
 } from '@/store/conversation'
 import { setActiveConversationsId, useMessagesStore } from '@/store/messages'
+import { WorkspaceDirectoryPickerDialog } from './WorkspaceDirectoryPickerDialog'
 
 interface WorkspaceConversationState {
   data: IConversations[]
@@ -56,6 +57,7 @@ export function WorkspacePanels() {
     () => new Set(),
   )
   const [panelError, setPanelError] = useState('')
+  const [pickerOpen, setPickerOpen] = useState(false)
   const initializedRef = useRef(false)
 
   const currentWorkspacePath = storeWorkspacePath || workspaceData?.currentWorkspacePath
@@ -83,14 +85,15 @@ export function WorkspacePanels() {
     }
   }, [currentWorkspacePath])
 
-  const handleChooseWorkspace = useCallback(async () => {
+  const handleChooseWorkspace = useCallback(() => {
+    setPickerOpen(true)
+  }, [])
+
+  const handlePickerConfirm = useCallback(async (path: string) => {
+    setPickerOpen(false)
     setPanelError('')
     try {
-      const data = await workspaceApi.chooseWorkspace()
-      if (!data) {
-        return
-      }
-
+      const data = await workspaceApi.addWorkspace(path)
       setWorkspaceData(data)
       setExpandedPaths(
         paths => new Set([...paths, data.currentWorkspacePath]),
@@ -169,61 +172,70 @@ export function WorkspacePanels() {
   const workspaces = workspaceData?.workspaces || []
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center justify-between px-2 text-xs font-medium text-slate-400">
-        <span>工作区</span>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              type="button"
-              onClick={handleChooseWorkspace}
-            >
-              <PlusIcon className="size-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <span>
-              添加工作区
-            </span>
-          </TooltipContent>
-        </Tooltip>
+    <>
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="flex items-center justify-between px-2 text-xs font-medium text-slate-400">
+          <span>工作区</span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                type="button"
+                onClick={handleChooseWorkspace}
+              >
+                <PlusIcon className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <span>
+                添加工作区
+              </span>
+            </TooltipContent>
+          </Tooltip>
+        </div>
+
+        {panelError
+          ? <div className="mt-2 px-2 text-xs text-red-500">{panelError}</div>
+          : null}
+
+        <div className="mt-2 min-h-0 flex-1 overflow-y-auto pr-1">
+          {workspaces.length > 0
+            ? (
+                workspaces.map(item => (
+                  <WorkspacePanel
+                    key={item.path}
+                    item={item}
+                    activeConversationId={activeConversationsId}
+                    expanded={expandedPaths.has(item.path)}
+                    state={getWorkspaceConversationState(
+                      item.path,
+                      currentWorkspacePath,
+                      currentConversations,
+                      currentConversationsTotal,
+                      workspaceConversations,
+                    )}
+                    onToggle={toggleWorkspace}
+                    onOpenConversation={openConversation}
+                    onCreateConversation={createConversation}
+                  />
+                ))
+              )
+            : (
+                <div className="px-3 py-8 text-center text-sm text-slate-400">
+                  暂无工作区
+                </div>
+              )}
+        </div>
+
       </div>
 
-      {panelError
-        ? <div className="mt-2 px-2 text-xs text-red-500">{panelError}</div>
-        : null}
-
-      <div className="mt-2 min-h-0 flex-1 overflow-y-auto pr-1">
-        {workspaces.length > 0
-          ? (
-              workspaces.map(item => (
-                <WorkspacePanel
-                  key={item.path}
-                  item={item}
-                  activeConversationId={activeConversationsId}
-                  expanded={expandedPaths.has(item.path)}
-                  state={getWorkspaceConversationState(
-                    item.path,
-                    currentWorkspacePath,
-                    currentConversations,
-                    currentConversationsTotal,
-                    workspaceConversations,
-                  )}
-                  onToggle={toggleWorkspace}
-                  onOpenConversation={openConversation}
-                  onCreateConversation={createConversation}
-                />
-              ))
-            )
-          : (
-              <div className="px-3 py-8 text-center text-sm text-slate-400">
-                暂无工作区
-              </div>
-            )}
-      </div>
-    </div>
+      <WorkspaceDirectoryPickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        onConfirm={handlePickerConfirm}
+      />
+    </>
   )
 }
 

@@ -2,9 +2,7 @@ import type { AppTransport } from '@ant-chat/shared'
 
 export function createLocalWebTransport(): AppTransport {
   return {
-    capabilities: {
-      workspacePicker: false,
-    },
+    capabilities: {},
     chat: {
       createConversationsTitle: options => localRpc('chat.createConversationsTitle', { ...options }),
       getConversations: (pageIndex, pageSize) => localRpc('chat.getConversations', { pageIndex, pageSize }),
@@ -69,6 +67,8 @@ export function createLocalWebTransport(): AppTransport {
       addWorkspace: path => localRpc('workspace.addWorkspace', { path }),
       removeWorkspace: path => localRpc('workspace.removeWorkspace', { path }),
       openWorkspace: path => localRpc('workspace.openWorkspace', { path }),
+      listDirectories: path => localRpc('workspace.listDirectories', { path }),
+      createDirectory: (parentPath, name) => localRpc('workspace.createDirectory', { parentPath, name }),
       searchWorkspaceFiles: (query, limit = 50) => localRpc('workspace.searchWorkspaceFiles', { query, limit }),
     },
     commands: {

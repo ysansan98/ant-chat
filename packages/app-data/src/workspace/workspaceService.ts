@@ -1,7 +1,8 @@
-import type { ListWorkspacesData, WorkspaceConfig, WorkspaceItem } from '@ant-chat/shared'
+import type { ListWorkspacesData, WorkspaceConfig, WorkspaceDirectoryEntry, WorkspaceDirectoryListing, WorkspaceItem } from '@ant-chat/shared'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import process from 'node:process'
 import { WORKSPACE_DUPLICATED_PATH, WORKSPACE_INVALID_PATH } from '@ant-chat/shared'
 import { AtomicJsonFileStore } from '../file'
 
@@ -139,6 +140,83 @@ export class WorkspaceService {
   getCurrentWorkspacePath(): string {
     const config = this.ensureInitialized()
     return config.currentWorkspacePath || this.getDefaultWorkspacePath()
+  }
+
+  listDirectories(inputPath?: string): WorkspaceDirectoryListing {
+    const targetPath = inputPath ? path.resolve(inputPath) : os.homedir()
+    const normalizedPath = path.normalize(targetPath)
+
+    const stat = fs.statSync(normalizedPath)
+    if (!stat.isDirectory()) {
+      throw new Error(WORKSPACE_INVALID_PATH)
+    }
+
+    const parentPath = path.dirname(normalizedPath)
+    const resolvedParent = parentPath !== normalizedPath ? parentPath : null
+
+    const roots = this.getRoots()
+    const entries = fs.readdirSync(normalizedPath, { withFileTypes: true })
+    const directories: WorkspaceDirectoryEntry[] = entries
+      .filter(entry => entry.isDirectory() || entry.isSymbolicLink())
+      .map((entry) => {
+        const fullPath = path.join(normalizedPath, entry.name)
+        try {
+          const realPath = fs.realpathSync.native(fullPath)
+          const realStat = fs.statSync(realPath)
+          return realStat.isDirectory() ? { name: entry.name, path: fullPath } : null
+        }
+        catch {
+          return null
+        }
+      })
+      .filter((entry): entry is WorkspaceDirectoryEntry => entry !== null)
+      .sort((a, b) => a.name.localeCompare(b.name))
+
+    return {
+      currentPath: normalizedPath,
+      parentPath: resolvedParent,
+      roots,
+      directories,
+    }
+  }
+
+  createDirectory(parentPath: string, name: string): WorkspaceDirectoryEntry {
+    if (!name || name === '.' || name === '..') {
+      throw new Error(WORKSPACE_INVALID_PATH)
+    }
+    if (name.includes(path.sep) || name.includes('/') || name.includes('\\')) {
+      throw new Error(WORKSPACE_INVALID_PATH)
+    }
+
+    const normalizedParent = path.resolve(parentPath)
+    const parentStat = fs.statSync(normalizedParent)
+    if (!parentStat.isDirectory()) {
+      throw new Error(WORKSPACE_INVALID_PATH)
+    }
+
+    const newPath = path.join(normalizedParent, name)
+    if (fs.existsSync(newPath)) {
+      throw new Error(WORKSPACE_DUPLICATED_PATH)
+    }
+
+    fs.mkdirSync(newPath)
+    return { name, path: newPath }
+  }
+
+  private getRoots(): string[] {
+    if (process.platform === 'win32') {
+      const drives: string[] = []
+      for (let i = 65; i <= 90; i++) {
+        const drive = `${String.fromCharCode(i)}:\\`
+        try {
+          fs.statSync(drive)
+          drives.push(drive)
+        }
+        catch {}
+      }
+      return drives
+    }
+    return ['/']
   }
 
   private getConfig(): WorkspaceConfig {

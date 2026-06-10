@@ -24,3 +24,15 @@ export interface WorkspaceFileSearchResult {
   name: string
   type: 'file'
 }
+
+export interface WorkspaceDirectoryEntry {
+  name: string
+  path: string
+}
+
+export interface WorkspaceDirectoryListing {
+  currentPath: string
+  parentPath: string | null
+  roots: string[]
+  directories: WorkspaceDirectoryEntry[]
+}

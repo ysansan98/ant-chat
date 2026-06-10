@@ -1,11 +1,10 @@
-import type { IpcResponse, ListWorkspacesData, WorkspaceFileSearchResult } from '@ant-chat/shared'
+import type { IpcResponse, ListWorkspacesData, WorkspaceDirectoryListing, WorkspaceFileSearchResult } from '@ant-chat/shared'
 import { searchWorkspaceFiles } from '@ant-chat/app-data'
 import { createErrorIpcResponse, createIpcResponse } from '@ant-chat/shared'
 import { getAgentRuntimeEnvironment } from '@main/agent/runtime/agentRuntimeEnvironment'
 import { sendToRenderer } from '@main/utils/ipc-events'
 import { logger } from '@main/utils/logger'
 import { getMainWindow } from '@main/windows/window'
-import { dialog } from 'electron'
 import { IpcMethod, IpcService } from 'electron-ipc-decorator'
 
 export class WorkspaceIpcService extends IpcService {
@@ -62,27 +61,23 @@ export class WorkspaceIpcService extends IpcService {
   }
 
   @IpcMethod()
-  async chooseWorkspace(): Promise<IpcResponse<ListWorkspacesData | null>> {
+  async listDirectories(path?: string): Promise<IpcResponse<WorkspaceDirectoryListing>> {
     try {
-      const mainWindow = getMainWindow()
-      if (!mainWindow) {
-        throw new Error('Main window is not created yet')
-      }
-      const result = await dialog.showOpenDialog(mainWindow, {
-        properties: ['openDirectory', 'createDirectory'],
-        title: '选择工作区',
-      })
-
-      if (result.canceled || result.filePaths.length === 0) {
-        return createIpcResponse(true, null)
-      }
-
-      const data = getAgentRuntimeEnvironment().appDataContext.workspaceService.addWorkspace(result.filePaths[0])
-      this.emitWorkspaceChanged(data.currentWorkspacePath)
-      return createIpcResponse(true, data)
+      return createIpcResponse(true, getAgentRuntimeEnvironment().appDataContext.workspaceService.listDirectories(path))
     }
     catch (error) {
-      logger.error('选择工作区失败:', error)
+      logger.error('获取目录列表失败:', error)
+      return createErrorIpcResponse(error as Error)
+    }
+  }
+
+  @IpcMethod()
+  async createDirectory(parentPath: string, name: string): Promise<IpcResponse<{ name: string, path: string }>> {
+    try {
+      return createIpcResponse(true, getAgentRuntimeEnvironment().appDataContext.workspaceService.createDirectory(parentPath, name))
+    }
+    catch (error) {
+      logger.error('创建目录失败:', error)
       return createErrorIpcResponse(error as Error)
     }
   }

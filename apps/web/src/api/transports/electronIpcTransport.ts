@@ -6,9 +6,7 @@ export function createElectronIpcTransport(): AppTransport {
   const ipc = createIpcProxy<AppIpcServices>(window.electron.ipcRenderer)!
 
   return {
-    capabilities: {
-      workspacePicker: true,
-    },
+    capabilities: {},
     chat: {
       createConversationsTitle: options => ipc.chat.createConversationsTitle(options),
       getConversations: async (pageIndex, pageSize) => unwrapIpcPaginatedResponse(await ipc.chat.getConversations(pageIndex, pageSize)),
@@ -73,7 +71,8 @@ export function createElectronIpcTransport(): AppTransport {
       addWorkspace: async path => unwrapIpcResponse(await ipc.workspace.addWorkspace(path)),
       removeWorkspace: async path => unwrapIpcResponse(await ipc.workspace.removeWorkspace(path)),
       openWorkspace: async path => unwrapIpcResponse(await ipc.workspace.openWorkspace(path)),
-      chooseWorkspace: async () => unwrapIpcResponse(await ipc.workspace.chooseWorkspace()),
+      listDirectories: async path => unwrapIpcResponse(await ipc.workspace.listDirectories(path)),
+      createDirectory: async (parentPath, name) => unwrapIpcResponse(await ipc.workspace.createDirectory(parentPath, name)),
       searchWorkspaceFiles: async (query, limit = 50) => unwrapIpcResponse(await ipc.workspace.searchWorkspaceFiles(query, limit)),
     },
     commands: {

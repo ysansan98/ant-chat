@@ -15,7 +15,7 @@ export interface LocalServerServices {
     updateMemoryFiles: (input: UpdateAgentMemoryInput) => Promise<AgentMemoryFiles>
     rollbackSoul: () => Promise<AgentMemoryFiles>
   }
-  workspaceService?: Pick<WorkspaceService, 'listWorkspaces' | 'addWorkspace' | 'removeWorkspace' | 'openWorkspace' | 'getCurrentWorkspacePath' | 'getDefaultWorkspacePath'>
+  workspaceService?: Pick<WorkspaceService, 'listWorkspaces' | 'addWorkspace' | 'removeWorkspace' | 'openWorkspace' | 'listDirectories' | 'createDirectory' | 'getCurrentWorkspacePath' | 'getDefaultWorkspacePath'>
   providerSettingsRepository?: ProviderSettingsRepository
   modelsDevImporter?: {
     getModelsDevProviders: () => Promise<ModelsDevProvider[]>
@@ -227,6 +227,10 @@ async function dispatchRpc(body: unknown, services: LocalServerServices): Promis
       return requireWorkspaceService(services).getCurrentWorkspacePath()
     case 'workspace.getDefaultWorkspacePath':
       return requireWorkspaceService(services).getDefaultWorkspacePath()
+    case 'workspace.listDirectories':
+      return requireWorkspaceService(services).listDirectories(optionalStringParam(params.path))
+    case 'workspace.createDirectory':
+      return requireWorkspaceService(services).createDirectory(stringParam(params.parentPath), stringParam(params.name))
     case 'workspace.searchWorkspaceFiles': {
       const workspaceService = requireWorkspaceService(services)
       return searchWorkspaceFiles(
@@ -306,7 +310,7 @@ function requireSkillService(services: LocalServerServices): NonNullable<LocalSe
   return services.skillService
 }
 
-function requireWorkspaceService(services: LocalServerServices): Pick<WorkspaceService, 'listWorkspaces' | 'addWorkspace' | 'removeWorkspace' | 'openWorkspace' | 'getCurrentWorkspacePath' | 'getDefaultWorkspacePath'> {
+function requireWorkspaceService(services: LocalServerServices): Pick<WorkspaceService, 'listWorkspaces' | 'addWorkspace' | 'removeWorkspace' | 'openWorkspace' | 'listDirectories' | 'createDirectory' | 'getCurrentWorkspacePath' | 'getDefaultWorkspacePath'> {
   if (!services.workspaceService) {
     throw new Error('Workspace service is not available in local web transport')
   }

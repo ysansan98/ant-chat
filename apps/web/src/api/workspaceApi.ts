@@ -1,4 +1,4 @@
-import type { ListWorkspacesData, WorkspaceFileSearchResult } from '@ant-chat/shared'
+import type { ListWorkspacesData, WorkspaceDirectoryListing, WorkspaceFileSearchResult } from '@ant-chat/shared'
 import { getAppTransport } from './transports/appTransport'
 
 async function listWorkspaces(): Promise<ListWorkspacesData> {
@@ -18,11 +18,15 @@ async function openWorkspace(path: string): Promise<ListWorkspacesData> {
 }
 
 async function chooseWorkspace(): Promise<ListWorkspacesData | null> {
-  const transport = await getAppTransport()
-  if (!transport.capabilities.workspacePicker || !transport.workspace.chooseWorkspace) {
-    return null
-  }
-  return transport.workspace.chooseWorkspace()
+  return null
+}
+
+async function listDirectories(path?: string): Promise<WorkspaceDirectoryListing> {
+  return (await getAppTransport()).workspace.listDirectories(path)
+}
+
+async function createDirectory(parentPath: string, name: string): Promise<{ name: string, path: string }> {
+  return (await getAppTransport()).workspace.createDirectory(parentPath, name)
 }
 
 async function searchWorkspaceFiles(query: string, limit = 50): Promise<WorkspaceFileSearchResult[]> {
@@ -35,5 +39,7 @@ export default {
   removeWorkspace,
   openWorkspace,
   chooseWorkspace,
+  listDirectories,
+  createDirectory,
   searchWorkspaceFiles,
 }

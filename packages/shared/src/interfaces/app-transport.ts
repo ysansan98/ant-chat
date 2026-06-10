@@ -42,12 +42,10 @@ import type {
   SkillManifest,
 } from './skill'
 import type { UpdateConfig, UpdateInfo, UpdateStatus } from './update'
-import type { ListWorkspacesData, WorkspaceFileSearchResult } from './workspace'
+import type { ListWorkspacesData, WorkspaceDirectoryListing, WorkspaceFileSearchResult } from './workspace'
 
 export interface AppTransport {
-  capabilities: {
-    workspacePicker: boolean
-  }
+  capabilities: Record<string, never>
   chat: {
     createConversationsTitle: (options: handleInitConversationTitleOptions) => Promise<IpcResponse<IConversations>>
     getConversations: (pageIndex: number, pageSize: number) => Promise<{ data: IConversations[], total: number }>
@@ -112,7 +110,8 @@ export interface AppTransport {
     addWorkspace: (path: string) => Promise<ListWorkspacesData>
     removeWorkspace: (path: string) => Promise<ListWorkspacesData>
     openWorkspace: (path: string) => Promise<ListWorkspacesData>
-    chooseWorkspace?: () => Promise<ListWorkspacesData | null>
+    listDirectories: (path?: string) => Promise<WorkspaceDirectoryListing>
+    createDirectory: (parentPath: string, name: string) => Promise<{ name: string, path: string }>
     searchWorkspaceFiles: (query: string, limit?: number) => Promise<WorkspaceFileSearchResult[]>
   }
   commands: {
@@ -224,7 +223,8 @@ export interface AppIpcServices {
     addWorkspace: (path: string) => Promise<IpcResponse<ListWorkspacesData>>
     removeWorkspace: (path: string) => Promise<IpcResponse<ListWorkspacesData>>
     openWorkspace: (path: string) => Promise<IpcResponse<ListWorkspacesData>>
-    chooseWorkspace: () => Promise<IpcResponse<ListWorkspacesData | null>>
+    listDirectories: (path?: string) => Promise<IpcResponse<WorkspaceDirectoryListing>>
+    createDirectory: (parentPath: string, name: string) => Promise<IpcResponse<{ name: string, path: string }>>
     searchWorkspaceFiles: (query?: string, limit?: number) => Promise<IpcResponse<WorkspaceFileSearchResult[]>>
   }
   commands: {
