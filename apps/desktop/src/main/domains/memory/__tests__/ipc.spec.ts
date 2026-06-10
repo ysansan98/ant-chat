@@ -2,14 +2,14 @@ import { describe, expect, it, vi } from 'vitest'
 import { MemoryIpcService } from '../ipc'
 
 const mocks = vi.hoisted(() => ({
-  memoryManager: {
-    readMemoryFiles: vi.fn(async () => ({
+  memory: {
+    getFiles: vi.fn(async () => ({
       memoryRootPath: '/tmp/memory',
       userMarkdown: '§Use Chinese.',
       memoryMarkdown: '§Run pnpm check.',
       soulMarkdown: '# SOUL',
     })),
-    updateMemoryFiles: vi.fn(async input => ({
+    updateFiles: vi.fn(async input => ({
       memoryRootPath: '/tmp/memory',
       userMarkdown: input.userMarkdown ?? '§Use Chinese.',
       memoryMarkdown: input.memoryMarkdown ?? '§Run pnpm check.',
@@ -29,11 +29,9 @@ vi.mock('electron-ipc-decorator', () => ({
   IpcMethod: () => () => {},
 }))
 
-vi.mock('@main/agent/runtime/agentRuntimeEnvironment', () => ({
-  getAgentRuntimeEnvironment: () => ({
-    appDataContext: {
-      memoryManager: mocks.memoryManager,
-    },
+vi.mock('@main/runtime/appRuntime', () => ({
+  getAppRuntime: () => ({
+    memory: mocks.memory,
   }),
 }))
 
@@ -62,7 +60,7 @@ describe('memory ipc', () => {
     })
 
     expect(response.success).toBe(true)
-    expect(mocks.memoryManager.updateMemoryFiles).toHaveBeenCalledWith({
+    expect(mocks.memory.updateFiles).toHaveBeenCalledWith({
       userMarkdown: '§Use Chinese.',
       soulMarkdown: '# SOUL\n\n- Be direct.',
     })

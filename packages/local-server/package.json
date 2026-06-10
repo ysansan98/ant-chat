@@ -25,9 +25,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@ant-chat/agent-runtime": "workspace:^",
-    "@ant-chat/app-data": "workspace:^",
-    "@ant-chat/shared": "workspace:^"
+    "@ant-chat/app-runtime": "workspace:^",
+    "@ant-chat/shared": "workspace:^",
+    "undici": "^7.15.0"
   },
   "devDependencies": {
     "tsdown": "catalog:",

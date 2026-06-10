@@ -1,12 +1,11 @@
-import type { AgentPendingAction, AgentTaskSnapshot, IAgentEventEmitter, IMessage } from '@ant-chat/shared'
 import type { ServerResponse } from 'node:http'
-import type { LocalServerServices } from './createServer'
 import { createServer as createHttpServer } from 'node:http'
-import { join, resolve } from 'node:path'
+import { resolve } from 'node:path'
 import process from 'node:process'
 import { parseArgs } from 'node:util'
-import { createAgentRuntimeEnvironment, createAgentRuntimePaths, createConversationTitleGenerator, createModelsDevImporter, createSystemLogger } from '@ant-chat/agent-runtime'
+import { createAppRuntime } from '@ant-chat/app-runtime'
 import { resolveAppDataRoot } from '@ant-chat/shared'
+import { Agent, EnvHttpProxyAgent, fetch, setGlobalDispatcher } from 'undici'
 import { createLocalApiHandler } from './createServer'
 
 const SSE_HEADERS = {
@@ -15,63 +14,10 @@ const SSE_HEADERS = {
   'connection': 'keep-alive',
 }
 
-// SSE channel names match Electron IPC channel names used by consumers
 function sseBroadcast(clients: Set<ServerResponse>, channel: string, data: unknown) {
   const payload = `event: ${channel}\ndata: ${JSON.stringify(data)}\n\n`
   for (const client of clients) {
     client.write(payload)
-  }
-}
-
-export function createSseEventEmitter(clients: Set<ServerResponse>): IAgentEventEmitter {
-  return {
-    emitMessageUpdated(message: IMessage) {
-      sseBroadcast(clients, 'message:updated', message)
-    },
-    emitTaskUpdated(task: AgentTaskSnapshot) {
-      sseBroadcast(clients, 'agent:state-updated', { task })
-    },
-    emitApprovalRequired(taskId: string, _conversationId: string, pendingAction: AgentPendingAction) {
-      sseBroadcast(clients, 'agent:approval-required', { taskId, pendingAction })
-    },
-    emitTurnStarted() {},
-    emitTurnChunk() {},
-    emitTurnToolCalls() {},
-    emitTurnToolResults() {},
-    emitTurnFinished() {},
-  }
-}
-
-function createLocalServerLogger(appDataRoot: string) {
-  return createSystemLogger({
-    console,
-    filePath: join(createAgentRuntimePaths(appDataRoot).logsRoot, 'local-server.log'),
-    source: 'local-server',
-    writeDebugToConsole: true,
-  })
-}
-
-function buildServices(env: ReturnType<typeof createAgentRuntimeEnvironment>): LocalServerServices {
-  return {
-    conversationRepository: env.appDataContext.conversationRepository,
-    messageRepository: env.appDataContext.messageRepository,
-    settingsRepository: env.appDataContext.settingsRepository,
-    providerSettingsRepository: env.appDataContext.providerSettingsRepository,
-    modelsDevImporter: createModelsDevImporter(env.appDataContext),
-    memoryManager: {
-      readMemoryFiles: () => env.appDataContext.memoryManager.readMemoryFiles(),
-      updateMemoryFiles: input => env.appDataContext.memoryManager.updateMemoryFiles(input),
-      rollbackSoul: () => env.appDataContext.memoryManager.rollbackSoul(),
-    },
-    skillService: env.skillManagementService,
-    workspaceService: env.appDataContext.workspaceService,
-    agentController: env.agentController as unknown as LocalServerServices['agentController'],
-    commandController: env.commandController,
-    conversationTitleGenerator: createConversationTitleGenerator({
-      providerSettingsRepository: env.appDataContext.providerSettingsRepository,
-      messageRepository: env.appDataContext.messageRepository,
-      conversationRepository: env.appDataContext.conversationRepository,
-    }),
   }
 }
 
@@ -88,16 +34,55 @@ async function main() {
   const withWeb = values.web as boolean
   const sseClients = new Set<ServerResponse>()
   const appDataRoot = resolveAppDataRoot()
-  const logger = createLocalServerLogger(appDataRoot)
-
-  const env = createAgentRuntimeEnvironment({
+  const runtime = createAppRuntime({
     appDataRoot,
-    eventEmitter: createSseEventEmitter(sseClients),
-    logger,
+    host: {
+      proxy: {
+        async apply(settings) {
+          if (settings.mode === 'custom' && settings.customProxyUrl) {
+            setGlobalDispatcher(new EnvHttpProxyAgent({
+              httpProxy: settings.customProxyUrl,
+              httpsProxy: settings.customProxyUrl,
+              noProxy: 'localhost,127.0.0.1,0.0.0.0,[::1],::1',
+            }))
+          }
+          else if (settings.mode === 'system') {
+            setGlobalDispatcher(new EnvHttpProxyAgent())
+          }
+          else {
+            setGlobalDispatcher(new Agent())
+          }
+        },
+        async test(proxyUrl) {
+          const dispatcher = new EnvHttpProxyAgent({
+            httpProxy: proxyUrl,
+            httpsProxy: proxyUrl,
+          })
+          try {
+            const response = await fetch('https://www.google.com/generate_204', {
+              dispatcher,
+              signal: AbortSignal.timeout(10_000),
+            })
+            return response.ok
+          }
+          finally {
+            await dispatcher.close()
+          }
+        },
+      },
+    },
   })
+  await runtime.initialize()
+  const handleLocalApi = createLocalApiHandler(runtime)
 
-  const services = buildServices(env)
-  const handleLocalApi = createLocalApiHandler(services)
+  runtime.events.on('message.updated', ({ message }) => sseBroadcast(sseClients, 'message:updated', message))
+  runtime.events.on('agent.task.updated', ({ task }) => sseBroadcast(sseClients, 'agent:state-updated', { task }))
+  runtime.events.on('agent.approval.required', event => sseBroadcast(sseClients, 'agent:approval-required', event))
+  runtime.events.on('workspace.changed', event => sseBroadcast(sseClients, 'workspace:changed', event))
+  runtime.events.on('provider.changed', event => sseBroadcast(sseClients, 'provider:changed', event))
+  runtime.events.on('settings.changed', event => sseBroadcast(sseClients, 'settings:updated', event))
+  runtime.events.on('mcp.connection.changed', event =>
+    sseBroadcast(sseClients, 'mcp:McpServerStatusChanged', [event.serverName, event.status]))
 
   // SSE endpoint: browser connects here for real-time events
   function handleSse(req: import('node:http').IncomingMessage, res: ServerResponse): boolean {
@@ -125,7 +110,7 @@ async function main() {
       server: { middlewareMode: true },
     })
     viteMiddleware = viteServer.middlewares as unknown as typeof viteMiddleware
-    logger.info('Vite middleware attached', { root: webRoot })
+    console.info('Vite middleware attached', { root: webRoot })
   }
 
   const server = createHttpServer(async (req, res) => {
@@ -150,27 +135,25 @@ async function main() {
   })
 
   server.listen(port, '127.0.0.1', () => {
-    logger.info(`listening on http://127.0.0.1:${port}`)
-    logger.info(`SSE endpoint: http://127.0.0.1:${port}/api/events`)
+    console.info(`listening on http://127.0.0.1:${port}`)
+    console.info(`SSE endpoint: http://127.0.0.1:${port}/api/events`)
     if (withWeb) {
-      logger.info(`Web UI: http://127.0.0.1:${port}`)
+      console.info(`Web UI: http://127.0.0.1:${port}`)
     }
   })
 
-  const shutdown = () => {
-    logger.info('shutting down')
+  const shutdown = async () => {
+    console.info('shutting down')
     for (const client of sseClients) {
       client.end()
     }
     sseClients.clear()
-    if (env.db) {
-      env.db.close()
-    }
+    await runtime.dispose()
     server.close(() => process.exit(0))
   }
 
-  process.on('SIGINT', shutdown)
-  process.on('SIGTERM', shutdown)
+  process.on('SIGINT', () => void shutdown())
+  process.on('SIGTERM', () => void shutdown())
 }
 
 main()

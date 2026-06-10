@@ -1,10 +1,10 @@
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { createAgentRuntimePaths } from '../paths'
+import { createAppRuntimePaths } from '../paths'
 
-describe('createAgentRuntimePaths', () => {
+describe('createAppRuntimePaths', () => {
   it('derives runtime paths from one root', () => {
-    const paths = createAgentRuntimePaths('/data/ant-chat')
+    const paths = createAppRuntimePaths('/data/ant-chat')
 
     expect(paths).toEqual({
       root: '/data/ant-chat',
@@ -21,7 +21,7 @@ describe('createAgentRuntimePaths', () => {
   })
 
   it('uses one database file name for every host', () => {
-    const paths = createAgentRuntimePaths('/data/ant-chat')
+    const paths = createAppRuntimePaths('/data/ant-chat')
 
     expect(paths.databaseFile).toBe(path.join('/data/ant-chat', 'ant-chat.db'))
   })

@@ -4,7 +4,8 @@ import { AgentIpcService } from '../ipc'
 
 const mocks = vi.hoisted(() => ({
   startAgentTurn: vi.fn(async () => ({ taskId: 't2', conversationId: 'c1', userMessageId: 'm1', conversation: { id: 'c1' } })),
-  runtime: {
+  agent: {
+    startTurn: vi.fn(async () => ({ taskId: 't2', conversationId: 'c1', userMessageId: 'm1', conversation: { id: 'c1' } })),
     approvePendingAction: vi.fn(),
     rejectPendingAction: vi.fn(),
     cancelTask: vi.fn(),
@@ -19,13 +20,9 @@ vi.mock('electron-ipc-decorator', () => ({
   IpcMethod: () => () => {},
 }))
 
-vi.mock('@main/agent/runtime/agentRuntimeEnvironment', () => ({
-  getAgentRuntimeEnvironment: () => ({
-    agentController: {
-      startTurn: mocks.startAgentTurn,
-      approvePendingActionWithWhitelist: vi.fn(),
-    },
-    runtime: mocks.runtime,
+vi.mock('@main/runtime/appRuntime', () => ({
+  getAppRuntime: () => ({
+    agent: mocks.agent,
   }),
 }))
 

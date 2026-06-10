@@ -6,5 +6,5 @@ export default defineConfig({
   dts: true,
   sourcemap: true,
   clean: true,
-  external: ['@ant-chat/app-data', '@ant-chat/shared'],
+  external: ['@ant-chat/app-runtime', '@ant-chat/shared'],
 })

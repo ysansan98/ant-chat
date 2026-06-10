@@ -2,7 +2,11 @@ import type { AppTransport } from '@ant-chat/shared'
 
 export function createLocalWebTransport(): AppTransport {
   return {
-    capabilities: {},
+    capabilities: {
+      nativeWindow: false,
+      autoUpdate: false,
+      nativeFilePicker: false,
+    },
     chat: {
       createConversationsTitle: options => localRpc('chat.createConversationsTitle', { ...options }),
       getConversations: (pageIndex, pageSize) => localRpc('chat.getConversations', { pageIndex, pageSize }),
@@ -22,6 +26,7 @@ export function createLocalWebTransport(): AppTransport {
       getSettings: () => localRpc('settings.getSettings'),
       updateSettings: updates => localRpc('settings.updateSettings', { updates }),
       resetSettings: () => localRpc('settings.resetSettings'),
+      testProxyConnection: proxyUrl => localRpc('settings.testProxyConnection', { proxyUrl }),
     },
     provider: {
       listProviders: () => localRpc('provider.listProviders'),
@@ -52,6 +57,23 @@ export function createLocalWebTransport(): AppTransport {
       getMemoryFiles: () => localRpc('memory.getMemoryFiles'),
       updateMemoryFiles: input => localRpc('memory.updateMemoryFiles', { input }),
       rollbackSoul: () => localRpc('memory.rollbackSoul'),
+    },
+    mcp: {
+      getConfigs: () => localRpc('mcp.getConfigs'),
+      getConfigByServerName: serverName => localRpc('mcp.getConfigByServerName', { serverName }),
+      addConfig: config => localRpc('mcp.addConfig', { config }),
+      updateConfig: config => localRpc('mcp.updateConfig', { config }),
+      deleteConfig: serverName => localRpc('mcp.deleteConfig', { serverName }),
+      getConnections: () => localRpc('mcp.getConnections'),
+      getAllAvailableToolsList: () => localRpc('mcp.getAllAvailableToolsList'),
+      callTool: (serverName, toolName, toolArguments) => localRpc('mcp.callTool', { serverName, toolName, toolArguments }),
+      connectMcpServer: (name, config) => localRpc('mcp.connectMcpServer', { name, config }),
+      disconnectMcpServer: name => localRpc('mcp.disconnectMcpServer', { name }),
+      reconnectMcpServer: (name, config) => localRpc('mcp.reconnectMcpServer', { name, config }),
+      fetchMcpServerTools: name => localRpc('mcp.fetchMcpServerTools', { name }),
+    },
+    search: {
+      searchByKeyword: query => localRpc('search.searchByKeyword', { query }),
     },
     agent: {
       startTurn: options => localRpc('agent.startTurn', { options }),

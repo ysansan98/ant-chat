@@ -6,7 +6,11 @@ export function createElectronIpcTransport(): AppTransport {
   const ipc = createIpcProxy<AppIpcServices>(window.electron.ipcRenderer)!
 
   return {
-    capabilities: {},
+    capabilities: {
+      nativeWindow: true,
+      autoUpdate: true,
+      nativeFilePicker: true,
+    },
     chat: {
       createConversationsTitle: options => ipc.chat.createConversationsTitle(options),
       getConversations: async (pageIndex, pageSize) => unwrapIpcPaginatedResponse(await ipc.chat.getConversations(pageIndex, pageSize)),
@@ -26,6 +30,7 @@ export function createElectronIpcTransport(): AppTransport {
       getSettings: async () => unwrapIpcResponse(await ipc.settings.getSettings()),
       updateSettings: async updates => unwrapIpcResponse(await ipc.settings.updateSettings(updates)),
       resetSettings: async () => unwrapIpcResponse(await ipc.settings.resetSettings()),
+      testProxyConnection: async proxyUrl => unwrapIpcResponse(await ipc.settings.testProxyConnection(proxyUrl)),
     },
     provider: {
       listProviders: async () => unwrapIpcResponse(await ipc.provider.listProviders()),
@@ -56,6 +61,23 @@ export function createElectronIpcTransport(): AppTransport {
       getMemoryFiles: async () => unwrapIpcResponse(await ipc.memory.getMemoryFiles()),
       updateMemoryFiles: async input => unwrapIpcResponse(await ipc.memory.updateMemoryFiles(input)),
       rollbackSoul: async () => unwrapIpcResponse(await ipc.memory.rollbackSoul()),
+    },
+    mcp: {
+      getConfigs: async () => unwrapIpcResponse(await ipc.mcp.getConfigs()),
+      getConfigByServerName: async serverName => unwrapIpcResponse(await ipc.mcp.getConfigByServerName(serverName)),
+      addConfig: async config => unwrapIpcResponse(await ipc.mcp.addConfig(config)),
+      updateConfig: async config => unwrapIpcResponse(await ipc.mcp.updateConfig(config)),
+      deleteConfig: async serverName => unwrapIpcResponse(await ipc.mcp.deleteConfig(serverName)),
+      getConnections: async () => unwrapIpcResponse(await ipc.mcp.getConnections()),
+      getAllAvailableToolsList: async () => unwrapIpcResponse(await ipc.mcp.getAllAvailableToolsList()),
+      callTool: async (serverName, toolName, toolArguments) => unwrapIpcResponse(await ipc.mcp.callTool(serverName, toolName, toolArguments)),
+      connectMcpServer: async (name, config) => unwrapIpcResponse(await ipc.mcp.connectMcpServer(name, config)),
+      disconnectMcpServer: async name => unwrapIpcResponse(await ipc.mcp.disconnectMcpServer(name)),
+      reconnectMcpServer: async (name, config) => unwrapIpcResponse(await ipc.mcp.reconnectMcpServer(name, config)),
+      fetchMcpServerTools: async name => unwrapIpcResponse(await ipc.mcp.fetchMcpServerTools(name)),
+    },
+    search: {
+      searchByKeyword: async query => unwrapIpcResponse(await ipc.search.searchByKeyword(query)),
     },
     agent: {
       startTurn: async options => unwrapIpcResponse(await ipc.agent.startTurn(options)),

@@ -1,5 +1,4 @@
 import type { ProxySettings } from '@ant-chat/shared'
-import { getAgentRuntimeEnvironment } from '@main/agent/runtime/agentRuntimeEnvironment'
 import { logger } from '@main/utils/logger'
 import { Agent, EnvHttpProxyAgent, setGlobalDispatcher } from 'undici'
 import { getSystemProxySettings } from './system-proxy'
@@ -21,6 +20,9 @@ export class ProxyManager {
   }
 
   async updateProxySettings(settings: ProxySettings): Promise<void> {
+    if (!this.originalDispatcher) {
+      this.originalDispatcher = globalThis.dispatcher
+    }
     this.currentSettings = settings
     await this.applyProxy()
   }
@@ -117,17 +119,6 @@ export class ProxyManager {
     return await getSystemProxySettings()
   }
 
-  // 从主进程存储初始化代理设置
-  async initializeFromStorage(): Promise<void> {
-    // 保存原始 dispatcher
-    if (!this.originalDispatcher) {
-      this.originalDispatcher = globalThis.dispatcher
-    }
-
-    const settings = await getAgentRuntimeEnvironment().appDataContext.settingsRepository.getGeneralSettings()
-    await this.updateProxySettings(settings.proxySettings)
-  }
-
   // 获取当前代理设置
   getCurrentSettings(): ProxySettings {
     return { ...this.currentSettings }
@@ -157,9 +148,4 @@ export class ProxyManager {
     this.originalDispatcher = null
     logger.info('ProxyManager cleaned up')
   }
-}
-
-// 初始化时应用代理设置
-export async function initializeProxy(): Promise<void> {
-  await ProxyManager.getInstance().initializeFromStorage()
 }

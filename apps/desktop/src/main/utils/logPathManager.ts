@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { createAgentRuntimePaths } from '@ant-chat/agent-runtime'
+import { createAppRuntimePaths } from '@ant-chat/app-runtime'
 import { resolveAppDataRoot } from '@ant-chat/shared'
 
 export class LogPathManager {
@@ -13,7 +13,7 @@ export class LogPathManager {
   }
 
   private resolveDefaultDir(): string {
-    return createAgentRuntimePaths(resolveAppDataRoot()).logsRoot
+    return createAppRuntimePaths(resolveAppDataRoot()).logsRoot
   }
 
   getSystemLogPath(): string {

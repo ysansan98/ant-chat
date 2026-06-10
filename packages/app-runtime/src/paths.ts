@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-export interface AgentRuntimePaths {
+export interface AppRuntimePaths {
   root: string
   databaseFile: string
   settingsFile: string
@@ -13,7 +13,7 @@ export interface AgentRuntimePaths {
   taskLogsRoot: string
 }
 
-export function createAgentRuntimePaths(root: string): AgentRuntimePaths {
+export function createAppRuntimePaths(root: string): AppRuntimePaths {
   const logsRoot = path.join(root, 'logs')
 
   return {

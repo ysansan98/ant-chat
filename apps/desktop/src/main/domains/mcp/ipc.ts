@@ -1,10 +1,7 @@
-import type { AddMcpConfigSchema, IpcResponse, McpConfigSchema, McpServer, McpTool, McpToolCallResponse, TextResult, UpdateMcpConfigSchema } from '@ant-chat/shared'
+import type { AddMcpConfigSchema, IpcResponse, McpConfigSchema, McpServer, McpTool, McpToolCallResponse, UpdateMcpConfigSchema } from '@ant-chat/shared'
 import { createErrorIpcResponse, createIpcResponse } from '@ant-chat/shared'
-import { getAgentRuntimeEnvironment } from '@main/agent/runtime/agentRuntimeEnvironment'
-import { sendToRenderer } from '@main/utils/ipc-events'
+import { getAppRuntime } from '@main/runtime/appRuntime'
 import { logger } from '@main/utils/logger'
-import { Notification } from '@main/utils/notification'
-import { getMainWindow } from '@main/windows/window'
 import { IpcMethod, IpcService } from 'electron-ipc-decorator'
 
 export class McpIpcService extends IpcService {
@@ -13,7 +10,7 @@ export class McpIpcService extends IpcService {
   @IpcMethod()
   async getConfigs(): Promise<IpcResponse<McpConfigSchema[]>> {
     try {
-      const data = getAgentRuntimeEnvironment().appDataContext.mcpSettingsRepository.getMcpConfigs()
+      const data = getAppRuntime().mcp.getConfigs()
       return createIpcResponse(true, data)
     }
     catch (error) {
@@ -25,10 +22,7 @@ export class McpIpcService extends IpcService {
   @IpcMethod()
   async getConfigByServerName(serverName: string): Promise<IpcResponse<McpConfigSchema>> {
     try {
-      const data = getAgentRuntimeEnvironment().appDataContext.mcpSettingsRepository.getMcpConfigByServerName(serverName)
-      if (!data) {
-        throw new Error(`MCP server not found: ${serverName}`)
-      }
+      const data = getAppRuntime().mcp.getConfig(serverName)
       return createIpcResponse(true, data)
     }
     catch (error) {
@@ -40,7 +34,7 @@ export class McpIpcService extends IpcService {
   @IpcMethod()
   async addConfig(config: AddMcpConfigSchema): Promise<IpcResponse<McpConfigSchema>> {
     try {
-      const data = getAgentRuntimeEnvironment().appDataContext.mcpSettingsRepository.addMcpConfig(config)
+      const data = getAppRuntime().mcp.addConfig(config)
       return createIpcResponse(true, data)
     }
     catch (error) {
@@ -52,7 +46,7 @@ export class McpIpcService extends IpcService {
   @IpcMethod()
   async updateConfig(config: UpdateMcpConfigSchema): Promise<IpcResponse<McpConfigSchema>> {
     try {
-      const data = getAgentRuntimeEnvironment().appDataContext.mcpSettingsRepository.updateMcpConfig(config)
+      const data = getAppRuntime().mcp.updateConfig(config)
       return createIpcResponse(true, data)
     }
     catch (error) {
@@ -64,7 +58,7 @@ export class McpIpcService extends IpcService {
   @IpcMethod()
   async deleteConfig(serverName: string): Promise<IpcResponse<null>> {
     try {
-      getAgentRuntimeEnvironment().appDataContext.mcpSettingsRepository.deleteMcpConfig(serverName)
+      getAppRuntime().mcp.deleteConfig(serverName)
       return createIpcResponse(true, null)
     }
     catch (error) {
@@ -75,61 +69,36 @@ export class McpIpcService extends IpcService {
 
   @IpcMethod()
   async getConnections(): Promise<IpcResponse<Pick<McpServer, 'name' | 'config' | 'tools' | 'status'>[]>> {
-    const result: Pick<McpServer, 'name' | 'config' | 'tools' | 'status'>[] = getAgentRuntimeEnvironment().mcpClientHub.connections.map((item) => {
-      const { server } = item
-      const { name, config, tools = [], status } = server
-
-      return { name, config, tools, status }
-    })
-
-    return createIpcResponse(true, result)
+    return createIpcResponse(true, getAppRuntime().mcp.getConnections())
   }
 
   @IpcMethod()
   async getAllAvailableToolsList(): Promise<IpcResponse<McpTool[]>> {
-    const data = getAgentRuntimeEnvironment().mcpClientHub.getAllAvailableToolsList() as McpTool[]
+    const data = getAppRuntime().mcp.getAllTools()
     return createIpcResponse(true, data)
   }
 
   @IpcMethod()
   async callTool(serverName: string, toolName: string, toolArguments?: Record<string, unknown>): Promise<IpcResponse<McpToolCallResponse>> {
-    const data = await getAgentRuntimeEnvironment().mcpClientHub.callTool(serverName, toolName, toolArguments)
-
-    const content = (data.content || [])
-      .filter(item => item.type === 'text')
-      .map(item => ({ type: 'text', text: item.text })) as TextResult[]
-
-    return createIpcResponse(true, { content, isError: data.isError })
+    return createIpcResponse(true, await getAppRuntime().mcp.callTool(serverName, toolName, toolArguments))
   }
 
   @IpcMethod()
   async connectMcpServer(name: string, mcpConfig: McpConfigSchema): Promise<IpcResponse<null>> {
-    let ok = false
-    let msg = ''
-    let status: 'connected' | 'disconnected' = 'connected'
-    const mainWindow = getMainWindow()
     try {
-      ok = await getAgentRuntimeEnvironment().mcpClientHub.connectToServer(name, mcpConfig)
+      await getAppRuntime().mcp.connect(name, mcpConfig)
+      return createIpcResponse(true, null)
     }
     catch (e) {
       logger.error('connect mcp server error', e)
-      status = 'disconnected'
-      if (mainWindow) {
-        msg = (e as Error).message
-        Notification.error({ message: `${name} connect fail.`, description: msg })
-      }
+      return createErrorIpcResponse(e as Error)
     }
-
-    if (mainWindow) {
-      sendToRenderer(mainWindow.webContents, 'mcp:McpServerStatusChanged', name, status)
-    }
-    return createIpcResponse(ok, null, msg)
   }
 
   @IpcMethod()
   async disconnectMcpServer(name: string): Promise<IpcResponse<null>> {
-    const ok = await getAgentRuntimeEnvironment().mcpClientHub.deleteConnection(name)
-    return createIpcResponse(ok, null)
+    await getAppRuntime().mcp.disconnect(name)
+    return createIpcResponse(true, null)
   }
 
   @IpcMethod()
@@ -137,8 +106,7 @@ export class McpIpcService extends IpcService {
     let ok = true
     let msg = ''
     try {
-      await getAgentRuntimeEnvironment().mcpClientHub.deleteConnection(name)
-      await getAgentRuntimeEnvironment().mcpClientHub.connectToServer(name, mcpConfig)
+      await getAppRuntime().mcp.reconnect(name, mcpConfig)
     }
     catch (e) {
       ok = false
@@ -150,23 +118,13 @@ export class McpIpcService extends IpcService {
 
   @IpcMethod()
   async fetchMcpServerTools(name: string): Promise<IpcResponse<McpTool[]>> {
-    const data = await getAgentRuntimeEnvironment().mcpClientHub.fetchToolsList(name) as McpTool[]
+    const data = await getAppRuntime().mcp.fetchTools(name) as McpTool[]
     return createIpcResponse(true, data)
   }
 
   @IpcMethod()
   async mcpToggle(isEnable: boolean, mcpConfigs?: McpConfigSchema[]): Promise<IpcResponse<null>> {
-    if (isEnable) {
-      if (!mcpConfigs) {
-        return createIpcResponse(false, null, 'needs mcpConfig')
-      }
-      getAgentRuntimeEnvironment().mcpClientHub.initializeMcpServers(mcpConfigs)
-    }
-    else {
-      getAgentRuntimeEnvironment().mcpClientHub.connections.map(item => item.server.name).forEach((name) => {
-        getAgentRuntimeEnvironment().mcpClientHub.deleteConnection(name)
-      })
-    }
+    await getAppRuntime().mcp.setEnabled(isEnable, mcpConfigs)
     return createIpcResponse(true, null)
   }
 }

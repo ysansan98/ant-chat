@@ -3,14 +3,8 @@ import { ChatIpcService } from '../ipc'
 
 const mocks = vi.hoisted(() => ({
   updateTitle: vi.fn(),
-  conversationRepository: {
-    list: vi.fn(),
-    create: vi.fn(),
-    update: vi.fn(),
-  },
-  workspaceService: {
-    getCurrentWorkspacePath: vi.fn(() => '/workspace'),
-    getDefaultWorkspacePath: vi.fn(() => '/workspace'),
+  chat: {
+    createConversationTitle: vi.fn(),
   },
 }))
 
@@ -19,18 +13,10 @@ vi.mock('electron-ipc-decorator', () => ({
   IpcMethod: () => () => {},
 }))
 
-vi.mock('@ant-chat/agent-runtime', () => ({
-  createConversationTitleGenerator: vi.fn(() => ({
-    updateTitle: mocks.updateTitle,
-  })),
-}))
-
-vi.mock('@main/agent/runtime/agentRuntimeEnvironment', () => ({
-  getAgentRuntimeEnvironment: () => ({
-    appDataContext: {
-      conversationRepository: mocks.conversationRepository,
-      messageRepository: {},
-      workspaceService: mocks.workspaceService,
+vi.mock('@main/runtime/appRuntime', () => ({
+  getAppRuntime: () => ({
+    chat: {
+      createConversationTitle: mocks.updateTitle,
     },
   }),
 }))
@@ -56,6 +42,6 @@ describe('chat ipc', () => {
     if (!resp.success) {
       expect(resp.msg).toContain('No output generated')
     }
-    expect(mocks.conversationRepository.update).not.toHaveBeenCalled()
+    expect(mocks.updateTitle).toHaveBeenCalledWith('conv-1', 'model-1')
   })
 })

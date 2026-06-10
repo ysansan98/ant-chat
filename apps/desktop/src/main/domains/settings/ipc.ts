@@ -1,11 +1,8 @@
 import type { GeneralSettingsState, IpcResponse } from '@ant-chat/shared'
 import { createErrorIpcResponse, createIpcResponse } from '@ant-chat/shared'
-import { getAgentRuntimeEnvironment } from '@main/agent/runtime/agentRuntimeEnvironment'
+import { getAppRuntime } from '@main/runtime/appRuntime'
 import { logger } from '@main/utils/logger'
-import { ProxyManager } from '@main/utils/proxy-manager'
-import { testProxyConnection } from '@main/utils/system-proxy'
-import { getSettingsWindow, openSettingsWindow } from '@main/windows/settings-window'
-import { getMainWindow } from '@main/windows/window'
+import { openSettingsWindow } from '@main/windows/settings-window'
 import { IpcMethod, IpcService } from 'electron-ipc-decorator'
 
 export class SettingsIpcService extends IpcService {
@@ -26,7 +23,7 @@ export class SettingsIpcService extends IpcService {
   @IpcMethod()
   async getSettings(): Promise<IpcResponse<GeneralSettingsState>> {
     try {
-      const settings = await getAgentRuntimeEnvironment().appDataContext.settingsRepository.getGeneralSettings()
+      const settings = await getAppRuntime().settings.get()
       return createIpcResponse(true, settings)
     }
     catch (error) {
@@ -37,25 +34,7 @@ export class SettingsIpcService extends IpcService {
   @IpcMethod()
   async updateSettings(updates: Partial<GeneralSettingsState>): Promise<IpcResponse<GeneralSettingsState>> {
     try {
-      const updatedSettings = await getAgentRuntimeEnvironment().appDataContext.settingsRepository.updateGeneralSettings(updates)
-
-      if (updates.proxySettings) {
-        await ProxyManager.getInstance().updateProxySettings(updates.proxySettings)
-      }
-
-      // 广播 settings:updated 事件
-      const mainWindow = getMainWindow()
-      const settingsWindow = getSettingsWindow()
-      const keys = Object.keys(updates)
-
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('settings:updated', { keys })
-      }
-      if (settingsWindow && !settingsWindow.isDestroyed()) {
-        settingsWindow.webContents.send('settings:updated', { keys })
-      }
-
-      return createIpcResponse(true, updatedSettings)
+      return createIpcResponse(true, await getAppRuntime().settings.update(updates))
     }
     catch (error) {
       console.error('Failed to update general settings:', error)
@@ -66,22 +45,7 @@ export class SettingsIpcService extends IpcService {
   @IpcMethod()
   async resetSettings(): Promise<IpcResponse<GeneralSettingsState>> {
     try {
-      const settings = await getAgentRuntimeEnvironment().appDataContext.settingsRepository.resetGeneralSettings()
-
-      await ProxyManager.getInstance().updateProxySettings(settings.proxySettings)
-
-      // 广播 settings:updated 事件
-      const mainWindow = getMainWindow()
-      const settingsWindow = getSettingsWindow()
-
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('settings:updated', { keys: ['all'] })
-      }
-      if (settingsWindow && !settingsWindow.isDestroyed()) {
-        settingsWindow.webContents.send('settings:updated', { keys: ['all'] })
-      }
-
-      return createIpcResponse(true, settings)
+      return createIpcResponse(true, await getAppRuntime().settings.reset())
     }
     catch (error) {
       return createErrorIpcResponse(error instanceof Error ? error : String(error))
@@ -91,7 +55,7 @@ export class SettingsIpcService extends IpcService {
   @IpcMethod()
   async testProxyConnection(proxyUrl: string): Promise<IpcResponse<boolean>> {
     try {
-      const success = await testProxyConnection(proxyUrl)
+      const success = await getAppRuntime().settings.testProxy(proxyUrl)
       return createIpcResponse(true, success)
     }
     catch (error) {

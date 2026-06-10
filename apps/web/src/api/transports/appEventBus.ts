@@ -60,9 +60,10 @@ function createSseEventBus(): AppEventBus {
       if (!handlers)
         return
       for (const handler of handlers) {
-        // Match Electron signature: (event, data)
-        // First arg is the IPC event object (not used in web), second is the payload
-        handler(null, data)
+        if (Array.isArray(data))
+          handler(null, ...data)
+        else
+          handler(null, data)
       }
     }) as EventListener)
   }

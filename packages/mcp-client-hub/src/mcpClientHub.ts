@@ -30,6 +30,7 @@ export class MCPClientHub {
   connections: McpConnection[] = []
   isWin32 = getCurrentPlatform() === 'win32'
   private onErrorCallbacks: ((name: string, e: Error) => void)[] = []
+  private onStatusChangeCallbacks: ((name: string, status: McpServer['status']) => void)[] = []
 
   addErrorCallback(callback: (name: string, e: Error) => void) {
     if (typeof callback === 'function') {
@@ -42,6 +43,10 @@ export class MCPClientHub {
     if (index > -1) {
       this.onErrorCallbacks.splice(index, 1)
     }
+  }
+
+  addStatusChangeCallback(callback: (name: string, status: McpServer['status']) => void) {
+    this.onStatusChangeCallbacks.push(callback)
   }
 
   async initializeMcpServers(mcpServers: McpConfigSchema[]): Promise<void> {
@@ -127,6 +132,7 @@ export class MCPClientHub {
       const connection = this.connections.find(conn => conn.server.name === name)
       if (connection) {
         connection.server.status = 'disconnected'
+        this.emitStatusChange(name, 'disconnected')
       }
     }
 
@@ -135,6 +141,7 @@ export class MCPClientHub {
       const connection = this.connections.find(conn => conn.server.name === name)
       if (connection) {
         connection.server.status = 'disconnected'
+        this.emitStatusChange(name, 'disconnected')
       }
     }
 
@@ -153,6 +160,7 @@ export class MCPClientHub {
     await connection.client.connect(transport)
     connection.server.status = 'connected'
     connection.server.error = ''
+    this.emitStatusChange(name, 'connected')
 
     // 获取tools列表
     connection.server.tools = (await this.fetchToolsList(name)) || []
@@ -259,6 +267,7 @@ export class MCPClientHub {
       try {
         await connection.transport.close()
         await connection.client.close()
+        this.emitStatusChange(name, 'disconnected')
       }
       catch (error) {
         console.error(`Failed to close transport for ${name}:`, error)
@@ -267,6 +276,11 @@ export class MCPClientHub {
     }
 
     return true
+  }
+
+  private emitStatusChange(name: string, status: McpServer['status']): void {
+    for (const callback of this.onStatusChangeCallbacks)
+      callback(name, status)
   }
 }
 

@@ -44,8 +44,14 @@ import type {
 import type { UpdateConfig, UpdateInfo, UpdateStatus } from './update'
 import type { ListWorkspacesData, WorkspaceDirectoryListing, WorkspaceFileSearchResult } from './workspace'
 
+export interface AppCapabilities {
+  nativeWindow: boolean
+  autoUpdate: boolean
+  nativeFilePicker: boolean
+}
+
 export interface AppTransport {
-  capabilities: Record<string, never>
+  capabilities: AppCapabilities
   chat: {
     createConversationsTitle: (options: handleInitConversationTitleOptions) => Promise<IpcResponse<IConversations>>
     getConversations: (pageIndex: number, pageSize: number) => Promise<{ data: IConversations[], total: number }>
@@ -65,6 +71,7 @@ export interface AppTransport {
     getSettings: () => Promise<GeneralSettingsState>
     updateSettings: (updates: Partial<GeneralSettingsState>) => Promise<GeneralSettingsState>
     resetSettings: () => Promise<GeneralSettingsState>
+    testProxyConnection: (proxyUrl: string) => Promise<boolean>
   }
   provider: {
     listProviders: () => Promise<ProviderConfigSchema[]>
@@ -95,6 +102,23 @@ export interface AppTransport {
     getMemoryFiles: () => Promise<AgentMemoryFiles>
     updateMemoryFiles: (input: UpdateAgentMemoryInput) => Promise<AgentMemoryFiles>
     rollbackSoul: () => Promise<AgentMemoryFiles>
+  }
+  mcp: {
+    getConfigs: () => Promise<McpConfigSchema[]>
+    getConfigByServerName: (serverName: string) => Promise<McpConfigSchema>
+    addConfig: (config: AddMcpConfigSchema) => Promise<McpConfigSchema>
+    updateConfig: (config: UpdateMcpConfigSchema) => Promise<McpConfigSchema>
+    deleteConfig: (serverName: string) => Promise<null>
+    getConnections: () => Promise<McpConnection[]>
+    getAllAvailableToolsList: () => Promise<McpTool[]>
+    callTool: (serverName: string, toolName: string, toolArguments?: Record<string, unknown>) => Promise<McpToolCallResponse>
+    connectMcpServer: (name: string, config: McpConfigSchema) => Promise<null>
+    disconnectMcpServer: (name: string) => Promise<null>
+    reconnectMcpServer: (name: string, config: McpConfigSchema) => Promise<null>
+    fetchMcpServerTools: (name: string) => Promise<McpTool[]>
+  }
+  search: {
+    searchByKeyword: (query: string) => Promise<SearchResult[]>
   }
   agent: {
     startTurn: (options: StartAgentTurnOptions) => Promise<AgentTurnResult>

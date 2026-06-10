@@ -1,5 +1,5 @@
 {
-  "name": "@ant-chat/app-data",
+  "name": "@ant-chat/app-runtime",
   "type": "module",
   "license": "MIT",
   "exports": {
@@ -26,11 +26,14 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@ant-chat/agent-core": "workspace:^",
+    "@ant-chat/agent-runtime": "workspace:^",
+    "@ant-chat/app-data": "workspace:^",
+    "@ant-chat/mcp-client-hub": "workspace:^",
     "@ant-chat/shared": "workspace:^",
-    "nanoid": "^5.0.9"
+    "better-sqlite3": "catalog:"
   },
   "devDependencies": {
-    "better-sqlite3": "catalog:",
     "tsdown": "catalog:",
     "vitest": "catalog:"
   }

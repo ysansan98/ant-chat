@@ -9,6 +9,7 @@ import { ArchiveIcon, GitBranchIcon, RefreshCwIcon, Trash2Icon } from 'lucide-re
 import React from 'react'
 import { toast } from 'sonner'
 import { skillApi } from '@/api/skillApi'
+import { getAppTransport } from '@/api/transports/appTransport'
 
 interface SkillState { data: SkillIndex, loading: boolean }
 
@@ -29,10 +30,15 @@ function skillReducer(state: SkillState, action: SkillAction): SkillState {
 }
 
 export default function SkillManage() {
+  const [nativeFilePicker, setNativeFilePicker] = React.useState(false)
   const [state, dispatch] = React.useReducer(skillReducer, {
     data: { rootPath: '', skills: [] },
     loading: false,
   })
+
+  React.useEffect(() => {
+    void getAppTransport().then(transport => setNativeFilePicker(transport.capabilities.nativeFilePicker))
+  }, [])
   const [githubOpen, setGithubOpen] = React.useState(false)
   const [githubUrl, setGithubUrl] = React.useState('')
 
@@ -81,14 +87,16 @@ export default function SkillManage() {
               <RefreshCwIcon data-icon="inline-start" />
               Rebuild
             </Button>
-            <Button
-              variant="outline"
-              disabled={state.loading}
-              onClick={() => void runAction(async () => skillApi.importSkillFromZip(), 'ZIP 已导入')}
-            >
-              <ArchiveIcon data-icon="inline-start" />
-              Import ZIP
-            </Button>
+            {nativeFilePicker && (
+              <Button
+                variant="outline"
+                disabled={state.loading}
+                onClick={() => void runAction(async () => skillApi.importSkillFromZip(), 'ZIP 已导入')}
+              >
+                <ArchiveIcon data-icon="inline-start" />
+                Import ZIP
+              </Button>
+            )}
             <Button disabled={state.loading} onClick={() => setGithubOpen(true)}>
               <GitBranchIcon data-icon="inline-start" />
               Import GitHub

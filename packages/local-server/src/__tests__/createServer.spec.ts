@@ -1,24 +1,22 @@
 import type { AddressInfo } from 'node:net'
-import type { LocalServerServices } from '../createServer'
+import type { AppRuntime } from '@ant-chat/app-runtime'
 import { request } from 'node:http'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createLocalServer } from '../createServer'
 
-const services = {
-  conversationRepository: {
-    list: vi.fn(),
+const runtime = {
+  chat: {
+    listConversations: vi.fn(),
   },
-  messageRepository: {},
-  settingsRepository: {},
-} as unknown as LocalServerServices
+} as unknown as AppRuntime
 
 let server: ReturnType<typeof createLocalServer>
 let baseUrl: URL
 
 beforeEach(async () => {
   vi.clearAllMocks()
-  services.conversationRepository.list = vi.fn().mockResolvedValue({ data: [], total: 0 })
-  server = createLocalServer(services)
+  runtime.chat.listConversations = vi.fn().mockResolvedValue({ data: [], total: 0 })
+  server = createLocalServer(runtime)
   await new Promise<void>((resolve) => {
     server.listen(0, '127.0.0.1', resolve)
   })
@@ -67,7 +65,7 @@ describe('createLocalServer', () => {
       success: true,
       data: { data: [], total: 0 },
     })
-    expect(services.conversationRepository.list).toHaveBeenCalledWith(0, 20)
+    expect(runtime.chat.listConversations).toHaveBeenCalledWith(0, 20)
   })
 })
 

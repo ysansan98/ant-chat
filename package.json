@@ -9,7 +9,7 @@
     "name": "幺叁叁"
   },
   "scripts": {
-    "build:packages": "pnpm -F @ant-chat/shared build && pnpm -F @ant-chat/agent-core build && pnpm -F @ant-chat/app-data build && pnpm -F @ant-chat/agent-runtime build && pnpm -F @ant-chat/local-server build && pnpm -F @ant-chat/mcp-client-hub build",
+    "build:packages": "pnpm -F @ant-chat/shared build && pnpm -F @ant-chat/agent-core build && pnpm -F @ant-chat/app-data build && pnpm -F @ant-chat/agent-runtime build && pnpm -F @ant-chat/mcp-client-hub build && pnpm -F @ant-chat/app-runtime build && pnpm -F @ant-chat/local-server build",
     "dev": "pnpm -F @ant-chat/desktop dev",
     "dev:web": "pnpm -F @ant-chat/local-server dev:web",
     "build": "pnpm build:packages && pnpm -F @ant-chat/desktop build",
@@ -33,6 +33,7 @@
     "@eslint/js": "catalog:",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",

@@ -1,7 +1,6 @@
 import type { AddConversationsSchema, handleInitConversationTitleOptions, IConversations, IMessage, IpcPaginatedResponse, IpcResponse, UpdateConversationsSchema } from '@ant-chat/shared'
-import { createConversationTitleGenerator } from '@ant-chat/agent-runtime'
-import { AddMessage, createErrorIpcResponse, createIpcPaginatedResponse, createIpcResponse, UpdateMessageSchema } from '@ant-chat/shared'
-import { getAgentRuntimeEnvironment } from '@main/agent/runtime/agentRuntimeEnvironment'
+import { createErrorIpcResponse, createIpcPaginatedResponse, createIpcResponse } from '@ant-chat/shared'
+import { getAppRuntime } from '@main/runtime/appRuntime'
 import { logger } from '@main/utils/logger'
 import { IpcMethod, IpcService } from 'electron-ipc-decorator'
 
@@ -12,13 +11,7 @@ export class ChatIpcService extends IpcService {
   async createConversationsTitle(options: handleInitConversationTitleOptions): Promise<IpcResponse<IConversations>> {
     try {
       logger.info('IPC Event: chat:create-conversations-title', options)
-      const env = getAgentRuntimeEnvironment()
-      const titleService = createConversationTitleGenerator({
-        providerSettingsRepository: env.appDataContext.providerSettingsRepository,
-        messageRepository: env.appDataContext.messageRepository,
-        conversationRepository: env.appDataContext.conversationRepository,
-      })
-      const updatedConversations = await titleService.updateTitle(options.conversationsId, options.modelId)
+      const updatedConversations = await getAppRuntime().chat.createConversationTitle(options.conversationsId, options.modelId)
       return createIpcResponse(true, updatedConversations)
     }
     catch (error) {
@@ -30,10 +23,7 @@ export class ChatIpcService extends IpcService {
   @IpcMethod()
   async getConversations(pageIndex: number, pageSize: number): Promise<IpcPaginatedResponse<IConversations[]>> {
     try {
-      const workspaceStore = getAgentRuntimeEnvironment().appDataContext.workspaceService
-      const workspacePath = workspaceStore.getCurrentWorkspacePath()
-      const includeNullWorkspace = workspacePath === workspaceStore.getDefaultWorkspacePath()
-      const { data, total } = await getAgentRuntimeEnvironment().appDataContext.conversationRepository.list(pageIndex, pageSize, workspacePath, includeNullWorkspace)
+      const { data, total } = await getAppRuntime().chat.listConversations(pageIndex, pageSize)
       return createIpcPaginatedResponse(true, data, '', total)
     }
     catch (error) {
@@ -45,9 +35,7 @@ export class ChatIpcService extends IpcService {
   @IpcMethod()
   async getWorkspaceConversations(workspacePath: string, pageIndex: number, pageSize: number): Promise<IpcPaginatedResponse<IConversations[]>> {
     try {
-      const workspaceStore = getAgentRuntimeEnvironment().appDataContext.workspaceService
-      const includeNullWorkspace = workspacePath === workspaceStore.getDefaultWorkspacePath()
-      const { data, total } = await getAgentRuntimeEnvironment().appDataContext.conversationRepository.list(pageIndex, pageSize, workspacePath, includeNullWorkspace)
+      const { data, total } = await getAppRuntime().chat.listConversations(pageIndex, pageSize, workspacePath)
       return createIpcPaginatedResponse(true, data, '', total)
     }
     catch (error) {
@@ -59,7 +47,7 @@ export class ChatIpcService extends IpcService {
   @IpcMethod()
   async getConversationById(id: string): Promise<IpcResponse<IConversations>> {
     try {
-      const data = await getAgentRuntimeEnvironment().appDataContext.conversationRepository.getById(id)
+      const data = await getAppRuntime().chat.getConversation(id)
       return createIpcResponse(true, data)
     }
     catch (error) {
@@ -71,10 +59,7 @@ export class ChatIpcService extends IpcService {
   @IpcMethod()
   async addConversation(conversation: AddConversationsSchema): Promise<IpcResponse<IConversations>> {
     try {
-      const data = await getAgentRuntimeEnvironment().appDataContext.conversationRepository.create({
-        ...conversation,
-        workspacePath: conversation.workspacePath ?? getAgentRuntimeEnvironment().appDataContext.workspaceService.getCurrentWorkspacePath(),
-      })
+      const data = await getAppRuntime().chat.createConversation(conversation)
       return createIpcResponse(true, data)
     }
     catch (error) {
@@ -86,7 +71,7 @@ export class ChatIpcService extends IpcService {
   @IpcMethod()
   async updateConversation(conversation: UpdateConversationsSchema): Promise<IpcResponse<IConversations>> {
     try {
-      const data = await getAgentRuntimeEnvironment().appDataContext.conversationRepository.update(conversation)
+      const data = await getAppRuntime().chat.updateConversation(conversation)
       return createIpcResponse(true, data)
     }
     catch (error) {
@@ -98,7 +83,7 @@ export class ChatIpcService extends IpcService {
   @IpcMethod()
   async deleteConversation(id: string): Promise<IpcResponse<null>> {
     try {
-      await getAgentRuntimeEnvironment().appDataContext.conversationRepository.delete(id)
+      await getAppRuntime().chat.deleteConversation(id)
       return createIpcResponse(true, null)
     }
     catch (error) {
@@ -110,7 +95,7 @@ export class ChatIpcService extends IpcService {
   @IpcMethod()
   async getMessagesByConvId(id: string): Promise<IpcResponse<IMessage[]>> {
     try {
-      const data = await getAgentRuntimeEnvironment().appDataContext.messageRepository.listByConversation(id)
+      const data = await getAppRuntime().chat.listMessages(id)
       return createIpcResponse(true, data)
     }
     catch (error) {
@@ -122,7 +107,7 @@ export class ChatIpcService extends IpcService {
   @IpcMethod()
   async getMessageById(id: string): Promise<IpcResponse<IMessage>> {
     try {
-      const data = await getAgentRuntimeEnvironment().appDataContext.messageRepository.getById(id)
+      const data = await getAppRuntime().chat.getMessage(id)
       return createIpcResponse(true, data)
     }
     catch (error) {
@@ -134,8 +119,7 @@ export class ChatIpcService extends IpcService {
   @IpcMethod()
   async addMessage(message: IMessage): Promise<IpcResponse<IMessage>> {
     try {
-      const msg = AddMessage.parse(message)
-      const data = await getAgentRuntimeEnvironment().appDataContext.messageRepository.create(msg)
+      const data = await getAppRuntime().chat.createMessage(message)
       return createIpcResponse(true, data)
     }
     catch (error) {
@@ -147,8 +131,7 @@ export class ChatIpcService extends IpcService {
   @IpcMethod()
   async updateMessage(message: IMessage): Promise<IpcResponse<IMessage>> {
     try {
-      const msg = UpdateMessageSchema.parse(message)
-      const data = await getAgentRuntimeEnvironment().appDataContext.messageRepository.update(msg)
+      const data = await getAppRuntime().chat.updateMessage(message)
       return createIpcResponse(true, data)
     }
     catch (error) {
@@ -160,7 +143,7 @@ export class ChatIpcService extends IpcService {
   @IpcMethod()
   async deleteMessage(id: string): Promise<IpcResponse<null>> {
     try {
-      await getAgentRuntimeEnvironment().appDataContext.messageRepository.delete(id)
+      await getAppRuntime().chat.deleteMessage(id)
       return createIpcResponse(true, null)
     }
     catch (error) {
@@ -172,7 +155,7 @@ export class ChatIpcService extends IpcService {
   @IpcMethod()
   async batchDeleteMessages(ids: string[]): Promise<IpcResponse<null>> {
     try {
-      await getAgentRuntimeEnvironment().appDataContext.messageRepository.batchDelete(ids)
+      await getAppRuntime().chat.batchDeleteMessages(ids)
       return createIpcResponse(true, null)
     }
     catch (error) {

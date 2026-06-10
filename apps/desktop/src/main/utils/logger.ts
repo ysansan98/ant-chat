@@ -1,4 +1,4 @@
-import { createSystemLogger } from '@ant-chat/agent-runtime'
+import { createSystemLogger } from '@ant-chat/app-runtime'
 import { isDev } from './env'
 import { LogPathManager } from './logPathManager'
 

@@ -1,11 +1,10 @@
 import process from 'node:process'
 import { app } from 'electron'
-import { getAgentRuntimeEnvironment } from './agent/runtime/agentRuntimeEnvironment'
 import { UpdateService } from './domains/update/updateService'
 import { installDevTools } from './plugins/devtools'
+import { getAppRuntime } from './runtime/appRuntime'
 import { isDev } from './utils/env'
 import { logger } from './utils/logger'
-import { initializeProxy } from './utils/proxy-manager'
 import { MainWindow } from './windows/window'
 import './bridge'
 
@@ -19,16 +18,7 @@ app.whenReady().then(async () => {
     installDevTools()
   }
 
-  getAgentRuntimeEnvironment()
-
-  // 初始化代理设置
-  await initializeProxy()
-
-  // 初始化默认工作区
-  getAgentRuntimeEnvironment().appDataContext.workspaceService.ensureInitialized()
-
-  // 初始化本地 Skill 目录和内置 Skill
-  await getAgentRuntimeEnvironment().skillManagementService.ensureInitialized()
+  await getAppRuntime().initialize()
 
   const mainWindow = new MainWindow()
   await mainWindow.createWindow()
@@ -47,4 +37,14 @@ app.whenReady().then(async () => {
     if (process.platform !== 'darwin')
       app.quit()
   })
+})
+
+let isRuntimeDisposed = false
+app.on('before-quit', (event) => {
+  if (isRuntimeDisposed)
+    return
+
+  event.preventDefault()
+  isRuntimeDisposed = true
+  void getAppRuntime().dispose().finally(() => app.quit())
 })

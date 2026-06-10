@@ -1,6 +1,6 @@
 import type { ImportSkillFromGithubOptions, IpcResponse, SetSkillEnabledOptions, SkillIndex, SkillManifest } from '@ant-chat/shared'
 import { createErrorIpcResponse, createIpcResponse } from '@ant-chat/shared'
-import { getAgentRuntimeEnvironment } from '@main/agent/runtime/agentRuntimeEnvironment'
+import { getAppRuntime } from '@main/runtime/appRuntime'
 import { logger } from '@main/utils/logger'
 import { getMainWindow } from '@main/windows/window'
 import { dialog } from 'electron'
@@ -12,7 +12,7 @@ export class SkillsIpcService extends IpcService {
   @IpcMethod()
   async listSkills(): Promise<IpcResponse<SkillIndex>> {
     try {
-      return createIpcResponse(true, await getAgentRuntimeEnvironment().skillManagementService.listSkills())
+      return createIpcResponse(true, await getAppRuntime().skills.list())
     }
     catch (error) {
       logger.error('获取 Skill 列表失败:', error)
@@ -35,7 +35,7 @@ export class SkillsIpcService extends IpcService {
       if (result.canceled || result.filePaths.length === 0) {
         return createIpcResponse(true, null)
       }
-      return createIpcResponse(true, await getAgentRuntimeEnvironment().skillManagementService.importFromZip(result.filePaths[0]))
+      return createIpcResponse(true, await getAppRuntime().skills.importZip(result.filePaths[0]))
     }
     catch (error) {
       logger.error('导入 Skill ZIP 失败:', error)
@@ -46,7 +46,7 @@ export class SkillsIpcService extends IpcService {
   @IpcMethod()
   async importSkillFromGithub(options: ImportSkillFromGithubOptions): Promise<IpcResponse<SkillManifest>> {
     try {
-      return createIpcResponse(true, await getAgentRuntimeEnvironment().skillManagementService.importFromGithub(options))
+      return createIpcResponse(true, await getAppRuntime().skills.importGithub(options))
     }
     catch (error) {
       logger.error('从 GitHub 导入 Skill 失败:', error)
@@ -57,7 +57,7 @@ export class SkillsIpcService extends IpcService {
   @IpcMethod()
   async setSkillEnabled(options: SetSkillEnabledOptions): Promise<IpcResponse<SkillManifest>> {
     try {
-      return createIpcResponse(true, await getAgentRuntimeEnvironment().skillManagementService.setEnabled(options.name, options.enabled))
+      return createIpcResponse(true, await getAppRuntime().skills.setEnabled(options))
     }
     catch (error) {
       logger.error('更新 Skill 启用状态失败:', error)
@@ -68,7 +68,7 @@ export class SkillsIpcService extends IpcService {
   @IpcMethod()
   async deleteSkill(name: string): Promise<IpcResponse<null>> {
     try {
-      await getAgentRuntimeEnvironment().skillManagementService.deleteSkill(name)
+      await getAppRuntime().skills.delete(name)
       return createIpcResponse(true, null)
     }
     catch (error) {
@@ -80,9 +80,7 @@ export class SkillsIpcService extends IpcService {
   @IpcMethod()
   async rebuildSkillIndex(): Promise<IpcResponse<SkillIndex>> {
     try {
-      const skillManagementService = getAgentRuntimeEnvironment().skillManagementService
-      const skills = await skillManagementService.rebuildIndex()
-      return createIpcResponse(true, { rootPath: skillManagementService.getSkillsRoot(), skills })
+      return createIpcResponse(true, await getAppRuntime().skills.rebuildIndex())
     }
     catch (error) {
       logger.error('重建 Skill 索引失败:', error)

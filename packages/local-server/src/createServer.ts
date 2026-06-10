@@ -1,52 +1,13 @@
-import type { CommandController, ConversationTitleGenerator, ImportModelsDevModelsResult, ModelsDevModel, ModelsDevProvider } from '@ant-chat/agent-runtime'
-import type { ConversationRepository, MessageRepository, ProviderSettingsRepository, SettingsRepository, WorkspaceService } from '@ant-chat/app-data'
-import type { AddConversationsSchema, AddMessage, AgentMemoryFiles, CreateProviderConfigModelSchema, CreateProviderConfigSchema, ImportSkillFromGithubOptions, RunBuiltinCommandParams, SetSkillEnabledOptions, SkillIndex, SkillManifest, UpdateAgentMemoryInput, UpdateConversationsSchema, UpdateMessageSchema, UpdateProviderConfigSchema } from '@ant-chat/shared'
+import type { AppRuntime } from '@ant-chat/app-runtime'
+import type { AddConversationsSchema, CreateProviderConfigModelSchema, CreateProviderConfigSchema, ImportSkillFromGithubOptions, RunBuiltinCommandParams, SetSkillEnabledOptions, UpdateAgentMemoryInput, UpdateConversationsSchema, UpdateProviderConfigSchema } from '@ant-chat/shared'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { Buffer } from 'node:buffer'
 import { createServer as createHttpServer } from 'node:http'
-import { searchWorkspaceFiles } from '@ant-chat/app-data'
-
-export interface LocalServerServices {
-  conversationRepository: ConversationRepository
-  messageRepository: MessageRepository
-  settingsRepository: SettingsRepository
-  memoryManager?: {
-    readMemoryFiles: () => Promise<AgentMemoryFiles>
-    updateMemoryFiles: (input: UpdateAgentMemoryInput) => Promise<AgentMemoryFiles>
-    rollbackSoul: () => Promise<AgentMemoryFiles>
-  }
-  workspaceService?: Pick<WorkspaceService, 'listWorkspaces' | 'addWorkspace' | 'removeWorkspace' | 'openWorkspace' | 'listDirectories' | 'createDirectory' | 'getCurrentWorkspacePath' | 'getDefaultWorkspacePath'>
-  providerSettingsRepository?: ProviderSettingsRepository
-  modelsDevImporter?: {
-    getModelsDevProviders: () => Promise<ModelsDevProvider[]>
-    getModelsDevModelsByProviderId: (providerId: string) => Promise<ModelsDevModel[]>
-    importModelsDevModels: (providerId: string) => Promise<ImportModelsDevModelsResult>
-  }
-  skillService?: {
-    listSkills: () => Promise<SkillIndex>
-    importFromGithub: (options: ImportSkillFromGithubOptions) => Promise<SkillManifest>
-    setEnabled: (name: string, enabled: boolean) => Promise<SkillManifest>
-    deleteSkill: (name: string) => Promise<void>
-    rebuildIndex: () => Promise<SkillManifest[]>
-    getSkillsRoot: () => string
-  }
-  agentController?: {
-    startTurn?: (options: unknown) => Promise<unknown> | unknown
-    approvePendingAction?: (options: unknown) => Promise<null> | null
-    rejectPendingAction?: (options: unknown) => Promise<null> | null
-    cancelTask?: (taskId: string) => Promise<null> | null
-    injectSteering?: (params: { conversationId: string, text: string }) => Promise<null>
-    listActiveTasks: (conversationId?: string) => Promise<unknown[]> | unknown[]
-    approvePendingActionWithWhitelist?: (options: unknown) => Promise<null> | null
-  }
-  commandController?: CommandController
-  conversationTitleGenerator?: ConversationTitleGenerator
-}
 
 export type LocalApiHandler = (req: IncomingMessage, res: ServerResponse) => Promise<boolean>
 
-export function createLocalServer(services: LocalServerServices) {
-  const handleLocalApiRequest = createLocalApiHandler(services)
+export function createLocalServer(runtime: AppRuntime) {
+  const handleLocalApiRequest = createLocalApiHandler(runtime)
 
   return createHttpServer(async (req, res) => {
     const handled = await handleLocalApiRequest(req, res)
@@ -58,7 +19,7 @@ export function createLocalServer(services: LocalServerServices) {
   })
 }
 
-export function createLocalApiHandler(services: LocalServerServices): LocalApiHandler {
+export function createLocalApiHandler(runtime: AppRuntime): LocalApiHandler {
   return async (req, res) => {
     try {
       writeCorsHeaders(res)
@@ -75,7 +36,7 @@ export function createLocalApiHandler(services: LocalServerServices): LocalApiHa
       }
 
       const body = await readJsonBody(req)
-      const result = await routeRequest(url, body, services)
+      const result = await routeRequest(url, body, runtime)
 
       res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' })
       res.end(JSON.stringify({ success: true, data: result }))
@@ -100,221 +61,172 @@ function isLocalApiRoute(url: URL): boolean {
   return url.pathname.startsWith('/api/')
 }
 
-async function routeRequest(url: URL, body: unknown, services: LocalServerServices): Promise<unknown> {
+async function routeRequest(url: URL, body: unknown, runtime: AppRuntime): Promise<unknown> {
   if (url.pathname === '/api/rpc') {
-    return dispatchRpc(body, services)
+    return dispatchRpc(body, runtime)
   }
 
   throw new Error(`Unknown local API route: ${url.pathname}`)
 }
 
-async function dispatchRpc(body: unknown, services: LocalServerServices): Promise<unknown> {
+async function dispatchRpc(body: unknown, runtime: AppRuntime): Promise<unknown> {
   const { method, params } = parseRpcBody(body)
 
   switch (method) {
     case 'chat.createConversationsTitle':
-      return requireConversationTitleGenerator(services).updateTitle(stringParam(params.conversationsId), stringParam(params.modelId))
+      return runtime.chat.createConversationTitle(stringParam(params.conversationsId), stringParam(params.modelId))
     case 'chat.getConversations':
-      return services.conversationRepository.list(numberParam(params.pageIndex), numberParam(params.pageSize))
+      return runtime.chat.listConversations(numberParam(params.pageIndex), numberParam(params.pageSize))
     case 'chat.getWorkspaceConversations':
-      return services.conversationRepository.list(numberParam(params.pageIndex), numberParam(params.pageSize), stringParam(params.workspacePath))
+      return runtime.chat.listConversations(numberParam(params.pageIndex), numberParam(params.pageSize), stringParam(params.workspacePath))
     case 'chat.getConversationById':
-      return services.conversationRepository.getById(stringParam(params.id))
+      return runtime.chat.getConversation(stringParam(params.id))
     case 'chat.addConversation':
-      return services.conversationRepository.create(params.conversation as AddConversationsSchema)
+      return runtime.chat.createConversation(params.conversation as AddConversationsSchema)
     case 'chat.updateConversation':
-      return services.conversationRepository.update(params.conversation as UpdateConversationsSchema)
+      return runtime.chat.updateConversation(params.conversation as UpdateConversationsSchema)
     case 'chat.deleteConversation':
-      await services.conversationRepository.delete(stringParam(params.id))
-      return null
+      return runtime.chat.deleteConversation(stringParam(params.id))
     case 'chat.getMessagesByConvId':
-      return services.messageRepository.listByConversation(stringParam(params.convId))
+      return runtime.chat.listMessages(stringParam(params.convId))
     case 'chat.getMessageById':
-      return services.messageRepository.getById(stringParam(params.id))
+      return runtime.chat.getMessage(stringParam(params.id))
     case 'chat.addMessage':
-      return services.messageRepository.create(params.message as AddMessage)
+      return runtime.chat.createMessage(params.message as never)
     case 'chat.updateMessage':
-      return services.messageRepository.update(params.message as UpdateMessageSchema)
+      return runtime.chat.updateMessage(params.message as never)
     case 'chat.deleteMessage':
-      await services.messageRepository.delete(stringParam(params.id))
-      return null
+      return runtime.chat.deleteMessage(stringParam(params.id))
     case 'chat.batchDeleteMessages':
-      await services.messageRepository.batchDelete(Array.isArray(params.ids) ? params.ids.map(String) : [])
-      return null
+      return runtime.chat.batchDeleteMessages(Array.isArray(params.ids) ? params.ids.map(String) : [])
     case 'settings.getSettings':
-      return services.settingsRepository.getGeneralSettings()
+      return runtime.settings.get()
     case 'settings.updateSettings':
-      return services.settingsRepository.updateGeneralSettings(asRecord(params.updates))
+      return runtime.settings.update(asRecord(params.updates))
     case 'settings.resetSettings':
-      return services.settingsRepository.resetGeneralSettings()
+      return runtime.settings.reset()
+    case 'settings.testProxyConnection':
+      return runtime.settings.testProxy(stringParam(params.proxyUrl))
     case 'provider.listProviders':
-      return requireProviderRepository(services).listProviders()
+      return runtime.provider.list()
     case 'provider.createProvider':
-      return requireProviderRepository(services).createProvider(params.config as CreateProviderConfigSchema)
+      return runtime.provider.create(params.config as CreateProviderConfigSchema)
     case 'provider.updateProvider':
-      return requireProviderRepository(services).updateProvider(params.config as UpdateProviderConfigSchema)
+      return runtime.provider.update(params.config as UpdateProviderConfigSchema)
     case 'provider.deleteProvider':
-      requireProviderRepository(services).deleteProvider(stringParam(params.id))
-      return null
-    case 'provider.getProviderById': {
-      const result = requireProviderRepository(services).getProviderById(stringParam(params.id))
-      if (!result)
-        throw new Error('not found')
-      return result
-    }
-    case 'provider.getProviderByModelId': {
-      const result = requireProviderRepository(services).getProviderByModelId(stringParam(params.id))
-      if (!result)
-        throw new Error('not found')
-      return result
-    }
+      return runtime.provider.delete(stringParam(params.id))
+    case 'provider.getProviderById':
+      return runtime.provider.getById(stringParam(params.id))
+    case 'provider.getProviderByModelId':
+      return runtime.provider.getByModelId(stringParam(params.id))
     case 'provider.getAllAbvailableModels':
-      return requireProviderRepository(services).getAllAvailableModels()
+      return runtime.provider.listAvailableModels()
     case 'provider.listProviderModels':
-      return requireProviderRepository(services).listProviderModels(stringParam(params.id))
+      return runtime.provider.listModels(stringParam(params.id))
     case 'provider.setModelEnabledStatus':
-      return requireProviderRepository(services).setModelEnabledStatus(stringParam(params.id), booleanParam(params.status))
+      return runtime.provider.setModelEnabled(stringParam(params.id), booleanParam(params.status))
     case 'provider.createProviderModel':
-      return requireProviderRepository(services).createProviderModel(params.config as CreateProviderConfigModelSchema)
+      return runtime.provider.createModel(params.config as CreateProviderConfigModelSchema)
     case 'provider.deleteProviderModel':
-      requireProviderRepository(services).deleteProviderModel(stringParam(params.id))
-      return null
-    case 'provider.getModelById': {
-      const result = requireProviderRepository(services).getModelById(stringParam(params.id))
-      if (!result)
-        throw new Error('not found')
-      return result
-    }
+      return runtime.provider.deleteModel(stringParam(params.id))
+    case 'provider.getModelById':
+      return runtime.provider.getModel(stringParam(params.id))
     case 'provider.getModelsDevProviders':
-      return requireModelsDevImporter(services).getModelsDevProviders()
+      return runtime.provider.getModelsDevProviders()
     case 'provider.getModelsDevModelsByProviderId':
-      return requireModelsDevImporter(services).getModelsDevModelsByProviderId(stringParam(params.providerId))
+      return runtime.provider.getModelsDevModels(stringParam(params.providerId))
     case 'provider.importModelsDevModels':
-      return requireModelsDevImporter(services).importModelsDevModels(stringParam(params.providerId))
+      return runtime.provider.importModelsDevModels(stringParam(params.providerId))
     case 'skills.listSkills':
-      return requireSkillService(services).listSkills()
+      return runtime.skills.list()
     case 'skills.importSkillFromZip':
-      throw new Error('Skill ZIP import is not available in local web transport')
+      return runtime.skills.importZip(stringParam(params.filePath))
     case 'skills.importSkillFromGithub':
-      return requireSkillService(services).importFromGithub(params.options as ImportSkillFromGithubOptions)
-    case 'skills.setSkillEnabled': {
-      const options = params.options as SetSkillEnabledOptions
-      return requireSkillService(services).setEnabled(options.name, options.enabled)
-    }
+      return runtime.skills.importGithub(params.options as ImportSkillFromGithubOptions)
+    case 'skills.setSkillEnabled':
+      return runtime.skills.setEnabled(params.options as SetSkillEnabledOptions)
     case 'skills.deleteSkill':
-      await requireSkillService(services).deleteSkill(stringParam(params.name))
-      return null
-    case 'skills.rebuildSkillIndex': {
-      const skillService = requireSkillService(services)
-      const skills = await skillService.rebuildIndex()
-      return { rootPath: skillService.getSkillsRoot(), skills }
-    }
+      return runtime.skills.delete(stringParam(params.name))
+    case 'skills.rebuildSkillIndex':
+      return runtime.skills.rebuildIndex()
     case 'memory.getMemoryFiles':
-      return requireMemoryManager(services).readMemoryFiles()
+      return runtime.memory.getFiles()
     case 'memory.updateMemoryFiles':
-      return requireMemoryManager(services).updateMemoryFiles(params.input as UpdateAgentMemoryInput)
+      return runtime.memory.updateFiles(params.input as UpdateAgentMemoryInput)
     case 'memory.rollbackSoul':
-      return requireMemoryManager(services).rollbackSoul()
+      return runtime.memory.rollbackSoul()
+    case 'mcp.getConfigs':
+      return runtime.mcp.getConfigs()
+    case 'mcp.getConfigByServerName':
+      return runtime.mcp.getConfig(stringParam(params.serverName))
+    case 'mcp.addConfig':
+      return runtime.mcp.addConfig(params.config as never)
+    case 'mcp.updateConfig':
+      return runtime.mcp.updateConfig(params.config as never)
+    case 'mcp.deleteConfig':
+      return runtime.mcp.deleteConfig(stringParam(params.serverName))
+    case 'mcp.getConnections':
+      return runtime.mcp.getConnections()
+    case 'mcp.getAllAvailableToolsList':
+      return runtime.mcp.getAllTools()
+    case 'mcp.callTool':
+      return runtime.mcp.callTool(
+        stringParam(params.serverName),
+        stringParam(params.toolName),
+        params.toolArguments === undefined ? undefined : asRecord(params.toolArguments),
+      )
+    case 'mcp.connectMcpServer':
+      return runtime.mcp.connect(stringParam(params.name), params.config as never)
+    case 'mcp.disconnectMcpServer':
+      return runtime.mcp.disconnect(stringParam(params.name))
+    case 'mcp.reconnectMcpServer':
+      return runtime.mcp.reconnect(stringParam(params.name), params.config as never)
+    case 'mcp.fetchMcpServerTools':
+      return runtime.mcp.fetchTools(stringParam(params.name))
+    case 'search.searchByKeyword':
+      return runtime.search.messages(stringParam(params.query))
     case 'workspace.listWorkspaces':
-      return requireWorkspaceService(services).listWorkspaces()
+      return runtime.workspace.list()
     case 'workspace.addWorkspace':
-      return requireWorkspaceService(services).addWorkspace(stringParam(params.path))
+      return runtime.workspace.add(stringParam(params.path))
     case 'workspace.removeWorkspace':
-      return requireWorkspaceService(services).removeWorkspace(stringParam(params.path))
+      return runtime.workspace.remove(stringParam(params.path))
     case 'workspace.openWorkspace':
-      return requireWorkspaceService(services).openWorkspace(stringParam(params.path))
+      return runtime.workspace.open(stringParam(params.path))
     case 'workspace.getCurrentWorkspacePath':
-      return requireWorkspaceService(services).getCurrentWorkspacePath()
+      return runtime.workspace.getCurrentPath()
     case 'workspace.getDefaultWorkspacePath':
-      return requireWorkspaceService(services).getDefaultWorkspacePath()
+      return runtime.workspace.getDefaultPath()
     case 'workspace.listDirectories':
-      return requireWorkspaceService(services).listDirectories(optionalStringParam(params.path))
+      return runtime.workspace.listDirectories(optionalStringParam(params.path))
     case 'workspace.createDirectory':
-      return requireWorkspaceService(services).createDirectory(stringParam(params.parentPath), stringParam(params.name))
-    case 'workspace.searchWorkspaceFiles': {
-      const workspaceService = requireWorkspaceService(services)
-      return searchWorkspaceFiles(
-        workspaceService.getCurrentWorkspacePath(),
+      return runtime.workspace.createDirectory(stringParam(params.parentPath), stringParam(params.name))
+    case 'workspace.searchWorkspaceFiles':
+      return runtime.workspace.searchFiles(
         typeof params.query === 'string' ? params.query : '',
         numberParam(params.limit),
       )
-    }
     case 'agent.startTurn':
-      return requireAgentMethod(services, 'startTurn')(params.options)
+      return runtime.agent.startTurn(params.options as never)
     case 'agent.approvePendingAction':
-      return requireAgentMethod(services, 'approvePendingAction')(params.options)
+      return runtime.agent.approvePendingAction(params.options as never)
     case 'agent.rejectPendingAction':
-      return requireAgentMethod(services, 'rejectPendingAction')(params.options)
+      return runtime.agent.rejectPendingAction(params.options as never)
     case 'agent.approvePendingActionWithWhitelist':
-      return requireAgentMethod(services, 'approvePendingActionWithWhitelist')(params.options)
+      return runtime.agent.approvePendingActionWithWhitelist(params.options as never)
     case 'agent.cancelTask':
-      return requireCancelTask(services)(stringParam(params.taskId))
-    case 'agent.injectSteering': {
-      const fn = services.agentController?.injectSteering
-      if (!fn)
-        throw new Error('Agent method is not available in local web transport: injectSteering')
-      return fn(params as { conversationId: string, text: string })
-    }
+      return runtime.agent.cancelTask({ taskId: stringParam(params.taskId) })
+    case 'agent.injectSteering':
+      return runtime.agent.injectSteering(params as { conversationId: string, text: string })
     case 'agent.listActiveTasks':
-      return services.agentController?.listActiveTasks(optionalStringParam(params.conversationId)) ?? []
-    case 'commands.runBuiltinCommand': {
-      const cc = services.commandController
-      if (!cc)
-        throw new Error('Command controller is not available in local web transport')
-      return cc.runBuiltinCommand(params as unknown as RunBuiltinCommandParams)
-    }
-    case 'commands.cancelCommand': {
-      const cc = services.commandController
-      if (!cc)
-        throw new Error('Command controller is not available in local web transport')
-      await cc.cancelCommand(stringParam(params.conversationId))
-      return null
-    }
+      return runtime.agent.listActiveTasks(optionalStringParam(params.conversationId))
+    case 'commands.runBuiltinCommand':
+      return runtime.commands.run(params as unknown as RunBuiltinCommandParams)
+    case 'commands.cancelCommand':
+      return runtime.commands.cancel(stringParam(params.conversationId))
     default:
       throw new Error(`Unknown local RPC method: ${method}`)
   }
-}
-
-function requireConversationTitleGenerator(services: LocalServerServices): NonNullable<LocalServerServices['conversationTitleGenerator']> {
-  if (!services.conversationTitleGenerator) {
-    throw new Error('Conversation title service is not available in local web transport')
-  }
-  return services.conversationTitleGenerator
-}
-
-function requireMemoryManager(services: LocalServerServices): NonNullable<LocalServerServices['memoryManager']> {
-  if (!services.memoryManager) {
-    throw new Error('Memory manager is not available in local web transport')
-  }
-  return services.memoryManager
-}
-
-function requireProviderRepository(services: LocalServerServices): ProviderSettingsRepository {
-  if (!services.providerSettingsRepository) {
-    throw new Error('Provider service is not available in local web transport')
-  }
-  return services.providerSettingsRepository
-}
-
-function requireModelsDevImporter(services: LocalServerServices): NonNullable<LocalServerServices['modelsDevImporter']> {
-  if (!services.modelsDevImporter) {
-    throw new Error('Models dev importer is not available in local web transport')
-  }
-  return services.modelsDevImporter
-}
-
-function requireSkillService(services: LocalServerServices): NonNullable<LocalServerServices['skillService']> {
-  if (!services.skillService) {
-    throw new Error('Skill service is not available in local web transport')
-  }
-  return services.skillService
-}
-
-function requireWorkspaceService(services: LocalServerServices): Pick<WorkspaceService, 'listWorkspaces' | 'addWorkspace' | 'removeWorkspace' | 'openWorkspace' | 'listDirectories' | 'createDirectory' | 'getCurrentWorkspacePath' | 'getDefaultWorkspacePath'> {
-  if (!services.workspaceService) {
-    throw new Error('Workspace service is not available in local web transport')
-  }
-  return services.workspaceService
 }
 
 function parseRpcBody(body: unknown): { method: string, params: Record<string, unknown> } {
@@ -324,22 +236,6 @@ function parseRpcBody(body: unknown): { method: string, params: Record<string, u
     ? {}
     : asRecord(data.params, 'RPC params')
   return { method, params }
-}
-
-function requireAgentMethod(services: LocalServerServices, method: 'startTurn' | 'approvePendingAction' | 'rejectPendingAction' | 'approvePendingActionWithWhitelist') {
-  const handler = services.agentController?.[method]
-  if (!handler) {
-    throw new Error(`Agent method is not available in local web transport: ${method}`)
-  }
-  return handler
-}
-
-function requireCancelTask(services: LocalServerServices) {
-  const handler = services.agentController?.cancelTask
-  if (!handler) {
-    throw new Error('Agent method is not available in local web transport: cancelTask')
-  }
-  return handler
 }
 
 function asRecord(value: unknown, name = 'object'): Record<string, unknown> {

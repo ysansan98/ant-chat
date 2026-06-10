@@ -1,6 +1,6 @@
 import type { AgentTurnResult, ApprovePendingActionOptions, CancelTaskOptions, IpcResponse, RejectPendingActionOptions, StartAgentTurnOptions } from '@ant-chat/shared'
 import { createErrorIpcResponse, createIpcResponse } from '@ant-chat/shared'
-import { getAgentRuntimeEnvironment } from '@main/agent/runtime/agentRuntimeEnvironment'
+import { getAppRuntime } from '@main/runtime/appRuntime'
 import { IpcMethod, IpcService } from 'electron-ipc-decorator'
 
 export class AgentIpcService extends IpcService {
@@ -9,7 +9,7 @@ export class AgentIpcService extends IpcService {
   @IpcMethod()
   async startTurn(options: StartAgentTurnOptions): Promise<IpcResponse<AgentTurnResult>> {
     try {
-      const data = await getAgentRuntimeEnvironment().agentController.startTurn(options)
+      const data = await getAppRuntime().agent.startTurn(options)
       return createIpcResponse(true, data)
     }
     catch (error) {
@@ -20,7 +20,7 @@ export class AgentIpcService extends IpcService {
   @IpcMethod()
   async approvePendingAction(options: ApprovePendingActionOptions): Promise<IpcResponse<null>> {
     try {
-      getAgentRuntimeEnvironment().runtime.approvePendingAction(options)
+      getAppRuntime().agent.approvePendingAction(options)
       return createIpcResponse(true, null)
     }
     catch (error) {
@@ -31,7 +31,7 @@ export class AgentIpcService extends IpcService {
   @IpcMethod()
   async rejectPendingAction(options: RejectPendingActionOptions): Promise<IpcResponse<null>> {
     try {
-      getAgentRuntimeEnvironment().runtime.rejectPendingAction(options)
+      getAppRuntime().agent.rejectPendingAction(options)
       return createIpcResponse(true, null)
     }
     catch (error) {
@@ -42,7 +42,7 @@ export class AgentIpcService extends IpcService {
   @IpcMethod()
   async cancelTask(options: CancelTaskOptions): Promise<IpcResponse<null>> {
     try {
-      getAgentRuntimeEnvironment().runtime.cancelTask(options)
+      getAppRuntime().agent.cancelTask(options)
       return createIpcResponse(true, null)
     }
     catch (error) {
@@ -53,7 +53,7 @@ export class AgentIpcService extends IpcService {
   @IpcMethod()
   async getTask(taskId: string) {
     try {
-      return createIpcResponse(true, getAgentRuntimeEnvironment().runtime.getTask(taskId))
+      return createIpcResponse(true, getAppRuntime().agent.getTask(taskId))
     }
     catch (error) {
       return createErrorIpcResponse(error as Error)
@@ -63,7 +63,7 @@ export class AgentIpcService extends IpcService {
   @IpcMethod()
   async listActiveTasks(conversationId?: string) {
     try {
-      return createIpcResponse(true, getAgentRuntimeEnvironment().runtime.listActiveTasks(conversationId))
+      return createIpcResponse(true, getAppRuntime().agent.listActiveTasks(conversationId))
     }
     catch (error) {
       return createErrorIpcResponse(error as Error)
@@ -73,7 +73,7 @@ export class AgentIpcService extends IpcService {
   @IpcMethod()
   async injectSteering(params: { conversationId: string, text: string }): Promise<IpcResponse<null>> {
     try {
-      await getAgentRuntimeEnvironment().runtime.injectSteering(params.conversationId, params.text)
+      await getAppRuntime().agent.injectSteering(params)
       return createIpcResponse(true, null)
     }
     catch (error) {
@@ -86,7 +86,7 @@ export class AgentIpcService extends IpcService {
     options: ApprovePendingActionOptions & { remember: boolean, workspacePath?: string },
   ): Promise<IpcResponse<null>> {
     try {
-      getAgentRuntimeEnvironment().agentController.approvePendingActionWithWhitelist(options)
+      getAppRuntime().agent.approvePendingActionWithWhitelist(options)
       return createIpcResponse(true, null)
     }
     catch (error) {
