@@ -42,10 +42,16 @@ export function WorkspaceDirectoryPickerDialog({
   const filterInputRef = useRef<HTMLInputElement>(null)
   const newFolderInputRef = useRef<HTMLInputElement>(null)
 
+  const resetFormState = useCallback(() => {
+    setFilter('')
+    setShowNewFolder(false)
+    setNewFolderName('')
+  }, [])
+
   const loadDirectory = useCallback(async (path?: string) => {
     setLoading(true)
     setError(null)
-    setFilter('')
+    resetFormState()
     try {
       const data = await workspaceApi.listDirectories(path)
       setListing(data)
@@ -57,7 +63,7 @@ export function WorkspaceDirectoryPickerDialog({
     finally {
       setLoading(false)
     }
-  }, [])
+  }, [resetFormState])
 
   const filteredDirectories = useMemo(() => {
     if (!listing)
@@ -71,8 +77,6 @@ export function WorkspaceDirectoryPickerDialog({
   useEffect(() => {
     if (open) {
       void loadDirectory()
-      setShowNewFolder(false)
-      setNewFolderName('')
       requestAnimationFrame(() => filterInputRef.current?.focus())
     }
   }, [open, loadDirectory])
@@ -171,7 +175,7 @@ export function WorkspaceDirectoryPickerDialog({
 
             <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto text-sm text-slate-500">
               {breadcrumbSegments.map((segment, index) => (
-                <span key={index} className="flex items-center gap-0.5">
+                <span key={`/${breadcrumbSegments.slice(0, index + 1).join('/')}`} className="flex items-center gap-0.5">
                   {index > 0 && <ChevronRightIcon className="size-3 shrink-0" />}
                   <button
                     type="button"

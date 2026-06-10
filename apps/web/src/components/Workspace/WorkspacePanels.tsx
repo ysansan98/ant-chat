@@ -1,23 +1,25 @@
 import type {
   IConversations,
-  ListWorkspacesData,
   WorkspaceItem,
 } from '@ant-chat/shared'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@workspace/ui/components/alert-dialog'
 import { Button } from '@workspace/ui/components/button'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@workspace/ui/components/dropdown-menu'
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@workspace/ui/components/tooltip'
 import {
+  Ellipsis,
   FolderIcon,
   FolderOpenIcon,
   PencilIcon,
   PlusIcon,
+  Trash2,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
-import workspaceApi from '@/api/workspaceApi'
 import {
   ensureWorkspaceConversationsAction,
   nextPageConversationsAction,
@@ -25,6 +27,7 @@ import {
   useConversationsStore,
 } from '@/store/conversation'
 import { setActiveConversationsId, useMessagesStore } from '@/store/messages'
+import { useWorkspaceStore } from '@/store/workspace'
 import { WorkspaceDirectoryPickerDialog } from './WorkspaceDirectoryPickerDialog'
 
 interface WorkspaceConversationState {
@@ -50,9 +53,11 @@ export function WorkspacePanels() {
   const activeConversationsId = useMessagesStore(
     state => state.activeConversationsId,
   )
-  const [workspaceData, setWorkspaceData] = useState<ListWorkspacesData | null>(
-    null,
-  )
+  const workspaceData = useWorkspaceStore(state => state.workspaceData)
+  const refreshWorkspace = useWorkspaceStore(state => state.refresh)
+  const openWorkspace = useWorkspaceStore(state => state.openWorkspace)
+  const addWorkspace = useWorkspaceStore(state => state.addWorkspace)
+  const removeWorkspace = useWorkspaceStore(state => state.removeWorkspace)
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(
     () => new Set(),
   )
@@ -62,21 +67,23 @@ export function WorkspacePanels() {
 
   const currentWorkspacePath = storeWorkspacePath || workspaceData?.currentWorkspacePath
 
-  async function initialize() {
+  const initialize = useCallback(async () => {
     if (initializedRef.current) {
       return
     }
 
     initializedRef.current = true
-    const data = await workspaceApi.listWorkspaces()
-    setWorkspaceData(data)
-    setExpandedPaths(new Set([data.currentWorkspacePath]))
-    useConversationsStore.getState().switchWorkspace(data.currentWorkspacePath)
+    await refreshWorkspace()
+    const data = useWorkspaceStore.getState().workspaceData
+    if (data) {
+      setExpandedPaths(new Set([data.currentWorkspacePath]))
+      useConversationsStore.getState().switchWorkspace(data.currentWorkspacePath)
 
-    if (useConversationsStore.getState().conversations.length === 0) {
-      await nextPageConversationsAction()
+      if (useConversationsStore.getState().conversations.length === 0) {
+        await nextPageConversationsAction()
+      }
     }
-  }
+  }, [refreshWorkspace])
 
   const reloadCurrentWorkspace = useCallback(async () => {
     await setActiveConversationsId('')
@@ -93,8 +100,7 @@ export function WorkspacePanels() {
     setPickerOpen(false)
     setPanelError('')
     try {
-      const data = await workspaceApi.addWorkspace(path)
-      setWorkspaceData(data)
+      const data = await addWorkspace(path)
       setExpandedPaths(
         paths => new Set([...paths, data.currentWorkspacePath]),
       )
@@ -103,7 +109,21 @@ export function WorkspacePanels() {
     catch (error) {
       setPanelError((error as Error).message)
     }
-  }, [reloadCurrentWorkspace])
+  }, [addWorkspace, reloadCurrentWorkspace])
+
+  const handleDeleteWorkspace = useCallback(async (path: string) => {
+    try {
+      await removeWorkspace(path)
+      setExpandedPaths((paths) => {
+        const next = new Set(paths)
+        next.delete(path)
+        return next
+      })
+    }
+    catch (error) {
+      setPanelError((error as Error).message)
+    }
+  }, [removeWorkspace])
 
   async function toggleWorkspace(item: WorkspaceItem) {
     const nextExpandedPaths = new Set(expandedPaths)
@@ -131,8 +151,7 @@ export function WorkspacePanels() {
     navigate('/chat')
 
     if (workspacePath !== currentWorkspacePath) {
-      const data = await workspaceApi.openWorkspace(workspacePath)
-      setWorkspaceData(data)
+      const data = await openWorkspace(workspacePath)
       setExpandedPaths(
         paths => new Set([...paths, data.currentWorkspacePath]),
       )
@@ -146,8 +165,7 @@ export function WorkspacePanels() {
     navigate('/chat')
 
     if (workspacePath !== currentWorkspacePath) {
-      const data = await workspaceApi.openWorkspace(workspacePath)
-      setWorkspaceData(data)
+      const data = await openWorkspace(workspacePath)
       setExpandedPaths(paths => new Set([...paths, data.currentWorkspacePath]))
       await switchWorkspaceConversationsAction(workspacePath)
     }
@@ -167,7 +185,7 @@ export function WorkspacePanels() {
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [])
+  }, [initialize])
 
   const workspaces = workspaceData?.workspaces || []
 
@@ -218,6 +236,7 @@ export function WorkspacePanels() {
                     onToggle={toggleWorkspace}
                     onOpenConversation={openConversation}
                     onCreateConversation={createConversation}
+                    onDeleteWorkspace={handleDeleteWorkspace}
                   />
                 ))
               )
@@ -247,6 +266,7 @@ interface WorkspacePanelProps {
   onToggle: (item: WorkspaceItem) => void
   onOpenConversation: (workspacePath: string, conversationId: string) => void
   onCreateConversation: (workspacePath: string) => void
+  onDeleteWorkspace: (path: string) => void
 }
 
 function WorkspacePanel({
@@ -257,7 +277,10 @@ function WorkspacePanel({
   onToggle,
   onOpenConversation,
   onCreateConversation,
+  onDeleteWorkspace,
 }: WorkspacePanelProps) {
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+
   return (
     <div className="mb-1">
       <div className="
@@ -283,29 +306,60 @@ function WorkspacePanel({
             </span>
           </span>
         </button>
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
             <Button
               type="button"
               variant="ghost"
               size="icon-xs"
-              className={`
-                opacity-0
-                group-hover:opacity-100
-              `}
+              className="opacity-0 group-hover:opacity-100"
+              onClick={event => event.stopPropagation()}
+            >
+              <Ellipsis className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
               onClick={(event) => {
                 event.stopPropagation()
                 void onCreateConversation(item.path)
               }}
             >
               <PencilIcon className="size-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <span>新建对话</span>
-          </TooltipContent>
-        </Tooltip>
+              新建对话
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              variant="destructive"
+              onClick={(event) => {
+                event.stopPropagation()
+                setDeleteConfirmOpen(true)
+              }}
+            >
+              <Trash2 className="size-4" />
+              删除工作区
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
+
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent size="sm" onClick={event => event.stopPropagation()}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>删除工作区</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要删除工作区「
+              {item.displayName}
+              」吗？此操作不会删除磁盘上的文件，仅从列表中移除。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="px-4 py-2">
+            <AlertDialogCancel size="sm">取消</AlertDialogCancel>
+            <AlertDialogAction size="sm" variant="destructive" onClick={() => onDeleteWorkspace(item.path)}>
+              删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {expanded
         ? (

@@ -21,7 +21,7 @@ export function SliderMenu() {
 
   async function openSettings() {
     if (isElectronRuntime()) {
-      await unwrapIpcResponse(await ipc.settings.openSettingsWindow())
+      void unwrapIpcResponse(await ipc.settings.openSettingsWindow())
       return
     }
 
@@ -30,7 +30,7 @@ export function SliderMenu() {
 
   return (
     <aside className={`
-      flex h-full w-(--conversationWidth) shrink-0 flex-col p-2 text-sidebar-foreground
+      flex h-full w-(--conversationWidth) shrink-0 flex-col p-2 text-sidebar-foreground text-sm
     `}
     >
       <div className="flex min-h-0 flex-1 flex-col rounded-2xl bg-sidebar px-2 pt-8 pb-3">

@@ -57,6 +57,7 @@ import {
   useConversationsStore,
 } from '@/store/conversation'
 import { setActiveConversationsId, useMessagesStore } from '@/store/messages'
+import { useWorkspaceStore } from '@/store/workspace'
 import { fileToBase64 } from '@/utils'
 import TypingEffect from '../TypingEffect'
 import {
@@ -254,10 +255,7 @@ function ReferenceInputOverlay({
   )
 }
 
-type WorkspaceDataType = Awaited<ReturnType<typeof workspaceApi.listWorkspaces>> | null
-
 interface SenderDataState {
-  workspaceData: WorkspaceDataType
   skills: SkillManifest[]
   fileResults: WorkspaceFileSearchResult[]
   suggestionAnchorRect: DOMRect | null
@@ -265,9 +263,7 @@ interface SenderDataState {
 }
 
 type SenderDataAction
-  = | { type: 'SET_WORKSPACE_DATA', data: WorkspaceDataType }
-    | { type: 'SYNC_WORKSPACE_PATH', currentWorkspacePath: string }
-    | { type: 'SET_SKILLS', skills: SkillManifest[] }
+  = | { type: 'SET_SKILLS', skills: SkillManifest[] }
     | { type: 'CLEAR_FILE_RESULTS' }
     | { type: 'SET_FILE_RESULTS', results: WorkspaceFileSearchResult[] }
     | { type: 'CLEAR_ANCHOR_RECT' }
@@ -277,14 +273,6 @@ type SenderDataAction
 
 function senderDataReducer(state: SenderDataState, action: SenderDataAction): SenderDataState {
   switch (action.type) {
-    case 'SET_WORKSPACE_DATA':
-      return { ...state, workspaceData: action.data }
-    case 'SYNC_WORKSPACE_PATH': {
-      const prev = state.workspaceData
-      if (!prev || prev.currentWorkspacePath === action.currentWorkspacePath)
-        return state
-      return { ...state, workspaceData: { ...prev, currentWorkspacePath: action.currentWorkspacePath } }
-    }
     case 'SET_SKILLS':
       return { ...state, skills: action.skills }
     case 'CLEAR_FILE_RESULTS':
@@ -335,12 +323,15 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
   const [currentModelInfo, setCurrentModelInfo] = useState<ProviderConfigModelSchema | null>(null)
 
   const [senderData, dispatchSenderData] = useReducer(senderDataReducer, {
-    workspaceData: null,
     skills: [],
     fileResults: [],
     suggestionAnchorRect: null,
     highlightedIndex: 0,
   })
+
+  const workspaceData = useWorkspaceStore(state => state.workspaceData)
+  const refreshWorkspace = useWorkspaceStore(state => state.refresh)
+  const openWorkspace = useWorkspaceStore(state => state.openWorkspace)
 
   const activeConversationsId = useMessagesStore(
     state => state.activeConversationsId,
@@ -348,9 +339,6 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
   const hasMessage = useMessagesStore(state => !!state.messages.length)
   const loading = useConversationsStore(
     state => state.streamingConversationIds.has(state.activeConversationsId),
-  )
-  const currentWorkspacePath = useConversationsStore(
-    state => state.currentWorkspacePath,
   )
 
   const mcpEnabled = useChatSttingsStore(state => state.enableMCP)
@@ -417,24 +405,19 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
 
   const canSwitchWorkspace = !activeConversationsId && !hasMessage && !loading
   const selectableWorkspaces = useMemo(
-    () => (senderData.workspaceData?.workspaces || []).filter(item => isAbsoluteWorkspacePath(item.path)),
-    [senderData.workspaceData],
+    () => (workspaceData?.workspaces || []).filter(item => isAbsoluteWorkspacePath(item.path)),
+    [workspaceData],
   )
   const canSwitchWorkspaceSelect = canSwitchWorkspace && selectableWorkspaces.length > 0
   const currentWorkspace = useMemo(
     () =>
-      senderData.workspaceData?.workspaces.find(
-        item => item.path === senderData.workspaceData?.currentWorkspacePath,
+      workspaceData?.workspaces.find(
+        item => item.path === workspaceData?.currentWorkspacePath,
       ),
-    [senderData.workspaceData],
+    [workspaceData],
   )
   const workspaceDisplayName = currentWorkspace?.displayName || '未选择工作区'
   const workspaceSwitchDisabled = workspaceLoading || !canSwitchWorkspaceSelect
-
-  async function refreshWorkspaceData() {
-    const data = await workspaceApi.listWorkspaces()
-    dispatchSenderData({ type: 'SET_WORKSPACE_DATA', data })
-  }
 
   async function refreshSkills() {
     const data = await skillApi.listSkills()
@@ -442,10 +425,9 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
   }
 
   useEffect(() => {
-    void refreshWorkspaceData()
-
+    void refreshWorkspace()
     void refreshSkills()
-  }, [])
+  }, [refreshWorkspace])
 
   useEffect(() => {
     if (!activeReferenceTrigger || activeReferenceTrigger.type !== 'file') {
@@ -492,19 +474,11 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
     dispatchSenderData({ type: 'RESET_HIGHLIGHTED_INDEX' })
   }, [activeReferenceTrigger?.type, activeReferenceTrigger?.query, suggestionItemCount])
 
-  useEffect(() => {
-    if (!currentWorkspacePath) {
-      return
-    }
-
-    dispatchSenderData({ type: 'SYNC_WORKSPACE_PATH', currentWorkspacePath })
-  }, [currentWorkspacePath])
-
   async function handleSwitchWorkspace(nextWorkspacePath: string) {
     if (
       !canSwitchWorkspace
-      || !senderData.workspaceData
-      || nextWorkspacePath === senderData.workspaceData.currentWorkspacePath
+      || !workspaceData
+      || nextWorkspacePath === workspaceData.currentWorkspacePath
     ) {
       return
     }
@@ -515,8 +489,7 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
     setWorkspaceLoading(true)
     setNotice('')
     try {
-      const data = await workspaceApi.openWorkspace(nextWorkspacePath)
-      dispatchSenderData({ type: 'SET_WORKSPACE_DATA', data })
+      await openWorkspace(nextWorkspacePath)
       setWorkspacePickerOpen(false)
       await setActiveConversationsId('')
       await switchWorkspaceConversationsAction(nextWorkspacePath)
@@ -841,7 +814,7 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
             files={senderData.fileResults}
             skills={filteredSkills}
             builtinCommands={filteredCommands}
-            hasWorkspace={Boolean(senderData.workspaceData?.currentWorkspacePath)}
+            hasWorkspace={Boolean(workspaceData?.currentWorkspacePath)}
             highlightedIndex={senderData.highlightedIndex}
             anchorRect={senderData.suggestionAnchorRect}
             onSelectFile={selectFileReference}
@@ -955,7 +928,7 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
                   MCP
                 </PromptInputButton>
               </PopoverTrigger>
-              <PopoverContent align="start" className="w-[340px] p-0">
+              <PopoverContent align="start" className="w-85 p-0">
                 <MCPManagementPanel />
               </PopoverContent>
             </Popover>
