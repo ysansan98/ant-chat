@@ -86,68 +86,54 @@ export function MessageBubble({ messages, onCopyMessage }: MessageBubbleProps) {
 
     const hasSummary = isCompaction && !isCompacting && !isCompactError && eventText.length > 0
 
+    const renderEventContent = () => {
+      if (isCompacting) {
+        return (
+          <span className="flex h-7 shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+            <Loader2Icon className="size-3 animate-spin" />
+            <Shimmer>
+              {eventLabel as string}
+            </Shimmer>
+          </span>
+        )
+      }
+
+      const showPopover = isCompactError || hasSummary
+      const triggerClass = isCompactError
+        ? 'h-7 gap-1.5 text-xs text-destructive hover:text-destructive'
+        : 'h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground'
+      const contentClass = isCompactError
+        ? 'max-h-64 max-w-lg overflow-y-auto text-xs whitespace-pre-wrap text-destructive'
+        : 'max-h-64 max-w-lg overflow-y-auto text-xs whitespace-pre-wrap'
+
+      if (showPopover) {
+        return (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button type="button" variant="ghost" size="sm" className={triggerClass}>
+                <ShrinkIcon className="size-3" />
+                {eventLabel}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="center" className={contentClass}>
+              {eventText}
+            </PopoverContent>
+          </Popover>
+        )
+      }
+
+      return (
+        <span className="flex h-7 shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+          <ShrinkIcon className="size-3" />
+          {eventLabel}
+        </span>
+      )
+    }
+
     return (
       <div className="mx-auto flex w-full max-w-(--chat-width) items-center gap-3 py-3">
         <div className="h-px flex-1 bg-border" />
-        {isCompacting
-          ? (
-              <span className="flex h-7 shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
-                <Loader2Icon className="size-3 animate-spin" />
-                <Shimmer>
-                  {eventLabel as string}
-                </Shimmer>
-              </span>
-            )
-          : isCompactError
-            ? (
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 gap-1.5 text-xs text-destructive hover:text-destructive"
-                    >
-                      <ShrinkIcon className="size-3" />
-                      {eventLabel}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent
-                    align="center"
-                    className="max-h-64 max-w-lg overflow-y-auto text-xs whitespace-pre-wrap text-destructive"
-                  >
-                    {eventText}
-                  </PopoverContent>
-                </Popover>
-              )
-            : hasSummary
-              ? (
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-                      >
-                        <ShrinkIcon className="size-3" />
-                        {eventLabel}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      align="center"
-                      className="max-h-64 max-w-lg overflow-y-auto text-xs whitespace-pre-wrap"
-                    >
-                      {eventText}
-                    </PopoverContent>
-                  </Popover>
-                )
-              : (
-                  <span className="flex h-7 shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
-                    <ShrinkIcon className="size-3" />
-                    {eventLabel}
-                  </span>
-                )}
+        {renderEventContent()}
         <div className="h-px flex-1 bg-border" />
       </div>
     )
