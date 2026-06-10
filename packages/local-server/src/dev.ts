@@ -121,6 +121,7 @@ async function main() {
     const webRoot = resolve(process.cwd(), '../../apps/web')
     const viteServer = await vite.createServer({
       root: webRoot,
+      appType: 'spa',
       server: { middlewareMode: true },
     })
     viteMiddleware = viteServer.middlewares as unknown as typeof viteMiddleware
