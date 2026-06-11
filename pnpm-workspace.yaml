@@ -1,4 +1,5 @@
 allowBuilds:
+  agent-browser: true
   better-sqlite3: true
   electron: true
   electron-winstaller: true
@@ -8,6 +9,7 @@ allowBuilds:
   simple-git-hooks: true
 minimumReleaseAgeExclude:
   - lxgw-wenkai-mono-gb-screen-webfont@1.0.1
+  - agent-browser@0.27.2
 shellEmulator: true
 packages:
   - packages/*

@@ -34,10 +34,16 @@ export class ToolRegistry {
     const unrestricted = mode === 'full_managed'
     const skillReader = resolveSkillReader(config)
     const readableRoots = skillReader ? [skillReader.getSkillsRoot()] : []
-    const nativeTools = getNativeToolService(workspacePath, unrestricted, { readableRoots }).getTools()
+    const nativeTools = getNativeToolService(workspacePath, unrestricted, {
+      readableRoots,
+      browser: config.browser,
+    }).getTools()
     const relaxedNativeTools = unrestricted
       ? nativeTools
-      : getNativeToolService(workspacePath, true, { readableRoots }).getTools()
+      : getNativeToolService(workspacePath, true, {
+          readableRoots,
+          browser: config.browser,
+        }).getTools()
     const skillTools = skillReader
       ? await makeSkillTools(skillReader)
       : []

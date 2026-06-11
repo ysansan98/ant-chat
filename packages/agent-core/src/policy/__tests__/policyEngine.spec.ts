@@ -34,6 +34,11 @@ describe('decidePolicy', () => {
       expect(decidePolicy('strict', 'skill', 'workspace')).toEqual({ type: 'allow' })
     })
 
+    it('allows browser operations', () => {
+      expect(decidePolicy('strict', 'browser', 'workspace')).toEqual({ type: 'allow' })
+      expect(decidePolicy('hybrid', 'browser', 'workspace')).toEqual({ type: 'allow' })
+    })
+
     it('allows write in hybrid mode', () => {
       expect(decidePolicy('hybrid', 'write', 'workspace')).toEqual({ type: 'allow' })
     })

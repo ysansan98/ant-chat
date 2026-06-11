@@ -1,4 +1,4 @@
-export type ToolOperationType = 'read' | 'write' | 'bash' | 'skill' | 'mcp'
+export type ToolOperationType = 'read' | 'write' | 'bash' | 'browser' | 'skill' | 'mcp'
 export type ToolScope = 'workspace' | 'outside' | 'blocked'
 
 export interface AgentToolResult {
@@ -42,6 +42,12 @@ export interface BashToolInput {
   cwd?: string
   timeoutMs?: number
   env?: Record<string, string>
+}
+
+export interface BrowserToolInput {
+  command: string
+  args?: string[]
+  timeoutMs?: number
 }
 
 export interface ReadFileToolInput {

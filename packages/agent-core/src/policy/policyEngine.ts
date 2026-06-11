@@ -19,7 +19,7 @@ export function decidePolicy(mode: AgentMode, operationType: ToolOperationType, 
   }
 
   // scope === 'workspace'
-  if (operationType === 'read' || operationType === 'skill' || operationType === 'mcp') {
+  if (operationType === 'read' || operationType === 'browser' || operationType === 'skill' || operationType === 'mcp') {
     return { type: 'allow' }
   }
 

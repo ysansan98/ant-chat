@@ -208,6 +208,9 @@ importers:
       '@workspace/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      agent-browser:
+        specifier: 0.27.2
+        version: 0.27.2
       babel-plugin-react-compiler:
         specifier: 1.0.0
         version: 1.0.0
@@ -437,6 +440,9 @@ importers:
       '@ant-chat/shared':
         specifier: workspace:^
         version: link:../shared
+      agent-browser:
+        specifier: 0.27.2
+        version: 0.27.2
       better-sqlite3:
         specifier: 'catalog:'
         version: 12.6.2
@@ -4056,6 +4062,11 @@ packages:
   agent-base@7.1.4:
     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
     engines: {node: '>= 14'}
+
+  agent-browser@0.27.2:
+    resolution: {integrity: sha512-RZNxZFvnspSxSmpjkZjM0Lv69ArwYr8t+Ndavko/NGrfkdUkp5lVGJAs4f88tJNNcBVFcn92hhS+3pulVF9oSw==}
+    engines: {node: '>=24.0.0', pnpm: '>=11.0.0'}
+    hasBin: true
 
   ahooks@3.9.7:
     resolution: {integrity: sha512-S0lvzhbdlhK36RFBkGv+RbOM/dbbweym+BIHM/bwwuWVSVN5TuVErHPMWo4w0t1NDYg5KPp2iEf7Y7E5LASYiw==}
@@ -12520,6 +12531,8 @@ snapshots:
   acorn@8.16.0: {}
 
   agent-base@7.1.4: {}
+
+  agent-browser@0.27.2: {}
 
   ahooks@3.9.7(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
     dependencies:

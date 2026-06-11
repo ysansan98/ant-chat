@@ -53,6 +53,8 @@ function getToolOperationType(name: string): ToolOperationType {
       return 'write'
     case 'bash':
       return 'bash'
+    case 'browser':
+      return 'browser'
     default:
       return 'read'
   }

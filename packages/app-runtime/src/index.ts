@@ -1,3 +1,5 @@
+export { createAgentBrowserPaths, getAgentBrowserBinaryName, resolveAgentBrowserExecutablePath } from './agentBrowser'
+export type { AgentBrowserPaths } from './agentBrowser'
 export { createAppRuntime } from './appRuntime'
 export type { AppRuntime, AppRuntimeHost, CreateAppRuntimeOptions } from './appRuntime'
 export type { AppRuntimeEventBus, AppRuntimeEventListener, AppRuntimeEventName, AppRuntimeEvents } from './events'

@@ -1,0 +1,148 @@
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { runBrowserTool, validateBrowserInput } from '../browserRunner'
+
+describe('browserRunner', () => {
+  let root: string
+  let executablePath: string
+  let profilePath: string
+  let artifactsPath: string
+  let invocationsPath: string
+
+  beforeEach(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'ant-chat-browser-'))
+    executablePath = path.join(root, 'agent-browser')
+    profilePath = path.join(root, 'profile')
+    artifactsPath = path.join(root, 'artifacts')
+    invocationsPath = path.join(root, 'invocations.jsonl')
+    fs.writeFileSync(executablePath, `#!/usr/bin/env node
+const fs = require('node:fs')
+let stdin = ''
+process.stdin.setEncoding('utf8')
+process.stdin.on('data', chunk => stdin += chunk)
+process.stdin.on('end', () => {
+  fs.appendFileSync(process.env.INVOCATIONS_PATH, JSON.stringify({ args: process.argv.slice(2), stdin, proxy: process.env.AGENT_BROWSER_PROXY, idle: process.env.AGENT_BROWSER_IDLE_TIMEOUT_MS }) + '\\n')
+  const delay = Number(process.env.DELAY_MS || 0)
+  setTimeout(() => process.stdout.write('ok'), delay)
+})
+`)
+    fs.chmodSync(executablePath, 0o755)
+  })
+
+  afterEach(() => {
+    fs.rmSync(root, { recursive: true, force: true })
+  })
+
+  it('injects the global profile, fixed session, proxy and daemon idle timeout', async () => {
+    const result = await runBrowserTool({
+      command: 'open',
+      args: ['https://example.com'],
+    }, {
+      executablePath,
+      profilePath,
+      artifactsPath,
+      env: {
+        INVOCATIONS_PATH: invocationsPath,
+        HTTP_PROXY: 'http://localhost:7890',
+      },
+    })
+
+    expect(result).toMatchObject({ ok: true, stdout: 'ok' })
+    const invocation = JSON.parse(fs.readFileSync(invocationsPath, 'utf8').trim())
+    expect(invocation.args).toEqual([
+      '--profile',
+      profilePath,
+      '--session',
+      'ant-chat',
+      '--content-boundaries',
+      'open',
+      'https://example.com',
+    ])
+    expect(invocation.proxy).toBe('http://localhost:7890')
+    expect(invocation.idle).toBe('300000')
+  })
+
+  it('opens a headed browser with the persistent Ant Chat profile for manual login', async () => {
+    await runBrowserTool({
+      command: 'open',
+      args: ['--headed', 'https://example.com/login'],
+    }, {
+      executablePath,
+      profilePath,
+      artifactsPath,
+      env: { INVOCATIONS_PATH: invocationsPath },
+    })
+
+    const invocation = JSON.parse(fs.readFileSync(invocationsPath, 'utf8').trim())
+    expect(invocation.args).toEqual([
+      '--profile',
+      profilePath,
+      '--session',
+      'ant-chat',
+      '--content-boundaries',
+      '--headed',
+      'open',
+      'https://example.com/login',
+    ])
+    expect(invocation.stdin).toBe('')
+  })
+
+  it('serializes browser processes that share the global profile', async () => {
+    const first = runBrowserTool({ command: 'get title' }, {
+      executablePath,
+      profilePath,
+      artifactsPath,
+      env: { INVOCATIONS_PATH: invocationsPath, DELAY_MS: '80' },
+    })
+    const second = runBrowserTool({ command: 'get url' }, {
+      executablePath,
+      profilePath,
+      artifactsPath,
+      env: { INVOCATIONS_PATH: invocationsPath },
+    })
+
+    await Promise.all([first, second])
+
+    const lines = fs.readFileSync(invocationsPath, 'utf8').trim().split('\n').map(line => JSON.parse(line))
+    expect(lines.map(item => item.args[item.args.length - 2])).toEqual(['get', 'get'])
+  })
+
+  it('rejects unsafe commands, local URLs and paths outside allowed roots', () => {
+    expect(validateBrowserInput({ command: 'eval', args: ['document.cookie'] }, {
+      workspacePath: root,
+      artifactsPath,
+    })).toContain('command')
+    expect(validateBrowserInput({ command: 'open', args: ['file:///etc/passwd'] }, {
+      workspacePath: root,
+      artifactsPath,
+    })).toContain('http')
+    expect(validateBrowserInput({ command: 'screenshot', args: ['/tmp/out.png'] }, {
+      workspacePath: root,
+      artifactsPath,
+    })).toContain('output path')
+    expect(validateBrowserInput({ command: 'open', args: ['https://example.com', '--extension', '/tmp/ext'] }, {
+      workspacePath: root,
+      artifactsPath,
+    })).toContain('--extension')
+    expect(validateBrowserInput({ command: 'open', args: ['https://example.com', '--proxy', 'http://localhost:7890'] }, {
+      workspacePath: root,
+      artifactsPath,
+    })).toContain('--proxy')
+    expect(validateBrowserInput({ command: 'auth save', args: ['github'] }, {
+      workspacePath: root,
+      artifactsPath,
+    })).toContain('command')
+  })
+
+  it('allows an explicitly requested named Chrome profile', () => {
+    expect(validateBrowserInput({
+      command: 'open',
+      args: ['--profile', 'Default', 'https://example.com'],
+    }, {
+      workspacePath: root,
+      artifactsPath,
+    })).toBeNull()
+  })
+})
