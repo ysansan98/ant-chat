@@ -55,7 +55,11 @@ export function useAppEventListener() {
   }, [])
 }
 
-function handleStreamingConversationStatus(msg: Pick<IMessage, 'status' | 'convId'>) {
+export function handleStreamingConversationStatus(msg: Pick<IMessage, 'status' | 'convId' | 'role'>) {
+  if (msg.role === 'user') {
+    return
+  }
+
   if (['typing', 'loading'].includes(msg.status)) {
     addStreamingConversationId(msg.convId)
   }

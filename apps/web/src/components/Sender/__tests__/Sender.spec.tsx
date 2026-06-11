@@ -46,7 +46,7 @@ vi.mock('@/api/providerApi', () => ({
       isBuiltin: false,
       isEnabled: true,
       maxTokens: 4096,
-      contextLength: 4096,
+      contextLength: 128_000,
       temperature: 0.7,
       capabilities: {
         functionCall: true,
@@ -128,6 +128,19 @@ describe('sender reference token overlay', () => {
 
     expect(screen.queryByTestId('reference-token')).toBeNull()
     expect(textarea.value).toBe('看 @resume.md')
+  })
+
+  it('使用模型上下文长度计算上下文占用', async () => {
+    renderSender()
+    await screen.findByText('workspace')
+
+    const usageIcon = screen.getByRole('img', { name: 'Model context usage' })
+    const trigger = usageIcon.closest('button')
+    expect(trigger).not.toBeNull()
+
+    fireEvent.pointerEnter(trigger as HTMLButtonElement)
+
+    expect(await screen.findByText('0 / 128K')).toBeInTheDocument()
   })
 
   it('选择文件引用后渲染 overlay token，提交后清空', async () => {

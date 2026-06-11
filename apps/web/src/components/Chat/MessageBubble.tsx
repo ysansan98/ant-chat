@@ -22,6 +22,7 @@ import { cn } from '@workspace/ui/lib/utils'
 import { ChevronRightIcon, Loader2Icon, ShrinkIcon } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Role } from '@/constants'
+import { formatTime } from '@/utils'
 import { transformMessageContent } from '@/utils/messageTransform'
 import { AssistantTrace } from './AssistantTrace'
 import BubbleFooter from './BubbleFooter'
@@ -31,6 +32,10 @@ interface MessageBubbleProps {
   messages: IMessage[]
   onCopyMessage: (message: IMessage) => void
 }
+
+type ProcessEntry
+  = | { type: 'assistant', message: IMessage }
+    | { type: 'steering', message: IMessage }
 
 export function MessageBubble({ messages, onCopyMessage }: MessageBubbleProps) {
   const message = messages[0]
@@ -55,13 +60,14 @@ export function MessageBubble({ messages, onCopyMessage }: MessageBubbleProps) {
 
   // Determine if the last assistant message is running (for fold decisions).
   // Exclude tool and event messages — only assistant streaming should auto-expand.
-  const nonToolForFold = messages.filter(m => m.role !== 'tool' && m.role !== 'event')
-  const lastNonTool = nonToolForFold[nonToolForFold.length - 1]
-  const isRunning = lastNonTool?.role === 'assistant'
+  const assistantMessages = messages.filter(m => m.role === 'assistant')
+  const lastAssistant = assistantMessages.at(-1)
+  const footerMessage = lastAssistant || message
+  const isRunning = lastAssistant?.role === 'assistant'
     && (
-      lastNonTool?.status === 'loading'
-      || lastNonTool?.status === 'typing'
-      || hasExecutingToolCalls(lastNonTool, toolResultMap)
+      lastAssistant.status === 'loading'
+      || lastAssistant.status === 'typing'
+      || hasExecutingToolCalls(lastAssistant, toolResultMap)
     )
 
   // Event messages: render as collapsible divider
@@ -140,17 +146,17 @@ export function MessageBubble({ messages, onCopyMessage }: MessageBubbleProps) {
   }
 
   // Show only non-tool messages (assistant + user)
-  const nonToolMessages = nonToolForFold
+  const nonToolMessages = messages.filter(m => m.role !== 'tool' && m.role !== 'event')
 
   if (nonToolMessages.length === 0)
     return null
 
-  const { processMessages, visibleMessages } = splitProcessMessages(nonToolMessages)
-  const shouldShowProcess = isAI && processMessages.length > 0
+  const { processEntries, visibleMessages } = isAI
+    ? splitTurnMessages(nonToolMessages)
+    : { processEntries: [], visibleMessages: nonToolMessages }
+  const shouldShowProcess = isAI && processEntries.length > 0
 
-  // 从最后一个可见消息获取任务耗时
-  const lastVisibleMsg = visibleMessages[visibleMessages.length - 1]
-  const taskDurationMs = lastVisibleMsg?.durationMs
+  const taskDurationMs = lastAssistant?.durationMs
 
   return (
     <Message
@@ -169,7 +175,7 @@ export function MessageBubble({ messages, onCopyMessage }: MessageBubbleProps) {
               {shouldShowProcess && (
                 <ProcessMessagesPanel
                   key={isRunning ? 'running' : 'settled'}
-                  processMessages={processMessages}
+                  processEntries={processEntries}
                   toolResultMap={toolResultMap}
                   defaultOpen={isRunning}
                 />
@@ -196,10 +202,10 @@ export function MessageBubble({ messages, onCopyMessage }: MessageBubbleProps) {
           </AiMessageContent>
 
           <BubbleFooter
-            message={message}
-            time={message.createdAt}
-            modelInfo={isAI ? message.modelInfo : undefined}
-            onCopy={onCopyMessage}
+            message={footerMessage}
+            time={footerMessage.createdAt}
+            modelInfo={isAI ? footerMessage.modelInfo : undefined}
+            onCopy={() => onCopyMessage(footerMessage)}
             durationMs={isAI ? taskDurationMs : undefined}
           />
         </div>
@@ -223,7 +229,7 @@ function AssistantMessageContent({
     return (
       <MessageContent
         content={transformMessageContent(item)}
-        status={item.status as 'success' | 'cancel'}
+        status={item.status as 'success' | 'loading' | 'typing'}
         enableReferenceTokens
       />
     )
@@ -233,11 +239,11 @@ function AssistantMessageContent({
 }
 
 function ProcessMessagesPanel({
-  processMessages,
+  processEntries,
   toolResultMap,
   defaultOpen,
 }: {
-  processMessages: IMessage[]
+  processEntries: ProcessEntry[]
   toolResultMap: Map<string, IMessage>
   defaultOpen: boolean
 }) {
@@ -262,23 +268,54 @@ function ProcessMessagesPanel({
               open ? 'rotate-90' : undefined,
             )}
           />
-          {`执行过程(${processMessages.length})`}
+          {`执行过程(${processEntries.length})`}
         </Button>
       </CollapsibleTrigger>
       <CollapsibleContent>
-        {processMessages.map(item => (
-          <div
-            key={item.id}
-            data-message-id={item.id}
-          >
-            <AssistantMessageContent
-              item={item}
-              toolResultMap={toolResultMap}
-            />
-          </div>
-        ))}
+        <div className="space-y-3">
+          {processEntries.map(entry => (
+            entry.type === 'steering'
+              ? <SteeringMessage key={entry.message.id} message={entry.message} />
+              : (
+                  <div
+                    key={entry.message.id}
+                    data-message-id={entry.message.id}
+                  >
+                    <AssistantMessageContent
+                      item={entry.message}
+                      toolResultMap={toolResultMap}
+                    />
+                  </div>
+                )
+          ))}
+        </div>
       </CollapsibleContent>
     </Collapsible>
+  )
+}
+
+function SteeringMessage({ message }: { message: IMessage }) {
+  return (
+    <div
+      className="ml-3 mr-1 border-l-2 border-primary/25 py-1 pl-4"
+      data-message-id={message.id}
+    >
+      <div className="rounded-lg bg-primary/8 px-3 py-2.5 ring-1 ring-primary/18">
+        <div className="mb-1 flex items-center justify-between gap-3">
+          <span className="text-xs font-medium text-primary">
+            追加指令
+          </span>
+          <span className="text-[11px] tabular-nums text-muted-foreground">
+            {formatTime(message.createdAt)}
+          </span>
+        </div>
+        <MessageContent
+          content={transformMessageContent(message)}
+          status={message.status as 'success' | 'loading' | 'typing'}
+          enableReferenceTokens
+        />
+      </div>
+    </div>
   )
 }
 
@@ -293,41 +330,48 @@ function messageHasToolCalls(msg: IMessage): boolean {
 }
 
 interface ProcessSplit {
-  processMessages: IMessage[]
+  processEntries: ProcessEntry[]
   visibleMessages: IMessage[]
 }
 
 /**
- * Split non-tool messages into process (fold) and visible:
- * - Messages without text → fold
- * - Messages with tool calls → fold
- * - The last message stays visible (its text is the final answer);
- *   its reasoning is extracted into a virtual message in the fold.
+ * Keep the latest assistant text response visible. Earlier assistant work and
+ * steering messages retain their chronological position in the process panel.
  */
-function splitProcessMessages(messages: IMessage[]): ProcessSplit {
-  const processIds = new Set<string>()
-  const processMessages: IMessage[] = []
+function splitTurnMessages(messages: IMessage[]): ProcessSplit {
+  const assistantMessages = messages.filter(message => message.role === Role.AI)
+  const visibleMessage = [...assistantMessages]
+    .reverse()
+    .find(message => messageHasTextContent(message) && !messageHasToolCalls(message))
+  const processEntries: ProcessEntry[] = []
 
-  for (const m of messages) {
-    if (!messageHasTextContent(m) || messageHasToolCalls(m)) {
-      processMessages.push(m)
-      processIds.add(m.id)
+  for (const message of messages) {
+    if (message.role === Role.USER) {
+      processEntries.push({ type: 'steering', message })
+      continue
     }
+
+    if (message.id === visibleMessage?.id) {
+      if (message.reasoningContent) {
+        processEntries.push({
+          type: 'assistant',
+          message: {
+            ...message,
+            id: `${message.id}:reasoning-fold`,
+            content: [],
+          },
+        })
+      }
+      continue
+    }
+
+    processEntries.push({ type: 'assistant', message })
   }
 
-  // Extract reasoning from the last message into the fold
-  const lastMsg = messages[messages.length - 1]
-  if (lastMsg?.reasoningContent && !processIds.has(lastMsg.id)) {
-    processMessages.push({
-      ...lastMsg,
-      id: `${lastMsg.id}:reasoning-fold`,
-      content: [],
-    })
+  return {
+    processEntries,
+    visibleMessages: visibleMessage ? [visibleMessage] : [],
   }
-
-  const visibleMessages = messages.filter(m => !processIds.has(m.id))
-
-  return { processMessages, visibleMessages }
 }
 
 function hasToolCallBlocks(msgs: IMessage[]): boolean {

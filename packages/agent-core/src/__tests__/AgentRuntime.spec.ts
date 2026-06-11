@@ -19,6 +19,7 @@ function createMockEmitter(): IAgentEventEmitter {
     emitTurnChunk: vi.fn(),
     emitTurnToolCalls: vi.fn(),
     emitTurnFinished: vi.fn(),
+    emitMessageUpdated: vi.fn(),
   }
 }
 
@@ -802,6 +803,41 @@ describe('agentRuntime', () => {
       })).rejects.toThrow('AGENT_TASK_ALREADY_RUNNING')
 
       expect(store.createUserMessage).not.toHaveBeenCalled()
+      cleanupTasks([running.taskId])
+    })
+  })
+
+  describe('injectSteering', () => {
+    it('persists, emits, and enqueues steering for the active task', async () => {
+      const store = createSessionStore()
+      const eventEmitter = createMockEmitter()
+      const runtime = new AgentRuntime(createSessionConfig({ eventEmitter, sessionStore: store }))
+      const running = await runtime.startTask({
+        conversationId: 'conv-session',
+        prompt: 'inspect project',
+        modelId: 'model-1',
+        workspacePath: '/workspace',
+        mode: 'hybrid',
+      })
+
+      await runtime.injectSteering('conv-session', 'fix types first')
+
+      expect(store.createUserMessage).toHaveBeenLastCalledWith({
+        convId: 'conv-session',
+        role: 'user',
+        status: 'success',
+        content: [{ type: 'text', text: 'fix types first' }],
+        turnId: 'user-msg-1',
+      })
+      expect(eventEmitter.emitMessageUpdated).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'user-msg-1',
+          role: 'user',
+        }),
+      )
+      expect(taskStore.dequeueSteeringInputs(running.taskId)).toEqual([
+        { text: 'fix types first', turnId: 'user-msg-1' },
+      ])
       cleanupTasks([running.taskId])
     })
   })

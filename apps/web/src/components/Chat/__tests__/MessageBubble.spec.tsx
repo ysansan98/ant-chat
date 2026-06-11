@@ -129,6 +129,42 @@ describe('messageBubble', () => {
     expect(screen.getByText('search_content')).toBeInTheDocument()
   })
 
+  it('renders steering inline in the same collapsed process panel', () => {
+    renderBubble([
+      createAssistantMessage('tool-call', [
+        {
+          type: 'tool-call',
+          toolCallId: 'call-1',
+          toolName: 'search_content',
+          args: { pattern: 'groupMessage' },
+          executeState: 'completed',
+        },
+      ]),
+      {
+        id: 'steering-1',
+        convId: 'conv-1',
+        role: 'user',
+        content: [{ type: 'text', text: 'Keep one execution process.' }],
+        status: 'success',
+        createdAt: 2,
+        turnId: 'turn-1',
+      },
+      createAssistantMessage('final-answer', [
+        { type: 'text', text: 'Updated final answer.' },
+      ]),
+    ])
+
+    expect(screen.getByText('执行过程(2)')).toBeInTheDocument()
+    expect(screen.getByText('Updated final answer.')).toBeInTheDocument()
+    expect(screen.queryByText('追加指令')).toBeNull()
+
+    fireEvent.click(screen.getByText('执行过程(2)'))
+
+    expect(screen.getByText('追加指令')).toBeInTheDocument()
+    expect(screen.getByText('Keep one execution process.')).toBeInTheDocument()
+    expect(screen.getAllByText(/执行过程/)).toHaveLength(1)
+  })
+
   it('keeps process panel open when tool-call has executing state', () => {
     const { container } = renderBubble([
       createAssistantMessage('with-executing-tool', [

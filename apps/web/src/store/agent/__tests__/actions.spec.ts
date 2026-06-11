@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { useConversationsStore } from '@/store/conversation'
-import { approveAgentAction, cancelAgentTask, rejectAgentAction, startAgentTurn, syncConversationAgentState } from '../actions'
+import { approveAgentAction, cancelAgentTask, injectSteeringAction, rejectAgentAction, startAgentTurn, syncConversationAgentState } from '../actions'
 import { useAgentStore } from '../store'
 
 const mocks = vi.hoisted(() => ({
+  injectSteering: vi.fn(),
   listActiveTasks: vi.fn(),
 }))
 
@@ -14,6 +15,7 @@ vi.mock('@/api/agentApi', () => ({
     approvePendingAction: vi.fn(async () => null),
     rejectPendingAction: vi.fn(async () => null),
     cancelTask: vi.fn(async () => null),
+    injectSteering: mocks.injectSteering,
     listActiveTasks: mocks.listActiveTasks,
   },
 }))
@@ -36,6 +38,8 @@ describe('agent store actions', () => {
     await expect(approveAgentAction({ taskId: 't1', actionId: 'a1' })).resolves.toBeUndefined()
     await expect(rejectAgentAction({ taskId: 't1', actionId: 'a1', reason: 'r' })).resolves.toBeUndefined()
     await expect(cancelAgentTask('t1')).resolves.toBeUndefined()
+    await expect(injectSteeringAction('c1', 'adjust')).resolves.toBeUndefined()
+    expect(mocks.injectSteering).toHaveBeenCalledWith('c1', 'adjust')
   })
 
   it('从 runtime 恢复 conversation 的运行状态', async () => {

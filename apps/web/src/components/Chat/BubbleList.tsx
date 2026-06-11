@@ -6,6 +6,7 @@ import { useAutoScroll } from '@/hooks/useAutoScroll'
 import { useMessageActions } from '@/hooks/useMessageActions'
 import { InfiniteScroll } from '../InfiniteScroll'
 import { MessageBubble } from './MessageBubble'
+import { getRootUserMessages, groupMessages } from './messageGrouping'
 import { MessageJumpRail } from './MessageJumpRail'
 
 interface Props {
@@ -29,7 +30,7 @@ function BubbleList({ messages }: Props) {
   // ---- 用户消息跳转导航 ----
 
   const userMessages = useMemo(
-    () => messages.filter(m => m.role === 'user'),
+    () => getRootUserMessages(messages),
     [messages],
   )
 
@@ -178,30 +179,3 @@ function BubbleList({ messages }: Props) {
 }
 
 export default BubbleList
-
-function groupMessages(messages: IMessage[]): IMessage[][] {
-  return messages.reduce<IMessage[][]>((groups, message) => {
-    // Event messages always start a new group so MessageBubble renders them as dividers
-    if (message.role === 'event') {
-      groups.push([message])
-      return groups
-    }
-
-    const lastGroup = groups.at(-1)
-
-    // Primary: group by turnId
-    if (lastGroup && message.turnId && lastGroup.at(-1)?.turnId === message.turnId) {
-      lastGroup.push(message)
-      return groups
-    }
-
-    // Fallback: group consecutive non-user messages
-    if (lastGroup && message.role !== 'user' && lastGroup.at(-1)?.role !== 'user') {
-      lastGroup.push(message)
-      return groups
-    }
-
-    groups.push([message])
-    return groups
-  }, [])
-}

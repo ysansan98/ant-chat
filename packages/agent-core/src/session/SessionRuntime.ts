@@ -218,13 +218,14 @@ export class SessionRuntime {
     const turnId = task.userMessageId
 
     // Create steering message with same turnId
-    await store.createUserMessage({
+    const message = await store.createUserMessage({
       convId: conversationId,
       role: 'user',
       status: 'success',
       content: [{ type: 'text', text }],
       turnId,
     })
+    await this.config.eventEmitter.emitMessageUpdated?.(message)
 
     // Enqueue for the agent loop
     taskStore.enqueueSteeringInput(task.taskId, { text, turnId })

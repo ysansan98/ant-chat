@@ -6,7 +6,7 @@ import { AgentApprovalCard } from '@/components/Agent'
 import { DEFAULT_TITLE } from '@/constants'
 import { useChatSettingsContext } from '@/contexts/chatSettings'
 import { useBuiltinCommandSubmit } from '@/hooks/useBuiltinCommandSubmit'
-import { approveAgentActionWithWhitelist, rejectAgentAction, startAgentTurn, useAgentStore } from '@/store/agent'
+import { approveAgentActionWithWhitelist, injectSteeringAction, rejectAgentAction, startAgentTurn, useAgentStore } from '@/store/agent'
 import {
   initConversationsTitle,
   upsertConversationAction,
@@ -50,13 +50,18 @@ export default function Chat() {
     features: ChatFeatures,
     agentMode: AgentMode,
   ) {
+    const textBlocks = content.filter(block => block.type === 'text')
+    const draftText = textBlocks.map(block => block.text).join('\n')
+
+    if (agentTask) {
+      await injectSteeringAction(agentTask.conversationId, draftText)
+      return
+    }
+
     if (!settings.modelId) {
       toast.error('请选择模型')
       return
     }
-
-    const textBlocks = content.filter(block => block.type === 'text')
-    const draftText = textBlocks.map(block => block.text).join('\n')
 
     // Try built-in command first
     const handled = await submitCommand(draftText, referencedFiles, selectedSkill)
@@ -138,8 +143,11 @@ export default function Chat() {
           )}
           onSubmit={onSubmit}
           onCancel={async () => {
-            await cancelCommand()
-            void abortActiveRequest(activeConversationsId)
+            if (commandRunning) {
+              await cancelCommand()
+              return
+            }
+            await abortActiveRequest(activeConversationsId)
           }}
         />
       </div>

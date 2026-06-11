@@ -10,12 +10,10 @@ import {
   Attachments,
 } from '@workspace/ui/components/ai-elements/attachments'
 import { MessageResponse } from '@workspace/ui/components/ai-elements/message'
-import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@workspace/ui/components/tooltip'
-import { FileIcon, SparklesIcon, XCircleIcon } from 'lucide-react'
+import { FileIcon, SparklesIcon } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { skillApi } from '@/api/skillApi'
-import { isNetworkError } from '@/utils/networkError'
 import { tokenizeMessageReferences } from './messageReferenceTokens'
 
 function toAttachmentData(item: NonNullable<BubbleContent['attachments']>[number]): AttachmentData {
@@ -40,37 +38,6 @@ const EMPTY_IMAGES: NonNullable<BubbleContent['images']> = []
 const EMPTY_ATTACHMENTS: NonNullable<BubbleContent['attachments']> = []
 
 export default function MessageContent({ content = '', images = EMPTY_IMAGES, attachments = EMPTY_ATTACHMENTS, status, enableReferenceTokens = false }: Partial<BubbleContent> & { enableReferenceTokens?: boolean }) {
-  if (status === 'error') {
-    const title = isNetworkError(content)
-      ? 'Connection interrupted'
-      : 'Request failed'
-
-    return (
-      <Alert variant="destructive">
-        <XCircleIcon className="size-4" />
-        <AlertTitle>{title}</AlertTitle>
-        <AlertDescription>
-          {content
-            ? <p className="whitespace-pre-wrap">{content}</p>
-            : <p>请求失败。请检查配置并重试。</p>}
-        </AlertDescription>
-      </Alert>
-    )
-  }
-
-  if (status === 'cancel') {
-    return (
-      <Alert variant="default">
-        <AlertTitle>Cancelled</AlertTitle>
-        <AlertDescription>
-          {content
-            ? <p className="whitespace-pre-wrap">{content}</p>
-            : <p>Task cancelled.</p>}
-        </AlertDescription>
-      </Alert>
-    )
-  }
-
   const isStreaming = status === 'loading' || status === 'typing'
   const imageItems = images.map(toAttachmentData)
   const attachmentItems = attachments.map(toAttachmentData)

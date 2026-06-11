@@ -34,7 +34,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@workspace/ui/components/popover'
-import { Cable, ChevronDownIcon, FolderOpenIcon, HandIcon, PaperclipIcon, ShieldAlertIcon, ShieldCheckIcon } from 'lucide-react'
+import { Cable, ChevronDownIcon, FolderOpenIcon, HandIcon, PaperclipIcon, ShieldAlertIcon, ShieldCheckIcon, SquareIcon } from 'lucide-react'
 import { nanoid } from 'nanoid'
 import {
   useEffect,
@@ -154,8 +154,11 @@ function SenderAddAttachmentButton() {
   )
 }
 
-function SenderContextUsageButton() {
-  const { settings } = useChatSettingsContext()
+function SenderContextUsageButton({
+  contextLength,
+}: {
+  contextLength: number
+}) {
   const messages = useMessagesStore(state => state.messages)
 
   // Cumulative token consumption across the whole session
@@ -164,7 +167,6 @@ function SenderContextUsageButton() {
     [messages],
   )
 
-  const maxTokens = settings.maxTokens || 1
   // Calculate current context token count using the same logic as compaction
   const usedTokens = useMemo(() => {
     const entries = messages.map(msg => ({
@@ -179,7 +181,7 @@ function SenderContextUsageButton() {
 
   return (
     <ContextUsage
-      maxTokens={maxTokens}
+      maxTokens={contextLength}
       usage={sessionUsage}
       usedTokens={Math.max(0, usedTokens)}
     >
@@ -806,7 +808,11 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
               onKeyDown={handleTextareaKeyDown}
               onKeyUp={handleTextareaKeyUp}
               onScroll={event => setTextareaScrollTop(event.currentTarget.scrollTop)}
-              placeholder={disabled ? '指令执行中...' : 'Enter发送消息，Shift+Enter换行'}
+              placeholder={disabled
+                ? '指令执行中...'
+                : loading
+                  ? '输入追加指令，Enter发送'
+                  : 'Enter发送消息，Shift+Enter换行'}
             />
           </div>
           <ReferenceSuggestionPanel
@@ -878,7 +884,7 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
             </Popover>
 
             <SenderAddAttachmentButton />
-            <SenderContextUsageButton />
+            <SenderContextUsageButton contextLength={currentModelInfo?.contextLength ?? 1} />
 
             <Popover>
               <PopoverTrigger asChild>
@@ -936,15 +942,38 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
             {actions}
           </PromptInputTools>
 
-          <PromptInputSubmit
-            size="sm"
-            data-testid={loading || disabled ? 'chat-cancel' : 'chat-submit'}
-            onStop={props.onCancel}
-            status={loading ? 'streaming' : disabled ? 'submitted' : 'ready'}
-            variant={loading ? 'outline' : 'default'}
-          >
-            {loading ? '停止' : disabled ? '执行中' : '发送'}
-          </PromptInputSubmit>
+          {loading
+            ? (
+                <>
+                  <PromptInputButton
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                    data-testid="chat-cancel"
+                    onClick={props.onCancel}
+                  >
+                    <SquareIcon className="size-3" />
+                    停止
+                  </PromptInputButton>
+                  <PromptInputSubmit
+                    size="sm"
+                    data-testid="chat-steer"
+                    status="ready"
+                  >
+                    追加
+                  </PromptInputSubmit>
+                </>
+              )
+            : (
+                <PromptInputSubmit
+                  size="sm"
+                  data-testid={disabled ? 'chat-cancel' : 'chat-submit'}
+                  onStop={props.onCancel}
+                  status={disabled ? 'submitted' : 'ready'}
+                >
+                  {disabled ? '执行中' : '发送'}
+                </PromptInputSubmit>
+              )}
         </PromptInputFooter>
       </PromptInput>
 

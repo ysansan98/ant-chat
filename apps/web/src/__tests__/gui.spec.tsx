@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
     approvePendingAction: vi.fn(async () => null),
     approvePendingActionWithWhitelist: vi.fn(async () => null),
     cancelTask: vi.fn(async () => null),
+    injectSteering: vi.fn(async () => null),
     listActiveTasks: vi.fn<() => Promise<AgentTaskSnapshot[]>>(async () => []),
     rejectPendingAction: vi.fn(async () => null),
     startTurn: vi.fn(),
@@ -361,6 +362,36 @@ describe('gui ui flow', () => {
       expect(mocks.agent.listActiveTasks).toHaveBeenCalledWith('conv-running')
       expect(mocks.agent.cancelTask).toHaveBeenCalledWith('task-running')
     })
+  })
+
+  it('运行中的 Agent task 可以从输入区追加 steering', async () => {
+    seedActiveConversation('conv-steering')
+    const task = createTask({
+      conversationId: 'conv-steering',
+      status: 'running',
+      taskId: 'task-steering',
+    })
+    mocks.agent.listActiveTasks.mockResolvedValue([task])
+
+    await setActiveConversationsId('conv-steering' as ConversationsId)
+
+    renderGui('/chat')
+
+    const input = await screen.findByTestId('chat-input')
+    fireEvent.change(input, {
+      target: { value: '先修复类型错误，再继续实现' },
+    })
+    fireEvent.click(screen.getByTestId('chat-steer'))
+
+    await waitFor(() => {
+      expect(mocks.agent.injectSteering).toHaveBeenCalledWith(
+        'conv-steering',
+        '先修复类型错误，再继续实现',
+      )
+    })
+    expect(mocks.agent.startTurn).not.toHaveBeenCalled()
+    expect(input).toHaveValue('')
+    expect(screen.getByTestId('chat-cancel')).toHaveTextContent('停止')
   })
 })
 

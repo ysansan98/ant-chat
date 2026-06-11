@@ -552,11 +552,11 @@ export function AssistantTrace({ message, toolResultMap, showReasoning = true }:
         </Alert>
       )}
 
-      {message.status === 'cancel' && (
+      {message.status === 'cancel' && !hasTextContent(message) && (
         <Alert variant="default">
           <AlertTitle>Cancelled</AlertTitle>
           <AlertDescription>
-            {hasTextContent(message) ? null : <p>Task cancelled.</p>}
+            <p>Task cancelled.</p>
           </AlertDescription>
         </Alert>
       )}
