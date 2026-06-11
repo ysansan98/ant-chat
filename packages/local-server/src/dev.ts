@@ -23,6 +23,8 @@ const initialProxyEnv = {
   no_proxy: process.env.no_proxy,
 }
 
+let currentProxyUrl: string | undefined
+
 function sseBroadcast(clients: Set<ServerResponse>, channel: string, data: unknown) {
   const payload = `event: ${channel}\ndata: ${JSON.stringify(data)}\n\n`
   for (const client of clients) {
@@ -48,10 +50,12 @@ async function main() {
     host: {
       browser: {
         executablePath: resolveAgentBrowserExecutablePath(),
+        get proxyUrl() { return currentProxyUrl },
       },
       proxy: {
         async apply(settings) {
           if (settings.mode === 'custom' && settings.customProxyUrl) {
+            currentProxyUrl = settings.customProxyUrl
             setProcessProxy(settings.customProxyUrl)
             setGlobalDispatcher(new EnvHttpProxyAgent({
               httpProxy: settings.customProxyUrl,
@@ -60,10 +64,12 @@ async function main() {
             }))
           }
           else if (settings.mode === 'system') {
+            currentProxyUrl = undefined
             restoreSystemProxy()
             setGlobalDispatcher(new EnvHttpProxyAgent())
           }
           else {
+            currentProxyUrl = undefined
             clearProcessProxy()
             setGlobalDispatcher(new Agent())
           }
