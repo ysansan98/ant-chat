@@ -204,6 +204,8 @@ export interface AgentBrowserRuntimeConfig {
   executablePath: string
   profilePath: string
   artifactsPath: string
+  /** Explicit proxy URL; when set, overrides environment proxy variables. */
+  proxyUrl?: string
 }
 
 // ============================================================

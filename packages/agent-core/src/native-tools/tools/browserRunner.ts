@@ -70,6 +70,10 @@ const BLOCKED_FLAGS = new Set([
   '--init-script',
   '--executable-path',
   '--allow-file-access',
+  '--remote-debugging-port',
+  '--proxy-server',
+  '--disable-web-security',
+  '--user-data-dir',
 ])
 
 const COMMON_FLAGS = new Set(['--json'])
@@ -93,6 +97,7 @@ export interface BrowserRunnerOptions {
   profilePath: string
   artifactsPath: string
   env?: NodeJS.ProcessEnv
+  proxyUrl?: string
 }
 
 export function validateBrowserInput(
@@ -145,7 +150,7 @@ export function validateBrowserInput(
     }
   }
 
-  const outputPaths = getOutputPaths(command, args)
+  const outputPaths = getOutputPaths(command, commandArgs)
   for (const outputPath of outputPaths) {
     if (!isAllowedOutputPath(outputPath, options.workspacePath, options.artifactsPath)) {
       return `browser output path is outside allowed roots: ${outputPath}`
@@ -294,7 +299,8 @@ function createBrowserEnv(options: BrowserRunnerOptions): NodeJS.ProcessEnv {
     ...process.env,
     ...options.env,
   }
-  const proxy = source.HTTPS_PROXY || source.HTTP_PROXY || source.https_proxy || source.http_proxy
+  const proxy = options.proxyUrl
+    ?? (source.HTTPS_PROXY || source.HTTP_PROXY || source.https_proxy || source.http_proxy)
   return {
     ...source,
     AGENT_BROWSER_CONTENT_BOUNDARIES: '1',

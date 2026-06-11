@@ -42,6 +42,7 @@ import { createAppRuntimePaths } from './paths'
 export interface AppRuntimeHost {
   browser?: {
     executablePath: string
+    proxyUrl?: string
   }
   proxy: {
     apply: (settings: ProxySettings) => Promise<void>
@@ -98,6 +99,7 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
       browser: options.host.browser
         ? {
             executablePath: options.host.browser.executablePath,
+            proxyUrl: options.host.browser.proxyUrl,
             ...browserPaths,
           }
         : undefined,

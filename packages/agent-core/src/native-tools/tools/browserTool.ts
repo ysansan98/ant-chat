@@ -39,6 +39,7 @@ export function createBrowserTool(workspacePath: string, config: AgentBrowserRun
     execute: input => runBrowserTool(input as unknown as BrowserToolInput, {
       ...config,
       workspacePath,
+      proxyUrl: config.proxyUrl,
     }),
     formatError: error => `Browser tool failed: ${error}`,
     truncateObservation: false,

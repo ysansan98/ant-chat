@@ -145,4 +145,63 @@ process.stdin.on('end', () => {
       artifactsPath,
     })).toBeNull()
   })
+
+  it('validates output paths after stripping global arguments (P1)', () => {
+    // screenshot with --profile should validate the actual output path, not the profile name
+    expect(validateBrowserInput({
+      command: 'screenshot',
+      args: ['--profile', 'Default', '/tmp/out.png'],
+    }, {
+      workspacePath: root,
+      artifactsPath,
+    })).toContain('output path')
+
+    // valid output path with --profile should pass
+    expect(validateBrowserInput({
+      command: 'screenshot',
+      args: ['--profile', 'Default', 'out.png'],
+    }, {
+      workspacePath: root,
+      artifactsPath,
+    })).toBeNull()
+  })
+
+  it('rejects --remote-debugging-port, --proxy-server, --disable-web-security, --user-data-dir', () => {
+    expect(validateBrowserInput({ command: 'open', args: ['https://example.com', '--remote-debugging-port', '9222'] }, {
+      workspacePath: root,
+      artifactsPath,
+    })).toContain('--remote-debugging-port')
+    expect(validateBrowserInput({ command: 'open', args: ['https://example.com', '--proxy-server', 'http://localhost:8080'] }, {
+      workspacePath: root,
+      artifactsPath,
+    })).toContain('--proxy-server')
+    expect(validateBrowserInput({ command: 'open', args: ['https://example.com', '--disable-web-security'] }, {
+      workspacePath: root,
+      artifactsPath,
+    })).toContain('--disable-web-security')
+    expect(validateBrowserInput({ command: 'open', args: ['https://example.com', '--user-data-dir', '/tmp/chrome'] }, {
+      workspacePath: root,
+      artifactsPath,
+    })).toContain('--user-data-dir')
+  })
+
+  it('uses proxyUrl option over environment proxy variables', async () => {
+    const result = await runBrowserTool({
+      command: 'open',
+      args: ['https://example.com'],
+    }, {
+      executablePath,
+      profilePath,
+      artifactsPath,
+      proxyUrl: 'http://explicit-proxy:8080',
+      env: {
+        INVOCATIONS_PATH: invocationsPath,
+        HTTP_PROXY: 'http://env-proxy:7890',
+      },
+    })
+
+    expect(result).toMatchObject({ ok: true, stdout: 'ok' })
+    const invocation = JSON.parse(fs.readFileSync(invocationsPath, 'utf8').trim())
+    expect(invocation.proxy).toBe('http://explicit-proxy:8080')
+  })
 })
