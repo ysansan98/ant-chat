@@ -808,7 +808,7 @@ describe('agentRuntime', () => {
   })
 
   describe('injectSteering', () => {
-    it('persists, emits, and enqueues steering for the active task', async () => {
+    it('enqueues steering and stores pending message (deferred persistence)', async () => {
       const store = createSessionStore()
       const eventEmitter = createMockEmitter()
       const runtime = new AgentRuntime(createSessionConfig({ eventEmitter, sessionStore: store }))
@@ -820,21 +820,21 @@ describe('agentRuntime', () => {
         mode: 'hybrid',
       })
 
+      // Record calls from startTask so we can ignore them
+      const callsBefore = (store.createUserMessage as ReturnType<typeof vi.fn>).mock.calls.length
+
       await runtime.injectSteering('conv-session', 'fix types first')
 
-      expect(store.createUserMessage).toHaveBeenLastCalledWith({
-        convId: 'conv-session',
-        role: 'user',
-        status: 'success',
-        content: [{ type: 'text', text: 'fix types first' }],
-        turnId: 'user-msg-1',
-      })
-      expect(eventEmitter.emitMessageUpdated).toHaveBeenCalledWith(
-        expect.objectContaining({
-          id: 'user-msg-1',
-          role: 'user',
-        }),
-      )
+      // Should NOT persist to DB immediately — deferred until after tool results
+      expect(store.createUserMessage).toHaveBeenCalledTimes(callsBefore)
+
+      // Should store in pending list on the task
+      const task = taskStore.get(running.taskId)
+      expect(task?.pendingSteeringMessages).toEqual([
+        { text: 'fix types first', turnId: 'user-msg-1' },
+      ])
+
+      // Should still enqueue for the agent loop
       expect(taskStore.dequeueSteeringInputs(running.taskId)).toEqual([
         { text: 'fix types first', turnId: 'user-msg-1' },
       ])

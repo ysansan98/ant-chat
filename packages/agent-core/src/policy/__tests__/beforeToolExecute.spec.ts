@@ -35,6 +35,7 @@ function createTask(overrides: Record<string, unknown> = {}): RuntimeTask {
     } as AgentTaskSnapshot,
     abortController: new AbortController(),
     steeringQueue: [],
+    pendingSteeringMessages: [],
     pendingResolver: undefined,
   }
 }

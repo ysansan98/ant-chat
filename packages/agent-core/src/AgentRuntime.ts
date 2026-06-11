@@ -98,7 +98,7 @@ export class AgentRuntime {
       prompt: options.prompt,
     }
 
-    taskStore.create({ snapshot, abortController: new AbortController(), steeringQueue: [] })
+    taskStore.create({ snapshot, abortController: new AbortController(), steeringQueue: [], pendingSteeringMessages: [] })
     await config.eventEmitter.emitTaskUpdated(snapshot)
     void runAgentLoop({
       taskId,

@@ -31,6 +31,7 @@ function createRunningTask(taskId: string, conversationId: string) {
     } as AgentTaskSnapshot,
     abortController: new AbortController(),
     steeringQueue: [],
+    pendingSteeringMessages: [],
     pendingResolver: undefined as ((value: { approved: boolean, reason?: string }) => void) | undefined,
   }
 }
