@@ -237,13 +237,15 @@ export async function updateConversationsSettingsAction(id: ConversationsId, con
 }
 
 export function addStreamingConversationId(id: string) {
-  useConversationsStore.setState(state => produce(state, (draft) => {
-    draft.streamingConversationIds.add(id)
+  useConversationsStore.setState(state => ({
+    streamingConversationIds: new Set(state.streamingConversationIds).add(id),
   }))
 }
 
 export function removeStreamingConversationId(id: string) {
-  useConversationsStore.setState(state => produce(state, (draft) => {
-    draft.streamingConversationIds.delete(id)
-  }))
+  useConversationsStore.setState((state) => {
+    const streamingConversationIds = new Set(state.streamingConversationIds)
+    streamingConversationIds.delete(id)
+    return { streamingConversationIds }
+  })
 }

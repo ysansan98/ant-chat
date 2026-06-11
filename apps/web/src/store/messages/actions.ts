@@ -2,6 +2,7 @@ import type { ConversationsId, IMessage } from '@ant-chat/shared'
 import { produce } from 'immer'
 import agentApi from '@/api/agentApi'
 import chatApi from '@/api/chatApi'
+import { syncConversationAgentState } from '../agent'
 import { useConversationsStore } from '../conversation/conversationsStore'
 import { useMessagesStore } from './store'
 
@@ -19,7 +20,10 @@ export async function setActiveConversationsId(id: ConversationsId | '') {
     return
   }
 
-  const messages = await chatApi.getMessagesByConvId(id)
+  const [messages] = await Promise.all([
+    chatApi.getMessagesByConvId(id),
+    syncConversationAgentState(id),
+  ])
 
   useMessagesStore.setState(state => produce(state, (draft) => {
     draft.activeConversationsId = id as ConversationsId

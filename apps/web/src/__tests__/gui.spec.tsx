@@ -1,4 +1,4 @@
-import type { AgentTaskSnapshot, IConversations, IMessage } from '@ant-chat/shared'
+import type { AgentTaskSnapshot, ConversationsId, IConversations, IMessage } from '@ant-chat/shared'
 
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -13,7 +13,7 @@ import SettingsPage from '../pages/Settings/Settings'
 import { useAgentStore } from '../store/agent'
 import { useConversationsStore } from '../store/conversation'
 import { createInitialState } from '../store/conversation/initialState'
-import { useMessagesStore } from '../store/messages'
+import { setActiveConversationsId, useMessagesStore } from '../store/messages'
 
 const mocks = vi.hoisted(() => ({
   agent: {
@@ -345,18 +345,17 @@ describe('gui ui flow', () => {
       status: 'running',
       taskId: 'task-running',
     })
-    useAgentStore.setState({
-      pendingByTask: {},
-      tasks: { [task.taskId]: task },
-    })
-    useConversationsStore.setState({
-      streamingConversationIds: new Set(['conv-running']),
-    })
     mocks.agent.listActiveTasks.mockResolvedValue([task])
+    useAgentStore.setState({ pendingByTask: {}, tasks: {} })
+    useConversationsStore.setState({ streamingConversationIds: new Set() })
+
+    await setActiveConversationsId('conv-running' as ConversationsId)
 
     renderGui('/chat')
 
-    fireEvent.click(await screen.findByTestId('chat-cancel'))
+    const cancelButton = await screen.findByTestId('chat-cancel')
+    expect(cancelButton).toHaveTextContent('停止')
+    fireEvent.click(cancelButton)
 
     await waitFor(() => {
       expect(mocks.agent.listActiveTasks).toHaveBeenCalledWith('conv-running')
