@@ -571,6 +571,11 @@ function createStoreBackedEventEmitter(store: ISessionStore, delegate: IAgentEve
         await delegate.emitMessageUpdated?.(message)
         turns.delete(params.conversationId)
       }
+
+      // Also flush here: model may finish without further tool calls,
+      // so emitTurnToolResults would never run.
+      await persistPendingSteeringMessages()
+
       await delegate.emitTurnFinished(params)
     },
   }
