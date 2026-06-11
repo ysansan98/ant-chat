@@ -75,6 +75,7 @@ function createTask(taskId = 'task-loop-1', conversationId = 'conv-loop-1') {
     },
     abortController: new AbortController(),
     steeringQueue: [],
+    pendingSteeringMessages: [],
     pendingResolver: undefined as ((v: { approved: boolean, reason?: string }) => void) | undefined,
   }
 }

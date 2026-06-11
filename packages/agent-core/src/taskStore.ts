@@ -5,11 +5,17 @@ export interface SteeringInput {
   turnId: string
 }
 
+export interface PendingSteeringMessage {
+  text: string
+  turnId: string
+}
+
 export interface RuntimeTask {
   snapshot: AgentTaskSnapshot
   abortController: AbortController
   pendingResolver?: (value: { approved: boolean, reason?: string }) => void
   steeringQueue: SteeringInput[]
+  pendingSteeringMessages: PendingSteeringMessage[]
 }
 
 export class TaskStore {

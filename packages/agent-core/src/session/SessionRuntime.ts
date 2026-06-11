@@ -173,32 +173,40 @@ export class SessionRuntime {
     const systemPrompt = createLoopSystemPrompt(options.workspacePath, options.modelSettings?.systemPrompt, memory)
 
     const turnId = userMessage.id
-    const eventEmitter = createStoreBackedEventEmitter(store, this.config.eventEmitter, turnId)
 
     const taskLogger = this.config.createTaskLogger?.(conversation.id, userMessage.id)
 
+    // Create task first so we can pass taskId to the event emitter
+    const taskSnapshot = {
+      conversationId: conversation.id,
+      userMessageId: userMessage.id,
+      prompt: enrichedPrompt,
+      workspacePath: options.workspacePath,
+      mode,
+      messages,
+      systemPrompt,
+      registry,
+      aiProvider,
+      modelName: model.model,
+      providerName: provider.name,
+      providerId: provider.id,
+      apiMode,
+      taskLogger,
+      temperature: options.modelSettings?.temperature,
+      maxTokens: options.modelSettings?.maxTokens,
+      compaction: compactionSettings,
+    }
+
+    const eventEmitter = createStoreBackedEventEmitter(store, this.config.eventEmitter, turnId)
+
     const task = await this.startLoopTask(
-      {
-        conversationId: conversation.id,
-        userMessageId: userMessage.id,
-        prompt: enrichedPrompt,
-        workspacePath: options.workspacePath,
-        mode,
-        messages,
-        systemPrompt,
-        registry,
-        aiProvider,
-        modelName: model.model,
-        providerName: provider.name,
-        providerId: provider.id,
-        apiMode,
-        taskLogger,
-        temperature: options.modelSettings?.temperature,
-        maxTokens: options.modelSettings?.maxTokens,
-        compaction: compactionSettings,
-      },
+      taskSnapshot,
       { eventEmitter },
     )
+
+    // Now that task exists, bind taskId to the event emitter so it can
+    // persist pending steering messages after tool results
+    eventEmitter.setTaskId(task.taskId)
 
     return {
       ...task,
@@ -209,7 +217,6 @@ export class SessionRuntime {
   }
 
   async injectSteering(conversationId: string, text: string): Promise<void> {
-    const store = requireSessionStore(this.config)
     const activeTasks = this.listActiveTasks(conversationId) as Array<{ taskId: string, userMessageId: string }>
     if (activeTasks.length === 0)
       return
@@ -217,15 +224,11 @@ export class SessionRuntime {
     const task = activeTasks[0]
     const turnId = task.userMessageId
 
-    // Create steering message with same turnId
-    const message = await store.createUserMessage({
-      convId: conversationId,
-      role: 'user',
-      status: 'success',
-      content: [{ type: 'text', text }],
-      turnId,
-    })
-    await this.config.eventEmitter.emitMessageUpdated?.(message)
+    // Store in pending list; will be persisted to DB after tool results are persisted
+    const runtimeTask = taskStore.get(task.taskId)
+    if (runtimeTask) {
+      runtimeTask.pendingSteeringMessages.push({ text, turnId })
+    }
 
     // Enqueue for the agent loop
     taskStore.enqueueSteeringInput(task.taskId, { text, turnId })
@@ -402,8 +405,9 @@ interface TurnMeta {
   persistedToolCallIds: Set<string>
 }
 
-function createStoreBackedEventEmitter(store: ISessionStore, delegate: IAgentEventEmitter, turnId: string): IAgentEventEmitter {
+function createStoreBackedEventEmitter(store: ISessionStore, delegate: IAgentEventEmitter, turnId: string): IAgentEventEmitter & { setTaskId: (id: string) => void } {
   const turns = new Map<string, TurnMeta>()
+  let taskId: string | undefined
 
   function newTurnMeta(msgId: string): TurnMeta {
     return {
@@ -427,7 +431,30 @@ function createStoreBackedEventEmitter(store: ISessionStore, delegate: IAgentEve
     await delegate.emitMessageUpdated?.(message)
   }
 
-  return {
+  async function persistPendingSteeringMessages() {
+    if (!taskId)
+      return
+    const task = taskStore.get(taskId)
+    if (!task || task.pendingSteeringMessages.length === 0)
+      return
+    const pending = [...task.pendingSteeringMessages]
+    task.pendingSteeringMessages = []
+    for (const input of pending) {
+      const msg = await store.createUserMessage({
+        convId: task.snapshot.conversationId,
+        role: 'user',
+        status: 'success',
+        content: [{ type: 'text', text: input.text }],
+        turnId: input.turnId,
+      })
+      await delegate.emitMessageUpdated?.(msg)
+    }
+  }
+
+  const emitter: IAgentEventEmitter & { setTaskId: (id: string) => void } = {
+    setTaskId(id: string) {
+      taskId = id
+    },
     async emitTaskUpdated(task) {
       await delegate.emitTaskUpdated(task)
     },
@@ -477,7 +504,6 @@ function createStoreBackedEventEmitter(store: ISessionStore, delegate: IAgentEve
 
       meta.modelText = params.text
 
-      // Build content blocks: text + existing tool-call blocks + new tool-call blocks
       const contentBlocks: Array<Record<string, unknown>> = []
       if (params.text) {
         contentBlocks.push({ type: 'text', text: params.text })
@@ -509,6 +535,10 @@ function createStoreBackedEventEmitter(store: ISessionStore, delegate: IAgentEve
         })
         await delegate.emitMessageUpdated?.(msg)
       }
+
+      // Persist steering messages AFTER tool results to maintain correct message order
+      await persistPendingSteeringMessages()
+
       await delegate.emitTurnToolResults?.(params)
     },
     async emitTurnFinished(params) {
@@ -529,4 +559,6 @@ function createStoreBackedEventEmitter(store: ISessionStore, delegate: IAgentEve
       await delegate.emitTurnFinished(params)
     },
   }
+
+  return emitter
 }
