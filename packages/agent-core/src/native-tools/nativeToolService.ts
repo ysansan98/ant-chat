@@ -10,6 +10,7 @@ import type {
 } from '@ant-chat/shared'
 import { createPathPolicyByMode } from './pathPolicy'
 import { createBashTool } from './tools/bashTool'
+import { createBrowserTool } from './tools/browserTool'
 import { createEditFileTool, editFile } from './tools/editFileTool'
 import { createGlobFilesTool, globFiles } from './tools/globFilesTool'
 import { createGrepFilesTool, grepFiles } from './tools/grepFilesTool'
@@ -17,11 +18,20 @@ import { createListDirTool, listDir } from './tools/listDirTool'
 import { createReadFileTool, readFile } from './tools/readFileTool'
 import { createWriteFileTool, writeFile } from './tools/writeFileTool'
 
+interface NativeToolServiceOptions {
+  readableRoots?: string[]
+  browser?: {
+    executablePath: string
+    profilePath: string
+    artifactsPath: string
+  }
+}
+
 export class NativeToolService {
   constructor(
     private readonly workspacePath: string,
     private readonly unrestricted: boolean = false,
-    private readonly options: { readableRoots?: string[] } = {},
+    private readonly options: NativeToolServiceOptions = {},
   ) {}
 
   getTools(): AgentTool[] {
@@ -34,6 +44,9 @@ export class NativeToolService {
       createWriteFileTool(policy, this.workspacePath, this.unrestricted),
       createEditFileTool(policy, this.workspacePath, this.unrestricted),
       createBashTool(this.workspacePath, this.unrestricted),
+      ...(this.options.browser
+        ? [createBrowserTool(this.workspacePath, this.options.browser)]
+        : []),
     ]
   }
 
@@ -66,6 +79,10 @@ export class NativeToolService {
   }
 }
 
-export function getNativeToolService(workspacePath: string, unrestricted: boolean = false, options: { readableRoots?: string[] } = {}): NativeToolService {
+export function getNativeToolService(
+  workspacePath: string,
+  unrestricted: boolean = false,
+  options: NativeToolServiceOptions = {},
+): NativeToolService {
   return new NativeToolService(workspacePath, unrestricted, options)
 }

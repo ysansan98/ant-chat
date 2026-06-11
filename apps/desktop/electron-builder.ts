@@ -1,9 +1,12 @@
 /* eslint-disable no-template-curly-in-string */
 import type { Configuration } from 'electron-builder'
 import fs from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import path from 'node:path'
 
 const keepLanguages = new Set(['en', 'en_GB', 'en-US', 'en_US'])
+const require = createRequire(import.meta.url)
+const agentBrowserPackageRoot = path.dirname(require.resolve('agent-browser/package.json'))
 
 /**
  * @type {import('electron-builder').Configuration}
@@ -28,6 +31,24 @@ const config: Configuration = {
     },
   ],
   afterPack: async (context) => {
+    const arch = getBuilderArch(context.arch)
+    const sourceName = getAgentBrowserBinaryName(context.electronPlatformName, arch)
+    const executableName = context.electronPlatformName === 'win32' ? 'agent-browser.exe' : 'agent-browser'
+    const resourcesPath = ['darwin', 'mas'].includes(context.electronPlatformName)
+      ? path.join(
+          context.appOutDir,
+          `${context.packager.appInfo.productFilename}.app`,
+          'Contents/Resources',
+        )
+      : path.join(context.appOutDir, 'resources')
+    const targetDir = path.join(resourcesPath, 'agent-browser')
+    const targetPath = path.join(targetDir, executableName)
+    await fs.mkdir(targetDir, { recursive: true })
+    await fs.copyFile(path.join(agentBrowserPackageRoot, 'bin', sourceName), targetPath)
+    if (context.electronPlatformName !== 'win32') {
+      await fs.chmod(targetPath, 0o755)
+    }
+
     if (!['darwin', 'mas'].includes(context.electronPlatformName))
       return
 
@@ -169,6 +190,25 @@ const config: Configuration = {
     installerLanguages: ['zh_CN', 'en_US'],
   },
   generateUpdatesFilesForAllChannels: true,
+}
+
+function getBuilderArch(arch: number): 'x64' | 'arm64' {
+  // builder-util Arch enum: x64=1, arm64=3.
+  if (arch === 1)
+    return 'x64'
+  if (arch === 3)
+    return 'arm64'
+  throw new Error(`Unsupported agent-browser build architecture: ${arch}`)
+}
+
+function getAgentBrowserBinaryName(platform: string, arch: 'x64' | 'arm64'): string {
+  if ((platform === 'darwin' || platform === 'mas') && (arch === 'x64' || arch === 'arm64'))
+    return `agent-browser-darwin-${arch}`
+  if (platform === 'linux' && (arch === 'x64' || arch === 'arm64'))
+    return `agent-browser-linux-${arch}`
+  if (platform === 'win32' && arch === 'x64')
+    return 'agent-browser-win32-x64.exe'
+  throw new Error(`Unsupported agent-browser build target: ${platform}-${arch}`)
 }
 
 export default config

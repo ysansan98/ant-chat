@@ -200,6 +200,12 @@ export interface RuntimeMcpClientHub {
   callTool: (serverName: string, toolName: string, toolArguments?: Record<string, unknown>) => Promise<McpToolCallResponse>
 }
 
+export interface AgentBrowserRuntimeConfig {
+  executablePath: string
+  profilePath: string
+  artifactsPath: string
+}
+
 // ============================================================
 // Compaction (纯策略回调，外层 onBeforeTurn 中使用)
 // ============================================================
@@ -220,6 +226,7 @@ export interface AgentRuntimeHost {
   memoryReader?: AgentMemoryReader
   skillReader?: SkillReader
   mcpClientHub?: RuntimeMcpClientHub
+  browser?: AgentBrowserRuntimeConfig
   /** 加载附件文件数据（用于将 file_id 转换为 base64 数据） */
   loadFileData?: (fileId: string) => Promise<string | null>
   getToolApprovalWhitelistEntries?: () => ToolApprovalWhitelistEntry[]
@@ -252,6 +259,7 @@ export interface AgentRuntimeConfig extends AgentRuntimeOverrides {
   getToolApprovalWhitelistEntries?: () => ToolApprovalWhitelistEntry[]
   skillReader?: SkillReader
   mcpClientHub?: RuntimeMcpClientHub
+  browser?: AgentBrowserRuntimeConfig
   /** 加载附件文件数据（用于将 file_id 转换为 base64 数据） */
   loadFileData?: (fileId: string) => Promise<string | null>
 }

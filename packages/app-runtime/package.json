@@ -31,6 +31,7 @@
     "@ant-chat/app-data": "workspace:^",
     "@ant-chat/mcp-client-hub": "workspace:^",
     "@ant-chat/shared": "workspace:^",
+    "agent-browser": "0.27.2",
     "better-sqlite3": "catalog:"
   },
   "devDependencies": {

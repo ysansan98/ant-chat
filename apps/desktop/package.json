@@ -52,6 +52,7 @@
     "@tailwindcss/vite": "catalog:",
     "@vitejs/plugin-react": "^5.2.0",
     "@workspace/ui": "workspace:*",
+    "agent-browser": "0.27.2",
     "babel-plugin-react-compiler": "1.0.0",
     "code-inspector-plugin": "catalog:",
     "electron": "^40.6.1",

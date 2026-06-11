@@ -3,7 +3,7 @@ import { createServer as createHttpServer } from 'node:http'
 import { resolve } from 'node:path'
 import process from 'node:process'
 import { parseArgs } from 'node:util'
-import { createAppRuntime } from '@ant-chat/app-runtime'
+import { createAppRuntime, resolveAgentBrowserExecutablePath } from '@ant-chat/app-runtime'
 import { resolveAppDataRoot } from '@ant-chat/shared'
 import { Agent, EnvHttpProxyAgent, fetch, setGlobalDispatcher } from 'undici'
 import { createLocalApiHandler } from './createServer'
@@ -12,6 +12,15 @@ const SSE_HEADERS = {
   'content-type': 'text/event-stream',
   'cache-control': 'no-cache',
   'connection': 'keep-alive',
+}
+
+const initialProxyEnv = {
+  HTTP_PROXY: process.env.HTTP_PROXY,
+  HTTPS_PROXY: process.env.HTTPS_PROXY,
+  NO_PROXY: process.env.NO_PROXY,
+  http_proxy: process.env.http_proxy,
+  https_proxy: process.env.https_proxy,
+  no_proxy: process.env.no_proxy,
 }
 
 function sseBroadcast(clients: Set<ServerResponse>, channel: string, data: unknown) {
@@ -37,9 +46,13 @@ async function main() {
   const runtime = createAppRuntime({
     appDataRoot,
     host: {
+      browser: {
+        executablePath: resolveAgentBrowserExecutablePath(),
+      },
       proxy: {
         async apply(settings) {
           if (settings.mode === 'custom' && settings.customProxyUrl) {
+            setProcessProxy(settings.customProxyUrl)
             setGlobalDispatcher(new EnvHttpProxyAgent({
               httpProxy: settings.customProxyUrl,
               httpsProxy: settings.customProxyUrl,
@@ -47,9 +60,11 @@ async function main() {
             }))
           }
           else if (settings.mode === 'system') {
+            restoreSystemProxy()
             setGlobalDispatcher(new EnvHttpProxyAgent())
           }
           else {
+            clearProcessProxy()
             setGlobalDispatcher(new Agent())
           }
         },
@@ -154,6 +169,31 @@ async function main() {
 
   process.on('SIGINT', () => void shutdown())
   process.on('SIGTERM', () => void shutdown())
+}
+
+function setProcessProxy(proxyUrl: string): void {
+  const noProxy = 'localhost,127.0.0.1,0.0.0.0,[::1],::1'
+  process.env.HTTP_PROXY = proxyUrl
+  process.env.HTTPS_PROXY = proxyUrl
+  process.env.NO_PROXY = noProxy
+  process.env.http_proxy = proxyUrl
+  process.env.https_proxy = proxyUrl
+  process.env.no_proxy = noProxy
+}
+
+function restoreSystemProxy(): void {
+  clearProcessProxy()
+  for (const [key, value] of Object.entries(initialProxyEnv)) {
+    if (value !== undefined) {
+      process.env[key] = value
+    }
+  }
+}
+
+function clearProcessProxy(): void {
+  for (const key of Object.keys(initialProxyEnv)) {
+    delete process.env[key]
+  }
 }
 
 main()

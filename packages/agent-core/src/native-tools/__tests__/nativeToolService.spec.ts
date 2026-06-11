@@ -119,6 +119,23 @@ describe('native tool service', () => {
     await expect(bash.execute({ command: 'pwd && ls -la' })).resolves.toMatchObject({ ok: true })
   })
 
+  it('registers browser as an automatically allowed browser operation', () => {
+    const service = new NativeToolService(workspacePath, false, {
+      browser: {
+        executablePath: '/tmp/agent-browser',
+        profilePath: '/tmp/profile',
+        artifactsPath: '/tmp/artifacts',
+      },
+    })
+    const browser = service.getTools().find(tool => tool.name === 'browser')
+
+    expect(browser).toMatchObject({
+      name: 'browser',
+      operationType: 'browser',
+    })
+    expect(browser?.inferScope({ command: 'open', args: ['https://example.com'] })).toBe('workspace')
+  })
+
   it('tool execute 遇到越界路径返回 AGENT_POLICY_BLOCKED', async () => {
     const service = new NativeToolService(workspacePath)
     const readFile = service.getTools().find(tool => tool.name === 'read_file')!

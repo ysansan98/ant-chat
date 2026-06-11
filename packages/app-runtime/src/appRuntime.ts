@@ -34,11 +34,15 @@ import {
 import { createAppDataContext, searchWorkspaceFiles } from '@ant-chat/app-data'
 import { MCPClientHub } from '@ant-chat/mcp-client-hub'
 import { AddMessage, UpdateMessageSchema } from '@ant-chat/shared'
+import { createAgentBrowserPaths } from './agentBrowser'
 import { openAppDataDatabase } from './database'
 import { RuntimeEventBus } from './events'
 import { createAppRuntimePaths } from './paths'
 
 export interface AppRuntimeHost {
+  browser?: {
+    executablePath: string
+  }
   proxy: {
     apply: (settings: ProxySettings) => Promise<void>
     test: (proxyUrl: string) => Promise<boolean>
@@ -54,6 +58,7 @@ export interface CreateAppRuntimeOptions {
 
 export function createAppRuntime(options: CreateAppRuntimeOptions) {
   const paths = createAppRuntimePaths(options.appDataRoot)
+  const browserPaths = createAgentBrowserPaths()
   const db = openAppDataDatabase(paths.databaseFile, { timeoutMs: options.databaseTimeoutMs })
   const context = createAppDataContext({
     db,
@@ -90,6 +95,12 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
       memoryReader: context.memoryManager,
       skillReader: skills,
       mcpClientHub,
+      browser: options.host.browser
+        ? {
+            executablePath: options.host.browser.executablePath,
+            ...browserPaths,
+          }
+        : undefined,
       loadFileData: context.loadAttachmentData,
       createTaskLogger: createTaskLoggerFactory(paths.taskLogsRoot),
       getToolApprovalWhitelistEntries: () => context.toolApprovalWhitelistRepository.getAll(),
