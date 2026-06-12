@@ -1,4 +1,4 @@
-import type { AgentPendingAction, AgentTaskSnapshot, IMessage, NotificationOption, ProgressInfo, UpdateError, UpdateInfo, UpdateStatus } from './interfaces'
+import type { AgentPendingAction, AgentTaskSnapshot, IConversations, IMessage, NotificationOption, ProgressInfo, UpdateError, UpdateInfo, UpdateStatus } from './interfaces'
 
 export function createIpcResponse<T>(success: boolean, data: T, msg?: string): IpcResponse<T> | ErrorIpcResponse {
   if (success) {
@@ -59,22 +59,33 @@ export type IpcResponse<T> = IpcResponseSuccess<T> | ErrorIpcResponse
 export type IpcPaginatedResponse<T> = IpcPaginatedResponseSuccess<T> | ErrorIpcResponse
 
 /**
- * 这里是在渲染进程中接收的事件
+ * 跨平台渲染进程事件 - web 和 desktop 共享
  */
-export interface IpcRendererEvent {
-  'mcp:McpServerStatusChanged': [string, 'disconnected' | 'connected']
-  'common:Notification': [NotificationOption]
-  'message:updated': [IMessage]
-  'chat:stream-canceled': [string]
-  'workspace:changed': [{ currentWorkspacePath: string }]
-  'update:update-status-changed': [{ status: UpdateStatus, updateInfo: UpdateInfo | null }]
-  'update:update-available': [{ status: UpdateStatus, updateInfo: UpdateInfo | null }]
-  'update:update-not-available': []
-  'update:download-progress': [ProgressInfo]
-  'update:update-downloaded': [UpdateInfo]
-  'update:update-error': [UpdateError]
-  'agent:state-updated': [{ task: AgentTaskSnapshot }]
-  'agent:approval-required': [{ taskId: string, conversationId: string, pendingAction: AgentPendingAction }]
-  'settings:updated': [{ keys: string[] }]
-  [key: string]: unknown[]
+export interface AppRendererEvents {
+  'conversation:updated': { conversation: IConversations }
+  'message:updated': { message: IMessage }
+  'agent:task-updated': { task: AgentTaskSnapshot }
+  'agent:approval-required': { taskId: string, conversationId: string, pendingAction: AgentPendingAction }
+  'workspace:changed': { currentWorkspacePath: string }
+  'settings:updated': { keys: string[] }
+  'mcp:status-changed': { serverName: string, status: 'connected' | 'disconnected', error?: string }
+  'provider:changed': { providerId?: string }
 }
+
+/**
+ * Electron 专用事件
+ */
+export interface ElectronOnlyEvents {
+  'common:Notification': NotificationOption
+  'update:update-status-changed': { status: UpdateStatus, updateInfo: UpdateInfo | null }
+  'update:update-available': { status: UpdateStatus, updateInfo: UpdateInfo | null }
+  'update:update-not-available': never
+  'update:download-progress': ProgressInfo
+  'update:update-downloaded': UpdateInfo
+  'update:update-error': UpdateError
+}
+
+/**
+ * 渲染进程接收的事件（合并跨平台和 Electron 专用）
+ */
+export type IpcRendererEvent = AppRendererEvents & ElectronOnlyEvents

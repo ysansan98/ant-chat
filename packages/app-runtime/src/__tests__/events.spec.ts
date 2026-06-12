@@ -5,11 +5,11 @@ describe('runtime event bus', () => {
   it('delivers typed domain events and supports unsubscribe', () => {
     const events = new RuntimeEventBus()
     const listener = vi.fn()
-    const unsubscribe = events.on('settings.changed', listener)
+    const unsubscribe = events.on('settings:updated', listener)
 
-    events.emit('settings.changed', { keys: ['proxySettings'] })
+    events.emit('settings:updated', { keys: ['proxySettings'] })
     unsubscribe()
-    events.emit('settings.changed', { keys: ['assistantModelId'] })
+    events.emit('settings:updated', { keys: ['assistantModelId'] })
 
     expect(listener).toHaveBeenCalledOnce()
     expect(listener).toHaveBeenCalledWith({ keys: ['proxySettings'] })

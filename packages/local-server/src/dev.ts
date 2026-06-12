@@ -39,14 +39,13 @@ async function main() {
   await runtime.initialize()
   const handleLocalApi = createLocalApiHandler(runtime)
 
-  runtime.events.on('message.updated', ({ message }) => sseBroadcast(sseClients, 'message:updated', message))
-  runtime.events.on('agent.task.updated', ({ task }) => sseBroadcast(sseClients, 'agent:state-updated', { task }))
-  runtime.events.on('agent.approval.required', event => sseBroadcast(sseClients, 'agent:approval-required', event))
-  runtime.events.on('workspace.changed', event => sseBroadcast(sseClients, 'workspace:changed', event))
-  runtime.events.on('provider.changed', event => sseBroadcast(sseClients, 'provider:changed', event))
-  runtime.events.on('settings.changed', event => sseBroadcast(sseClients, 'settings:updated', event))
-  runtime.events.on('mcp.connection.changed', event =>
-    sseBroadcast(sseClients, 'mcp:McpServerStatusChanged', [event.serverName, event.status]))
+  runtime.events.on('conversation:updated', event => sseBroadcast(sseClients, 'conversation:updated', event))
+  runtime.events.on('message:updated', event => sseBroadcast(sseClients, 'message:updated', event))
+  runtime.events.on('agent:task-updated', event => sseBroadcast(sseClients, 'agent:task-updated', event))
+  runtime.events.on('agent:approval-required', event => sseBroadcast(sseClients, 'agent:approval-required', event))
+  runtime.events.on('workspace:changed', event => sseBroadcast(sseClients, 'workspace:changed', event))
+  runtime.events.on('settings:updated', event => sseBroadcast(sseClients, 'settings:updated', event))
+  runtime.events.on('mcp:status-changed', event => sseBroadcast(sseClients, 'mcp:status-changed', event))
 
   // SSE endpoint: browser connects here for real-time events
   function handleSse(req: import('node:http').IncomingMessage, res: ServerResponse): boolean {

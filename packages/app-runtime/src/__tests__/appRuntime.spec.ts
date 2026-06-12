@@ -51,8 +51,8 @@ describe.skipIf(!canRunDbIntegrationTests())('app runtime', () => {
   it('emits domain events after settings and workspace changes', async () => {
     const settingsEvents: { keys: string[] }[] = []
     const workspaceEvents: { currentWorkspacePath: string }[] = []
-    runtime.events.on('settings.changed', event => settingsEvents.push(event))
-    runtime.events.on('workspace.changed', event => workspaceEvents.push(event))
+    runtime.events.on('settings:updated', event => settingsEvents.push(event))
+    runtime.events.on('workspace:changed', event => workspaceEvents.push(event))
 
     await runtime.settings.update({ assistantModelId: 'model-2' })
     const workspace = runtime.workspace.list().workspaces[0]

@@ -62,13 +62,13 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
   const mcpClientHub = new MCPClientHub()
   const agentEventEmitter: IAgentEventEmitter = {
     emitMessageUpdated(message) {
-      events.emit('message.updated', { message })
+      events.emit('message:updated', { message })
     },
     emitTaskUpdated(task) {
-      events.emit('agent.task.updated', { task })
+      events.emit('agent:task-updated', { task })
     },
     emitApprovalRequired(taskId, conversationId, pendingAction) {
-      events.emit('agent.approval.required', { taskId, conversationId, pendingAction })
+      events.emit('agent:approval-required', { taskId, conversationId, pendingAction })
     },
     emitTurnStarted() {},
     emitTurnChunk() {},
@@ -109,25 +109,38 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
 
   mcpClientHub.addStatusChangeCallback((serverName, status) => {
     if (status !== 'connecting') {
-      events.emit('mcp.connection.changed', { serverName, status })
+      events.emit('mcp:status-changed', { serverName, status })
     }
   })
 
   const runtime = {
     chat: {
-      createConversationTitle: (conversationId: string, modelId: string) =>
-        titleGenerator.updateTitle(conversationId, modelId),
+      createConversationTitle: async (conversationId: string, modelId: string) => {
+        const conversation = await titleGenerator.updateTitle(conversationId, modelId)
+        if (conversation) {
+          events.emit('conversation:updated', { conversation })
+        }
+        return conversation
+      },
       listConversations: async (pageIndex: number, pageSize: number, workspacePath?: string) => {
         const targetWorkspace = workspacePath ?? context.workspaceService.getCurrentWorkspacePath()
         const includeNullWorkspace = targetWorkspace === context.workspaceService.getDefaultWorkspacePath()
         return await context.conversationRepository.list(pageIndex, pageSize, targetWorkspace, includeNullWorkspace)
       },
       getConversation: (id: string) => context.conversationRepository.getById(id),
-      createConversation: (conversation: AddConversationsSchema) => context.conversationRepository.create({
-        ...conversation,
-        workspacePath: conversation.workspacePath ?? context.workspaceService.getCurrentWorkspacePath(),
-      }),
-      updateConversation: (conversation: UpdateConversationsSchema) => context.conversationRepository.update(conversation),
+      createConversation: async (conversation: AddConversationsSchema) => {
+        const result = await context.conversationRepository.create({
+          ...conversation,
+          workspacePath: conversation.workspacePath ?? context.workspaceService.getCurrentWorkspacePath(),
+        })
+        events.emit('conversation:updated', { conversation: result })
+        return result
+      },
+      updateConversation: async (conversation: UpdateConversationsSchema) => {
+        const result = await context.conversationRepository.update(conversation)
+        events.emit('conversation:updated', { conversation: result })
+        return result
+      },
       deleteConversation: async (id: string) => {
         await agentRuntime.closeConversation(id)
         await context.conversationRepository.delete(id)
@@ -152,13 +165,13 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
         const settings = await context.settingsRepository.updateGeneralSettings(updates)
         if (updates.proxySettings)
           await networkProxy.apply(updates.proxySettings)
-        events.emit('settings.changed', { keys: Object.keys(updates) })
+        events.emit('settings:updated', { keys: Object.keys(updates) })
         return settings
       },
       reset: async () => {
         const settings = await context.settingsRepository.resetGeneralSettings()
         await networkProxy.apply(settings.proxySettings)
-        events.emit('settings.changed', { keys: ['all'] })
+        events.emit('settings:updated', { keys: ['all'] })
         return settings
       },
       testProxy: (proxyUrl: string) => networkProxy.test(proxyUrl),
@@ -167,17 +180,17 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
       list: () => context.providerSettingsRepository.listProviders(),
       create: (config: CreateProviderConfigSchema) => {
         const result = context.providerSettingsRepository.createProvider(config)
-        events.emit('provider.changed', { providerId: result.id })
+        events.emit('provider:changed', { providerId: result.id })
         return result
       },
       update: (config: UpdateProviderConfigSchema) => {
         const result = context.providerSettingsRepository.updateProvider(config)
-        events.emit('provider.changed', { providerId: result.id })
+        events.emit('provider:changed', { providerId: result.id })
         return result
       },
       delete: (id: string) => {
         context.providerSettingsRepository.deleteProvider(id)
-        events.emit('provider.changed', { providerId: id })
+        events.emit('provider:changed', { providerId: id })
         return null
       },
       getById: (id: string) => requireValue(context.providerSettingsRepository.getProviderById(id), `Provider not found: ${id}`),
@@ -187,24 +200,24 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
       getModel: (id: string) => requireValue(context.providerSettingsRepository.getModelById(id), `Provider model not found: ${id}`),
       setModelEnabled: (id: string, enabled: boolean) => {
         const result = context.providerSettingsRepository.setModelEnabledStatus(id, enabled)
-        events.emit('provider.changed', { providerId: result.providerId })
+        events.emit('provider:changed', { providerId: result.providerId })
         return result
       },
       createModel: (config: CreateProviderConfigModelSchema) => {
         const result = context.providerSettingsRepository.createProviderModel(config)
-        events.emit('provider.changed', { providerId: result.providerId })
+        events.emit('provider:changed', { providerId: result.providerId })
         return result
       },
       deleteModel: (id: string) => {
         context.providerSettingsRepository.deleteProviderModel(id)
-        events.emit('provider.changed', {})
+        events.emit('provider:changed', {})
         return null
       },
       getModelsDevProviders: () => modelsDevImporter.getModelsDevProviders(),
       getModelsDevModels: (providerId: string) => modelsDevImporter.getModelsDevModelsByProviderId(providerId),
       importModelsDevModels: async (providerId: string) => {
         const result = await modelsDevImporter.importModelsDevModels(providerId)
-        events.emit('provider.changed', { providerId })
+        events.emit('provider:changed', { providerId })
         return result
       },
     },
@@ -343,7 +356,7 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
   }
 
   function emitWorkspaceResult(result: ReturnType<typeof context.workspaceService.listWorkspaces>) {
-    events.emit('workspace.changed', { currentWorkspacePath: result.currentWorkspacePath })
+    events.emit('workspace:changed', { currentWorkspacePath: result.currentWorkspacePath })
     return result
   }
 

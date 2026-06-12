@@ -1,23 +1,6 @@
-import type { AgentPendingAction, AgentTaskSnapshot, IMessage } from '@ant-chat/shared'
+import type { AppRendererEvents } from '@ant-chat/shared'
 
-export interface AppRuntimeEvents {
-  'message.updated': { message: IMessage }
-  'agent.task.updated': { task: AgentTaskSnapshot }
-  'agent.approval.required': {
-    taskId: string
-    conversationId: string
-    pendingAction: AgentPendingAction
-  }
-  'workspace.changed': { currentWorkspacePath: string }
-  'provider.changed': { providerId?: string }
-  'settings.changed': { keys: string[] }
-  'mcp.connection.changed': {
-    serverName: string
-    status: 'connected' | 'disconnected'
-    error?: string
-  }
-}
-
+export type AppRuntimeEvents = AppRendererEvents
 export type AppRuntimeEventName = keyof AppRuntimeEvents
 export type AppRuntimeEventListener<K extends AppRuntimeEventName> = (event: AppRuntimeEvents[K]) => void
 

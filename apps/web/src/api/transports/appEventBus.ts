@@ -1,7 +1,8 @@
-import type { IpcRendererEvent } from '@ant-chat/shared'
+import type { AppRendererEvents, ElectronOnlyEvents } from '@ant-chat/shared'
 
-type AppEventChannel = keyof IpcRendererEvent & string
-type AppEventHandler<K extends AppEventChannel> = (event: unknown, ...args: IpcRendererEvent[K]) => void
+type AllEvents = AppRendererEvents & ElectronOnlyEvents
+type AppEventChannel = keyof AllEvents & string
+type AppEventHandler<K extends AppEventChannel> = (event: unknown, payload: AllEvents[K]) => void
 
 export interface AppEventBus {
   on: <K extends AppEventChannel>(channel: K, handler: AppEventHandler<K>) => void
@@ -60,10 +61,7 @@ function createSseEventBus(): AppEventBus {
       if (!handlers)
         return
       for (const handler of handlers) {
-        if (Array.isArray(data))
-          handler(null, ...data)
-        else
-          handler(null, data)
+        handler(null, data)
       }
     }) as EventListener)
   }

@@ -1,11 +1,13 @@
-import type { AgentPendingAction, AgentTaskSnapshot, IMessage, NotificationOption } from '@ant-chat/shared'
+import type { IMessage, NotificationOption } from '@ant-chat/shared'
 import { useEffect } from 'react'
 import { toast } from 'sonner'
 import { getAppEventBus } from '@/api/transports/appEventBus'
 import { onAgentApprovalRequired, onAgentStateUpdated } from '@/store/agent'
-import { addStreamingConversationId, removeStreamingConversationId } from '@/store/conversation'
+import { addStreamingConversationId, removeStreamingConversationId, upsertConversationAction } from '@/store/conversation'
+import { refreshGeneralSettings } from '@/store/generalSettings/actions'
 import { onMcpServerStatusChanged } from '@/store/mcpConfigs/action'
 import { updateMessageActionV2 } from '@/store/messages'
+import { useWorkspaceStore } from '@/store/workspace'
 
 export function useAppEventListener() {
   useEffect(() => {
@@ -30,27 +32,41 @@ export function useAppEventListener() {
     }
 
     eventBus.on('common:Notification', handle)
-    eventBus.on('mcp:McpServerStatusChanged', onMcpServerStatusChanged as (event: unknown, name: string, status: 'disconnected' | 'connected') => void)
-    eventBus.on('message:updated', (_, msg) => {
-      console.log('message:updated => ', msg)
+    eventBus.on('mcp:status-changed', (_, payload) => {
+      onMcpServerStatusChanged(payload.serverName, payload.status)
+    })
+    eventBus.on('conversation:updated', (_, payload) => {
+      upsertConversationAction(payload.conversation)
+    })
+    eventBus.on('message:updated', (_, payload) => {
+      console.log('message:updated => ', payload.message)
 
-      handleStreamingConversationStatus(msg)
-      updateMessageActionV2(msg)
+      handleStreamingConversationStatus(payload.message)
+      updateMessageActionV2(payload.message)
     })
 
-    eventBus.on('agent:state-updated', (_, payload: { task: AgentTaskSnapshot }) => {
+    eventBus.on('agent:task-updated', (_, payload) => {
       onAgentStateUpdated(payload.task)
     })
-    eventBus.on('agent:approval-required', (_, payload: { taskId: string, conversationId: string, pendingAction: AgentPendingAction }) => {
+    eventBus.on('agent:approval-required', (_, payload) => {
       onAgentApprovalRequired(payload.taskId, payload.pendingAction)
+    })
+    eventBus.on('settings:updated', () => {
+      void refreshGeneralSettings()
+    })
+    eventBus.on('workspace:changed', () => {
+      void useWorkspaceStore.getState().refresh()
     })
 
     return () => {
       eventBus.removeAllListeners('common:Notification')
-      eventBus.removeAllListeners('mcp:McpServerStatusChanged')
+      eventBus.removeAllListeners('mcp:status-changed')
+      eventBus.removeAllListeners('conversation:updated')
       eventBus.removeAllListeners('message:updated')
-      eventBus.removeAllListeners('agent:state-updated')
+      eventBus.removeAllListeners('agent:task-updated')
       eventBus.removeAllListeners('agent:approval-required')
+      eventBus.removeAllListeners('settings:updated')
+      eventBus.removeAllListeners('workspace:changed')
     }
   }, [])
 }
