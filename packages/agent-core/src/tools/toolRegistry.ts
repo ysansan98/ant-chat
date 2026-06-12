@@ -1,4 +1,5 @@
 import type { AgentMode, AgentRuntimeConfig, AgentTool, AgentToolResult, RuntimeToolDefinition, SkillManifest, SkillReader, ToolOperationType, ToolScope } from '@ant-chat/shared'
+import type { BrowserSessionState } from '../native-tools/tools/browserSessionManager'
 import fs from 'node:fs'
 import path from 'node:path'
 import { AGENT_SKILL_INVALID } from '@ant-chat/shared'
@@ -23,6 +24,7 @@ export interface CreateRegistryOptions {
   config: AgentRuntimeConfig
   workspacePath: string
   mode: AgentMode
+  browserSession?: BrowserSessionState
 }
 
 export class ToolRegistry {
@@ -30,19 +32,21 @@ export class ToolRegistry {
   private readonly relaxedTools: Map<string, AgentTool>
 
   static async create(options: CreateRegistryOptions): Promise<ToolRegistry> {
-    const { config, workspacePath, mode } = options
+    const { config, workspacePath, mode, browserSession } = options
     const unrestricted = mode === 'full_managed'
     const skillReader = resolveSkillReader(config)
     const readableRoots = skillReader ? [skillReader.getSkillsRoot()] : []
     const nativeTools = getNativeToolService(workspacePath, unrestricted, {
       readableRoots,
       browser: config.browser,
+      browserSession,
     }).getTools()
     const relaxedNativeTools = unrestricted
       ? nativeTools
       : getNativeToolService(workspacePath, true, {
           readableRoots,
           browser: config.browser,
+          browserSession,
         }).getTools()
     const skillTools = skillReader
       ? await makeSkillTools(skillReader)

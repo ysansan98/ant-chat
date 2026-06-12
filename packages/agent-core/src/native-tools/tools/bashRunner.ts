@@ -13,7 +13,16 @@ const MAX_OUTPUT_CHARS = 20_000
 const READ_ONLY_COMMANDS = new Set(['pwd', 'ls', 'cat', 'rg', 'find'])
 const BLOCKED_TOKENS = ['>', '<', '|', ';', '||', '`', '$(', '\n']
 
-export async function runBashTool(input: BashToolInput, workspacePath: string, unrestricted: boolean = false): Promise<AgentToolResult> {
+interface BashRunnerOptions {
+  blockAgentBrowser?: boolean
+}
+
+export async function runBashTool(
+  input: BashToolInput,
+  workspacePath: string,
+  unrestricted: boolean = false,
+  options: BashRunnerOptions = {},
+): Promise<AgentToolResult> {
   const startedAt = Date.now()
   let commands: Array<{ command: string, args: string[] }>
   try {
@@ -23,6 +32,9 @@ export async function runBashTool(input: BashToolInput, workspacePath: string, u
     return { ok: false, error: AGENT_BASH_COMMAND_BLOCKED, durationMs: Date.now() - startedAt }
   }
   if (commands.length === 0) {
+    return { ok: false, error: AGENT_BASH_COMMAND_BLOCKED, durationMs: Date.now() - startedAt }
+  }
+  if (options.blockAgentBrowser && commands.some(isAgentBrowserCommand)) {
     return { ok: false, error: AGENT_BASH_COMMAND_BLOCKED, durationMs: Date.now() - startedAt }
   }
   if (!unrestricted && !commands.every(item => isCommandAllowed(item.command, item.args))) {
@@ -210,7 +222,11 @@ function sanitizeEnv(env: Record<string, string> | undefined): NodeJS.ProcessEnv
   return nextEnv
 }
 
-export function preValidateBashScope(input: BashToolInput, workspacePath: string): ToolScope {
+export function preValidateBashScope(
+  input: BashToolInput,
+  workspacePath: string,
+  options: BashRunnerOptions = {},
+): ToolScope {
   if (BLOCKED_TOKENS.some(token => (input.command || '').includes(token))) {
     try {
       parseCommands(input.command)
@@ -229,6 +245,9 @@ export function preValidateBashScope(input: BashToolInput, workspacePath: string
     return 'blocked'
   }
   if (commands.length === 0) {
+    return 'blocked'
+  }
+  if (options.blockAgentBrowser && commands.some(isAgentBrowserCommand)) {
     return 'blocked'
   }
 
@@ -273,4 +292,12 @@ export function preValidateBashScope(input: BashToolInput, workspacePath: string
   }
 
   return needsApproval ? 'outside' : 'workspace'
+}
+
+function isAgentBrowserCommand(command: { command: string, args: string[] }): boolean {
+  if (path.basename(command.command) === 'agent-browser') {
+    return true
+  }
+  return path.basename(command.command) === 'npx'
+    && command.args.includes('agent-browser')
 }

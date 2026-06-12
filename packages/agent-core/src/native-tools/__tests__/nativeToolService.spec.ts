@@ -122,7 +122,6 @@ describe('native tool service', () => {
   it('registers browser as an automatically allowed browser operation', () => {
     const service = new NativeToolService(workspacePath, false, {
       browser: {
-        executablePath: '/tmp/agent-browser',
         profilePath: '/tmp/profile',
         artifactsPath: '/tmp/artifacts',
       },
@@ -134,6 +133,26 @@ describe('native tool service', () => {
       operationType: 'browser',
     })
     expect(browser?.inferScope({ command: 'open', args: ['https://example.com'] })).toBe('workspace')
+    expect(browser?.formatError?.('spawn agent-browser ENOENT', { command: 'open' })).toBe(
+      'Browser tool failed: 未找到 agent-browser CLI。\n'
+      + '已检查系统 PATH 和 npx。请安装 agent-browser，并确保命令位于 PATH 中。',
+    )
+  })
+
+  it('blocks agent-browser bash bypass when the browser tool is registered', async () => {
+    const service = new NativeToolService(workspacePath, true, {
+      browser: {
+        profilePath: '/tmp/profile',
+        artifactsPath: '/tmp/artifacts',
+      },
+    })
+    const bash = service.getTools().find(tool => tool.name === 'bash')!
+
+    expect(bash.inferScope({ command: 'npx --yes agent-browser snapshot -i' })).toBe('blocked')
+    await expect(bash.execute({ command: 'npx --yes agent-browser snapshot -i' })).resolves.toMatchObject({
+      ok: false,
+      error: AGENT_BASH_COMMAND_BLOCKED,
+    })
   })
 
   it('tool execute 遇到越界路径返回 AGENT_POLICY_BLOCKED', async () => {

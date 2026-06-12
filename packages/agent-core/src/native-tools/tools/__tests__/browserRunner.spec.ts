@@ -3,47 +3,48 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { runBrowserTool, validateBrowserInput } from '../browserRunner'
+import type { BrowserSessionState } from '../browserSessionManager'
 
 describe('browserRunner', () => {
   let root: string
-  let executablePath: string
+  let agentBrowserPath: string
   let profilePath: string
   let artifactsPath: string
   let invocationsPath: string
 
   beforeEach(() => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), 'ant-chat-browser-'))
-    executablePath = path.join(root, 'agent-browser')
+    agentBrowserPath = path.join(root, 'agent-browser')
     profilePath = path.join(root, 'profile')
     artifactsPath = path.join(root, 'artifacts')
     invocationsPath = path.join(root, 'invocations.jsonl')
-    fs.writeFileSync(executablePath, `#!/usr/bin/env node
+    fs.writeFileSync(agentBrowserPath, `#!/usr/bin/env node
 const fs = require('node:fs')
 let stdin = ''
 process.stdin.setEncoding('utf8')
 process.stdin.on('data', chunk => stdin += chunk)
 process.stdin.on('end', () => {
-  fs.appendFileSync(process.env.INVOCATIONS_PATH, JSON.stringify({ args: process.argv.slice(2), stdin, proxy: process.env.AGENT_BROWSER_PROXY, idle: process.env.AGENT_BROWSER_IDLE_TIMEOUT_MS }) + '\\n')
+  fs.appendFileSync(process.env.INVOCATIONS_PATH, JSON.stringify({ args: process.argv.slice(2), stdin, proxy: process.env.AGENT_BROWSER_PROXY, idle: process.env.AGENT_BROWSER_IDLE_TIMEOUT_MS, socket: process.env.AGENT_BROWSER_SOCKET_DIR }) + '\\n')
   const delay = Number(process.env.DELAY_MS || 0)
   setTimeout(() => process.stdout.write('ok'), delay)
 })
 `)
-    fs.chmodSync(executablePath, 0o755)
+    fs.chmodSync(agentBrowserPath, 0o755)
   })
 
   afterEach(() => {
     fs.rmSync(root, { recursive: true, force: true })
   })
 
-  it('injects the global profile, fixed session, proxy and daemon idle timeout', async () => {
+  it('injects the persistent profile, direct session, proxy and daemon idle timeout', async () => {
     const result = await runBrowserTool({
       command: 'open',
       args: ['https://example.com'],
     }, {
-      executablePath,
       profilePath,
       artifactsPath,
       env: {
+        PATH: browserPath(),
         INVOCATIONS_PATH: invocationsPath,
         HTTP_PROXY: 'http://localhost:7890',
       },
@@ -55,52 +56,165 @@ process.stdin.on('end', () => {
       '--profile',
       profilePath,
       '--session',
-      'ant-chat',
+      expect.stringMatching(/^ant-chat-direct-\d+$/),
       '--content-boundaries',
       'open',
       'https://example.com',
     ])
     expect(invocation.proxy).toBe('http://localhost:7890')
     expect(invocation.idle).toBe('300000')
+    expect(invocation.socket).toContain('ant-chat-direct')
+  })
+
+  it('在 agent-browser 不可用时通过 npx 执行', async () => {
+    const npxPath = path.join(root, 'npx')
+    fs.renameSync(agentBrowserPath, npxPath)
+
+    const result = await runBrowserTool({
+      command: 'get title',
+    }, {
+      profilePath,
+      artifactsPath,
+      env: {
+        PATH: browserPath(),
+        INVOCATIONS_PATH: invocationsPath,
+      },
+    })
+
+    expect(result).toMatchObject({ ok: true, stdout: 'ok' })
+    const invocation = JSON.parse(fs.readFileSync(invocationsPath, 'utf8').trim())
+    expect(invocation.args).toEqual([
+      'agent-browser',
+      '--profile',
+      profilePath,
+      '--session',
+      expect.stringMatching(/^ant-chat-direct-\d+$/),
+      'get',
+      'title',
+    ])
+  })
+
+  it('agent-browser 和 npx 都不可用时返回安装错误', async () => {
+    fs.rmSync(agentBrowserPath)
+
+    const result = await runBrowserTool({
+      command: 'get title',
+    }, {
+      profilePath,
+      artifactsPath,
+      env: { PATH: root },
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      error: 'AGENT_BROWSER_CLI_NOT_FOUND',
+      durationMs: expect.any(Number),
+    })
+  })
+
+  it('缓存同一 PATH 的 agent-browser 发现结果', async () => {
+    const options = {
+      profilePath,
+      artifactsPath,
+      env: { PATH: browserPath(), INVOCATIONS_PATH: invocationsPath },
+    }
+    await expect(runBrowserTool({ command: 'get title' }, options)).resolves.toMatchObject({ ok: true })
+
+    fs.rmSync(agentBrowserPath)
+
+    await expect(runBrowserTool({ command: 'get title' }, options)).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringContaining('ENOENT'),
+    })
   })
 
   it('opens a headed browser with the persistent Ant Chat profile for manual login', async () => {
+    const state = createState()
     await runBrowserTool({
       command: 'open',
       args: ['--headed', 'https://example.com/login'],
     }, {
-      executablePath,
       profilePath,
       artifactsPath,
-      env: { INVOCATIONS_PATH: invocationsPath },
+      env: { PATH: browserPath(), INVOCATIONS_PATH: invocationsPath },
+      state,
+    })
+    await runBrowserTool({
+      command: 'snapshot',
+      args: ['-i'],
+    }, {
+      profilePath,
+      artifactsPath,
+      env: { PATH: browserPath(), INVOCATIONS_PATH: invocationsPath },
+      state,
     })
 
-    const invocation = JSON.parse(fs.readFileSync(invocationsPath, 'utf8').trim())
-    expect(invocation.args).toEqual([
+    const invocations = fs.readFileSync(invocationsPath, 'utf8').trim().split('\n').map(line => JSON.parse(line))
+    expect(invocations[0].args).toEqual([
       '--profile',
       profilePath,
       '--session',
-      'ant-chat',
+      'ant-chat-test',
       '--content-boundaries',
       '--headed',
       'open',
       'https://example.com/login',
     ])
-    expect(invocation.stdin).toBe('')
+    expect(invocations[1].args).toEqual([
+      '--profile',
+      profilePath,
+      '--session',
+      'ant-chat-test',
+      '--headed',
+      'snapshot',
+      '-i',
+    ])
+    expect(invocations[0].stdin).toBe('')
   })
 
-  it('serializes browser processes that share the global profile', async () => {
-    const first = runBrowserTool({ command: 'get title' }, {
-      executablePath,
+  it('resets the sticky headed mode after closing the browser', async () => {
+    const state = createState()
+    const options = {
       profilePath,
       artifactsPath,
-      env: { INVOCATIONS_PATH: invocationsPath, DELAY_MS: '80' },
+      env: { PATH: browserPath(), INVOCATIONS_PATH: invocationsPath },
+      state,
+    }
+
+    await runBrowserTool({ command: 'open', args: ['--headed', 'https://example.com'] }, options)
+    await runBrowserTool({ command: 'close' }, options)
+    await runBrowserTool({ command: 'open', args: ['https://example.com'] }, options)
+
+    const invocations = fs.readFileSync(invocationsPath, 'utf8').trim().split('\n').map(line => JSON.parse(line))
+    expect(invocations[1].args).toContain('--headed')
+    expect(invocations[2].args).not.toContain('--headed')
+  })
+
+  it('removes daemon launch-option warnings from successful output', async () => {
+    fs.writeFileSync(agentBrowserPath, `#!/usr/bin/env node
+process.stdout.write('page content\\n⚠ --profile, --headed ignored: daemon already running. Use close first.\\n')
+`)
+    fs.chmodSync(agentBrowserPath, 0o755)
+
+    const result = await runBrowserTool({ command: 'snapshot' }, {
+      profilePath,
+      artifactsPath,
+      env: { PATH: browserPath() },
+    })
+
+    expect(result).toMatchObject({ ok: true, stdout: 'page content' })
+  })
+
+  it('serializes commands within one browser session', async () => {
+    const first = runBrowserTool({ command: 'get title' }, {
+      profilePath,
+      artifactsPath,
+      env: { PATH: browserPath(), INVOCATIONS_PATH: invocationsPath, DELAY_MS: '80' },
     })
     const second = runBrowserTool({ command: 'get url' }, {
-      executablePath,
       profilePath,
       artifactsPath,
-      env: { INVOCATIONS_PATH: invocationsPath },
+      env: { PATH: browserPath(), INVOCATIONS_PATH: invocationsPath },
     })
 
     await Promise.all([first, second])
@@ -110,7 +224,7 @@ process.stdin.on('end', () => {
   })
 
   it('rejects unsafe commands, local URLs and paths outside allowed roots', () => {
-    expect(validateBrowserInput({ command: 'eval', args: ['document.cookie'] }, {
+    expect(validateBrowserInput({ command: 'cookies get' }, {
       workspacePath: root,
       artifactsPath,
     })).toContain('command')
@@ -134,12 +248,33 @@ process.stdin.on('end', () => {
       workspacePath: root,
       artifactsPath,
     })).toContain('command')
+    expect(validateBrowserInput({ command: 'skills get', args: ['core'] }, {
+      workspacePath: root,
+      artifactsPath,
+    })).toContain('command')
   })
 
   it('allows an explicitly requested named Chrome profile', () => {
     expect(validateBrowserInput({
       command: 'open',
       args: ['--profile', 'Default', 'https://example.com'],
+    }, {
+      workspacePath: root,
+      artifactsPath,
+    })).toBeNull()
+  })
+
+  it('allows controlled page evaluation and compact snapshot flags', () => {
+    expect(validateBrowserInput({
+      command: 'eval',
+      args: ['document.body.innerText'],
+    }, {
+      workspacePath: root,
+      artifactsPath,
+    })).toBeNull()
+    expect(validateBrowserInput({
+      command: 'snapshot',
+      args: ['-i', '-u', '-c', '-d', '3'],
     }, {
       workspacePath: root,
       artifactsPath,
@@ -190,11 +325,11 @@ process.stdin.on('end', () => {
       command: 'open',
       args: ['https://example.com'],
     }, {
-      executablePath,
       profilePath,
       artifactsPath,
       proxyUrl: 'http://explicit-proxy:8080',
       env: {
+        PATH: browserPath(),
         INVOCATIONS_PATH: invocationsPath,
         HTTP_PROXY: 'http://env-proxy:7890',
       },
@@ -204,4 +339,20 @@ process.stdin.on('end', () => {
     const invocation = JSON.parse(fs.readFileSync(invocationsPath, 'utf8').trim())
     expect(invocation.proxy).toBe('http://explicit-proxy:8080')
   })
+
+  function createState(): BrowserSessionState {
+    return {
+      sessionName: 'ant-chat-test',
+      socketPath: path.join(root, 'socket'),
+      profilePath,
+      headed: false,
+      started: false,
+      profile: undefined,
+      queue: Promise.resolve(),
+    }
+  }
+
+  function browserPath(): string {
+    return [root, path.dirname(process.execPath)].join(path.delimiter)
+  }
 })

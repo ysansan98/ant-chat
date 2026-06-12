@@ -1,7 +1,9 @@
 import type { AgentToolResult, BrowserToolInput } from '@ant-chat/shared'
-import type { Buffer } from 'node:buffer'
+import type { BrowserSessionState } from './browserSessionManager'
 import { spawn } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 
@@ -9,12 +11,13 @@ const DEFAULT_TIMEOUT_MS = 60_000
 const MAX_TIMEOUT_MS = 300_000
 const MAX_OUTPUT_CHARS = 20_000
 const DAEMON_IDLE_TIMEOUT_MS = '300000'
-const SESSION_NAME = 'ant-chat'
+const AGENT_BROWSER_CLI_NOT_FOUND = 'AGENT_BROWSER_CLI_NOT_FOUND'
 
 const ALLOWED_COMMANDS = new Set([
   'open',
   'close',
   'snapshot',
+  'eval',
   'click',
   'dblclick',
   'focus',
@@ -38,7 +41,7 @@ const ALLOWED_COMMANDS = new Set([
   'get text',
   'get html',
   'get value',
-  'get attribute',
+  'get attr',
   'get count',
   'get box',
   'get styles',
@@ -56,8 +59,6 @@ const ALLOWED_COMMANDS = new Set([
   'tab close',
   'dialog accept',
   'dialog dismiss',
-  'skills get',
-  'skills list',
 ])
 
 const BLOCKED_FLAGS = new Set([
@@ -78,26 +79,32 @@ const BLOCKED_FLAGS = new Set([
 
 const COMMON_FLAGS = new Set(['--json'])
 const COMMAND_FLAGS: Record<string, Set<string>> = {
-  'snapshot': new Set(['-i', '-C', '-s', '--json']),
+  'snapshot': new Set(['-i', '-C', '-s', '-u', '-c', '-d', '--json']),
+  'eval': new Set(['-b']),
   'click': new Set(['--new-tab']),
   'scroll': new Set(['--selector']),
   'wait': new Set(['--load', '--url', '--download']),
   'screenshot': new Set(['--full', '--annotate']),
-  'skills get': new Set(['--full']),
   'find role': new Set(['--name', '--exact']),
   'find text': new Set(['--exact']),
 }
 
 const PATH_OUTPUT_COMMANDS = new Set(['screenshot', 'pdf'])
-let browserQueue: Promise<void> = Promise.resolve()
+const directSessions = new Map<string, BrowserSessionState>()
+const browserCommandCache = new Map<string, BrowserCommand | null>()
 
 export interface BrowserRunnerOptions {
-  executablePath: string
   workspacePath?: string
   profilePath: string
   artifactsPath: string
   env?: NodeJS.ProcessEnv
   proxyUrl?: string
+  state?: BrowserSessionState
+}
+
+interface BrowserCommand {
+  executablePath: string
+  executableArgs: string[]
 }
 
 export function validateBrowserInput(
@@ -169,15 +176,16 @@ export async function runBrowserTool(
     return { ok: false, error: validationError }
   }
 
-  const previous = browserQueue
+  const state = options.state ?? createDirectSessionState(options.profilePath)
+  const previous = state.queue
   let release: () => void = () => {}
-  browserQueue = new Promise<void>((resolve) => {
+  state.queue = new Promise<void>((resolve) => {
     release = resolve
   })
   await previous
 
   try {
-    return await executeBrowserTool(input, options)
+    return await executeBrowserTool(input, { ...options, state })
   }
   finally {
     release()
@@ -189,35 +197,62 @@ async function executeBrowserTool(
   options: BrowserRunnerOptions,
 ): Promise<AgentToolResult> {
   const startedAt = Date.now()
-  await fs.promises.mkdir(options.profilePath, { recursive: true })
+  const browserCommand = resolveBrowserCommand(options.env)
+  if (!browserCommand) {
+    return {
+      ok: false,
+      error: AGENT_BROWSER_CLI_NOT_FOUND,
+      durationMs: Date.now() - startedAt,
+    }
+  }
+
+  const state = options.state!
+  await fs.promises.mkdir(state.profilePath, { recursive: true })
+  await fs.promises.mkdir(state.socketPath, { recursive: true, mode: 0o700 })
   await fs.promises.mkdir(options.artifactsPath, { recursive: true })
 
   const command = normalizeCommand(input.command)
   const { globalArgs, commandArgs } = extractGlobalArgs(input.args ?? [])
-  const profileArgs = globalArgs.includes('--profile')
-    ? []
-    : ['--profile', options.profilePath]
+  const explicitHeaded = globalArgs.includes('--headed')
+  const explicitProfileIndex = globalArgs.indexOf('--profile')
+  if (explicitHeaded) {
+    state.headed = true
+  }
+  if (explicitProfileIndex >= 0) {
+    state.profile = globalArgs[explicitProfileIndex + 1]
+  }
+  const profileArgs = explicitProfileIndex < 0
+    ? ['--profile', state.profile ?? state.profilePath]
+    : []
+  const sessionArgs = ['--session', state.sessionName]
+  const headedArgs = state.headed && !explicitHeaded ? ['--headed'] : []
   const args = [
+    ...browserCommand.executableArgs,
     ...profileArgs,
-    '--session',
-    SESSION_NAME,
+    ...sessionArgs,
     ...(command === 'open' ? ['--content-boundaries'] : []),
     ...globalArgs,
+    ...headedArgs,
     ...command.split(' '),
     ...normalizeOutputPaths(command, commandArgs, options.workspacePath),
   ]
-  const env = createBrowserEnv(options)
+  const env = createBrowserEnv(options, state.socketPath)
   const timeoutMs = Math.min(input.timeoutMs ?? DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS)
 
   return await new Promise((resolve) => {
-    const child = spawn(options.executablePath, args, {
+    const outputId = randomUUID()
+    const stdoutPath = path.join(state.socketPath, `.stdout-${outputId}`)
+    const stderrPath = path.join(state.socketPath, `.stderr-${outputId}`)
+    const stdoutFd = fs.openSync(stdoutPath, 'w', 0o600)
+    const stderrFd = fs.openSync(stderrPath, 'w', 0o600)
+    const child = spawn(browserCommand.executablePath, args, {
       cwd: options.workspacePath,
       shell: false,
       env,
-      stdio: ['pipe', 'pipe', 'pipe'],
+      stdio: ['ignore', stdoutFd, stderrFd],
     })
-    let stdout = ''
-    let stderr = ''
+    fs.closeSync(stdoutFd)
+    fs.closeSync(stderrFd)
     let timedOut = false
     let settled = false
 
@@ -225,6 +260,8 @@ async function executeBrowserTool(
       if (settled)
         return
       settled = true
+      fs.rmSync(stdoutPath, { force: true })
+      fs.rmSync(stderrPath, { force: true })
       resolve(result)
     }
     const timer = setTimeout(() => {
@@ -232,18 +269,22 @@ async function executeBrowserTool(
       child.kill('SIGTERM')
     }, timeoutMs)
 
-    child.stdout.on('data', (chunk: Buffer) => {
-      stdout = appendTruncated(stdout, chunk.toString())
-    })
-    child.stderr.on('data', (chunk: Buffer) => {
-      stderr = appendTruncated(stderr, chunk.toString())
-    })
     child.on('error', (error) => {
       clearTimeout(timer)
-      finish({ ok: false, error: error.message, stdout, stderr, durationMs: Date.now() - startedAt })
+      if (command === 'close') {
+        resetSessionState(state)
+        terminateDaemon(state)
+      }
+      finish({ ok: false, error: error.message, durationMs: Date.now() - startedAt })
     })
     child.on('close', (exitCode) => {
       clearTimeout(timer)
+      const stdout = readOutputFile(stdoutPath)
+      const stderr = readOutputFile(stderrPath)
+      if (command === 'close') {
+        resetSessionState(state)
+        terminateDaemon(state)
+      }
       if (timedOut) {
         finish({
           ok: false,
@@ -257,18 +298,74 @@ async function executeBrowserTool(
       }
 
       const ok = exitCode === 0
+      if (ok && command !== 'close') {
+        state.started = true
+      }
+      const cleanStdout = removeDaemonOptionWarnings(stdout)
+      const cleanStderr = removeDaemonOptionWarnings(stderr)
       finish({
         ok,
-        error: ok ? undefined : (stderr.trim() || `agent-browser exited with code ${exitCode}`),
-        stdout,
-        stderr,
+        error: ok ? undefined : (cleanStderr.trim() || `agent-browser exited with code ${exitCode}`),
+        stdout: cleanStdout,
+        stderr: cleanStderr,
         exitCode: exitCode ?? undefined,
         durationMs: Date.now() - startedAt,
       })
     })
-
-    child.stdin.end()
   })
+}
+
+function resolveBrowserCommand(envOverrides?: NodeJS.ProcessEnv): BrowserCommand | null {
+  const env = {
+    ...process.env,
+    ...envOverrides,
+  }
+  const pathValue = env.PATH ?? ''
+  const cacheKey = `${process.platform}\0${pathValue}`
+  const cached = browserCommandCache.get(cacheKey)
+  if (cached !== undefined)
+    return cached
+
+  const agentBrowserPath = findExecutableOnPath('agent-browser', pathValue)
+  const command = agentBrowserPath
+    ? { executablePath: agentBrowserPath, executableArgs: [] }
+    : resolveNpxCommand(pathValue)
+  browserCommandCache.set(cacheKey, command)
+  return command
+}
+
+function resolveNpxCommand(pathValue: string): BrowserCommand | null {
+  const npxPath = findExecutableOnPath('npx', pathValue)
+  return npxPath
+    ? { executablePath: npxPath, executableArgs: ['agent-browser'] }
+    : null
+}
+
+function findExecutableOnPath(name: string, pathValue: string): string | undefined {
+  const pathApi = process.platform === 'win32' ? path.win32 : path
+  const names = process.platform === 'win32'
+    ? [`${name}.cmd`, `${name}.exe`, name]
+    : [name]
+
+  for (const directory of pathValue.split(path.delimiter).filter(Boolean)) {
+    for (const executableName of names) {
+      const candidate = pathApi.join(directory, executableName)
+      if (isExecutableFile(candidate))
+        return candidate
+    }
+  }
+
+  return undefined
+}
+
+function isExecutableFile(candidate: string): boolean {
+  try {
+    fs.accessSync(candidate, process.platform === 'win32' ? fs.constants.F_OK : fs.constants.X_OK)
+    return fs.statSync(candidate).isFile()
+  }
+  catch {
+    return false
+  }
 }
 
 function normalizeCommand(command: string): string {
@@ -294,7 +391,7 @@ function extractGlobalArgs(args: string[]): { globalArgs: string[], commandArgs:
   return { globalArgs, commandArgs }
 }
 
-function createBrowserEnv(options: BrowserRunnerOptions): NodeJS.ProcessEnv {
+function createBrowserEnv(options: BrowserRunnerOptions, socketPath?: string): NodeJS.ProcessEnv {
   const source = {
     ...process.env,
     ...options.env,
@@ -307,6 +404,7 @@ function createBrowserEnv(options: BrowserRunnerOptions): NodeJS.ProcessEnv {
     AGENT_BROWSER_DOWNLOAD_PATH: options.artifactsPath,
     AGENT_BROWSER_IDLE_TIMEOUT_MS: DAEMON_IDLE_TIMEOUT_MS,
     AGENT_BROWSER_SCREENSHOT_DIR: options.artifactsPath,
+    ...(socketPath ? { AGENT_BROWSER_SOCKET_DIR: socketPath } : {}),
     ...(proxy ? { AGENT_BROWSER_PROXY: proxy } : {}),
   }
 }
@@ -377,6 +475,62 @@ function isHttpUrl(value: string): boolean {
   catch {
     return false
   }
+}
+
+function removeDaemonOptionWarnings(output: string): string {
+  return output
+    .split('\n')
+    .filter(line => !line.includes('ignored: daemon already running'))
+    .join('\n')
+    .replace(/^\n+|\n+$/g, '')
+}
+
+function createDirectSessionState(profilePath: string): BrowserSessionState {
+  const existing = directSessions.get(profilePath)
+  if (existing) {
+    return existing
+  }
+  const id = `ant-chat-direct-${process.pid}`
+  const state: BrowserSessionState = {
+    sessionName: id,
+    socketPath: path.join(process.platform === 'darwin' ? '/tmp' : os.tmpdir(), id),
+    profilePath,
+    headed: false,
+    started: false,
+    profile: undefined,
+    queue: Promise.resolve(),
+  }
+  directSessions.set(profilePath, state)
+  return state
+}
+
+function readOutputFile(filePath: string): string {
+  try {
+    return appendTruncated('', fs.readFileSync(filePath, 'utf8'))
+  }
+  catch {
+    return ''
+  }
+}
+
+function terminateDaemon(state: BrowserSessionState): void {
+  const pidPath = path.join(state.socketPath, `${state.sessionName}.pid`)
+  try {
+    const pid = Number(fs.readFileSync(pidPath, 'utf8').trim())
+    if (Number.isInteger(pid) && pid > 0) {
+      process.kill(pid, 'SIGTERM')
+    }
+  }
+  catch {
+    // The close command may have already stopped the daemon.
+  }
+  fs.rmSync(state.socketPath, { recursive: true, force: true })
+}
+
+function resetSessionState(state: BrowserSessionState): void {
+  state.started = false
+  state.headed = false
+  state.profile = undefined
 }
 
 function appendTruncated(current: string, next: string): string {

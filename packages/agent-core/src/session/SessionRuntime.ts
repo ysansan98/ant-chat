@@ -26,6 +26,7 @@ import {
   buildConversationContextEntries,
   createLoopSystemPrompt,
 } from '../loop/loopContext'
+import { BrowserSessionManager } from '../native-tools/tools/browserSessionManager'
 import { taskStore } from '../taskStore'
 import { ToolRegistry } from '../tools/toolRegistry'
 import { contentBlocksToLoopMessageContent } from '../utils/attachmentUtils'
@@ -36,6 +37,7 @@ const STREAM_UPDATE_INTERVAL_MS = 80
 
 export class SessionRuntime {
   private readonly promptMemorySnapshots = new Map<string, { memory?: string, soul?: string, user?: string } | undefined>()
+  private readonly browserSessions: BrowserSessionManager | null
 
   constructor(
     private readonly config: AgentRuntimeConfig,
@@ -47,7 +49,9 @@ export class SessionRuntime {
         onBeforeTurn?: (ctx: { messages: LoopMessage[], step: number }) => Promise<BeforeTurnResult>
       },
     ) => Promise<RuntimeStartResult>,
-  ) {}
+  ) {
+    this.browserSessions = config.browser ? new BrowserSessionManager(config.browser) : null
+  }
 
   async startTask(options: AgentRuntimeStartTaskOptions): Promise<AgentRuntimeStartTaskResult> {
     const store = requireSessionStore(this.config)
@@ -168,6 +172,7 @@ export class SessionRuntime {
       config: this.config,
       workspacePath: options.workspacePath,
       mode,
+      browserSession: this.browserSessions?.get(conversation.id),
     })
     const memory = await this.getPromptMemorySnapshot(conversation.id)
     const systemPrompt = createLoopSystemPrompt(options.workspacePath, options.modelSettings?.systemPrompt, memory)
@@ -229,6 +234,16 @@ export class SessionRuntime {
 
     // Enqueue for the agent loop
     taskStore.enqueueSteeringInput(task.taskId, { text, turnId })
+  }
+
+  async closeConversation(conversationId: string): Promise<void> {
+    this.promptMemorySnapshots.delete(conversationId)
+    await this.browserSessions?.close(conversationId, true)
+  }
+
+  async dispose(): Promise<void> {
+    this.promptMemorySnapshots.clear()
+    await this.browserSessions?.dispose()
   }
 
   private async getPromptMemorySnapshot(conversationId: string): Promise<{ memory?: string, soul?: string, user?: string } | undefined> {

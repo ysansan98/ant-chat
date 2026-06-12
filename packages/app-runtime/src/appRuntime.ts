@@ -41,7 +41,6 @@ import { createAppRuntimePaths } from './paths'
 
 export interface AppRuntimeHost {
   browser?: {
-    executablePath: string
     proxyUrl?: string
   }
   proxy: {
@@ -98,7 +97,6 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
       mcpClientHub,
       browser: options.host.browser
         ? {
-            executablePath: options.host.browser.executablePath,
             proxyUrl: options.host.browser.proxyUrl,
             ...browserPaths,
           }
@@ -147,6 +145,7 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
       }),
       updateConversation: (conversation: UpdateConversationsSchema) => context.conversationRepository.update(conversation),
       deleteConversation: async (id: string) => {
+        await agentRuntime.closeConversation(id)
         await context.conversationRepository.delete(id)
         return null
       },
@@ -352,6 +351,7 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
       for (const task of agentRuntime.listActiveTasks())
         agentRuntime.cancelTask({ taskId: task.taskId })
       await Promise.all(mcpClientHub.connections.map(connection => mcpClientHub.deleteConnection(connection.server.name)))
+      await agentRuntime.dispose()
       events.clear()
       db.close()
     },

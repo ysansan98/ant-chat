@@ -3,7 +3,7 @@ import { createServer as createHttpServer } from 'node:http'
 import { resolve } from 'node:path'
 import process from 'node:process'
 import { parseArgs } from 'node:util'
-import { createAppRuntime, resolveAgentBrowserExecutablePath } from '@ant-chat/app-runtime'
+import { createAppRuntime } from '@ant-chat/app-runtime'
 import { resolveAppDataRoot } from '@ant-chat/shared'
 import { Agent, EnvHttpProxyAgent, fetch, setGlobalDispatcher } from 'undici'
 import { createLocalApiHandler } from './createServer'
@@ -49,7 +49,6 @@ async function main() {
     appDataRoot,
     host: {
       browser: {
-        executablePath: resolveAgentBrowserExecutablePath(),
         get proxyUrl() { return currentProxyUrl },
       },
       proxy: {

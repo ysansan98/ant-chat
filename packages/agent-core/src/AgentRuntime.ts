@@ -149,6 +149,14 @@ export class AgentRuntime {
   getMessages(conversationId: string) {
     return requireSessionStore(this.config).getMessages(conversationId)
   }
+
+  async closeConversation(conversationId: string): Promise<void> {
+    await this.sessionRuntime.closeConversation(conversationId)
+  }
+
+  async dispose(): Promise<void> {
+    await this.sessionRuntime.dispose()
+  }
 }
 
 export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {

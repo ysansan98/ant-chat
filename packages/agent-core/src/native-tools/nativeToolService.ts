@@ -8,6 +8,9 @@ import type {
   ReadFileToolInput,
   WriteFileToolInput,
 } from '@ant-chat/shared'
+import type { BrowserSessionState } from './tools/browserSessionManager'
+import os from 'node:os'
+import path from 'node:path'
 import { createPathPolicyByMode } from './pathPolicy'
 import { createBashTool } from './tools/bashTool'
 import { createBrowserTool } from './tools/browserTool'
@@ -21,10 +24,11 @@ import { createWriteFileTool, writeFile } from './tools/writeFileTool'
 interface NativeToolServiceOptions {
   readableRoots?: string[]
   browser?: {
-    executablePath: string
     profilePath: string
     artifactsPath: string
+    proxyUrl?: string
   }
+  browserSession?: BrowserSessionState
 }
 
 export class NativeToolService {
@@ -36,6 +40,15 @@ export class NativeToolService {
 
   getTools(): AgentTool[] {
     const policy = this.pathPolicy
+    const browserSession = this.options.browserSession ?? {
+      sessionName: 'ant-chat-direct',
+      socketPath: path.join(os.tmpdir(), 'ant-chat-direct'),
+      profilePath: this.options.browser?.profilePath ?? '',
+      headed: false,
+      started: false,
+      profile: undefined,
+      queue: Promise.resolve(),
+    }
     return [
       createReadFileTool(policy, this.unrestricted),
       createListDirTool(policy, this.unrestricted),
@@ -43,9 +56,11 @@ export class NativeToolService {
       createGrepFilesTool(policy, this.unrestricted),
       createWriteFileTool(policy, this.workspacePath, this.unrestricted),
       createEditFileTool(policy, this.workspacePath, this.unrestricted),
-      createBashTool(this.workspacePath, this.unrestricted),
+      createBashTool(this.workspacePath, this.unrestricted, {
+        blockAgentBrowser: Boolean(this.options.browser),
+      }),
       ...(this.options.browser
-        ? [createBrowserTool(this.workspacePath, this.options.browser)]
+        ? [createBrowserTool(this.workspacePath, this.options.browser, browserSession)]
         : []),
     ]
   }

@@ -1,4 +1,4 @@
-export { createAgentBrowserPaths, getAgentBrowserBinaryName, resolveAgentBrowserExecutablePath } from './agentBrowser'
+export { createAgentBrowserPaths } from './agentBrowser'
 export type { AgentBrowserPaths } from './agentBrowser'
 export { createAppRuntime } from './appRuntime'
 export type { AppRuntime, AppRuntimeHost, CreateAppRuntimeOptions } from './appRuntime'

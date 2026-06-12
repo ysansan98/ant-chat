@@ -23,6 +23,19 @@ describe('preValidateBashScope', () => {
     it('仅空白', () => {
       expect(preValidateBashScope({ command: '   ' }, workspacePath)).toBe('blocked')
     })
+
+    it('browser 工具可用时禁止绕过调用 agent-browser', () => {
+      expect(preValidateBashScope(
+        { command: 'agent-browser snapshot -i' },
+        workspacePath,
+        { blockAgentBrowser: true },
+      )).toBe('blocked')
+      expect(preValidateBashScope(
+        { command: 'npx --yes agent-browser get title' },
+        workspacePath,
+        { blockAgentBrowser: true },
+      )).toBe('blocked')
+    })
   })
 
   describe('outside — 需用户审批', () => {
