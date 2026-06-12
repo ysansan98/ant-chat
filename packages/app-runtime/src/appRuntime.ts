@@ -1,4 +1,3 @@
-import type { ILogger } from '@ant-chat/agent-core'
 import type {
   AddConversationsSchema,
   AddMcpConfigSchema,
@@ -11,7 +10,6 @@ import type {
   IMessage,
   ImportSkillFromGithubOptions,
   McpConfigSchema,
-  ProxySettings,
   RejectPendingActionOptions,
   RunBuiltinCommandParams,
   SetSkillEnabledOptions,
@@ -37,29 +35,20 @@ import { AddMessage, UpdateMessageSchema } from '@ant-chat/shared'
 import { createAgentBrowserPaths } from './agentBrowser'
 import { openAppDataDatabase } from './database'
 import { RuntimeEventBus } from './events'
+import { NetworkProxyManager } from './networkProxy'
 import { createAppRuntimePaths } from './paths'
-
-export interface AppRuntimeHost {
-  browser?: {
-    proxyUrl?: string
-  }
-  proxy: {
-    apply: (settings: ProxySettings) => Promise<void>
-    test: (proxyUrl: string) => Promise<boolean>
-  }
-}
+import { getAppRuntimeLogger } from './runtimeLogger'
 
 export interface CreateAppRuntimeOptions {
   appDataRoot: string
-  host: AppRuntimeHost
-  logger?: ILogger
-  databaseTimeoutMs?: number
 }
 
 export function createAppRuntime(options: CreateAppRuntimeOptions) {
   const paths = createAppRuntimePaths(options.appDataRoot)
   const browserPaths = createAgentBrowserPaths()
-  const db = openAppDataDatabase(paths.databaseFile, { timeoutMs: options.databaseTimeoutMs })
+  const logger = getAppRuntimeLogger(options.appDataRoot)
+  const networkProxy = new NetworkProxyManager()
+  const db = openAppDataDatabase(paths.databaseFile)
   const context = createAppDataContext({
     db,
     settingsFilePath: paths.settingsFile,
@@ -95,23 +84,18 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
       memoryReader: context.memoryManager,
       skillReader: skills,
       mcpClientHub,
-      browser: options.host.browser
-        ? {
-            proxyUrl: options.host.browser.proxyUrl,
-            ...browserPaths,
-          }
-        : undefined,
+      browser: browserPaths,
       loadFileData: context.loadAttachmentData,
       createTaskLogger: createTaskLoggerFactory(paths.taskLogsRoot),
       getToolApprovalWhitelistEntries: () => context.toolApprovalWhitelistRepository.getAll(),
     },
-    overrides: options.logger ? { logger: options.logger } : undefined,
+    overrides: { logger },
   })
   const agentController = createAgentRuntimeController(agentRuntime, context)
   const commandController = createCommandController({
     appDataContext: context,
     eventEmitter: agentEventEmitter,
-    logger: options.logger,
+    logger,
     listActiveTasks: conversationId => agentRuntime.listActiveTasks(conversationId),
   })
   const titleGenerator = createConversationTitleGenerator({
@@ -167,17 +151,17 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
       update: async (updates: Partial<GeneralSettingsState>) => {
         const settings = await context.settingsRepository.updateGeneralSettings(updates)
         if (updates.proxySettings)
-          await options.host.proxy.apply(updates.proxySettings)
+          await networkProxy.apply(updates.proxySettings)
         events.emit('settings.changed', { keys: Object.keys(updates) })
         return settings
       },
       reset: async () => {
         const settings = await context.settingsRepository.resetGeneralSettings()
-        await options.host.proxy.apply(settings.proxySettings)
+        await networkProxy.apply(settings.proxySettings)
         events.emit('settings.changed', { keys: ['all'] })
         return settings
       },
-      testProxy: (proxyUrl: string) => options.host.proxy.test(proxyUrl),
+      testProxy: (proxyUrl: string) => networkProxy.test(proxyUrl),
     },
     provider: {
       list: () => context.providerSettingsRepository.listProviders(),
@@ -340,7 +324,7 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
       context.workspaceService.ensureInitialized()
       await skills.ensureInitialized()
       const settings = await context.settingsRepository.getGeneralSettings()
-      await options.host.proxy.apply(settings.proxySettings)
+      await networkProxy.apply(settings.proxySettings)
       await mcpClientHub.initializeMcpServers(context.mcpSettingsRepository.getMcpConfigs())
       initialized = true
     },
@@ -350,8 +334,9 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
       disposed = true
       for (const task of agentRuntime.listActiveTasks())
         agentRuntime.cancelTask({ taskId: task.taskId })
-      await Promise.all(mcpClientHub.connections.map(connection => mcpClientHub.deleteConnection(connection.server.name)))
       await agentRuntime.dispose()
+      await Promise.all(mcpClientHub.connections.map(connection => mcpClientHub.deleteConnection(connection.server.name)))
+      await networkProxy.dispose()
       events.clear()
       db.close()
     },

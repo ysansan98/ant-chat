@@ -8,18 +8,11 @@ import { createAppRuntime } from '../appRuntime'
 describe.skipIf(!canRunDbIntegrationTests())('app runtime', () => {
   let appDataRoot: string
   let runtime: ReturnType<typeof createAppRuntime>
-  const applyProxy = vi.fn(async () => {})
 
   beforeEach(async () => {
     appDataRoot = mkdtempSync(path.join(tmpdir(), 'ant-chat-app-runtime-'))
     runtime = createAppRuntime({
       appDataRoot,
-      host: {
-        proxy: {
-          apply: applyProxy,
-          test: vi.fn(async () => true),
-        },
-      },
     })
     await runtime.initialize()
   })

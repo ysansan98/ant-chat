@@ -171,9 +171,6 @@ importers:
       nanoid:
         specifier: ^5.0.9
         version: 5.1.11
-      undici:
-        specifier: ^7.15.0
-        version: 7.22.0
     devDependencies:
       '@ant-chat/app-runtime':
         specifier: workspace:*
@@ -440,6 +437,9 @@ importers:
       better-sqlite3:
         specifier: 'catalog:'
         version: 12.6.2
+      undici:
+        specifier: ^7.15.0
+        version: 7.22.0
     devDependencies:
       tsdown:
         specifier: 'catalog:'
@@ -456,9 +456,6 @@ importers:
       '@ant-chat/shared':
         specifier: workspace:^
         version: link:../shared
-      undici:
-        specifier: ^7.15.0
-        version: 7.22.0
     devDependencies:
       tsdown:
         specifier: 'catalog:'

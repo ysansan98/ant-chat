@@ -5,7 +5,6 @@ import process from 'node:process'
 import { parseArgs } from 'node:util'
 import { createAppRuntime } from '@ant-chat/app-runtime'
 import { resolveAppDataRoot } from '@ant-chat/shared'
-import { Agent, EnvHttpProxyAgent, fetch, setGlobalDispatcher } from 'undici'
 import { createLocalApiHandler } from './createServer'
 
 const SSE_HEADERS = {
@@ -13,17 +12,6 @@ const SSE_HEADERS = {
   'cache-control': 'no-cache',
   'connection': 'keep-alive',
 }
-
-const initialProxyEnv = {
-  HTTP_PROXY: process.env.HTTP_PROXY,
-  HTTPS_PROXY: process.env.HTTPS_PROXY,
-  NO_PROXY: process.env.NO_PROXY,
-  http_proxy: process.env.http_proxy,
-  https_proxy: process.env.https_proxy,
-  no_proxy: process.env.no_proxy,
-}
-
-let currentProxyUrl: string | undefined
 
 function sseBroadcast(clients: Set<ServerResponse>, channel: string, data: unknown) {
   const payload = `event: ${channel}\ndata: ${JSON.stringify(data)}\n\n`
@@ -47,50 +35,6 @@ async function main() {
   const appDataRoot = resolveAppDataRoot()
   const runtime = createAppRuntime({
     appDataRoot,
-    host: {
-      browser: {
-        get proxyUrl() { return currentProxyUrl },
-      },
-      proxy: {
-        async apply(settings) {
-          if (settings.mode === 'custom' && settings.customProxyUrl) {
-            currentProxyUrl = settings.customProxyUrl
-            setProcessProxy(settings.customProxyUrl)
-            setGlobalDispatcher(new EnvHttpProxyAgent({
-              httpProxy: settings.customProxyUrl,
-              httpsProxy: settings.customProxyUrl,
-              noProxy: 'localhost,127.0.0.1,0.0.0.0,[::1],::1',
-            }))
-          }
-          else if (settings.mode === 'system') {
-            currentProxyUrl = undefined
-            restoreSystemProxy()
-            setGlobalDispatcher(new EnvHttpProxyAgent())
-          }
-          else {
-            currentProxyUrl = undefined
-            clearProcessProxy()
-            setGlobalDispatcher(new Agent())
-          }
-        },
-        async test(proxyUrl) {
-          const dispatcher = new EnvHttpProxyAgent({
-            httpProxy: proxyUrl,
-            httpsProxy: proxyUrl,
-          })
-          try {
-            const response = await fetch('https://www.google.com/generate_204', {
-              dispatcher,
-              signal: AbortSignal.timeout(10_000),
-            })
-            return response.ok
-          }
-          finally {
-            await dispatcher.close()
-          }
-        },
-      },
-    },
   })
   await runtime.initialize()
   const handleLocalApi = createLocalApiHandler(runtime)
@@ -174,31 +118,6 @@ async function main() {
 
   process.on('SIGINT', () => void shutdown())
   process.on('SIGTERM', () => void shutdown())
-}
-
-function setProcessProxy(proxyUrl: string): void {
-  const noProxy = 'localhost,127.0.0.1,0.0.0.0,[::1],::1'
-  process.env.HTTP_PROXY = proxyUrl
-  process.env.HTTPS_PROXY = proxyUrl
-  process.env.NO_PROXY = noProxy
-  process.env.http_proxy = proxyUrl
-  process.env.https_proxy = proxyUrl
-  process.env.no_proxy = noProxy
-}
-
-function restoreSystemProxy(): void {
-  clearProcessProxy()
-  for (const [key, value] of Object.entries(initialProxyEnv)) {
-    if (value !== undefined) {
-      process.env[key] = value
-    }
-  }
-}
-
-function clearProcessProxy(): void {
-  for (const key of Object.keys(initialProxyEnv)) {
-    delete process.env[key]
-  }
 }
 
 main()

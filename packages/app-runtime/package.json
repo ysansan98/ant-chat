@@ -31,7 +31,8 @@
     "@ant-chat/app-data": "workspace:^",
     "@ant-chat/mcp-client-hub": "workspace:^",
     "@ant-chat/shared": "workspace:^",
-    "better-sqlite3": "catalog:"
+    "better-sqlite3": "catalog:",
+    "undici": "^7.15.0"
   },
   "devDependencies": {
     "tsdown": "catalog:",

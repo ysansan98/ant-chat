@@ -37,8 +37,7 @@
     "electron-ipc-decorator": "^1.0.0",
     "electron-store": "^8.0.0",
     "electron-updater": "^6.2.0",
-    "nanoid": "^5.0.9",
-    "undici": "^7.15.0"
+    "nanoid": "^5.0.9"
   },
   "devDependencies": {
     "@ant-chat/app-runtime": "workspace:*",

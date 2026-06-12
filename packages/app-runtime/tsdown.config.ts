@@ -13,5 +13,7 @@ export default defineConfig({
     '@ant-chat/mcp-client-hub',
     '@ant-chat/shared',
     'better-sqlite3',
+    'electron',
+    'undici',
   ],
 })

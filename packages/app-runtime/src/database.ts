@@ -4,16 +4,12 @@ import fs from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 
-export interface OpenAppDataDatabaseOptions {
-  timeoutMs?: number
-}
-
-export function openAppDataDatabase(filePath: string, options: OpenAppDataDatabaseOptions = {}): Database {
+export function openAppDataDatabase(filePath: string): Database {
   fs.mkdirSync(path.dirname(filePath), { recursive: true })
   const require = createRequire(import.meta.url)
   const BetterSqlite3 = require('better-sqlite3') as typeof BetterSqlite3Type
 
   return new BetterSqlite3(filePath, {
-    timeout: options.timeoutMs ?? 30_000,
+    timeout: 30_000,
   })
 }

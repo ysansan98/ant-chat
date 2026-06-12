@@ -26,8 +26,7 @@
   },
   "dependencies": {
     "@ant-chat/app-runtime": "workspace:^",
-    "@ant-chat/shared": "workspace:^",
-    "undici": "^7.15.0"
+    "@ant-chat/shared": "workspace:^"
   },
   "devDependencies": {
     "tsdown": "catalog:",
