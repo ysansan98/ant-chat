@@ -7,12 +7,14 @@ import type {
   IAgentEventEmitter,
   IAIProvider,
   ILogger,
+  IMessage,
   ISessionStore,
   LoopMessage,
   ModelInfo,
 } from '@ant-chat/shared'
 import type { ConversationContextEntry } from '../loop/loopContext'
 import type { BeforeTurnResult, RuntimeStartInput, RuntimeStartResult } from './types'
+import { randomUUID } from 'node:crypto'
 import { createProvider } from '../ai-providers/factory'
 import {
   calculateContextTokens,
@@ -216,22 +218,34 @@ export class SessionRuntime {
     }
   }
 
-  async injectSteering(conversationId: string, text: string): Promise<void> {
+  async injectSteering(conversationId: string, text: string): Promise<IMessage> {
     const activeTasks = this.listActiveTasks(conversationId) as Array<{ taskId: string, userMessageId: string }>
     if (activeTasks.length === 0)
-      return
+      throw new Error('AGENT_TASK_NOT_RUNNING')
 
     const task = activeTasks[0]
     const turnId = task.userMessageId
+    const messageId = `msg-${randomUUID()}`
+    const message: IMessage = {
+      id: messageId,
+      convId: conversationId,
+      createdAt: Date.now(),
+      role: 'user',
+      status: 'success',
+      content: [{ type: 'text', text }],
+      turnId,
+    }
 
     // Store in pending list; will be persisted to DB after tool results are persisted
     const runtimeTask = taskStore.get(task.taskId)
     if (runtimeTask) {
-      runtimeTask.pendingSteeringMessages.push({ text, turnId })
+      runtimeTask.pendingSteeringMessages.push({ id: messageId, text, turnId })
     }
 
     // Enqueue for the agent loop
     taskStore.enqueueSteeringInput(task.taskId, { text, turnId })
+
+    return message
   }
 
   private async getPromptMemorySnapshot(conversationId: string): Promise<{ memory?: string, soul?: string, user?: string } | undefined> {
@@ -441,6 +455,7 @@ function createStoreBackedEventEmitter(store: ISessionStore, delegate: IAgentEve
     task.pendingSteeringMessages = []
     for (const input of pending) {
       const msg = await store.createUserMessage({
+        id: input.id,
         convId: task.snapshot.conversationId,
         role: 'user',
         status: 'success',

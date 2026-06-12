@@ -71,10 +71,9 @@ export class AgentIpcService extends IpcService {
   }
 
   @IpcMethod()
-  async injectSteering(params: { conversationId: string, text: string }): Promise<IpcResponse<null>> {
+  async injectSteering(params: { conversationId: string, text: string }) {
     try {
-      await getAppRuntime().agent.injectSteering(params)
-      return createIpcResponse(true, null)
+      return createIpcResponse(true, await getAppRuntime().agent.injectSteering(params))
     }
     catch (error) {
       return createErrorIpcResponse(error as Error)

@@ -5,7 +5,15 @@ import { approveAgentAction, cancelAgentTask, injectSteeringAction, rejectAgentA
 import { useAgentStore } from '../store'
 
 const mocks = vi.hoisted(() => ({
-  injectSteering: vi.fn(),
+  injectSteering: vi.fn(async () => ({
+    id: 'msg-steering-1',
+    convId: 'c1',
+    createdAt: 1,
+    role: 'user',
+    status: 'success',
+    content: [{ type: 'text', text: 'adjust' }],
+    turnId: 'm1',
+  })),
   listActiveTasks: vi.fn(),
 }))
 
@@ -38,7 +46,10 @@ describe('agent store actions', () => {
     await expect(approveAgentAction({ taskId: 't1', actionId: 'a1' })).resolves.toBeUndefined()
     await expect(rejectAgentAction({ taskId: 't1', actionId: 'a1', reason: 'r' })).resolves.toBeUndefined()
     await expect(cancelAgentTask('t1')).resolves.toBeUndefined()
-    await expect(injectSteeringAction('c1', 'adjust')).resolves.toBeUndefined()
+    await expect(injectSteeringAction('c1', 'adjust')).resolves.toMatchObject({
+      id: 'msg-steering-1',
+      content: [{ type: 'text', text: 'adjust' }],
+    })
     expect(mocks.injectSteering).toHaveBeenCalledWith('c1', 'adjust')
   })
 

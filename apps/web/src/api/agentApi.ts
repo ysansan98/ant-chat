@@ -1,4 +1,4 @@
-import type { AgentTaskSnapshot, AgentTurnResult, ApprovePendingActionOptions, RejectPendingActionOptions, StartAgentTurnOptions } from '@ant-chat/shared'
+import type { AgentTaskSnapshot, AgentTurnResult, ApprovePendingActionOptions, IMessage, RejectPendingActionOptions, StartAgentTurnOptions } from '@ant-chat/shared'
 import { getAppTransport } from './transports/appTransport'
 
 async function startTurn(options: StartAgentTurnOptions): Promise<AgentTurnResult> {
@@ -27,7 +27,7 @@ async function approvePendingActionWithWhitelist(
   return (await getAppTransport()).agent.approvePendingActionWithWhitelist(options)
 }
 
-async function injectSteering(conversationId: string, text: string): Promise<null> {
+async function injectSteering(conversationId: string, text: string): Promise<IMessage> {
   return (await getAppTransport()).agent.injectSteering({ conversationId, text })
 }
 

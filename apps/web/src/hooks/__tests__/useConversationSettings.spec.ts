@@ -145,6 +145,7 @@ describe('useConversationSettings', () => {
     vi.mocked(useMessagesStore).mockImplementation(cb => cb({
       activeConversationsId: activeId,
       messages: [],
+      pendingSteeringByConversation: {},
       reset(): void {
         throw new Error('Function not implemented.')
       },

@@ -125,7 +125,7 @@ export interface AppTransport {
     approvePendingAction: (options: ApprovePendingActionOptions) => Promise<null>
     rejectPendingAction: (options: RejectPendingActionOptions) => Promise<null>
     cancelTask: (taskId: string) => Promise<null>
-    injectSteering: (params: { conversationId: string, text: string }) => Promise<null>
+    injectSteering: (params: { conversationId: string, text: string }) => Promise<IMessage>
     listActiveTasks: (conversationId?: string) => Promise<AgentTaskSnapshot[]>
     approvePendingActionWithWhitelist: (options: ApprovePendingActionOptions & { remember: boolean, workspacePath?: string }) => Promise<null>
   }
@@ -158,7 +158,7 @@ export interface AppIpcServices {
     cancelTask: (options: CancelTaskOptions) => Promise<IpcResponse<null>>
     getTask: (taskId: string) => Promise<IpcResponse<AgentTaskSnapshot>>
     listActiveTasks: (conversationId?: string) => Promise<IpcResponse<AgentTaskSnapshot[]>>
-    injectSteering: (params: { conversationId: string, text: string }) => Promise<IpcResponse<null>>
+    injectSteering: (params: { conversationId: string, text: string }) => Promise<IpcResponse<IMessage>>
     approvePendingActionWithWhitelist: (options: ApprovePendingActionOptions & { remember: boolean, workspacePath?: string }) => Promise<IpcResponse<null>>
   }
   chat: {

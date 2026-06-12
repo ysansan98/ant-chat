@@ -20,7 +20,15 @@ const mocks = vi.hoisted(() => ({
     approvePendingAction: vi.fn(async () => null),
     approvePendingActionWithWhitelist: vi.fn(async () => null),
     cancelTask: vi.fn(async () => null),
-    injectSteering: vi.fn(async () => null),
+    injectSteering: vi.fn(async (): Promise<IMessage> => ({
+      id: 'msg-steering-default',
+      convId: 'conv-default' as ConversationsId,
+      createdAt: 1,
+      role: 'user',
+      status: 'success',
+      content: [{ type: 'text', text: 'steering' }],
+      turnId: 'user-1',
+    })),
     listActiveTasks: vi.fn<() => Promise<AgentTaskSnapshot[]>>(async () => []),
     rejectPendingAction: vi.fn(async () => null),
     startTurn: vi.fn(),
@@ -372,6 +380,15 @@ describe('gui ui flow', () => {
       taskId: 'task-steering',
     })
     mocks.agent.listActiveTasks.mockResolvedValue([task])
+    mocks.agent.injectSteering.mockResolvedValue({
+      id: 'msg-steering-1',
+      convId: 'conv-steering',
+      createdAt: 10,
+      role: 'user',
+      status: 'success',
+      content: [{ type: 'text', text: '先修复类型错误，再继续实现' }],
+      turnId: 'user-1',
+    })
 
     await setActiveConversationsId('conv-steering' as ConversationsId)
 
@@ -392,6 +409,12 @@ describe('gui ui flow', () => {
     expect(mocks.agent.startTurn).not.toHaveBeenCalled()
     expect(input).toHaveValue('')
     expect(screen.getByTestId('chat-cancel')).toHaveTextContent('停止')
+    expect(useMessagesStore.getState().messages).toEqual([
+      expect.objectContaining({
+        id: 'msg-steering-1',
+        content: [{ type: 'text', text: '先修复类型错误，再继续实现' }],
+      }),
+    ])
   })
 })
 

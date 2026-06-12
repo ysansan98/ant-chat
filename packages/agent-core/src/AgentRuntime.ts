@@ -1,4 +1,4 @@
-import type { AgentRuntimeConfig, AgentRuntimeOptions, AgentRuntimeStartTaskOptions, AgentRuntimeStartTaskResult, AgentTaskSnapshot, ApprovePendingActionOptions, CancelTaskOptions, LoopMessage, RejectPendingActionOptions } from '@ant-chat/shared'
+import type { AgentRuntimeConfig, AgentRuntimeOptions, AgentRuntimeStartTaskOptions, AgentRuntimeStartTaskResult, AgentTaskSnapshot, ApprovePendingActionOptions, CancelTaskOptions, IMessage, LoopMessage, RejectPendingActionOptions } from '@ant-chat/shared'
 import type { BeforeTurnResult, RuntimeStartInput, RuntimeStartResult } from './session/types'
 import type { BeforeToolExecuteHook } from './tools/types'
 import { randomUUID } from 'node:crypto'
@@ -123,8 +123,8 @@ export class AgentRuntime {
     this.approvalController.cancelTask(options)
   }
 
-  async injectSteering(conversationId: string, text: string): Promise<void> {
-    await this.sessionRuntime.injectSteering(conversationId, text)
+  async injectSteering(conversationId: string, text: string): Promise<IMessage> {
+    return await this.sessionRuntime.injectSteering(conversationId, text)
   }
 
   getTask(taskId: string) {

@@ -6,6 +6,7 @@ export interface SteeringInput {
 }
 
 export interface PendingSteeringMessage {
+  id: string
   text: string
   turnId: string
 }

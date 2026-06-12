@@ -90,7 +90,7 @@ export interface IConversationQuery {
 
 export type CreateConversationInput = AddConversationsSchema
 export type UpdateConversationInput = Omit<UpdateConversationsSchema, 'id'>
-export type CreateUserMessageInput = Extract<AddMessage, { role: 'user' }>
+export type CreateUserMessageInput = Extract<AddMessage, { role: 'user' }> & { id?: string }
 export type CreateToolMessageInput = Extract<AddMessage, { role: 'tool' }>
 export type CreateEventMessageInput = Extract<AddMessage, { role: 'event' }>
 export interface CreateAssistantMessageInput {
