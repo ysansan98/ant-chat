@@ -8,7 +8,7 @@ import { useRequest } from 'ahooks'
 import { Settings } from 'lucide-react'
 import React from 'react'
 import { providerApi } from '@/api/providerApi'
-import { getAppEventBus } from '@/api/transports/appEventBus'
+import { PROVIDER_CHANGED_EVENT } from '@/constants/providerEvents'
 import { ModelParameterSettingsPanel } from './ModelParameterSettingsPanel'
 import { ProviderLogoDisplay } from './renderProviderLogo'
 import { SelectModel } from './SelectModel'
@@ -24,13 +24,12 @@ export function ModelControlPanel({ value, onChange }: ModelControlPanelProps) {
   const { data, refresh } = useRequest<AllAvailableModelsSchema[], []>(providerApi.getAllAbvailableModels)
 
   React.useEffect(() => {
-    const eventBus = getAppEventBus()
     const handleProviderChanged = () => {
       refresh()
     }
-    eventBus.on('provider:changed', handleProviderChanged)
+    window.addEventListener(PROVIDER_CHANGED_EVENT, handleProviderChanged)
     return () => {
-      eventBus.removeListener('provider:changed', handleProviderChanged)
+      window.removeEventListener(PROVIDER_CHANGED_EVENT, handleProviderChanged)
     }
   }, [refresh])
 

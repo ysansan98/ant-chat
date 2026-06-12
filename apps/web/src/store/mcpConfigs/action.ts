@@ -67,7 +67,7 @@ export async function reconnectMcpServerAction(name: string) {
   await connectMcpServerAction(name)
 }
 
-export async function onMcpServerStatusChanged(_: Electron.IpcRendererEvent, name: string, status: McpServerStatus) {
+export async function onMcpServerStatusChanged(name: string, status: McpServerStatus) {
   console.log('onMcpServerStatusChanged => ', name, status)
   try {
     await getMcpConfigByServerName(name)
