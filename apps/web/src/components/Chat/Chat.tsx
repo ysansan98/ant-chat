@@ -96,25 +96,27 @@ export default function Chat() {
     }
   }
 
+  const hasMessages = messages.length > 0
+
   return (
     <div
       key={currentConversations?.id}
-      className="relative mx-auto grid h-(--mainHeight) w-full grid-rows-[1fr_max-content]"
+      className={`
+        relative grid h-full min-w-0 w-full
+        ${hasMessages ? 'grid-rows-[minmax(0,1fr)_auto]' : 'place-items-center'}
+      `}
     >
-
-      {
-        messages.length > 0
-          ? (
-              <Suspense fallback={<BubbleSkeleton />}>
-                <BubbleList
-                  messages={messages}
-                  conversationsId={activeConversationsId}
-                />
-              </Suspense>
-            )
-          : null
-      }
-      <div className="px-2 pb-4">
+      {hasMessages && (
+        <div className="min-h-0 overflow-hidden">
+          <Suspense fallback={<BubbleSkeleton />}>
+            <BubbleList
+              messages={messages}
+              conversationsId={activeConversationsId}
+            />
+          </Suspense>
+        </div>
+      )}
+      <div className={`w-full min-w-0 px-3 ${hasMessages ? 'pb-4' : ''}`}>
         {agentTask && pending
           ? (
               <AgentApprovalCard
@@ -159,7 +161,7 @@ export default function Chat() {
 
 function BubbleSkeleton() {
   return (
-    <div className="mx-auto flex w-(--chat-width) flex-col gap-3">
+    <div className="mx-auto flex w-full max-w-(--chat-width) flex-col gap-3">
       <Skeleton className="h-16 w-full" />
       <Skeleton className="h-16 w-full" />
       <Skeleton className="h-16 w-full" />

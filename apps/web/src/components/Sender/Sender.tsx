@@ -232,8 +232,7 @@ function ReferenceInputOverlay({
       aria-hidden="true"
       className="
         pointer-events-none absolute inset-0 z-0 max-h-48 min-h-24 overflow-hidden p-1 text-left
-        text-base wrap-break-word whitespace-pre-wrap
-        md:text-sm
+        text-sm wrap-break-word whitespace-pre-wrap
       "
     >
       <div style={{ transform: `translateY(-${scrollTop}px)` }}>
@@ -759,10 +758,7 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
   return (
     <div
       ref={senderRef}
-      className={`
-        mx-auto max-w-(--chat-width)
-        ${!hasMessage ? 'absolute inset-x-3 top-[50%] translate-y-[-50%]' : ''}
-      `}
+      className="mx-auto w-full max-w-(--chat-width)"
     >
       {!hasMessage && (
         <h1 className="mb-3 py-3 text-center text-4xl text-gray-500">
@@ -794,7 +790,7 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
               ref={textareaRef}
               className="
                 relative z-10 max-h-48 min-h-24 border-0 bg-transparent p-1 text-transparent
-                caret-foreground
+                text-sm caret-foreground
                 selection:bg-primary/20 selection:text-foreground
                 placeholder:text-muted-foreground
               "

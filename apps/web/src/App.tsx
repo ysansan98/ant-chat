@@ -51,7 +51,7 @@ function AntChatApp() {
       <div
         className={`
           overflow-hidden transition-[width,opacity] duration-300 ease-in-out
-          ${showSliderMenu ? 'w-74 opacity-100' : 'w-0 opacity-0'}
+          ${showSliderMenu ? 'w-[--conversationWidth] opacity-100' : 'w-0 opacity-0'}
         `}
       >
         <SliderMenu />

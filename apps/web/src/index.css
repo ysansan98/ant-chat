@@ -17,25 +17,13 @@
   --appBarHeight: 0px;
   --mainHeight: 100dvh;
   --conversationWidth: 280px;
-  --chat-width: calc(100vw - var(--conversationWidth) - 1rem);
+  --chat-width: 800px;
   --titleHeight: 50px;
 }
 
 .dark:root {
   --hover-bg-color: color-mix(in oklab, var(--foreground) 10%, transparent);
   --border-color: var(--border);
-}
-
-@media (max-width: 768px) {
-  :root {
-    --chat-width: 100vw;
-  }
-}
-
-@media (min-width: 1096px) {
-  :root {
-    --chat-width: 800px;
-  }
 }
 
 body,
