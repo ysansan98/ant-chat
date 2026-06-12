@@ -60,13 +60,14 @@ function createSessionStore(overrides: Partial<ISessionStore> = {}): ISessionSto
     listConversations: vi.fn(async () => [conversation]),
     getMessages: vi.fn(async () => []),
     getMessagesByConvId: vi.fn(async () => []),
-    createUserMessage: vi.fn(async () => ({
-      id: 'user-msg-1',
-      convId: conversation.id,
+    createUserMessage: vi.fn(async data => ({
+      id: data.id ?? 'user-msg-1',
+      convId: data.convId,
       createdAt: 2,
       role: 'user' as const,
       status: 'success' as const,
-      content: [{ type: 'text' as const, text: 'inspect project' }],
+      content: data.content,
+      turnId: data.turnId,
       images: [],
       attachments: [],
     })),
@@ -823,21 +824,48 @@ describe('agentRuntime', () => {
       // Record calls from startTask so we can ignore them
       const callsBefore = (store.createUserMessage as ReturnType<typeof vi.fn>).mock.calls.length
 
-      await runtime.injectSteering('conv-session', 'fix types first')
+      const message = await runtime.injectSteering('conv-session', 'fix types first')
 
       // Should NOT persist to DB immediately — deferred until after tool results
       expect(store.createUserMessage).toHaveBeenCalledTimes(callsBefore)
+      expect(message).toMatchObject({
+        convId: 'conv-session',
+        role: 'user',
+        status: 'success',
+        content: [{ type: 'text', text: 'fix types first' }],
+        turnId: 'user-msg-1',
+      })
+      expect(message.id).toMatch(/^msg-/)
 
       // Should store in pending list on the task
       const task = taskStore.get(running.taskId)
       expect(task?.pendingSteeringMessages).toEqual([
-        { text: 'fix types first', turnId: 'user-msg-1' },
+        { id: message.id, text: 'fix types first', turnId: 'user-msg-1' },
       ])
 
       // Should still enqueue for the agent loop
       expect(taskStore.dequeueSteeringInputs(running.taskId)).toEqual([
         { text: 'fix types first', turnId: 'user-msg-1' },
       ])
+
+      const loopCalls = vi.mocked(runAgentLoop).mock.calls
+      const loopCall = loopCalls[loopCalls.length - 1]
+      expect(loopCall).toBeDefined()
+      await loopCall![0].config.eventEmitter.emitTurnToolResults!({
+        conversationId: 'conv-session',
+        results: [],
+      })
+      expect(store.createUserMessage).toHaveBeenLastCalledWith({
+        id: message.id,
+        convId: 'conv-session',
+        role: 'user',
+        status: 'success',
+        content: [{ type: 'text', text: 'fix types first' }],
+        turnId: 'user-msg-1',
+      })
+      expect(eventEmitter.emitMessageUpdated).toHaveBeenLastCalledWith(
+        expect.objectContaining({ id: message.id }),
+      )
       cleanupTasks([running.taskId])
     })
   })

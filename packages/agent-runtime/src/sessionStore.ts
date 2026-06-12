@@ -27,7 +27,8 @@ export function createAppDataSessionStore(appDataContext: AppDataContext): ISess
       return await messageRepository.listByConversation(convId)
     },
     async createUserMessage(data: CreateUserMessageInput) {
-      return await messageRepository.create(data)
+      const { id, ...message } = data
+      return await messageRepository.create(message, { id })
     },
     async createAssistantMessage(data: CreateAssistantMessageInput) {
       return await messageRepository.create({

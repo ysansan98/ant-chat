@@ -64,10 +64,10 @@ export class SqliteMessageRepository implements MessageRepository {
     return mapMessageRow(result)
   }
 
-  async create(message: AddMessage): Promise<IMessage> {
+  async create(message: AddMessage, options?: { id?: string }): Promise<IMessage> {
     await this.conversations.getById(message.convId)
 
-    const id = `msg-${nanoid()}`
+    const id = options?.id ?? `msg-${nanoid()}`
     const writtenFiles: string[] = []
     try {
       const createMessage = this.db.transaction(() => {

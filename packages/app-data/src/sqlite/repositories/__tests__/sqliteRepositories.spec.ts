@@ -109,6 +109,33 @@ describe.skipIf(!canRunDbIntegrationTests())('sqlite repositories', () => {
     expect(messages).toEqual([expect.objectContaining({ id: message.id, convId: conversation.id })])
   })
 
+  it('uses a caller-provided message id', async () => {
+    const conversationRepository = new SqliteConversationRepository(sqlite)
+    const messageRepository = new SqliteMessageRepository(sqlite, { attachmentsRoot })
+    const conversation = await conversationRepository.create({
+      title: 'Steering',
+      workspacePath: '/workspace',
+      createdAt: 1,
+      updatedAt: 1,
+      settings: {
+        modelId: 'model-1',
+        systemPrompt: '',
+        temperature: 0.7,
+        maxTokens: 1024,
+      },
+    })
+
+    const message = await messageRepository.create({
+      convId: conversation.id,
+      role: 'user',
+      status: 'success',
+      content: [{ type: 'text', text: 'steering' }],
+    }, { id: 'msg-steering-1' })
+
+    expect(message.id).toBe('msg-steering-1')
+    await expect(messageRepository.getById('msg-steering-1')).resolves.toEqual(message)
+  })
+
   it('persists compaction boundary, model info, and usage on event messages', async () => {
     const conversationRepository = new SqliteConversationRepository(sqlite)
     const messageRepository = new SqliteMessageRepository(sqlite, { attachmentsRoot })

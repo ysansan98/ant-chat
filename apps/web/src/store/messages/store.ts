@@ -5,11 +5,13 @@ import { devtools } from 'zustand/middleware'
 interface InitialState {
   activeConversationsId: ConversationsId
   messages: IMessage[]
+  pendingSteeringByConversation: Record<string, IMessage[]>
 }
 
 const initialState: InitialState = {
   activeConversationsId: '' as ConversationsId,
   messages: [],
+  pendingSteeringByConversation: {},
 }
 
 type MessagesStore = InitialState & {

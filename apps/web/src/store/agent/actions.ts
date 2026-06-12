@@ -26,7 +26,7 @@ export async function cancelAgentTask(taskId: string) {
 }
 
 export async function injectSteeringAction(conversationId: string, text: string) {
-  await agentApi.injectSteering(conversationId, text)
+  return await agentApi.injectSteering(conversationId, text)
 }
 
 export async function syncConversationAgentState(conversationId: string) {

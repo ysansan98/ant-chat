@@ -1,6 +1,6 @@
 import type { AgentRuntime } from '@ant-chat/agent-core'
 import type { AppDataContext } from '@ant-chat/app-data'
-import type { AgentRuntimeStartTaskOptions, AgentRuntimeStartTaskResult, ApprovePendingActionOptions, CancelTaskOptions, RejectPendingActionOptions, StartAgentTurnOptions } from '@ant-chat/shared'
+import type { AgentRuntimeStartTaskOptions, AgentRuntimeStartTaskResult, ApprovePendingActionOptions, CancelTaskOptions, IMessage, RejectPendingActionOptions, StartAgentTurnOptions } from '@ant-chat/shared'
 import process from 'node:process'
 
 export interface AgentRuntimeController {
@@ -8,7 +8,7 @@ export interface AgentRuntimeController {
   approvePendingAction: (options: ApprovePendingActionOptions) => null
   rejectPendingAction: (options: RejectPendingActionOptions) => null
   cancelTask: (options: CancelTaskOptions) => null
-  injectSteering: (params: { conversationId: string, text: string }) => Promise<null>
+  injectSteering: (params: { conversationId: string, text: string }) => Promise<IMessage>
   listActiveTasks: (conversationId?: string) => ReturnType<AgentRuntime['listActiveTasks']>
   approvePendingActionWithWhitelist: (options: ApprovePendingActionOptions & { remember: boolean, workspacePath?: string }) => null
 }
@@ -31,8 +31,7 @@ export function createAgentRuntimeController(runtime: AgentRuntime, appDataConte
       return null
     },
     async injectSteering(params) {
-      await runtime.injectSteering(params.conversationId, params.text)
-      return null
+      return await runtime.injectSteering(params.conversationId, params.text)
     },
     listActiveTasks(conversationId) {
       return runtime.listActiveTasks(conversationId)

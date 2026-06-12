@@ -14,6 +14,7 @@ import {
 } from '@/store/conversation'
 import {
   abortActiveRequest,
+  addPendingSteeringMessage,
   setActiveConversationsId,
   useMessagesStore,
 } from '@/store/messages'
@@ -54,7 +55,8 @@ export default function Chat() {
     const draftText = textBlocks.map(block => block.text).join('\n')
 
     if (agentTask) {
-      await injectSteeringAction(agentTask.conversationId, draftText)
+      const message = await injectSteeringAction(agentTask.conversationId, draftText)
+      addPendingSteeringMessage(message)
       return
     }
 

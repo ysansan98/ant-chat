@@ -26,8 +26,15 @@ export async function setActiveConversationsId(id: ConversationsId | '') {
   ])
 
   useMessagesStore.setState(state => produce(state, (draft) => {
+    const persistedMessageIds = new Set(messages.map(message => message.id))
+    const pendingSteering = (draft.pendingSteeringByConversation[id] ?? [])
+      .filter(message => !persistedMessageIds.has(message.id))
+    if (pendingSteering.length > 0)
+      draft.pendingSteeringByConversation[id] = pendingSteering
+    else
+      delete draft.pendingSteeringByConversation[id]
     draft.activeConversationsId = id as ConversationsId
-    draft.messages.splice(0, draft.messages.length, ...messages)
+    draft.messages.splice(0, draft.messages.length, ...messages, ...pendingSteering)
   }))
   useConversationsStore.getState().setActiveConversationsId(id)
 }
@@ -58,20 +65,48 @@ export async function updateMessageAction(_message: IMessage) {
 
 export async function updateMessageActionV2(message: IMessage) {
   const { convId } = message
-  const { activeConversationsId } = useMessagesStore.getState()
-  if (convId !== activeConversationsId) {
-    return
-  }
-
   useMessagesStore.setState(state => produce(state, (draft) => {
+    const pendingSteering = draft.pendingSteeringByConversation[convId] ?? []
+    const wasPendingSteering = pendingSteering.some(candidate => candidate.id === message.id)
+    if (wasPendingSteering) {
+      const remaining = pendingSteering.filter(candidate => candidate.id !== message.id)
+      if (remaining.length > 0)
+        draft.pendingSteeringByConversation[convId] = remaining
+      else
+        delete draft.pendingSteeringByConversation[convId]
+    }
+
+    if (convId !== draft.activeConversationsId)
+      return
+
     const messageIndex = draft.messages.findIndex(msg => msg.id === message.id)
 
-    if (messageIndex > -1) {
+    if (wasPendingSteering) {
+      if (messageIndex > -1)
+        draft.messages.splice(messageIndex, 1)
+      draft.messages.push(message)
+    }
+    else if (messageIndex > -1) {
       draft.messages[messageIndex] = message
     }
     else {
       draft.messages.push(message)
     }
+  }))
+}
+
+export function addPendingSteeringMessage(message: IMessage) {
+  useMessagesStore.setState(state => produce(state, (draft) => {
+    const pending = draft.pendingSteeringByConversation[message.convId] ?? []
+    if (
+      pending.some(candidate => candidate.id === message.id)
+      || draft.messages.some(candidate => candidate.id === message.id)
+    ) {
+      return
+    }
+    draft.pendingSteeringByConversation[message.convId] = [...pending, message]
+    if (message.convId === draft.activeConversationsId)
+      draft.messages.push(message)
   }))
 }
 
