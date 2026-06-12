@@ -45,6 +45,10 @@ export function createWebRendererViteConfig({
       ],
     },
     plugins: [
+      command === 'build'
+        ? visualizerPlugin('renderer')
+        : codeInspectorPlugin({ bundler: 'vite' }),
+      ...extraPlugins,
       react({
         babel: {
           plugins: [
@@ -56,11 +60,6 @@ export function createWebRendererViteConfig({
       svgr({
         svgrOptions: { icon: true },
       }),
-
-      command === 'build'
-        ? visualizerPlugin('renderer')
-        : codeInspectorPlugin({ bundler: 'vite' }),
-      ...extraPlugins,
     ],
     worker: {
       format: 'es',

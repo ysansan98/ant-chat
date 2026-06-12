@@ -97,11 +97,11 @@ async function main() {
     res.end(JSON.stringify({ success: false, msg: `Unknown route: ${req.url || '/'}` }))
   })
 
-  server.listen(port, '127.0.0.1', () => {
-    console.info(`listening on http://127.0.0.1:${port}`)
-    console.info(`SSE endpoint: http://127.0.0.1:${port}/api/events`)
+  server.listen(port, '0.0.0.0', () => {
+    console.info(`listening on http://0.0.0.0:${port}`)
+    console.info(`SSE endpoint: http://0.0.0.0:${port}/api/events`)
     if (withWeb) {
-      console.info(`Web UI: http://127.0.0.1:${port}`)
+      console.info(`Web UI: http://0.0.0.0:${port}`)
     }
   })
 
