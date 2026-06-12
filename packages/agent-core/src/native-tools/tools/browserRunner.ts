@@ -201,7 +201,7 @@ async function executeBrowserTool(
     ...profileArgs,
     '--session',
     SESSION_NAME,
-    '--content-boundaries',
+    ...(command === 'open' ? ['--content-boundaries'] : []),
     ...globalArgs,
     ...command.split(' '),
     ...normalizeOutputPaths(command, commandArgs, options.workspacePath),
