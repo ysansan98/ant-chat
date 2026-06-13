@@ -72,6 +72,8 @@ export const providerApi = {
   },
 
   importModelsDevModels: async (providerId: string): Promise<ModelsDevImportResult> => {
-    return (await getAppTransport()).provider.importModelsDevModels(providerId)
+    const result = await (await getAppTransport()).provider.importModelsDevModels(providerId)
+    emitProviderChanged()
+    return result
   },
 }
