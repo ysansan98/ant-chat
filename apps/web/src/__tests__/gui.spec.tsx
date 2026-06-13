@@ -219,6 +219,22 @@ describe('gui ui flow', () => {
     expect(screen.getByTestId('chat-input')).toBeInTheDocument()
   })
 
+  it('toggles the desktop sidebar state without unmounting it', async () => {
+    renderGui('/')
+
+    expect(await screen.findByTestId('chat-input')).toBeInTheDocument()
+
+    const sidebar = screen.getByTestId('desktop-sidebar-shell')
+    expect(sidebar).toHaveAttribute('data-state', 'open')
+
+    fireEvent.click(screen.getByTestId('desktop-sidebar-trigger'))
+    expect(sidebar).toHaveAttribute('data-state', 'closed')
+    expect(screen.getByTestId('sidebar-new-chat')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('desktop-sidebar-trigger'))
+    expect(sidebar).toHaveAttribute('data-state', 'open')
+  })
+
   it('navigates to settings from chat in browser runtime', async () => {
     const electron = window.electron
     window.electron = undefined as unknown as Window['electron']

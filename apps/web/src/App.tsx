@@ -50,6 +50,8 @@ function AntChatApp() {
       <div
         role="button"
         tabIndex={0}
+        aria-label={showSliderMenu ? '收起侧边栏' : '展开侧边栏'}
+        data-testid="desktop-sidebar-trigger"
         className={`
           absolute top-4 left-22.5 z-9990 hidden cursor-pointer text-muted-foreground
           hover:text-foreground
@@ -76,11 +78,9 @@ function AntChatApp() {
         </span>
       </div>
       <div
-        className={`
-          hidden overflow-hidden transition-[width,opacity] duration-300 ease-in-out
-          md:block
-          ${showSliderMenu ? 'w-[--conversationWidth] opacity-100' : 'w-0 opacity-0'}
-        `}
+        data-state={showSliderMenu ? 'open' : 'closed'}
+        data-testid="desktop-sidebar-shell"
+        className="desktop-sidebar-shell hidden shrink-0 overflow-hidden md:block"
       >
         <SliderMenu />
       </div>
