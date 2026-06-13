@@ -6,7 +6,7 @@ import { createServer as createHttpServer } from 'node:http'
 
 export type LocalApiHandler = (req: IncomingMessage, res: ServerResponse) => Promise<boolean>
 
-export function createLocalServer(runtime: AppRuntime) {
+export function createLocalServer(runtime: object) {
   const handleLocalApiRequest = createLocalApiHandler(runtime)
 
   return createHttpServer(async (req, res) => {
@@ -19,10 +19,14 @@ export function createLocalServer(runtime: AppRuntime) {
   })
 }
 
-export function createLocalApiHandler(runtime: AppRuntime): LocalApiHandler {
+export function createLocalApiHandler(runtime: object): LocalApiHandler {
+  const appRuntime = runtime as AppRuntime
+
   return async (req, res) => {
     try {
-      writeCorsHeaders(res)
+      const url = new URL(req.url || '/', 'http://localhost')
+      if (!isLocalApiRoute(url))
+        return false
 
       if (req.method === 'OPTIONS') {
         res.writeHead(204)
@@ -30,31 +34,19 @@ export function createLocalApiHandler(runtime: AppRuntime): LocalApiHandler {
         return true
       }
 
-      const url = new URL(req.url || '/', 'http://localhost')
-      if (!isLocalApiRoute(url)) {
-        return false
-      }
-
       const body = await readJsonBody(req)
-      const result = await routeRequest(url, body, runtime)
+      const result = await routeRequest(url, body, appRuntime)
 
       res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' })
       res.end(JSON.stringify({ success: true, data: result }))
     }
     catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      writeCorsHeaders(res)
       res.writeHead(500, { 'content-type': 'application/json; charset=utf-8' })
       res.end(JSON.stringify({ success: false, msg: message }))
     }
     return true
   }
-}
-
-function writeCorsHeaders(res: ServerResponse) {
-  res.setHeader('access-control-allow-origin', 'http://127.0.0.1:5173')
-  res.setHeader('access-control-allow-methods', 'GET,POST,OPTIONS')
-  res.setHeader('access-control-allow-headers', 'content-type')
 }
 
 function isLocalApiRoute(url: URL): boolean {

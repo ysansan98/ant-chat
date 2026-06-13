@@ -1,24 +1,9 @@
-import type { ServerResponse } from 'node:http'
-import { createServer as createHttpServer } from 'node:http'
 import { resolve } from 'node:path'
 import process from 'node:process'
 import { parseArgs } from 'node:util'
 import { createAppRuntime } from '@ant-chat/app-runtime'
 import { resolveAppDataRoot } from '@ant-chat/shared'
-import { createLocalApiHandler } from './createServer'
-
-const SSE_HEADERS = {
-  'content-type': 'text/event-stream',
-  'cache-control': 'no-cache',
-  'connection': 'keep-alive',
-}
-
-function sseBroadcast(clients: Set<ServerResponse>, channel: string, data: unknown) {
-  const payload = `event: ${channel}\ndata: ${JSON.stringify(data)}\n\n`
-  for (const client of clients) {
-    client.write(payload)
-  }
-}
+import { listen } from './serverHost'
 
 async function main() {
   const { values } = parseArgs({
@@ -31,39 +16,14 @@ async function main() {
 
   const port = Number(values.port) || 3456
   const withWeb = values.web as boolean
-  const sseClients = new Set<ServerResponse>()
   const appDataRoot = resolveAppDataRoot()
   const runtime = createAppRuntime({
     appDataRoot,
   })
   await runtime.initialize()
-  const handleLocalApi = createLocalApiHandler(runtime)
 
-  runtime.events.on('conversation:updated', event => sseBroadcast(sseClients, 'conversation:updated', event))
-  runtime.events.on('message:updated', event => sseBroadcast(sseClients, 'message:updated', event))
-  runtime.events.on('agent:task-updated', event => sseBroadcast(sseClients, 'agent:task-updated', event))
-  runtime.events.on('agent:approval-required', event => sseBroadcast(sseClients, 'agent:approval-required', event))
-  runtime.events.on('workspace:changed', event => sseBroadcast(sseClients, 'workspace:changed', event))
-  runtime.events.on('settings:updated', event => sseBroadcast(sseClients, 'settings:updated', event))
-  runtime.events.on('mcp:status-changed', event => sseBroadcast(sseClients, 'mcp:status-changed', event))
-
-  // SSE endpoint: browser connects here for real-time events
-  function handleSse(req: import('node:http').IncomingMessage, res: ServerResponse): boolean {
-    if (req.url === '/api/events' && req.method === 'GET') {
-      for (const [key, value] of Object.entries(SSE_HEADERS)) {
-        res.setHeader(key, value)
-      }
-      res.writeHead(200)
-      res.write(': connected\n\n')
-      sseClients.add(res)
-      req.on('close', () => sseClients.delete(res))
-      return true
-    }
-    return false
-  }
-
-  // In --web mode, create Vite dev server for HMR + frontend serving
-  let viteMiddleware: ((req: import('node:http').IncomingMessage, res: ServerResponse, next: () => void) => void) | undefined
+  // 开发模式使用 Vite 中间件，同时提供 HMR 和前端页面。
+  let webHandler: Parameters<typeof listen>[1]['webHandler']
   if (withWeb) {
     const vite = await import('vite')
     const webRoot = resolve(process.cwd(), '../../apps/web')
@@ -72,47 +32,30 @@ async function main() {
       appType: 'spa',
       server: { middlewareMode: true },
     })
-    viteMiddleware = viteServer.middlewares as unknown as typeof viteMiddleware
-    console.info('Vite middleware attached', { root: webRoot })
-  }
-
-  const server = createHttpServer(async (req, res) => {
-    if (handleSse(req, res))
-      return
-
-    const handled = await handleLocalApi(req, res)
-    if (handled)
-      return
-
-    // Non-API routes: delegate to Vite if available, otherwise 404
-    if (viteMiddleware) {
-      viteMiddleware(req, res, () => {
+    webHandler = (req, res) => {
+      viteServer.middlewares(req, res, () => {
         res.writeHead(404, { 'content-type': 'application/json; charset=utf-8' })
         res.end(JSON.stringify({ success: false, msg: `Unknown route: ${req.url || '/'}` }))
       })
-      return
     }
+    console.info('Vite middleware attached', { root: webRoot })
+  }
 
-    res.writeHead(404, { 'content-type': 'application/json; charset=utf-8' })
-    res.end(JSON.stringify({ success: false, msg: `Unknown route: ${req.url || '/'}` }))
+  const server = await listen(runtime, {
+    host: '0.0.0.0',
+    port,
+    webHandler,
+    webRoot: resolve(process.cwd(), '../../apps/web/dist'),
   })
 
-  server.listen(port, '0.0.0.0', () => {
-    console.info(`listening on http://0.0.0.0:${port}`)
-    console.info(`SSE endpoint: http://0.0.0.0:${port}/api/events`)
-    if (withWeb) {
-      console.info(`Web UI: http://0.0.0.0:${port}`)
-    }
-  })
+  console.info(`listening on http://0.0.0.0:${server.port}`)
+  console.info(`SSE endpoint: http://0.0.0.0:${server.port}/api/events`)
+  if (withWeb)
+    console.info(`Web UI: http://0.0.0.0:${server.port}`)
 
   const shutdown = async () => {
     console.info('shutting down')
-    for (const client of sseClients) {
-      client.end()
-    }
-    sseClients.clear()
-    await runtime.dispose()
-    server.close(() => process.exit(0))
+    await server.close()
   }
 
   process.on('SIGINT', () => void shutdown())

@@ -36,20 +36,18 @@ afterEach(async () => {
 })
 
 describe('createLocalServer', () => {
-  it('answers browser CORS preflight requests', async () => {
+  it('处理 API 的 OPTIONS 请求', async () => {
     const response = await send({
       method: 'OPTIONS',
       path: '/api/rpc',
     })
 
     expect(response.statusCode).toBe(204)
-    expect(response.headers['access-control-allow-origin']).toBe('http://127.0.0.1:5173')
-    expect(response.headers['access-control-allow-methods']).toBe('GET,POST,OPTIONS')
-    expect(response.headers['access-control-allow-headers']).toBe('content-type')
+    expect(response.headers['access-control-allow-origin']).toBeUndefined()
     expect(response.body).toBe('')
   })
 
-  it('keeps CORS headers on RPC responses', async () => {
+  it('返回同源 RPC 响应', async () => {
     const response = await send({
       method: 'POST',
       path: '/api/rpc',
@@ -60,7 +58,7 @@ describe('createLocalServer', () => {
     })
 
     expect(response.statusCode).toBe(200)
-    expect(response.headers['access-control-allow-origin']).toBe('http://127.0.0.1:5173')
+    expect(response.headers['access-control-allow-origin']).toBeUndefined()
     expect(JSON.parse(response.body)).toEqual({
       success: true,
       data: { data: [], total: 0 },

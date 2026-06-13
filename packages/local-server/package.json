@@ -1,6 +1,8 @@
 {
   "name": "@ant-chat/local-server",
   "type": "module",
+  "version": "1.0.0-alpha.1",
+  "description": "Ant Chat 本地 Web 服务",
   "license": "MIT",
   "exports": {
     ".": {
@@ -13,22 +15,34 @@
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.cts",
+  "bin": {
+    "ant-chat-local-server": "./dist/cli.mjs"
+  },
   "files": [
     "dist"
   ],
+  "engines": {
+    "node": "20.x || 22.x || 23.x || 24.x || 25.x"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "scripts": {
-    "build": "tsdown",
+    "build": "tsdown && pnpm -F @ant-chat/web build --outDir ../../packages/local-server/dist/web --emptyOutDir false",
     "clean": "rm -rf dist node_modules",
     "dev": "tsx --conditions=development src/dev.ts",
     "dev:web": "tsx --conditions=development src/dev.ts --web",
+    "prepack": "pnpm build",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@ant-chat/app-runtime": "workspace:^",
-    "@ant-chat/shared": "workspace:^"
+    "better-sqlite3": "^12.6.2"
   },
   "devDependencies": {
+    "@ant-chat/app-runtime": "workspace:^",
+    "@ant-chat/shared": "workspace:^",
     "tsdown": "catalog:",
     "tsx": "^4.19.3",
     "vite": "^8.0.0",
