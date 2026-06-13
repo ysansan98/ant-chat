@@ -16,7 +16,7 @@ const IconMapping: Record<SearchResult['type'], React.ReactNode> = {
 export function SearchResults({ items, keywords, onItemClick }: SearchResultsProps) {
   return items?.length
     ? (
-        <div className="max-h-[60vh] overflow-y-auto px-3 pb-1">
+        <div className="overflow-y-auto px-2 pb-1">
           {
             items.map(item => (
               <div
@@ -80,7 +80,7 @@ export function SearchResults({ items, keywords, onItemClick }: SearchResultsPro
       )
     : (
         keywords && (
-          <EmptyState title="未找到结果" />
+          <EmptyState className="py-6" title="未找到结果" />
         )
       )
 }

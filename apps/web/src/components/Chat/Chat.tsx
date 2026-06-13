@@ -116,7 +116,13 @@ export default function Chat() {
           </Suspense>
         </div>
       )}
-      <div className={`w-full min-w-0 px-3 ${hasMessages ? 'pb-4' : ''}`}>
+      <div
+        className={`
+          w-full min-w-0 px-2
+          md:px-3
+          ${hasMessages ? 'pb-[max(0.5rem,env(safe-area-inset-bottom))] md:pb-4' : ''}
+        `}
+      >
         {agentTask && pending
           ? (
               <AgentApprovalCard
@@ -161,7 +167,7 @@ export default function Chat() {
 
 function BubbleSkeleton() {
   return (
-    <div className="mx-auto flex w-full max-w-(--chat-width) flex-col gap-3">
+    <div className="mx-auto flex w-full max-w-(--chat-width) flex-col gap-3 px-2 md:px-0">
       <Skeleton className="h-16 w-full" />
       <Skeleton className="h-16 w-full" />
       <Skeleton className="h-16 w-full" />

@@ -36,7 +36,11 @@ interface WorkspaceConversationState {
   loading: boolean
 }
 
-export function WorkspacePanels() {
+interface WorkspacePanelsProps {
+  onNavigate?: () => void
+}
+
+export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
   const navigate = useNavigate()
   const currentConversations = useConversationsStore(
     state => state.conversations,
@@ -159,6 +163,7 @@ export function WorkspacePanels() {
     }
 
     await setActiveConversationsId(conversationId)
+    onNavigate?.()
   }
 
   async function createConversation(workspacePath: string) {
@@ -171,6 +176,7 @@ export function WorkspacePanels() {
     }
 
     await setActiveConversationsId('')
+    onNavigate?.()
   }
 
   useEffect(() => {

@@ -1,3 +1,4 @@
+import { cn } from '@workspace/ui/lib/utils'
 import {
   Pencil,
   Search,
@@ -10,39 +11,55 @@ import { ThemeMenuItem } from '../ThemeButton'
 import { WorkspacePanels } from '../Workspace/WorkspacePanels'
 import { SidebarNavItem } from './SliderMenuItem'
 
-export function SliderMenu() {
+interface SliderMenuProps {
+  mobile?: boolean
+  onNavigate?: () => void
+}
+
+export function SliderMenu({ mobile = false, onNavigate }: SliderMenuProps) {
   const location = useLocation()
   const navigate = useNavigate()
   const isChatPage = location.pathname.includes('/chat')
 
   function openSearch() {
     window.dispatchEvent(new Event('ant-chat:open-search'))
+    onNavigate?.()
   }
 
   async function openSettings() {
     if (isElectronRuntime()) {
       void unwrapIpcResponse(await ipc.settings.openSettingsWindow())
+      onNavigate?.()
       return
     }
 
     navigate('/settings')
+    onNavigate?.()
   }
 
   return (
-    <aside className={`
-      flex h-full w-(--conversationWidth) shrink-0 flex-col py-2 pl-2 text-sidebar-foreground text-sm
-    `}
+    <aside
+      className={cn(
+        'flex h-full shrink-0 flex-col text-sm text-sidebar-foreground',
+        mobile ? 'w-full' : 'w-(--conversationWidth) py-2 pl-2',
+      )}
     >
-      <div className="flex min-h-0 flex-1 flex-col rounded-2xl bg-sidebar px-2 pt-8 pb-3">
+      <div
+        className={cn(
+          'flex min-h-0 flex-1 flex-col bg-sidebar px-2 pb-3',
+          mobile ? 'rounded-xl pt-10' : 'rounded-2xl pt-8',
+        )}
+      >
         <div className="flex flex-col gap-1 py-2">
           <SidebarNavItem
             icon={<Pencil className="size-4" />}
             label="新对话"
-            dataTestId="sidebar-new-chat"
+            dataTestId={mobile ? 'mobile-drawer-new-chat' : 'sidebar-new-chat'}
             active={isChatPage && !location.search}
             onClick={() => {
               navigate('/chat')
               void setActiveConversationsId('')
+              onNavigate?.()
             }}
           />
           <SidebarNavItem
@@ -54,7 +71,7 @@ export function SliderMenu() {
         </div>
 
         <div className="min-h-0 flex-1 overflow-hidden">
-          <WorkspacePanels />
+          <WorkspacePanels onNavigate={onNavigate} />
         </div>
 
         <div className="mt-3 flex flex-col gap-1">

@@ -761,7 +761,7 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
       className="mx-auto w-full max-w-(--chat-width)"
     >
       {!hasMessage && (
-        <h1 className="mb-3 py-3 text-center text-4xl text-gray-500">
+        <h1 className="mb-3 py-3 text-center text-2xl text-muted-foreground text-balance md:text-4xl">
           <TypingEffect text="有什么可以帮忙的？" />
         </h1>
       )}
@@ -779,7 +779,7 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
       >
         <PromptInputBody className="bg-transparent px-1 pt-1">
           <SenderAttachmentsPreview />
-          <div className="relative min-h-24 w-full">
+          <div className="relative min-h-20 w-full md:min-h-24">
             <ReferenceInputOverlay
               text={draft}
               referencedFiles={referencedFiles}
@@ -789,10 +789,11 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
             <PromptInputTextarea
               ref={textareaRef}
               className="
-                relative z-10 max-h-48 min-h-24 border-0 bg-transparent p-1 text-transparent
+                relative z-10 max-h-48 min-h-20 border-0 bg-transparent p-1 text-transparent
                 text-sm caret-foreground
                 selection:bg-primary/20 selection:text-foreground
                 placeholder:text-muted-foreground
+                md:min-h-24
               "
               data-testid="chat-input"
               disabled={disabled}
@@ -825,8 +826,8 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
           />
         </PromptInputBody>
 
-        <PromptInputFooter>
-          <PromptInputTools>
+        <PromptInputFooter className="min-w-0">
+          <PromptInputTools className="scroll-hidden overflow-visible max-sm:overflow-x-auto">
             <Popover
               open={canSwitchWorkspaceSelect ? workspacePickerOpen : false}
               onOpenChange={(next) => {
@@ -842,8 +843,10 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
                   data-testid="workspace-switcher"
                   disabled={workspaceLoading}
                   aria-disabled={workspaceSwitchDisabled}
+                  aria-label={`工作区：${workspaceDisplayName}`}
                   className={`
                     h-8 max-w-52 justify-start border px-2
+                    max-sm:size-8 max-sm:justify-center max-sm:gap-0 max-sm:px-0
                     ${workspaceSwitchDisabled
       ? `
         pointer-events-none opacity-100
@@ -853,7 +856,7 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
                   `}
                 >
                   <FolderOpenIcon className="size-4 shrink-0" />
-                  <span className="truncate text-xs">{workspaceDisplayName}</span>
+                  <span className="truncate text-xs max-sm:hidden">{workspaceDisplayName}</span>
                 </PromptInputButton>
               </PopoverTrigger>
               <PopoverContent align="start" className="w-64 p-1">
@@ -888,13 +891,14 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
                   size="sm"
                   type="button"
                   variant="ghost"
+                  aria-label={`权限模式：${currentAgentModeOption.label}`}
                   className={`
                     ${agentMode === 'full_managed' ? 'text-orange-600' : ''}
                   `}
                 >
                   {currentAgentModeOption.icon}
-                  {currentAgentModeOption.label}
-                  <ChevronDownIcon className="size-3" />
+                  <span className="max-sm:hidden">{currentAgentModeOption.label}</span>
+                  <ChevronDownIcon className="size-3 max-sm:hidden" />
                 </PromptInputButton>
               </PopoverTrigger>
               <PopoverContent align="start" className="w-52 p-1">
@@ -925,12 +929,13 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
                   size="sm"
                   type="button"
                   variant={mcpEnabled ? 'secondary' : 'ghost'}
+                  aria-label="MCP 管理"
                 >
                   <Cable className="size-3" />
-                  MCP
+                  <span className="max-sm:hidden">MCP</span>
                 </PromptInputButton>
               </PopoverTrigger>
-              <PopoverContent align="start" className="w-85 p-0">
+              <PopoverContent align="start" className="w-[calc(100vw-1rem)] max-w-85 p-0">
                 <MCPManagementPanel />
               </PopoverContent>
             </Popover>

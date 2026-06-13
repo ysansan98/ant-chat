@@ -137,7 +137,10 @@ function BubbleList({ messages }: Props) {
     <>
       <InfiniteScroll
         ref={infiniteScrollRef}
-        className="font-message flex h-full flex-col gap-6 px-4 py-6"
+        className={`
+          font-message flex h-full flex-col gap-5 px-3 py-4
+          md:gap-6 md:px-4 md:py-6
+        `}
         hasMore={false}
         loading={false}
         onLoadMore={async () => {}}

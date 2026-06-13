@@ -70,6 +70,7 @@ export function SearchContainer() {
       onTransitionEnd={handleTransitionEnd}
     >
       <SearchBar
+        onClose={handleClose}
         onItemClick={(item, _) => {
           handleClose()
           setActiveConversationsId(item.conversationId)

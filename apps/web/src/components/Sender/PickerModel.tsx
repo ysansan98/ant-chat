@@ -55,28 +55,34 @@ export function ModelControlPanel({ value, onChange }: ModelControlPanelProps) {
       <PopoverTrigger asChild>
         <div
           className={`
-            group grid h-8 cursor-pointer grid-cols-[max-content_0fr] rounded-md border border-solid
-            border-(--border-color) transition-all duration-300
-            hover:grid-cols-[max-content_1fr]
+            model-control-trigger flex h-8 cursor-pointer items-center rounded-md border border-solid overflow-hidden
+            border-(--border-color)
+            max-sm:size-8 max-sm:justify-center
           `}
         >
           <div className={`
             flex items-center gap-1 pl-2
-            hover:bg-(--hover-bg-color)
+            hover:bg-(--hover-bg-color) h-full
+            max-sm:size-full max-sm:justify-center max-sm:gap-0 max-sm:pl-0
           `}
           >
             <ProviderLogoDisplay providerId={activeProviderServiceInfo?.id || ''} />
-            <div className="flex max-w-30 items-center truncate text-xs font-medium">
+            <div className="flex max-w-30 items-center truncate text-xs font-medium max-sm:hidden">
               <span className="truncate">{currentModelInfo?.name}</span>
               <span className="px-2">›</span>
             </div>
           </div>
-          <div className="flex items-center justify-center overflow-hidden">
+          <div
+            className={`
+              model-control-settings h-full flex items-center justify-center overflow-hidden
+            `}
+          >
             <span
               role="button"
               tabIndex={0}
               className={`
-                flex h-full items-center justify-center px-2
+                size-full
+                flex items-center justify-center
                 hover:bg-(--hover-bg-color)
               `}
               onClick={(event) => {

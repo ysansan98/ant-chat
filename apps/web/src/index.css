@@ -53,3 +53,25 @@ body,
   /* Let this area drag the Electron window. */
   -webkit-app-region: drag;
 }
+
+.model-control-settings {
+  width: 0;
+  opacity: 0;
+  transition:
+    width 200ms ease,
+    opacity 150ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) and (min-width: 640px) {
+  .model-control-trigger:hover .model-control-settings,
+  .model-control-trigger:focus-within .model-control-settings {
+    width: 2rem;
+    opacity: 1;
+  }
+}
+
+@media (max-width: 639px) {
+  .model-control-settings {
+    display: none;
+  }
+}

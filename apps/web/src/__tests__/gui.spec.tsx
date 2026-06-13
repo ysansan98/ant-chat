@@ -202,6 +202,23 @@ describe('gui ui flow', () => {
     expect(await screen.findByTestId('chat-input')).toBeInTheDocument()
   })
 
+  it('opens and closes the mobile conversation drawer', async () => {
+    renderGui('/')
+
+    expect(await screen.findByTestId('chat-input')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('mobile-menu-trigger'))
+
+    expect(await screen.findByTestId('mobile-conversation-drawer')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('mobile-drawer-new-chat'))
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('mobile-conversation-drawer')).not.toBeInTheDocument()
+    })
+    expect(screen.getByTestId('chat-input')).toBeInTheDocument()
+  })
+
   it('navigates to settings from chat in browser runtime', async () => {
     const electron = window.electron
     window.electron = undefined as unknown as Window['electron']
