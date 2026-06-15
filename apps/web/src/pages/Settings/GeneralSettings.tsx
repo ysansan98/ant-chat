@@ -1,13 +1,36 @@
+import type { ProxySettings as ProxySettingsType } from '@ant-chat/shared'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@workspace/ui/components/tooltip'
 import { Globe, Info, Link } from 'lucide-react'
 import React from 'react'
 import AssistantIcon from '@/assets/icons/assistant.svg?react'
 import { CustomProxyUrl, ProxySettings } from '@/components/GeneralSettings/ProxySettings'
 import { SelectModel } from '@/components/GeneralSettings/SelectModel'
+import { updateProxySettings } from '@/store/generalSettings/actions'
 import { useGeneralSettingsStore } from '@/store/generalSettings/store'
 
 export function GeneralSettings() {
   const proxySettings = useGeneralSettingsStore(state => state.proxySettings)
+  const [draftProxyMode, setDraftProxyMode] = React.useState<ProxySettingsType['mode']>(proxySettings.mode)
+
+  React.useEffect(() => {
+    setDraftProxyMode(proxySettings.mode)
+  }, [proxySettings.mode])
+
+  const handleProxyModeChange = async (mode: ProxySettingsType['mode']) => {
+    if (mode === 'custom') {
+      setDraftProxyMode('custom')
+      return
+    }
+
+    try {
+      await updateProxySettings({ mode })
+    }
+    catch {
+      setDraftProxyMode(proxySettings.mode)
+    }
+  }
+
+  const showCustomUrl = draftProxyMode === 'custom'
 
   return (
     <div className="flex flex-col gap-2 p-3">
@@ -25,10 +48,10 @@ export function GeneralSettings() {
           help="配置AI请求的代理设置，支持系统代理和自定义代理"
           icon={<Globe className="size-4" />}
         >
-          <ProxySettings />
+          <ProxySettings draftMode={draftProxyMode} onModeChange={handleProxyModeChange} />
         </GeneralSettingsItem>
 
-        {proxySettings.mode === 'custom' && (
+        {showCustomUrl && (
           <GeneralSettingsItem
             title="代理地址"
             help="配置自定义代理服务器地址"

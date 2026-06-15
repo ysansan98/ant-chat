@@ -1,3 +1,4 @@
+import type { ProxySettings as ProxySettingsType } from '@ant-chat/shared'
 import { Button } from '@workspace/ui/components/button'
 import { Input } from '@workspace/ui/components/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/components/select'
@@ -7,25 +8,19 @@ import { getAppTransport } from '@/api/transports/appTransport'
 import { updateProxySettings } from '@/store/generalSettings/actions'
 import { useGeneralSettingsStore } from '@/store/generalSettings/store'
 
-// 代理模式选择组件
-export function ProxySettings() {
-  const proxySettings = useGeneralSettingsStore(state => state.proxySettings)
-  const isLoading = useGeneralSettingsStore(state => state.isLoading)
+interface ProxySettingsProps {
+  draftMode: ProxySettingsType['mode']
+  onModeChange: (mode: ProxySettingsType['mode']) => void
+}
 
-  const handleProxyModeChange = async (mode: string) => {
-    try {
-      await updateProxySettings({ mode: mode as 'none' | 'system' | 'custom' })
-      toast.success('代理模式已更新')
-    }
-    catch {
-      toast.error('代理模式更新失败')
-    }
-  }
+// 代理模式选择组件
+export function ProxySettings({ draftMode, onModeChange }: ProxySettingsProps) {
+  const isLoading = useGeneralSettingsStore(state => state.isLoading)
 
   return (
     <Select
-      value={proxySettings.mode}
-      onValueChange={handleProxyModeChange}
+      value={draftMode}
+      onValueChange={onModeChange}
       disabled={isLoading}
     >
       <SelectTrigger className="min-w-32">
@@ -58,7 +53,8 @@ export function CustomProxyUrl() {
 
     if (tempUrl && tempUrl !== proxySettings.customProxyUrl) {
       try {
-        await updateProxySettings({ customProxyUrl: tempUrl })
+        await updateProxySettings({ mode: 'custom', customProxyUrl: tempUrl })
+        toast.success('代理设置已更新')
       }
       catch {
         toast.error('代理地址更新失败')
