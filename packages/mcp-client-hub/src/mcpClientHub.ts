@@ -9,7 +9,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { CallToolResultSchema, ListToolsResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import deepEqual from 'fast-deep-equal'
 import * as packageJson from '../../../package.json'
-import { DEFAULT_MCP_TIMEOUT_SECONDS, DEFAULT_REQUEST_TIMEOUT_MS } from './schema'
+import { DEFAULT_REQUEST_TIMEOUT_MS, resolveMcpToolTimeoutMs } from './schema'
 import { getCurrentPlatform } from './utils'
 
 export type ITool = Pick<Tool, 'name' | 'description' | 'inputSchema'> & {
@@ -227,16 +227,19 @@ export class MCPClientHub {
       throw new Error(`Server "${serverName}" is disabled and cannot be used`)
     }
 
-    let timeout = secondsToMs(DEFAULT_MCP_TIMEOUT_SECONDS) // sdk expects ms
+    let timeoutSeconds: number | undefined
 
     try {
       const config = JSON.parse(connection.server.config)
       const parsedConfig = McpConfigSchema.parse(config)
-      timeout = secondsToMs(parsedConfig?.timeout || timeout)
+      timeoutSeconds = parsedConfig?.timeout
     }
     catch (error) {
       console.error(`Failed to parse timeout configuration for server ${serverName}: ${error}`)
     }
+
+    // 解析失败时回退到默认 10 秒；秒到毫秒只在此处转换一次
+    const timeout = resolveMcpToolTimeoutMs(timeoutSeconds)
 
     const result = await connection.client.request(
       {
@@ -282,10 +285,6 @@ export class MCPClientHub {
     for (const callback of this.onStatusChangeCallbacks)
       callback(name, status)
   }
-}
-
-function secondsToMs(seconds: number) {
-  return seconds * 1000
 }
 
 function mergePathEnv(path: string) {

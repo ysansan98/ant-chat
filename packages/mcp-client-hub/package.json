@@ -20,6 +20,7 @@
   "scripts": {
     "build": "tsdown",
     "clean": "rm -rf dist node_modules",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -29,6 +30,7 @@
   },
   "devDependencies": {
     "@ant-chat/shared": "workspace:^",
-    "tsdown": "catalog:"
+    "tsdown": "catalog:",
+    "vitest": "catalog:"
   }
 }
