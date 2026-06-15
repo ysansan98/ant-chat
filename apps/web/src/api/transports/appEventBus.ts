@@ -35,6 +35,7 @@ function createElectronEventBus(): AppEventBus {
 
 function createSseEventBus(): AppEventBus {
   const listeners = new Map<string, Set<(event: unknown, ...args: unknown[]) => void>>()
+  const nativeListeners = new Map<string, EventListener>()
   let eventSource: EventSource | null = null
 
   function ensureConnected() {
@@ -55,7 +56,7 @@ function createSseEventBus(): AppEventBus {
   function bindChannel(channel: string) {
     if (!eventSource)
       return
-    eventSource.addEventListener(channel, ((e: MessageEvent) => {
+    const listener: EventListener = ((e: MessageEvent) => {
       const data = JSON.parse(e.data)
       const handlers = listeners.get(channel)
       if (!handlers)
@@ -63,7 +64,17 @@ function createSseEventBus(): AppEventBus {
       for (const handler of handlers) {
         handler(null, data)
       }
-    }) as EventListener)
+    }) as EventListener
+    nativeListeners.set(channel, listener)
+    eventSource.addEventListener(channel, listener)
+  }
+
+  function unbindChannel(channel: string) {
+    const listener = nativeListeners.get(channel)
+    if (listener && eventSource) {
+      eventSource.removeEventListener(channel, listener)
+      nativeListeners.delete(channel)
+    }
   }
 
   return {
@@ -84,14 +95,19 @@ function createSseEventBus(): AppEventBus {
         handlers.delete(handler as (event: unknown, ...args: unknown[]) => void)
         if (handlers.size === 0) {
           listeners.delete(channel)
+          unbindChannel(channel)
         }
       }
     },
     removeAllListeners(channel) {
       if (channel) {
         listeners.delete(channel)
+        unbindChannel(channel)
       }
       else {
+        for (const ch of nativeListeners.keys()) {
+          unbindChannel(ch)
+        }
         listeners.clear()
       }
     },
@@ -128,3 +144,9 @@ export function getAppEventBus(): AppEventBus {
 
   return cached
 }
+
+export function clearAppEventBusCache(): void {
+  cached = null
+}
+
+export { createSseEventBus }
