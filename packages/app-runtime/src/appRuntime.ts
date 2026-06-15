@@ -179,11 +179,31 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
     settings: {
       get: () => context.settingsRepository.getGeneralSettings(),
       update: async (updates: Partial<GeneralSettingsState>) => {
-        const settings = await context.settingsRepository.updateGeneralSettings(updates)
-        if (updates.proxySettings)
-          await networkProxy.apply(updates.proxySettings)
-        events.emit('settings:updated', { keys: Object.keys(updates) })
-        return settings
+        if (!updates.proxySettings) {
+          const settings = await context.settingsRepository.updateGeneralSettings(updates)
+          events.emit('settings:updated', { keys: Object.keys(updates) })
+          return settings
+        }
+
+        const currentSettings = await context.settingsRepository.getGeneralSettings()
+        const previousProxySettings = currentSettings.proxySettings
+
+        await networkProxy.apply(updates.proxySettings)
+
+        try {
+          const settings = await context.settingsRepository.updateGeneralSettings(updates)
+          events.emit('settings:updated', { keys: Object.keys(updates) })
+          return settings
+        }
+        catch (persistError) {
+          try {
+            await networkProxy.apply(previousProxySettings)
+          }
+          catch {
+            // 恢复失败时不覆盖原始错误
+          }
+          throw persistError
+        }
       },
       reset: async () => {
         const settings = await context.settingsRepository.resetGeneralSettings()
