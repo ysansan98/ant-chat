@@ -133,6 +133,13 @@ export async function importConversationsAction(_: AntChatFileStructure) {
 }
 
 export async function clearConversationsAction() {
+  const { currentWorkspacePath } = useConversationsStore.getState()
+  if (!currentWorkspacePath) {
+    throw new Error('当前工作区路径不存在，无法清空对话')
+  }
+
+  await chatApi.clearWorkspaceConversations(currentWorkspacePath)
+
   await clearActiveConversations()
 
   useConversationsStore.setState(state => produce(state, (draft) => {

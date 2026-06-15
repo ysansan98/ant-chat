@@ -11,4 +11,5 @@ export interface ConversationRepository {
   create: (conversation: AddConversationsSchema) => Promise<IConversations>
   update: (conversation: UpdateConversationsSchema) => Promise<IConversations>
   delete: (id: string) => Promise<boolean>
+  deleteByWorkspace: (workspacePath?: string, includeNullWorkspace?: boolean) => Promise<string[]>
 }

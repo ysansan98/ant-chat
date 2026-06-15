@@ -379,6 +379,49 @@ describe.skipIf(!canRunDbIntegrationTests())('sqlite repositories', () => {
     await conversationRepository.delete(conversation.id)
     await expect(messageRepository.loadAttachmentData('file-1')).resolves.toBeNull()
   })
+
+  it('deletes all conversations in target workspace via deleteByWorkspace', async () => {
+    const conversationRepository = new SqliteConversationRepository(sqlite)
+
+    await conversationRepository.create({ title: 'Target 1', workspacePath: '/ws-a', createdAt: 1, updatedAt: 1, settings: { modelId: 'm', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
+    await conversationRepository.create({ title: 'Target 2', workspacePath: '/ws-a', createdAt: 2, updatedAt: 2, settings: { modelId: 'm', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
+    await conversationRepository.create({ title: 'Other', workspacePath: '/ws-b', createdAt: 3, updatedAt: 3, settings: { modelId: 'm', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
+
+    const deletedIds = await conversationRepository.deleteByWorkspace('/ws-a')
+
+    expect(deletedIds).toHaveLength(2)
+    const remaining = await conversationRepository.list(0, 100, '/ws-b')
+    expect(remaining.data).toHaveLength(1)
+    expect(remaining.data[0].title).toBe('Other')
+  })
+
+  it('includes null workspace conversations when includeNullWorkspace is true', async () => {
+    const conversationRepository = new SqliteConversationRepository(sqlite)
+
+    await conversationRepository.create({ title: 'Named', workspacePath: '/ws-a', createdAt: 1, updatedAt: 1, settings: { modelId: 'm', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
+    await conversationRepository.create({ title: 'Default', workspacePath: undefined, createdAt: 2, updatedAt: 2, settings: { modelId: 'm', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
+    await conversationRepository.create({ title: 'Other', workspacePath: '/ws-b', createdAt: 3, updatedAt: 3, settings: { modelId: 'm', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
+
+    const deletedIds = await conversationRepository.deleteByWorkspace('/ws-a', true)
+
+    expect(deletedIds).toHaveLength(2)
+    const remaining = await conversationRepository.list(0, 100)
+    expect(remaining.data).toHaveLength(1)
+    expect(remaining.data[0].title).toBe('Other')
+  })
+
+  it('preserves conversations in other workspaces', async () => {
+    const conversationRepository = new SqliteConversationRepository(sqlite)
+
+    await conversationRepository.create({ title: 'A', workspacePath: '/ws-a', createdAt: 1, updatedAt: 1, settings: { modelId: 'm', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
+    await conversationRepository.create({ title: 'B', workspacePath: '/ws-b', createdAt: 2, updatedAt: 2, settings: { modelId: 'm', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
+
+    await conversationRepository.deleteByWorkspace('/ws-a')
+
+    const bList = await conversationRepository.list(0, 100, '/ws-b')
+    expect(bList.data).toHaveLength(1)
+    expect(bList.data[0].title).toBe('B')
+  })
 })
 
 function canRunDbIntegrationTests() {

@@ -32,6 +32,10 @@ async function deleteConversation(id: string): Promise<null> {
   return (await getAppTransport()).chat.deleteConversation(id)
 }
 
+async function clearWorkspaceConversations(workspacePath: string): Promise<string[]> {
+  return (await getAppTransport()).chat.clearWorkspaceConversations(workspacePath)
+}
+
 async function getMessagesByConvId(convId: string): Promise<IMessage[]> {
   return (await getAppTransport()).chat.getMessagesByConvId(convId)
 }
@@ -64,6 +68,7 @@ export default {
   addConversation,
   updateConversation,
   deleteConversation,
+  clearWorkspaceConversations,
   getMessagesByConvId,
   getMessageById,
   addMessage,

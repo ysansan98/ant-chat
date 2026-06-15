@@ -93,6 +93,18 @@ export class ChatIpcService extends IpcService {
   }
 
   @IpcMethod()
+  async clearWorkspaceConversations(workspacePath: string): Promise<IpcResponse<string[]>> {
+    try {
+      const deletedIds = await getAppRuntime().chat.clearWorkspaceConversations(workspacePath)
+      return createIpcResponse(true, deletedIds)
+    }
+    catch (error) {
+      logger.error('清空工作区会话失败:', error)
+      return createErrorIpcResponse(error as Error)
+    }
+  }
+
+  @IpcMethod()
   async getMessagesByConvId(id: string): Promise<IpcResponse<IMessage[]>> {
     try {
       const data = await getAppRuntime().chat.listMessages(id)

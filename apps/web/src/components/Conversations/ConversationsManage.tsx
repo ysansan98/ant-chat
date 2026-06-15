@@ -189,10 +189,20 @@ export default function ConversationsManage({ showHeader = true }: Conversations
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
-              onClick={() => {
-                clearConversationsAction()
-                toast.success('清空成功')
-                setConfirmAction(null)
+              disabled={loading}
+              onClick={async () => {
+                setLoading(true)
+                try {
+                  await clearConversationsAction()
+                  toast.success('清空成功')
+                  setConfirmAction(null)
+                }
+                catch (error) {
+                  toast.error(error instanceof Error ? error.message : '清空失败')
+                }
+                finally {
+                  setLoading(false)
+                }
               }}
             >
               清空

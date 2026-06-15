@@ -61,6 +61,17 @@ describe.skipIf(!canRunDbIntegrationTests())('app runtime', () => {
     expect(settingsEvents).toEqual([{ keys: ['assistantModelId'] }])
     expect(workspaceEvents).toEqual([{ currentWorkspacePath: workspace.path }])
   })
+
+  it('clears all conversations in current workspace', async () => {
+    await runtime.chat.createConversation({ title: 'Conv 1', createdAt: 1, updatedAt: 1, settings: { modelId: 'm', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
+    await runtime.chat.createConversation({ title: 'Conv 2', createdAt: 2, updatedAt: 2, settings: { modelId: 'm', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
+
+    const deletedIds = await runtime.chat.clearWorkspaceConversations()
+
+    expect(deletedIds.length).toBe(2)
+    const remaining = await runtime.chat.listConversations(0, 100)
+    expect(remaining.total).toBe(0)
+  })
 })
 
 function canRunDbIntegrationTests(): boolean {
