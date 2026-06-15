@@ -1,11 +1,12 @@
 import type { ConversationsId, IMessage } from '@ant-chat/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { addPendingSteeringMessage, setActiveConversationsId, updateMessageActionV2 } from '../actions'
+import { addPendingSteeringMessage, clearActiveConversations, setActiveConversationsId, updateMessageActionV2 } from '../actions'
 import { useMessagesStore } from '../store'
 
 const mocks = vi.hoisted(() => ({
   getMessagesByConvId: vi.fn<(conversationId: string) => Promise<IMessage[]>>(),
   listActiveTasks: vi.fn(async () => []),
+  syncConversationAgentState: vi.fn(async () => {}),
 }))
 
 vi.mock('@/api/chatApi', () => ({
@@ -18,6 +19,10 @@ vi.mock('@/api/agentApi', () => ({
   default: {
     listActiveTasks: mocks.listActiveTasks,
   },
+}))
+
+vi.mock('../agent', () => ({
+  syncConversationAgentState: mocks.syncConversationAgentState,
 }))
 
 describe('message actions', () => {
@@ -95,6 +100,56 @@ describe('message actions', () => {
     expect(useMessagesStore.getState().pendingSteeringByConversation).toEqual({
       'conv-1': [first],
     })
+  })
+
+  it('later selection wins when earlier request completes after later', async () => {
+    let resolveA!: () => void
+    let resolveB!: () => void
+    const promiseA = new Promise<IMessage[]>((resolve) => {
+      resolveA = () => resolve([createUserMessage('msg-a', 'conv-a', 1)])
+    })
+    const promiseB = new Promise<IMessage[]>((resolve) => {
+      resolveB = () => resolve([createUserMessage('msg-b', 'conv-b', 2)])
+    })
+
+    let callCount = 0
+    mocks.getMessagesByConvId.mockImplementation(() => {
+      callCount++
+      return callCount === 1 ? promiseA : promiseB
+    })
+
+    const pendingA = setActiveConversationsId('conv-a' as ConversationsId)
+    const pendingB = setActiveConversationsId('conv-b' as ConversationsId)
+
+    resolveB()
+    await pendingB
+
+    expect(useMessagesStore.getState().activeConversationsId).toBe('conv-b')
+    expect(useMessagesStore.getState().messages).toEqual([createUserMessage('msg-b', 'conv-b', 2)])
+
+    resolveA()
+    await pendingA
+
+    expect(useMessagesStore.getState().activeConversationsId).toBe('conv-b')
+    expect(useMessagesStore.getState().messages).toEqual([createUserMessage('msg-b', 'conv-b', 2)])
+  })
+
+  it('clear invalidates in-flight load', async () => {
+    let resolveA!: () => void
+    const promiseA = new Promise<IMessage[]>((resolve) => {
+      resolveA = () => resolve([createUserMessage('msg-a', 'conv-a', 1)])
+    })
+
+    mocks.getMessagesByConvId.mockImplementation(() => promiseA)
+
+    const pendingA = setActiveConversationsId('conv-a' as ConversationsId)
+    await clearActiveConversations()
+
+    resolveA()
+    await pendingA
+
+    expect(useMessagesStore.getState().activeConversationsId).toBe('')
+    expect(useMessagesStore.getState().messages).toEqual([])
   })
 })
 

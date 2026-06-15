@@ -6,12 +6,18 @@ import { syncConversationAgentState } from '../agent'
 import { useConversationsStore } from '../conversation/conversationsStore'
 import { useMessagesStore } from './store'
 
+let loadVersion = 0
+
 export async function clearActiveConversations() {
+  const version = ++loadVersion
+
   useMessagesStore.setState(state => produce(state, (draft) => {
     draft.activeConversationsId = '' as ConversationsId
     draft.messages = []
   }))
   useConversationsStore.getState().setActiveConversationsId('')
+
+  return version
 }
 
 export async function setActiveConversationsId(id: ConversationsId | '') {
@@ -20,10 +26,16 @@ export async function setActiveConversationsId(id: ConversationsId | '') {
     return
   }
 
+  const version = ++loadVersion
+
   const [messages] = await Promise.all([
     chatApi.getMessagesByConvId(id),
     syncConversationAgentState(id),
   ])
+
+  if (version !== loadVersion) {
+    return
+  }
 
   useMessagesStore.setState(state => produce(state, (draft) => {
     const persistedMessageIds = new Set(messages.map(message => message.id))
