@@ -2,13 +2,22 @@ import type { AddMessage, AIMessage, IMessage, MessageContent, UpdateMessageSche
 import type { MessageRepository } from '../../repositories'
 import type { MessageRow } from '../rows'
 import type { AppDataDatabase } from '../types'
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { nanoid } from 'nanoid'
 import { getAttachmentFileCandidates, getAttachmentFilePath } from '../attachmentFiles'
 import { decodeAttachmentData } from '../migrations/migrateAttachments'
 import { mapMessageRow, parseMessageContent, stringifyJson } from '../rows'
 import { SqliteConversationRepository } from './sqliteConversationRepository'
+
+interface StagedAttachment {
+  fileId: string
+  tempPath: string
+  finalPath: string
+  name: string
+  mediaType: string
+  size: number
+}
 
 interface SqliteMessageRepositoryOptions {
   attachmentsRoot?: string
@@ -68,10 +77,16 @@ export class SqliteMessageRepository implements MessageRepository {
     await this.conversations.getById(message.convId)
 
     const id = options?.id ?? `msg-${nanoid()}`
-    const writtenFiles: string[] = []
+    const stagedFiles: StagedAttachment[] = []
+    const committedFiles = new Set<string>()
     try {
+      const content = this.stageAttachmentData(message.content, stagedFiles)
+
       const createMessage = this.db.transaction(() => {
-        const content = this.persistAttachmentData(message.content, writtenFiles)
+        this.commitStagedAttachments(stagedFiles)
+        for (const staged of stagedFiles) {
+          committedFiles.add(staged.fileId)
+        }
         return this.db.prepare<unknown[], MessageRow>(`
           INSERT INTO messages (
             id,
@@ -115,7 +130,7 @@ export class SqliteMessageRepository implements MessageRepository {
       return mapMessageRow(result)
     }
     catch (error) {
-      cleanupWrittenFiles(writtenFiles)
+      this.cleanupStagedFiles(stagedFiles, committedFiles)
       throw error
     }
   }
@@ -133,6 +148,8 @@ export class SqliteMessageRepository implements MessageRepository {
   }
 
   async update(message: UpdateMessageSchema): Promise<IMessage> {
+    const existing = await this.getById(message.id)
+
     const fields: string[] = []
     const params: unknown[] = []
 
@@ -144,7 +161,8 @@ export class SqliteMessageRepository implements MessageRepository {
       fields.push('role = ?')
       params.push(message.role)
     }
-    const writtenFiles: string[] = []
+    const stagedFiles: StagedAttachment[] = []
+    const committedFiles = new Set<string>()
     if (message.content !== undefined)
       fields.push('content = ?')
     if (message.status !== undefined) {
@@ -181,40 +199,50 @@ export class SqliteMessageRepository implements MessageRepository {
     }
 
     if (fields.length === 0) {
-      return this.getById(message.id)
+      return existing
     }
 
-    const updateMessage = this.db.transaction(() => {
-      const transactionParams = [...params]
-      if (message.content !== undefined) {
-        transactionParams.splice(fields.findIndex(field => field === 'content = ?'), 0, stringifyJson(this.persistAttachmentData(message.content, writtenFiles)))
-      }
-
-      const result = this.db.prepare<unknown[], MessageRow>(`
-        UPDATE messages
-        SET ${fields.join(', ')}
-        WHERE id = ?
-        RETURNING ${MESSAGE_COLUMNS}
-      `).get(...transactionParams, message.id)
-
-      if (!result) {
-        throw new Error('消息未找到')
-      }
-
-      this.db.prepare(`
-        UPDATE conversations
-        SET updated_at = ?
-        WHERE id = ?
-      `).run(Date.now(), result.conv_id)
-
-      return result
-    })
-
     try {
+      let content: MessageContent | undefined
+      if (message.content !== undefined) {
+        content = this.stageAttachmentData(message.content, stagedFiles)
+      }
+
+      const updateMessage = this.db.transaction(() => {
+        this.commitStagedAttachments(stagedFiles)
+        for (const staged of stagedFiles) {
+          committedFiles.add(staged.fileId)
+        }
+
+        const transactionParams = [...params]
+        if (content !== undefined) {
+          transactionParams.splice(fields.findIndex(field => field === 'content = ?'), 0, stringifyJson(content))
+        }
+
+        const result = this.db.prepare<unknown[], MessageRow>(`
+          UPDATE messages
+          SET ${fields.join(', ')}
+          WHERE id = ?
+          RETURNING ${MESSAGE_COLUMNS}
+        `).get(...transactionParams, message.id)
+
+        if (!result) {
+          throw new Error('消息未找到')
+        }
+
+        this.db.prepare(`
+          UPDATE conversations
+          SET updated_at = ?
+          WHERE id = ?
+        `).run(Date.now(), result.conv_id)
+
+        return result
+      })
+
       return mapMessageRow(updateMessage())
     }
     catch (error) {
-      cleanupWrittenFiles(writtenFiles)
+      this.cleanupStagedFiles(stagedFiles, committedFiles)
       throw error
     }
   }
@@ -271,7 +299,7 @@ export class SqliteMessageRepository implements MessageRepository {
     return () => this.removeAttachmentFiles(fileIds)
   }
 
-  private persistAttachmentData(content: MessageContent, writtenFiles: string[]): MessageContent {
+  private stageAttachmentData(content: MessageContent, stagedFiles: StagedAttachment[]): MessageContent {
     return content.map((block) => {
       if (
         block.type !== 'image-block'
@@ -289,26 +317,61 @@ export class SqliteMessageRepository implements MessageRepository {
         throw new Error('Attachment content with inline data must use file_id source')
       }
 
-      const filePath = getAttachmentFilePath(this.requireAttachmentsRoot(), block.source.file_id)
-      mkdirSync(path.dirname(filePath), { recursive: true })
+      const attachmentsRoot = this.requireAttachmentsRoot()
+      const finalPath = getAttachmentFilePath(attachmentsRoot, block.source.file_id)
+      const tempPath = `${finalPath}.staging-${nanoid()}`
+      mkdirSync(path.dirname(finalPath), { recursive: true })
       const bytes = decodeAttachmentData(block.data)
-      writeFileSync(filePath, bytes)
-      writtenFiles.push(filePath)
+      writeFileSync(tempPath, bytes)
 
-      this.db.prepare(`
-        INSERT OR REPLACE INTO attachments (id, name, media_type, size, created_at)
-        VALUES (?, ?, ?, ?, ?)
-      `).run(
-        block.source.file_id,
-        block.type === 'file' ? block.filename ?? block.name ?? 'file' : block.name ?? block.type,
-        block.media_type ?? 'application/octet-stream',
-        block.size ?? bytes.byteLength,
-        Date.now(),
-      )
+      stagedFiles.push({
+        fileId: block.source.file_id,
+        tempPath,
+        finalPath,
+        name: block.type === 'file' ? block.filename ?? block.name ?? 'file' : block.name ?? block.type,
+        mediaType: block.media_type ?? 'application/octet-stream',
+        size: block.size ?? bytes.byteLength,
+      })
 
       const { data: _data, ...persistedBlock } = block
       return persistedBlock
     })
+  }
+
+  private commitStagedAttachments(stagedFiles: StagedAttachment[]): void {
+    for (const staged of stagedFiles) {
+      const existing = this.db.prepare<unknown[], { id: string }>('SELECT id FROM attachments WHERE id = ?').get(staged.fileId)
+      if (existing) {
+        throw new Error(`附件 ID 已存在: ${staged.fileId}`)
+      }
+
+      renameSync(staged.tempPath, staged.finalPath)
+
+      this.db.prepare(`
+        INSERT INTO attachments (id, name, media_type, size, created_at)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(
+        staged.fileId,
+        staged.name,
+        staged.mediaType,
+        staged.size,
+        Date.now(),
+      )
+    }
+  }
+
+  private cleanupStagedFiles(stagedFiles: StagedAttachment[], committedFiles: Set<string>): void {
+    for (const staged of stagedFiles) {
+      try {
+        rmSync(staged.tempPath, { force: true })
+      }
+      catch {
+        // 临时文件可能已被 rename 移除
+      }
+      if (committedFiles.has(staged.fileId)) {
+        rmSync(staged.finalPath, { force: true })
+      }
+    }
   }
 
   private getMessageAttachmentFileIds(messageIds: string[]): string[] {
@@ -359,12 +422,6 @@ export class SqliteMessageRepository implements MessageRepository {
       throw new Error('attachmentsRoot is required for attachment file storage')
     }
     return this.options.attachmentsRoot
-  }
-}
-
-function cleanupWrittenFiles(filePaths: string[]): void {
-  for (const filePath of filePaths) {
-    rmSync(filePath, { force: true })
   }
 }
 
