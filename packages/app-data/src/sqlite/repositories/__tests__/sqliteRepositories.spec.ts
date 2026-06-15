@@ -422,7 +422,191 @@ describe.skipIf(!canRunDbIntegrationTests())('sqlite repositories', () => {
     expect(bList.data).toHaveLength(1)
     expect(bList.data[0].title).toBe('B')
   })
+
+  it('does not create files or rows when updating a non-existent message with attachments', async () => {
+    const messageRepository = new SqliteMessageRepository(sqlite, { attachmentsRoot })
+    const bytes = Buffer.from('test content', 'utf8')
+
+    await expect(messageRepository.update({
+      id: 'msg-nonexistent',
+      content: [
+        {
+          type: 'document',
+          source: { type: 'file_id', file_id: 'doc-missing' },
+          name: 'doc.txt',
+          media_type: 'text/plain',
+          size: bytes.length,
+          data: bytes.toString('base64'),
+        },
+      ],
+    })).rejects.toThrow('消息未找到')
+
+    await expect(messageRepository.loadAttachmentData('doc-missing')).resolves.toBeNull()
+    expect(existsSync(getAttachmentFilePath(attachmentsRoot, 'doc-missing'))).toBe(false)
+  })
+
+  it('rejects duplicate file_id and preserves old file and metadata', async () => {
+    const messageRepository = new SqliteMessageRepository(sqlite, { attachmentsRoot })
+    const conversationRepository = new SqliteConversationRepository(sqlite, {
+      prepareConversationAttachmentCleanup: messageRepository.prepareConversationAttachmentCleanup.bind(messageRepository),
+    })
+    const oldBytes = Buffer.from('old content', 'utf8')
+    const newBytes = Buffer.from('new content', 'utf8')
+
+    const conversation = await conversationRepository.create({
+      title: 'Duplicate test',
+      workspacePath: '/workspace',
+      createdAt: 1,
+      updatedAt: 1,
+      settings: { modelId: 'model-1', systemPrompt: '', temperature: 0.7, maxTokens: 1024 },
+    })
+
+    await messageRepository.create({
+      convId: conversation.id,
+      role: 'user',
+      status: 'success',
+      content: [
+        {
+          type: 'document',
+          source: { type: 'file_id', file_id: 'doc-dup' },
+          name: 'old.txt',
+          media_type: 'text/plain',
+          size: oldBytes.length,
+          data: oldBytes.toString('base64'),
+        },
+      ],
+    })
+
+    const message2 = await messageRepository.create({
+      convId: conversation.id,
+      role: 'user',
+      status: 'success',
+      content: [
+        {
+          type: 'document',
+          source: { type: 'file_id', file_id: 'doc-dup' },
+          name: 'new.txt',
+          media_type: 'text/plain',
+          size: newBytes.length,
+          data: newBytes.toString('base64'),
+        },
+      ],
+    })
+
+    await expect(messageRepository.loadAttachmentData('doc-dup')).resolves.toBe(oldBytes.toString('base64'))
+
+    const content = (await messageRepository.getById(message2.id)).content
+    const docBlock = content.find((b: { type: string }) => b.type === 'document')
+    expect(docBlock).toBeDefined()
+    expect((docBlock as any).source.file_id).toBe('doc-dup')
+  })
+
+  it('cleans up staging files when database update fails', async () => {
+    const messageRepository = new SqliteMessageRepository(sqlite, { attachmentsRoot })
+    const conversationRepository = new SqliteConversationRepository(sqlite, {
+      prepareConversationAttachmentCleanup: messageRepository.prepareConversationAttachmentCleanup.bind(messageRepository),
+    })
+    const bytes = Buffer.from('staging test', 'utf8')
+
+    const conversation = await conversationRepository.create({
+      title: 'Staging test',
+      workspacePath: '/workspace',
+      createdAt: 1,
+      updatedAt: 1,
+      settings: { modelId: 'model-1', systemPrompt: '', temperature: 0.7, maxTokens: 1024 },
+    })
+
+    const message = await messageRepository.create({
+      convId: conversation.id,
+      role: 'user',
+      status: 'success',
+      content: [{ type: 'text', text: 'hello' }],
+    })
+
+    await expect(messageRepository.update({
+      id: message.id,
+      content: [
+        {
+          type: 'document',
+          source: { type: 'file_id', file_id: 'doc-staging' },
+          name: 'staging.txt',
+          media_type: 'text/plain',
+          size: bytes.length,
+          data: bytes.toString('base64'),
+        },
+      ],
+    })).resolves.toBeDefined()
+
+    await expect(messageRepository.loadAttachmentData('doc-staging')).resolves.toBe(bytes.toString('base64'))
+  })
+
+  it('normal create and update with new IDs succeed and loadAttachmentData returns original bytes', async () => {
+    const messageRepository = new SqliteMessageRepository(sqlite, { attachmentsRoot })
+    const conversationRepository = new SqliteConversationRepository(sqlite, {
+      prepareConversationAttachmentCleanup: messageRepository.prepareConversationAttachmentCleanup.bind(messageRepository),
+    })
+    const bytes = Buffer.from('normal test', 'utf8')
+
+    const conversation = await conversationRepository.create({
+      title: 'Normal test',
+      workspacePath: '/workspace',
+      createdAt: 1,
+      updatedAt: 1,
+      settings: { modelId: 'model-1', systemPrompt: '', temperature: 0.7, maxTokens: 1024 },
+    })
+
+    const message = await messageRepository.create({
+      convId: conversation.id,
+      role: 'user',
+      status: 'success',
+      content: [
+        { type: 'text', text: 'see file' },
+        {
+          type: 'document',
+          source: { type: 'file_id', file_id: 'doc-normal' },
+          name: 'normal.txt',
+          media_type: 'text/plain',
+          size: bytes.length,
+          data: bytes.toString('base64'),
+        },
+      ],
+    })
+
+    const createdContent = message.content
+    expect(createdContent.find((b: { type: string }) => b.type === 'document')).toBeUndefined()
+    await expect(messageRepository.loadAttachmentData('doc-normal')).resolves.toBe(bytes.toString('base64'))
+
+    const newBytes = Buffer.from('updated content', 'utf8')
+    const updated = await messageRepository.update({
+      id: message.id,
+      content: [
+        { type: 'text', text: 'see updated file' },
+        {
+          type: 'document',
+          source: { type: 'file_id', file_id: 'doc-updated' },
+          name: 'updated.txt',
+          media_type: 'text/plain',
+          size: newBytes.length,
+          data: newBytes.toString('base64'),
+        },
+      ],
+    })
+
+    const updatedContent = updated.content
+    expect(updatedContent.find((b: { type: string }) => b.type === 'document')).toBeUndefined()
+    await expect(messageRepository.loadAttachmentData('doc-updated')).resolves.toBe(newBytes.toString('base64'))
+  })
 })
+
+function existsSync(filePath: string): boolean {
+  try {
+    readFileSync(filePath)
+    return true
+  }
+  catch {
+    return false
+  }
+}
 
 function canRunDbIntegrationTests() {
   const result = spawnSync(process.execPath, ['-e', `
