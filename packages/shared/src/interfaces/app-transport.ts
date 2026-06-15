@@ -60,6 +60,7 @@ export interface AppTransport {
     addConversation: (conversation: AddConversationsSchema) => Promise<IConversations>
     updateConversation: (conversation: UpdateConversationsSchema) => Promise<IConversations>
     deleteConversation: (id: string) => Promise<null>
+    clearWorkspaceConversations: (workspacePath: string) => Promise<string[]>
     getMessagesByConvId: (convId: string) => Promise<IMessage[]>
     getMessageById: (id: string) => Promise<IMessage>
     addMessage: (message: IMessage) => Promise<IMessage>
@@ -169,6 +170,7 @@ export interface AppIpcServices {
     addConversation: (conversation: AddConversationsSchema) => Promise<IpcResponse<IConversations>>
     updateConversation: (conversation: UpdateConversationsSchema) => Promise<IpcResponse<IConversations>>
     deleteConversation: (id: string) => Promise<IpcResponse<null>>
+    clearWorkspaceConversations: (workspacePath: string) => Promise<IpcResponse<string[]>>
     getMessagesByConvId: (id: string) => Promise<IpcResponse<IMessage[]>>
     getMessageById: (id: string) => Promise<IpcResponse<IMessage>>
     addMessage: (message: IMessage) => Promise<IpcResponse<IMessage>>

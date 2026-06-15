@@ -146,6 +146,23 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
         await context.conversationRepository.delete(id)
         return null
       },
+      clearWorkspaceConversations: async (workspacePath?: string) => {
+        const targetWorkspace = workspacePath ?? context.workspaceService.getCurrentWorkspacePath()
+        const includeNullWorkspace = targetWorkspace === context.workspaceService.getDefaultWorkspacePath()
+
+        const listResult = await context.conversationRepository.list(0, Number.MAX_SAFE_INTEGER, targetWorkspace, includeNullWorkspace)
+        const targetIds = listResult.data.map(c => c.id)
+
+        if (targetIds.length === 0) {
+          return []
+        }
+
+        for (const id of targetIds) {
+          await agentRuntime.closeConversation(id)
+        }
+
+        return await context.conversationRepository.deleteByWorkspace(targetWorkspace, includeNullWorkspace)
+      },
       listMessages: (conversationId: string) => context.messageRepository.listByConversation(conversationId),
       getMessage: (id: string) => context.messageRepository.getById(id),
       createMessage: (message: IMessage) => context.messageRepository.create(AddMessage.parse(message)),

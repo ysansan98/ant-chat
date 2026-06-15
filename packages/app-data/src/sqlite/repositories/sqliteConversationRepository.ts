@@ -140,6 +140,36 @@ export class SqliteConversationRepository implements ConversationRepository {
     return true
   }
 
+  async deleteByWorkspace(workspacePath?: string, includeNullWorkspace = false): Promise<string[]> {
+    const workspaceWhere = getWorkspaceWhere(workspacePath, includeNullWorkspace)
+    const rows = this.db.prepare<unknown[], { id: string }>(`
+      SELECT id FROM conversations ${workspaceWhere.sql}
+    `).all(...workspaceWhere.params)
+    const ids = rows.map(row => row.id)
+
+    if (ids.length === 0) {
+      return []
+    }
+
+    const cleanupCallbacks: (() => void)[] = []
+    const deleteAll = this.db.transaction(() => {
+      for (const id of ids) {
+        const cleanup = this.options.prepareConversationAttachmentCleanup?.(id)
+        if (cleanup) {
+          cleanupCallbacks.push(cleanup)
+        }
+        this.db.prepare('DELETE FROM conversations WHERE id = ?').run(id)
+      }
+    })
+
+    deleteAll()
+    for (const cleanup of cleanupCallbacks) {
+      cleanup()
+    }
+
+    return ids
+  }
+
   async exists(id: string): Promise<boolean> {
     const result = this.db.prepare<unknown[], { count: number }>(`
       SELECT count(1) AS count

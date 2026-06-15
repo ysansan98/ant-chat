@@ -79,6 +79,8 @@ async function dispatchRpc(body: unknown, runtime: AppRuntime): Promise<unknown>
       return runtime.chat.updateConversation(params.conversation as UpdateConversationsSchema)
     case 'chat.deleteConversation':
       return runtime.chat.deleteConversation(stringParam(params.id))
+    case 'chat.clearWorkspaceConversations':
+      return runtime.chat.clearWorkspaceConversations(stringParam(params.workspacePath))
     case 'chat.getMessagesByConvId':
       return runtime.chat.listMessages(stringParam(params.convId))
     case 'chat.getMessageById':

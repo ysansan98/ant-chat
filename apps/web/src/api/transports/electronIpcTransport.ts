@@ -19,6 +19,7 @@ export function createElectronIpcTransport(): AppTransport {
       addConversation: async conversation => unwrapIpcResponse(await ipc.chat.addConversation(conversation)),
       updateConversation: async conversation => unwrapIpcResponse(await ipc.chat.updateConversation(conversation)),
       deleteConversation: async id => unwrapIpcResponse(await ipc.chat.deleteConversation(id)),
+      clearWorkspaceConversations: async workspacePath => unwrapIpcResponse(await ipc.chat.clearWorkspaceConversations(workspacePath)),
       getMessagesByConvId: async convId => unwrapIpcResponse(await ipc.chat.getMessagesByConvId(convId)),
       getMessageById: async id => unwrapIpcResponse(await ipc.chat.getMessageById(id)),
       addMessage: async message => unwrapIpcResponse(await ipc.chat.addMessage(message)),

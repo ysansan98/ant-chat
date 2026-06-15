@@ -15,6 +15,7 @@ export function createLocalWebTransport(): AppTransport {
       addConversation: conversation => localRpc('chat.addConversation', { conversation }),
       updateConversation: conversation => localRpc('chat.updateConversation', { conversation }),
       deleteConversation: id => localRpc('chat.deleteConversation', { id }),
+      clearWorkspaceConversations: workspacePath => localRpc('chat.clearWorkspaceConversations', { workspacePath }),
       getMessagesByConvId: convId => localRpc('chat.getMessagesByConvId', { convId }),
       getMessageById: id => localRpc('chat.getMessageById', { id }),
       addMessage: message => localRpc('chat.addMessage', { message }),
