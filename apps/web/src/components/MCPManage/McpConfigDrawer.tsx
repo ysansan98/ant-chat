@@ -87,8 +87,6 @@ export default function McpConfigDrawer({ open, mode, defaultValues, onClose, on
   }
 
   const onSubmit = async (config: McpConfigForm) => {
-    console.log('config => ', JSON.stringify(config))
-
     let finalConfig: AddMcpConfigSchema | UpdateMcpConfigSchema
 
     if (mode === 'add') {

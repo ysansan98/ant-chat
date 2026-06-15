@@ -60,7 +60,6 @@ export function QuickImport({ onImport }: QuickImportProps) {
                 }
                 try {
                   const mcpConfig = parseMcpServerJsonText(text)
-                  console.log('parseMcpServerJsonText => ', mcpConfig)
                   onImport?.(mcpConfig)
                   setText('')
                   setQuickImport(false)
@@ -118,6 +117,5 @@ function parseMcpServerJsonText(text: string): AddMcpConfigSchema {
   if (config.url) {
     options.transportType = 'sse'
   }
-  console.log(' options => ', options)
   return AddMcpConfigSchema.parse(options)
 }

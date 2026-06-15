@@ -150,8 +150,6 @@ export default function MCPManage() {
 }
 
 function checkNeedReconnect(oldConfig: McpConfigSchema, newConfig: McpConfigSchema): boolean {
-  console.log('oldConfig: ', JSON.stringify(oldConfig), 'newConfig: ', JSON.stringify(newConfig))
-
   if (oldConfig.transportType !== newConfig.transportType) {
     return true
   }
