@@ -83,7 +83,7 @@ export class SqliteMessageRepository implements MessageRepository {
       const content = this.stageAttachmentData(message.content, stagedFiles)
 
       const createMessage = this.db.transaction(() => {
-        this.commitStagedAttachments(stagedFiles)
+        this.commitStagedAttachments(stagedFiles, true)
         for (const staged of stagedFiles) {
           committedFiles.add(staged.fileId)
         }
@@ -209,7 +209,7 @@ export class SqliteMessageRepository implements MessageRepository {
       }
 
       const updateMessage = this.db.transaction(() => {
-        this.commitStagedAttachments(stagedFiles)
+        this.commitStagedAttachments(stagedFiles, true)
         for (const staged of stagedFiles) {
           committedFiles.add(staged.fileId)
         }
@@ -338,10 +338,18 @@ export class SqliteMessageRepository implements MessageRepository {
     })
   }
 
-  private commitStagedAttachments(stagedFiles: StagedAttachment[]): void {
+  private commitStagedAttachments(stagedFiles: StagedAttachment[], skipExisting = false): void {
     for (const staged of stagedFiles) {
       const existing = this.db.prepare<unknown[], { id: string }>('SELECT id FROM attachments WHERE id = ?').get(staged.fileId)
       if (existing) {
+        if (skipExisting) {
+          // 附件已存在时跳过写入，清理临时文件，保留旧数据
+          try {
+            rmSync(staged.tempPath, { force: true })
+          }
+          catch {}
+          continue
+        }
         throw new Error(`附件 ID 已存在: ${staged.fileId}`)
       }
 

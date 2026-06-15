@@ -573,7 +573,9 @@ describe.skipIf(!canRunDbIntegrationTests())('sqlite repositories', () => {
     })
 
     const createdContent = message.content
-    expect(createdContent.find((b: { type: string }) => b.type === 'document')).toBeUndefined()
+    const createdDoc = createdContent.find((b: { type: string }) => b.type === 'document')
+    expect(createdDoc).toBeDefined()
+    expect((createdDoc as any).data).toBeUndefined()
     await expect(messageRepository.loadAttachmentData('doc-normal')).resolves.toBe(bytes.toString('base64'))
 
     const newBytes = Buffer.from('updated content', 'utf8')
@@ -593,7 +595,9 @@ describe.skipIf(!canRunDbIntegrationTests())('sqlite repositories', () => {
     })
 
     const updatedContent = updated.content
-    expect(updatedContent.find((b: { type: string }) => b.type === 'document')).toBeUndefined()
+    const updatedDoc = updatedContent.find((b: { type: string }) => b.type === 'document')
+    expect(updatedDoc).toBeDefined()
+    expect((updatedDoc as any).data).toBeUndefined()
     await expect(messageRepository.loadAttachmentData('doc-updated')).resolves.toBe(newBytes.toString('base64'))
   })
 })
