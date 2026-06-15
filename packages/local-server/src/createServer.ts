@@ -4,10 +4,28 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { Buffer } from 'node:buffer'
 import { createServer as createHttpServer } from 'node:http'
 
+const MAX_RPC_BODY_BYTES = 32 * 1024 * 1024
+const RPC_BODY_TIMEOUT_MS = 30_000
+
+class RpcRequestError extends Error {
+  constructor(
+    message: string,
+    public readonly statusCode: number,
+  ) {
+    super(message)
+    this.name = 'RpcRequestError'
+  }
+}
+
+export interface RpcLimits {
+  maxBodyBytes?: number
+  bodyTimeoutMs?: number
+}
+
 export type LocalApiHandler = (req: IncomingMessage, res: ServerResponse) => Promise<boolean>
 
-export function createLocalServer(runtime: object) {
-  const handleLocalApiRequest = createLocalApiHandler(runtime)
+export function createLocalServer(runtime: object, limits?: RpcLimits) {
+  const handleLocalApiRequest = createLocalApiHandler(runtime, limits)
 
   return createHttpServer(async (req, res) => {
     const handled = await handleLocalApiRequest(req, res)
@@ -19,8 +37,10 @@ export function createLocalServer(runtime: object) {
   })
 }
 
-export function createLocalApiHandler(runtime: object): LocalApiHandler {
+export function createLocalApiHandler(runtime: object, limits?: RpcLimits): LocalApiHandler {
   const appRuntime = runtime as AppRuntime
+  const maxBodyBytes = limits?.maxBodyBytes ?? MAX_RPC_BODY_BYTES
+  const bodyTimeoutMs = limits?.bodyTimeoutMs ?? RPC_BODY_TIMEOUT_MS
 
   return async (req, res) => {
     try {
@@ -34,7 +54,7 @@ export function createLocalApiHandler(runtime: object): LocalApiHandler {
         return true
       }
 
-      const body = await readJsonBody(req)
+      const body = await readJsonBody(req, maxBodyBytes, bodyTimeoutMs)
       const result = await routeRequest(url, body, appRuntime)
 
       res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' })
@@ -42,7 +62,8 @@ export function createLocalApiHandler(runtime: object): LocalApiHandler {
     }
     catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      res.writeHead(500, { 'content-type': 'application/json; charset=utf-8' })
+      const statusCode = error instanceof RpcRequestError ? error.statusCode : 500
+      res.writeHead(statusCode, { 'content-type': 'application/json; charset=utf-8' })
       res.end(JSON.stringify({ success: false, msg: message }))
     }
     return true
@@ -273,10 +294,39 @@ function booleanParam(value: unknown): boolean {
   return value
 }
 
-async function readJsonBody(req: IncomingMessage): Promise<unknown> {
+async function readJsonBody(
+  req: IncomingMessage,
+  maxBytes = MAX_RPC_BODY_BYTES,
+  timeoutMs = RPC_BODY_TIMEOUT_MS,
+): Promise<unknown> {
   const chunks: Buffer[] = []
-  for await (const chunk of req) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+  let totalBytes = 0
+  let timer: ReturnType<typeof setTimeout> | null = null
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new RpcRequestError('请求体读取超时', 408))
+    }, timeoutMs)
+  })
+
+  try {
+    const readPromise = (async () => {
+      for await (const chunk of req) {
+        const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+        totalBytes += buf.length
+        if (totalBytes > maxBytes) {
+          throw new RpcRequestError('请求体超过大小限制', 413)
+        }
+        chunks.push(buf)
+      }
+    })()
+
+    await Promise.race([readPromise, timeoutPromise])
+  }
+  finally {
+    if (timer) {
+      clearTimeout(timer)
+    }
   }
 
   if (chunks.length === 0) {
