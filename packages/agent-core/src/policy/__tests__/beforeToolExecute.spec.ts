@@ -52,8 +52,8 @@ function createPrepared() {
   }
 }
 
-describe('createBeforeToolExecuteHook', () => {
-  it('returns allow for workspace read in hybrid mode', async () => {
+describe('createBeforeToolExecuteHook 行为', () => {
+  it('hybrid 模式下 workspace read 返回 allow', async () => {
     const hook = createBeforeToolExecuteHook(async () => ({ approved: true }))
     const task = createTask({ mode: 'hybrid' })
 
@@ -66,7 +66,7 @@ describe('createBeforeToolExecuteHook', () => {
     expect(result).toEqual({ outcome: 'allow' })
   })
 
-  it('returns block for blocked scope', async () => {
+  it('blocked scope 返回 block', async () => {
     const hook = createBeforeToolExecuteHook(async () => ({ approved: true }))
     const task = createTask({ mode: 'strict' })
 
@@ -82,7 +82,7 @@ describe('createBeforeToolExecuteHook', () => {
     }
   })
 
-  it('returns allow for full_managed mode regardless of scope', async () => {
+  it('full_managed 模式下无论 scope 都返回 allow', async () => {
     const hook = createBeforeToolExecuteHook(async () => ({ approved: true }))
     const task = createTask({ mode: 'full_managed' })
 
@@ -95,7 +95,7 @@ describe('createBeforeToolExecuteHook', () => {
     expect(result).toEqual({ outcome: 'allow' })
   })
 
-  it('sets pendingAction and awaits approval for outside scope', async () => {
+  it('outside scope 设置 pendingAction 并等待审批', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
 
@@ -128,7 +128,7 @@ describe('createBeforeToolExecuteHook', () => {
     expect(result).toEqual({ outcome: 'allow' })
   })
 
-  it('returns block when approval is denied', async () => {
+  it('审批被拒绝时返回 block', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
 
@@ -158,7 +158,7 @@ describe('createBeforeToolExecuteHook', () => {
     }
   })
 
-  it('throws AGENT_CANCELLED when task is aborted during approval', async () => {
+  it('审批期间任务中止时抛出 AGENT_CANCELLED', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
 
@@ -181,7 +181,7 @@ describe('createBeforeToolExecuteHook', () => {
     ).rejects.toThrow('Task cancelled')
   })
 
-  it('calls onToolCallContext callback', async () => {
+  it('调用 onToolCallContext 回调', async () => {
     const hook = createBeforeToolExecuteHook(async () => ({ approved: true }))
     const task = createTask({ mode: 'hybrid' })
     const onContext = vi.fn()
@@ -204,7 +204,7 @@ describe('createBeforeToolExecuteHook', () => {
     )
   })
 
-  it('auto-approves when whitelist matches', async () => {
+  it('白名单匹配时自动批准', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
 
@@ -231,7 +231,7 @@ describe('createBeforeToolExecuteHook', () => {
     expect(task.snapshot.status).toBe('running')
   })
 
-  it('does not auto-approve when whitelist does not match', async () => {
+  it('白名单不匹配时不自动批准', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
 
@@ -263,7 +263,7 @@ describe('createBeforeToolExecuteHook', () => {
     expect(result).toEqual({ outcome: 'allow' })
   })
 
-  it('sends whitelistPattern and whitelistApplicableScope in pendingAction', async () => {
+  it('在 pendingAction 中发送 whitelistPattern 和 whitelistApplicableScope', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
 
@@ -289,7 +289,7 @@ describe('createBeforeToolExecuteHook', () => {
     await resultPromise
   })
 
-  it('behaves normally when getWhitelistEntries is not provided (backward compat)', async () => {
+  it('未提供 getWhitelistEntries 时保持兼容行为', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
 

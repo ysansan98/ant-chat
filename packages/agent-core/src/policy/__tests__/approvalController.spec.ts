@@ -50,7 +50,7 @@ function cleanupTasks(taskIds: string[]) {
   }
 }
 
-describe('createApprovalController', () => {
+describe('createApprovalController 行为', () => {
   let emitter: IAgentEventEmitter
 
   beforeEach(() => {
@@ -61,8 +61,8 @@ describe('createApprovalController', () => {
     vi.restoreAllMocks()
   })
 
-  describe('approvePendingAction', () => {
-    it('approves and resolves the pending resolver', async () => {
+  describe('approvePendingAction 行为', () => {
+    it('批准并结束 pending resolver', async () => {
       const controller = createApprovalController(emitter)
       const task = createRunningTask('t-approve-1', 'conv-approve-1')
       task.snapshot.status = 'awaiting_approval'
@@ -88,14 +88,14 @@ describe('createApprovalController', () => {
       cleanupTasks(['t-approve-1'])
     })
 
-    it('throws AGENT_TASK_NOT_FOUND for unknown task', () => {
+    it('未知任务抛出 AGENT_TASK_NOT_FOUND', () => {
       const controller = createApprovalController(emitter)
       expect(() =>
         controller.approvePendingAction({ taskId: 'nonexistent', actionId: 'action-1' }),
       ).toThrow('Task not found')
     })
 
-    it('throws AGENT_TASK_NOT_APPROVABLE when task is not awaiting approval', () => {
+    it('任务未等待审批时抛出 AGENT_TASK_NOT_APPROVABLE', () => {
       const controller = createApprovalController(emitter)
       const task = createRunningTask('t-no-approval', 'conv-no-approval')
       taskStore.create(task)
@@ -107,7 +107,7 @@ describe('createApprovalController', () => {
       cleanupTasks(['t-no-approval'])
     })
 
-    it('throws AGENT_APPROVAL_ACTION_MISMATCH for wrong actionId', () => {
+    it('actionId 错误时抛出 AGENT_APPROVAL_ACTION_MISMATCH', () => {
       const controller = createApprovalController(emitter)
       const task = createRunningTask('t-mismatch', 'conv-mismatch')
       task.snapshot.status = 'awaiting_approval'
@@ -129,8 +129,8 @@ describe('createApprovalController', () => {
     })
   })
 
-  describe('rejectPendingAction', () => {
-    it('rejects with reason and resolves the pending resolver', async () => {
+  describe('rejectPendingAction 行为', () => {
+    it('带 reason 拒绝并结束 pending resolver', async () => {
       const controller = createApprovalController(emitter)
       const task = createRunningTask('t-reject', 'conv-reject')
       task.snapshot.status = 'awaiting_approval'
@@ -156,8 +156,8 @@ describe('createApprovalController', () => {
     })
   })
 
-  describe('cancelTask', () => {
-    it('aborts the task and resolves pending with AGENT_CANCELLED', async () => {
+  describe('cancelTask 行为', () => {
+    it('中止任务并用 AGENT_CANCELLED 结束 pending resolver', async () => {
       const controller = createApprovalController(emitter)
       const task = createRunningTask('t-cancel-pending', 'conv-cancel-pending')
       task.snapshot.status = 'awaiting_approval'
@@ -182,12 +182,12 @@ describe('createApprovalController', () => {
       cleanupTasks(['t-cancel-pending'])
     })
 
-    it('throws AGENT_TASK_NOT_FOUND for unknown task', () => {
+    it('未知任务抛出 AGENT_TASK_NOT_FOUND', () => {
       const controller = createApprovalController(emitter)
       expect(() => controller.cancelTask({ taskId: 'nonexistent' })).toThrow('Task not found')
     })
 
-    it('cancels a running task without pending action', () => {
+    it('取消没有 pending action 的运行中任务', () => {
       const controller = createApprovalController(emitter)
       const task = createRunningTask('t-cancel-running', 'conv-cancel-running')
       taskStore.create(task)
@@ -200,8 +200,8 @@ describe('createApprovalController', () => {
     })
   })
 
-  describe('waitForApproval', () => {
-    it('resolves when pendingResolver is called with approved', async () => {
+  describe('waitForApproval 行为', () => {
+    it('pendingResolver 收到 approved 时 resolve', async () => {
       const controller = createApprovalController(emitter)
       const task = createRunningTask('t-wait-approve', 'conv-wait-approve')
       task.snapshot.status = 'awaiting_approval'
@@ -224,7 +224,7 @@ describe('createApprovalController', () => {
       cleanupTasks(['t-wait-approve'])
     })
 
-    it('rejects on timeout after APPROVAL_TIMEOUT_MS', async () => {
+    it('超过 APPROVAL_TIMEOUT_MS 后 reject', async () => {
       vi.useFakeTimers()
       const controller = createApprovalController(emitter)
       const task = createRunningTask('t-timeout', 'conv-timeout')
@@ -248,7 +248,7 @@ describe('createApprovalController', () => {
       cleanupTasks(['t-timeout'])
     })
 
-    it('does not reject on timeout if already resolved', async () => {
+    it('已经 resolve 后超时不再 reject', async () => {
       vi.useFakeTimers()
       const controller = createApprovalController(emitter)
       const task = createRunningTask('t-resolved', 'conv-resolved')

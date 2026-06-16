@@ -142,7 +142,7 @@ function getAllMessageText(request: unknown): string {
     .join('\n')
 }
 
-describe('agentLoop integration (aimock)', () => {
+describe('agentLoop 与 aimock 集成', () => {
   let workspacePath: string
 
   beforeEach(async () => {
@@ -177,7 +177,7 @@ describe('agentLoop integration (aimock)', () => {
     }
   })
 
-  it('runs model → tool → model cycle through AgentRuntime with aimock', { timeout: 15000 }, async () => {
+  it('通过 AgentRuntime 和 aimock 跑通模型、工具、模型循环', { timeout: 15000 }, async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
     const runtime = new AgentRuntime({ eventEmitter: emitter, logger })

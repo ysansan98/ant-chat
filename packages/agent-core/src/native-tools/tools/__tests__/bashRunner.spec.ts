@@ -4,7 +4,7 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { preValidateBashScope } from '../bashRunner'
 
-describe('preValidateBashScope', () => {
+describe('preValidateBashScope 行为', () => {
   let workspacePath: string
 
   beforeEach(() => {
@@ -87,7 +87,7 @@ describe('preValidateBashScope', () => {
   })
 
   describe('workspace — 安全放行', () => {
-    it('pwd', () => {
+    it('pwd 判定为 workspace', () => {
       expect(preValidateBashScope({ command: 'pwd' }, workspacePath)).toBe('workspace')
     })
 
@@ -99,15 +99,15 @@ describe('preValidateBashScope', () => {
       expect(preValidateBashScope({ command: 'ls -la ./src' }, workspacePath)).toBe('workspace')
     })
 
-    it('find . -name', () => {
+    it('find . -name 判定为 workspace', () => {
       expect(preValidateBashScope({ command: 'find . -name "*.ts"' }, workspacePath)).toBe('workspace')
     })
 
-    it('cat file.txt', () => {
+    it('cat file.txt 判定为 workspace', () => {
       expect(preValidateBashScope({ command: 'cat file.txt' }, workspacePath)).toBe('workspace')
     })
 
-    it('rg pattern .', () => {
+    it('rg pattern . 判定为 workspace', () => {
       expect(preValidateBashScope({ command: 'rg foo .' }, workspacePath)).toBe('workspace')
     })
 

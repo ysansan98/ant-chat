@@ -9,7 +9,7 @@ const VALID_SKILL_ZIP = 'UEsDBBQAAAAIAK1YnlxVUSklIgAAACQAAAAIAAAAU0tJTEwubWRTVgg
 const UNSAFE_SKILL_ZIP = 'UEsDBBQAAAAIAK9Ynly7JMeZCgAAAAgAAAALAAAALi4vU0tJTEwubWRTVgjNK05MSwUAUEsBAhQAFAAAAAgAr1ieXLskx5kKAAAACAAAAAsAAAAAAAAAAAAAAAAAAAAAAC4uL1NLSUxMLm1kUEsFBgAAAAABAAEAOQAAADMAAAAAAA=='
 const FRONTMATTER_SKILL_ZIP = 'UEsDBBQAAAAAAHx8plzIj6ltcwAAAHMAAAAIAAAAU0tJTEwubWQtLS0KbmFtZToga2FtaQpkZXNjcmlwdGlvbjogVHlwZXNldCBwcm9mZXNzaW9uYWwgZG9jdW1lbnRzLgotLS0KCiMga2FtaSDCtyDntJkKCldyaXRlIHByb2Zlc3Npb25hbCBQREZzIHdpdGgga2FtaS4KUEsBAhQDFAAAAAAAfHymXMiPqW1zAAAAcwAAAAgAAAAAAAAAAAAAAIABAAAAAFNLSUxMLm1kUEsFBgAAAAABAAEANgAAAJkAAAAAAA=='
 
-describe('skillFsReader', () => {
+describe('skillFsReader 行为', () => {
   let homeDir: string
   let skillsRoot: string
   let reader: SkillManagementService
@@ -24,7 +24,7 @@ describe('skillFsReader', () => {
     await fs.promises.rm(homeDir, { recursive: true, force: true })
   })
 
-  it('initializes builtin skill installer and rebuilds index', async () => {
+  it('初始化内置 skill-installer 并重建索引', async () => {
     const index = await reader.listSkills()
 
     expect(index.rootPath).toBe(skillsRoot)
@@ -37,7 +37,7 @@ describe('skillFsReader', () => {
     })
   })
 
-  it('imports a skill zip and reads installed markdown', async () => {
+  it('导入 skill zip 并读取已安装 markdown', async () => {
     const zipPath = path.join(homeDir, 'writer.zip')
     await fs.promises.writeFile(zipPath, Buffer.from(VALID_SKILL_ZIP, 'base64'))
 
@@ -55,14 +55,14 @@ describe('skillFsReader', () => {
     expect(markdown).toContain('Write short release notes.')
   })
 
-  it('rejects zip entries with unsafe paths', async () => {
+  it('拒绝包含不安全路径的 zip entry', async () => {
     const zipPath = path.join(homeDir, 'unsafe.zip')
     await fs.promises.writeFile(zipPath, Buffer.from(UNSAFE_SKILL_ZIP, 'base64'))
 
     await expect(reader.importFromZip(zipPath)).rejects.toThrow('unsafe zip path')
   })
 
-  it('uses frontmatter name instead of title for SKILL.md without manifest.json', async () => {
+  it('没有 manifest.json 时使用 SKILL.md frontmatter name 而不是标题', async () => {
     const zipPath = path.join(homeDir, 'kami-test.zip')
     await fs.promises.writeFile(zipPath, Buffer.from(FRONTMATTER_SKILL_ZIP, 'base64'))
 

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { runBrowserTool, validateBrowserInput } from '../browserRunner'
 import type { BrowserSessionState } from '../browserSessionManager'
 
-describe('browserRunner', () => {
+describe('browserRunner 行为', () => {
   let root: string
   let agentBrowserPath: string
   let profilePath: string
@@ -36,7 +36,7 @@ process.stdin.on('end', () => {
     fs.rmSync(root, { recursive: true, force: true })
   })
 
-  it('injects the persistent profile, direct session, proxy and daemon idle timeout', async () => {
+  it('注入持久 profile、direct session、proxy 和 daemon idle timeout', async () => {
     const result = await runBrowserTool({
       command: 'open',
       args: ['https://example.com'],
@@ -128,7 +128,7 @@ process.stdin.on('end', () => {
     })
   })
 
-  it('opens a headed browser with the persistent Ant Chat profile for manual login', async () => {
+  it('用持久 Ant Chat profile 打开 headed browser 供手动登录', async () => {
     const state = createState()
     await runBrowserTool({
       command: 'open',
@@ -172,7 +172,7 @@ process.stdin.on('end', () => {
     expect(invocations[0].stdin).toBe('')
   })
 
-  it('resets the sticky headed mode after closing the browser', async () => {
+  it('关闭 browser 后重置 sticky headed 模式', async () => {
     const state = createState()
     const options = {
       profilePath,
@@ -190,7 +190,7 @@ process.stdin.on('end', () => {
     expect(invocations[2].args).not.toContain('--headed')
   })
 
-  it('removes daemon launch-option warnings from successful output', async () => {
+  it('从成功输出中移除 daemon 启动参数警告', async () => {
     fs.writeFileSync(agentBrowserPath, `#!/usr/bin/env node
 process.stdout.write('page content\\n⚠ --profile, --headed ignored: daemon already running. Use close first.\\n')
 `)
@@ -205,7 +205,7 @@ process.stdout.write('page content\\n⚠ --profile, --headed ignored: daemon alr
     expect(result).toMatchObject({ ok: true, stdout: 'page content' })
   })
 
-  it('serializes commands within one browser session', async () => {
+  it('同一 browser session 内串行执行命令', async () => {
     const first = runBrowserTool({ command: 'get title' }, {
       profilePath,
       artifactsPath,
@@ -223,7 +223,7 @@ process.stdout.write('page content\\n⚠ --profile, --headed ignored: daemon alr
     expect(lines.map(item => item.args[item.args.length - 2])).toEqual(['get', 'get'])
   })
 
-  it('rejects unsafe commands, local URLs and paths outside allowed roots', () => {
+  it('拒绝不安全命令、本地 URL 和允许根目录外路径', () => {
     expect(validateBrowserInput({ command: 'cookies get' }, {
       workspacePath: root,
       artifactsPath,
@@ -254,7 +254,7 @@ process.stdout.write('page content\\n⚠ --profile, --headed ignored: daemon alr
     })).toContain('command')
   })
 
-  it('allows an explicitly requested named Chrome profile', () => {
+  it('允许显式指定命名 Chrome profile', () => {
     expect(validateBrowserInput({
       command: 'open',
       args: ['--profile', 'Default', 'https://example.com'],
@@ -264,7 +264,7 @@ process.stdout.write('page content\\n⚠ --profile, --headed ignored: daemon alr
     })).toBeNull()
   })
 
-  it('allows controlled page evaluation and compact snapshot flags', () => {
+  it('允许受控页面执行和 compact snapshot 参数', () => {
     expect(validateBrowserInput({
       command: 'eval',
       args: ['document.body.innerText'],
@@ -281,7 +281,7 @@ process.stdout.write('page content\\n⚠ --profile, --headed ignored: daemon alr
     })).toBeNull()
   })
 
-  it('validates output paths after stripping global arguments (P1)', () => {
+  it('移除全局参数后校验输出路径', () => {
     // screenshot with --profile should validate the actual output path, not the profile name
     expect(validateBrowserInput({
       command: 'screenshot',
@@ -301,7 +301,7 @@ process.stdout.write('page content\\n⚠ --profile, --headed ignored: daemon alr
     })).toBeNull()
   })
 
-  it('rejects --remote-debugging-port, --proxy-server, --disable-web-security, --user-data-dir', () => {
+  it('拒绝 --remote-debugging-port、--proxy-server、--disable-web-security、--user-data-dir', () => {
     expect(validateBrowserInput({ command: 'open', args: ['https://example.com', '--remote-debugging-port', '9222'] }, {
       workspacePath: root,
       artifactsPath,
@@ -320,7 +320,7 @@ process.stdout.write('page content\\n⚠ --profile, --headed ignored: daemon alr
     })).toContain('--user-data-dir')
   })
 
-  it('uses proxyUrl option over environment proxy variables', async () => {
+  it('proxyUrl 选项优先于环境代理变量', async () => {
     const result = await runBrowserTool({
       command: 'open',
       args: ['https://example.com'],

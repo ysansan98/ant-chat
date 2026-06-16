@@ -13,8 +13,8 @@ function textMessage(id: string, role: 'user' | 'assistant', text: string): IMes
   }
 }
 
-describe('buildConversationContextMessages', () => {
-  it('replaces messages through the latest compaction boundary and keeps later messages', async () => {
+describe('buildConversationContextMessages 行为', () => {
+  it('替换到最近压缩边界为止的消息并保留后续消息', async () => {
     const messages = [
       textMessage('u1', 'user', 'old user'),
       textMessage('a1', 'assistant', 'old assistant'),
@@ -63,7 +63,7 @@ describe('buildConversationContextMessages', () => {
     ])
   })
 
-  it('keeps usage only for persisted assistant messages after the compaction boundary', async () => {
+  it('只保留压缩边界后已持久化 assistant 消息的 usage', async () => {
     const messages: IMessage[] = [
       {
         ...textMessage('a1', 'assistant', 'old assistant'),
@@ -113,7 +113,7 @@ describe('buildConversationContextMessages', () => {
     ])
   })
 
-  it('rejects a compaction event without summary text', async () => {
+  it('拒绝没有摘要文本的 compaction event', async () => {
     await expect(buildConversationContextMessages(
       [
         textMessage('u1', 'user', 'old user'),
@@ -132,7 +132,7 @@ describe('buildConversationContextMessages', () => {
     )).rejects.toThrow('Compaction event missing summary text: evt-1')
   })
 
-  it('rejects a missing compaction boundary message', async () => {
+  it('拒绝缺失 compaction 边界消息', async () => {
     await expect(buildConversationContextMessages([
       {
         id: 'evt-1',

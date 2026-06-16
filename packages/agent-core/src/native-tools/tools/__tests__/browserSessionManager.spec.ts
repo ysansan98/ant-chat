@@ -4,7 +4,7 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { BrowserSessionManager } from '../browserSessionManager'
 
-describe('browserSessionManager', () => {
+describe('browserSessionManager 行为', () => {
   let root: string
   let originalPath: string | undefined
 
@@ -22,7 +22,7 @@ describe('browserSessionManager', () => {
     fs.rmSync(root, { recursive: true, force: true })
   })
 
-  it('reuses one session within a conversation and isolates different conversations', () => {
+  it('同一会话复用一个 session 且隔离不同会话', () => {
     const manager = createManager()
 
     const firstTurn = manager.get('conv-1')
@@ -35,7 +35,7 @@ describe('browserSessionManager', () => {
     expect(otherConversation.profilePath).not.toBe(firstTurn.profilePath)
   })
 
-  it('derives stable session paths after the application restarts', () => {
+  it('应用重启后派生稳定的 session 路径', () => {
     const first = createManager().get('conv-1')
     const restored = createManager().get('conv-1')
 
@@ -44,7 +44,7 @@ describe('browserSessionManager', () => {
     expect(restored.profilePath).toBe(first.profilePath)
   })
 
-  it('releases the session when a conversation closes', async () => {
+  it('会话关闭时释放 session', async () => {
     const manager = createManager()
     const first = manager.get('conv-1')
     fs.mkdirSync(first.socketPath, { recursive: true })

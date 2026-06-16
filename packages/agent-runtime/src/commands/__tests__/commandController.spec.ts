@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { createCommandController } from '../commandController'
 
 const summarizeMock = vi.hoisted(() =>
-  vi.fn(async (_serialized: string) => ({
+  vi.fn(async (_serialized: string, _aiProvider?: unknown, _model?: string, _abortSignal?: AbortSignal, _instruction?: string) => ({
     text: 'new compact summary',
     usage: { inputTokens: 10000, outputTokens: 250, totalTokens: 10250 },
   })),
@@ -57,8 +57,8 @@ function compressibleMessages(conversationId = 'conv-1') {
   ]
 }
 
-describe('commandController task guard', () => {
-  it('rejects /compact when an agent task is running', async () => {
+describe('commandController 任务守卫', () => {
+  it('agent task 正在运行时拒绝 /compact', async () => {
     const deps = mockDeps({ activeTasks: [{ status: 'running' }] })
     const cc = createCommandController(deps as any)
 
@@ -72,7 +72,7 @@ describe('commandController task guard', () => {
     ).rejects.toThrow('Agent task is running')
   })
 
-  it('rejects /fork when an agent task is awaiting_approval', async () => {
+  it('agent task 等待审批时拒绝 /fork', async () => {
     const deps = mockDeps({ activeTasks: [{ status: 'awaiting_approval' }] })
     const cc = createCommandController(deps as any)
 
@@ -86,7 +86,7 @@ describe('commandController task guard', () => {
     ).rejects.toThrow('Agent task is running')
   })
 
-  it('allows /new without active conversation', async () => {
+  it('没有活跃会话时允许执行 /new', async () => {
     const deps = mockDeps()
     deps.appDataContext.conversationRepository.create.mockResolvedValue({ id: 'new-conv', title: 'Untitled' })
     const cc = createCommandController(deps as any)
@@ -103,7 +103,7 @@ describe('commandController task guard', () => {
     expect(result.conversationId).toBe('new-conv')
   })
 
-  it('/compact ignores compaction.enabled flag (manual override)', async () => {
+  it('/compact 忽略 compaction.enabled 配置并执行手动压缩', async () => {
     const deps = mockDeps()
     deps.appDataContext.conversationRepository.getById.mockResolvedValue({
       id: 'conv-1',
@@ -129,7 +129,7 @@ describe('commandController task guard', () => {
     expect(result.errorMessage).toContain('未找到压缩模型')
   })
 
-  it('rejects unknown command id', async () => {
+  it('拒绝未知内置命令 id', async () => {
     const deps = mockDeps()
     const cc = createCommandController(deps as any)
     await expect(
@@ -142,8 +142,8 @@ describe('commandController task guard', () => {
   })
 })
 
-describe('commandController command concurrency', () => {
-  it('rejects second /compact on same conversation while first is running', async () => {
+describe('commandController 命令并发', () => {
+  it('同一会话已有 /compact 运行时拒绝第二次 /compact', async () => {
     const deps = mockDeps()
     deps.appDataContext.conversationRepository.getById.mockResolvedValue({
       id: 'conv-1',
@@ -180,7 +180,7 @@ describe('commandController command concurrency', () => {
     await firstPromise.catch(() => {})
   })
 
-  it('allows /compact on different conversations concurrently', async () => {
+  it('允许不同会话并发执行 /compact', async () => {
     const deps = mockDeps()
     deps.appDataContext.conversationRepository.getById.mockResolvedValue({
       id: 'conv-1',
@@ -213,8 +213,8 @@ describe('commandController command concurrency', () => {
   })
 })
 
-describe('compact command error and cancellation', () => {
-  it('/compact emits loading and completed event messages', async () => {
+describe('compact 命令错误和取消', () => {
+  it('/compact 发出 loading 和 completed event message', async () => {
     const deps = mockDeps()
     deps.appDataContext.conversationRepository.getById.mockResolvedValue({
       id: 'conv-1',
@@ -266,7 +266,7 @@ describe('compact command error and cancellation', () => {
     expect(deps.eventEmitter.emitMessageUpdated).toHaveBeenNthCalledWith(2, completedEvent)
   })
 
-  it('/compact returns error status when model is not found', async () => {
+  it('/compact 找不到模型时返回 error 状态', async () => {
     const deps = mockDeps()
     deps.appDataContext.conversationRepository.getById.mockResolvedValue({
       id: 'conv-1',
@@ -293,7 +293,7 @@ describe('compact command error and cancellation', () => {
     expect(deps.appDataContext.messageRepository.create).not.toHaveBeenCalled()
   })
 
-  it('/compact with empty messages returns success without creating loading event', async () => {
+  it('/compact 遇到空消息时直接返回 success 且不创建 loading event', async () => {
     const deps = mockDeps()
     deps.appDataContext.conversationRepository.getById.mockResolvedValue({
       id: 'conv-1',
@@ -316,7 +316,7 @@ describe('compact command error and cancellation', () => {
     expect(deps.appDataContext.messageRepository.create).not.toHaveBeenCalled()
   })
 
-  it('/compact skips when the summarized prefix has two messages', async () => {
+  it('/compact 待总结前缀只有两条消息时跳过压缩', async () => {
     const deps = mockDeps()
     deps.appDataContext.conversationRepository.getById.mockResolvedValue({
       id: 'conv-1',
@@ -346,7 +346,7 @@ describe('compact command error and cancellation', () => {
     expect(deps.appDataContext.messageRepository.create).not.toHaveBeenCalled()
   })
 
-  it('/compact summarizes from the latest manual compaction summary instead of older raw messages', async () => {
+  it('/compact 从最近的手动压缩摘要继续总结而不是读取更早的原始消息', async () => {
     summarizeMock.mockClear()
     const deps = mockDeps()
     deps.appDataContext.conversationRepository.getById.mockResolvedValue({
@@ -414,7 +414,7 @@ describe('compact command error and cancellation', () => {
     })
   })
 
-  it('cancelCommand waits for model lookup without creating a loading event', async () => {
+  it('cancelCommand 在模型查询阶段等待完成且不创建 loading event', async () => {
     const deps = mockDeps()
     deps.appDataContext.conversationRepository.getById.mockResolvedValue({
       id: 'conv-1',
@@ -459,10 +459,76 @@ describe('compact command error and cancellation', () => {
     expect(deps.appDataContext.messageRepository.create).not.toHaveBeenCalled()
     expect(deps.appDataContext.messageRepository.delete).not.toHaveBeenCalled()
   })
+
+  it('cancelCommand 在 loading event 创建后取消时删除 loading event', async () => {
+    summarizeMock.mockImplementationOnce(async (_serialized, _aiProvider, _model, abortSignal) => {
+      await new Promise<void>((resolve) => {
+        if (abortSignal?.aborted) {
+          resolve()
+          return
+        }
+        abortSignal?.addEventListener('abort', () => resolve(), { once: true })
+      })
+      return {
+        text: 'cancelled summary',
+        usage: { inputTokens: 10000, outputTokens: 250, totalTokens: 10250 },
+      }
+    })
+
+    const deps = mockDeps()
+    deps.appDataContext.conversationRepository.getById.mockResolvedValue({
+      id: 'conv-1',
+      title: 'Test',
+      settings: { compaction: { enabled: true, thresholdPercent: 70, keepRecentTokens: 16 } },
+    })
+    deps.appDataContext.messageRepository.listByConversation.mockResolvedValue(compressibleMessages())
+    deps.appDataContext.messageRepository.create.mockResolvedValue({
+      id: 'event-1',
+      convId: 'conv-1',
+      role: 'event',
+      status: 'loading',
+      content: [{ type: 'text', text: '正在压缩上下文...' }],
+      eventType: 'compaction',
+      createdAt: 6,
+    })
+    deps.appDataContext.modelCatalog.getModelById.mockResolvedValue({ id: 'm1', model: 'test-model', providerId: 'provider-1' })
+    deps.appDataContext.modelCatalog.getProviderById.mockResolvedValue({
+      id: 'provider-1',
+      name: 'provider',
+      apiMode: 'openai',
+      apiKey: 'test-key',
+      baseUrl: 'https://example.com',
+      isOfficial: false,
+      isEnabled: true,
+      createdAt: 1,
+      updatedAt: 1,
+    })
+
+    const cc = createCommandController(deps as any)
+    const runPromise = cc.runBuiltinCommand({
+      id: 'compact',
+      conversationId: 'conv-1',
+      modelConfig: { modelId: 'm1', systemPrompt: '', temperature: 0, maxTokens: 0 },
+      workspacePath: '',
+    })
+
+    while (deps.appDataContext.messageRepository.create.mock.calls.length === 0) {
+      await new Promise(resolve => setTimeout(resolve, 1))
+    }
+
+    const cancelResult = await cc.cancelCommand('conv-1')
+    const runResult = await runPromise
+
+    expect(cancelResult?.status).toBe('cancelled')
+    expect(runResult.status).toBe('cancelled')
+    expect(deps.appDataContext.messageRepository.delete).toHaveBeenCalledWith('event-1')
+    expect(deps.appDataContext.messageRepository.update).not.toHaveBeenCalled()
+    expect(deps.eventEmitter.emitMessageUpdated).toHaveBeenCalledOnce()
+  })
 })
 
-describe('fork command', () => {
-  it('/fork preserves event message status from source', async () => {
+describe('fork 命令', () => {
+  it('/fork 保留源 event message 状态', async () => {
     const deps = mockDeps()
     deps.appDataContext.conversationRepository.getById.mockResolvedValue({
       id: 'conv-1',
@@ -521,7 +587,72 @@ describe('fork command', () => {
     }))
   })
 
-  it('/fork is blocked by concurrency guard', async () => {
+  it('/fork 重新映射 turnId 并保持 tool-call 和 tool-result 配对', async () => {
+    const deps = mockDeps()
+    deps.appDataContext.conversationRepository.getById.mockResolvedValue({
+      id: 'conv-1',
+      title: 'Original',
+      settings: {},
+    })
+    deps.appDataContext.conversationRepository.create.mockResolvedValue({
+      id: 'fork-conv',
+      title: 'Original fork',
+      settings: {},
+    })
+    deps.appDataContext.messageRepository.listByConversation.mockResolvedValue([
+      { id: 'u1', role: 'user', status: 'success', content: [{ type: 'text', text: 'read file' }], createdAt: 1 },
+      {
+        id: 'a1',
+        role: 'assistant',
+        status: 'success',
+        turnId: 'u1',
+        modelInfo: { provider: 'provider', providerId: 'provider-1', model: 'model-1' },
+        content: [{ type: 'tool-call', toolCallId: 'call-1', toolName: 'read_file', args: { path: 'a.ts' } }],
+        createdAt: 2,
+      },
+      {
+        id: 't1',
+        role: 'tool',
+        status: 'success',
+        turnId: 'u1',
+        content: [{ type: 'tool-result', toolCallId: 'call-1', toolName: 'read_file', result: 'content', isError: false }],
+        createdAt: 3,
+      },
+    ])
+    deps.appDataContext.messageRepository.create
+      .mockResolvedValueOnce({ id: 'fork-event' })
+      .mockResolvedValueOnce({ id: 'fork-u1' })
+      .mockResolvedValueOnce({ id: 'fork-a1' })
+      .mockResolvedValueOnce({ id: 'fork-t1' })
+
+    const cc = createCommandController(deps as any)
+    const result = await cc.runBuiltinCommand({
+      id: 'fork',
+      conversationId: 'conv-1',
+      modelConfig: { modelId: 'm1', systemPrompt: '', temperature: 0, maxTokens: 0 },
+      workspacePath: '/ws',
+    })
+
+    expect(result.status).toBe('success')
+    const createCalls = deps.appDataContext.messageRepository.create.mock.calls
+    const assistantCall = createCalls.find((call: unknown[]) => {
+      const arg = call[0] as Record<string, unknown>
+      return arg.role === 'assistant'
+    })
+    const toolCall = createCalls.find((call: unknown[]) => {
+      const arg = call[0] as Record<string, unknown>
+      return arg.role === 'tool'
+    })
+    expect(assistantCall?.[0]).toEqual(expect.objectContaining({ turnId: 'fork-u1' }))
+    expect(toolCall?.[0]).toEqual(expect.objectContaining({ turnId: 'fork-u1' }))
+
+    const assistantContent = (assistantCall![0] as { content: Array<{ toolCallId: string }> }).content
+    const toolContent = (toolCall![0] as { content: Array<{ toolCallId: string }> }).content
+    expect(assistantContent[0].toolCallId).not.toBe('call-1')
+    expect(toolContent[0].toolCallId).toBe(assistantContent[0].toolCallId)
+  })
+
+  it('/fork 被并发守卫阻断', async () => {
     const deps = mockDeps()
     deps.appDataContext.conversationRepository.getById.mockResolvedValue({
       id: 'conv-1',

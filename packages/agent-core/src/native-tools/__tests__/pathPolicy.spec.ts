@@ -4,7 +4,7 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createPathPolicy } from '../pathPolicy'
 
-describe('classifyAccess', () => {
+describe('classifyAccess 行为', () => {
   let workspacePath: string
   let outsidePath: string
 

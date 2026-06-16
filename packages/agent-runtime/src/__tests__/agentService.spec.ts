@@ -24,7 +24,7 @@ const appDataContext = {
   },
 } as unknown as AppDataContext
 
-describe('createAgentRuntimeController', () => {
+describe('createAgentRuntimeController 行为', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     startTask.mockResolvedValue({
@@ -35,7 +35,7 @@ describe('createAgentRuntimeController', () => {
     })
   })
 
-  it('maps app turn options to runtime start options', async () => {
+  it('将应用层 turn 参数映射为 runtime start 参数', async () => {
     const service = createAgentRuntimeController(runtime, appDataContext)
 
     await service.startTurn({
@@ -64,7 +64,7 @@ describe('createAgentRuntimeController', () => {
     })
   })
 
-  it('preserves explicit turn context fields', async () => {
+  it('保留显式传入的 turn 上下文字段', async () => {
     const service = createAgentRuntimeController(runtime, appDataContext)
 
     await service.startTurn({
@@ -102,5 +102,51 @@ describe('createAgentRuntimeController', () => {
         { type: 'document', source: { type: 'file_id', file_id: 'file-1' }, name: 'a.txt', media_type: 'text/plain', size: 1 },
       ],
     }))
+  })
+
+  it('记住审批时写入工具白名单后再批准 pending action', () => {
+    vi.mocked(runtime.getTask).mockReturnValue({
+      taskId: 't1',
+      conversationId: 'c1',
+      userMessageId: 'm1',
+      workspacePath: '/workspace',
+      mode: 'strict',
+      status: 'awaiting_approval',
+      createdAt: 1,
+      updatedAt: 1,
+      logPath: '',
+      prompt: 'inspect',
+      pendingAction: {
+        actionId: 'a1',
+        toolName: 'write_file',
+        operationType: 'write',
+        scope: 'workspace',
+        inputPreview: '{"path":"src/index.ts"}',
+        createdAt: 1,
+        whitelistPattern: './src/**',
+      },
+    })
+
+    const service = createAgentRuntimeController(runtime, appDataContext)
+    const result = service.approvePendingActionWithWhitelist({
+      taskId: 't1',
+      actionId: 'a1',
+      remember: true,
+      workspacePath: '/workspace',
+    })
+
+    expect(result).toBeNull()
+    expect(appDataContext.toolApprovalWhitelistRepository.add).toHaveBeenCalledWith({
+      toolName: 'write_file',
+      toolScope: 'workspace',
+      pattern: './src/**',
+      workspacePath: '/workspace',
+    })
+    expect(runtime.approvePendingAction).toHaveBeenCalledWith({
+      taskId: 't1',
+      actionId: 'a1',
+      remember: true,
+      workspacePath: '/workspace',
+    })
   })
 })

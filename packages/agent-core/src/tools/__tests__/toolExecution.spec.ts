@@ -57,8 +57,8 @@ function createTask(overrides: Record<string, unknown> = {}) {
   }
 }
 
-describe('executeToolStep', () => {
-  it('executes a successful tool and returns result', async () => {
+describe('executeToolStep 行为', () => {
+  it('执行成功工具并返回结果', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
     const registry = new ToolRegistry([createReadTool()])
@@ -80,7 +80,7 @@ describe('executeToolStep', () => {
     expect(result.toolResultContent).toBe('file content')
   })
 
-  it('preserves model-provided tool call id', async () => {
+  it('保留模型提供的 tool call id', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
     const registry = new ToolRegistry([createReadTool()])
@@ -104,7 +104,7 @@ describe('executeToolStep', () => {
     ])
   })
 
-  it('handles tool not found in registry', async () => {
+  it('处理 registry 中找不到工具', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
     const registry = new ToolRegistry([])
@@ -126,7 +126,7 @@ describe('executeToolStep', () => {
     expect(result.toolResultContent).toContain('failed')
   })
 
-  it('handles tool validation error', async () => {
+  it('处理工具校验错误', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
     const tool = createReadTool({
@@ -150,7 +150,7 @@ describe('executeToolStep', () => {
     expect(result.toolResultContent).toContain('Path must be absolute')
   })
 
-  it('handles hook block result', async () => {
+  it('处理 hook 返回 block 的结果', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
     const registry = new ToolRegistry([createReadTool()])
@@ -175,7 +175,7 @@ describe('executeToolStep', () => {
     expect(result.toolResultContent).toContain('AGENT_POLICY_BLOCKED')
   })
 
-  it('handles hook allow result with tool execution', async () => {
+  it('hook 返回 allow 时执行工具', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
     const registry = new ToolRegistry([createReadTool()])
@@ -204,7 +204,7 @@ describe('executeToolStep', () => {
     expect(result.isError).toBe(false)
   })
 
-  it('handles tool execution failure', async () => {
+  it('处理工具执行失败', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
     const tool = createReadTool({
@@ -228,7 +228,7 @@ describe('executeToolStep', () => {
     expect(result.toolResultContent).toContain('failed')
   })
 
-  it('emits toolCall events', async () => {
+  it('发出 toolCall 事件', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
     const tool = createReadTool()
@@ -249,7 +249,7 @@ describe('executeToolStep', () => {
     expect(emitter.emitTurnToolCalls).toHaveBeenCalledTimes(2) // once at start, once at completion
   })
 
-  it('calls onToolCallContext callback via beforeToolExecute hook', async () => {
+  it('通过 beforeToolExecute hook 调用 onToolCallContext 回调', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
     const tool = createReadTool()
@@ -288,7 +288,7 @@ describe('executeToolStep', () => {
     )
   })
 
-  it('writes durationMs to tool_completed log payload', async () => {
+  it('向 tool_completed 日志 payload 写入 durationMs', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
     const taskLogger = { filePath: '/tmp/task.jsonl', write: vi.fn(), close: vi.fn() }
@@ -311,7 +311,7 @@ describe('executeToolStep', () => {
     }))
   })
 
-  it('writes durationMs to tool_failed log payload on execution error', async () => {
+  it('执行错误时向 tool_failed 日志 payload 写入 durationMs', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
     const taskLogger = { filePath: '/tmp/task.jsonl', write: vi.fn(), close: vi.fn() }
@@ -337,7 +337,7 @@ describe('executeToolStep', () => {
     }))
   })
 
-  it('writes durationMs to tool_failed log payload on validation error', async () => {
+  it('校验错误时向 tool_failed 日志 payload 写入 durationMs', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
     const taskLogger = { filePath: '/tmp/task.jsonl', write: vi.fn(), close: vi.fn() }
@@ -361,7 +361,7 @@ describe('executeToolStep', () => {
     }))
   })
 
-  it('writes durationMs to tool_blocked log payload on policy block', async () => {
+  it('策略阻断时向 tool_blocked 日志 payload 写入 durationMs', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
     const taskLogger = { filePath: '/tmp/task.jsonl', write: vi.fn(), close: vi.fn() }
@@ -388,7 +388,7 @@ describe('executeToolStep', () => {
     }))
   })
 
-  it('writes durationMs to tool_cancelled log payload on abort', async () => {
+  it('中止时向 tool_cancelled 日志 payload 写入 durationMs', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
     const taskLogger = { filePath: '/tmp/task.jsonl', write: vi.fn(), close: vi.fn() }
@@ -414,7 +414,7 @@ describe('executeToolStep', () => {
     }))
   })
 
-  it('writes toolReportedDurationMs when tool result provides its own durationMs', async () => {
+  it('工具结果自带 durationMs 时写入 toolReportedDurationMs', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
     const taskLogger = { filePath: '/tmp/task.jsonl', write: vi.fn(), close: vi.fn() }
@@ -443,8 +443,8 @@ describe('executeToolStep', () => {
   })
 })
 
-describe('createInvalidToolArgsResult', () => {
-  it('creates error result for invalid tool arguments', async () => {
+describe('createInvalidToolArgsResult 行为', () => {
+  it('为无效工具参数创建错误结果', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
 
@@ -466,7 +466,7 @@ describe('createInvalidToolArgsResult', () => {
     expect(emitter.emitTurnToolCalls).toHaveBeenCalled()
   })
 
-  it('preserves model-provided tool call id for invalid arguments', async () => {
+  it('无效参数时保留模型提供的 tool call id', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
     const currentToolMessages: McpToolCall[] = []
@@ -490,7 +490,7 @@ describe('createInvalidToolArgsResult', () => {
     ])
   })
 
-  it('uses default error when no invalidArgsError provided', async () => {
+  it('未提供 invalidArgsError 时使用默认错误', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
 

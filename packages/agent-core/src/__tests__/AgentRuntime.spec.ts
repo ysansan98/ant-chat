@@ -188,9 +188,9 @@ function cleanupTasks(ids: string[]) {
   }
 }
 
-describe('agentRuntime', () => {
-  describe('startTask', () => {
-    it('returns taskId and creates task in store', async () => {
+describe('agentRuntime 行为', () => {
+  describe('startTask 行为', () => {
+    it('返回 taskId 并在 store 中创建任务', async () => {
       const config = createConfig()
       const runtime = new AgentRuntime(config)
       const input = createValidStartInput()
@@ -210,35 +210,35 @@ describe('agentRuntime', () => {
       cleanupTasks([result.taskId])
     })
 
-    it('validates missing conversationId', async () => {
+    it('校验缺失的 conversationId', async () => {
       const runtime = new AgentRuntime(createConfig())
       await expect(
         runtime.startTask(createValidStartInput({ conversationId: '' })),
       ).rejects.toThrow('missing conversationId')
     })
 
-    it('validates missing userMessageId', async () => {
+    it('校验缺失的 userMessageId', async () => {
       const runtime = new AgentRuntime(createConfig())
       await expect(
         runtime.startTask(createValidStartInput({ userMessageId: '' })),
       ).rejects.toThrow('missing userMessageId')
     })
 
-    it('validates missing prompt', async () => {
+    it('校验缺失的 prompt', async () => {
       const runtime = new AgentRuntime(createConfig())
       await expect(
         runtime.startTask(createValidStartInput({ prompt: '' })),
       ).rejects.toThrow('missing prompt')
     })
 
-    it('validates multiple missing fields at once', async () => {
+    it('一次性校验多个缺失字段', async () => {
       const runtime = new AgentRuntime(createConfig())
       await expect(
         runtime.startTask(createValidStartInput({ conversationId: '', userMessageId: '' })),
       ).rejects.toThrow('missing conversationId, userMessageId')
     })
 
-    it('emits taskUpdated event on start', async () => {
+    it('启动任务时发出 taskUpdated 事件', async () => {
       const emitter = createMockEmitter()
       const config: AgentRuntimeConfig = { eventEmitter: emitter, logger: createMockLogger() }
       const runtime = new AgentRuntime(config)
@@ -256,7 +256,7 @@ describe('agentRuntime', () => {
       cleanupTasks([result.taskId])
     })
 
-    it('prevents duplicate tasks for same conversation', async () => {
+    it('阻止同一会话重复启动任务', async () => {
       const runtime = new AgentRuntime(createConfig())
       const result1 = await runtime.startTask(createValidStartInput())
 
@@ -267,7 +267,7 @@ describe('agentRuntime', () => {
       cleanupTasks([result1.taskId])
     })
 
-    it('creates session state and starts loop from high-level task options', async () => {
+    it('通过高层 task 参数创建 session 状态并启动 loop', async () => {
       const store = createSessionStore()
       const config = createSessionConfig({ sessionStore: store })
       const runtime = new AgentRuntime(config)
@@ -301,7 +301,77 @@ describe('agentRuntime', () => {
       cleanupTasks([result.taskId])
     })
 
-    it('uses a conversation-level USER.md and MEMORY.md snapshot in the loop system prompt', async () => {
+    it('高层 task 参数缺少 modelId 时拒绝启动', async () => {
+      const store = createSessionStore()
+      const runtime = new AgentRuntime(createSessionConfig({ sessionStore: store }))
+
+      await expect(runtime.startTask({
+        prompt: 'inspect project',
+        modelId: '',
+        workspacePath: '/workspace',
+        mode: 'hybrid',
+      })).rejects.toThrow('missing modelId')
+      expect(store.createUserMessage).not.toHaveBeenCalled()
+    })
+
+    it('高层 task 参数缺少 workspacePath 时拒绝启动', async () => {
+      const store = createSessionStore()
+      const runtime = new AgentRuntime(createSessionConfig({ sessionStore: store }))
+
+      await expect(runtime.startTask({
+        prompt: 'inspect project',
+        modelId: 'model-1',
+        workspacePath: '',
+        mode: 'hybrid',
+      })).rejects.toThrow('missing workspacePath')
+      expect(store.createUserMessage).not.toHaveBeenCalled()
+    })
+
+    it('找不到模型时不创建用户消息', async () => {
+      const store = createSessionStore()
+      const runtime = new AgentRuntime(createSessionConfig({
+        sessionStore: store,
+        modelCatalog: {
+          getModelById: vi.fn(async () => null),
+          getProviderById: vi.fn(),
+        },
+      }))
+
+      await expect(runtime.startTask({
+        prompt: 'inspect project',
+        modelId: 'missing-model',
+        workspacePath: '/workspace',
+        mode: 'hybrid',
+      })).rejects.toThrow('Model not found: missing-model')
+      expect(store.createUserMessage).not.toHaveBeenCalled()
+    })
+
+    it('找不到模型 provider 时不创建用户消息', async () => {
+      const store = createSessionStore()
+      const runtime = new AgentRuntime(createSessionConfig({
+        sessionStore: store,
+        modelCatalog: {
+          getModelById: vi.fn(async () => ({
+            id: 'model-1',
+            model: 'test-model',
+            name: 'Test Model',
+            providerId: 'missing-provider',
+            contextLength: 128_000,
+          })),
+          getProviderById: vi.fn(async () => null),
+        },
+      }))
+
+      await expect(runtime.startTask({
+        prompt: 'inspect project',
+        modelId: 'model-1',
+        workspacePath: '/workspace',
+        mode: 'hybrid',
+      })).rejects.toThrow('Provider not found for model: test-model')
+      expect(store.createUserMessage).not.toHaveBeenCalled()
+    })
+
+    it('在 loop system prompt 中使用会话级 USER.md 和 MEMORY.md 快照', async () => {
       const store = createSessionStore()
       let userMarkdown = '§Prefer concise Chinese.'
       let memoryMarkdown = '§Use pnpm check.'
@@ -396,7 +466,7 @@ describe('agentRuntime', () => {
       cleanupTasks([secondResult.taskId])
     })
 
-    it('compacts persisted history before writing the new user message and refreshes memory', async () => {
+    it('写入新用户消息前压缩持久化历史并刷新 memory', async () => {
       const conversation = {
         id: 'conv-session',
         title: 'Untitled',
@@ -541,7 +611,7 @@ describe('agentRuntime', () => {
       cleanupTasks([secondResult.taskId])
     })
 
-    it('triggers automatic compaction from the latest assistant usage plus the pending user message', async () => {
+    it('基于最近 assistant usage 和待发送用户消息触发自动压缩', async () => {
       const conversation = {
         id: 'conv-session',
         title: 'Untitled',
@@ -618,7 +688,7 @@ describe('agentRuntime', () => {
       cleanupTasks([result.taskId])
     })
 
-    it('updates the automatic compaction event to error when summarization fails without usage', async () => {
+    it('摘要失败且没有 usage 时将自动压缩 event 更新为 error', async () => {
       const conversation = {
         id: 'conv-session',
         title: 'Untitled',
@@ -705,7 +775,7 @@ describe('agentRuntime', () => {
       cleanupTasks([result.taskId])
     })
 
-    it('ignores assistant usage before the latest compaction checkpoint', async () => {
+    it('忽略最近压缩检查点之前的 assistant usage', async () => {
       const conversation = {
         id: 'conv-session',
         title: 'Untitled',
@@ -789,7 +859,7 @@ describe('agentRuntime', () => {
       cleanupTasks([result.taskId])
     })
 
-    it('does not create user message when conversation already has an active task', async () => {
+    it('会话已有活跃任务时不创建用户消息', async () => {
       const store = createSessionStore()
       const config = createSessionConfig({ sessionStore: store })
       const runtime = new AgentRuntime(config)
@@ -808,8 +878,8 @@ describe('agentRuntime', () => {
     })
   })
 
-  describe('injectSteering', () => {
-    it('enqueues steering and stores pending message (deferred persistence)', async () => {
+  describe('injectSteering 行为', () => {
+    it('追加 steering 并暂存待持久化消息', async () => {
       const store = createSessionStore()
       const eventEmitter = createMockEmitter()
       const runtime = new AgentRuntime(createSessionConfig({ eventEmitter, sessionStore: store }))
@@ -870,8 +940,8 @@ describe('agentRuntime', () => {
     })
   })
 
-  describe('getTask', () => {
-    it('returns task snapshot for existing task', async () => {
+  describe('getTask 行为', () => {
+    it('返回已存在任务的快照', async () => {
       const runtime = new AgentRuntime(createConfig())
       const result = await runtime.startTask(createValidStartInput())
       const snapshot = runtime.getTask(result.taskId)
@@ -880,14 +950,14 @@ describe('agentRuntime', () => {
       cleanupTasks([result.taskId])
     })
 
-    it('throws for non-existent taskId', () => {
+    it('taskId 不存在时抛错', () => {
       const runtime = new AgentRuntime(createConfig())
       expect(() => runtime.getTask('nonexistent')).toThrow('Task not found')
     })
   })
 
-  describe('listActiveTasks', () => {
-    it('lists active tasks for a conversation', async () => {
+  describe('listActiveTasks 行为', () => {
+    it('列出指定会话的活跃任务', async () => {
       const runtime = new AgentRuntime(createConfig())
       const result = await runtime.startTask(
         createValidStartInput({ conversationId: 'conv-list' }),
@@ -901,7 +971,7 @@ describe('agentRuntime', () => {
       expect(runtime.listActiveTasks('conv-list')).toHaveLength(0)
     })
 
-    it('lists all active tasks when no conversationId', async () => {
+    it('不传 conversationId 时列出全部活跃任务', async () => {
       const config = createConfig()
       const runtime = new AgentRuntime(config)
       const r1 = await runtime.startTask(
@@ -918,8 +988,8 @@ describe('agentRuntime', () => {
     })
   })
 
-  describe('approvePendingAction', () => {
-    it('delegates to approvalController.approvePendingAction', () => {
+  describe('approvePendingAction 行为', () => {
+    it('委托 approvalController.approvePendingAction 处理审批', () => {
       const runtime = new AgentRuntime(createConfig())
 
       // This should throw because there's no task awaiting approval
@@ -929,8 +999,8 @@ describe('agentRuntime', () => {
     })
   })
 
-  describe('rejectPendingAction', () => {
-    it('delegates to approvalController.rejectPendingAction', () => {
+  describe('rejectPendingAction 行为', () => {
+    it('委托 approvalController.rejectPendingAction 处理拒绝', () => {
       const runtime = new AgentRuntime(createConfig())
       expect(() =>
         runtime.rejectPendingAction({ taskId: 'nonexistent', actionId: 'action-1' }),
@@ -938,13 +1008,13 @@ describe('agentRuntime', () => {
     })
   })
 
-  describe('cancelTask', () => {
-    it('delegates to approvalController.cancelTask', () => {
+  describe('cancelTask 行为', () => {
+    it('委托 approvalController.cancelTask 处理取消', () => {
       const runtime = new AgentRuntime(createConfig())
       expect(() => runtime.cancelTask({ taskId: 'nonexistent' })).toThrow('Task not found')
     })
 
-    it('cancels a running task', async () => {
+    it('取消正在运行的任务', async () => {
       const runtime = new AgentRuntime(createConfig())
       const result = await runtime.startTask(createValidStartInput())
       runtime.cancelTask({ taskId: result.taskId })

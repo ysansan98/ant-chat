@@ -117,7 +117,7 @@ function makeToolCallChunk(toolName: string, args: Record<string, unknown>, id?:
 // ============================================================
 // Tests
 // ============================================================
-describe('runAgentLoop', () => {
+describe('runAgentLoop 行为', () => {
   let emitter: IAgentEventEmitter
   let logger: ILogger
 
@@ -141,7 +141,7 @@ describe('runAgentLoop', () => {
     vi.restoreAllMocks()
   })
 
-  it('completes with final answer when model returns text without tool calls', async () => {
+  it('模型只返回文本且没有工具调用时以最终答案完成', async () => {
     const aiProvider = createMockAIProvider([
       [makeTextChunk('Hello'), makeTextChunk(' World')],
     ])
@@ -172,7 +172,7 @@ describe('runAgentLoop', () => {
     )
   })
 
-  it('writes model request diagnostics to the task log', async () => {
+  it('向 task log 写入模型请求诊断信息', async () => {
     const aiProvider = createMockAIProvider([
       [makeTextChunk('Done')],
     ])
@@ -232,7 +232,7 @@ describe('runAgentLoop', () => {
     expect(logger.info).not.toHaveBeenCalled()
   })
 
-  it('writes only new messages after the first model request', async () => {
+  it('首次模型请求后只写入新增消息', async () => {
     const taskLogger = {
       filePath: '/tmp/task.jsonl',
       write: vi.fn(),
@@ -281,7 +281,7 @@ describe('runAgentLoop', () => {
     ])
   })
 
-  it('writes a full model request snapshot after compaction', async () => {
+  it('压缩后写入完整模型请求快照', async () => {
     const taskLogger = {
       filePath: '/tmp/task.jsonl',
       write: vi.fn(),
@@ -338,7 +338,7 @@ describe('runAgentLoop', () => {
     ])
   })
 
-  it('executes tool calls and continues conversation', async () => {
+  it('执行工具调用并继续对话', async () => {
     const readTool = createReadTool()
     const aiProvider = createMockAIProvider([
       // First turn: request tool
@@ -373,7 +373,7 @@ describe('runAgentLoop', () => {
     )
   })
 
-  it('keeps duplicate tool calls from the same model response', async () => {
+  it('保留同一次模型响应中的重复工具调用', async () => {
     const execute = vi.fn(async (input: Record<string, unknown>) => ({ ok: true, output: `contents:${input.path}`, exitCode: 0 }))
     const readTool = createReadTool({ execute })
     const modelRequests: RuntimeStartInput['messages'][] = []
@@ -428,7 +428,7 @@ describe('runAgentLoop', () => {
     ])
   })
 
-  it('aborts when abortController is signaled during tool execution', async () => {
+  it('工具执行期间收到 abortController 信号时中止任务', async () => {
     const { taskId, options } = createBaseInput()
     const task = createTask(taskId, options.conversationId)
     taskStore.create(task)
@@ -466,7 +466,7 @@ describe('runAgentLoop', () => {
     )
   })
 
-  it('calls onBeforeTurn hook before each model call', async () => {
+  it('每次调用模型前执行 onBeforeTurn hook', async () => {
     const aiProvider = createMockAIProvider([
       [makeTextChunk('Answer')],
     ])
@@ -495,7 +495,7 @@ describe('runAgentLoop', () => {
       }),
     )
   })
-  it('uses system prompt returned by onBeforeTurn for the model call', async () => {
+  it('模型调用使用 onBeforeTurn 返回的 system prompt', async () => {
     const prompts: string[] = []
     const aiProvider: IAIProvider = {
       async* streamModel(opts) {
@@ -523,7 +523,7 @@ describe('runAgentLoop', () => {
     expect(prompts).toEqual(['Refreshed prompt.'])
   })
 
-  it('throws when aiProvider is null', async () => {
+  it('aiProvider 为 null 时抛错', async () => {
     const { taskId, options } = createBaseInput({ aiProvider: null })
     const task = createTask(taskId, options.conversationId)
     taskStore.create(task)
@@ -540,7 +540,7 @@ describe('runAgentLoop', () => {
     )
   })
 
-  it('throws when task does not exist', async () => {
+  it('任务不存在时抛错', async () => {
     await expect(
       runAgentLoop({
         taskId: 'nonexistent',
@@ -551,7 +551,7 @@ describe('runAgentLoop', () => {
     ).rejects.toThrow('Task not found')
   })
 
-  it('handles tool with invalid args via createInvalidToolArgsResult', async () => {
+  it('通过 createInvalidToolArgsResult 处理无效工具参数', async () => {
     const aiProvider = createMockAIProvider([
       // Tool call with missing required arg — args will be empty
       [makeToolCallChunk('read_file', {})],

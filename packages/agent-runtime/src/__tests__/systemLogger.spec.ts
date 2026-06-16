@@ -27,8 +27,8 @@ afterEach(() => {
   }
 })
 
-describe('createSystemLogger', () => {
-  it('writes formatted messages to the configured log file', () => {
+describe('createSystemLogger 行为', () => {
+  it('将格式化消息写入配置的日志文件', () => {
     const dir = createTempDir()
     const filePath = join(dir, 'main.log')
     const mockConsole = createMockConsole()
@@ -44,7 +44,7 @@ describe('createSystemLogger', () => {
     expect(mockConsole.error).toHaveBeenCalledWith(expect.stringContaining('[error] desktop-main failed Error: boom'))
   })
 
-  it('summarizes structured context as readable text', () => {
+  it('将结构化上下文总结为可读文本', () => {
     const dir = createTempDir()
     const filePath = join(dir, 'main.log')
     const mockConsole = createMockConsole()
@@ -62,7 +62,7 @@ describe('createSystemLogger', () => {
     expect(content).not.toContain('"messagesPreview"')
   })
 
-  it('rotates the log file when it reaches the max file size', () => {
+  it('日志文件达到最大大小时轮转', () => {
     const dir = createTempDir()
     const filePath = join(dir, 'local-server.log')
     const mockConsole = createMockConsole()
@@ -75,7 +75,7 @@ describe('createSystemLogger', () => {
     expect(readFileSync(filePath, 'utf8')).toContain('[warn] next')
   })
 
-  it('keeps debug out of console unless enabled', () => {
+  it('未启用时不向 console 输出 debug', () => {
     const dir = createTempDir()
     const filePath = join(dir, 'debug.log')
     const mockConsole = createMockConsole()

@@ -31,7 +31,7 @@ vi.mock('ai', () => ({
   streamText: mocks.streamText,
 }))
 
-describe('multiProvider', () => {
+describe('multiProvider 行为', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.createOpenAI.mockReturnValue({
@@ -39,7 +39,7 @@ describe('multiProvider', () => {
     })
   })
 
-  it('throws AGENT_CANCELLED when the model stream aborts', async () => {
+  it('模型流中止时抛出 AGENT_CANCELLED', async () => {
     async function* fullStream() {
       yield { type: 'abort', reason: 'user requested cancellation' }
     }
@@ -82,7 +82,7 @@ describe('multiProvider', () => {
     })
   })
 
-  it('returns normalized usage for non-streaming completion', async () => {
+  it('非流式 completion 返回规范化 usage', async () => {
     mocks.generateText.mockResolvedValue({
       text: 'summary',
       usage: {

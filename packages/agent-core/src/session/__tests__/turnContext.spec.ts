@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildPromptWithTurnContext } from '../turnContext'
 
-describe('buildPromptWithTurnContext', () => {
+describe('buildPromptWithTurnContext 行为', () => {
   it('不带上下文时返回原始 prompt', () => {
     expect(buildPromptWithTurnContext({ prompt: '分析项目' })).toBe('分析项目')
   })

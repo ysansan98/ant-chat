@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { NativeToolService } from '../nativeToolService'
 import { createPathPolicy } from '../pathPolicy'
 
-describe('native tool service', () => {
+describe('native tool service 行为', () => {
   let workspacePath: string
   let outsidePath: string
 
@@ -119,7 +119,7 @@ describe('native tool service', () => {
     await expect(bash.execute({ command: 'pwd && ls -la' })).resolves.toMatchObject({ ok: true })
   })
 
-  it('registers browser as an automatically allowed browser operation', () => {
+  it('将 browser 注册为自动允许的 browser 操作', () => {
     const service = new NativeToolService(workspacePath, false, {
       browser: {
         profilePath: '/tmp/profile',
@@ -139,7 +139,7 @@ describe('native tool service', () => {
     )
   })
 
-  it('blocks agent-browser bash bypass when the browser tool is registered', async () => {
+  it('注册 browser 工具后阻断 Bash 绕过调用 agent-browser', async () => {
     const service = new NativeToolService(workspacePath, true, {
       browser: {
         profilePath: '/tmp/profile',
@@ -163,7 +163,7 @@ describe('native tool service', () => {
     expect(result.error).toContain(AGENT_POLICY_BLOCKED)
   })
 
-  describe('inferScope', () => {
+  describe('inferScope 行为', () => {
     it('read_file 工作区内 → workspace', () => {
       const service = new NativeToolService(workspacePath)
       const tool = service.getTools().find(t => t.name === 'read_file')!

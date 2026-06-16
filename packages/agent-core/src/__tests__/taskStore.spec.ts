@@ -23,16 +23,16 @@ function createTask(overrides: Partial<RuntimeTask['snapshot']> = {}): RuntimeTa
   }
 }
 
-describe('taskStore', () => {
-  describe('create', () => {
-    it('stores a task and registers it as active for the conversation', () => {
+describe('taskStore 行为', () => {
+  describe('create 行为', () => {
+    it('存储任务并注册为会话活跃任务', () => {
       const store = new TaskStore()
       const task = createTask()
       store.create(task)
       expect(store.get('task-1')).toBe(task)
     })
 
-    it('throws when a task is already active for the same conversation', () => {
+    it('同一会话已有活跃任务时抛错', () => {
       const store = new TaskStore()
       store.create(createTask({ taskId: 'task-1' }))
       expect(() => store.create(createTask({ taskId: 'task-2' }))).toThrow(
@@ -40,7 +40,7 @@ describe('taskStore', () => {
       )
     })
 
-    it('allows tasks for different conversations', () => {
+    it('允许不同会话创建任务', () => {
       const store = new TaskStore()
       store.create(createTask({ taskId: 'task-1', conversationId: 'conv-1' }))
       expect(() =>
@@ -49,22 +49,22 @@ describe('taskStore', () => {
     })
   })
 
-  describe('get', () => {
-    it('returns the task by id', () => {
+  describe('get 行为', () => {
+    it('按 id 返回任务', () => {
       const store = new TaskStore()
       const task = createTask()
       store.create(task)
       expect(store.get('task-1')).toBe(task)
     })
 
-    it('returns undefined for unknown taskId', () => {
+    it('未知 taskId 返回 undefined', () => {
       const store = new TaskStore()
       expect(store.get('nonexistent')).toBeUndefined()
     })
   })
 
-  describe('listActive', () => {
-    it('lists only running/awaiting_approval tasks', () => {
+  describe('listActive 行为', () => {
+    it('只列出 running 和 awaiting_approval 任务', () => {
       const store = new TaskStore()
       store.create(createTask({ taskId: 't1', status: 'running' }))
       store.create(createTask({ taskId: 't2', conversationId: 'conv-2', status: 'awaiting_approval' }))
@@ -77,7 +77,7 @@ describe('taskStore', () => {
       expect(active.map(t => t.taskId).sort()).toEqual(['t2', 't3'])
     })
 
-    it('filters by conversationId when provided', () => {
+    it('传入 conversationId 时按会话过滤', () => {
       const store = new TaskStore()
       store.create(createTask({ taskId: 't1', conversationId: 'conv-1' }))
       store.create(createTask({ taskId: 't2', conversationId: 'conv-2' }))
@@ -87,14 +87,14 @@ describe('taskStore', () => {
       expect(store.listActive('conv-3')).toHaveLength(0)
     })
 
-    it('returns empty array when no tasks', () => {
+    it('没有任务时返回空数组', () => {
       const store = new TaskStore()
       expect(store.listActive()).toEqual([])
     })
   })
 
-  describe('finish', () => {
-    it('removes the task and unregisters from conversation', () => {
+  describe('finish 行为', () => {
+    it('移除任务并解除会话注册', () => {
       const store = new TaskStore()
       store.create(createTask())
       store.finish('task-1')
@@ -102,12 +102,12 @@ describe('taskStore', () => {
       expect(store.listActive('conv-1')).toHaveLength(0)
     })
 
-    it('no-ops for non-existent taskId', () => {
+    it('taskId 不存在时不做任何处理', () => {
       const store = new TaskStore()
       expect(() => store.finish('nonexistent')).not.toThrow()
     })
 
-    it('allows creating a new task after finish on the same conversation', () => {
+    it('同一会话 finish 后允许创建新任务', () => {
       const store = new TaskStore()
       store.create(createTask({ taskId: 'task-1' }))
       store.finish('task-1')
@@ -117,8 +117,8 @@ describe('taskStore', () => {
     })
   })
 
-  describe('delete', () => {
-    it('removes the task and unregisters from conversation', () => {
+  describe('delete 行为', () => {
+    it('移除任务并解除会话注册', () => {
       const store = new TaskStore()
       store.create(createTask())
       store.delete('task-1')
@@ -126,7 +126,7 @@ describe('taskStore', () => {
       expect(store.listActive('conv-1')).toHaveLength(0)
     })
 
-    it('no-ops for non-existent taskId', () => {
+    it('taskId 不存在时不做任何处理', () => {
       const store = new TaskStore()
       expect(() => store.delete('nonexistent')).not.toThrow()
     })

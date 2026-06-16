@@ -2,8 +2,8 @@ import { Buffer } from 'node:buffer'
 import { describe, expect, it, vi } from 'vitest'
 import { contentBlocksToLoopMessageContent } from '../attachmentUtils'
 
-describe('contentBlocksToLoopMessageContent', () => {
-  it('loads image file references as base64 image content', async () => {
+describe('contentBlocksToLoopMessageContent 行为', () => {
+  it('将图片文件引用加载为 base64 image content', async () => {
     const loadFileData = vi.fn(async () => 'image-base64')
 
     const content = await contentBlocksToLoopMessageContent([
@@ -25,7 +25,7 @@ describe('contentBlocksToLoopMessageContent', () => {
     ])
   })
 
-  it('decodes text file references before sending them to the model', async () => {
+  it('发送给模型前解码文本文件引用', async () => {
     const loadFileData = vi.fn(async () => Buffer.from('hello\n', 'utf8').toString('base64'))
 
     const content = await contentBlocksToLoopMessageContent([
@@ -45,7 +45,7 @@ describe('contentBlocksToLoopMessageContent', () => {
     ])
   })
 
-  it('keeps existing inline image content without requiring a url', async () => {
+  it('保留已有 inline image content 且不要求 url', async () => {
     const content = await contentBlocksToLoopMessageContent([
       {
         type: 'image',
