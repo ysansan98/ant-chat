@@ -1,0 +1,90 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: 'Nunito Sans', Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+
+  --shadow-sm: 0 1px 2px 0 oklch(0.18 0.02 255 / 0.04), 0 8px 24px -18px oklch(0.18 0.02 255 / 0.18);
+  --shadow: 0 1px 2px 0 oklch(0.18 0.02 255 / 0.05), 0 12px 32px -22px oklch(0.18 0.02 255 / 0.22);
+  --shadow-md: 0 2px 4px 0 oklch(0.18 0.02 255 / 0.05), 0 18px 42px -28px oklch(0.18 0.02 255 / 0.24);
+  --shadow-lg: 0 4px 8px 0 oklch(0.18 0.02 255 / 0.06), 0 24px 56px -34px oklch(0.18 0.02 255 / 0.26);
+}
+
+:root {
+  --background: oklch(0.972 0.012 88);
+  --foreground: oklch(0.205 0.035 255);
+  --primary: oklch(0.315 0.075 255);
+  --primary-foreground: oklch(0.985 0.005 88);
+  --secondary: oklch(0.93 0.014 88);
+  --secondary-foreground: oklch(0.28 0.035 255);
+  --muted: oklch(0.925 0.012 88);
+  --muted-foreground: oklch(0.47 0.025 255);
+  --accent: oklch(0.69 0.135 230);
+  --accent-foreground: oklch(0.12 0.03 255);
+  --border: oklch(0.86 0.012 88);
+  --ring: oklch(0.52 0.09 230);
+  --radius: 0.75rem;
+}
+
+.dark {
+  --background: oklch(0.18 0.015 255);
+  --foreground: oklch(0.94 0.008 88);
+  --primary: oklch(0.78 0.06 230);
+  --primary-foreground: oklch(0.16 0.02 255);
+  --secondary: oklch(0.27 0.018 255);
+  --secondary-foreground: oklch(0.9 0.008 88);
+  --muted: oklch(0.28 0.018 255);
+  --muted-foreground: oklch(0.68 0.015 88);
+  --accent: oklch(0.68 0.12 230);
+  --accent-foreground: oklch(0.12 0.03 255);
+  --border: oklch(0.32 0.018 255);
+  --ring: oklch(0.64 0.1 230);
+}
+
+@keyframes dot-bounce {
+  0%,
+  80%,
+  100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-8px);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+    line-height: 1.6;
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+.dot-animation {
+  animation: dot-bounce 1.4s ease-in-out infinite;
+}
