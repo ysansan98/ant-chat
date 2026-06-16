@@ -20,10 +20,17 @@ vi.mock('electron-ipc-decorator', () => ({
   IpcMethod: () => () => {},
 }))
 
-vi.mock('@main/runtime/appRuntime', () => ({
+vi.mock('@main/app-runtime-host/appRuntime', () => ({
   getAppRuntime: () => ({
     agent: mocks.agent,
   }),
+}))
+
+vi.mock('@main/utils/logger', () => ({
+  logger: {
+    info: vi.fn(),
+    error: vi.fn(),
+  },
 }))
 
 describe('agent ipc', () => {

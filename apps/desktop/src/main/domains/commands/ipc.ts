@@ -1,6 +1,6 @@
 import type { IpcResponse, RunBuiltinCommandParams, RunBuiltinCommandResult } from '@ant-chat/shared'
-import { createErrorIpcResponse, createIpcResponse } from '@ant-chat/shared'
-import { getAppRuntime } from '@main/runtime/appRuntime'
+import { getAppRuntime } from '@main/app-runtime-host/appRuntime'
+import { withIpcResponse } from '@main/utils/ipc-response'
 import { IpcMethod, IpcService } from 'electron-ipc-decorator'
 
 export class CommandsIpcService extends IpcService {
@@ -8,23 +8,11 @@ export class CommandsIpcService extends IpcService {
 
   @IpcMethod()
   async runBuiltinCommand(params: RunBuiltinCommandParams): Promise<IpcResponse<RunBuiltinCommandResult>> {
-    try {
-      const data = await getAppRuntime().commands.run(params)
-      return createIpcResponse(true, data)
-    }
-    catch (error) {
-      return createErrorIpcResponse(error as Error)
-    }
+    return withIpcResponse(() => getAppRuntime().commands.run(params), '执行内置命令失败')
   }
 
   @IpcMethod()
   async cancelCommand(conversationId: string): Promise<IpcResponse<null>> {
-    try {
-      await getAppRuntime().commands.cancel(conversationId)
-      return createIpcResponse(true, null)
-    }
-    catch (error) {
-      return createErrorIpcResponse(error as Error)
-    }
+    return withIpcResponse(() => getAppRuntime().commands.cancel(conversationId), '取消命令失败')
   }
 }

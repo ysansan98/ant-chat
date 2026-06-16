@@ -1,6 +1,6 @@
 import type { AllAvailableModelsSchema, CreateProviderConfigModelSchema, CreateProviderConfigSchema, IpcResponse, ModelsDevModel, ModelsDevProvider, ProviderConfigModelSchema, ProviderConfigSchema, UpdateProviderConfigSchema } from '@ant-chat/shared'
-import { createErrorIpcResponse, createIpcResponse } from '@ant-chat/shared'
-import { getAppRuntime } from '@main/runtime/appRuntime'
+import { getAppRuntime } from '@main/app-runtime-host/appRuntime'
+import { withIpcResponse } from '@main/utils/ipc-response'
 import { IpcMethod, IpcService } from 'electron-ipc-decorator'
 
 export class ProviderIpcService extends IpcService {
@@ -8,166 +8,76 @@ export class ProviderIpcService extends IpcService {
 
   @IpcMethod()
   async listProviders(): Promise<IpcResponse<ProviderConfigSchema[]>> {
-    try {
-      const data = getAppRuntime().provider.list()
-      return createIpcResponse(true, data)
-    }
-    catch (error) {
-      return createErrorIpcResponse(error as Error)
-    }
+    return withIpcResponse(() => getAppRuntime().provider.list(), '获取 Provider 列表失败')
   }
 
   @IpcMethod()
   async updateProvider(providerConfig: UpdateProviderConfigSchema): Promise<IpcResponse<ProviderConfigSchema>> {
-    try {
-      const updatedData = getAppRuntime().provider.update(providerConfig)
-      return createIpcResponse(true, updatedData)
-    }
-    catch (error) {
-      return createErrorIpcResponse(error as Error)
-    }
+    return withIpcResponse(() => getAppRuntime().provider.update(providerConfig), '更新 Provider 失败')
   }
 
   @IpcMethod()
   async createProvider(data: CreateProviderConfigSchema): Promise<IpcResponse<ProviderConfigSchema>> {
-    try {
-      const result = getAppRuntime().provider.create(data)
-      return createIpcResponse(true, result)
-    }
-    catch (error) {
-      return createErrorIpcResponse(error as Error)
-    }
+    return withIpcResponse(() => getAppRuntime().provider.create(data), '创建 Provider 失败')
   }
 
   @IpcMethod()
   async deleteProvider(id: string): Promise<IpcResponse<null>> {
-    try {
-      getAppRuntime().provider.delete(id)
-      return createIpcResponse(true, null)
-    }
-    catch (error) {
-      return createErrorIpcResponse(error as Error)
-    }
+    return withIpcResponse(() => getAppRuntime().provider.delete(id), '删除 Provider 失败')
   }
 
   @IpcMethod()
   async getProviderById(id: string): Promise<IpcResponse<ProviderConfigSchema>> {
-    try {
-      const result = getAppRuntime().provider.getById(id)
-      return createIpcResponse(true, result)
-    }
-    catch (error) {
-      return createErrorIpcResponse(error as Error)
-    }
+    return withIpcResponse(() => getAppRuntime().provider.getById(id), '获取 Provider 详情失败')
   }
 
   @IpcMethod()
   async getProviderByModelId(id: string): Promise<IpcResponse<ProviderConfigSchema>> {
-    try {
-      const result = getAppRuntime().provider.getByModelId(id)
-      return createIpcResponse(true, result)
-    }
-    catch (error) {
-      return createErrorIpcResponse(error as Error)
-    }
+    return withIpcResponse(() => getAppRuntime().provider.getByModelId(id), '根据模型获取 Provider 失败')
   }
 
   @IpcMethod()
   async getAllAbvailableModels(): Promise<IpcResponse<AllAvailableModelsSchema[]>> {
-    try {
-      const result = getAppRuntime().provider.listAvailableModels()
-      return createIpcResponse(true, result)
-    }
-    catch (error) {
-      return createErrorIpcResponse(error as Error)
-    }
+    return withIpcResponse(() => getAppRuntime().provider.listAvailableModels(), '获取所有可用模型失败')
   }
 
   @IpcMethod()
   async listProviderModels(id: string): Promise<IpcResponse<ProviderConfigModelSchema[]>> {
-    try {
-      const result = getAppRuntime().provider.listModels(id)
-      return createIpcResponse(true, result)
-    }
-    catch (error) {
-      return createErrorIpcResponse(error as Error)
-    }
+    return withIpcResponse(() => getAppRuntime().provider.listModels(id), '获取 Provider 模型列表失败')
   }
 
   @IpcMethod()
   async getModelById(id: string): Promise<IpcResponse<ProviderConfigModelSchema>> {
-    try {
-      const result = getAppRuntime().provider.getModel(id)
-      return createIpcResponse(true, result)
-    }
-    catch (error) {
-      return createErrorIpcResponse(error as Error)
-    }
+    return withIpcResponse(() => getAppRuntime().provider.getModel(id), '获取模型详情失败')
   }
 
   @IpcMethod()
   async setModelEnabledStatus(id: string, status: boolean): Promise<IpcResponse<ProviderConfigModelSchema>> {
-    try {
-      const result = getAppRuntime().provider.setModelEnabled(id, status)
-      return createIpcResponse(true, result)
-    }
-    catch (error) {
-      return createErrorIpcResponse(error as Error)
-    }
+    return withIpcResponse(() => getAppRuntime().provider.setModelEnabled(id, status), '更新模型启用状态失败')
   }
 
   @IpcMethod()
   async createProviderModel(config: CreateProviderConfigModelSchema): Promise<IpcResponse<ProviderConfigModelSchema>> {
-    try {
-      const result = getAppRuntime().provider.createModel(config)
-      return createIpcResponse(true, result)
-    }
-    catch (error) {
-      return createErrorIpcResponse(error as Error)
-    }
+    return withIpcResponse(() => getAppRuntime().provider.createModel(config), '创建模型失败')
   }
 
   @IpcMethod()
   async deleteProviderModel(id: string): Promise<IpcResponse<null>> {
-    try {
-      getAppRuntime().provider.deleteModel(id)
-      return createIpcResponse(true, null)
-    }
-    catch (error) {
-      return createErrorIpcResponse(error as Error)
-    }
+    return withIpcResponse(() => getAppRuntime().provider.deleteModel(id), '删除模型失败')
   }
 
   @IpcMethod()
   async getModelsDevProviders(): Promise<IpcResponse<ModelsDevProvider[]>> {
-    try {
-      const result = await getAppRuntime().provider.getModelsDevProviders()
-      return createIpcResponse(true, result)
-    }
-    catch (error) {
-      return createErrorIpcResponse(error as Error)
-    }
+    return withIpcResponse(() => getAppRuntime().provider.getModelsDevProviders(), '获取 models.dev Provider 列表失败')
   }
 
   @IpcMethod()
   async getModelsDevModelsByProviderId(providerId: string): Promise<IpcResponse<ModelsDevModel[]>> {
-    try {
-      const result = await getAppRuntime().provider.getModelsDevModels(providerId)
-      return createIpcResponse(true, result)
-    }
-    catch (error) {
-      return createErrorIpcResponse(error as Error)
-    }
+    return withIpcResponse(() => getAppRuntime().provider.getModelsDevModels(providerId), '获取 models.dev 模型列表失败')
   }
 
   @IpcMethod()
   async importModelsDevModels(providerId: string): Promise<IpcResponse<{ added: string[], skipped: string[], duplicates: string[], errors: { model: string, reason: string }[] }>> {
-    try {
-      const result = await getAppRuntime().provider.importModelsDevModels(providerId)
-      return createIpcResponse(true, result)
-    }
-    catch (error) {
-      return createErrorIpcResponse(error as Error)
-    }
+    return withIpcResponse(() => getAppRuntime().provider.importModelsDevModels(providerId), '导入 models.dev 模型失败')
   }
 }
