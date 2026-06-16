@@ -12,7 +12,7 @@ import { createAppDataSessionStore } from '../sessionStore'
 
 const TEST_MODEL_ID = 'mock-model'
 
-describe.skipIf(!canRunDbIntegrationTests())('agent 真实链路权限行为', () => {
+describe.skipIf(!canRunDbIntegrationTests() || !canRunRg())('agent 真实链路权限行为', () => {
   let harness: AgentRuntimeHarness
 
   beforeEach(() => {
@@ -387,4 +387,9 @@ function canRunDbIntegrationTests() {
 function loadBetterSqlite(): BetterSqliteConstructor {
   const require = createRequire(import.meta.url)
   return require('better-sqlite3') as BetterSqliteConstructor
+}
+
+function canRunRg(): boolean {
+  const result = spawnSync('rg', ['--version'], { stdio: 'ignore' })
+  return result.status === 0 && result.signal === null
 }
