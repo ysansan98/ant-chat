@@ -1,7 +1,6 @@
 import type { GeneralSettingsState, IpcResponse } from '@ant-chat/shared'
-import { createErrorIpcResponse, createIpcResponse } from '@ant-chat/shared'
-import { getAppRuntime } from '@main/runtime/appRuntime'
-import { logger } from '@main/utils/logger'
+import { getAppRuntime } from '@main/app-runtime-host/appRuntime'
+import { withIpcResponse } from '@main/utils/ipc-response'
 import { openSettingsWindow } from '@main/windows/settings-window'
 import { IpcMethod, IpcService } from 'electron-ipc-decorator'
 
@@ -10,57 +9,26 @@ export class SettingsIpcService extends IpcService {
 
   @IpcMethod()
   async openSettingsWindow(): Promise<IpcResponse<void>> {
-    try {
-      await openSettingsWindow()
-      return createIpcResponse(true, undefined)
-    }
-    catch (error) {
-      logger.error('Failed to open settings window:', error)
-      return createErrorIpcResponse(error instanceof Error ? error : String(error))
-    }
+    return withIpcResponse(() => openSettingsWindow(), '打开设置窗口失败')
   }
 
   @IpcMethod()
   async getSettings(): Promise<IpcResponse<GeneralSettingsState>> {
-    try {
-      const settings = await getAppRuntime().settings.get()
-      return createIpcResponse(true, settings)
-    }
-    catch (error) {
-      return createErrorIpcResponse(error instanceof Error ? error : String(error))
-    }
+    return withIpcResponse(() => getAppRuntime().settings.get(), '获取设置失败')
   }
 
   @IpcMethod()
   async updateSettings(updates: Partial<GeneralSettingsState>): Promise<IpcResponse<GeneralSettingsState>> {
-    try {
-      return createIpcResponse(true, await getAppRuntime().settings.update(updates))
-    }
-    catch (error) {
-      console.error('Failed to update general settings:', error)
-      return createErrorIpcResponse(error instanceof Error ? error : String(error))
-    }
+    return withIpcResponse(() => getAppRuntime().settings.update(updates), '更新设置失败')
   }
 
   @IpcMethod()
   async resetSettings(): Promise<IpcResponse<GeneralSettingsState>> {
-    try {
-      return createIpcResponse(true, await getAppRuntime().settings.reset())
-    }
-    catch (error) {
-      return createErrorIpcResponse(error instanceof Error ? error : String(error))
-    }
+    return withIpcResponse(() => getAppRuntime().settings.reset(), '重置设置失败')
   }
 
   @IpcMethod()
   async testProxyConnection(proxyUrl: string): Promise<IpcResponse<boolean>> {
-    try {
-      const success = await getAppRuntime().settings.testProxy(proxyUrl)
-      return createIpcResponse(true, success)
-    }
-    catch (error) {
-      logger.error('Proxy test failed:', error)
-      return createErrorIpcResponse(error instanceof Error ? error : String(error))
-    }
+    return withIpcResponse(() => getAppRuntime().settings.testProxy(proxyUrl), '代理连接测试失败')
   }
 }

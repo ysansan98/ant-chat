@@ -1,7 +1,7 @@
 import type { AppRuntime } from '@ant-chat/app-runtime'
 import { createAppRuntime } from '@ant-chat/app-runtime'
 import { resolveAppDataRoot } from '@ant-chat/shared'
-import { attachAppRuntimeEvents } from '@main/runtime/electronAppRuntimeEvents'
+import { attachAppRuntimeEvents } from '@main/app-runtime-host/electronAppRuntimeEvents'
 
 let runtime: AppRuntime | null = null
 

@@ -13,7 +13,7 @@ vi.mock('electron-ipc-decorator', () => ({
   IpcMethod: () => () => {},
 }))
 
-vi.mock('@main/runtime/appRuntime', () => ({
+vi.mock('@main/app-runtime-host/appRuntime', () => ({
   getAppRuntime: () => ({
     chat: {
       createConversationTitle: mocks.updateTitle,

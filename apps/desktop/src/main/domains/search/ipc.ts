@@ -1,7 +1,6 @@
 import type { IpcResponse, SearchResult } from '@ant-chat/shared'
-import { createErrorIpcResponse, createIpcResponse } from '@ant-chat/shared'
-import { getAppRuntime } from '@main/runtime/appRuntime'
-import { logger } from '@main/utils/logger'
+import { getAppRuntime } from '@main/app-runtime-host/appRuntime'
+import { withIpcResponse } from '@main/utils/ipc-response'
 import { IpcMethod, IpcService } from 'electron-ipc-decorator'
 
 export class SearchIpcService extends IpcService {
@@ -9,13 +8,6 @@ export class SearchIpcService extends IpcService {
 
   @IpcMethod()
   async searchByKeyword(query: string): Promise<IpcResponse<SearchResult[]>> {
-    try {
-      const data = await getAppRuntime().search.messages(query)
-      return createIpcResponse(true, data)
-    }
-    catch (error) {
-      logger.error('全局搜索消息失败:', error)
-      return createErrorIpcResponse(error as Error)
-    }
+    return withIpcResponse(() => getAppRuntime().search.messages(query), '全局搜索消息失败')
   }
 }
