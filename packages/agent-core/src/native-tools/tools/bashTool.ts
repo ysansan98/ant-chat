@@ -12,7 +12,7 @@ export function createBashTool(
     description: '执行 shell 命令',
     inputSchema: {
       type: 'object',
-      properties: { command: { type: 'string' }, cwd: { type: 'string' }, timeoutMs: { type: 'number' } },
+      properties: { command: { type: 'string' }, cwd: { type: 'string' }, timeoutMs: { type: 'number' }, env: { type: 'object' } },
       required: ['command'],
     },
     unrestricted,

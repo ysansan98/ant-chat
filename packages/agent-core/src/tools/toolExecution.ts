@@ -1,4 +1,4 @@
-import type { AgentRuntimeConfig, McpToolCall, ToolCallContent } from '@ant-chat/shared'
+import type { AgentRuntimeConfig, AgentToolResult, McpToolCall, SecretRef, ToolCallContent } from '@ant-chat/shared'
 import type { RuntimeTask } from '../taskStore'
 import type { PreparedToolCall, ToolRegistry } from './toolRegistry'
 import type { BeforeToolExecuteHook, ToolCallContext } from './types'
@@ -88,7 +88,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   }
 
   // Phase 2: Execute
-  const execution = await executePreparedTool(preparation.prepared)
+  const execution = await executePreparedTool(preparation.prepared, task, config)
 
   // Phase 3: Finalize
   const durationMs = Date.now() - toolStartedAt
@@ -179,12 +179,29 @@ async function prepareToolStep(input: PrepareToolStepInput): Promise<ToolPrepara
 // Phase 2: Execute — run the prepared tool
 // ============================================================
 
-async function executePreparedTool(prepared: PreparedToolCall): Promise<ToolExecution> {
-  const result = await prepared.execute()
+async function executePreparedTool(prepared: PreparedToolCall, task: RuntimeTask, config: AgentRuntimeConfig): Promise<ToolExecution> {
+  const result = prepared.toolName === 'requestSecret'
+    ? await executeRequestSecret(prepared, task, config)
+    : await prepared.execute()
   if (!result.ok) {
     return { result, errorMsg: result.error || 'AGENT_TOOL_EXEC_FAILED' }
   }
   return { result }
+}
+
+async function executeRequestSecret(prepared: PreparedToolCall, task: RuntimeTask, config: AgentRuntimeConfig): Promise<AgentToolResult> {
+  if (!config.secretRequester) {
+    return { ok: false, error: 'Secret requester is not available' }
+  }
+  const label = String(prepared.input.label || '').trim()
+  const reason = typeof prepared.input.reason === 'string' ? prepared.input.reason : undefined
+  const secretRef = await config.secretRequester.requestSecret({
+    runId: task.snapshot.taskId,
+    conversationId: task.snapshot.conversationId,
+    label,
+    reason,
+  })
+  return { ok: true, output: { secretRef } }
 }
 
 // ============================================================
@@ -231,7 +248,7 @@ async function finalizeSuccessToolStep(
   const { prepared, lastToolCallContext } = preparation
   const traceLogger = createAgentTraceLogger(config)
 
-  const toolOutputText = getToolOutputText(result)
+  const toolOutputText = await redactSecrets(getToolOutputText(result), prepared.input, config)
   const observation = buildObservation(prepared, result, toolOutputText)
   const toolReportedDurationMs = result.durationMs
 
@@ -248,6 +265,40 @@ async function finalizeSuccessToolStep(
     toolResultContent: observation,
     isError: false,
   }
+}
+
+async function redactSecrets(text: string, input: Record<string, unknown>, config: AgentRuntimeConfig): Promise<string> {
+  let next = text
+  for (const ref of collectSecretRefs(input)) {
+    next = next.split(ref.id).join('[secret-ref]')
+    const secretValue = await config.secretStore?.resolve(ref)
+    if (secretValue) {
+      next = next.split(secretValue).join('[secret]')
+    }
+  }
+  return next
+}
+
+function collectSecretRefs(value: unknown): SecretRef[] {
+  if (isSecretRef(value)) {
+    return [value]
+  }
+  if (!value || typeof value !== 'object') {
+    return []
+  }
+  if (Array.isArray(value)) {
+    return (value as unknown[]).flatMap(collectSecretRefs)
+  }
+  return Object.values(value).flatMap(collectSecretRefs)
+}
+
+function isSecretRef(value: unknown): value is SecretRef {
+  return Boolean(value)
+    && typeof value === 'object'
+    && !Array.isArray(value)
+    && (value as { kind?: unknown }).kind === 'secret_ref'
+    && typeof (value as { id?: unknown }).id === 'string'
+    && ((value as { scope?: unknown }).scope === 'persistent' || (value as { scope?: unknown }).scope === 'turn')
 }
 
 // ============================================================

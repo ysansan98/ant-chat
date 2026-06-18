@@ -1,6 +1,6 @@
 import type { MultiProvider } from '@ant-chat/agent-core'
 import type { ConversationRepository, MessageRepository, ProviderSettingsRepository } from '@ant-chat/app-data'
-import type { IConversations, IMessage } from '@ant-chat/shared'
+import type { AIProviderFactory, IConversations, IMessage, ProviderConfigSchema } from '@ant-chat/shared'
 import { createProvider } from '@ant-chat/agent-core'
 
 const TITLE_PROMPT_PLACEHOLDER = 'pGqat5J/L@~U'
@@ -27,6 +27,7 @@ export interface ConversationTitleGeneratorDependencies {
   providerSettingsRepository: ProviderSettingsRepository
   messageRepository: MessageRepository
   conversationRepository: ConversationRepository
+  aiProviderFactory?: AIProviderFactory
 }
 
 export function createConversationTitleGenerator(
@@ -39,7 +40,9 @@ export function createConversationTitleGenerator(
     if (!provider) {
       throw new Error('Provider not found')
     }
-    aiProvider = await createProvider(provider)
+    aiProvider = deps.aiProviderFactory
+      ? await deps.aiProviderFactory({ model: { id: '', model: '', name: '', providerId: provider.id, contextLength: 0 }, provider }) as MultiProvider
+      : await createProvider(provider as ProviderConfigSchema)
   }
 
   return {

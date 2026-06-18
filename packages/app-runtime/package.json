@@ -32,6 +32,7 @@
     "@ant-chat/mcp-client-hub": "workspace:^",
     "@ant-chat/shared": "workspace:^",
     "better-sqlite3": "catalog:",
+    "keytar": "^7.9.0",
     "undici": "^7.15.0"
   },
   "devDependencies": {

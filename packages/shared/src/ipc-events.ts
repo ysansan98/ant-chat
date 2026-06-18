@@ -1,4 +1,5 @@
 import type { AgentPendingAction, AgentTaskSnapshot, IConversations, IMessage, NotificationOption, ProgressInfo, UpdateError, UpdateInfo, UpdateStatus } from './interfaces'
+import type { SecretRequest } from './schemas'
 
 export function createIpcResponse<T>(success: boolean, data: T, msg?: string): IpcResponse<T> | ErrorIpcResponse {
   if (success) {
@@ -66,6 +67,7 @@ export interface AppRendererEvents {
   'message:updated': { message: IMessage }
   'agent:task-updated': { task: AgentTaskSnapshot }
   'agent:approval-required': { taskId: string, conversationId: string, pendingAction: AgentPendingAction }
+  'agent:secret-requested': { request: SecretRequest }
   'workspace:changed': { currentWorkspacePath: string }
   'settings:updated': { keys: string[] }
   'mcp:status-changed': { serverName: string, status: 'connected' | 'disconnected', error?: string }

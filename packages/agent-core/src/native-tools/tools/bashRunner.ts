@@ -54,7 +54,7 @@ export async function runBashTool(
   let stderr = ''
   let exitCode = 0
   for (const item of commands) {
-    const result = await runSingleCommand(item, cwd, perCommandTimeoutMs, input.env, startedAt)
+    const result = await runSingleCommand(item, cwd, perCommandTimeoutMs, input.env as Record<string, string> | undefined, startedAt)
     stdout = appendTruncated(stdout, result.stdout || '')
     stderr = appendTruncated(stderr, result.stderr || '')
     exitCode = result.exitCode ?? (result.ok ? 0 : 1)

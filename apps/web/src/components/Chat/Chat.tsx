@@ -2,11 +2,11 @@ import type { AgentMode, ChatFeatures, IMessageContent } from '@ant-chat/shared'
 import { Skeleton } from '@workspace/ui/components/skeleton'
 import { lazy, Suspense } from 'react'
 import { toast } from 'sonner'
-import { AgentApprovalCard } from '@/components/Agent'
+import { AgentApprovalCard, AgentSecretRequestCard } from '@/components/Agent'
 import { DEFAULT_TITLE } from '@/constants'
 import { useChatSettingsContext } from '@/contexts/chatSettings'
 import { useBuiltinCommandSubmit } from '@/hooks/useBuiltinCommandSubmit'
-import { approveAgentActionWithWhitelist, injectSteeringAction, rejectAgentAction, startAgentTurn, useAgentStore } from '@/store/agent'
+import { approveAgentActionWithWhitelist, injectSteeringAction, rejectAgentAction, rejectSecretRequestAction, resolveSecretRequestAction, startAgentTurn, useAgentStore } from '@/store/agent'
 import {
   initConversationsTitle,
   upsertConversationAction,
@@ -33,6 +33,7 @@ export default function Chat() {
   const agentTask = useAgentStore(state => state.getActiveTaskByConversation(activeConversationsId))
   const agentTaskId = agentTask?.taskId
   const pending = useAgentStore(state => (agentTaskId ? state.pendingByTask[agentTaskId] : undefined))
+  const secretRequest = useAgentStore(state => Object.values(state.secretRequests).find(request => request.conversationId === activeConversationsId))
 
   const { commandRunning, submitCommand, cancelCommand } = useBuiltinCommandSubmit({
     settings: {
@@ -137,6 +138,15 @@ export default function Chat() {
                   })
                 }}
                 onReject={() => void rejectAgentAction({ taskId: agentTask.taskId, actionId: pending.actionId, reason: '用户拒绝' })}
+              />
+            )
+          : null}
+        {secretRequest
+          ? (
+              <AgentSecretRequestCard
+                request={secretRequest}
+                onSubmit={value => void resolveSecretRequestAction(secretRequest.requestId, value)}
+                onReject={() => void rejectSecretRequestAction(secretRequest.requestId)}
               />
             )
           : null}

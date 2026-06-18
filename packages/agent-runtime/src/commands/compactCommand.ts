@@ -1,5 +1,5 @@
 import type { AppDataContext } from '@ant-chat/app-data'
-import type { IAgentEventEmitter, ILogger, LanguageModelUsage, RunBuiltinCommandResult } from '@ant-chat/shared'
+import type { AIProviderFactory, IAgentEventEmitter, ILogger, LanguageModelUsage, RunBuiltinCommandResult } from '@ant-chat/shared'
 import { buildConversationContextEntries, compactMessages, createCompactionStrategy, createProvider, DEFAULT_COMPACTION_SETTINGS, planCompaction } from '@ant-chat/agent-core'
 
 export async function runCompact(params: {
@@ -9,9 +9,10 @@ export async function runCompact(params: {
   instruction: string | undefined
   modelConfig: { modelId: string, systemPrompt: string, temperature: number, maxTokens: number }
   logger?: ILogger
+  aiProviderFactory?: AIProviderFactory
   abortSignal?: AbortSignal
 }): Promise<RunBuiltinCommandResult> {
-  const { appDataContext, eventEmitter, conversationId, instruction, modelConfig, logger, abortSignal } = params
+  const { appDataContext, eventEmitter, conversationId, instruction, modelConfig, logger, aiProviderFactory, abortSignal } = params
 
   function log(msg: string) {
     logger?.info(`[compact] ${msg}`)
@@ -90,7 +91,9 @@ export async function runCompact(params: {
 
   const compactionStrategy = createCompactionStrategy()
   try {
-    const aiProvider = await createProvider(provider)
+    const aiProvider = aiProviderFactory
+      ? await aiProviderFactory({ model: modelInfo, provider })
+      : await createProvider(provider)
     log(`aiProvider created`)
     const compactResult = await compactMessages({
       messages: loopMessages,

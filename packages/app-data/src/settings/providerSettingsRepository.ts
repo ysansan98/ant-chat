@@ -6,6 +6,7 @@ import type {
   ProviderConfigSchema,
   ProviderModelSettingsSchema,
   ProviderSettingsSchema,
+  SecretStore,
   UpdateProviderConfigSchema,
 } from '@ant-chat/shared'
 import type { AppSettingsStore } from './appSettingsStore'
@@ -13,8 +14,8 @@ import { CreateProviderConfigModelSchema as CreateProviderConfigModelValidator, 
 import { nanoid } from 'nanoid'
 
 function toProviderConfig(provider: ProviderSettingsSchema): ProviderConfigSchema {
-  const { models: _models, ...providerConfig } = provider
-  return { ...providerConfig, createdAt: 0, updatedAt: 0 }
+  const { apiKey, models: _models, ...providerConfig } = provider
+  return { ...providerConfig, hasApiKey: Boolean(provider.apiKeySecretId || apiKey), createdAt: 0, updatedAt: 0 }
 }
 
 function toProviderConfigModel(providerId: string, modelId: string, model: ProviderModelSettingsSchema): ProviderConfigModelSchema {
@@ -68,11 +69,13 @@ export class ProviderSettingsRepository {
 
   createProvider(config: CreateProviderConfigSchema): ProviderConfigSchema {
     const data = CreateProviderConfigValidator.parse(config)
+    const id = data.id ?? `provider-${nanoid()}`
+    const apiKeySecretId = data.apiKeySecretId ?? (data.apiKey ? getProviderApiKeyId(id) : undefined)
     const createdProvider: ProviderSettingsSchema = {
-      id: data.id ?? `provider-${nanoid()}`,
+      id,
       name: data.name,
       baseUrl: data.baseUrl,
-      apiKey: data.apiKey,
+      apiKeySecretId,
       apiMode: data.apiMode,
       isOfficial: false,
       isEnabled: data.isEnabled ?? false,
@@ -229,4 +232,37 @@ export class ProviderSettingsRepository {
     }
     return null
   }
+
+  async migratePlaintextApiKeys(secretStore: SecretStore): Promise<boolean> {
+    let migrated = false
+    const settings = this.store.read()
+    const providers = [...settings.providers]
+
+    for (let index = 0; index < providers.length; index++) {
+      const provider = providers[index]
+      if (!provider.apiKey) {
+        continue
+      }
+      const ref = await secretStore.saveProviderApiKey({
+        providerId: provider.id,
+        apiKey: provider.apiKey,
+      })
+      const { apiKey: _apiKey, ...nextProvider } = provider
+      providers[index] = {
+        ...nextProvider,
+        apiKeySecretId: ref.id,
+      }
+      migrated = true
+    }
+
+    if (migrated) {
+      this.store.write({ ...settings, providers })
+    }
+
+    return migrated
+  }
+}
+
+function getProviderApiKeyId(providerId: string): string {
+  return `provider:${providerId}:api_key`
 }
