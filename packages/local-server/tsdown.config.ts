@@ -21,6 +21,6 @@ export default defineConfig({
   inlineOnly: false,
   sourcemap: true,
   clean: true,
-  external: ['better-sqlite3'],
+  external: ['better-sqlite3', 'keytar'],
   noExternal: [/^@ant-chat\//],
 })
