@@ -15,7 +15,9 @@ export const ProviderModelSettingsSchema = z.object({
 export const ProviderSettingsSchema = ProviderConfigSchema.omit({
   createdAt: true,
   updatedAt: true,
+  hasApiKey: true,
 }).extend({
+  apiKey: z.string().optional(),
   models: z.record(z.string(), ProviderModelSettingsSchema),
 })
 

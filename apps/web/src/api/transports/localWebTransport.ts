@@ -84,6 +84,8 @@ export function createLocalWebTransport(): AppTransport {
       injectSteering: params => localRpc('agent.injectSteering', params),
       listActiveTasks: conversationId => localRpc('agent.listActiveTasks', { conversationId }),
       approvePendingActionWithWhitelist: options => localRpc('agent.approvePendingActionWithWhitelist', { options }),
+      resolveSecretRequest: options => localRpc('agent.resolveSecretRequest', { options }),
+      rejectSecretRequest: options => localRpc('agent.rejectSecretRequest', { options }),
     },
     workspace: {
       listWorkspaces: () => localRpc('workspace.listWorkspaces'),

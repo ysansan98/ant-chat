@@ -229,6 +229,10 @@ async function dispatchRpc(body: unknown, runtime: AppRuntime): Promise<unknown>
       return runtime.agent.rejectPendingAction(params.options as never)
     case 'agent.approvePendingActionWithWhitelist':
       return runtime.agent.approvePendingActionWithWhitelist(params.options as never)
+    case 'agent.resolveSecretRequest':
+      return runtime.agent.resolveSecretRequest(params.options as never)
+    case 'agent.rejectSecretRequest':
+      return runtime.agent.rejectSecretRequest(params.options as never)
     case 'agent.cancelTask':
       return runtime.agent.cancelTask({ taskId: stringParam(params.taskId) })
     case 'agent.injectSteering':

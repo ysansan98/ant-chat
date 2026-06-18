@@ -1,4 +1,4 @@
-import type { AppSettingsState } from '@ant-chat/shared'
+import type { AppSettingsState, SecretRef, SecretStore } from '@ant-chat/shared'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
@@ -99,5 +99,32 @@ describe('provider settings repository', () => {
     expect(settings.providers).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: 'openai', models: {} }),
     ]))
+  })
+
+  it('迁移明文 provider API Key 后删除配置里的 apiKey', async () => {
+    const saved = new Map<string, string>()
+    const secretStore: SecretStore = {
+      saveProviderApiKey: async ({ providerId, apiKey }) => {
+        saved.set(providerId, apiKey)
+        return { kind: 'secret_ref', id: `provider:${providerId}:api_key`, scope: 'persistent' }
+      },
+      getProviderApiKey: async providerId => saved.get(providerId) ?? null,
+      deleteProviderApiKey: async (providerId) => {
+        saved.delete(providerId)
+      },
+      createTurnSecret: async (): Promise<SecretRef> => ({ kind: 'secret_ref', id: 'turn:run-1:secret-1', scope: 'turn' }),
+      resolve: async () => null,
+      clearTurnSecrets: async () => {},
+    }
+
+    await expect(repository.migratePlaintextApiKeys(secretStore)).resolves.toBe(true)
+
+    const provider = repository.getProviderSettingsById('provider-1')
+    expect(provider).toEqual(expect.objectContaining({
+      id: 'provider-1',
+      apiKeySecretId: 'provider:provider-1:api_key',
+    }))
+    expect(provider).not.toHaveProperty('apiKey')
+    expect(saved.get('provider-1')).toBe('key')
   })
 })

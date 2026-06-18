@@ -1,4 +1,4 @@
-import type { AddConversationsSchema, AddMessage, LanguageModelUsage, ModelInfo, ProviderConfigSchema, ToolCallContent, ToolResultContent, UpdateConversationsSchema, UpdateMessageSchema } from '../schemas'
+import type { AddConversationsSchema, AddMessage, LanguageModelUsage, ModelInfo, ProviderConfigSchema, SecretRef, SecretRequest, SecretRequestField, SecretRequestResult, ToolCallContent, ToolResultContent, UpdateConversationsSchema, UpdateMessageSchema } from '../schemas'
 import type { AgentMemoryReader } from './agent-memory'
 import type { AgentMode, AgentPendingAction, AgentTaskSnapshot, ToolApprovalWhitelistEntry } from './agent-runtime'
 import type { AgentTool } from './agent-tools'
@@ -156,6 +156,7 @@ export interface IAgentEventEmitter {
   emitTurnToolCalls: (params: { conversationId: string, text: string, toolCalls: ToolCallContent[] }) => void | Promise<void>
   emitTurnToolResults?: (params: { conversationId: string, results: ToolResultContent[] }) => void | Promise<void>
   emitTurnFinished: (params: { conversationId: string, text: string, status: 'success' | 'error' | 'cancel', durationMs?: number }) => void | Promise<void>
+  emitSecretRequested?: (request: SecretRequest) => void | Promise<void>
 }
 
 // ============================================================
@@ -201,6 +202,29 @@ export interface RuntimeMcpClientHub {
   callTool: (serverName: string, toolName: string, toolArguments?: Record<string, unknown>) => Promise<McpToolCallResponse>
 }
 
+export interface SecretStore {
+  saveProviderApiKey: (input: { providerId: string, apiKey: string }) => Promise<SecretRef>
+  getProviderApiKey: (providerId: string) => Promise<string | null>
+  deleteProviderApiKey: (providerId: string) => Promise<void>
+  createTurnSecret: (input: { runId: string, label: string, value: string }) => Promise<SecretRef>
+  resolve: (ref: SecretRef) => Promise<string | null>
+  clearTurnSecrets: (runId: string) => Promise<void>
+}
+
+export interface SecretRequestInput {
+  runId: string
+  conversationId: string
+  label: string
+  fields?: SecretRequestField[]
+  reason?: string
+}
+
+export interface SecretRequestController {
+  requestSecret: (input: SecretRequestInput) => Promise<SecretRequestResult>
+  resolveSecretRequest: (input: { requestId: string, value?: string, values?: Record<string, string> }) => void
+  rejectSecretRequest: (input: { requestId: string, reason?: string }) => void
+}
+
 export interface AgentBrowserRuntimeConfig {
   profilePath: string
   artifactsPath: string
@@ -229,6 +253,8 @@ export interface AgentRuntimeHost {
   skillReader?: SkillReader
   mcpClientHub?: RuntimeMcpClientHub
   browser?: AgentBrowserRuntimeConfig
+  secretStore?: SecretStore
+  secretRequester?: SecretRequestController
   /** 加载附件文件数据（用于将 file_id 转换为 base64 数据） */
   loadFileData?: (fileId: string) => Promise<string | null>
   getToolApprovalWhitelistEntries?: () => ToolApprovalWhitelistEntry[]
@@ -262,6 +288,8 @@ export interface AgentRuntimeConfig extends AgentRuntimeOverrides {
   skillReader?: SkillReader
   mcpClientHub?: RuntimeMcpClientHub
   browser?: AgentBrowserRuntimeConfig
+  secretStore?: SecretStore
+  secretRequester?: SecretRequestController
   /** 加载附件文件数据（用于将 file_id 转换为 base64 数据） */
   loadFileData?: (fileId: string) => Promise<string | null>
 }

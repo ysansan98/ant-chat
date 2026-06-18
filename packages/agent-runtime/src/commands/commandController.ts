@@ -1,5 +1,5 @@
 import type { AppDataContext } from '@ant-chat/app-data'
-import type { AgentTaskSnapshot, IAgentEventEmitter, ILogger, RunBuiltinCommandParams, RunBuiltinCommandResult } from '@ant-chat/shared'
+import type { AgentTaskSnapshot, AIProviderFactory, IAgentEventEmitter, ILogger, RunBuiltinCommandParams, RunBuiltinCommandResult } from '@ant-chat/shared'
 import { runCompact } from './compactCommand'
 import { runNew } from './conversationCommands'
 import { runFork } from './messageFork'
@@ -8,6 +8,7 @@ export interface CommandControllerDeps {
   appDataContext: AppDataContext
   eventEmitter: IAgentEventEmitter
   logger?: ILogger
+  aiProviderFactory?: AIProviderFactory
   listActiveTasks: (conversationId?: string) => AgentTaskSnapshot[]
 }
 
@@ -17,7 +18,7 @@ export interface CommandController {
 }
 
 export function createCommandController(deps: CommandControllerDeps): CommandController {
-  const { appDataContext, eventEmitter, logger, listActiveTasks } = deps
+  const { appDataContext, eventEmitter, logger, aiProviderFactory, listActiveTasks } = deps
   const abortControllers = new Map<string, AbortController>()
   const activeCommands = new Map<string, Promise<RunBuiltinCommandResult>>()
 
@@ -68,6 +69,7 @@ export function createCommandController(deps: CommandControllerDeps): CommandCon
             instruction: params.argument,
             modelConfig: params.modelConfig,
             logger,
+            aiProviderFactory,
             abortSignal: ctrl.signal,
           })
           activeCommands.set(params.conversationId, commandPromise)

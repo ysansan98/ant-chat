@@ -1,4 +1,4 @@
-import type { AgentMode, AgentRuntimeConfig, AgentTool, AgentToolResult, RuntimeToolDefinition, SkillManifest, SkillReader, ToolOperationType, ToolScope } from '@ant-chat/shared'
+import type { AgentMode, AgentRuntimeConfig, AgentTool, AgentToolResult, RuntimeToolDefinition, SecretRef, SecretStore, SkillManifest, SkillReader, ToolOperationType, ToolScope } from '@ant-chat/shared'
 import type { BrowserSessionState } from '../native-tools/tools/browserSessionManager'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -54,6 +54,9 @@ export class ToolRegistry {
     const agentLoopTools = config.memoryReader
       ? [createMemoryTool(config.memoryReader)]
       : []
+    if (config.secretRequester) {
+      agentLoopTools.push(createRequestSecretTool())
+    }
     const mcpTools = config.mcpClientHub
       ? createMcpTools(config.mcpClientHub)
       : []
@@ -61,10 +64,15 @@ export class ToolRegistry {
     return new ToolRegistry(
       [...nativeTools, ...skillTools, ...agentLoopTools, ...mcpTools],
       unrestricted ? undefined : relaxedNativeTools,
+      config.secretStore,
     )
   }
 
-  constructor(tools: AgentTool[], relaxedTools?: AgentTool[]) {
+  constructor(
+    tools: AgentTool[],
+    relaxedTools?: AgentTool[],
+    private readonly secretStore?: SecretStore,
+  ) {
     for (const tool of tools) {
       if (!tool.description || !tool.inputSchema) {
         throw new Error(`Tool "${tool.name}" is missing required description or inputSchema`)
@@ -104,7 +112,7 @@ export class ToolRegistry {
       operationType,
       scope,
       validationError,
-      execute: () => resolvedTool.execute(input),
+      execute: async () => resolvedTool.execute(await resolveToolInputSecrets(input, this.secretStore)),
       formatObservation: tool.formatObservation,
       formatError: tool.formatError,
       truncateObservation: tool.truncateObservation,
@@ -122,6 +130,99 @@ export class ToolRegistry {
       }
     })
   }
+}
+
+function createRequestSecretTool(): AgentTool {
+  return {
+    name: 'requestSecret',
+    source: 'skill',
+    serverName: 'agent-loop',
+    description: [
+      '向用户请求当前任务临时使用的敏感信息。',
+      '当工具需要密码、token、验证码、账号密码等一个或多个敏感字段时使用。',
+      '单字段可传 label；多字段传 fields，例如 [{ key: "username", label: "账号" }, { key: "password", label: "密码" }]。',
+      '此工具不会返回真实值，只返回 SecretRef 或 secretRefs；后续工具应把 SecretRef 传给 bash.env 等字段。',
+    ].join('\n'),
+    inputSchema: {
+      type: 'object',
+      properties: {
+        label: { type: 'string', description: '展示给用户的短标签，例如“部署密码”。多字段请求时作为整体标题。' },
+        fields: {
+          type: 'array',
+          description: '可选。一次请求多个敏感字段，每项包含 key 和 label。',
+          items: {
+            type: 'object',
+            properties: {
+              key: { type: 'string', description: '返回 secretRefs 中使用的字段名，例如 username。' },
+              label: { type: 'string', description: '展示给用户的字段标签，例如“账号”。' },
+            },
+            required: ['key', 'label'],
+          },
+        },
+        reason: { type: 'string', description: '展示给用户的可选原因。' },
+      },
+      required: [],
+    },
+    operationType: 'skill',
+    inferScope: () => 'workspace',
+    validateInput: (input) => {
+      if (input.label !== undefined && (typeof input.label !== 'string' || !input.label.trim())) {
+        return 'label must be a non-empty string'
+      }
+      if (input.fields !== undefined) {
+        if (!Array.isArray(input.fields) || input.fields.length === 0) {
+          return 'fields must be a non-empty array'
+        }
+        for (const field of input.fields) {
+          if (!isPlainRecord(field) || typeof field.key !== 'string' || !field.key.trim() || typeof field.label !== 'string' || !field.label.trim()) {
+            return 'fields must contain key and label'
+          }
+        }
+      }
+      if (input.fields === undefined && (typeof input.label !== 'string' || !input.label.trim())) {
+        return 'label is required when fields is not provided'
+      }
+      if (input.reason !== undefined && typeof input.reason !== 'string') {
+        return 'reason must be a string'
+      }
+      return null
+    },
+    execute: async () => ({ ok: false, error: 'requestSecret must be executed by runtime' }),
+  }
+}
+
+async function resolveToolInputSecrets(input: Record<string, unknown>, secretStore?: SecretStore): Promise<Record<string, unknown>> {
+  if (!secretStore) {
+    return input
+  }
+  const resolved: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(input)) {
+    if (isSecretRef(value)) {
+      const secret = await secretStore.resolve(value)
+      if (!secret) {
+        throw new Error(`Secret not found: ${value.id}`)
+      }
+      resolved[key] = secret
+    }
+    else if (isPlainRecord(value)) {
+      resolved[key] = await resolveToolInputSecrets(value, secretStore)
+    }
+    else {
+      resolved[key] = value
+    }
+  }
+  return resolved
+}
+
+function isSecretRef(value: unknown): value is SecretRef {
+  return isPlainRecord(value)
+    && value.kind === 'secret_ref'
+    && typeof value.id === 'string'
+    && (value.scope === 'persistent' || value.scope === 'turn')
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
 function createMemoryTool(memoryReader: NonNullable<AgentRuntimeConfig['memoryReader']>): AgentTool {

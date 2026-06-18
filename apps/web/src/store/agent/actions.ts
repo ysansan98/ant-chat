@@ -1,4 +1,4 @@
-import type { AgentTaskSnapshot, ApprovePendingActionOptions, RejectPendingActionOptions, StartAgentTurnOptions } from '@ant-chat/shared'
+import type { AgentTaskSnapshot, ApprovePendingActionOptions, RejectPendingActionOptions, SecretRequest, StartAgentTurnOptions } from '@ant-chat/shared'
 import agentApi from '@/api/agentApi'
 import { addStreamingConversationId, removeStreamingConversationId } from '@/store/conversation'
 import { useAgentStore } from './store'
@@ -27,6 +27,16 @@ export async function cancelAgentTask(taskId: string) {
 
 export async function injectSteeringAction(conversationId: string, text: string) {
   return await agentApi.injectSteering(conversationId, text)
+}
+
+export async function resolveSecretRequestAction(requestId: string, values: Record<string, string>) {
+  await agentApi.resolveSecretRequest({ requestId, values })
+  useAgentStore.getState().clearSecretRequest(requestId)
+}
+
+export async function rejectSecretRequestAction(requestId: string) {
+  await agentApi.rejectSecretRequest({ requestId, reason: '用户拒绝' })
+  useAgentStore.getState().clearSecretRequest(requestId)
 }
 
 export async function syncConversationAgentState(conversationId: string) {
@@ -71,6 +81,10 @@ export function onAgentStateUpdated(task: Parameters<typeof useAgentStore.getSta
 
 export function onAgentApprovalRequired(taskId: string, pendingAction: any) {
   useAgentStore.getState().setPending(taskId, pendingAction)
+}
+
+export function onAgentSecretRequested(request: SecretRequest) {
+  useAgentStore.getState().setSecretRequest(request)
 }
 
 function isActiveTask(task: AgentTaskSnapshot) {

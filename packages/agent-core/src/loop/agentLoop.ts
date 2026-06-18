@@ -298,6 +298,7 @@ export async function runAgentLoop(input: {
     })
   }
   finally {
+    await config.secretStore?.clearTurnSecrets(taskId)
     task.snapshot.updatedAt = Date.now()
     if (['success', 'failed', 'cancelled'].includes(task.snapshot.status)) {
       taskStore.finish(task.snapshot.taskId)

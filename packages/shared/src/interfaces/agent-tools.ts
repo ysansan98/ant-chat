@@ -1,3 +1,5 @@
+import type { SecretRef } from '../schemas'
+
 export type ToolOperationType = 'read' | 'write' | 'bash' | 'browser' | 'skill' | 'mcp'
 export type ToolScope = 'workspace' | 'outside' | 'blocked'
 
@@ -41,7 +43,7 @@ export interface BashToolInput {
   command: string
   cwd?: string
   timeoutMs?: number
-  env?: Record<string, string>
+  env?: Record<string, string | SecretRef>
 }
 
 export interface BrowserToolInput {

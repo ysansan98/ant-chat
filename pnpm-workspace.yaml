@@ -4,6 +4,7 @@ allowBuilds:
   electron: true
   electron-winstaller: true
   esbuild: true
+  keytar: true
   msw: true
   protobufjs: true
   simple-git-hooks: true
@@ -37,5 +38,6 @@ onlyBuiltDependencies:
   - electron
   - electron-winstaller
   - esbuild
+  - keytar
   - msw
   - protobufjs

@@ -47,4 +47,14 @@ export class AgentIpcService extends IpcService {
   ): Promise<IpcResponse<null>> {
     return withIpcResponse(() => getAppRuntime().agent.approvePendingActionWithWhitelist(options), '批准并加入白名单失败')
   }
+
+  @IpcMethod()
+  async resolveSecretRequest(options: { requestId: string, value?: string, values?: Record<string, string> }): Promise<IpcResponse<null>> {
+    return withIpcResponse(() => getAppRuntime().agent.resolveSecretRequest(options), '提交敏感信息失败')
+  }
+
+  @IpcMethod()
+  async rejectSecretRequest(options: { requestId: string, reason?: string }): Promise<IpcResponse<null>> {
+    return withIpcResponse(() => getAppRuntime().agent.rejectSecretRequest(options), '拒绝敏感信息请求失败')
+  }
 }

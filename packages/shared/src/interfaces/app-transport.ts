@@ -129,6 +129,8 @@ export interface AppTransport {
     injectSteering: (params: { conversationId: string, text: string }) => Promise<IMessage>
     listActiveTasks: (conversationId?: string) => Promise<AgentTaskSnapshot[]>
     approvePendingActionWithWhitelist: (options: ApprovePendingActionOptions & { remember: boolean, workspacePath?: string }) => Promise<null>
+    resolveSecretRequest: (options: { requestId: string, value?: string, values?: Record<string, string> }) => Promise<null>
+    rejectSecretRequest: (options: { requestId: string, reason?: string }) => Promise<null>
   }
   workspace: {
     listWorkspaces: () => Promise<ListWorkspacesData>
@@ -161,6 +163,8 @@ export interface AppIpcServices {
     listActiveTasks: (conversationId?: string) => Promise<IpcResponse<AgentTaskSnapshot[]>>
     injectSteering: (params: { conversationId: string, text: string }) => Promise<IpcResponse<IMessage>>
     approvePendingActionWithWhitelist: (options: ApprovePendingActionOptions & { remember: boolean, workspacePath?: string }) => Promise<IpcResponse<null>>
+    resolveSecretRequest: (options: { requestId: string, value?: string, values?: Record<string, string> }) => Promise<IpcResponse<null>>
+    rejectSecretRequest: (options: { requestId: string, reason?: string }) => Promise<IpcResponse<null>>
   }
   chat: {
     createConversationsTitle: (options: handleInitConversationTitleOptions) => Promise<IpcResponse<IConversations>>

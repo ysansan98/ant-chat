@@ -31,6 +31,14 @@ async function injectSteering(conversationId: string, text: string): Promise<IMe
   return (await getAppTransport()).agent.injectSteering({ conversationId, text })
 }
 
+async function resolveSecretRequest(options: { requestId: string, value?: string, values?: Record<string, string> }): Promise<null> {
+  return (await getAppTransport()).agent.resolveSecretRequest(options)
+}
+
+async function rejectSecretRequest(options: { requestId: string, reason?: string }): Promise<null> {
+  return (await getAppTransport()).agent.rejectSecretRequest(options)
+}
+
 export default {
   startTurn,
   approvePendingAction,
@@ -39,4 +47,6 @@ export default {
   injectSteering,
   listActiveTasks,
   approvePendingActionWithWhitelist,
+  resolveSecretRequest,
+  rejectSecretRequest,
 }

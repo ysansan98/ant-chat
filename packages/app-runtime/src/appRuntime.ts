@@ -1,6 +1,7 @@
 import type {
   AddConversationsSchema,
   AddMcpConfigSchema,
+  AIProviderFactory,
   ApprovePendingActionOptions,
   CancelTaskOptions,
   CreateProviderConfigModelSchema,
@@ -19,7 +20,8 @@ import type {
   UpdateMcpConfigSchema,
   UpdateProviderConfigSchema,
 } from '@ant-chat/shared'
-import { createAgentRuntime } from '@ant-chat/agent-core'
+import { randomUUID } from 'node:crypto'
+import { createAgentRuntime, createProvider } from '@ant-chat/agent-core'
 import {
   createAgentRuntimeController,
   createAppDataSessionStore,
@@ -38,6 +40,8 @@ import { RuntimeEventBus } from './events'
 import { NetworkProxyManager } from './networkProxy'
 import { createAppRuntimePaths } from './paths'
 import { getAppRuntimeLogger } from './runtimeLogger'
+import { RuntimeSecretRequestController } from './secretRequestController'
+import { KeychainSecretStore } from './secretStore'
 
 export interface CreateAppRuntimeOptions {
   appDataRoot: string
@@ -58,6 +62,16 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
     attachmentsRootPath: paths.attachmentsRoot,
   })
   const events = new RuntimeEventBus()
+  const secretStore = new KeychainSecretStore()
+  const aiProviderFactory: AIProviderFactory = async ({ provider }) => {
+    const apiKey = await resolveProviderApiKey(provider)
+    return await createProvider({ ...provider, apiKey })
+  }
+  const secretRequester = new RuntimeSecretRequestController(secretStore, {
+    emitSecretRequested(request) {
+      events.emit('agent:secret-requested', { request })
+    },
+  })
   const skills = new SkillManagementService({ skillsRoot: paths.skillsRoot })
   const mcpClientHub = new MCPClientHub()
   const agentEventEmitter: IAgentEventEmitter = {
@@ -88,20 +102,24 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
       loadFileData: context.loadAttachmentData,
       createTaskLogger: createTaskLoggerFactory(paths.taskLogsRoot),
       getToolApprovalWhitelistEntries: () => context.toolApprovalWhitelistRepository.getAll(),
+      secretStore,
+      secretRequester,
     },
-    overrides: { logger },
+    overrides: { logger, aiProviderFactory },
   })
   const agentController = createAgentRuntimeController(agentRuntime, context)
   const commandController = createCommandController({
     appDataContext: context,
     eventEmitter: agentEventEmitter,
     logger,
+    aiProviderFactory,
     listActiveTasks: conversationId => agentRuntime.listActiveTasks(conversationId),
   })
   const titleGenerator = createConversationTitleGenerator({
     providerSettingsRepository: context.providerSettingsRepository,
     messageRepository: context.messageRepository,
     conversationRepository: context.conversationRepository,
+    aiProviderFactory,
   })
   const modelsDevImporter = createModelsDevImporter(context)
   let initialized = false
@@ -215,18 +233,19 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
     },
     provider: {
       list: () => context.providerSettingsRepository.listProviders(),
-      create: (config: CreateProviderConfigSchema) => {
-        const result = context.providerSettingsRepository.createProvider(config)
+      create: async (config: CreateProviderConfigSchema) => {
+        const result = context.providerSettingsRepository.createProvider(await prepareCreateProviderConfig(config))
         events.emit('provider:changed', { providerId: result.id })
         return result
       },
-      update: (config: UpdateProviderConfigSchema) => {
-        const result = context.providerSettingsRepository.updateProvider(config)
+      update: async (config: UpdateProviderConfigSchema) => {
+        const result = context.providerSettingsRepository.updateProvider(await prepareProviderSecret(config))
         events.emit('provider:changed', { providerId: result.id })
         return result
       },
-      delete: (id: string) => {
+      delete: async (id: string) => {
         context.providerSettingsRepository.deleteProvider(id)
+        await secretStore.deleteProviderApiKey(id)
         events.emit('provider:changed', { providerId: id })
         return null
       },
@@ -354,6 +373,14 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
       getTask: (taskId: string) => agentRuntime.getTask(taskId),
       listActiveTasks: (conversationId?: string) => agentController.listActiveTasks(conversationId),
       injectSteering: (input: { conversationId: string, text: string }) => agentController.injectSteering(input),
+      resolveSecretRequest: (input: { requestId: string, value?: string, values?: Record<string, string> }) => {
+        secretRequester.resolveSecretRequest(input)
+        return null
+      },
+      rejectSecretRequest: (input: { requestId: string, reason?: string }) => {
+        secretRequester.rejectSecretRequest(input)
+        return null
+      },
       approvePendingActionWithWhitelist: (
         input: ApprovePendingActionOptions & { remember: boolean, workspacePath?: string },
       ) => agentController.approvePendingActionWithWhitelist(input),
@@ -373,6 +400,10 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
         throw new Error('AppRuntime has been disposed')
       context.workspaceService.ensureInitialized()
       await skills.ensureInitialized()
+      const migratedSecrets = await context.providerSettingsRepository.migratePlaintextApiKeys(secretStore)
+      if (migratedSecrets) {
+        events.emit('provider:changed', {})
+      }
       const settings = await context.settingsRepository.getGeneralSettings()
       await networkProxy.apply(settings.proxySettings)
       await mcpClientHub.initializeMcpServers(context.mcpSettingsRepository.getMcpConfigs())
@@ -395,6 +426,54 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
   function emitWorkspaceResult(result: ReturnType<typeof context.workspaceService.listWorkspaces>) {
     events.emit('workspace:changed', { currentWorkspacePath: result.currentWorkspacePath })
     return result
+  }
+
+  async function resolveProviderApiKey(provider: { id: string, apiKey?: string, apiKeySecretId?: string }) {
+    if (provider.apiKey) {
+      return provider.apiKey
+    }
+    if (provider.apiKeySecretId) {
+      const value = await secretStore.resolve({ kind: 'secret_ref', id: provider.apiKeySecretId, scope: 'persistent' })
+      if (value) {
+        return value
+      }
+    }
+    const value = await secretStore.getProviderApiKey(provider.id)
+    if (value) {
+      return value
+    }
+    throw new Error(`Provider API Key not found: ${provider.id}`)
+  }
+
+  async function prepareProviderSecret(config: UpdateProviderConfigSchema): Promise<Omit<UpdateProviderConfigSchema, 'apiKey'> & { apiKeySecretId?: string }> {
+    if (config.apiKey === undefined) {
+      return config
+    }
+    if (config.apiKey === '') {
+      await secretStore.deleteProviderApiKey(config.id)
+      const { apiKey: _apiKey, ...safeConfig } = config
+      return { ...safeConfig, apiKeySecretId: undefined }
+    }
+    const ref = await secretStore.saveProviderApiKey({
+      providerId: config.id,
+      apiKey: config.apiKey,
+    })
+    const { apiKey: _apiKey, ...safeConfig } = config
+    return { ...safeConfig, apiKeySecretId: ref.id }
+  }
+
+  async function prepareCreateProviderConfig(config: CreateProviderConfigSchema): Promise<Omit<CreateProviderConfigSchema, 'apiKey'> & { id: string, apiKeySecretId?: string }> {
+    const id = config.id ?? `provider-${randomUUID()}`
+    if (!config.apiKey) {
+      const { apiKey: _apiKey, ...safeConfig } = config
+      return { ...safeConfig, id }
+    }
+    const ref = await secretStore.saveProviderApiKey({
+      providerId: id,
+      apiKey: config.apiKey,
+    })
+    const { apiKey: _apiKey, ...safeConfig } = config
+    return { ...safeConfig, id, apiKeySecretId: ref.id }
   }
 
   return runtime

@@ -2,7 +2,7 @@ import type { IMessage, NotificationOption } from '@ant-chat/shared'
 import { useEffect } from 'react'
 import { toast } from 'sonner'
 import { getAppEventBus } from '@/api/transports/appEventBus'
-import { onAgentApprovalRequired, onAgentStateUpdated } from '@/store/agent'
+import { onAgentApprovalRequired, onAgentSecretRequested, onAgentStateUpdated } from '@/store/agent'
 import { addStreamingConversationId, removeStreamingConversationId, upsertConversationAction } from '@/store/conversation'
 import { refreshGeneralSettings } from '@/store/generalSettings/actions'
 import { onMcpServerStatusChanged } from '@/store/mcpConfigs/action'
@@ -51,6 +51,9 @@ export function useAppEventListener() {
     eventBus.on('agent:approval-required', (_, payload) => {
       onAgentApprovalRequired(payload.taskId, payload.pendingAction)
     })
+    eventBus.on('agent:secret-requested', (_, payload) => {
+      onAgentSecretRequested(payload.request)
+    })
     eventBus.on('settings:updated', () => {
       void refreshGeneralSettings()
     })
@@ -65,6 +68,7 @@ export function useAppEventListener() {
       eventBus.removeAllListeners('message:updated')
       eventBus.removeAllListeners('agent:task-updated')
       eventBus.removeAllListeners('agent:approval-required')
+      eventBus.removeAllListeners('agent:secret-requested')
       eventBus.removeAllListeners('settings:updated')
       eventBus.removeAllListeners('workspace:changed')
     }
