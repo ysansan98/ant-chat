@@ -183,4 +183,18 @@ describe('messageBubble', () => {
     const panel = container.querySelector('[data-slot="collapsible"]')
     expect(panel).toHaveAttribute('data-state', 'open')
   })
+
+  it('renders partial assistant text before the failure alert', () => {
+    const { container } = renderBubble([
+      createAssistantMessage('failed-answer', [
+        { type: 'text', text: '已完成部分回答' },
+        { type: 'error', error: '模型请求失败' },
+      ], 'error'),
+    ])
+
+    expect(screen.getByText('已完成部分回答')).toBeInTheDocument()
+    expect(screen.getByText('Request failed')).toBeInTheDocument()
+    expect(screen.getByText('模型请求失败')).toBeInTheDocument()
+    expect((container.textContent || '').match(/模型请求失败/g)).toHaveLength(1)
+  })
 })

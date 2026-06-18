@@ -301,6 +301,47 @@ describe('agentRuntime 行为', () => {
       cleanupTasks([result.taskId])
     })
 
+    it('失败结束时保留已经写入的 assistant 文本内容', async () => {
+      const store = createSessionStore()
+      const runtime = new AgentRuntime(createSessionConfig({ sessionStore: store }))
+
+      const result = await runtime.startTask({
+        prompt: 'inspect project',
+        modelId: 'model-1',
+        workspacePath: '/workspace',
+        mode: 'hybrid',
+      })
+      const loopCalls = vi.mocked(runAgentLoop).mock.calls
+      const loopCall = loopCalls[loopCalls.length - 1]
+      expect(loopCall).toBeDefined()
+
+      const eventEmitter = loopCall![0].config.eventEmitter
+      await eventEmitter.emitTurnStarted({
+        conversationId: 'conv-session',
+        model: { name: 'test-model', provider: 'provider', providerId: 'provider-1' },
+      })
+      await eventEmitter.emitTurnChunk({
+        conversationId: 'conv-session',
+        chunk: { content: [{ type: 'text', text: '已完成部分回答' }] },
+        accumulatedText: '已完成部分回答',
+      })
+      await eventEmitter.emitTurnFinished({
+        conversationId: 'conv-session',
+        text: '模型请求失败',
+        status: 'error',
+      })
+
+      expect(store.updateAssistantMessage).toHaveBeenLastCalledWith('assistant-msg-1', expect.objectContaining({
+        status: 'error',
+        content: [
+          { type: 'text', text: '已完成部分回答' },
+          { type: 'error', error: '模型请求失败' },
+        ],
+      }))
+
+      cleanupTasks([result.taskId])
+    })
+
     it('高层 task 参数缺少 modelId 时拒绝启动', async () => {
       const store = createSessionStore()
       const runtime = new AgentRuntime(createSessionConfig({ sessionStore: store }))
