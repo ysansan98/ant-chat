@@ -3,13 +3,22 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createAppRuntime } from '../appRuntime'
+import type { createAppRuntime as createAppRuntimeFn } from '../appRuntime'
+
+vi.mock('keytar', () => ({
+  default: {
+    setPassword: vi.fn(),
+    getPassword: vi.fn(async () => null),
+    deletePassword: vi.fn(async () => true),
+  },
+}))
 
 describe.skipIf(!canRunDbIntegrationTests())('app runtime', () => {
   let appDataRoot: string
-  let runtime: ReturnType<typeof createAppRuntime>
+  let runtime: ReturnType<typeof createAppRuntimeFn>
 
   beforeEach(async () => {
+    const { createAppRuntime } = await import('../appRuntime')
     appDataRoot = mkdtempSync(path.join(tmpdir(), 'ant-chat-app-runtime-'))
     runtime = createAppRuntime({
       appDataRoot,
