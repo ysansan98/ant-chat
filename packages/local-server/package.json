@@ -38,7 +38,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "better-sqlite3": "^12.6.2"
+    "better-sqlite3": "^12.6.2",
+    "keytar": "^7.9.0"
   },
   "devDependencies": {
     "@ant-chat/app-runtime": "workspace:^",

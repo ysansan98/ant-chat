@@ -456,6 +456,9 @@ importers:
       better-sqlite3:
         specifier: ^12.6.2
         version: 12.6.2
+      keytar:
+        specifier: ^7.9.0
+        version: 7.9.0
     devDependencies:
       '@ant-chat/app-runtime':
         specifier: workspace:^

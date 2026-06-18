@@ -2,6 +2,7 @@
 
 import type { ComponentProps, HTMLAttributes } from 'react'
 import { Button } from '@workspace/ui/components/button'
+import { writeClipboardText } from '@workspace/ui/lib/clipboard'
 import { cn } from '@workspace/ui/lib/utils'
 import Ansi from 'ansi-to-react'
 import { CheckIcon, CopyIcon, TerminalIcon, Trash2Icon } from 'lucide-react'
@@ -122,13 +123,8 @@ export function TerminalCopyButton({
   const { output } = use(TerminalContext)
 
   const copyToClipboard = useCallback(async () => {
-    if (typeof window === 'undefined' || !navigator?.clipboard?.writeText) {
-      onError?.(new Error('Clipboard API not available'))
-      return
-    }
-
     try {
-      await navigator.clipboard.writeText(output)
+      await writeClipboardText(output)
       setIsCopied(true)
       onCopy?.()
       timeoutRef.current = window.setTimeout(() => setIsCopied(false), timeout)

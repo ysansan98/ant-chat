@@ -1,4 +1,4 @@
-import type { AddConversationsSchema, AddMessage, LanguageModelUsage, ModelInfo, ProviderConfigSchema, SecretRef, SecretRequest, ToolCallContent, ToolResultContent, UpdateConversationsSchema, UpdateMessageSchema } from '../schemas'
+import type { AddConversationsSchema, AddMessage, LanguageModelUsage, ModelInfo, ProviderConfigSchema, SecretRef, SecretRequest, SecretRequestField, SecretRequestResult, ToolCallContent, ToolResultContent, UpdateConversationsSchema, UpdateMessageSchema } from '../schemas'
 import type { AgentMemoryReader } from './agent-memory'
 import type { AgentMode, AgentPendingAction, AgentTaskSnapshot, ToolApprovalWhitelistEntry } from './agent-runtime'
 import type { AgentTool } from './agent-tools'
@@ -215,12 +215,13 @@ export interface SecretRequestInput {
   runId: string
   conversationId: string
   label: string
+  fields?: SecretRequestField[]
   reason?: string
 }
 
 export interface SecretRequestController {
-  requestSecret: (input: SecretRequestInput) => Promise<SecretRef>
-  resolveSecretRequest: (input: { requestId: string, value: string }) => void
+  requestSecret: (input: SecretRequestInput) => Promise<SecretRequestResult>
+  resolveSecretRequest: (input: { requestId: string, value?: string, values?: Record<string, string> }) => void
   rejectSecretRequest: (input: { requestId: string, reason?: string }) => void
 }
 

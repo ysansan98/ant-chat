@@ -18,6 +18,7 @@ import {
   TooltipTrigger,
 } from '@workspace/ui/components/tooltip'
 import { useSmoothContent } from '@workspace/ui/hooks/useSmoothContent'
+import { installClipboardTextFallback } from '@workspace/ui/lib/clipboard'
 import { cn } from '@workspace/ui/lib/utils'
 import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
 import {
@@ -347,6 +348,8 @@ export const MessageResponse = memo(
       typeof children === 'string' ? children : '',
       isAnimating ?? false,
     )
+
+    useEffect(() => installClipboardTextFallback(), [])
 
     return (
       <Streamdown

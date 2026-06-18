@@ -8,6 +8,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@workspace/ui/components/collapsible'
+import { writeClipboardText } from '@workspace/ui/lib/clipboard'
 import { cn } from '@workspace/ui/lib/utils'
 import {
   CheckIcon,
@@ -245,14 +246,9 @@ export function CommitCopyButton({
   const timeoutRef = useRef<number>(0)
 
   const copyToClipboard = useCallback(async () => {
-    if (typeof window === 'undefined' || !navigator?.clipboard?.writeText) {
-      onError?.(new Error('Clipboard API not available'))
-      return
-    }
-
     try {
       if (!isCopied) {
-        await navigator.clipboard.writeText(hash)
+        await writeClipboardText(hash)
         setIsCopied(true)
         onCopy?.()
         timeoutRef.current = window.setTimeout(

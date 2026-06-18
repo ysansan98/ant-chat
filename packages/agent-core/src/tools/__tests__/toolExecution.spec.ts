@@ -228,6 +228,39 @@ describe('executeToolStep 行为', () => {
     expect(result.toolResultContent).toContain('failed')
   })
 
+  it('工具执行抛异常时返回工具失败并保留异常细节', async () => {
+    const emitter = createMockEmitter()
+    const logger = createMockLogger()
+    const taskLogger = { filePath: '/tmp/task.jsonl', write: vi.fn(), close: vi.fn() }
+    const tool = createReadTool({
+      execute: async () => {
+        throw new Error('secret missing')
+      },
+    })
+    const registry = new ToolRegistry([tool])
+    const task = createTask()
+
+    const result = await executeToolStep({
+      task,
+      registry,
+      requestedToolCall: { toolName: 'read_file', input: { path: 'secret.txt' } },
+      currentModelText: '',
+      currentToolMessages: [],
+      step: 1,
+      config: { eventEmitter: emitter, logger, taskLogger },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
+    })
+
+    expect(result.isError).toBe(true)
+    expect(result.toolResultContent).toContain('AGENT_TOOL_EXEC_FAILED')
+    expect(result.toolResultContent).toContain('secret missing')
+    expect(taskLogger.write).toHaveBeenCalledWith('tool_failed', expect.objectContaining({
+      error: 'AGENT_TOOL_EXEC_FAILED',
+      stderr: 'secret missing',
+    }))
+    expect(emitter.emitTurnToolCalls).toHaveBeenCalledTimes(2)
+  })
+
   it('发出 toolCall 事件', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()

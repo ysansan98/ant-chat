@@ -3,6 +3,7 @@ import type { RuntimeTask } from '../taskStore'
 import type { PreparedToolCall, ToolRegistry } from './toolRegistry'
 import type { BeforeToolExecuteHook, ToolCallContext } from './types'
 import { randomUUID } from 'node:crypto'
+import { AGENT_TOOL_EXEC_FAILED } from '@ant-chat/shared'
 import { createAgentTraceLogger } from '../agentTraceLogger'
 
 export interface RequestedToolCall {
@@ -39,9 +40,9 @@ type ToolPreparation
   = | { kind: 'ready', prepared: PreparedToolCall, lastToolCallContext: ToolCallContext }
     | { kind: 'error', error: string, observation: string, lastToolCallContext: ToolCallContext }
 
-interface ToolExecution {
-  result: Awaited<ReturnType<PreparedToolCall['execute']>>
-  errorMsg?: string
+interface ToolExecutionOutcome {
+  result: AgentToolResult
+  failureReason?: string
 }
 
 // ============================================================
@@ -92,13 +93,13 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
 
   // Phase 3: Finalize
   const durationMs = Date.now() - toolStartedAt
-  if (execution.errorMsg) {
+  if (execution.failureReason) {
     const toolReportedDurationMs = execution.result.durationMs
-    traceLogger.write('tool_failed', { ...logContext, toolName: preparation.prepared.toolName, input: requestedToolCall.input, error: execution.errorMsg, workspacePath: task.snapshot.workspacePath, stdout: execution.result.stdout, stderr: execution.result.stderr, exitCode: execution.result.exitCode, durationMs, toolReportedDurationMs })
+    traceLogger.write('tool_failed', { ...logContext, toolName: preparation.prepared.toolName, input: requestedToolCall.input, error: execution.failureReason, workspacePath: task.snapshot.workspacePath, stdout: execution.result.stdout, stderr: execution.result.stderr, exitCode: execution.result.exitCode, durationMs, toolReportedDurationMs })
     return finalizeToolStep(currentToolCall, {
       kind: 'error',
-      error: execution.errorMsg,
-      observation: formatFailure(preparation.prepared, execution.errorMsg, requestedToolCall.input, execution.result),
+      error: execution.failureReason,
+      observation: formatFailure(preparation.prepared, execution.failureReason, requestedToolCall.input, execution.result),
       lastToolCallContext: preparation.lastToolCallContext,
     }, task.snapshot.conversationId, config, currentModelText, currentToolMessages)
   }
@@ -179,12 +180,19 @@ async function prepareToolStep(input: PrepareToolStepInput): Promise<ToolPrepara
 // Phase 2: Execute — run the prepared tool
 // ============================================================
 
-async function executePreparedTool(prepared: PreparedToolCall, task: RuntimeTask, config: AgentRuntimeConfig): Promise<ToolExecution> {
-  const result = prepared.toolName === 'requestSecret'
-    ? await executeRequestSecret(prepared, task, config)
-    : await prepared.execute()
+async function executePreparedTool(prepared: PreparedToolCall, task: RuntimeTask, config: AgentRuntimeConfig): Promise<ToolExecutionOutcome> {
+  let result: AgentToolResult
+  try {
+    result = prepared.toolName === 'requestSecret'
+      ? await executeRequestSecret(prepared, task, config)
+      : await prepared.execute()
+  }
+  catch (error) {
+    const message = error instanceof Error ? error.message : String(error || AGENT_TOOL_EXEC_FAILED)
+    return { result: { ok: false, error: AGENT_TOOL_EXEC_FAILED, stderr: message }, failureReason: AGENT_TOOL_EXEC_FAILED }
+  }
   if (!result.ok) {
-    return { result, errorMsg: result.error || 'AGENT_TOOL_EXEC_FAILED' }
+    return { result, failureReason: result.error || AGENT_TOOL_EXEC_FAILED }
   }
   return { result }
 }
@@ -194,14 +202,21 @@ async function executeRequestSecret(prepared: PreparedToolCall, task: RuntimeTas
     return { ok: false, error: 'Secret requester is not available' }
   }
   const label = String(prepared.input.label || '').trim()
+  const fields = Array.isArray(prepared.input.fields)
+    ? prepared.input.fields.map(field => ({
+        key: String((field as { key?: unknown }).key || '').trim(),
+        label: String((field as { label?: unknown }).label || '').trim(),
+      }))
+    : undefined
   const reason = typeof prepared.input.reason === 'string' ? prepared.input.reason : undefined
-  const secretRef = await config.secretRequester.requestSecret({
+  const result = await config.secretRequester.requestSecret({
     runId: task.snapshot.taskId,
     conversationId: task.snapshot.conversationId,
-    label,
+    label: label || (fields?.length === 1 ? fields[0].label : '敏感信息'),
+    fields,
     reason,
   })
-  return { ok: true, output: { secretRef } }
+  return { ok: true, output: result }
 }
 
 // ============================================================
@@ -238,7 +253,7 @@ async function finalizeToolStep(
 async function finalizeSuccessToolStep(
   currentToolCall: McpToolCall,
   preparation: ToolPreparation & { kind: 'ready' },
-  result: ToolExecution['result'],
+  result: ToolExecutionOutcome['result'],
   logContext: ToolLogContext,
   config: AgentRuntimeConfig,
   currentModelText: string,

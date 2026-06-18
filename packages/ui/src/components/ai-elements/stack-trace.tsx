@@ -8,6 +8,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@workspace/ui/components/collapsible'
+import { writeClipboardText } from '@workspace/ui/lib/clipboard'
 import { cn } from '@workspace/ui/lib/utils'
 import {
   AlertTriangleIcon,
@@ -322,13 +323,8 @@ export const StackTraceCopyButton = memo(
     const { raw } = useStackTrace()
 
     const copyToClipboard = useCallback(async () => {
-      if (typeof window === 'undefined' || !navigator?.clipboard?.writeText) {
-        onError?.(new Error('Clipboard API not available'))
-        return
-      }
-
       try {
-        await navigator.clipboard.writeText(raw)
+        await writeClipboardText(raw)
         setIsCopied(true)
         onCopy?.()
         timeoutRef.current = window.setTimeout(

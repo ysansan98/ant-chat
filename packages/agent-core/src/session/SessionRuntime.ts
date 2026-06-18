@@ -10,6 +10,7 @@ import type {
   IMessage,
   ISessionStore,
   LoopMessage,
+  MessageContent,
   ModelInfo,
 } from '@ant-chat/shared'
 import type { ConversationContextEntry } from '../loop/loopContext'
@@ -564,12 +565,13 @@ function createStoreBackedEventEmitter(store: ISessionStore, delegate: IAgentEve
       const meta = turns.get(params.conversationId)
       if (meta) {
         await flushTurn(meta)
+        const content: MessageContent = params.status === 'error'
+          ? withErrorContent(meta.modelText, params.text)
+          : [{ type: 'text', text: params.text }]
         const message = await store.updateAssistantMessage(meta.msgId, {
           role: 'assistant',
           status: params.status,
-          content: params.status === 'error'
-            ? [{ type: 'error', error: params.text }]
-            : [{ type: 'text', text: params.text }],
+          content,
           durationMs: params.durationMs,
         })
         await delegate.emitMessageUpdated?.(message)
@@ -585,4 +587,12 @@ function createStoreBackedEventEmitter(store: ISessionStore, delegate: IAgentEve
   }
 
   return emitter
+}
+
+function withErrorContent(modelText: string, errorText: string): MessageContent {
+  const content: MessageContent = modelText.trim()
+    ? [{ type: 'text', text: modelText }]
+    : []
+  content.push({ type: 'error', error: errorText })
+  return content
 }

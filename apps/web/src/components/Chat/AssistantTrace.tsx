@@ -527,6 +527,9 @@ export function AssistantTrace({ message, toolResultMap, showReasoning = true }:
             )
           }
           if (step.type === 'error-block') {
+            if (message.status === 'error') {
+              return null
+            }
             return (
               <p key={step.id} className="text-destructive whitespace-pre-wrap text-sm">
                 {step.error}

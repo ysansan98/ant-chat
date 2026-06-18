@@ -12,10 +12,17 @@ export default function AgentSecretRequestCard({
   onReject,
 }: {
   request: SecretRequest
-  onSubmit: (value: string) => void
+  onSubmit: (values: Record<string, string>) => void
   onReject: () => void
 }) {
-  const [value, setValue] = useState('')
+  const [values, setValues] = useState<Record<string, string>>({})
+  const canSubmit = request.fields.every(field => values[field.key])
+
+  function submit() {
+    if (canSubmit) {
+      onSubmit(values)
+    }
+  }
 
   return (
     <Card size="sm" className="mb-2 text-xs" data-testid="agent-secret-request-card">
@@ -32,23 +39,30 @@ export default function AgentSecretRequestCard({
         </CardContent>
       )}
       <div className="space-y-2 px-3 pb-3">
-        <Label htmlFor={`secret-request-${request.requestId}`} className="text-xs">
+        <Label className="text-xs">
           输入内容不会发送给模型，仅在当前任务内存中使用
         </Label>
-        <Input
-          id={`secret-request-${request.requestId}`}
-          type="password"
-          value={value}
-          autoComplete="off"
-          onChange={event => setValue(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' && value) {
-              onSubmit(value)
-            }
-          }}
-        />
+        {request.fields.map(field => (
+          <div key={field.key} className="space-y-1">
+            <Label htmlFor={`secret-request-${request.requestId}-${field.key}`} className="text-xs text-muted-foreground">
+              {field.label}
+            </Label>
+            <Input
+              id={`secret-request-${request.requestId}-${field.key}`}
+              type="password"
+              value={values[field.key] ?? ''}
+              autoComplete="off"
+              onChange={event => setValues(current => ({ ...current, [field.key]: event.target.value }))}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  submit()
+                }
+              }}
+            />
+          </div>
+        ))}
         <div className="flex gap-2">
-          <Button size="xs" disabled={!value} onClick={() => onSubmit(value)}>
+          <Button size="xs" disabled={!canSubmit} onClick={submit}>
             提交
           </Button>
           <Button size="xs" variant="destructive" onClick={onReject}>

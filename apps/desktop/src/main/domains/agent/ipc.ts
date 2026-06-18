@@ -49,7 +49,7 @@ export class AgentIpcService extends IpcService {
   }
 
   @IpcMethod()
-  async resolveSecretRequest(options: { requestId: string, value: string }): Promise<IpcResponse<null>> {
+  async resolveSecretRequest(options: { requestId: string, value?: string, values?: Record<string, string> }): Promise<IpcResponse<null>> {
     return withIpcResponse(() => getAppRuntime().agent.resolveSecretRequest(options), '提交敏感信息失败')
   }
 
