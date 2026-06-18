@@ -255,9 +255,11 @@ function serializeEntries(entries: string[]): string {
 }
 
 function findEntryIndex(entries: string[], oldText: string): number {
+  // 模型可能传入带 § 前缀的文本，需要先去掉
+  const normalizedOldText = oldText.startsWith('§') ? oldText.slice(1).trim() : oldText
   const matched = entries
     .map((entry, index) => ({ entry, index }))
-    .filter(item => item.entry.includes(oldText))
+    .filter(item => item.entry.includes(normalizedOldText))
 
   if (matched.length === 0) {
     throw new Error(`No entry matched '${oldText}'.`)
