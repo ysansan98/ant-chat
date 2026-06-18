@@ -79,14 +79,15 @@ export class PathPolicy {
     if (!this.enforceWorkspaceBoundary) {
       return true
     }
+    const normalizedCandidatePath = normalizeCandidateForBoundary(candidatePath)
     const workspaceRealPath = fs.realpathSync.native(this.workspacePath)
-    if (isInsideDir(workspaceRealPath, candidatePath)) {
+    if (isInsideDir(workspaceRealPath, normalizedCandidatePath)) {
       return true
     }
     for (const trustedPath of this.trustedPaths) {
       try {
         const trustedRealPath = fs.realpathSync.native(trustedPath)
-        if (isInsideDir(trustedRealPath, candidatePath)) {
+        if (isInsideDir(trustedRealPath, normalizedCandidatePath)) {
           return true
         }
       }
@@ -126,6 +127,16 @@ function resolveWorkspaceRoot(workspacePath: string): string {
   return fs.existsSync(workspacePath)
     ? fs.realpathSync.native(workspacePath)
     : path.resolve(workspacePath)
+}
+
+function normalizeCandidateForBoundary(candidatePath: string): string {
+  if (fs.existsSync(candidatePath)) {
+    return fs.realpathSync.native(candidatePath)
+  }
+
+  const ancestor = findExistingAncestor(candidatePath)
+  const ancestorRealPath = fs.realpathSync.native(ancestor)
+  return path.join(ancestorRealPath, path.relative(ancestor, candidatePath))
 }
 
 function isInsideDir(dirPath: string, candidatePath: string): boolean {

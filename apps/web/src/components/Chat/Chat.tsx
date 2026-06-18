@@ -3,12 +3,10 @@ import { Skeleton } from '@workspace/ui/components/skeleton'
 import { lazy, Suspense } from 'react'
 import { toast } from 'sonner'
 import { AgentApprovalCard, AgentSecretRequestCard } from '@/components/Agent'
-import { DEFAULT_TITLE } from '@/constants'
 import { useChatSettingsContext } from '@/contexts/chatSettings'
 import { useBuiltinCommandSubmit } from '@/hooks/useBuiltinCommandSubmit'
 import { approveAgentActionWithWhitelist, injectSteeringAction, rejectAgentAction, rejectSecretRequestAction, resolveSecretRequestAction, startAgentTurn, useAgentStore } from '@/store/agent'
 import {
-  initConversationsTitle,
   upsertConversationAction,
   useConversationsStore,
 } from '@/store/conversation'
@@ -73,27 +71,26 @@ export default function Chat() {
 
     // Regular agent turn
     const prompt = draftText
-    const isNewConversation = !activeConversationsId
-    const result = await startAgentTurn({
-      conversationId: activeConversationsId || undefined,
-      prompt,
-      content,
-      referencedFiles,
-      selectedSkill,
-      mode: agentMode,
-      workspacePath: currentWorkspacePath || undefined,
-      modelConfig: {
-        ...settings,
-        features,
-      },
-    })
-    upsertConversationAction(result.conversation)
-    await setActiveConversationsId(result.conversationId)
-
-    if (currentConversations?.title === DEFAULT_TITLE || isNewConversation) {
-      setTimeout(() => {
-        void initConversationsTitle(result.conversationId)
-      }, 1000)
+    try {
+      const result = await startAgentTurn({
+        conversationId: activeConversationsId || undefined,
+        prompt,
+        content,
+        referencedFiles,
+        selectedSkill,
+        mode: agentMode,
+        workspacePath: currentWorkspacePath || undefined,
+        modelConfig: {
+          ...settings,
+          features,
+        },
+      })
+      upsertConversationAction(result.conversation)
+      await setActiveConversationsId(result.conversationId)
+    }
+    catch (error) {
+      toast.error(error instanceof Error ? error.message : '发送消息失败')
+      throw error
     }
   }
 

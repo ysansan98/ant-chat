@@ -339,6 +339,35 @@ describe('gui ui flow', () => {
     expect(await screen.findByText('目录检查完成。')).toBeInTheDocument()
   })
 
+  it('agent 启动失败时显示后端错误并保留当前会话状态', async () => {
+    mocks.provider.getAllAbvailableModels.mockResolvedValue([{
+      id: 'provider-1',
+      name: 'Provider',
+      models: [{
+        id: 'model-1',
+        model: 'mock-model',
+        name: 'Mock Model',
+        providerId: 'provider-1',
+        maxTokens: 1024,
+        temperature: 0,
+      }],
+    }])
+    mocks.agent.startTurn.mockRejectedValue(new Error('Provider API Key not found: xiaomi-token-plan-cn'))
+
+    renderGui('/chat')
+    await waitFor(() => expect(screen.getByText('Mock Model')).toBeInTheDocument())
+
+    const input = screen.getByTestId('chat-input') as HTMLTextAreaElement
+    fireEvent.change(input, {
+      target: { value: '检查当前目录' },
+    })
+    fireEvent.click(screen.getByTestId('chat-submit'))
+
+    expect(await screen.findByText('Provider API Key not found: xiaomi-token-plan-cn')).toBeInTheDocument()
+    expect(useMessagesStore.getState().activeConversationsId).toBe('')
+    expect(input.value).toBe('检查当前目录')
+  })
+
   it('agent 审批卡片支持批准和拒绝', async () => {
     seedActiveConversation('conv-approval')
     useAgentStore.setState({
