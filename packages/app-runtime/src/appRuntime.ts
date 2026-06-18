@@ -107,19 +107,24 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
     },
     overrides: { logger, aiProviderFactory },
   })
-  const agentController = createAgentRuntimeController(agentRuntime, context)
+  const titleGenerator = createConversationTitleGenerator({
+    providerSettingsRepository: context.providerSettingsRepository,
+    messageRepository: context.messageRepository,
+    conversationRepository: context.conversationRepository,
+    aiProviderFactory,
+  })
+  const agentController = createAgentRuntimeController(agentRuntime, context, {
+    aiProviderFactory,
+    titleGenerator,
+    emitConversationUpdated: conversation => events.emit('conversation:updated', { conversation }),
+    logger,
+  })
   const commandController = createCommandController({
     appDataContext: context,
     eventEmitter: agentEventEmitter,
     logger,
     aiProviderFactory,
     listActiveTasks: conversationId => agentRuntime.listActiveTasks(conversationId),
-  })
-  const titleGenerator = createConversationTitleGenerator({
-    providerSettingsRepository: context.providerSettingsRepository,
-    messageRepository: context.messageRepository,
-    conversationRepository: context.conversationRepository,
-    aiProviderFactory,
   })
   const modelsDevImporter = createModelsDevImporter(context)
   let initialized = false

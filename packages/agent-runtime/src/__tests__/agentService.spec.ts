@@ -15,9 +15,67 @@ const runtime = {
   getTask: vi.fn(),
 } as unknown as AgentRuntime
 
+const model = {
+  id: 'model-1',
+  model: 'mock-model',
+  name: 'Mock Model',
+  providerId: 'provider-1',
+  contextLength: 128_000,
+}
+const provider = {
+  id: 'provider-1',
+  name: 'Provider',
+  apiMode: 'openai' as const,
+  apiKey: 'test-key',
+  baseUrl: 'https://example.com',
+  isOfficial: false,
+  isEnabled: true,
+  createdAt: 1,
+  updatedAt: 1,
+}
+const conversation = {
+  id: 'c1',
+  title: 'Untitled',
+  workspacePath: '/workspace',
+  createdAt: 1,
+  updatedAt: 1,
+  settings: {
+    modelId: 'model-1',
+    systemPrompt: 'custom',
+    temperature: 0.2,
+    maxTokens: 2048,
+  },
+}
+const userMessage = {
+  id: 'm1',
+  convId: 'c1',
+  createdAt: 2,
+  role: 'user' as const,
+  status: 'success' as const,
+  content: [{ type: 'text' as const, text: 'inspect project' }],
+}
+const aiProvider = {
+  streamModel: vi.fn(),
+  complete: vi.fn(),
+}
+const aiProviderFactory = vi.fn(async () => aiProvider)
+
 const appDataContext = {
   workspaceService: {
     getCurrentWorkspacePath: vi.fn(() => '/workspace'),
+  },
+  modelCatalog: {
+    getModelById: vi.fn(async () => model),
+    getProviderById: vi.fn(async () => provider),
+  },
+  conversationRepository: {
+    create: vi.fn(async () => conversation),
+    getById: vi.fn(async () => conversation),
+    delete: vi.fn(async () => true),
+  },
+  messageRepository: {
+    create: vi.fn(async () => userMessage),
+    delete: vi.fn(async () => true),
   },
   toolApprovalWhitelistRepository: {
     add: vi.fn(),
@@ -31,12 +89,12 @@ describe('createAgentRuntimeController 行为', () => {
       taskId: 't1',
       conversationId: 'c1',
       userMessageId: 'm1',
-      conversation: { id: 'c1' },
+      conversation,
     })
   })
 
-  it('将应用层 turn 参数映射为 runtime start 参数', async () => {
-    const service = createAgentRuntimeController(runtime, appDataContext)
+  it('新会话先完成验证，再创建 conversation 和 user message 后启动 runtime', async () => {
+    const service = createAgentRuntimeController(runtime, appDataContext, { aiProviderFactory })
 
     await service.startTurn({
       prompt: 'inspect project',
@@ -51,11 +109,37 @@ describe('createAgentRuntimeController 行为', () => {
       },
     })
 
+    expect(appDataContext.modelCatalog.getModelById).toHaveBeenCalledWith('model-1')
+    expect(appDataContext.modelCatalog.getProviderById).toHaveBeenCalledWith('provider-1')
+    expect(aiProviderFactory).toHaveBeenCalledWith({ model, provider })
+    expect(appDataContext.conversationRepository.create).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Untitled',
+      workspacePath: '/workspace',
+      settings: {
+        modelId: 'model-1',
+        systemPrompt: 'custom',
+        temperature: 0.2,
+        maxTokens: 2048,
+      },
+    }))
+    expect(appDataContext.messageRepository.create).toHaveBeenCalledWith({
+      convId: 'c1',
+      role: 'user',
+      status: 'success',
+      content: [{ type: 'text', text: 'inspect project' }],
+      turnId: undefined,
+    })
     expect(startTask).toHaveBeenCalledWith({
       prompt: 'inspect project',
+      conversationId: 'c1',
+      userMessageId: 'm1',
       modelId: 'model-1',
       workspacePath: '/workspace',
+      aiProvider,
       mode: 'hybrid',
+      content: undefined,
+      referencedFiles: undefined,
+      selectedSkill: undefined,
       modelSettings: {
         systemPrompt: 'custom',
         temperature: 0.2,
@@ -65,7 +149,7 @@ describe('createAgentRuntimeController 行为', () => {
   })
 
   it('保留显式传入的 turn 上下文字段', async () => {
-    const service = createAgentRuntimeController(runtime, appDataContext)
+    const service = createAgentRuntimeController(runtime, appDataContext, { aiProviderFactory })
 
     await service.startTurn({
       conversationId: 'c1',
@@ -92,6 +176,7 @@ describe('createAgentRuntimeController 行为', () => {
 
     expect(startTask).toHaveBeenCalledWith(expect.objectContaining({
       conversationId: 'c1',
+      userMessageId: 'm1',
       workspacePath: '/explicit-workspace',
       mode: 'strict',
       referencedFiles: ['src/main.ts'],
@@ -102,6 +187,60 @@ describe('createAgentRuntimeController 行为', () => {
         { type: 'document', source: { type: 'file_id', file_id: 'file-1' }, name: 'a.txt', media_type: 'text/plain', size: 1 },
       ],
     }))
+    expect(appDataContext.conversationRepository.create).not.toHaveBeenCalled()
+    expect(appDataContext.conversationRepository.getById).toHaveBeenCalledWith('c1')
+  })
+
+  it('aPI Key 验证失败时不创建 conversation 或 user message', async () => {
+    aiProviderFactory.mockRejectedValueOnce(new Error('missing api key'))
+    const service = createAgentRuntimeController(runtime, appDataContext, { aiProviderFactory })
+
+    await expect(service.startTurn({
+      prompt: 'inspect project',
+      modelConfig: {
+        modelId: 'model-1',
+        systemPrompt: 'custom',
+        temperature: 0.2,
+        maxTokens: 2048,
+        features: {
+          enableMCP: false,
+        },
+      },
+    })).rejects.toThrow('missing api key')
+
+    expect(appDataContext.conversationRepository.create).not.toHaveBeenCalled()
+    expect(appDataContext.messageRepository.create).not.toHaveBeenCalled()
+    expect(startTask).not.toHaveBeenCalled()
+  })
+
+  it('成功启动新会话后异步初始化标题并发出 conversation 更新', async () => {
+    const titledConversation = { ...conversation, title: '项目检查' }
+    const titleGenerator = {
+      updateTitle: vi.fn(async () => titledConversation),
+    }
+    const emitConversationUpdated = vi.fn()
+    const service = createAgentRuntimeController(runtime, appDataContext, {
+      aiProviderFactory,
+      titleGenerator,
+      emitConversationUpdated,
+    })
+
+    await service.startTurn({
+      prompt: 'inspect project',
+      modelConfig: {
+        modelId: 'model-1',
+        systemPrompt: 'custom',
+        temperature: 0.2,
+        maxTokens: 2048,
+        features: {
+          enableMCP: false,
+        },
+      },
+    })
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(titleGenerator.updateTitle).toHaveBeenCalledWith('c1', 'model-1')
+    expect(emitConversationUpdated).toHaveBeenCalledWith(titledConversation)
   })
 
   it('记住审批时写入工具白名单后再批准 pending action', () => {

@@ -35,7 +35,6 @@ import { ToolRegistry } from '../tools/toolRegistry'
 import { contentBlocksToLoopMessageContent } from '../utils/attachmentUtils'
 import { buildPromptWithTurnContext } from './turnContext'
 
-const DEFAULT_CONVERSATION_TITLE = 'Untitled'
 const STREAM_UPDATE_INTERVAL_MS = 80
 
 export class SessionRuntime {
@@ -68,23 +67,16 @@ export class SessionRuntime {
     if (!options.workspacePath.trim()) {
       throw new Error('invalid start task options: missing workspacePath')
     }
+    if (!options.conversationId?.trim()) {
+      throw new Error('invalid start task options: missing conversationId')
+    }
+    if (!options.userMessageId?.trim()) {
+      throw new Error('invalid start task options: missing userMessageId')
+    }
 
     const modelCatalog = requireConfig(this.config.modelCatalog, 'modelCatalog')
 
-    const conversation = options.conversationId
-      ? await getExistingConversation(store, options.conversationId)
-      : await store.createConversation({
-          title: DEFAULT_CONVERSATION_TITLE,
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-          workspacePath: options.workspacePath,
-          settings: {
-            modelId: options.modelId,
-            systemPrompt: options.modelSettings?.systemPrompt ?? '',
-            temperature: options.modelSettings?.temperature ?? 0.7,
-            maxTokens: options.modelSettings?.maxTokens ?? 4096,
-          },
-        })
+    const conversation = await getExistingConversation(store, options.conversationId)
 
     if (this.listActiveTasks(conversation.id).length > 0) {
       throw new Error('AGENT_TASK_ALREADY_RUNNING')
@@ -100,10 +92,15 @@ export class SessionRuntime {
     }
     const loadFileData = createCachedLoadFileData(this.config.loadFileData)
 
-    const aiProvider = this.config.aiProviderFactory
+    const aiProvider = options.aiProvider ?? (this.config.aiProviderFactory
       ? await this.config.aiProviderFactory({ model, provider })
-      : await createProvider(provider)
+      : await createProvider(provider))
     const currentConversation = await store.getConversation(conversation.id)
+    const allMessages = await store.getMessages(conversation.id)
+    const userMessage = allMessages.find(message => message.id === options.userMessageId && message.role === 'user')
+    if (!userMessage) {
+      throw new Error(`User message not found: ${options.userMessageId}`)
+    }
 
     const enrichedPrompt = buildPromptWithTurnContext({
       prompt,
@@ -113,9 +110,9 @@ export class SessionRuntime {
 
     // Build user content.
     let userContent: LoopMessage['content']
-    if (options.content && options.content.length > 0) {
-      // Preserve content blocks while replacing the visible user prompt text.
-      const contentWithEnrichedPrompt = options.content.map((block) => {
+    if (userMessage.content.length > 0) {
+      // 保留附件块，同时让 agent 上下文使用带引用信息的提示词。
+      const contentWithEnrichedPrompt = userMessage.content.map((block) => {
         if (block.type === 'text') {
           return { ...block, text: enrichedPrompt }
         }
@@ -127,7 +124,7 @@ export class SessionRuntime {
       userContent = [{ type: 'text', text: enrichedPrompt }]
     }
 
-    const historyMessages = await store.getMessages(conversation.id)
+    const historyMessages = allMessages.filter(message => message.id !== userMessage.id)
     const contextEntries = await buildConversationContextEntries(
       historyMessages,
       undefined,
@@ -156,14 +153,6 @@ export class SessionRuntime {
     if (preTurnCompaction.compacted) {
       this.promptMemorySnapshots.delete(conversation.id)
     }
-
-    const userMessage = await store.createUserMessage({
-      convId: conversation.id,
-      role: 'user',
-      status: 'success',
-      content: options.content ?? [{ type: 'text', text: prompt }],
-      turnId: undefined,
-    })
 
     const messages: LoopMessage[] = [
       ...preTurnCompaction.messages,

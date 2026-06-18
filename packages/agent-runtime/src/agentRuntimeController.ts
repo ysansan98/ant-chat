@@ -1,7 +1,8 @@
 import type { AgentRuntime } from '@ant-chat/agent-core'
 import type { AppDataContext } from '@ant-chat/app-data'
-import type { AgentRuntimeStartTaskOptions, AgentRuntimeStartTaskResult, ApprovePendingActionOptions, CancelTaskOptions, IMessage, RejectPendingActionOptions, StartAgentTurnOptions } from '@ant-chat/shared'
-import process from 'node:process'
+import type { AgentRuntimeStartTaskResult, ApprovePendingActionOptions, CancelTaskOptions, IMessage, RejectPendingActionOptions, StartAgentTurnOptions } from '@ant-chat/shared'
+import type { AgentTurnServiceDeps } from './agentTurnService'
+import { createAgentTurnService } from './agentTurnService'
 
 export interface AgentRuntimeController {
   startTurn: (options: StartAgentTurnOptions) => Promise<AgentRuntimeStartTaskResult>
@@ -13,10 +14,20 @@ export interface AgentRuntimeController {
   approvePendingActionWithWhitelist: (options: ApprovePendingActionOptions & { remember: boolean, workspacePath?: string }) => null
 }
 
-export function createAgentRuntimeController(runtime: AgentRuntime, appDataContext: AppDataContext): AgentRuntimeController {
+export function createAgentRuntimeController(
+  runtime: AgentRuntime,
+  appDataContext: AppDataContext,
+  turnServiceDeps: Omit<AgentTurnServiceDeps, 'runtime' | 'appDataContext'> = {},
+): AgentRuntimeController {
+  const turnService = createAgentTurnService({
+    runtime,
+    appDataContext,
+    ...turnServiceDeps,
+  })
+
   return {
     async startTurn(options) {
-      return await runtime.startTask(toRuntimeStartOptions(options, appDataContext))
+      return await turnService.startTurn(options)
     },
     approvePendingAction(options) {
       runtime.approvePendingAction(options)
@@ -54,36 +65,4 @@ export function createAgentRuntimeController(runtime: AgentRuntime, appDataConte
       return null
     },
   }
-}
-
-function toRuntimeStartOptions(
-  options: StartAgentTurnOptions,
-  appDataContext: AppDataContext,
-): AgentRuntimeStartTaskOptions {
-  const workspacePath = options.workspacePath
-    ?? appDataContext.workspaceService.getCurrentWorkspacePath()
-    ?? process.cwd()
-
-  const startOptions: AgentRuntimeStartTaskOptions = {
-    prompt: options.prompt,
-    modelId: options.modelConfig.modelId,
-    workspacePath,
-    mode: options.mode ?? 'hybrid',
-    modelSettings: {
-      systemPrompt: options.modelConfig.systemPrompt,
-      temperature: options.modelConfig.temperature,
-      maxTokens: options.modelConfig.maxTokens,
-    },
-  }
-
-  if (options.conversationId)
-    startOptions.conversationId = options.conversationId
-  if (options.content)
-    startOptions.content = options.content
-  if (options.referencedFiles)
-    startOptions.referencedFiles = options.referencedFiles
-  if (options.selectedSkill)
-    startOptions.selectedSkill = options.selectedSkill
-
-  return startOptions
 }

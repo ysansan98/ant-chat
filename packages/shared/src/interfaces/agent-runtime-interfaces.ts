@@ -296,9 +296,11 @@ export interface AgentRuntimeConfig extends AgentRuntimeOverrides {
 
 export interface AgentRuntimeStartTaskOptions {
   prompt: string
-  conversationId?: string
+  conversationId: string
+  userMessageId: string
   modelId: string
   workspacePath: string
+  aiProvider?: IAIProvider
   mode?: AgentMode
   content?: IMessageContent
   referencedFiles?: string[]

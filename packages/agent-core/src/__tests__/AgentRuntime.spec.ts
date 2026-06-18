@@ -3,7 +3,7 @@ import { AgentRuntime } from '../AgentRuntime'
 import { runAgentLoop } from '../loop/agentLoop'
 import { taskStore } from '../taskStore'
 import { ToolRegistry } from '../tools/toolRegistry'
-import type { AgentRuntimeConfig, IAgentEventEmitter, ILogger, ISessionStore } from '@ant-chat/shared'
+import type { AgentRuntimeConfig, AgentRuntimeStartTaskOptions, IAgentEventEmitter, ILogger, ISessionStore } from '@ant-chat/shared'
 import type { RuntimeStartInput } from '../session/types'
 
 // Mock the agentLoop so startTask doesn't actually run the loop
@@ -52,13 +52,22 @@ function createSessionStore(overrides: Partial<ISessionStore> = {}): ISessionSto
       maxTokens: 1024,
     },
   }
+  const userMessage = {
+    id: 'user-msg-1',
+    convId: conversation.id,
+    createdAt: 2,
+    role: 'user' as const,
+    status: 'success' as const,
+    content: [{ type: 'text' as const, text: 'inspect project' }],
+    turnId: undefined,
+  }
   return {
     getConversation: vi.fn(async () => conversation),
     getConversationById: vi.fn(async () => conversation),
     createConversation: vi.fn(async () => conversation),
     updateConversation: vi.fn(async () => conversation),
     listConversations: vi.fn(async () => [conversation]),
-    getMessages: vi.fn(async () => []),
+    getMessages: vi.fn(async () => [userMessage]),
     getMessagesByConvId: vi.fn(async () => []),
     createUserMessage: vi.fn(async data => ({
       id: data.id ?? 'user-msg-1',
@@ -174,6 +183,30 @@ function createValidStartInput(overrides: Partial<RuntimeStartInput> = {}): Runt
   }
 }
 
+function createValidSessionStartInput(overrides: Partial<AgentRuntimeStartTaskOptions> = {}): AgentRuntimeStartTaskOptions {
+  return {
+    conversationId: 'conv-session',
+    userMessageId: 'user-msg-1',
+    prompt: 'inspect project',
+    modelId: 'model-1',
+    workspacePath: '/workspace',
+    mode: 'hybrid',
+    ...overrides,
+  }
+}
+
+function createPersistedUserMessage(text: string, id = 'user-msg-1') {
+  return {
+    id,
+    convId: 'conv-session',
+    createdAt: 10,
+    role: 'user' as const,
+    status: 'success' as const,
+    content: [{ type: 'text' as const, text }],
+    turnId: undefined,
+  }
+}
+
 // Clean up taskStore between tests
 function cleanupTasks(ids: string[]) {
   for (const id of ids) {
@@ -267,32 +300,23 @@ describe('agentRuntime 行为', () => {
       cleanupTasks([result1.taskId])
     })
 
-    it('通过高层 task 参数创建 session 状态并启动 loop', async () => {
+    it('通过高层 task 参数读取 session 状态并启动 loop', async () => {
       const store = createSessionStore()
       const config = createSessionConfig({ sessionStore: store })
       const runtime = new AgentRuntime(config)
 
-      const result = await runtime.startTask({
+      const result = await runtime.startTask(createValidSessionStartInput({
         prompt: ' inspect project ',
-        modelId: 'model-1',
-        workspacePath: '/workspace',
-        mode: 'hybrid',
         modelSettings: {
           systemPrompt: '',
           temperature: 0.7,
           maxTokens: 1024,
         },
-      })
+      }))
 
-      expect(store.createConversation).toHaveBeenCalledWith(expect.objectContaining({
-        title: 'Untitled',
-        workspacePath: '/workspace',
-      }))
-      expect(store.createUserMessage).toHaveBeenCalledWith(expect.objectContaining({
-        convId: 'conv-session',
-        role: 'user',
-        content: [{ type: 'text', text: 'inspect project' }],
-      }))
+      expect(store.getConversation).toHaveBeenCalledWith('conv-session')
+      expect(store.createConversation).not.toHaveBeenCalled()
+      expect(store.createUserMessage).not.toHaveBeenCalled()
       expect(result).toEqual(expect.objectContaining({
         conversationId: 'conv-session',
         userMessageId: 'user-msg-1',
@@ -307,6 +331,8 @@ describe('agentRuntime 行为', () => {
 
       const result = await runtime.startTask({
         prompt: 'inspect project',
+        conversationId: 'conv-session',
+        userMessageId: 'user-msg-1',
         modelId: 'model-1',
         workspacePath: '/workspace',
         mode: 'hybrid',
@@ -346,12 +372,9 @@ describe('agentRuntime 行为', () => {
       const store = createSessionStore()
       const runtime = new AgentRuntime(createSessionConfig({ sessionStore: store }))
 
-      await expect(runtime.startTask({
-        prompt: 'inspect project',
+      await expect(runtime.startTask(createValidSessionStartInput({
         modelId: '',
-        workspacePath: '/workspace',
-        mode: 'hybrid',
-      })).rejects.toThrow('missing modelId')
+      }))).rejects.toThrow('missing modelId')
       expect(store.createUserMessage).not.toHaveBeenCalled()
     })
 
@@ -359,12 +382,9 @@ describe('agentRuntime 行为', () => {
       const store = createSessionStore()
       const runtime = new AgentRuntime(createSessionConfig({ sessionStore: store }))
 
-      await expect(runtime.startTask({
-        prompt: 'inspect project',
-        modelId: 'model-1',
+      await expect(runtime.startTask(createValidSessionStartInput({
         workspacePath: '',
-        mode: 'hybrid',
-      })).rejects.toThrow('missing workspacePath')
+      }))).rejects.toThrow('missing workspacePath')
       expect(store.createUserMessage).not.toHaveBeenCalled()
     })
 
@@ -378,12 +398,9 @@ describe('agentRuntime 行为', () => {
         },
       }))
 
-      await expect(runtime.startTask({
-        prompt: 'inspect project',
+      await expect(runtime.startTask(createValidSessionStartInput({
         modelId: 'missing-model',
-        workspacePath: '/workspace',
-        mode: 'hybrid',
-      })).rejects.toThrow('Model not found: missing-model')
+      }))).rejects.toThrow('Model not found: missing-model')
       expect(store.createUserMessage).not.toHaveBeenCalled()
     })
 
@@ -403,12 +420,7 @@ describe('agentRuntime 行为', () => {
         },
       }))
 
-      await expect(runtime.startTask({
-        prompt: 'inspect project',
-        modelId: 'model-1',
-        workspacePath: '/workspace',
-        mode: 'hybrid',
-      })).rejects.toThrow('Provider not found for model: test-model')
+      await expect(runtime.startTask(createValidSessionStartInput())).rejects.toThrow('Provider not found for model: test-model')
       expect(store.createUserMessage).not.toHaveBeenCalled()
     })
 
@@ -428,12 +440,7 @@ describe('agentRuntime 行为', () => {
       })
       const runtime = new AgentRuntime(config)
 
-      const result = await runtime.startTask({
-        prompt: 'inspect project',
-        modelId: 'model-1',
-        workspacePath: '/workspace',
-        mode: 'hybrid',
-      })
+      const result = await runtime.startTask(createValidSessionStartInput())
 
       expect(runAgentLoop).toHaveBeenCalledWith(expect.objectContaining({
         options: expect.objectContaining({
@@ -490,13 +497,9 @@ describe('agentRuntime 行为', () => {
 
       userMarkdown = '§Prefer verbose English.'
       memoryMarkdown = '§Use npm test.'
-      const secondResult = await runtime.startTask({
-        conversationId: 'conv-session',
+      const secondResult = await runtime.startTask(createValidSessionStartInput({
         prompt: 'inspect project again',
-        modelId: 'model-1',
-        workspacePath: '/workspace',
-        mode: 'hybrid',
-      })
+      }))
 
       const secondCalls = vi.mocked(runAgentLoop).mock.calls
       const secondCall = secondCalls[secondCalls.length - 1]
@@ -507,7 +510,7 @@ describe('agentRuntime 行为', () => {
       cleanupTasks([secondResult.taskId])
     })
 
-    it('写入新用户消息前压缩持久化历史并刷新 memory', async () => {
+    it('启动 loop 前压缩持久化历史并刷新 memory', async () => {
       const conversation = {
         id: 'conv-session',
         title: 'Untitled',
@@ -522,7 +525,9 @@ describe('agentRuntime 行为', () => {
           compaction: { enabled: true, thresholdPercent: 70, keepRecentTokens: 16 },
         },
       }
-      let historyMessages: Awaited<ReturnType<ISessionStore['getMessages']>> = []
+      let historyMessages: Awaited<ReturnType<ISessionStore['getMessages']>> = [
+        createPersistedUserMessage('inspect project first'),
+      ]
       const store = createSessionStore({
         getConversation: vi.fn(async () => conversation),
         getConversationById: vi.fn(async () => conversation),
@@ -570,13 +575,9 @@ describe('agentRuntime 行为', () => {
       })
       const runtime = new AgentRuntime(config)
 
-      const firstResult = await runtime.startTask({
-        conversationId: 'conv-session',
+      const firstResult = await runtime.startTask(createValidSessionStartInput({
         prompt: 'inspect project first',
-        modelId: 'model-1',
-        workspacePath: '/workspace',
-        mode: 'hybrid',
-      })
+      }))
       cleanupTasks([firstResult.taskId])
 
       memoryMarkdown = '§Updated memory after compaction.'
@@ -585,15 +586,12 @@ describe('agentRuntime 行为', () => {
         { id: 'a1', convId: 'conv-session', createdAt: 2, role: 'assistant', status: 'success', content: [{ type: 'text', text: 'previous answer' }] },
         { id: 'u2', convId: 'conv-session', createdAt: 3, role: 'user', status: 'success', content: [{ type: 'text', text: 'recent request' }] },
         { id: 'a2', convId: 'conv-session', createdAt: 4, role: 'assistant', status: 'success', content: [{ type: 'text', text: 'recent answer' }] },
+        createPersistedUserMessage('inspect project again'),
       ]
 
-      const secondResult = await runtime.startTask({
-        conversationId: 'conv-session',
+      const secondResult = await runtime.startTask(createValidSessionStartInput({
         prompt: 'inspect project again',
-        modelId: 'model-1',
-        workspacePath: '/workspace',
-        mode: 'hybrid',
-      })
+      }))
 
       const loopCalls = vi.mocked(runAgentLoop).mock.calls
       const loopCall = loopCalls[loopCalls.length - 1]
@@ -643,10 +641,6 @@ describe('agentRuntime 行为', () => {
           totalTokens: 12300,
         },
       })
-      expect(vi.mocked(store.createEventMessage).mock.invocationCallOrder[0])
-        .toBeLessThan(vi.mocked(store.createUserMessage).mock.invocationCallOrder[1])
-      expect(vi.mocked(store.updateEventMessage).mock.invocationCallOrder[0])
-        .toBeLessThan(vi.mocked(store.createUserMessage).mock.invocationCallOrder[1])
       expect(readMemory).toHaveBeenCalledTimes(2)
       expect(readUserMemory).toHaveBeenCalledTimes(2)
       cleanupTasks([secondResult.taskId])
@@ -679,6 +673,7 @@ describe('agentRuntime 行为', () => {
           usage: { totalTokens: 6900 },
         },
         { id: 'u2', convId: 'conv-session', createdAt: 3, role: 'user', status: 'success', content: [{ type: 'text', text: 'recent request' }] },
+        createPersistedUserMessage('x'.repeat(400)),
       ]
       const store = createSessionStore({
         getConversation: vi.fn(async () => conversation),
@@ -713,13 +708,9 @@ describe('agentRuntime 行为', () => {
       })
 
       const runtime = new AgentRuntime(config)
-      const result = await runtime.startTask({
-        conversationId: 'conv-session',
+      const result = await runtime.startTask(createValidSessionStartInput({
         prompt: 'x'.repeat(400),
-        modelId: 'model-1',
-        workspacePath: '/workspace',
-        mode: 'hybrid',
-      })
+      }))
 
       expect(store.createEventMessage).toHaveBeenCalledOnce()
       expect(store.updateEventMessage).toHaveBeenCalledWith('event-msg-1', expect.objectContaining({
@@ -748,6 +739,7 @@ describe('agentRuntime 行为', () => {
         { id: 'u1', convId: 'conv-session', createdAt: 1, role: 'user', status: 'success', content: [{ type: 'text', text: 'x'.repeat(60_000) }] },
         { id: 'a1', convId: 'conv-session', createdAt: 2, role: 'assistant', status: 'success', content: [{ type: 'text', text: 'previous answer' }] },
         { id: 'u2', convId: 'conv-session', createdAt: 3, role: 'user', status: 'success', content: [{ type: 'text', text: 'recent request' }] },
+        createPersistedUserMessage('inspect project'),
       ]
       const store = createSessionStore({
         getConversation: vi.fn(async () => conversation),
@@ -784,13 +776,7 @@ describe('agentRuntime 行为', () => {
       })
 
       const runtime = new AgentRuntime(config)
-      const result = await runtime.startTask({
-        conversationId: 'conv-session',
-        prompt: 'inspect project',
-        modelId: 'model-1',
-        workspacePath: '/workspace',
-        mode: 'hybrid',
-      })
+      const result = await runtime.startTask(createValidSessionStartInput())
 
       expect(store.createEventMessage).toHaveBeenCalledWith({
         convId: 'conv-session',
@@ -811,8 +797,6 @@ describe('agentRuntime 行为', () => {
         },
         usage: undefined,
       })
-      expect(vi.mocked(store.updateEventMessage).mock.invocationCallOrder[0])
-        .toBeLessThan(vi.mocked(store.createUserMessage).mock.invocationCallOrder[0])
       cleanupTasks([result.taskId])
     })
 
@@ -853,6 +837,7 @@ describe('agentRuntime 行为', () => {
         },
         { id: 'u2', convId: 'conv-session', createdAt: 3, role: 'user', status: 'success', content: [{ type: 'text', text: 'recent request' }] },
         { id: 'a2', convId: 'conv-session', createdAt: 4, role: 'assistant', status: 'success', content: [{ type: 'text', text: 'recent answer' }] },
+        createPersistedUserMessage('inspect project'),
       ]
       const store = createSessionStore({
         getConversation: vi.fn(async () => conversation),
@@ -887,13 +872,7 @@ describe('agentRuntime 行为', () => {
       })
 
       const runtime = new AgentRuntime(config)
-      const result = await runtime.startTask({
-        conversationId: 'conv-session',
-        prompt: 'inspect project',
-        modelId: 'model-1',
-        workspacePath: '/workspace',
-        mode: 'hybrid',
-      })
+      const result = await runtime.startTask(createValidSessionStartInput())
 
       expect(store.createEventMessage).not.toHaveBeenCalled()
       expect(store.updateEventMessage).not.toHaveBeenCalled()
@@ -906,13 +885,9 @@ describe('agentRuntime 行为', () => {
       const runtime = new AgentRuntime(config)
       const running = await runtime.startTask(createValidStartInput({ conversationId: 'conv-session' }))
 
-      await expect(runtime.startTask({
-        conversationId: 'conv-session',
+      await expect(runtime.startTask(createValidSessionStartInput({
         prompt: 'run it',
-        modelId: 'model-1',
-        workspacePath: '/workspace',
-        mode: 'hybrid',
-      })).rejects.toThrow('AGENT_TASK_ALREADY_RUNNING')
+      }))).rejects.toThrow('AGENT_TASK_ALREADY_RUNNING')
 
       expect(store.createUserMessage).not.toHaveBeenCalled()
       cleanupTasks([running.taskId])
@@ -924,13 +899,7 @@ describe('agentRuntime 行为', () => {
       const store = createSessionStore()
       const eventEmitter = createMockEmitter()
       const runtime = new AgentRuntime(createSessionConfig({ eventEmitter, sessionStore: store }))
-      const running = await runtime.startTask({
-        conversationId: 'conv-session',
-        prompt: 'inspect project',
-        modelId: 'model-1',
-        workspacePath: '/workspace',
-        mode: 'hybrid',
-      })
+      const running = await runtime.startTask(createValidSessionStartInput())
 
       // Record calls from startTask so we can ignore them
       const callsBefore = (store.createUserMessage as ReturnType<typeof vi.fn>).mock.calls.length
