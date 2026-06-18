@@ -1,3 +1,4 @@
+import { writeClipboardText } from '@workspace/ui/lib/clipboard'
 import { nanoid } from 'nanoid'
 import { ipc } from './ipc-bus'
 
@@ -24,7 +25,7 @@ export async function clipboardWrite(data: { text?: string }): Promise<void> {
     return
   }
 
-  await navigator.clipboard.writeText(data.text ?? '')
+  await writeClipboardText(data.text ?? '')
 }
 
 export function getSystemPlatform() {

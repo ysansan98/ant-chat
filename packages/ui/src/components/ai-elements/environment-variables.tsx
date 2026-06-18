@@ -4,6 +4,7 @@ import type { ComponentProps, HTMLAttributes } from 'react'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 import { Switch } from '@workspace/ui/components/switch'
+import { writeClipboardText } from '@workspace/ui/lib/clipboard'
 import { cn } from '@workspace/ui/lib/utils'
 import { CheckIcon, CopyIcon, EyeIcon, EyeOffIcon } from 'lucide-react'
 import {
@@ -282,13 +283,8 @@ export function EnvironmentVariableCopyButton({
   }, [name, value, copyFormat])
 
   const copyToClipboard = useCallback(async () => {
-    if (typeof window === 'undefined' || !navigator?.clipboard?.writeText) {
-      onError?.(new Error('Clipboard API not available'))
-      return
-    }
-
     try {
-      await navigator.clipboard.writeText(getTextToCopy())
+      await writeClipboardText(getTextToCopy())
       setIsCopied(true)
       onCopy?.()
       timeoutRef.current = window.setTimeout(() => setIsCopied(false), timeout)
