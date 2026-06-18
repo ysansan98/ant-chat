@@ -11,10 +11,11 @@ Use 简体中文.
 Just provide the name, nothing else.
 
 Here's the conversation:
+<conversation-contents>
 --------------------------------
 ${TITLE_PROMPT_PLACEHOLDER}
 --------------------------------
-Use 简体中文.
+</conversation-contents>
 Only give the name, nothing else.
 The name is:
 `
