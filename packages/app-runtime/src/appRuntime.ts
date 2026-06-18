@@ -373,7 +373,7 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
       getTask: (taskId: string) => agentRuntime.getTask(taskId),
       listActiveTasks: (conversationId?: string) => agentController.listActiveTasks(conversationId),
       injectSteering: (input: { conversationId: string, text: string }) => agentController.injectSteering(input),
-      resolveSecretRequest: (input: { requestId: string, value: string }) => {
+      resolveSecretRequest: (input: { requestId: string, value?: string, values?: Record<string, string> }) => {
         secretRequester.resolveSecretRequest(input)
         return null
       },

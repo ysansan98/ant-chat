@@ -139,22 +139,48 @@ function createRequestSecretTool(): AgentTool {
     serverName: 'agent-loop',
     description: [
       '向用户请求当前任务临时使用的敏感信息。',
-      '当工具需要密码、token、验证码或一次性密钥时使用。',
-      '此工具不会返回真实值，只返回 SecretRef；后续工具应把 SecretRef 传给 bash.env 等字段。',
+      '当工具需要密码、token、验证码、账号密码等一个或多个敏感字段时使用。',
+      '单字段可传 label；多字段传 fields，例如 [{ key: "username", label: "账号" }, { key: "password", label: "密码" }]。',
+      '此工具不会返回真实值，只返回 SecretRef 或 secretRefs；后续工具应把 SecretRef 传给 bash.env 等字段。',
     ].join('\n'),
     inputSchema: {
       type: 'object',
       properties: {
-        label: { type: 'string', description: '展示给用户的短标签，例如“部署密码”。' },
+        label: { type: 'string', description: '展示给用户的短标签，例如“部署密码”。多字段请求时作为整体标题。' },
+        fields: {
+          type: 'array',
+          description: '可选。一次请求多个敏感字段，每项包含 key 和 label。',
+          items: {
+            type: 'object',
+            properties: {
+              key: { type: 'string', description: '返回 secretRefs 中使用的字段名，例如 username。' },
+              label: { type: 'string', description: '展示给用户的字段标签，例如“账号”。' },
+            },
+            required: ['key', 'label'],
+          },
+        },
         reason: { type: 'string', description: '展示给用户的可选原因。' },
       },
-      required: ['label'],
+      required: [],
     },
     operationType: 'skill',
     inferScope: () => 'workspace',
     validateInput: (input) => {
-      if (typeof input.label !== 'string' || !input.label.trim()) {
-        return 'label is required'
+      if (input.label !== undefined && (typeof input.label !== 'string' || !input.label.trim())) {
+        return 'label must be a non-empty string'
+      }
+      if (input.fields !== undefined) {
+        if (!Array.isArray(input.fields) || input.fields.length === 0) {
+          return 'fields must be a non-empty array'
+        }
+        for (const field of input.fields) {
+          if (!isPlainRecord(field) || typeof field.key !== 'string' || !field.key.trim() || typeof field.label !== 'string' || !field.label.trim()) {
+            return 'fields must contain key and label'
+          }
+        }
+      }
+      if (input.fields === undefined && (typeof input.label !== 'string' || !input.label.trim())) {
+        return 'label is required when fields is not provided'
       }
       if (input.reason !== undefined && typeof input.reason !== 'string') {
         return 'reason must be a string'

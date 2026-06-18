@@ -194,14 +194,21 @@ async function executeRequestSecret(prepared: PreparedToolCall, task: RuntimeTas
     return { ok: false, error: 'Secret requester is not available' }
   }
   const label = String(prepared.input.label || '').trim()
+  const fields = Array.isArray(prepared.input.fields)
+    ? prepared.input.fields.map(field => ({
+        key: String((field as { key?: unknown }).key || '').trim(),
+        label: String((field as { label?: unknown }).label || '').trim(),
+      }))
+    : undefined
   const reason = typeof prepared.input.reason === 'string' ? prepared.input.reason : undefined
-  const secretRef = await config.secretRequester.requestSecret({
+  const result = await config.secretRequester.requestSecret({
     runId: task.snapshot.taskId,
     conversationId: task.snapshot.conversationId,
-    label,
+    label: label || (fields?.length === 1 ? fields[0].label : '敏感信息'),
+    fields,
     reason,
   })
-  return { ok: true, output: { secretRef } }
+  return { ok: true, output: result }
 }
 
 // ============================================================

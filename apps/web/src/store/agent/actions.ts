@@ -29,8 +29,8 @@ export async function injectSteeringAction(conversationId: string, text: string)
   return await agentApi.injectSteering(conversationId, text)
 }
 
-export async function resolveSecretRequestAction(requestId: string, value: string) {
-  await agentApi.resolveSecretRequest({ requestId, value })
+export async function resolveSecretRequestAction(requestId: string, values: Record<string, string>) {
+  await agentApi.resolveSecretRequest({ requestId, values })
   useAgentStore.getState().clearSecretRequest(requestId)
 }
 

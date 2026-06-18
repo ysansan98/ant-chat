@@ -1,4 +1,4 @@
-import type { IAgentEventEmitter, SecretRef, SecretRequestController, SecretStore } from '@ant-chat/shared'
+import type { IAgentEventEmitter, SecretRequestController, SecretRequestField, SecretRequestResult, SecretStore } from '@ant-chat/shared'
 import { randomUUID } from 'node:crypto'
 
 const SECRET_REQUEST_TIMEOUT_MS = 5 * 60 * 1000
@@ -6,8 +6,8 @@ const SECRET_REQUEST_TIMEOUT_MS = 5 * 60 * 1000
 export class RuntimeSecretRequestController implements SecretRequestController {
   private readonly pending = new Map<string, {
     runId: string
-    label: string
-    resolve: (ref: SecretRef) => void
+    fields: SecretRequestField[]
+    resolve: (result: SecretRequestResult) => void
     reject: (error: Error) => void
     timer: ReturnType<typeof setTimeout>
   }>()
@@ -21,10 +21,13 @@ export class RuntimeSecretRequestController implements SecretRequestController {
     runId: string
     conversationId: string
     label: string
+    fields?: SecretRequestField[]
     reason?: string
-  }): Promise<SecretRef> {
+  }): Promise<SecretRequestResult> {
     const requestId = randomUUID()
-    return await new Promise<SecretRef>((resolve, reject) => {
+    const fields = normalizeFields(input)
+
+    return await new Promise<SecretRequestResult>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(requestId)
         reject(new Error('敏感信息请求超时'))
@@ -32,7 +35,7 @@ export class RuntimeSecretRequestController implements SecretRequestController {
 
       this.pending.set(requestId, {
         runId: input.runId,
-        label: input.label,
+        fields,
         resolve,
         reject,
         timer,
@@ -43,19 +46,32 @@ export class RuntimeSecretRequestController implements SecretRequestController {
         runId: input.runId,
         conversationId: input.conversationId,
         label: input.label,
+        fields,
         reason: input.reason,
         createdAt: Date.now(),
       })
     })
   }
 
-  resolveSecretRequest(input: { requestId: string, value: string }): void {
+  resolveSecretRequest(input: { requestId: string, value?: string, values?: Record<string, string> }): void {
     const pending = this.requirePending(input.requestId)
-    void this.secretStore.createTurnSecret({
-      runId: pending.runId,
-      label: pending.label,
-      value: input.value,
-    }).then(pending.resolve, pending.reject)
+    const values = normalizeValues(input, pending.fields)
+    void Promise.all(
+      pending.fields.map(async (field) => {
+        const ref = await this.secretStore.createTurnSecret({
+          runId: pending.runId,
+          label: field.label,
+          value: values[field.key],
+        })
+        return [field.key, ref] as const
+      }),
+    ).then((entries) => {
+      const secretRefs = Object.fromEntries(entries)
+      pending.resolve({
+        secretRef: pending.fields.length === 1 ? secretRefs[pending.fields[0].key] : undefined,
+        secretRefs,
+      })
+    }, pending.reject)
     this.deletePending(input.requestId)
   }
 
@@ -81,4 +97,38 @@ export class RuntimeSecretRequestController implements SecretRequestController {
     clearTimeout(pending.timer)
     this.pending.delete(requestId)
   }
+}
+
+function normalizeFields(input: { label: string, fields?: SecretRequestField[] }): SecretRequestField[] {
+  if (input.fields?.length) {
+    return input.fields.map((field) => {
+      const key = field.key.trim()
+      const label = field.label.trim()
+      if (!key || !label) {
+        throw new Error('敏感信息字段必须包含 key 和 label')
+      }
+      return { key, label }
+    })
+  }
+  return [{ key: 'value', label: input.label }]
+}
+
+function normalizeValues(
+  input: { value?: string, values?: Record<string, string> },
+  fields: SecretRequestField[],
+): Record<string, string> {
+  if (input.values) {
+    return fields.reduce<Record<string, string>>((acc, field) => {
+      const value = input.values?.[field.key]
+      if (typeof value !== 'string' || value.length === 0) {
+        throw new Error(`缺少敏感信息字段：${field.label}`)
+      }
+      acc[field.key] = value
+      return acc
+    }, {})
+  }
+  if (fields.length === 1 && typeof input.value === 'string') {
+    return { [fields[0].key]: input.value }
+  }
+  throw new Error('敏感信息请求缺少提交值')
 }

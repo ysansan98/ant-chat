@@ -145,7 +145,7 @@ export default function Chat() {
           ? (
               <AgentSecretRequestCard
                 request={secretRequest}
-                onSubmit={value => void resolveSecretRequestAction(secretRequest.requestId, value)}
+                onSubmit={values => void resolveSecretRequestAction(secretRequest.requestId, values)}
                 onReject={() => void rejectSecretRequestAction(secretRequest.requestId)}
               />
             )

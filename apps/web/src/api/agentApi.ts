@@ -31,7 +31,7 @@ async function injectSteering(conversationId: string, text: string): Promise<IMe
   return (await getAppTransport()).agent.injectSteering({ conversationId, text })
 }
 
-async function resolveSecretRequest(options: { requestId: string, value: string }): Promise<null> {
+async function resolveSecretRequest(options: { requestId: string, value?: string, values?: Record<string, string> }): Promise<null> {
   return (await getAppTransport()).agent.resolveSecretRequest(options)
 }
 
