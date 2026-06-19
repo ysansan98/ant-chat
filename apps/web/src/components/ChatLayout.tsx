@@ -9,6 +9,7 @@ import { useState } from 'react'
 import { Outlet, useNavigate } from 'react-router'
 import { useConversationsStore } from '@/store/conversation'
 import { setActiveConversationsId, useMessagesStore } from '@/store/messages'
+import { isElectronMacOS } from '@/utils/ipc-bus'
 import { SliderMenu } from './SiliderMenu'
 
 /**
@@ -41,9 +42,10 @@ export function ChatLayout() {
         aria-label={showSliderMenu ? '收起侧边栏' : '展开侧边栏'}
         data-testid="desktop-sidebar-trigger"
         className={`
-          absolute top-4 left-22.5 z-9990 hidden cursor-pointer text-muted-foreground
+          absolute top-4 z-9990 hidden cursor-pointer text-muted-foreground
           hover:text-foreground
           md:block
+          ${isElectronMacOS() ? 'left-22.5' : 'left-4'}
         `}
         onClick={() => {
           setShowSliderMenu(prev => !prev)
