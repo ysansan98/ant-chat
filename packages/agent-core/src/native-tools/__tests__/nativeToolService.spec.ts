@@ -136,7 +136,7 @@ describe('native tool service 行为', () => {
       result: expect.stringContaining('stderr:'),
       diagnostics: { exitCode: expect.any(Number) },
     })
-    expect(result.diagnostics.exitCode).toBeGreaterThan(0)
+    expect(result.diagnostics?.exitCode).toBeGreaterThan(0)
     expect(result.result).toContain('exitCode=')
   })
 
