@@ -391,7 +391,7 @@ async function listSkillFiles(skillsRoot: string, name: string): Promise<string[
   const skillPath = path.join(skillsRoot, name)
   const entries = await fs.promises.readdir(skillPath, { recursive: true, withFileTypes: true })
   return entries
-    .filter(e => e.isFile() && e.name !== 'manifest.json' && e.name !== '.index.json')
+    .filter(e => e.isFile() && e.name !== '.index.json')
     .map(e => path.join(e.parentPath ?? skillPath, e.name))
     .sort()
 }

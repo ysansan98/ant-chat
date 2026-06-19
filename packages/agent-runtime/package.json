@@ -29,9 +29,11 @@
     "@ant-chat/agent-core": "workspace:^",
     "@ant-chat/app-data": "workspace:^",
     "@ant-chat/shared": "workspace:^",
-    "fflate": "^0.8.2"
+    "fflate": "^0.8.2",
+    "js-yaml": "^4.1.0"
   },
   "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
     "tsdown": "catalog:",
     "vitest": "catalog:"
   }
