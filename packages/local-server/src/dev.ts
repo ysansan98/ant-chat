@@ -57,9 +57,29 @@ async function main() {
   if (withWeb)
     console.info(`Web UI: http://0.0.0.0:${server.port}`)
 
+  let shuttingDown = false
   const shutdown = async () => {
+    if (shuttingDown)
+      return
+    shuttingDown = true
     console.info('shutting down')
-    await server.close()
+
+    // 设置强制退出超时，防止清理操作卡住
+    const forceExitTimer = setTimeout(() => {
+      console.warn('shutdown timed out, force exiting')
+      process.exit(1)
+    }, 5000)
+
+    try {
+      await server.close()
+    }
+    catch (err) {
+      console.error('error during shutdown:', err)
+    }
+    finally {
+      clearTimeout(forceExitTimer)
+      process.exit(0)
+    }
   }
 
   process.on('SIGINT', () => void shutdown())
