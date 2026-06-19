@@ -1,6 +1,6 @@
 import { ArrowLeft, Cable, Crown, Info, NotebookTabsIcon, SettingsIcon, SparklesIcon } from 'lucide-react'
 import { Outlet, useLocation, useNavigate } from 'react-router'
-import { ipc, isElectronRuntime } from '@/utils/ipc-bus'
+import { ipc, isElectronMacOS, isElectronRuntime } from '@/utils/ipc-bus'
 
 export default function SettingsPage() {
   const navigrate = useNavigate()
@@ -19,6 +19,9 @@ export default function SettingsPage() {
    * 返回工作区。
    * Web 端同窗口跳转 /chat；桌面端设置窗口通过 IPC 聚焦主窗口并关闭自身。
    */
+  // macOS 原生窗口控件（红绿灯）占据顶部空间，需要更大的顶部内边距
+  const topPadding = isElectronMacOS() ? 'pt-12' : 'pt-2'
+
   function backToWorkspace() {
     if (isElectronRuntime()) {
       void ipc.app.focusMainWindow()
@@ -31,7 +34,7 @@ export default function SettingsPage() {
     <div className="grid h-(--mainHeight) w-full grid-cols-[max-content_1fr]">
       <div
         data-testid="settings-nav"
-        className="h-full w-50 border-r border-(--border-color) px-2 pt-12 pb-4"
+        className={`h-full w-50 border-r border-(--border-color) px-2 ${topPadding} pb-2`}
       >
         {/* 返回工作区按钮 */}
         <div className="mb-3">
