@@ -44,15 +44,6 @@ export function createBrowserTool(workspacePath: string, config: AgentBrowserRun
       proxyUrl: config.proxyUrl,
       state,
     }),
-    formatError: (error) => {
-      if (error.includes('AGENT_BROWSER_CLI_NOT_FOUND') || error.includes('ENOENT')) {
-        return [
-          'Browser tool failed: 未找到 agent-browser CLI。',
-          '已检查系统 PATH 和 npx。请安装 agent-browser，并确保命令位于 PATH 中。',
-        ].join('\n')
-      }
-      return `Browser tool failed: ${error}`
-    },
-    truncateObservation: false,
+    truncateResult: false,
   })
 }

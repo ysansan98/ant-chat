@@ -2,7 +2,6 @@ import type { AgentMode, AgentRuntimeConfig, AgentTool, AgentToolResult, Runtime
 import type { BrowserSessionState } from '../native-tools/tools/browserSessionManager'
 import fs from 'node:fs'
 import path from 'node:path'
-import { AGENT_SKILL_INVALID } from '@ant-chat/shared'
 import { getNativeToolService } from '../native-tools/nativeToolService'
 import { createMcpTools } from './mcpToolAdapter'
 
@@ -15,9 +14,7 @@ export interface PreparedToolCall {
   scope: ToolScope
   validationError?: string
   execute: () => Promise<AgentToolResult>
-  formatObservation?: AgentTool['formatObservation']
-  formatError?: AgentTool['formatError']
-  truncateObservation?: boolean
+  truncateResult?: boolean
 }
 
 export interface CreateRegistryOptions {
@@ -94,7 +91,7 @@ export class ToolRegistry {
         input,
         operationType: 'read',
         scope: 'blocked',
-        execute: async () => ({ ok: false, error: 'AGENT_TOOL_EXEC_FAILED' }),
+        execute: async () => ({ ok: false, result: `未找到工具：${toolName}` }),
       }
     }
 
@@ -113,9 +110,7 @@ export class ToolRegistry {
       scope,
       validationError,
       execute: async () => resolvedTool.execute(await resolveToolInputSecrets(input, this.secretStore)),
-      formatObservation: tool.formatObservation,
-      formatError: tool.formatError,
-      truncateObservation: tool.truncateObservation,
+      truncateResult: tool.truncateResult,
     }
   }
 
@@ -187,7 +182,7 @@ function createRequestSecretTool(): AgentTool {
       }
       return null
     },
-    execute: async () => ({ ok: false, error: 'requestSecret must be executed by runtime' }),
+    execute: async () => ({ ok: false, result: 'requestSecret must be executed by runtime' }),
   }
 }
 
@@ -271,12 +266,14 @@ function createMemoryTool(memoryReader: NonNullable<AgentRuntimeConfig['memoryRe
     },
     execute: async input => ({
       ok: true,
-      output: await memoryReader.editMemory({
-        target: input.target as 'memory' | 'user',
-        action: input.action as 'add' | 'replace' | 'remove',
-        content: typeof input.content === 'string' ? input.content : undefined,
-        old_text: typeof input.old_text === 'string' ? input.old_text : undefined,
-      }),
+      result: JSON.stringify(
+        await memoryReader.editMemory({
+          target: input.target as 'memory' | 'user',
+          action: input.action as 'add' | 'replace' | 'remove',
+          content: typeof input.content === 'string' ? input.content : undefined,
+          old_text: typeof input.old_text === 'string' ? input.old_text : undefined,
+        }),
+      ),
     }),
   }
 }
@@ -348,13 +345,21 @@ function createUseSkillTool(skills: SkillManifest[], skillReader: SkillReader): 
           ...files.map(f => `- ${f}`),
           '</skill_files>',
         ].join('\n')
-        return { ok: true, output }
+        return { ok: true, result: output }
       }
       catch (error) {
-        return { ok: false, error: error instanceof Error ? error.message : AGENT_SKILL_INVALID }
+        return { ok: false, result: formatSkillError(error) }
       }
     },
   }
+}
+
+function formatSkillError(error: unknown): string {
+  if (!(error instanceof Error)) {
+    return '技能加载失败。'
+  }
+  const message = error.message.replace(/^AGENT_SKILL_INVALID:?\s*/u, '').trim()
+  return message ? `技能加载失败：${message}` : '技能加载失败。'
 }
 
 function createInstallSkillFromGithubTool(skillReader: SkillReader): AgentTool {
@@ -377,7 +382,7 @@ function createInstallSkillFromGithubTool(skillReader: SkillReader): AgentTool {
       const url = String(input.url || '')
       const name = typeof input.name === 'string' ? input.name : undefined
       const manifest = await skillReader.importFromGithub({ url, name })
-      return { ok: true, output: `Installed skill "${manifest.name}" to ${skillsRoot}/${manifest.name}` }
+      return { ok: true, result: `Installed skill "${manifest.name}" to ${skillsRoot}/${manifest.name}` }
     },
   }
 }

@@ -12,10 +12,14 @@ export async function grepFiles(input: GrepFilesToolInput, pathPolicy: PathPolic
   }
   args.push(input.pattern)
   const result = await runRg(args, cwd, limit)
-  if (!result.ok && result.exitCode !== 1) {
+  if (!result.ok && result.diagnostics?.exitCode !== 1) {
     return result
   }
-  return { ...result, ok: true, output: splitLimitedLines(result.stdout || '', limit) }
+  return {
+    ok: true,
+    result: splitLimitedLines(result.diagnostics?.stdout || '', limit).join('\n'),
+    diagnostics: result.diagnostics,
+  }
 }
 
 export function createGrepFilesTool(pathPolicy: PathPolicy, unrestricted: boolean) {

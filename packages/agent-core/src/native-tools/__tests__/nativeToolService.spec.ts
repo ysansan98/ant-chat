@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { AGENT_BASH_COMMAND_BLOCKED, AGENT_POLICY_BLOCKED, WORKSPACE_INVALID_PATH } from '@ant-chat/shared'
+import { AGENT_POLICY_BLOCKED, WORKSPACE_INVALID_PATH } from '@ant-chat/shared'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { NativeToolService } from '../nativeToolService'
 import { createPathPolicy } from '../pathPolicy'
@@ -33,15 +33,18 @@ describe('native tool service 行为', () => {
 
     await expect(service.readFile({ path: 'src/a.txt', offset: 2, limit: 1 })).resolves.toMatchObject({
       ok: true,
-      output: '[Showing lines 2-2 of 3]\n2\tline-2\n\n[1 more lines. Use offset=3 limit=1 to continue]',
+      result: '[Showing lines 2-2 of 3]\n2\tline-2\n\n[1 more lines. Use offset=3 limit=1 to continue]',
     })
     await expect(service.listDir({ path: 'src' })).resolves.toMatchObject({
       ok: true,
-      output: {
-        offset: 0,
-        total: 1,
-        hasMore: false,
-        items: [{ name: 'a.txt', type: 'file' }],
+      result: expect.stringContaining('[file] a.txt'),
+      diagnostics: {
+        data: {
+          offset: 0,
+          total: 1,
+          hasMore: false,
+          items: [{ name: 'a.txt', type: 'file' }],
+        },
       },
     })
     await expect(service.writeFile({ path: path.join(outsidePath, 'x.txt'), content: 'x' })).rejects.toThrow(WORKSPACE_INVALID_PATH)
@@ -53,7 +56,7 @@ describe('native tool service 行为', () => {
 
     await expect(service.readFile({ path: 'src/b.txt', offset: 2, limit: 2 })).resolves.toMatchObject({
       ok: true,
-      output: '[Showing lines 2-3 of 4]\n2\tb\n3\tc\n\n[1 more lines. Use offset=4 limit=2 to continue]',
+      result: '[Showing lines 2-3 of 4]\n2\tb\n3\tc\n\n[1 more lines. Use offset=4 limit=2 to continue]',
     })
   })
 
@@ -77,7 +80,11 @@ describe('native tool service 行为', () => {
         { oldText: 'const a = 1\n', newText: 'const a = 10\n' },
         { oldText: 'const c = 3\n', newText: 'const c = 30\n' },
       ],
-    })).resolves.toMatchObject({ ok: true, output: { path: 'src/edit.ts', replacements: 2 } })
+    })).resolves.toMatchObject({
+      ok: true,
+      result: expect.stringContaining('replacements=2'),
+      diagnostics: { data: { path: 'src/edit.ts', replacements: 2 } },
+    })
 
     expect(fs.readFileSync(path.join(workspacePath, 'src/edit.ts'), 'utf8')).toBe('const a = 10\r\nconst b = 2\r\nconst c = 30\r\n')
   })
@@ -111,12 +118,25 @@ describe('native tool service 行为', () => {
 
     await expect(bash.execute({ command: 'rm -rf src' })).resolves.toMatchObject({
       ok: false,
-      error: AGENT_BASH_COMMAND_BLOCKED,
+      result: expect.stringContaining('命令被安全策略拦截'),
     })
 
     await expect(bash.execute({ command: 'mkdir -p src/nested' })).resolves.toMatchObject({ ok: true })
     expect(fs.statSync(path.join(workspacePath, 'src/nested')).isDirectory()).toBe(true)
     await expect(bash.execute({ command: 'pwd && ls -la' })).resolves.toMatchObject({ ok: true })
+  })
+
+  it('bash 自己定义失败结果写入模型上下文的格式', async () => {
+    const service = new NativeToolService(workspacePath)
+    const bash = service.getTools().find(tool => tool.name === 'bash')!
+    const result = await bash.execute({ command: 'ls missing.txt' })
+
+    expect(result).toMatchObject({
+      ok: false,
+      result: expect.stringContaining('stderr:'),
+      diagnostics: { exitCode: 1 },
+    })
+    expect(result.result).toContain('exitCode=1')
   })
 
   it('将 browser 注册为自动允许的 browser 操作', () => {
@@ -133,10 +153,6 @@ describe('native tool service 行为', () => {
       operationType: 'browser',
     })
     expect(browser?.inferScope({ command: 'open', args: ['https://example.com'] })).toBe('workspace')
-    expect(browser?.formatError?.('spawn agent-browser ENOENT', { command: 'open' })).toBe(
-      'Browser tool failed: 未找到 agent-browser CLI。\n'
-      + '已检查系统 PATH 和 npx。请安装 agent-browser，并确保命令位于 PATH 中。',
-    )
   })
 
   it('注册 browser 工具后阻断 Bash 绕过调用 agent-browser', async () => {
@@ -151,7 +167,7 @@ describe('native tool service 行为', () => {
     expect(bash.inferScope({ command: 'npx --yes agent-browser snapshot -i' })).toBe('blocked')
     await expect(bash.execute({ command: 'npx --yes agent-browser snapshot -i' })).resolves.toMatchObject({
       ok: false,
-      error: AGENT_BASH_COMMAND_BLOCKED,
+      result: expect.stringContaining('命令被安全策略拦截'),
     })
   })
 
@@ -160,7 +176,8 @@ describe('native tool service 行为', () => {
     const readFile = service.getTools().find(tool => tool.name === 'read_file')!
     const result = await readFile.execute({ path: path.join(outsidePath, 'secret.txt') })
     expect(result.ok).toBe(false)
-    expect(result.error).toContain(AGENT_POLICY_BLOCKED)
+    expect(result.result).toBe('工具执行失败：路径不在允许的工作区范围内。')
+    expect(result.diagnostics?.data).toEqual({ code: AGENT_POLICY_BLOCKED })
   })
 
   describe('inferScope 行为', () => {

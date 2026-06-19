@@ -29,13 +29,15 @@ export async function editFile(input: EditFileToolInput, pathPolicy: PathPolicy,
   const finalContent = bom + restoreLineEndings(newContent, originalLineEnding)
 
   await fs.promises.writeFile(filePath, finalContent, 'utf8')
+  const output = {
+    path: path.relative(fs.realpathSync.native(workspacePath), filePath),
+    absolutePath: filePath,
+    replacements: edits.length,
+  }
   return {
     ok: true,
-    output: {
-      path: path.relative(fs.realpathSync.native(workspacePath), filePath),
-      absolutePath: filePath,
-      replacements: edits.length,
-    },
+    result: `path=${output.absolutePath}, replacements=${output.replacements}. File state is current in context; no read-back is required.`,
+    diagnostics: { data: output },
   }
 }
 
@@ -54,11 +56,6 @@ export function createEditFileTool(pathPolicy: PathPolicy, workspacePath: string
     unrestricted,
     inferScope: input => pathPolicy.classifyAccess((input as unknown as EditFileToolInput).path),
     execute: input => editFile(input as unknown as EditFileToolInput, pathPolicy, workspacePath),
-    formatObservation: (result) => {
-      const output = result.output as { path: string, absolutePath?: string, replacements: number } | undefined
-      const displayPath = output?.absolutePath ?? output?.path ?? 'unknown'
-      return `path=${displayPath}, replacements=${output?.replacements ?? 0}. File state is current in context; no read-back is required.`
-    },
   })
 }
 

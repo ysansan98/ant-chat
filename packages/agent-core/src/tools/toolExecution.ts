@@ -38,7 +38,7 @@ export interface ExecuteToolStepResult {
 
 type ToolPreparation
   = | { kind: 'ready', prepared: PreparedToolCall, lastToolCallContext: ToolCallContext }
-    | { kind: 'error', error: string, observation: string, lastToolCallContext: ToolCallContext }
+    | { kind: 'error', error: string, toolResultText: string, lastToolCallContext: ToolCallContext }
 
 interface ToolExecutionOutcome {
   result: AgentToolResult
@@ -83,7 +83,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
     return finalizeToolStep(currentToolCall, {
       kind: 'error',
       error: 'AGENT_CANCELLED',
-      observation: formatFailure(preparation.prepared, 'AGENT_CANCELLED', requestedToolCall.input),
+      toolResultText: '任务已取消。',
       lastToolCallContext: preparation.lastToolCallContext,
     }, task.snapshot.conversationId, config, currentModelText, currentToolMessages)
   }
@@ -94,12 +94,12 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   // Phase 3: Finalize
   const durationMs = Date.now() - toolStartedAt
   if (execution.failureReason) {
-    const toolReportedDurationMs = execution.result.durationMs
-    traceLogger.write('tool_failed', { ...logContext, toolName: preparation.prepared.toolName, input: requestedToolCall.input, error: execution.failureReason, workspacePath: task.snapshot.workspacePath, stdout: execution.result.stdout, stderr: execution.result.stderr, exitCode: execution.result.exitCode, durationMs, toolReportedDurationMs })
+    const toolReportedDurationMs = execution.result.diagnostics?.durationMs
+    traceLogger.write('tool_failed', { ...logContext, toolName: preparation.prepared.toolName, input: requestedToolCall.input, error: execution.failureReason, workspacePath: task.snapshot.workspacePath, stdout: execution.result.diagnostics?.stdout, stderr: execution.result.diagnostics?.stderr, exitCode: execution.result.diagnostics?.exitCode, durationMs, toolReportedDurationMs })
     return finalizeToolStep(currentToolCall, {
       kind: 'error',
       error: execution.failureReason,
-      observation: formatFailure(preparation.prepared, execution.failureReason, requestedToolCall.input, execution.result),
+      toolResultText: execution.result.result,
       lastToolCallContext: preparation.lastToolCallContext,
     }, task.snapshot.conversationId, config, currentModelText, currentToolMessages)
   }
@@ -144,7 +144,7 @@ async function prepareToolStep(input: PrepareToolStepInput): Promise<ToolPrepara
     return {
       kind: 'error',
       error: prepared.validationError,
-      observation: formatFailure(prepared, prepared.validationError, requestedToolCall.input),
+      toolResultText: prepared.validationError,
       lastToolCallContext,
     }
   }
@@ -168,7 +168,7 @@ async function prepareToolStep(input: PrepareToolStepInput): Promise<ToolPrepara
     return {
       kind: 'error',
       error: beforeResult.errorCode,
-      observation: formatFailure(prepared, beforeResult.errorCode, requestedToolCall.input),
+      toolResultText: beforeResult.reason,
       lastToolCallContext,
     }
   }
@@ -188,18 +188,18 @@ async function executePreparedTool(prepared: PreparedToolCall, task: RuntimeTask
       : await prepared.execute()
   }
   catch (error) {
-    const message = error instanceof Error ? error.message : String(error || AGENT_TOOL_EXEC_FAILED)
-    return { result: { ok: false, error: AGENT_TOOL_EXEC_FAILED, stderr: message }, failureReason: AGENT_TOOL_EXEC_FAILED }
+    const message = error instanceof Error ? error.message : String(error || '工具执行失败。')
+    return { result: { ok: false, result: message, diagnostics: { stderr: message } }, failureReason: AGENT_TOOL_EXEC_FAILED }
   }
   if (!result.ok) {
-    return { result, failureReason: result.error || AGENT_TOOL_EXEC_FAILED }
+    return { result, failureReason: result.result || AGENT_TOOL_EXEC_FAILED }
   }
   return { result }
 }
 
 async function executeRequestSecret(prepared: PreparedToolCall, task: RuntimeTask, config: AgentRuntimeConfig): Promise<AgentToolResult> {
   if (!config.secretRequester) {
-    return { ok: false, error: 'Secret requester is not available' }
+    return { ok: false, result: 'Secret requester is not available' }
   }
   const label = String(prepared.input.label || '').trim()
   const fields = Array.isArray(prepared.input.fields)
@@ -216,7 +216,7 @@ async function executeRequestSecret(prepared: PreparedToolCall, task: RuntimeTas
     fields,
     reason,
   })
-  return { ok: true, output: result }
+  return { ok: true, result: JSON.stringify(result) }
 }
 
 // ============================================================
@@ -233,19 +233,19 @@ async function finalizeToolStep(
 ): Promise<ExecuteToolStepResult> {
   // Both ready+error and immediate error paths converge here.
   const error = preparation.kind === 'error' ? preparation.error : undefined
-  const observation = preparation.kind === 'error' ? preparation.observation : ''
+  const toolResultText = preparation.kind === 'error' ? preparation.toolResultText : ''
 
   currentToolCall.executeState = 'completed'
   currentToolCall.result = error
     ? { success: false, error }
-    : { success: true, data: observation }
+    : { success: true, data: toolResultText }
 
   await emitTurnToolCalls(config, conversationId, currentModelText, currentToolMessages)
 
   return {
     lastToolCallContext: preparation.lastToolCallContext,
     toolCallId: currentToolCall.id,
-    toolResultContent: observation,
+    toolResultContent: toolResultText,
     isError: !!error,
   }
 }
@@ -263,21 +263,20 @@ async function finalizeSuccessToolStep(
   const { prepared, lastToolCallContext } = preparation
   const traceLogger = createAgentTraceLogger(config)
 
-  const toolOutputText = await redactSecrets(getToolOutputText(result), prepared.input, config)
-  const observation = buildObservation(prepared, result, toolOutputText)
-  const toolReportedDurationMs = result.durationMs
+  const toolOutputText = await redactSecrets(result.result, prepared.input, config)
+  const toolReportedDurationMs = result.diagnostics?.durationMs
 
   currentToolCall.executeState = 'completed'
   currentToolCall.result = { success: true, data: toolOutputText }
 
   await emitTurnToolCalls(config, logContext.conversationId, currentModelText, currentToolMessages)
 
-  traceLogger.write('tool_completed', { ...logContext, toolName: prepared.toolName, outputPreview: toolOutputText, exitCode: result.exitCode, durationMs, toolReportedDurationMs })
+  traceLogger.write('tool_completed', { ...logContext, toolName: prepared.toolName, outputPreview: toolOutputText, exitCode: result.diagnostics?.exitCode, durationMs, toolReportedDurationMs })
 
   return {
     lastToolCallContext,
     toolCallId: currentToolCall.id,
-    toolResultContent: observation,
+    toolResultContent: toolOutputText,
     isError: false,
   }
 }
@@ -381,36 +380,6 @@ async function emitTurnToolCalls(
   })
 }
 
-function getToolOutputText(result: { output?: unknown, stdout?: string, stderr?: string, exitCode?: number }): string {
-  if (typeof result.output === 'string') {
-    return result.output
-  }
-  if (result.output !== undefined) {
-    const text = JSON.stringify(result.output)
-    if (text.length > 0) {
-      return text
-    }
-  }
-  if (result.stdout || result.stderr) {
-    return [result.stdout || '', result.stderr || ''].filter(Boolean).join('\n')
-  }
-  if (typeof result.exitCode === 'number') {
-    return `exitCode=${result.exitCode}`
-  }
-  return ''
-}
-
-function buildObservation(
-  prepared: PreparedToolCall,
-  result: { output?: unknown, stdout?: string, stderr?: string, exitCode?: number },
-  outputText: string,
-): string {
-  if (prepared.formatObservation) {
-    return prepared.formatObservation(result, outputText)
-  }
-  return outputText
-}
-
 export async function createInvalidToolArgsResult(options: {
   config: AgentRuntimeConfig
   conversationId: string
@@ -454,32 +423,4 @@ export async function createInvalidToolArgsResult(options: {
     toolResultContent: error,
     isError: true,
   }
-}
-
-function formatFailure(
-  prepared: PreparedToolCall,
-  error: string,
-  input: Record<string, unknown>,
-  result?: { stdout?: string, stderr?: string, exitCode?: number },
-): string {
-  if (prepared.formatError) {
-    const formatted = prepared.formatError(error, input, result)
-    if (formatted) {
-      return formatted
-    }
-  }
-  if (result?.stderr || result?.stdout || result?.exitCode !== undefined) {
-    const parts: string[] = []
-    if (result.stderr) {
-      parts.push(`stderr:\n${result.stderr}`)
-    }
-    if (result.stdout) {
-      parts.push(`stdout:\n${result.stdout}`)
-    }
-    if (result.exitCode !== undefined) {
-      parts.push(`exitCode=${result.exitCode}`)
-    }
-    return `Tool ${prepared.toolName} failed: ${error}\n${parts.join('\n')}`
-  }
-  return `Tool ${prepared.toolName} failed: ${error}`
 }

@@ -9,9 +9,7 @@ interface CreateNativeToolOptions {
   inferScope: AgentTool['inferScope']
   execute: AgentTool['execute']
   validateInput?: AgentTool['validateInput']
-  formatObservation?: AgentTool['formatObservation']
-  formatError?: AgentTool['formatError']
-  truncateObservation?: boolean
+  truncateResult?: boolean
 }
 
 export function createNativeTool(options: CreateNativeToolOptions): AgentTool {
@@ -23,9 +21,7 @@ export function createNativeTool(options: CreateNativeToolOptions): AgentTool {
     operationType: getToolOperationType(options.name),
     inferScope: options.inferScope,
     validateInput: options.validateInput,
-    formatObservation: options.formatObservation,
-    formatError: options.formatError,
-    truncateObservation: options.truncateObservation,
+    truncateResult: options.truncateResult,
     execute: async (input) => {
       try {
         return await options.execute(input)
@@ -34,12 +30,13 @@ export function createNativeTool(options: CreateNativeToolOptions): AgentTool {
         if (error instanceof Error && error.message === WORKSPACE_INVALID_PATH) {
           return {
             ok: false,
-            error: options.unrestricted
-              ? AGENT_TOOL_EXEC_FAILED
-              : `${AGENT_POLICY_BLOCKED}: path outside workspace`,
+            result: options.unrestricted
+              ? '工具执行失败：访问了无效路径。'
+              : '工具执行失败：路径不在允许的工作区范围内。',
+            diagnostics: { data: { code: options.unrestricted ? AGENT_TOOL_EXEC_FAILED : AGENT_POLICY_BLOCKED } },
           }
         }
-        return { ok: false, error: error instanceof Error ? error.message : AGENT_TOOL_EXEC_FAILED }
+        return { ok: false, result: error instanceof Error ? error.message : '工具执行失败。' }
       }
     },
   }

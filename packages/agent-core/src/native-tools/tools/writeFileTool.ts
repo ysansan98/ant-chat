@@ -8,7 +8,12 @@ export async function writeFile(input: WriteFileToolInput, pathPolicy: PathPolic
   const filePath = pathPolicy.resolveForWrite(input.path)
   await fs.promises.mkdir(path.dirname(filePath), { recursive: true })
   await fs.promises.writeFile(filePath, input.content, 'utf8')
-  return { ok: true, output: { path: path.relative(fs.realpathSync.native(workspacePath), filePath), absolutePath: filePath } }
+  const output = { path: path.relative(fs.realpathSync.native(workspacePath), filePath), absolutePath: filePath }
+  return {
+    ok: true,
+    result: `path=${output.absolutePath}. File state is current in context; no read-back is required.`,
+    diagnostics: { data: output },
+  }
 }
 
 export function createWriteFileTool(pathPolicy: PathPolicy, workspacePath: string, unrestricted: boolean) {
@@ -23,10 +28,5 @@ export function createWriteFileTool(pathPolicy: PathPolicy, workspacePath: strin
     unrestricted,
     inferScope: input => pathPolicy.classifyAccess((input as unknown as WriteFileToolInput).path),
     execute: input => writeFile(input as unknown as WriteFileToolInput, pathPolicy, workspacePath),
-    formatObservation: (result) => {
-      const output = result.output as { path: string, absolutePath?: string } | undefined
-      const displayPath = output?.absolutePath ?? output?.path ?? 'unknown'
-      return `path=${displayPath}. File state is current in context; no read-back is required.`
-    },
   })
 }

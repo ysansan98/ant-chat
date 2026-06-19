@@ -19,15 +19,23 @@ export async function listDir(input: ListDirToolInput = {}, pathPolicy: PathPoli
   const offset = Math.max(listDirInput.offset ?? 0, 0)
   const limit = Math.min(Math.max(listDirInput.limit ?? DEFAULT_LIST_DIR_LIMIT, 1), MAX_LIST_DIR_LIMIT)
   const items = sorted.slice(offset, offset + limit)
+  const output = {
+    path: dirPath,
+    offset,
+    limit,
+    total: sorted.length,
+    hasMore: offset + items.length < sorted.length,
+    items,
+  }
+  const itemsText = items.map(i => `${i.type === 'directory' ? '[dir]' : '[file]'} ${i.name}`).join('\n') || '(空)'
   return {
     ok: true,
-    output: {
-      path: dirPath,
-      offset,
-      limit,
-      total: sorted.length,
-      hasMore: offset + items.length < sorted.length,
-      items,
+    result: [
+      `path=${output.path}, offset=${output.offset}, total=${output.total}, returned=${output.items.length}, hasMore=${output.hasMore}`,
+      itemsText,
+    ].join('\n'),
+    diagnostics: {
+      data: output,
     },
   }
 }
@@ -44,14 +52,6 @@ export function createListDirTool(pathPolicy: PathPolicy, unrestricted: boolean)
     unrestricted,
     inferScope: input => pathPolicy.classifyAccess(String((input as unknown as ListDirToolInput).path || '.')),
     execute: input => listDir(input as unknown as ListDirToolInput, pathPolicy),
-    truncateObservation: false,
-    formatObservation: (result) => {
-      const output = result.output as { path?: string, offset?: number, limit?: number, total?: number, hasMore?: boolean, items?: Array<{ name: string, type: string }> }
-      const itemsText = output.items?.map(i => `${i.type === 'directory' ? '[dir]' : '[file]'} ${i.name}`).join('\n') || '(空)'
-      return [
-        `path=${output.path || '.'}, offset=${output.offset || 0}, total=${output.total || 0}, returned=${output.items?.length || 0}, hasMore=${Boolean(output.hasMore)}`,
-        itemsText,
-      ].join('\n')
-    },
+    truncateResult: false,
   })
 }

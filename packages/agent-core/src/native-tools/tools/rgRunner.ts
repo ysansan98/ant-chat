@@ -4,7 +4,6 @@ import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { AGENT_TOOL_EXEC_FAILED } from '@ant-chat/shared'
 
 const DEFAULT_SEARCH_LIMIT = 100
 const DEFAULT_EXCLUDED_DIRS = ['node_modules', '.git', 'dist', 'build']
@@ -38,21 +37,25 @@ export async function runRg(args: string[], cwd: string, limit: number): Promise
     })
     child.on('error', (error) => {
       const code = (error as NodeJS.ErrnoException).code
+      const message = code === 'ENOENT' ? `rg 命令不可用 (${error.message || 'spawn ENOENT'})` : (error.message || 'rg 执行失败。')
       resolve({
         ok: false,
-        error: code === 'ENOENT' ? `rg 命令不可用 (${error.message || 'spawn ENOENT'})` : (error.message || AGENT_TOOL_EXEC_FAILED),
-        durationMs: Date.now() - startedAt,
+        result: message,
+        diagnostics: { durationMs: Date.now() - startedAt },
       })
     })
     child.on('close', (exitCode) => {
       const code = exitCode ?? undefined
+      const result = formatProcessResult(stdout, stderr, code)
       resolve({
         ok: exitCode === 0,
-        stdout,
-        stderr,
-        exitCode: code,
-        error: exitCode === 0 ? undefined : (stderr.trim() || `rg exited with code ${code}`),
-        durationMs: Date.now() - startedAt,
+        result: result || (exitCode === 0 ? '' : `rg exited with code ${code}`),
+        diagnostics: {
+          stdout,
+          stderr,
+          exitCode: code,
+          durationMs: Date.now() - startedAt,
+        },
       })
     })
   })
@@ -89,6 +92,20 @@ function resolveRgCommand(): string {
   }
 
   return 'rg'
+}
+
+function formatProcessResult(stdout: string, stderr: string, exitCode?: number): string {
+  const parts: string[] = []
+  if (stdout) {
+    parts.push(`stdout:\n${stdout}`)
+  }
+  if (stderr) {
+    parts.push(`stderr:\n${stderr}`)
+  }
+  if (exitCode !== undefined) {
+    parts.push(`exitCode=${exitCode}`)
+  }
+  return parts.join('\n')
 }
 
 function appendUntilLines(current: string, next: string, limit: number): string {

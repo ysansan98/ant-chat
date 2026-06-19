@@ -30,7 +30,7 @@ function createReadTool(overrides: Partial<AgentTool> = {}): AgentTool {
     },
     operationType: 'read',
     inferScope: () => 'workspace',
-    execute: async () => ({ ok: true, output: 'file content', exitCode: 0 }),
+    execute: async () => ({ ok: true, result: 'file content', diagnostics: { exitCode: 0 } }),
     ...overrides,
   }
 }
@@ -122,8 +122,7 @@ describe('executeToolStep 行为', () => {
     })
 
     expect(result.isError).toBe(true)
-    // Tool not found => scope is 'blocked' => execute returns error
-    expect(result.toolResultContent).toContain('failed')
+    expect(result.toolResultContent).toBe('未找到工具：nonexistent')
   })
 
   it('处理工具校验错误', async () => {
@@ -172,7 +171,7 @@ describe('executeToolStep 行为', () => {
     })
 
     expect(result.isError).toBe(true)
-    expect(result.toolResultContent).toContain('AGENT_POLICY_BLOCKED')
+    expect(result.toolResultContent).toBe('策略阻断，禁止执行')
   })
 
   it('hook 返回 allow 时执行工具', async () => {
@@ -208,7 +207,7 @@ describe('executeToolStep 行为', () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
     const tool = createReadTool({
-      execute: async () => ({ ok: false, error: 'AGENT_TOOL_EXEC_FAILED', stderr: 'permission denied', exitCode: 1 }),
+      execute: async () => ({ ok: false, result: 'permission denied', diagnostics: { stderr: 'permission denied', exitCode: 1 } }),
     })
     const registry = new ToolRegistry([tool])
     const task = createTask()
@@ -225,7 +224,7 @@ describe('executeToolStep 行为', () => {
     })
 
     expect(result.isError).toBe(true)
-    expect(result.toolResultContent).toContain('failed')
+    expect(result.toolResultContent).toBe('permission denied')
   })
 
   it('工具执行抛异常时返回工具失败并保留异常细节', async () => {
@@ -252,13 +251,41 @@ describe('executeToolStep 行为', () => {
     })
 
     expect(result.isError).toBe(true)
-    expect(result.toolResultContent).toContain('AGENT_TOOL_EXEC_FAILED')
-    expect(result.toolResultContent).toContain('secret missing')
+    expect(result.toolResultContent).toBe('secret missing')
     expect(taskLogger.write).toHaveBeenCalledWith('tool_failed', expect.objectContaining({
       error: 'AGENT_TOOL_EXEC_FAILED',
       stderr: 'secret missing',
     }))
     expect(emitter.emitTurnToolCalls).toHaveBeenCalledTimes(2)
+  })
+
+  it('失败结果只注入工具返回的 result，不做执行层包装', async () => {
+    const emitter = createMockEmitter()
+    const logger = createMockLogger()
+    const tool = createReadTool({
+      execute: async () => ({
+        ok: false,
+        result: 'stderr:\n文件不存在\nexitCode=1',
+        diagnostics: { stderr: '文件不存在', exitCode: 1 },
+      }),
+    })
+    const registry = new ToolRegistry([tool])
+    const task = createTask()
+
+    const result = await executeToolStep({
+      task,
+      registry,
+      requestedToolCall: { toolName: 'read_file', input: { path: 'missing.txt' } },
+      currentModelText: '',
+      currentToolMessages: [],
+      step: 1,
+      config: { eventEmitter: emitter, logger },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
+    })
+
+    expect(result.isError).toBe(true)
+    expect(result.toolResultContent).toBe('stderr:\n文件不存在\nexitCode=1')
+    expect(result.toolResultContent).not.toContain('Tool read_file failed')
   })
 
   it('发出 toolCall 事件', async () => {
@@ -349,7 +376,7 @@ describe('executeToolStep 行为', () => {
     const logger = createMockLogger()
     const taskLogger = { filePath: '/tmp/task.jsonl', write: vi.fn(), close: vi.fn() }
     const tool = createReadTool({
-      execute: async () => ({ ok: false, error: 'AGENT_TOOL_EXEC_FAILED', stderr: 'fail', exitCode: 1 }),
+      execute: async () => ({ ok: false, result: 'fail', diagnostics: { stderr: 'fail', exitCode: 1 } }),
     })
     const registry = new ToolRegistry([tool])
     const task = createTask()
@@ -452,7 +479,7 @@ describe('executeToolStep 行为', () => {
     const logger = createMockLogger()
     const taskLogger = { filePath: '/tmp/task.jsonl', write: vi.fn(), close: vi.fn() }
     const tool = createReadTool({
-      execute: async () => ({ ok: true, output: 'ok', exitCode: 0, durationMs: 42 }),
+      execute: async () => ({ ok: true, result: 'ok', diagnostics: { exitCode: 0, durationMs: 42 } }),
     })
     const registry = new ToolRegistry([tool])
     const task = createTask()

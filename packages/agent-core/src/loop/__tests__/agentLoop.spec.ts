@@ -54,7 +54,7 @@ function createReadTool(overrides: Partial<AgentTool> = {}): AgentTool {
     },
     operationType: 'read',
     inferScope: () => 'workspace',
-    execute: async () => ({ ok: true, output: 'file contents here', exitCode: 0 }),
+    execute: async () => ({ ok: true, result: 'file contents here', diagnostics: { exitCode: 0 } }),
     ...overrides,
   }
 }
@@ -374,7 +374,7 @@ describe('runAgentLoop 行为', () => {
   })
 
   it('保留同一次模型响应中的重复工具调用', async () => {
-    const execute = vi.fn(async (input: Record<string, unknown>) => ({ ok: true, output: `contents:${input.path}`, exitCode: 0 }))
+    const execute = vi.fn(async (input: Record<string, unknown>) => ({ ok: true, result: `contents:${input.path}`, diagnostics: { exitCode: 0 } }))
     const readTool = createReadTool({ execute })
     const modelRequests: RuntimeStartInput['messages'][] = []
     const aiProvider: IAIProvider = {
@@ -439,7 +439,7 @@ describe('runAgentLoop 行为', () => {
         // Abort fires while tool is "executing"
         task.abortController.abort()
         // Then return success (the abort check in agentLoop happens after tool execution)
-        return { ok: true, output: 'result', exitCode: 0 }
+        return { ok: true, result: 'result', diagnostics: { exitCode: 0 } }
       },
     })
 

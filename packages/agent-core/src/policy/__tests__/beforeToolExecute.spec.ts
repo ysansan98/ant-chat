@@ -48,7 +48,7 @@ function createPrepared() {
     input: { path: 'test.txt' },
     operationType: 'read' as const,
     scope: 'workspace' as const,
-    execute: async () => ({ ok: true, output: 'content', exitCode: 0 }),
+    execute: async () => ({ ok: true, result: 'content', diagnostics: { exitCode: 0 } }),
   }
 }
 

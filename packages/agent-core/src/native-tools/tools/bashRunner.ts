@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { AGENT_BASH_COMMAND_BLOCKED, AGENT_BASH_TIMEOUT, WORKSPACE_INVALID_PATH } from '@ant-chat/shared'
+import { WORKSPACE_INVALID_PATH } from '@ant-chat/shared'
 import { createPathPolicyByMode } from '../pathPolicy'
 
 const DEFAULT_TIMEOUT_MS = 10_000
@@ -24,28 +24,33 @@ export async function runBashTool(
   options: BashRunnerOptions = {},
 ): Promise<AgentToolResult> {
   const startedAt = Date.now()
+  const blockedResult = () => ({
+    ok: false,
+    result: `工具 bash 执行失败：命令被安全策略拦截。请仅使用允许的只读命令（如 pwd、ls、cat、rg、find），不要使用重定向、管道、sudo、rm 等。原始命令=${input.command}`,
+    diagnostics: { durationMs: Date.now() - startedAt },
+  })
   let commands: Array<{ command: string, args: string[] }>
   try {
     commands = parseCommands(input.command)
   }
   catch {
-    return { ok: false, error: AGENT_BASH_COMMAND_BLOCKED, durationMs: Date.now() - startedAt }
+    return blockedResult()
   }
   if (commands.length === 0) {
-    return { ok: false, error: AGENT_BASH_COMMAND_BLOCKED, durationMs: Date.now() - startedAt }
+    return blockedResult()
   }
   if (options.blockAgentBrowser && commands.some(isAgentBrowserCommand)) {
-    return { ok: false, error: AGENT_BASH_COMMAND_BLOCKED, durationMs: Date.now() - startedAt }
+    return blockedResult()
   }
   if (!unrestricted && !commands.every(item => isCommandAllowed(item.command, item.args))) {
-    return { ok: false, error: AGENT_BASH_COMMAND_BLOCKED, durationMs: Date.now() - startedAt }
+    return blockedResult()
   }
 
   const policy = createPathPolicyByMode(workspacePath, unrestricted ? 'unrestricted' : 'workspace')
   const cwd = policy.resolveExisting(input.cwd || '.')
   for (const item of commands) {
     if (item.command === 'mkdir' && !validateMkdirTargets(item.args.slice(1), cwd, policy))
-      return { ok: false, error: WORKSPACE_INVALID_PATH, durationMs: Date.now() - startedAt }
+      return { ok: false, result: 'mkdir 目标路径不在允许的工作区范围内。', diagnostics: { durationMs: Date.now() - startedAt, data: { code: WORKSPACE_INVALID_PATH } } }
   }
   const timeoutMs = Math.min(input.timeoutMs ?? DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS)
   const perCommandTimeoutMs = Math.max(Math.floor(timeoutMs / commands.length), 1000)
@@ -55,27 +60,32 @@ export async function runBashTool(
   let exitCode = 0
   for (const item of commands) {
     const result = await runSingleCommand(item, cwd, perCommandTimeoutMs, input.env as Record<string, string> | undefined, startedAt)
-    stdout = appendTruncated(stdout, result.stdout || '')
-    stderr = appendTruncated(stderr, result.stderr || '')
-    exitCode = result.exitCode ?? (result.ok ? 0 : 1)
+    stdout = appendTruncated(stdout, result.diagnostics?.stdout || '')
+    stderr = appendTruncated(stderr, result.diagnostics?.stderr || '')
+    exitCode = result.diagnostics?.exitCode ?? (result.ok ? 0 : 1)
     if (!result.ok) {
       return {
         ok: false,
-        error: result.error,
-        stdout,
-        stderr,
-        exitCode,
-        durationMs: Date.now() - startedAt,
+        result: formatProcessResult(stdout, stderr, exitCode) || result.result,
+        diagnostics: {
+          stdout,
+          stderr,
+          exitCode,
+          durationMs: Date.now() - startedAt,
+        },
       }
     }
   }
 
   return {
     ok: true,
-    stdout,
-    stderr,
-    exitCode,
-    durationMs: Date.now() - startedAt,
+    result: formatProcessResult(stdout, stderr, exitCode),
+    diagnostics: {
+      stdout,
+      stderr,
+      exitCode,
+      durationMs: Date.now() - startedAt,
+    },
   }
 }
 
@@ -112,33 +122,53 @@ function runSingleCommand(
 
     child.on('error', (error) => {
       clearTimeout(timer)
-      resolve({ ok: false, error: error.message, stdout, stderr, durationMs: Date.now() - startedAt })
+      resolve({
+        ok: false,
+        result: error.message,
+        diagnostics: { stdout, stderr, durationMs: Date.now() - startedAt },
+      })
     })
 
     child.on('close', (exitCode) => {
       clearTimeout(timer)
       if (timedOut) {
-        resolve({ ok: false, error: AGENT_BASH_TIMEOUT, stdout, stderr, exitCode: exitCode ?? undefined, durationMs: Date.now() - startedAt })
+        resolve({
+          ok: false,
+          result: formatProcessResult(stdout, stderr, exitCode ?? undefined) || 'bash 命令执行超时。',
+          diagnostics: { stdout, stderr, exitCode: exitCode ?? undefined, durationMs: Date.now() - startedAt },
+        })
         return
       }
 
       const ok = exitCode === 0
+      const code = exitCode ?? undefined
       resolve({
         ok,
-        error: ok ? undefined : (stderr.trim() || `command exited with code ${exitCode}`),
-        stdout,
-        stderr,
-        exitCode: exitCode ?? undefined,
-        durationMs: Date.now() - startedAt,
+        result: formatProcessResult(stdout, stderr, code) || (ok ? '' : `command exited with code ${code}`),
+        diagnostics: { stdout, stderr, exitCode: code, durationMs: Date.now() - startedAt },
       })
     })
   })
 }
 
+function formatProcessResult(stdout: string, stderr: string, exitCode?: number): string {
+  const parts: string[] = []
+  if (stdout) {
+    parts.push(`stdout:\n${stdout}`)
+  }
+  if (stderr) {
+    parts.push(`stderr:\n${stderr}`)
+  }
+  if (exitCode !== undefined) {
+    parts.push(`exitCode=${exitCode}`)
+  }
+  return parts.join('\n')
+}
+
 function parseCommands(command: string): Array<{ command: string, args: string[] }> {
   const segments = command.split('&&').map(item => item.trim()).filter(Boolean)
   if (segments.length === 0) {
-    throw new Error(AGENT_BASH_COMMAND_BLOCKED)
+    throw new Error('bash command is blocked')
   }
   return segments.map(parseSingleCommand)
 }
@@ -146,7 +176,7 @@ function parseCommands(command: string): Array<{ command: string, args: string[]
 function parseSingleCommand(command: string): { command: string, args: string[] } {
   const tokens = command.match(/"[^"]*"|'[^']*'|\S+/g)?.map(token => token.replace(/^['"]|['"]$/g, '')) ?? []
   if (tokens.length === 0) {
-    throw new Error(AGENT_BASH_COMMAND_BLOCKED)
+    throw new Error('bash command is blocked')
   }
 
   return { command: tokens[0], args: tokens.slice(1) }

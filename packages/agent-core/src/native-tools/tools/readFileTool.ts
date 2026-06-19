@@ -28,13 +28,13 @@ export async function readFile(input: ReadFileToolInput, pathPolicy: PathPolicy)
 
   const header = `[Showing lines ${startLine}-${endLine} of ${totalLines}]`
   if (!hasMore) {
-    return { ok: true, output: `${header}\n${sliced}` }
+    return { ok: true, result: `${header}\n${sliced}` }
   }
 
   const remaining = totalLines - (nextOffset - 1)
   return {
     ok: true,
-    output: `${header}\n${sliced}\n\n[${remaining} more lines. Use offset=${nextOffset} limit=${maxLines} to continue]`,
+    result: `${header}\n${sliced}\n\n[${remaining} more lines. Use offset=${nextOffset} limit=${maxLines} to continue]`,
   }
 }
 
@@ -50,6 +50,6 @@ export function createReadFileTool(pathPolicy: PathPolicy, unrestricted: boolean
     unrestricted,
     inferScope: input => pathPolicy.classifyAccess(String((input as unknown as ReadFileToolInput).path || '.')),
     execute: input => readFile(input as unknown as ReadFileToolInput, pathPolicy),
-    truncateObservation: false,
+    truncateResult: false,
   })
 }

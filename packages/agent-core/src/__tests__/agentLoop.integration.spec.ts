@@ -123,7 +123,7 @@ function createListDirTool(): AgentTool {
     operationType: 'read',
     inferScope: () => 'workspace',
     execute: async () => {
-      return { ok: true, output: 'README.md\nsrc/', exitCode: 0 }
+      return { ok: true, result: 'README.md\nsrc/', diagnostics: { exitCode: 0 } }
     },
   }
 }

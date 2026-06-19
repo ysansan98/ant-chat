@@ -50,7 +50,7 @@ process.stdin.on('end', () => {
       },
     })
 
-    expect(result).toMatchObject({ ok: true, stdout: 'ok' })
+    expect(result).toMatchObject({ ok: true, result: 'ok', diagnostics: { stdout: 'ok' } })
     const invocation = JSON.parse(fs.readFileSync(invocationsPath, 'utf8').trim())
     expect(invocation.args).toEqual([
       '--profile',
@@ -81,7 +81,7 @@ process.stdin.on('end', () => {
       },
     })
 
-    expect(result).toMatchObject({ ok: true, stdout: 'ok' })
+    expect(result).toMatchObject({ ok: true, result: 'ok', diagnostics: { stdout: 'ok' } })
     const invocation = JSON.parse(fs.readFileSync(invocationsPath, 'utf8').trim())
     expect(invocation.args).toEqual([
       'agent-browser',
@@ -107,8 +107,8 @@ process.stdin.on('end', () => {
 
     expect(result).toEqual({
       ok: false,
-      error: 'AGENT_BROWSER_CLI_NOT_FOUND',
-      durationMs: expect.any(Number),
+      result: 'Browser tool failed: 未找到 agent-browser CLI。\n已检查系统 PATH 和 npx。请安装 agent-browser，并确保命令位于 PATH 中。',
+      diagnostics: { durationMs: expect.any(Number) },
     })
   })
 
@@ -124,7 +124,7 @@ process.stdin.on('end', () => {
 
     await expect(runBrowserTool({ command: 'get title' }, options)).resolves.toMatchObject({
       ok: false,
-      error: expect.stringContaining('ENOENT'),
+      result: expect.stringContaining('未找到 agent-browser CLI'),
     })
   })
 
@@ -202,7 +202,7 @@ process.stdout.write('page content\\n⚠ --profile, --headed ignored: daemon alr
       env: { PATH: browserPath() },
     })
 
-    expect(result).toMatchObject({ ok: true, stdout: 'page content' })
+    expect(result).toMatchObject({ ok: true, result: 'page content', diagnostics: { stdout: 'page content' } })
   })
 
   it('同一 browser session 内串行执行命令', async () => {
@@ -335,7 +335,7 @@ process.stdout.write('page content\\n⚠ --profile, --headed ignored: daemon alr
       },
     })
 
-    expect(result).toMatchObject({ ok: true, stdout: 'ok' })
+    expect(result).toMatchObject({ ok: true, result: 'ok', diagnostics: { stdout: 'ok' } })
     const invocation = JSON.parse(fs.readFileSync(invocationsPath, 'utf8').trim())
     expect(invocation.proxy).toBe('http://explicit-proxy:8080')
   })

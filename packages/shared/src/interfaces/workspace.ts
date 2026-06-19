@@ -36,3 +36,6 @@ export interface WorkspaceDirectoryListing {
   roots: string[]
   directories: WorkspaceDirectoryEntry[]
 }
+
+export const WORKSPACE_INVALID_PATH = 'WORKSPACE_INVALID_PATH'
+export const WORKSPACE_DUPLICATED_PATH = 'WORKSPACE_DUPLICATED_PATH'

@@ -33,10 +33,10 @@ export function createMcpTool(
           .filter((c): c is { type: 'text', text: string } => c.type === 'text' && typeof c.text === 'string')
           .map(c => c.text)
           .join('\n')
-        return { ok: !result.isError, output }
+        return { ok: !result.isError, result: output }
       }
       catch (error) {
-        return { ok: false, error: error instanceof Error ? error.message : 'MCP_TOOL_EXEC_FAILED' }
+        return { ok: false, result: error instanceof Error ? error.message : 'MCP_TOOL_EXEC_FAILED' }
       }
     },
   }

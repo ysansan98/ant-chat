@@ -18,8 +18,10 @@ export type AgentErrorCode
     | 'AGENT_POLICY_BLOCKED'
     | 'AGENT_TOOL_EXEC_FAILED'
     | 'AGENT_PROVIDER_NOT_FOUND'
-    | 'AGENT_SKILL_INVALID'
     | 'AGENT_CANCELLED'
+
+export const AGENT_POLICY_BLOCKED = 'AGENT_POLICY_BLOCKED'
+export const AGENT_TOOL_EXEC_FAILED = 'AGENT_TOOL_EXEC_FAILED'
 
 export interface AgentPendingAction {
   actionId: string

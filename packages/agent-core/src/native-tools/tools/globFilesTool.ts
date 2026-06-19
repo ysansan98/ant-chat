@@ -8,10 +8,14 @@ export async function globFiles(input: GlobFilesToolInput, pathPolicy: PathPolic
   const limit = normalizeSearchLimit(input.limit)
   const args = ['--files', '--no-ignore-global', '--glob', input.pattern, ...defaultExclusionGlobs(input.path)]
   const result = await runRg(args, cwd, limit)
-  if (!result.ok && result.exitCode !== 1) {
+  if (!result.ok && result.diagnostics?.exitCode !== 1) {
     return result
   }
-  return { ...result, ok: true, output: splitLimitedLines(result.stdout || '', limit) }
+  return {
+    ok: true,
+    result: splitLimitedLines(result.diagnostics?.stdout || '', limit).join('\n'),
+    diagnostics: result.diagnostics,
+  }
 }
 
 export function createGlobFilesTool(pathPolicy: PathPolicy, unrestricted: boolean) {

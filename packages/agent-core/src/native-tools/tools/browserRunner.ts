@@ -11,7 +11,6 @@ const DEFAULT_TIMEOUT_MS = 60_000
 const MAX_TIMEOUT_MS = 300_000
 const MAX_OUTPUT_CHARS = 20_000
 const DAEMON_IDLE_TIMEOUT_MS = '300000'
-const AGENT_BROWSER_CLI_NOT_FOUND = 'AGENT_BROWSER_CLI_NOT_FOUND'
 
 const ALLOWED_COMMANDS = new Set([
   'open',
@@ -173,7 +172,7 @@ export async function runBrowserTool(
 ): Promise<AgentToolResult> {
   const validationError = validateBrowserInput(input, options)
   if (validationError) {
-    return { ok: false, error: validationError }
+    return { ok: false, result: validationError }
   }
 
   const state = options.state ?? createDirectSessionState(options.profilePath)
@@ -201,8 +200,11 @@ async function executeBrowserTool(
   if (!browserCommand) {
     return {
       ok: false,
-      error: AGENT_BROWSER_CLI_NOT_FOUND,
-      durationMs: Date.now() - startedAt,
+      result: [
+        'Browser tool failed: 未找到 agent-browser CLI。',
+        '已检查系统 PATH 和 npx。请安装 agent-browser，并确保命令位于 PATH 中。',
+      ].join('\n'),
+      diagnostics: { durationMs: Date.now() - startedAt },
     }
   }
 
@@ -275,7 +277,16 @@ async function executeBrowserTool(
         resetSessionState(state)
         terminateDaemon(state)
       }
-      finish({ ok: false, error: error.message, durationMs: Date.now() - startedAt })
+      finish({
+        ok: false,
+        result: error.message.includes('ENOENT')
+          ? [
+              'Browser tool failed: 未找到 agent-browser CLI。',
+              '已检查系统 PATH 和 npx。请安装 agent-browser，并确保命令位于 PATH 中。',
+            ].join('\n')
+          : error.message,
+        diagnostics: { durationMs: Date.now() - startedAt },
+      })
     })
     child.on('close', (exitCode) => {
       clearTimeout(timer)
@@ -288,11 +299,13 @@ async function executeBrowserTool(
       if (timedOut) {
         finish({
           ok: false,
-          error: 'AGENT_BROWSER_TIMEOUT',
-          stdout,
-          stderr,
-          exitCode: exitCode ?? undefined,
-          durationMs: Date.now() - startedAt,
+          result: formatProcessResult(stdout, stderr, exitCode ?? undefined) || 'AGENT_BROWSER_TIMEOUT',
+          diagnostics: {
+            stdout,
+            stderr,
+            exitCode: exitCode ?? undefined,
+            durationMs: Date.now() - startedAt,
+          },
         })
         return
       }
@@ -305,14 +318,32 @@ async function executeBrowserTool(
       const cleanStderr = removeDaemonOptionWarnings(stderr)
       finish({
         ok,
-        error: ok ? undefined : (cleanStderr.trim() || `agent-browser exited with code ${exitCode}`),
-        stdout: cleanStdout,
-        stderr: cleanStderr,
-        exitCode: exitCode ?? undefined,
-        durationMs: Date.now() - startedAt,
+        result: ok
+          ? cleanStdout
+          : (formatProcessResult(cleanStdout, cleanStderr, exitCode ?? undefined) || `agent-browser exited with code ${exitCode}`),
+        diagnostics: {
+          stdout: cleanStdout,
+          stderr: cleanStderr,
+          exitCode: exitCode ?? undefined,
+          durationMs: Date.now() - startedAt,
+        },
       })
     })
   })
+}
+
+function formatProcessResult(stdout: string, stderr: string, exitCode?: number): string {
+  const parts: string[] = []
+  if (stdout) {
+    parts.push(`stdout:\n${stdout}`)
+  }
+  if (stderr) {
+    parts.push(`stderr:\n${stderr}`)
+  }
+  if (exitCode !== undefined) {
+    parts.push(`exitCode=${exitCode}`)
+  }
+  return parts.join('\n')
 }
 
 function resolveBrowserCommand(envOverrides?: NodeJS.ProcessEnv): BrowserCommand | null {
