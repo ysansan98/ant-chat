@@ -1,4 +1,4 @@
-import type { McpServer, McpTool } from '@ant-chat/shared'
+import type { ILogger, McpServer, McpTool } from '@ant-chat/shared'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import process from 'node:process'
 import { DEFAULT_MCP_TOOL_NAME_SEPARATOR, McpConfigSchema } from '@ant-chat/shared'
@@ -32,6 +32,8 @@ export class MCPClientHub {
   private onErrorCallbacks: ((name: string, e: Error) => void)[] = []
   private onStatusChangeCallbacks: ((name: string, status: McpServer['status']) => void)[] = []
 
+  constructor(private readonly logger?: ILogger) {}
+
   addErrorCallback(callback: (name: string, e: Error) => void) {
     if (typeof callback === 'function') {
       this.onErrorCallbacks.push(callback)
@@ -63,7 +65,7 @@ export class MCPClientHub {
     for (const name of currentNames) {
       if (!newNames.has(name)) {
         await this.deleteConnection(name)
-        console.log(`Deleted MCP server: ${name}`)
+        this.logger?.info(`Deleted MCP server: ${name}`)
       }
     }
 
@@ -78,7 +80,7 @@ export class MCPClientHub {
           await this.connectToServer(name, config)
         }
         catch (error) {
-          console.error(`Failed to connect to new MCP server ${name}:`, error)
+          this.logger?.error(`Failed to connect to new MCP server ${name}:`, error)
         }
       }
       else if (!deepEqual(JSON.parse(currentConnection.server.config), config)) {
@@ -86,10 +88,10 @@ export class MCPClientHub {
         try {
           await this.deleteConnection(name)
           await this.connectToServer(name, config)
-          console.log(`Reconnected MCP server with updated config: ${name}`)
+          this.logger?.info(`Reconnected MCP server with updated config: ${name}`)
         }
         catch (error) {
-          console.error(`Failed to reconnect MCP server ${name}:`, error)
+          this.logger?.error(`Failed to reconnect MCP server ${name}:`, error)
         }
       }
     }
@@ -125,7 +127,7 @@ export class MCPClientHub {
 
     // 设置回调
     transport.onerror = async (error) => {
-      console.error(`Transport error for "${name}":`, error)
+      this.logger?.error(`Transport error for "${name}":`, error)
       this.onErrorCallbacks.forEach((func) => {
         func(name, error)
       })
@@ -137,7 +139,7 @@ export class MCPClientHub {
     }
 
     transport.onclose = async () => {
-      console.error(`Transport closed for "${name}."`)
+      this.logger?.error(`Transport closed for "${name}."`)
       const connection = this.connections.find(conn => conn.server.name === name)
       if (connection) {
         connection.server.status = 'disconnected'
@@ -235,7 +237,7 @@ export class MCPClientHub {
       timeoutSeconds = parsedConfig?.timeout
     }
     catch (error) {
-      console.error(`Failed to parse timeout configuration for server ${serverName}: ${error}`)
+      this.logger?.error(`Failed to parse timeout configuration for server ${serverName}:`, error)
     }
 
     // 解析失败时回退到默认 10 秒；秒到毫秒只在此处转换一次
@@ -273,7 +275,7 @@ export class MCPClientHub {
         this.emitStatusChange(name, 'disconnected')
       }
       catch (error) {
-        console.error(`Failed to close transport for ${name}:`, error)
+        this.logger?.error(`Failed to close transport for ${name}:`, error)
         return false
       }
     }

@@ -82,6 +82,25 @@ describe('multiProvider 行为', () => {
     })
   })
 
+  it('初始化 provider 时写入注入的运行日志', () => {
+    const logger = {
+      error: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+    }
+
+    const provider = new MultiProvider({
+      apiKey: 'test-key',
+      baseUrl: 'https://example.test',
+      format: 'openai',
+      logger,
+    })
+
+    expect(provider).toBeInstanceOf(MultiProvider)
+    expect(logger.info).toHaveBeenCalledWith('Initialized with openai format for https://example.test')
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Using proxy:'))
+  })
+
   it('非流式 completion 返回规范化 usage', async () => {
     mocks.generateText.mockResolvedValue({
       text: 'summary',

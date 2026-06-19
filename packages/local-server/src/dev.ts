@@ -19,6 +19,10 @@ async function main() {
   const appDataRoot = resolveAppDataRoot()
   const runtime = createAppRuntime({
     appDataRoot,
+    loggerOptions: {
+      fileName: 'local-server.log',
+      source: 'local-server',
+    },
   })
   await runtime.initialize()
 

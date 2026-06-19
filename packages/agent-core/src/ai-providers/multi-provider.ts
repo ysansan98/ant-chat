@@ -2,7 +2,7 @@ import type { AnthropicProvider } from '@ai-sdk/anthropic'
 import type { DeepSeekProvider } from '@ai-sdk/deepseek'
 import type { GoogleGenerativeAIProvider } from '@ai-sdk/google'
 import type { OpenAIProvider } from '@ai-sdk/openai'
-import type { ProviderConfigSchema } from '@ant-chat/shared'
+import type { ILogger, ProviderConfigSchema } from '@ant-chat/shared'
 import type { LanguageModelUsage } from 'ai'
 import type { ProviderFormat } from './types'
 import process from 'node:process'
@@ -13,6 +13,17 @@ import { createOpenAI } from '@ai-sdk/openai'
 import { dynamicTool, generateText, jsonSchema, streamText } from 'ai'
 import { AgentError } from '../AgentError'
 
+type ProviderLogger = ILogger & {
+  debug?: (msg: string, ...args: unknown[]) => void
+}
+
+const noopLogger: ProviderLogger = {
+  debug: () => {},
+  error: () => {},
+  info: () => {},
+  warn: () => {},
+}
+
 /**
  * 多提供商 AI 提供商
  * 支持 DeepSeek、OpenAI、Gemini、Anthropic 等多种 AI 提供商
@@ -20,12 +31,7 @@ import { AgentError } from '../AgentError'
 export class MultiProvider {
   private client: DeepSeekProvider | OpenAIProvider | GoogleGenerativeAIProvider | AnthropicProvider
   private format: ProviderFormat
-  private logger = {
-    info: (msg: string, ...args: any[]) => console.log(`[MultiProvider] ${msg}`, ...args),
-    debug: (msg: string, ...args: any[]) => console.log(`[MultiProvider DEBUG] ${msg}`, ...args),
-    error: (msg: string, ...args: any[]) => console.error(`[MultiProvider ERROR] ${msg}`, ...args),
-    warn: (msg: string, ...args: any[]) => console.warn(`[MultiProvider WARN] ${msg}`, ...args),
-  }
+  private logger: ProviderLogger
 
   private normalizeUsage(usage?: LanguageModelUsage) {
     if (!usage) {
@@ -49,8 +55,10 @@ export class MultiProvider {
     baseUrl: string
     apiKey: string
     format?: ProviderFormat
+    logger?: ILogger
   }) {
     this.format = options.format || 'openai'
+    this.logger = options.logger ?? noopLogger
 
     this.logger.info(`Initialized with ${this.format} format for ${options.baseUrl}`)
     this.logger.info(`Using proxy: ${process.env.HTTP_PROXY || 'none'}`)
@@ -71,7 +79,7 @@ export class MultiProvider {
     // 根据格式初始化不同的客户端
     switch (this.format) {
       case 'deepseek':
-        this.logger.debug('Creating DeepSeek client with baseURL:', options.baseUrl)
+        this.logger.debug?.('Creating DeepSeek client with baseURL:', options.baseUrl)
         this.client = createDeepSeek({
           apiKey: options.apiKey,
           baseURL: options.baseUrl,
@@ -79,7 +87,7 @@ export class MultiProvider {
         break
 
       case 'openai':
-        this.logger.debug('Creating OpenAI client with baseURL:', options.baseUrl)
+        this.logger.debug?.('Creating OpenAI client with baseURL:', options.baseUrl)
         this.client = createOpenAI({
           apiKey: options.apiKey,
           baseURL: options.baseUrl,
@@ -87,7 +95,7 @@ export class MultiProvider {
         break
 
       case 'google':
-        this.logger.debug('Creating Google client with baseURL:', options.baseUrl)
+        this.logger.debug?.('Creating Google client with baseURL:', options.baseUrl)
         this.client = createGoogleGenerativeAI({
           apiKey: options.apiKey,
           baseURL: options.baseUrl,
@@ -95,7 +103,7 @@ export class MultiProvider {
         break
 
       case 'anthropic':
-        this.logger.debug('Creating Anthropic client with baseURL:', options.baseUrl)
+        this.logger.debug?.('Creating Anthropic client with baseURL:', options.baseUrl)
         this.client = createAnthropic({
           apiKey: options.apiKey,
           baseURL: options.baseUrl,
@@ -121,25 +129,25 @@ export class MultiProvider {
       throw new Error(errorMsg)
     }
 
-    this.logger.debug(`Creating model client for model: ${model}`)
+    this.logger.debug?.(`Creating model client for model: ${model}`)
 
     // 对于OpenAI格式，使用 Chat Completions API（而不是默认的 Responses API）
     if (this.format === 'openai') {
       const modelClient = this.client.chat(model)
-      this.logger.debug('OpenAI Chat model client created successfully')
+      this.logger.debug?.('OpenAI Chat model client created successfully')
       return modelClient
     }
 
     // 对于DeepSeek格式，直接使用默认方式
     if (this.format === 'deepseek') {
       const modelClient = this.client(model)
-      this.logger.debug('DeepSeek model client created successfully')
+      this.logger.debug?.('DeepSeek model client created successfully')
       return modelClient
     }
 
     // 对于其他格式，使用默认方式
     const modelClient = this.client(model)
-    this.logger.debug('Model client created successfully')
+    this.logger.debug?.('Model client created successfully')
     return modelClient
   }
 
@@ -352,7 +360,7 @@ export class MultiProvider {
     }
     // 如果模型不支持 fullStream，则使用 textStream
     if (!usedFullStream) {
-      this.logger.debug('Using textStream fallback')
+      this.logger.debug?.('Using textStream fallback')
 
       // 处理流式响应
       for await (const chunk of result.textStream) {
@@ -501,6 +509,7 @@ export class MultiProvider {
  */
 export async function createAProvider(
   provider: ProviderConfigSchema,
+  options: { logger?: ILogger } = {},
 ): Promise<MultiProvider> {
   const format = provider.apiMode
 
@@ -508,5 +517,6 @@ export async function createAProvider(
     baseUrl: provider.baseUrl || '',
     apiKey: provider.apiKey || '',
     format,
+    logger: options.logger,
   })
 }

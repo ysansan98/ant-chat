@@ -20,6 +20,8 @@ import type {
   UpdateMcpConfigSchema,
   UpdateProviderConfigSchema,
 } from '@ant-chat/shared'
+import type { AppRuntimeLoggerOptions } from './runtimeLogger'
+import type { SystemLogger } from './systemLogger'
 import { randomUUID } from 'node:crypto'
 import { createAgentRuntime, createProvider } from '@ant-chat/agent-core'
 import {
@@ -45,12 +47,14 @@ import { KeychainSecretStore } from './secretStore'
 
 export interface CreateAppRuntimeOptions {
   appDataRoot: string
+  logger?: SystemLogger
+  loggerOptions?: AppRuntimeLoggerOptions
 }
 
 export function createAppRuntime(options: CreateAppRuntimeOptions) {
   const paths = createAppRuntimePaths(options.appDataRoot)
   const browserPaths = createAgentBrowserPaths()
-  const logger = getAppRuntimeLogger(options.appDataRoot)
+  const logger = options.logger ?? getAppRuntimeLogger(options.appDataRoot, options.loggerOptions)
   const networkProxy = new NetworkProxyManager()
   const db = openAppDataDatabase(paths.databaseFile)
   const context = createAppDataContext({
@@ -65,7 +69,7 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
   const secretStore = new KeychainSecretStore()
   const aiProviderFactory: AIProviderFactory = async ({ provider }) => {
     const apiKey = await resolveProviderApiKey(provider)
-    return await createProvider({ ...provider, apiKey })
+    return await createProvider({ ...provider, apiKey }, { logger })
   }
   const secretRequester = new RuntimeSecretRequestController(secretStore, {
     emitSecretRequested(request) {
@@ -73,7 +77,7 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
     },
   })
   const skills = new SkillManagementService({ skillsRoot: paths.skillsRoot })
-  const mcpClientHub = new MCPClientHub()
+  const mcpClientHub = new MCPClientHub(logger)
   const agentEventEmitter: IAgentEventEmitter = {
     emitMessageUpdated(message) {
       events.emit('message:updated', { message })

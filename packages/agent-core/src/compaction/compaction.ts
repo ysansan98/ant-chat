@@ -7,9 +7,9 @@ export { DEFAULT_COMPACTION_SETTINGS }
 
 function defaultLogger(): ILogger {
   return {
-    info: (msg: string, ...args: unknown[]) => console.log(`[compaction] ${msg}`, ...args),
-    warn: (msg: string, ...args: unknown[]) => console.warn(`[compaction] ${msg}`, ...args),
-    error: (msg: string, ...args: unknown[]) => console.error(`[compaction] ${msg}`, ...args),
+    error: () => {},
+    info: () => {},
+    warn: () => {},
   }
 }
 

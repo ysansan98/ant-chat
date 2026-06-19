@@ -19,7 +19,13 @@ export async function startLocalServer(options: StartLocalServerOptions): Promis
   const host = options.host ?? '127.0.0.1'
   const port = options.port ?? 3456
   const webRoot = options.webRoot ?? path.resolve(import.meta.dirname, 'web')
-  const runtime = createAppRuntime({ appDataRoot: options.appDataRoot })
+  const runtime = createAppRuntime({
+    appDataRoot: options.appDataRoot,
+    loggerOptions: {
+      fileName: 'local-server.log',
+      source: 'local-server',
+    },
+  })
 
   try {
     await runtime.initialize()
