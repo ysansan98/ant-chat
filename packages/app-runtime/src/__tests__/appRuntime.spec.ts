@@ -1,4 +1,3 @@
-import { spawnSync } from 'node:child_process'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -13,7 +12,7 @@ vi.mock('keytar', () => ({
   },
 }))
 
-describe.skipIf(!canRunDbIntegrationTests())('app runtime', () => {
+describe('app runtime', () => {
   let appDataRoot: string
   let runtime: ReturnType<typeof createAppRuntimeFn>
 
@@ -82,14 +81,3 @@ describe.skipIf(!canRunDbIntegrationTests())('app runtime', () => {
     expect(remaining.total).toBe(0)
   })
 })
-
-function canRunDbIntegrationTests(): boolean {
-  const probe = spawnSync(process.execPath, [
-    '-e',
-    'const Database = require("better-sqlite3"); const db = new Database(":memory:"); db.close()',
-  ], {
-    cwd: process.cwd(),
-    stdio: 'ignore',
-  })
-  return probe.status === 0
-}

@@ -17,6 +17,7 @@
     "build:mac": "pnpm build:packages && pnpm -F @ant-chat/desktop build:mac",
     "type-check": "tsc -b",
     "test:unit": "pnpm -r test",
+    "rebuild:node": "pnpm -r rebuild better-sqlite3",
     "check": "pnpm type-check && pnpm lint && pnpm test:unit",
     "changeset": "changeset",
     "version-packages": "changeset version",

@@ -1,7 +1,6 @@
 import type { AgentMode, IAgentEventEmitter, IAIProvider, IAIStreamChunk, LoopMessage, ToolResultContent } from '@ant-chat/shared'
 import { createAgentRuntime } from '@ant-chat/agent-core'
 import { createAppDataContext } from '@ant-chat/app-data'
-import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
@@ -12,7 +11,7 @@ import { createAppDataSessionStore } from '../sessionStore'
 
 const TEST_MODEL_ID = 'mock-model'
 
-describe.skipIf(!canRunDbIntegrationTests())('agent 真实链路权限行为', () => {
+describe('agent 真实链路权限行为', () => {
   let harness: AgentRuntimeHarness
 
   beforeEach(() => {
@@ -370,18 +369,6 @@ async function waitFor<T>(getValue: () => T | undefined | false, errorMessage: s
     await new Promise(resolve => setTimeout(resolve, 10))
   }
   throw new Error(errorMessage)
-}
-
-function canRunDbIntegrationTests() {
-  const result = spawnSync(process.execPath, ['-e', `
-    const { createRequire } = require('node:module')
-    const requireFromTest = createRequire(${JSON.stringify(import.meta.url)})
-    const Database = requireFromTest('better-sqlite3')
-    const db = new Database(':memory:')
-    db.close()
-  `], { stdio: 'ignore' })
-
-  return result.status === 0 && result.signal === null
 }
 
 function loadBetterSqlite(): BetterSqliteConstructor {

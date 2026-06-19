@@ -1,6 +1,5 @@
 import type { Database } from 'better-sqlite3'
 import { Buffer } from 'node:buffer'
-import { spawnSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
@@ -63,7 +62,7 @@ describe('sqlite row mapping', () => {
   })
 })
 
-describe.skipIf(!canRunDbIntegrationTests())('sqlite repositories', () => {
+describe('sqlite repositories', () => {
   let sqlite: Database
   let attachmentsRoot: string
 
@@ -610,18 +609,6 @@ function existsSync(filePath: string): boolean {
   catch {
     return false
   }
-}
-
-function canRunDbIntegrationTests() {
-  const result = spawnSync(process.execPath, ['-e', `
-    const { createRequire } = require('node:module')
-    const requireFromTest = createRequire(${JSON.stringify(import.meta.url)})
-    const Database = requireFromTest('better-sqlite3')
-    const db = new Database(':memory:')
-    db.close()
-  `], { stdio: 'ignore' })
-
-  return result.status === 0 && result.signal === null
 }
 
 function loadBetterSqlite(): new (filename: string) => Database {

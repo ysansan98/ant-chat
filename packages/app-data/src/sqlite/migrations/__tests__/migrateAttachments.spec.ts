@@ -1,6 +1,5 @@
 import type { Database } from 'better-sqlite3'
 import { Buffer } from 'node:buffer'
-import { spawnSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -10,7 +9,7 @@ import { getAttachmentFilePath } from '../../attachmentFiles'
 import { initializeAppDataSchema } from '../../schema'
 import { migrateAddCompactionBoundary, migrateMessageAttachments } from '../migrateAttachments'
 
-describe.skipIf(!canRunDbIntegrationTests())('migrateMessageAttachments', () => {
+describe('migrateMessageAttachments', () => {
   let sqlite: Database
   let attachmentsRoot: string
 
@@ -121,7 +120,7 @@ describe.skipIf(!canRunDbIntegrationTests())('migrateMessageAttachments', () => 
   })
 })
 
-describe.skipIf(!canRunDbIntegrationTests())('migrateAddCompactionBoundary', () => {
+describe('migrateAddCompactionBoundary', () => {
   it('adds the compaction boundary column once', () => {
     const BetterSqlite = loadBetterSqlite()
     const sqlite = new BetterSqlite(':memory:')
@@ -139,18 +138,6 @@ describe.skipIf(!canRunDbIntegrationTests())('migrateAddCompactionBoundary', () 
     sqlite.close()
   })
 })
-
-function canRunDbIntegrationTests() {
-  const result = spawnSync(process.execPath, ['-e', `
-    const { createRequire } = require('node:module')
-    const requireFromTest = createRequire(${JSON.stringify(import.meta.url)})
-    const Database = requireFromTest('better-sqlite3')
-    const db = new Database(':memory:')
-    db.close()
-  `], { stdio: 'ignore' })
-
-  return result.status === 0 && result.signal === null
-}
 
 function loadBetterSqlite(): new (filename: string) => Database {
   const require = createRequire(import.meta.url)

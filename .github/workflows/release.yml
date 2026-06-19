@@ -46,7 +46,7 @@ jobs:
           echo "bundled rg binaries are ready"
 
       - name: Rebuild better-sqlite3
-        run: pnpm -F @ant-chat/desktop rebuild:node
+        run: pnpm -w run rebuild:node
 
       - name: Build workspace packages
         run: pnpm build:packages
