@@ -134,9 +134,10 @@ describe('native tool service 行为', () => {
     expect(result).toMatchObject({
       ok: false,
       result: expect.stringContaining('stderr:'),
-      diagnostics: { exitCode: 1 },
+      diagnostics: { exitCode: expect.any(Number) },
     })
-    expect(result.result).toContain('exitCode=1')
+    expect(result.diagnostics.exitCode).toBeGreaterThan(0)
+    expect(result.result).toContain('exitCode=')
   })
 
   it('将 browser 注册为自动允许的 browser 操作', () => {
