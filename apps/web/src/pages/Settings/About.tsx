@@ -1,6 +1,7 @@
 import { Button } from '@workspace/ui/components/button'
 import { Card, CardContent } from '@workspace/ui/components/card'
 import { AboutUpdateSettings } from '@/components/About/AboutUpdateSettings'
+import { isElectronRuntime } from '@/utils/ipc-bus'
 
 export function About() {
   const handleOpenGitHub = () => {
@@ -55,7 +56,7 @@ export function About() {
       </Card>
 
       {/* 更新设置 */}
-      <AboutUpdateSettings />
+      {isElectronRuntime() && <AboutUpdateSettings />}
     </div>
   )
 }
