@@ -1,23 +1,25 @@
-import type { ImportSkillFromGithubOptions, SkillIndex, SkillManifest } from '@ant-chat/shared'
+import type { ImportSkillFromGithubOptions, SkillAppState, SkillFrontmatter, SkillIndex, SkillIndexFile, SkillManifest } from '@ant-chat/shared'
 import { Buffer } from 'node:buffer'
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { unzipSync } from 'fflate'
+import yaml from 'js-yaml'
 
 const INDEX_FILE = '.index.json'
 const SKILL_NAME_PATTERN = /^[\w.-]+$/
 const BUILTIN_SKILL_INSTALLER = 'skill-installer'
 
-function createBuiltinSkillInstallerMarkdown(skillsRoot: string): string {
-  return `# Skill Installer
+const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---/
+
+/** 内置 skill-installer 的 SKILL.md 正文（不含 frontmatter） */
+const BUILTIN_SKILL_INSTALLER_BODY = `# Skill Installer
 
 Install skills from GitHub into the Ant Chat skills directory.
 
-Use this skill when the user asks to install, list, or manage skills from GitHub. Prefer the built-in install_skill_from_github tool for installation. Installed skills are stored under ${skillsRoot}.
+Use this skill when the user asks to install, list, or manage skills from GitHub. Prefer the built-in install_skill_from_github tool for installation. Installed skills are stored under {skillsRoot}.
 `
-}
 
 export interface SkillManagementServiceOptions {
   skillsRoot: string
@@ -36,13 +38,39 @@ export class SkillManagementService {
 
   async ensureInitialized(): Promise<void> {
     await fs.promises.mkdir(this.skillsRoot, { recursive: true })
+    await this.migrateFromManifestJson()
     await this.ensureBuiltinSkillInstaller()
-    await this.rebuildIndex()
   }
 
   async listSkills(): Promise<SkillIndex> {
     await this.ensureInitialized()
-    const skills = await this.readIndexOrRebuild()
+    const appState = await this.readAppState()
+    const entries = await fs.promises.readdir(this.skillsRoot, { withFileTypes: true })
+    const skills: SkillManifest[] = []
+    let dirty = false
+
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name.startsWith('.')) {
+        continue
+      }
+      const skill = await this.loadSkill(entry.name, appState[entry.name])
+      if (!skill) {
+        continue
+      }
+      // 发现新 skill 目录但 .index.json 中无记录时，追加默认 appState
+      if (!appState[entry.name]) {
+        appState[entry.name] = createDefaultAppState('zip')
+        dirty = true
+      }
+      skills.push(skill)
+    }
+
+    skills.sort((a, b) => a.name.localeCompare(b.name, 'en'))
+
+    if (dirty) {
+      await this.writeAppState(appState)
+    }
+
     return { rootPath: this.skillsRoot, skills }
   }
 
@@ -88,26 +116,37 @@ export class SkillManagementService {
     await this.ensureInitialized()
     assertSkillName(name)
     const skillPath = path.join(this.skillsRoot, name)
-    const manifest = await this.readManifest(skillPath)
-    if (manifest.builtin && !enabled) {
+    const frontmatter = await this.readFrontmatter(skillPath)
+    const appState = await this.readAppState()
+    const state = appState[name]
+    if (!state) {
+      throw new Error('AGENT_SKILL_NOT_FOUND')
+    }
+    if (state.builtin && !enabled) {
       throw new Error('BUILTIN_SKILL_CANNOT_BE_DISABLED')
     }
-    const updated = { ...manifest, enabled, updatedAt: Date.now() }
-    await this.writeManifest(skillPath, updated)
-    await this.rebuildIndex()
-    return updated
+    state.enabled = enabled
+    state.updatedAt = Date.now()
+    appState[name] = state
+    await this.writeAppState(appState)
+    return { ...frontmatter, ...state }
   }
 
   async deleteSkill(name: string): Promise<void> {
     await this.ensureInitialized()
     assertSkillName(name)
     const skillPath = path.join(this.skillsRoot, name)
-    const manifest = await this.readManifest(skillPath)
-    if (manifest.builtin) {
+    const appState = await this.readAppState()
+    const state = appState[name]
+    if (!state) {
+      throw new Error('AGENT_SKILL_NOT_FOUND')
+    }
+    if (state.builtin) {
       throw new Error('BUILTIN_SKILL_CANNOT_BE_DELETED')
     }
     await removePath(skillPath)
-    await this.rebuildIndex()
+    delete appState[name]
+    await this.writeAppState(appState)
   }
 
   async getEnabledSkills(): Promise<SkillManifest[]> {
@@ -117,58 +156,127 @@ export class SkillManagementService {
 
   async readSkillMarkdown(name: string): Promise<string> {
     assertSkillName(name)
-    const skillPath = path.join(this.skillsRoot, name)
-    const manifest = await this.readManifest(skillPath)
-    if (!manifest.enabled) {
+    const appState = await this.readAppState()
+    const state = appState[name]
+    if (!state || !state.enabled) {
       throw new Error('AGENT_SKILL_INVALID')
     }
-    const skillFile = path.join(skillPath, 'SKILL.md')
+    const skillFile = path.join(this.skillsRoot, name, 'SKILL.md')
     return fs.promises.readFile(skillFile, 'utf8')
   }
 
   async rebuildIndex(): Promise<SkillManifest[]> {
     await fs.promises.mkdir(this.skillsRoot, { recursive: true })
+    const appState = await this.readAppState()
     const entries = await fs.promises.readdir(this.skillsRoot, { withFileTypes: true })
     const skills: SkillManifest[] = []
+    const activeNames = new Set<string>()
+
     for (const entry of entries) {
       if (!entry.isDirectory() || entry.name.startsWith('.')) {
         continue
       }
-      try {
-        const manifest = await this.readManifest(path.join(this.skillsRoot, entry.name))
-        if (manifest.name !== entry.name) {
-          manifest.name = entry.name
-          await this.writeManifest(path.join(this.skillsRoot, entry.name), manifest)
-        }
-        skills.push(manifest)
+      const skill = await this.loadSkill(entry.name, appState[entry.name])
+      if (!skill) {
+        continue
       }
-      catch {
-        // Fallback: if manifest.json is missing, build one from SKILL.md frontmatter
-        try {
-          const skillPath = path.join(this.skillsRoot, entry.name)
-          const skillFile = path.join(skillPath, 'SKILL.md')
-          if (fs.existsSync(skillFile)) {
-            const metadata = await readSkillMetadata(skillPath)
-            const now = Date.now()
-            const manifest: SkillManifest = {
-              name: metadata.name || entry.name,
-              version: metadata.version,
-              description: metadata.description,
-              source: 'zip',
-              enabled: true,
-              installedAt: now,
-              updatedAt: now,
-            }
-            await this.writeManifest(skillPath, manifest)
-            skills.push(manifest)
-          }
-        }
-        catch {}
+      activeNames.add(entry.name)
+      if (!appState[entry.name]) {
+        appState[entry.name] = createDefaultAppState('zip')
+      }
+      skills.push(skill)
+    }
+
+    // 清理已删除目录的 appState 条目
+    for (const name of Object.keys(appState)) {
+      if (!activeNames.has(name)) {
+        delete appState[name]
       }
     }
+
     skills.sort((a, b) => a.name.localeCompare(b.name, 'en'))
-    await fs.promises.writeFile(path.join(this.skillsRoot, INDEX_FILE), JSON.stringify(skills, null, 2), 'utf8')
+    await this.writeAppState(appState)
     return skills
+  }
+
+  // ── 私有方法 ──────────────────────────────────────────────
+
+  /**
+   * 从 SKILL.md 的 YAML frontmatter 读取标准元数据。
+   * frontmatter 缺失时用目录名兜底 name，description 留空。
+   */
+  private async readFrontmatter(skillPath: string): Promise<SkillFrontmatter> {
+    const skillFile = path.join(skillPath, 'SKILL.md')
+    const content = await fs.promises.readFile(skillFile, 'utf8')
+    const match = content.match(FRONTMATTER_RE)
+    if (match) {
+      try {
+        const parsed = yaml.load(match[1]) as Record<string, unknown>
+        if (parsed && typeof parsed === 'object') {
+          const name = typeof parsed.name === 'string' ? parsed.name : path.basename(skillPath)
+          const description = typeof parsed.description === 'string' ? parsed.description : ''
+          const frontmatter: SkillFrontmatter = { name, description }
+          if (typeof parsed.version === 'string') {
+            frontmatter.version = parsed.version
+          }
+          if (typeof parsed.license === 'string') {
+            frontmatter.license = parsed.license
+          }
+          if (typeof parsed.compatibility === 'string') {
+            frontmatter.compatibility = parsed.compatibility
+          }
+          if (parsed.metadata && typeof parsed.metadata === 'object' && !Array.isArray(parsed.metadata)) {
+            frontmatter.metadata = parsed.metadata as Record<string, string>
+          }
+          if (typeof parsed['allowed-tools'] === 'string') {
+            frontmatter.allowedTools = parsed['allowed-tools']
+          }
+          return frontmatter
+        }
+      }
+      catch {}
+    }
+    // 无 frontmatter 时，尝试从 # heading 提取 name
+    const headingName = this.extractHeadingName(content)
+    return { name: headingName ?? path.basename(skillPath), description: '' }
+  }
+
+  /** 合并 frontmatter + appState 为完整的 SkillManifest */
+  private async loadSkill(dirName: string, state?: SkillAppState): Promise<SkillManifest | null> {
+    try {
+      const skillPath = path.join(this.skillsRoot, dirName)
+      const frontmatter = await this.readFrontmatter(skillPath)
+      // 确保 name 与目录名一致
+      if (frontmatter.name !== dirName) {
+        frontmatter.name = dirName
+      }
+      const appState = state ?? createDefaultAppState('zip')
+      return { ...frontmatter, ...appState }
+    }
+    catch {
+      return null
+    }
+  }
+
+  private async readAppState(): Promise<Record<string, SkillAppState>> {
+    try {
+      const content = await fs.promises.readFile(path.join(this.skillsRoot, INDEX_FILE), 'utf8')
+      const data = JSON.parse(content) as SkillIndexFile
+      if (data && typeof data === 'object' && data.version === 1 && data.skills) {
+        return data.skills
+      }
+    }
+    catch {}
+    return {}
+  }
+
+  private async writeAppState(skills: Record<string, SkillAppState>): Promise<void> {
+    const data: SkillIndexFile = { version: 1, skills }
+    await fs.promises.writeFile(
+      path.join(this.skillsRoot, INDEX_FILE),
+      JSON.stringify(data, null, 2),
+      'utf8',
+    )
   }
 
   private async importFromDirectory(
@@ -176,8 +284,8 @@ export class SkillManagementService {
     options: { source: SkillManifest['source'], sourceUrl?: string, name?: string },
   ): Promise<SkillManifest> {
     await validateSkillDirectory(sourcePath)
-    const metadata = await readSkillMetadata(sourcePath)
-    const name = options.name ?? metadata.name
+    const frontmatter = await this.readFrontmatter(sourcePath)
+    const name = options.name ?? normalizeSkillName(frontmatter.name)
     assertSkillName(name)
     const targetPath = path.join(this.skillsRoot, name)
     if (fs.existsSync(targetPath)) {
@@ -185,68 +293,174 @@ export class SkillManagementService {
     }
 
     const now = Date.now()
-    const manifest: SkillManifest = {
-      name,
-      version: metadata.version,
-      description: metadata.description,
+    const appState: SkillAppState = {
       source: options.source,
       sourceUrl: options.sourceUrl,
       enabled: true,
+      builtin: false,
       installedAt: now,
       updatedAt: now,
     }
 
     await fs.promises.cp(sourcePath, targetPath, { recursive: true, errorOnExist: true })
-    await this.writeManifest(targetPath, manifest)
-    await this.rebuildIndex()
-    return manifest
+
+    // 确保导入的 SKILL.md frontmatter 中 name 与目录名一致
+    await this.ensureFrontmatterName(targetPath, name)
+
+    const allState = await this.readAppState()
+    allState[name] = appState
+    await this.writeAppState(allState)
+
+    return { ...frontmatter, name, ...appState }
   }
 
-  private async readIndexOrRebuild(): Promise<SkillManifest[]> {
+  /**
+   * 从 SKILL.md 正文中提取第一个 heading 作为兜底 name。
+   * 仅在无 frontmatter 时使用。
+   */
+  private extractHeadingName(content: string): string | undefined {
+    const match = content.match(/^# ([^\n]+)$/m)
+    return match ? match[1].trim() : undefined
+  }
+
+  /** 如果 SKILL.md frontmatter 的 name 与目录名不一致，修正它 */
+  private async ensureFrontmatterName(skillPath: string, dirName: string): Promise<void> {
+    const skillFile = path.join(skillPath, 'SKILL.md')
+    const content = await fs.promises.readFile(skillFile, 'utf8')
+    const match = content.match(FRONTMATTER_RE)
+    if (!match) {
+      return
+    }
     try {
-      const content = await fs.promises.readFile(path.join(this.skillsRoot, INDEX_FILE), 'utf8')
-      const data = JSON.parse(content)
-      if (Array.isArray(data)) {
-        return data.map(normalizeManifest)
+      const parsed = yaml.load(match[1]) as Record<string, unknown>
+      if (parsed && typeof parsed === 'object' && typeof parsed.name === 'string' && parsed.name !== dirName) {
+        parsed.name = dirName
+        const newFrontmatter = `---\n${yaml.dump(parsed, { lineWidth: -1 }).trim()}\n---`
+        const newContent = content.replace(FRONTMATTER_RE, newFrontmatter)
+        await fs.promises.writeFile(skillFile, newContent, 'utf8')
       }
     }
     catch {}
-    return this.rebuildIndex()
-  }
-
-  private async readManifest(skillPath: string): Promise<SkillManifest> {
-    const manifestPath = path.join(skillPath, 'manifest.json')
-    const content = await fs.promises.readFile(manifestPath, 'utf8')
-    return normalizeManifest(JSON.parse(content))
-  }
-
-  private writeManifest(skillPath: string, manifest: SkillManifest): Promise<void> {
-    return fs.promises.writeFile(path.join(skillPath, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf8')
   }
 
   private async ensureBuiltinSkillInstaller(): Promise<void> {
     const skillPath = path.join(this.skillsRoot, BUILTIN_SKILL_INSTALLER)
-    const now = Date.now()
     await fs.promises.mkdir(skillPath, { recursive: true })
+
+    // 生成带 frontmatter 的 SKILL.md
     const skillFile = path.join(skillPath, 'SKILL.md')
-    await fs.promises.writeFile(skillFile, createBuiltinSkillInstallerMarkdown(this.skillsRoot), 'utf8')
-    const manifestPath = path.join(skillPath, 'manifest.json')
-    if (!fs.existsSync(manifestPath)) {
-      await this.writeManifest(skillPath, {
-        name: BUILTIN_SKILL_INSTALLER,
-        description: 'Install skills from GitHub into Ant Chat.',
-        source: 'builtin',
+    const frontmatter = yaml.dump({
+      name: BUILTIN_SKILL_INSTALLER,
+      description: 'Install skills from GitHub into Ant Chat.',
+    }, { lineWidth: -1 }).trim()
+    const body = BUILTIN_SKILL_INSTALLER_BODY.replace('{skillsRoot}', this.skillsRoot)
+    const content = `---\n${frontmatter}\n---\n\n${body}`
+    await fs.promises.writeFile(skillFile, content, 'utf8')
+
+    // 确保 appState 中有记录
+    const appState = await this.readAppState()
+    if (!appState[BUILTIN_SKILL_INSTALLER]) {
+      const now = Date.now()
+      appState[BUILTIN_SKILL_INSTALLER] = {
         enabled: true,
         builtin: true,
+        source: 'builtin',
         installedAt: now,
         updatedAt: now,
-      })
+      }
+      await this.writeAppState(appState)
     }
+  }
+
+  /**
+   * 迁移旧版 manifest.json 格式到新格式。
+   * 检测条件：旧 .index.json 是数组，或 skill 目录下存在 manifest.json。
+   */
+  private async migrateFromManifestJson(): Promise<void> {
+    const indexPath = path.join(this.skillsRoot, INDEX_FILE)
+    let needsMigration = false
+
+    // 检测旧格式 .index.json
+    try {
+      const content = await fs.promises.readFile(indexPath, 'utf8')
+      const data = JSON.parse(content)
+      if (Array.isArray(data) || (data && typeof data === 'object' && !data.version)) {
+        needsMigration = true
+      }
+    }
+    catch {
+      // 文件不存在不算需要迁移
+    }
+
+    if (!needsMigration) {
+      // 检查是否有遗留的 manifest.json
+      try {
+        const entries = await fs.promises.readdir(this.skillsRoot, { withFileTypes: true })
+        for (const entry of entries) {
+          if (entry.isDirectory() && !entry.name.startsWith('.')) {
+            const manifestPath = path.join(this.skillsRoot, entry.name, 'manifest.json')
+            if (fs.existsSync(manifestPath)) {
+              needsMigration = true
+              break
+            }
+          }
+        }
+      }
+      catch {}
+    }
+
+    if (!needsMigration) {
+      return
+    }
+
+    const appState: Record<string, SkillAppState> = {}
+
+    try {
+      const entries = await fs.promises.readdir(this.skillsRoot, { withFileTypes: true })
+      for (const entry of entries) {
+        if (!entry.isDirectory() || entry.name.startsWith('.')) {
+          continue
+        }
+        const skillDir = path.join(this.skillsRoot, entry.name)
+        const manifestPath = path.join(skillDir, 'manifest.json')
+
+        // 尝试从旧 manifest.json 提取 appState
+        if (fs.existsSync(manifestPath)) {
+          try {
+            const oldManifest = JSON.parse(await fs.promises.readFile(manifestPath, 'utf8'))
+            appState[entry.name] = {
+              enabled: oldManifest.enabled !== false,
+              builtin: oldManifest.builtin === true,
+              source: oldManifest.source === 'github' || oldManifest.source === 'builtin' ? oldManifest.source : 'zip',
+              sourceUrl: typeof oldManifest.sourceUrl === 'string' ? oldManifest.sourceUrl : undefined,
+              installedAt: typeof oldManifest.installedAt === 'number' ? oldManifest.installedAt : Date.now(),
+              updatedAt: typeof oldManifest.updatedAt === 'number' ? oldManifest.updatedAt : Date.now(),
+            }
+          }
+          catch {}
+          // 删除旧 manifest.json
+          await removePath(manifestPath)
+        }
+        else {
+          appState[entry.name] = createDefaultAppState('zip')
+        }
+      }
+    }
+    catch {}
+
+    await this.writeAppState(appState)
   }
 
   private createTempDir(): Promise<string> {
     return fs.promises.mkdtemp(path.join(tmpdir(), `ant-chat-skill-${randomUUID()}-`))
   }
+}
+
+// ── 工具函数 ─────────────────────────────────────────────────
+
+function createDefaultAppState(source: 'zip' | 'github' | 'builtin'): SkillAppState {
+  const now = Date.now()
+  return { enabled: true, builtin: false, source, installedAt: now, updatedAt: now }
 }
 
 async function validateSkillDirectory(skillPath: string): Promise<void> {
@@ -257,77 +471,6 @@ async function validateSkillDirectory(skillPath: string): Promise<void> {
   const skillFile = path.join(skillPath, 'SKILL.md')
   if (!fs.existsSync(skillFile)) {
     throw new Error('AGENT_SKILL_INVALID: missing SKILL.md')
-  }
-}
-
-async function readSkillMetadata(skillPath: string): Promise<Pick<SkillManifest, 'name' | 'version' | 'description'>> {
-  const manifestPath = path.join(skillPath, 'manifest.json')
-  if (fs.existsSync(manifestPath)) {
-    const parsed = JSON.parse(await fs.promises.readFile(manifestPath, 'utf8'))
-    return {
-      name: normalizeSkillName(String(parsed.name || path.basename(skillPath))),
-      version: typeof parsed.version === 'string' ? parsed.version : undefined,
-      description: typeof parsed.description === 'string' ? parsed.description : undefined,
-    }
-  }
-
-  const markdown = await fs.promises.readFile(path.join(skillPath, 'SKILL.md'), 'utf8')
-
-  const frontmatter = parseFrontmatter(markdown)
-  const title = frontmatter?.name || markdown
-    .split('\n')
-    .find(line => line.startsWith('# '))
-    ?.slice(2)
-    .trim()
-  const description = frontmatter?.description
-    || extractBodyDescription(markdown)
-  return {
-    name: normalizeSkillName(title || path.basename(skillPath)),
-    version: undefined,
-    description,
-  }
-}
-
-function parseFrontmatter(markdown: string): { name?: string, description?: string } | null {
-  const match = markdown.match(/^---\n([\s\S]*?\n)---/)
-  if (!match)
-    return null
-  const nameMatch = match[1].match(/^name:\s+(\S.*)$/m)
-  const descMatch = match[1].match(/^description:\s+(\S.*)$/m)
-  return {
-    name: nameMatch ? nameMatch[1].trim() : undefined,
-    description: descMatch ? descMatch[1].trim() : undefined,
-  }
-}
-
-function extractBodyDescription(markdown: string): string | undefined {
-  const bodyStart = markdown.startsWith('---\n')
-    ? markdown.indexOf('\n---\n')
-    : -1
-  const body = bodyStart > 0 ? markdown.slice(bodyStart + 5) : markdown
-  return body
-    .split('\n')
-    .map(line => line.trim())
-    .find(line => line && !line.startsWith('#'))
-}
-
-function normalizeManifest(value: unknown): SkillManifest {
-  if (!value || typeof value !== 'object') {
-    throw new Error('AGENT_SKILL_INVALID')
-  }
-  const data = value as Record<string, unknown>
-  const name = String(data.name || '')
-  assertSkillName(name)
-  return {
-    name,
-    version: typeof data.version === 'string' ? data.version : undefined,
-    description: typeof data.description === 'string' ? data.description : undefined,
-    source: data.source === 'github' || data.source === 'builtin' ? data.source : 'zip',
-    sourceUrl: typeof data.sourceUrl === 'string' ? data.sourceUrl : undefined,
-    enabled: data.builtin === true ? true : data.enabled !== false,
-    builtin: data.builtin === true,
-    installedAt: typeof data.installedAt === 'number' ? data.installedAt : Date.now(),
-    updatedAt: typeof data.updatedAt === 'number' ? data.updatedAt : Date.now(),
   }
 }
 
