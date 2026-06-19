@@ -32,12 +32,6 @@ jobs:
       - name: Install ripgrep
         run: sudo apt-get update && sudo apt-get install -y ripgrep
 
-      - name: Prepare bundled rg binaries
-        run: pnpm -F @ant-chat/desktop rg:prepare
-
-      - name: Rebuild better-sqlite3
-        run: pnpm -F @ant-chat/desktop rebuild:node
-
       - name: Build workspace packages
         run: pnpm build:packages
 
