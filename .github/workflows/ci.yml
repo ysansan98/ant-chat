@@ -32,8 +32,5 @@ jobs:
       - name: Install ripgrep
         run: sudo apt-get update && sudo apt-get install -y ripgrep
 
-      - name: Build workspace packages
-        run: pnpm build:packages
-
       - name: Check (type-check + lint + test:unit)
         run: pnpm check
