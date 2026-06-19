@@ -153,6 +153,7 @@ export interface AppIpcServices {
     minimizeWindow: () => Promise<void>
     maximizeOrRestoreWindow: () => Promise<void>
     quitApp: () => Promise<void>
+    focusMainWindow: () => Promise<void>
   }
   agent: {
     startTurn: (options: StartAgentTurnOptions) => Promise<IpcResponse<AgentTurnResult>>

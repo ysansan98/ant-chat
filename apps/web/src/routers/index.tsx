@@ -3,6 +3,7 @@ import {
   Navigate,
 } from 'react-router'
 import AntChatApp from '@/App'
+import { ChatLayout } from '@/components/ChatLayout'
 import { ChatPage } from '@/pages/Chat'
 import { About } from '@/pages/Settings/About'
 import { GeneralSettings } from '@/pages/Settings/GeneralSettings'
@@ -56,7 +57,10 @@ const router = createHashRouter(
             },
             {
               path: 'chat',
-              Component: ChatPage,
+              Component: ChatLayout,
+              children: [
+                { index: true, Component: ChatPage },
+              ],
             },
             settingsRoute,
           ],

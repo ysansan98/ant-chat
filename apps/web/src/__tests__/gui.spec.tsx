@@ -7,6 +7,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { createMemoryRouter, Navigate, RouterProvider } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AppWrapper from '../App'
+import { ChatLayout } from '../components/ChatLayout'
 import { ChatPage } from '../pages/Chat'
 import { MemorySettings } from '../pages/Settings/Memory'
 import SettingsPage from '../pages/Settings/Settings'
@@ -487,7 +488,13 @@ function renderGui(initialPath: string) {
       Component: AppWrapper,
       children: [
         { index: true, element: <Navigate replace to="/chat" /> },
-        { path: 'chat', Component: ChatPage },
+        {
+          path: 'chat',
+          Component: ChatLayout,
+          children: [
+            { index: true, Component: ChatPage },
+          ],
+        },
         {
           path: 'settings',
           Component: SettingsPage,
