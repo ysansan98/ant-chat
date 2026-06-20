@@ -10,7 +10,7 @@
   "main": "out/main/index.cjs",
   "scripts": {
     "start": "electron-vite preview",
-    "postinstall": "electron-builder install-app-deps",
+    "install-electron": "electron-builder install-app-deps",
     "prestart": "pnpm rebuild:electron",
     "dev": "electron-vite dev",
     "predev": "pnpm rebuild:electron",
