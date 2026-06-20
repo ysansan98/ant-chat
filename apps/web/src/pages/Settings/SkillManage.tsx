@@ -9,7 +9,7 @@ import { ArchiveIcon, GitBranchIcon, RefreshCwIcon, Trash2Icon } from 'lucide-re
 import React from 'react'
 import { toast } from 'sonner'
 import { skillApi } from '@/api/skillApi'
-import { getAppTransport } from '@/api/transports/appTransport'
+import { getAppRuntimeCapabilities } from '@/api/transports/appRpc'
 
 interface SkillState { data: SkillIndex, loading: boolean }
 
@@ -30,15 +30,12 @@ function skillReducer(state: SkillState, action: SkillAction): SkillState {
 }
 
 export default function SkillManage() {
-  const [nativeFilePicker, setNativeFilePicker] = React.useState(false)
+  const [nativeFilePicker] = React.useState(() => getAppRuntimeCapabilities().nativeFilePicker)
   const [state, dispatch] = React.useReducer(skillReducer, {
     data: { rootPath: '', skills: [] },
     loading: false,
   })
 
-  React.useEffect(() => {
-    void getAppTransport().then(transport => setNativeFilePicker(transport.capabilities.nativeFilePicker))
-  }, [])
   const [githubOpen, setGithubOpen] = React.useState(false)
   const [githubUrl, setGithubUrl] = React.useState('')
 

@@ -1,6 +1,5 @@
-import type { AppIpcServices, IpcPaginatedResponse, IpcResponse } from '@ant-chat/shared'
+import type { AppIpcServices, IpcResponse } from '@ant-chat/shared'
 import { createIpcProxy } from 'electron-ipc-decorator/client'
-import { pick } from 'lodash-es'
 import { getAppEventBus } from '@/api/transports/appEventBus'
 
 type IpcRendererBridge = Window['electron']['ipcRenderer']
@@ -22,7 +21,7 @@ export function isElectronRuntime(): boolean {
 export function isElectronMacOS(): boolean {
   if (!isElectronRuntime())
     return false
-  return window.electron.process.platform === 'darwin'
+  return window.electron.process?.platform === 'darwin'
 }
 
 export function getIpc(): AppIpcServices {
@@ -56,18 +55,10 @@ export const ipcRenderer = new Proxy({} as IpcRendererBridge, {
   },
 })
 
-export function unwrapIpcResponse<T>(resp: IpcResponse<T> | IpcPaginatedResponse<T>): T {
+export function unwrapIpcResponse<T>(resp: IpcResponse<T>): T {
   if (!resp.success) {
     throw new Error(resp.msg)
   }
 
   return resp.data
-}
-
-export function unwrapIpcPaginatedResponse<T>(resp: IpcPaginatedResponse<T>): { data: T, total: number } {
-  if (!resp.success) {
-    throw new Error(resp.msg)
-  }
-
-  return pick(resp, ['data', 'total'])
 }

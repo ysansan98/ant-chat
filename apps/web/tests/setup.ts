@@ -12,6 +12,9 @@ if (typeof window !== 'undefined') {
         removeAllListeners: vi.fn(),
         removeListener: vi.fn(),
       },
+      process: {
+        platform: 'darwin',
+      },
     },
     writable: true,
   })

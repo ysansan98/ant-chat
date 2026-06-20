@@ -1,9 +1,9 @@
 import type { AddMcpConfigSchema, McpConfigSchema, McpConnection, McpTool, UpdateMcpConfigSchema } from '@ant-chat/shared'
-import { getAppTransport } from './transports/appTransport'
+import { getAppRpcClient } from './transports/appRpc'
 
 export async function getMcpServers(): Promise<McpConnection[]> {
   try {
-    return (await getAppTransport()).mcp.getConnections()
+    return getAppRpcClient().call('mcp.getConnections', undefined)
   }
   catch (e) {
     const error = e as Error
@@ -13,34 +13,34 @@ export async function getMcpServers(): Promise<McpConnection[]> {
 }
 
 export async function getMcpConfigs(): Promise<McpConfigSchema[]> {
-  return (await getAppTransport()).mcp.getConfigs()
+  return getAppRpcClient().call('mcp.getConfigs', undefined)
 }
 
 export async function getMcpConfigByServerName(serverName: string): Promise<McpConfigSchema> {
-  return (await getAppTransport()).mcp.getConfigByServerName(serverName)
+  return getAppRpcClient().call('mcp.getConfigByServerName', { serverName })
 }
 
 export async function addMcpConfig(config: AddMcpConfigSchema): Promise<McpConfigSchema> {
-  return (await getAppTransport()).mcp.addConfig(config)
+  return getAppRpcClient().call('mcp.addConfig', { config })
 }
 
 export async function updateMcpConfig(config: UpdateMcpConfigSchema): Promise<McpConfigSchema> {
-  return (await getAppTransport()).mcp.updateConfig(config)
+  return getAppRpcClient().call('mcp.updateConfig', { config })
 }
 
 export async function deleteMcpConfig(serverName: string): Promise<null> {
-  return (await getAppTransport()).mcp.deleteConfig(serverName)
+  return getAppRpcClient().call('mcp.deleteConfig', { serverName })
 }
 
 export async function getAllAvailableToolsList(): Promise<McpTool[]> {
-  return (await getAppTransport()).mcp.getAllAvailableToolsList()
+  return getAppRpcClient().call('mcp.getAllAvailableToolsList', undefined)
 }
 
 export async function connectMcpServer(config: McpConfigSchema): Promise<[boolean, string]> {
   const { serverName } = config
 
   try {
-    await (await getAppTransport()).mcp.connectMcpServer(serverName, config)
+    await getAppRpcClient().call('mcp.connectMcpServer', { name: serverName, config })
     return [true, '']
   }
   catch (error) {
@@ -49,7 +49,7 @@ export async function connectMcpServer(config: McpConfigSchema): Promise<[boolea
 }
 
 export async function disconnectMcpServer(name: string): Promise<boolean> {
-  await (await getAppTransport()).mcp.disconnectMcpServer(name)
+  await getAppRpcClient().call('mcp.disconnectMcpServer', { name })
   return true
 }
 
@@ -57,7 +57,7 @@ export async function reconnectMcpServer(config: McpConfigSchema): Promise<[bool
   const { serverName } = config
 
   try {
-    await (await getAppTransport()).mcp.reconnectMcpServer(serverName, config)
+    await getAppRpcClient().call('mcp.reconnectMcpServer', { name: serverName, config })
     return [true, '']
   }
   catch (error) {
@@ -66,5 +66,5 @@ export async function reconnectMcpServer(config: McpConfigSchema): Promise<[bool
 }
 
 export async function fetchMcpServerTools(name: string): Promise<McpTool[]> {
-  return (await getAppTransport()).mcp.fetchMcpServerTools(name)
+  return getAppRpcClient().call('mcp.fetchMcpServerTools', { name })
 }

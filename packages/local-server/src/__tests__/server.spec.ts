@@ -82,7 +82,7 @@ describe('listen', () => {
       method: 'POST',
       body: JSON.stringify({
         method: 'chat.getConversations',
-        params: { pageIndex: 0, pageSize: 20 },
+        input: { pageIndex: 0, pageSize: 20 },
       }),
     })
 
@@ -100,6 +100,24 @@ describe('listen', () => {
 
     expect(payload).toContain('event: workspace:changed')
     expect(payload).toContain('data: {"currentWorkspacePath":"/tmp/workspace"}')
+  })
+
+  it('通过 SSE 推送敏感信息请求事件', async () => {
+    const payload = await readSseEvent('agent:secret-requested', () => {
+      eventEmitter.emit('agent:secret-requested', {
+        request: {
+          requestId: 'request-1',
+          runId: 'run-1',
+          conversationId: 'conversation-1',
+          label: '需要 API Key',
+          fields: [],
+          createdAt: 1,
+        },
+      })
+    })
+
+    expect(payload).toContain('event: agent:secret-requested')
+    expect(payload).toContain('"requestId":"request-1"')
   })
 
   it('重复关闭时只释放一次 Runtime', async () => {

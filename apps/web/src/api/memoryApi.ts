@@ -1,16 +1,16 @@
 import type { UpdateAgentMemoryInput } from '@ant-chat/shared'
-import { getAppTransport } from './transports/appTransport'
+import { getAppRpcClient } from './transports/appRpc'
 
 export const memoryApi = {
   async getMemoryFiles() {
-    return (await getAppTransport()).memory.getMemoryFiles()
+    return getAppRpcClient().call('memory.getMemoryFiles', undefined)
   },
 
   async updateMemoryFiles(input: UpdateAgentMemoryInput) {
-    return (await getAppTransport()).memory.updateMemoryFiles(input)
+    return getAppRpcClient().call('memory.updateMemoryFiles', { input })
   },
 
   async rollbackSoul() {
-    return (await getAppTransport()).memory.rollbackSoul()
+    return getAppRpcClient().call('memory.rollbackSoul', undefined)
   },
 }

@@ -1,8 +1,8 @@
 import type { SearchResult } from '@ant-chat/shared'
-import { getAppTransport } from './transports/appTransport'
+import { getAppRpcClient } from './transports/appRpc'
 
 export const searchApi = {
   searchByKeyword: async (keyword: string): Promise<SearchResult[]> => {
-    return (await getAppTransport()).search.searchByKeyword(keyword)
+    return getAppRpcClient().call('search.searchByKeyword', { query: keyword })
   },
 }

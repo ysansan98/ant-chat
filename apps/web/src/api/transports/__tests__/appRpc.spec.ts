@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createLocalWebTransport } from '../localWebTransport'
+import { localRpc } from '../appRpc'
 
-describe('localWebTransport', () => {
+describe('appRpc local transport', () => {
   afterEach(() => {
     vi.restoreAllMocks()
   })
 
-  it('calls local RPC endpoint and unwraps successful payloads', async () => {
+  it('调用本地 RPC 端点并解包成功响应', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({
       json: async () => ({
         success: true,
@@ -17,13 +17,12 @@ describe('localWebTransport', () => {
       }),
     })))
 
-    const transport = createLocalWebTransport()
-    const settings = await transport.settings.getSettings()
+    const settings = await localRpc('settings.getSettings', undefined)
 
     expect(fetch).toHaveBeenCalledWith('/api/rpc', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ method: 'settings.getSettings', params: {} }),
+      body: JSON.stringify({ method: 'settings.getSettings', input: undefined }),
     })
     expect(settings).toEqual({
       assistantModelId: 'model-1',
@@ -31,7 +30,7 @@ describe('localWebTransport', () => {
     })
   })
 
-  it('throws failed RPC messages', async () => {
+  it('抛出失败 RPC 的错误消息', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({
       json: async () => ({
         success: false,
@@ -39,12 +38,10 @@ describe('localWebTransport', () => {
       }),
     })))
 
-    const transport = createLocalWebTransport()
-
-    await expect(transport.settings.getSettings()).rejects.toThrow('failed')
+    await expect(localRpc('settings.getSettings', undefined)).rejects.toThrow('failed')
   })
 
-  it('sends memory update through local RPC', async () => {
+  it('发送 typed RPC 的 input payload', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({
       json: async () => ({
         success: true,
@@ -57,15 +54,14 @@ describe('localWebTransport', () => {
       }),
     })))
 
-    const transport = createLocalWebTransport()
-    const memory = await transport.memory.updateMemoryFiles({ soulMarkdown: '# SOUL\n\n- Be direct.' })
+    const memory = await localRpc('memory.updateMemoryFiles', { input: { soulMarkdown: '# SOUL\n\n- Be direct.' } })
 
     expect(fetch).toHaveBeenCalledWith('/api/rpc', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         method: 'memory.updateMemoryFiles',
-        params: { input: { soulMarkdown: '# SOUL\n\n- Be direct.' } },
+        input: { input: { soulMarkdown: '# SOUL\n\n- Be direct.' } },
       }),
     })
     expect(memory.soulMarkdown).toBe('# SOUL')

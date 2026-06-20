@@ -1,31 +1,17 @@
 import type { IpcServiceConstructor, MergeIpcService } from 'electron-ipc-decorator'
 import { createServices } from 'electron-ipc-decorator'
-import { AgentIpcService } from './domains/agent/ipc'
 import { AppIpcService } from './domains/app/ipc'
-import { ChatIpcService } from './domains/chat/ipc'
-import { CommandsIpcService } from './domains/commands/ipc'
-import { McpIpcService } from './domains/mcp/ipc'
-import { MemoryIpcService } from './domains/memory/ipc'
-import { ProviderIpcService } from './domains/provider/ipc'
-import { SearchIpcService } from './domains/search/ipc'
+import { RuntimeIpcService } from './domains/runtime/ipc'
 import { SettingsIpcService } from './domains/settings/ipc'
 import { SkillsIpcService } from './domains/skills/ipc'
 import { UpdateIpcService } from './domains/update/ipc'
-import { WorkspaceIpcService } from './domains/workspace/ipc'
 
 export const ipcServiceClasses = [
-  AgentIpcService,
   AppIpcService,
-  ChatIpcService,
-  CommandsIpcService,
-  McpIpcService,
-  MemoryIpcService,
-  ProviderIpcService,
-  SearchIpcService,
+  RuntimeIpcService,
   SettingsIpcService,
   SkillsIpcService,
   UpdateIpcService,
-  WorkspaceIpcService,
 ] as const satisfies readonly IpcServiceConstructor[]
 
 export const services = createServices(ipcServiceClasses)
