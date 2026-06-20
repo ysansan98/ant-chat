@@ -1,28 +1,32 @@
 import type { ImportSkillFromGithubOptions, SetSkillEnabledOptions, SkillIndex, SkillManifest } from '@ant-chat/shared'
-import { getAppTransport } from './transports/appTransport'
+import { ipc, isElectronRuntime, unwrapIpcResponse } from '@/utils/ipc-bus'
+import { getAppRpcClient } from './transports/appRpc'
 
 export const skillApi = {
   listSkills: async (): Promise<SkillIndex> => {
-    return (await getAppTransport()).skills.listSkills()
+    return getAppRpcClient().call('skills.listSkills', undefined)
   },
 
   importSkillFromZip: async (): Promise<SkillManifest | null> => {
-    return (await getAppTransport()).skills.importSkillFromZip()
+    if (!isElectronRuntime()) {
+      return null
+    }
+    return unwrapIpcResponse(await ipc.skills.importSkillFromZip())
   },
 
   importSkillFromGithub: async (options: ImportSkillFromGithubOptions): Promise<SkillManifest> => {
-    return (await getAppTransport()).skills.importSkillFromGithub(options)
+    return getAppRpcClient().call('skills.importSkillFromGithub', { options })
   },
 
   setSkillEnabled: async (options: SetSkillEnabledOptions): Promise<SkillManifest> => {
-    return (await getAppTransport()).skills.setSkillEnabled(options)
+    return getAppRpcClient().call('skills.setSkillEnabled', { options })
   },
 
   deleteSkill: async (name: string): Promise<null> => {
-    return (await getAppTransport()).skills.deleteSkill(name)
+    return getAppRpcClient().call('skills.deleteSkill', { name })
   },
 
   rebuildSkillIndex: async (): Promise<SkillIndex> => {
-    return (await getAppTransport()).skills.rebuildSkillIndex()
+    return getAppRpcClient().call('skills.rebuildSkillIndex', undefined)
   },
 }

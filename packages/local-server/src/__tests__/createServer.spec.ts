@@ -9,6 +9,9 @@ const runtime = {
   chat: {
     listConversations: vi.fn(),
   },
+  settings: {
+    get: vi.fn(),
+  },
 } as unknown as AppRuntime
 
 let server: ReturnType<typeof createLocalServer>
@@ -17,6 +20,10 @@ let baseUrl: URL
 async function startServer(limits?: RpcLimits) {
   vi.clearAllMocks()
   runtime.chat.listConversations = vi.fn().mockResolvedValue({ data: [], total: 0 })
+  runtime.settings.get = vi.fn().mockResolvedValue({
+    assistantModelId: 'model-1',
+    proxySettings: { mode: 'none' },
+  })
   server = createLocalServer(runtime, limits)
   await new Promise<void>((resolve) => {
     server.listen(0, '127.0.0.1', resolve)
@@ -58,7 +65,7 @@ describe('createLocalServer', () => {
       path: '/api/rpc',
       body: JSON.stringify({
         method: 'chat.getConversations',
-        params: { pageIndex: 0, pageSize: 20 },
+        input: { pageIndex: 0, pageSize: 20 },
       }),
     })
 
@@ -71,9 +78,45 @@ describe('createLocalServer', () => {
     expect(runtime.chat.listConversations).toHaveBeenCalledWith(0, 20)
   })
 
+  it('通过统一 handler 调用非 chat runtime 能力', async () => {
+    const response = await send({
+      method: 'POST',
+      path: '/api/rpc',
+      body: JSON.stringify({
+        method: 'settings.getSettings',
+      }),
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(JSON.parse(response.body)).toEqual({
+      success: true,
+      data: {
+        assistantModelId: 'model-1',
+        proxySettings: { mode: 'none' },
+      },
+    })
+    expect(runtime.settings.get).toHaveBeenCalled()
+  })
+
+  it('未知 RPC 方法返回错误响应', async () => {
+    const response = await send({
+      method: 'POST',
+      path: '/api/rpc',
+      body: JSON.stringify({
+        method: 'missing.method',
+      }),
+    })
+
+    expect(response.statusCode).toBe(500)
+    expect(JSON.parse(response.body)).toEqual({
+      success: false,
+      msg: 'Unknown local RPC method: missing.method',
+    })
+  })
+
   it('接受恰好等于上限的请求体', async () => {
     await startServer({ maxBodyBytes: 100 })
-    const body = JSON.stringify({ method: 'chat.getConversations', params: { pageIndex: 0, pageSize: 20 } })
+    const body = JSON.stringify({ method: 'chat.getConversations', input: { pageIndex: 0, pageSize: 20 } })
     const response = await send({
       method: 'POST',
       path: '/api/rpc',
@@ -86,7 +129,7 @@ describe('createLocalServer', () => {
 
   it('超过大小限制返回 413', async () => {
     await startServer({ maxBodyBytes: 10 })
-    const body = JSON.stringify({ method: 'chat.getConversations', params: { pageIndex: 0, pageSize: 20 } })
+    const body = JSON.stringify({ method: 'chat.getConversations', input: { pageIndex: 0, pageSize: 20 } })
     const response = await send({
       method: 'POST',
       path: '/api/rpc',

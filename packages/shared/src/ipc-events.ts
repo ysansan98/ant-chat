@@ -74,6 +74,18 @@ export interface AppRendererEvents {
   'provider:changed': { providerId?: string }
 }
 
+export const APP_RENDERER_EVENT_NAMES = [
+  'conversation:updated',
+  'message:updated',
+  'agent:task-updated',
+  'agent:approval-required',
+  'agent:secret-requested',
+  'workspace:changed',
+  'settings:updated',
+  'mcp:status-changed',
+  'provider:changed',
+] as const satisfies readonly (keyof AppRendererEvents & string)[]
+
 /**
  * Electron 专用事件
  */

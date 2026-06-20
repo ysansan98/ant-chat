@@ -4,6 +4,7 @@ import type { AddressInfo } from 'node:net'
 import fs from 'node:fs'
 import { createServer as createHttpServer } from 'node:http'
 import path from 'node:path'
+import { APP_RENDERER_EVENT_NAMES } from '@ant-chat/shared'
 import { createLocalApiHandler } from './createServer'
 
 const SSE_HEADERS = {
@@ -11,17 +12,6 @@ const SSE_HEADERS = {
   'connection': 'keep-alive',
   'content-type': 'text/event-stream',
 }
-
-const EVENT_NAMES: AppRuntimeEventName[] = [
-  'conversation:updated',
-  'message:updated',
-  'agent:task-updated',
-  'agent:approval-required',
-  'workspace:changed',
-  'settings:updated',
-  'mcp:status-changed',
-  'provider:changed',
-]
 
 const CONTENT_TYPES: Record<string, string> = {
   '.css': 'text/css; charset=utf-8',
@@ -55,7 +45,7 @@ export interface LocalServerHost {
 export async function listen(runtime: AppRuntime, options: ListenOptions): Promise<LocalServerHost> {
   const handleLocalApi = createLocalApiHandler(runtime)
   const sseClients = new Set<ServerResponse>()
-  const removeEventListeners = EVENT_NAMES.map(name =>
+  const removeEventListeners = APP_RENDERER_EVENT_NAMES.map(name =>
     runtime.events.on(name, event => broadcast(sseClients, name, event)),
   )
 

@@ -1,63 +1,65 @@
 import type { AddConversationsSchema, IConversations, IMessage, IpcResponse, UpdateConversationsSchema } from '@ant-chat/shared'
+import { createIpcResponse } from '@ant-chat/shared'
 import { useGeneralSettingsStore } from '@/store/generalSettings'
-import { getAppTransport } from './transports/appTransport'
+import { getAppRpcClient } from './transports/appRpc'
 
 async function initConversationsTitle(conversationsId: string, modelId?: string): Promise<IpcResponse<IConversations>> {
   const { assistantModelId } = useGeneralSettingsStore.getState()
   const finalModelId = modelId || assistantModelId
-  return (await getAppTransport()).chat.createConversationsTitle({ modelId: finalModelId, conversationsId })
+  const conversation = await getAppRpcClient().call('chat.createConversationsTitle', { modelId: finalModelId, conversationsId })
+  return createIpcResponse(true, conversation)
 }
 
 async function getConversations(pageIndex: number, pageSize: number): Promise<{ data: IConversations[], total: number }> {
-  return (await getAppTransport()).chat.getConversations(pageIndex, pageSize)
+  return getAppRpcClient().call('chat.getConversations', { pageIndex, pageSize })
 }
 
 async function getWorkspaceConversations(workspacePath: string, pageIndex: number, pageSize: number): Promise<{ data: IConversations[], total: number }> {
-  return (await getAppTransport()).chat.getWorkspaceConversations(workspacePath, pageIndex, pageSize)
+  return getAppRpcClient().call('chat.getWorkspaceConversations', { workspacePath, pageIndex, pageSize })
 }
 
 async function getConversationById(id: string): Promise<IConversations> {
-  return (await getAppTransport()).chat.getConversationById(id)
+  return getAppRpcClient().call('chat.getConversationById', { id })
 }
 
 async function addConversation(conversation: AddConversationsSchema): Promise<IConversations> {
-  return (await getAppTransport()).chat.addConversation(conversation)
+  return getAppRpcClient().call('chat.addConversation', { conversation })
 }
 
 async function updateConversation(conversation: UpdateConversationsSchema): Promise<IConversations> {
-  return (await getAppTransport()).chat.updateConversation(conversation)
+  return getAppRpcClient().call('chat.updateConversation', { conversation })
 }
 
 async function deleteConversation(id: string): Promise<null> {
-  return (await getAppTransport()).chat.deleteConversation(id)
+  return getAppRpcClient().call('chat.deleteConversation', { id })
 }
 
 async function clearWorkspaceConversations(workspacePath: string): Promise<string[]> {
-  return (await getAppTransport()).chat.clearWorkspaceConversations(workspacePath)
+  return getAppRpcClient().call('chat.clearWorkspaceConversations', { workspacePath })
 }
 
 async function getMessagesByConvId(convId: string): Promise<IMessage[]> {
-  return (await getAppTransport()).chat.getMessagesByConvId(convId)
+  return getAppRpcClient().call('chat.getMessagesByConvId', { convId })
 }
 
 async function getMessageById(id: string): Promise<IMessage> {
-  return (await getAppTransport()).chat.getMessageById(id)
+  return getAppRpcClient().call('chat.getMessageById', { id })
 }
 
 async function addMessage(message: IMessage): Promise<IMessage> {
-  return (await getAppTransport()).chat.addMessage(message)
+  return getAppRpcClient().call('chat.addMessage', { message })
 }
 
 async function updateMessage(message: IMessage): Promise<IMessage> {
-  return (await getAppTransport()).chat.updateMessage(message)
+  return getAppRpcClient().call('chat.updateMessage', { message })
 }
 
 async function deleteMessage(id: string): Promise<null> {
-  return (await getAppTransport()).chat.deleteMessage(id)
+  return getAppRpcClient().call('chat.deleteMessage', { id })
 }
 
 async function batchDeleteMessages(ids: string[]): Promise<null> {
-  return (await getAppTransport()).chat.batchDeleteMessages(ids)
+  return getAppRpcClient().call('chat.batchDeleteMessages', { ids })
 }
 
 export default {

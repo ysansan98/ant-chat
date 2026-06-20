@@ -4,7 +4,7 @@ import { Input } from '@workspace/ui/components/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/components/select'
 import React from 'react'
 import { toast } from 'sonner'
-import { getAppTransport } from '@/api/transports/appTransport'
+import { getAppRpcClient } from '@/api/transports/appRpc'
 import { updateProxySettings } from '@/store/generalSettings/actions'
 import { useGeneralSettingsStore } from '@/store/generalSettings/store'
 
@@ -76,7 +76,7 @@ export function CustomProxyUrl() {
 
     setTesting(true)
     try {
-      const result = await (await getAppTransport()).settings.testProxyConnection(urlToTest)
+      const result = await getAppRpcClient().call('settings.testProxyConnection', { proxyUrl: urlToTest })
 
       setTestResult(result)
       if (result) {

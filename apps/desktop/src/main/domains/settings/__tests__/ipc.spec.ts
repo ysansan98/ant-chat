@@ -2,20 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { SettingsIpcService } from '../ipc'
 
 const mocks = vi.hoisted(() => ({
-  settings: {
-    get: vi.fn(async () => ({
-      assistantModelId: 'model-1',
-      proxySettings: { mode: 'none' },
-    })),
-    update: vi.fn(async updates => ({
-      assistantModelId: 'model-2',
-      proxySettings: updates.proxySettings ?? { mode: 'none' },
-    })),
-    reset: vi.fn(async () => ({
-      assistantModelId: '',
-      proxySettings: { mode: 'none' },
-    })),
-  },
+  openSettingsWindow: vi.fn(async () => {}),
 }))
 
 vi.mock('electron-ipc-decorator', () => ({
@@ -23,14 +10,8 @@ vi.mock('electron-ipc-decorator', () => ({
   IpcMethod: () => () => {},
 }))
 
-vi.mock('@main/app-runtime-host/appRuntime', () => ({
-  getAppRuntime: () => ({
-    settings: mocks.settings,
-  }),
-}))
-
 vi.mock('@main/windows/settings-window', () => ({
-  openSettingsWindow: vi.fn(async () => {}),
+  openSettingsWindow: mocks.openSettingsWindow,
 }))
 
 vi.mock('@main/utils/logger', () => ({
@@ -40,23 +21,11 @@ vi.mock('@main/utils/logger', () => ({
 }))
 
 describe('settings ipc', () => {
-  it('reads settings from app-data service', async () => {
+  it('打开设置窗口并返回成功响应', async () => {
     const service = new SettingsIpcService()
-    const resp = await service.getSettings()
+    const resp = await service.openSettingsWindow()
 
     expect(resp.success).toBe(true)
-    if (resp.success) {
-      expect(resp.data.assistantModelId).toBe('model-1')
-    }
-  })
-
-  it('updates settings through app-data service and broadcasts changed keys', async () => {
-    const service = new SettingsIpcService()
-    const resp = await service.updateSettings({ proxySettings: { mode: 'custom', customProxyUrl: 'http://localhost:7890' } })
-
-    expect(resp.success).toBe(true)
-    expect(mocks.settings.update).toHaveBeenCalledWith({
-      proxySettings: { mode: 'custom', customProxyUrl: 'http://localhost:7890' },
-    })
+    expect(mocks.openSettingsWindow).toHaveBeenCalled()
   })
 })

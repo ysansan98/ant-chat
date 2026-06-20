@@ -1,20 +1,20 @@
 import type { ListWorkspacesData, WorkspaceDirectoryListing, WorkspaceFileSearchResult } from '@ant-chat/shared'
-import { getAppTransport } from './transports/appTransport'
+import { getAppRpcClient } from './transports/appRpc'
 
 async function listWorkspaces(): Promise<ListWorkspacesData> {
-  return (await getAppTransport()).workspace.listWorkspaces()
+  return getAppRpcClient().call('workspace.listWorkspaces', undefined)
 }
 
 async function addWorkspace(path: string): Promise<ListWorkspacesData> {
-  return (await getAppTransport()).workspace.addWorkspace(path)
+  return getAppRpcClient().call('workspace.addWorkspace', { path })
 }
 
 async function removeWorkspace(path: string): Promise<ListWorkspacesData> {
-  return (await getAppTransport()).workspace.removeWorkspace(path)
+  return getAppRpcClient().call('workspace.removeWorkspace', { path })
 }
 
 async function openWorkspace(path: string): Promise<ListWorkspacesData> {
-  return (await getAppTransport()).workspace.openWorkspace(path)
+  return getAppRpcClient().call('workspace.openWorkspace', { path })
 }
 
 async function chooseWorkspace(): Promise<ListWorkspacesData | null> {
@@ -22,15 +22,15 @@ async function chooseWorkspace(): Promise<ListWorkspacesData | null> {
 }
 
 async function listDirectories(path?: string): Promise<WorkspaceDirectoryListing> {
-  return (await getAppTransport()).workspace.listDirectories(path)
+  return getAppRpcClient().call('workspace.listDirectories', { path })
 }
 
 async function createDirectory(parentPath: string, name: string): Promise<{ name: string, path: string }> {
-  return (await getAppTransport()).workspace.createDirectory(parentPath, name)
+  return getAppRpcClient().call('workspace.createDirectory', { parentPath, name })
 }
 
 async function searchWorkspaceFiles(query: string, limit = 50): Promise<WorkspaceFileSearchResult[]> {
-  return (await getAppTransport()).workspace.searchWorkspaceFiles(query, limit)
+  return getAppRpcClient().call('workspace.searchWorkspaceFiles', { query, limit })
 }
 
 export default {
