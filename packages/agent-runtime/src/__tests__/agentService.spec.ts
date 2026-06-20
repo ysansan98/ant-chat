@@ -80,6 +80,9 @@ const appDataContext = {
   toolApprovalWhitelistRepository: {
     add: vi.fn(),
   },
+  settingsRepository: {
+    getGeneralSettings: vi.fn(async () => ({ assistantModelId: '', proxySettings: { mode: 'none', customProxyUrl: '' } })),
+  },
 } as unknown as AppDataContext
 
 describe('createAgentRuntimeController 行为', () => {
@@ -214,6 +217,71 @@ describe('createAgentRuntimeController 行为', () => {
   })
 
   it('成功启动新会话后异步初始化标题并发出 conversation 更新', async () => {
+    const titledConversation = { ...conversation, title: '项目检查' }
+    const titleGenerator = {
+      updateTitle: vi.fn(async () => titledConversation),
+    }
+    const emitConversationUpdated = vi.fn()
+    const service = createAgentRuntimeController(runtime, appDataContext, {
+      aiProviderFactory,
+      titleGenerator,
+      emitConversationUpdated,
+    })
+
+    await service.startTurn({
+      prompt: 'inspect project',
+      modelConfig: {
+        modelId: 'model-1',
+        systemPrompt: 'custom',
+        temperature: 0.2,
+        maxTokens: 2048,
+        features: {
+          enableMCP: false,
+        },
+      },
+    })
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(titleGenerator.updateTitle).toHaveBeenCalledWith('c1', 'model-1')
+    expect(emitConversationUpdated).toHaveBeenCalledWith(titledConversation)
+  })
+
+  it('初始化标题优先使用设置页面配置的助手模型', async () => {
+    vi.mocked(appDataContext.settingsRepository.getGeneralSettings).mockResolvedValueOnce({
+      assistantModelId: 'assistant-model-9',
+      proxySettings: { mode: 'none', customProxyUrl: '' },
+    })
+    const titledConversation = { ...conversation, title: '项目检查' }
+    const titleGenerator = {
+      updateTitle: vi.fn(async () => titledConversation),
+    }
+    const emitConversationUpdated = vi.fn()
+    const service = createAgentRuntimeController(runtime, appDataContext, {
+      aiProviderFactory,
+      titleGenerator,
+      emitConversationUpdated,
+    })
+
+    await service.startTurn({
+      prompt: 'inspect project',
+      modelConfig: {
+        modelId: 'model-1',
+        systemPrompt: 'custom',
+        temperature: 0.2,
+        maxTokens: 2048,
+        features: {
+          enableMCP: false,
+        },
+      },
+    })
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    expect(appDataContext.settingsRepository.getGeneralSettings).toHaveBeenCalled()
+    expect(titleGenerator.updateTitle).toHaveBeenCalledWith('c1', 'assistant-model-9')
+  })
+
+  it('读取助手模型设置失败时回退到当前对话模型生成标题', async () => {
+    vi.mocked(appDataContext.settingsRepository.getGeneralSettings).mockRejectedValueOnce(new Error('settings read failed'))
     const titledConversation = { ...conversation, title: '项目检查' }
     const titleGenerator = {
       updateTitle: vi.fn(async () => titledConversation),

@@ -108,7 +108,8 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
 
         scheduleTitleInitialization({
           conversationId: result.conversationId,
-          modelId: options.modelConfig.modelId,
+          fallbackModelId: options.modelConfig.modelId,
+          appDataContext,
           shouldInitializeTitle: conversationState.created || conversation.title === DEFAULT_TITLE,
           titleGenerator,
           emitConversationUpdated,
@@ -139,24 +140,55 @@ function resolveUserMessageContent(content: IMessageContent | undefined, prompt:
 
 function scheduleTitleInitialization(params: {
   conversationId: string
-  modelId: string
+  fallbackModelId: string
+  appDataContext: AppDataContext
   shouldInitializeTitle: boolean
   titleGenerator?: ConversationTitleGenerator
   emitConversationUpdated?: AgentTurnServiceDeps['emitConversationUpdated']
   logger?: ILogger
 }) {
-  const { conversationId, modelId, shouldInitializeTitle, titleGenerator, emitConversationUpdated, logger } = params
+  const {
+    conversationId,
+    fallbackModelId,
+    appDataContext,
+    shouldInitializeTitle,
+    titleGenerator,
+    emitConversationUpdated,
+    logger,
+  } = params
   if (!shouldInitializeTitle || !titleGenerator) {
     return
   }
 
-  void titleGenerator.updateTitle(conversationId, modelId)
+  // 优先使用设置页面配置的助手模型生成标题，未配置或读取失败时回退到当前对话模型
+  void resolveTitleModelId(appDataContext, fallbackModelId, logger)
+    .then(modelId => titleGenerator.updateTitle(conversationId, modelId))
     .then((conversation) => {
       emitConversationUpdated?.(conversation)
     })
     .catch((error) => {
       logger?.warn('初始化会话标题失败', error)
     })
+}
+
+/**
+ * 解析生成标题使用的模型 ID：
+ * 优先返回设置页面配置的助手模型（assistantModelId），
+ * 未配置或读取设置失败时回退到当前对话使用的模型。
+ */
+async function resolveTitleModelId(
+  appDataContext: AppDataContext,
+  fallbackModelId: string,
+  logger?: ILogger,
+): Promise<string> {
+  try {
+    const { assistantModelId } = await appDataContext.settingsRepository.getGeneralSettings()
+    return assistantModelId || fallbackModelId
+  }
+  catch (error) {
+    logger?.warn('读取助手模型设置失败，回退到对话模型生成标题', error)
+    return fallbackModelId
+  }
 }
 
 async function rollbackStartedTurn(params: {
