@@ -45,36 +45,11 @@ jobs:
           test -f apps/desktop/resources/rg/win32-x64/rg.exe
           echo "bundled rg binaries are ready"
 
-      - name: Rebuild better-sqlite3
-        run: pnpm -w run rebuild:node
-
       - name: Build workspace packages
         run: pnpm build:packages
 
-      # macOS 代码签名配置
-      # - name: Setup macOS code signing
-      #   if: matrix.os == 'macos-latest'
-      #   run: |
-      #     # 创建临时 keychain
-      #     security create-keychain -p "${{ secrets.KEYCHAIN_PASSWORD }}" build.keychain
-      #     security default-keychain -s build.keychain
-      #     security unlock-keychain -p "${{ secrets.KEYCHAIN_PASSWORD }}" build.keychain
-
-      #     # 导入代码签名证书
-      #     echo "${{ secrets.CSC_LINK }}" | base64 --decode > certificate.p12
-      #     security import certificate.p12 -k build.keychain -P "${{ secrets.CSC_KEY_PASSWORD }}" -T /usr/bin/codesign
-      #     security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "${{ secrets.KEYCHAIN_PASSWORD }}" build.keychain
-
-      #     # 清理临时文件
-      #     rm certificate.p12
-
-      # Windows 代码签名配置
-      # - name: Setup Windows code signing
-      #   if: matrix.os == 'windows-latest'
-      #   run: |
-      #     # 解码并保存证书文件
-      #     echo "${{ secrets.WIN_CSC_LINK }}" | base64 --decode > certificate.p12
-      #   shell: bash
+      - name: install electron
+        run: pnpm -F @ant-chat/desktop install-electron
 
       - name: Build app (Windows)
         if: matrix.os == 'windows-latest'

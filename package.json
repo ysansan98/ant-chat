@@ -22,7 +22,7 @@
     "changeset": "changeset",
     "version-packages": "changeset version",
     "lint": "eslint .",
-    "clean": "pnpm -F @ant-chat/desktop clean && rm -rf node_modules"
+    "clean": "pnpm -r run clean && rm -rf node_modules"
   },
   "dependencies": {
     "zod": "catalog:"
