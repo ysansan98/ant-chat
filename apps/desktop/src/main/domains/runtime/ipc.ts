@@ -1,5 +1,5 @@
 import type { AppRpcInput, AppRpcMethod, AppRpcOutput, IpcResponse } from '@ant-chat/shared'
-import { createAppRpcHandlers } from '@ant-chat/app-runtime'
+import { createAppRpcHandlers } from '@ant-chat/app-runtime/rpc-handlers'
 import { getAppRuntime } from '@main/app-runtime-host/appRuntime'
 import { withIpcResponse } from '@main/utils/ipc-response'
 import { IpcMethod, IpcService } from 'electron-ipc-decorator'

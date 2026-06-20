@@ -3,7 +3,7 @@ import type { AppRpcMethod } from '@ant-chat/shared'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { Buffer } from 'node:buffer'
 import { createServer as createHttpServer } from 'node:http'
-import { createAppRpcHandlers } from '@ant-chat/app-runtime'
+import { createAppRpcHandlers } from '@ant-chat/app-runtime/rpc-handlers'
 
 const MAX_RPC_BODY_BYTES = 32 * 1024 * 1024
 const RPC_BODY_TIMEOUT_MS = 30_000

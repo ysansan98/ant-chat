@@ -1,7 +1,10 @@
 import { defineConfig } from 'tsdown'
 
 export default defineConfig({
-  entry: 'src/index.ts',
+  entry: {
+    'index': 'src/index.ts',
+    'rpc-handlers': 'src/rpcHandlers.ts',
+  },
   format: ['esm', 'cjs'],
   dts: true,
   sourcemap: true,
