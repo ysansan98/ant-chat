@@ -35,7 +35,7 @@ export class WorkspaceService {
   }
 
   getDefaultWorkspacePath(): string {
-    return path.normalize(path.join(os.homedir(), '.ant-chat'))
+    return path.normalize(path.join(os.homedir(), 'antChatProject'))
   }
 
   ensureInitialized(): WorkspaceConfig {
