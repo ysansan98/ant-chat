@@ -20,13 +20,8 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
-import {
-  ensureWorkspaceConversationsAction,
-  nextPageConversationsAction,
-  switchWorkspaceConversationsAction,
-  useConversationsStore,
-} from '@/store/conversation'
-import { setActiveConversationsId, useMessagesStore } from '@/store/messages'
+import { activateWorkspace, ensureWorkspaceConversationsAction, useConversationsStore } from '@/store/conversation'
+import { useMessagesStore } from '@/store/messages'
 import { useWorkspaceStore } from '@/store/workspace'
 import { WorkspaceDirectoryPickerDialog } from './WorkspaceDirectoryPickerDialog'
 
@@ -51,25 +46,21 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
   const workspaceConversations = useConversationsStore(
     state => state.workspaceConversations,
   )
-  const storeWorkspacePath = useConversationsStore(
-    state => state.currentWorkspacePath,
-  )
-  const activeConversationsId = useMessagesStore(
-    state => state.activeConversationsId,
-  )
   const workspaceData = useWorkspaceStore(state => state.workspaceData)
+  const currentWorkspacePath = useWorkspaceStore(state => state.currentWorkspacePath)
   const refreshWorkspace = useWorkspaceStore(state => state.refresh)
   const openWorkspace = useWorkspaceStore(state => state.openWorkspace)
   const addWorkspace = useWorkspaceStore(state => state.addWorkspace)
   const removeWorkspace = useWorkspaceStore(state => state.removeWorkspace)
+  const activeConversationsId = useMessagesStore(
+    state => state.activeConversationsId,
+  )
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(
     () => new Set(),
   )
   const [panelError, setPanelError] = useState('')
   const [pickerOpen, setPickerOpen] = useState(false)
   const initializedRef = useRef(false)
-
-  const currentWorkspacePath = storeWorkspacePath || workspaceData?.currentWorkspacePath
 
   const initialize = useCallback(async () => {
     if (initializedRef.current) {
@@ -80,21 +71,11 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
     await refreshWorkspace()
     const data = useWorkspaceStore.getState().workspaceData
     if (data) {
-      setExpandedPaths(new Set([data.currentWorkspacePath]))
-      useConversationsStore.getState().switchWorkspace(data.currentWorkspacePath)
-
-      if (useConversationsStore.getState().conversations.length === 0) {
-        await nextPageConversationsAction()
-      }
+      const currentPath = useWorkspaceStore.getState().currentWorkspacePath
+      setExpandedPaths(new Set([currentPath]))
+      await activateWorkspace(currentPath)
     }
   }, [refreshWorkspace])
-
-  const reloadCurrentWorkspace = useCallback(async () => {
-    await setActiveConversationsId('')
-    if (currentWorkspacePath) {
-      await switchWorkspaceConversationsAction(currentWorkspacePath)
-    }
-  }, [currentWorkspacePath])
 
   const handleChooseWorkspace = useCallback(() => {
     setPickerOpen(true)
@@ -104,20 +85,23 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
     setPickerOpen(false)
     setPanelError('')
     try {
-      const data = await addWorkspace(path)
-      setExpandedPaths(
-        paths => new Set([...paths, data.currentWorkspacePath]),
-      )
-      await reloadCurrentWorkspace()
+      await addWorkspace(path)
+      // addWorkspace 内部已 set currentWorkspacePath=path(SSOT 更新),
+      // 用入参 path 调 activateWorkspace,不依赖闭包渲染期变量
+      setExpandedPaths(paths => new Set([...paths, path]))
+      await activateWorkspace(path)
     }
     catch (error) {
       setPanelError((error as Error).message)
     }
-  }, [addWorkspace, reloadCurrentWorkspace])
+  }, [addWorkspace])
 
   const handleDeleteWorkspace = useCallback(async (path: string) => {
     try {
       await removeWorkspace(path)
+      // removeWorkspace 内部已按 lastOpenedAt 回退 currentWorkspacePath,
+      // 从 workspaceStore 取回退后的当前路径再 activate
+      await activateWorkspace(useWorkspaceStore.getState().currentWorkspacePath)
       setExpandedPaths((paths) => {
         const next = new Set(paths)
         next.delete(path)
@@ -155,11 +139,9 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
     navigate('/chat')
 
     if (workspacePath !== currentWorkspacePath) {
-      const data = await openWorkspace(workspacePath)
-      setExpandedPaths(
-        paths => new Set([...paths, data.currentWorkspacePath]),
-      )
-      await switchWorkspaceConversationsAction(workspacePath)
+      await openWorkspace(workspacePath)
+      setExpandedPaths(paths => new Set([...paths, workspacePath]))
+      await activateWorkspace(workspacePath)
     }
 
     await setActiveConversationsId(conversationId)
@@ -170,9 +152,9 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
     navigate('/chat')
 
     if (workspacePath !== currentWorkspacePath) {
-      const data = await openWorkspace(workspacePath)
-      setExpandedPaths(paths => new Set([...paths, data.currentWorkspacePath]))
-      await switchWorkspaceConversationsAction(workspacePath)
+      await openWorkspace(workspacePath)
+      setExpandedPaths(paths => new Set([...paths, workspacePath]))
+      await activateWorkspace(workspacePath)
     }
 
     await setActiveConversationsId('')
