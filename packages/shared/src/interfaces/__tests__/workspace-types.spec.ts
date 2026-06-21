@@ -1,7 +1,8 @@
+import { describe, expect, it } from 'vitest'
+
 import { APP_RENDERER_EVENT_NAMES } from '../../ipc-events'
 import type { AppRendererEvents } from '../../ipc-events'
 import type { ListWorkspacesData, WorkspaceConfig } from '../workspace'
-import { describe, expect, it } from 'vitest'
 
 describe('workspace shared types', () => {
   it('listWorkspacesData 不再含 currentWorkspacePath', () => {
