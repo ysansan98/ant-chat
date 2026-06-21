@@ -5,10 +5,12 @@ import { ChatSettingsContext, DEFAULT_SETTINGS } from '@/contexts/chatSettings'
 import { useChatSttingsStore } from '@/store/chatSettings'
 import { useConversationsStore } from '@/store/conversation'
 import { useMessagesStore } from '@/store/messages'
+import { useWorkspaceStore } from '@/store/workspace'
 import Sender from '../Sender'
 
 const mocks = vi.hoisted(() => ({
   searchWorkspaceFiles: vi.fn(),
+  listWorkspaces: vi.fn(),
 }))
 
 class ResizeObserverMock {
@@ -19,12 +21,7 @@ class ResizeObserverMock {
 
 vi.mock('@/api/workspaceApi', () => ({
   default: {
-    listWorkspaces: vi.fn(async () => ({
-      currentWorkspacePath: '/tmp/workspace',
-      workspaces: [
-        { path: '/tmp/workspace', displayName: 'workspace' },
-      ],
-    })),
+    listWorkspaces: mocks.listWorkspaces,
     openWorkspace: vi.fn(),
     searchWorkspaceFiles: mocks.searchWorkspaceFiles,
   },
@@ -92,6 +89,11 @@ describe('sender reference token overlay', () => {
     mocks.searchWorkspaceFiles.mockResolvedValue([
       { path: 'resume.md', name: 'resume.md', type: 'file' },
     ])
+    mocks.listWorkspaces.mockResolvedValue({
+      workspaces: [
+        { path: '/tmp/workspace', displayName: 'workspace' },
+      ],
+    })
     useMessagesStore.setState({
       activeConversationsId: '',
       messages: [],
@@ -105,9 +107,9 @@ describe('sender reference token overlay', () => {
       conversationsTotal: 1,
       streamingConversationIds: new Set<string>(),
       loadVersion: 0,
-      currentWorkspacePath: '/tmp/workspace',
       workspaceConversations: {},
     })
+    useWorkspaceStore.setState({ currentWorkspacePath: '/tmp/workspace', workspaceData: null, loading: false })
     useChatSttingsStore.setState({
       enableMCP: false,
       agentMode: 'hybrid',
@@ -151,7 +153,7 @@ describe('sender reference token overlay', () => {
     setTextareaValue(textarea, '看 @res')
 
     await waitFor(() => {
-      expect(mocks.searchWorkspaceFiles).toHaveBeenCalledWith('res', 50)
+      expect(mocks.searchWorkspaceFiles).toHaveBeenCalledWith('/tmp/workspace', 'res', 50)
     })
 
     fireEvent.mouseDown(await screen.findByText('resume.md'))

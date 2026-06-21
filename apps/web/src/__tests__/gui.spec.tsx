@@ -15,6 +15,7 @@ import { useAgentStore } from '../store/agent'
 import { useConversationsStore } from '../store/conversation'
 import { createInitialState } from '../store/conversation/initialState'
 import { setActiveConversationsId, useMessagesStore } from '../store/messages'
+import { useWorkspaceStore } from '../store/workspace'
 
 const mocks = vi.hoisted(() => ({
   agent: {
@@ -89,6 +90,7 @@ const mocks = vi.hoisted(() => ({
     chooseWorkspace: vi.fn(async () => null),
     listWorkspaces: vi.fn(),
     openWorkspace: vi.fn(),
+    searchWorkspaceFiles: vi.fn(async () => []),
   },
 }))
 
@@ -154,7 +156,6 @@ describe('gui ui flow', () => {
     mocks.provider.getAllAbvailableModels.mockResolvedValue([])
     mocks.skill.listSkills.mockResolvedValue({ skills: [] })
     mocks.workspace.listWorkspaces.mockResolvedValue({
-      currentWorkspacePath: guiWorkspacePath,
       workspaces: [{
         path: guiWorkspacePath,
         displayName: 'ant-chat-gui-workspace',
@@ -391,6 +392,11 @@ describe('gui ui flow', () => {
       },
     })
 
+    // WorkspacePanels.initialize 在 render 后异步调用 activateWorkspace(currentWorkspacePath),
+    // 而 activateWorkspace 会先 setActiveConversationsId('') 清空调试会话。
+    // 将 workspaces mock 为空列表，使 refresh → pickLatestWorkspace([]) → '' → activateWorkspace('') 提前 return。
+    mocks.workspace.listWorkspaces.mockResolvedValue({ workspaces: [] })
+
     renderGui('/chat')
 
     expect(await screen.findByTestId('agent-approval-card')).toHaveTextContent('write_file')
@@ -423,6 +429,9 @@ describe('gui ui flow', () => {
 
     await setActiveConversationsId('conv-running' as ConversationsId)
 
+    // 阻止 WorkspacePanels.initialize → activateWorkspace 清空调试会话
+    mocks.workspace.listWorkspaces.mockResolvedValue({ workspaces: [] })
+
     renderGui('/chat')
 
     const cancelButton = await screen.findByTestId('chat-cancel')
@@ -454,6 +463,9 @@ describe('gui ui flow', () => {
     })
 
     await setActiveConversationsId('conv-steering' as ConversationsId)
+
+    // 阻止 WorkspacePanels.initialize → activateWorkspace 清空调试会话
+    mocks.workspace.listWorkspaces.mockResolvedValue({ workspaces: [] })
 
     renderGui('/chat')
 
@@ -551,8 +563,8 @@ function seedActiveConversation(conversationId: string) {
   useConversationsStore.setState({
     activeConversationsId: conversationId,
     conversations: [conversation],
-    currentWorkspacePath: guiWorkspacePath,
   })
+  useWorkspaceStore.setState({ currentWorkspacePath: guiWorkspacePath })
 }
 
 function createConversation(id: string): IConversations {

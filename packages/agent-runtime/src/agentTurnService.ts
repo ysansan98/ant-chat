@@ -8,7 +8,6 @@ import type {
   StartAgentTurnOptions,
 } from '@ant-chat/shared'
 import type { ConversationTitleGenerator } from './conversationTitleGenerator'
-import process from 'node:process'
 
 const DEFAULT_TITLE = 'Untitled'
 
@@ -36,8 +35,9 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
       }
 
       const workspacePath = options.workspacePath
-        ?? appDataContext.workspaceService.getCurrentWorkspacePath()
-        ?? process.cwd()
+      if (!workspacePath) {
+        throw new Error('workspacePath is required')
+      }
 
       const resolved = await appDataContext.modelCatalog.resolveModel({
         providerId: options.modelConfig.providerId,

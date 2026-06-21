@@ -16,7 +16,9 @@ import {
   setActiveConversationsId,
   useMessagesStore,
 } from '@/store/messages'
+import { useWorkspaceStore } from '@/store/workspace'
 import Sender from '../Sender'
+
 import { ModelControlPanel } from '../Sender/PickerModel'
 
 const BubbleList = lazy(() => import('./BubbleList'))
@@ -25,7 +27,7 @@ export default function Chat() {
   const messages = useMessagesStore(state => state.messages)
   const activeConversationsId = useMessagesStore(state => state.activeConversationsId)
   const currentConversations = useConversationsStore(state => state.conversations.find(item => item.id === activeConversationsId))
-  const currentWorkspacePath = useConversationsStore(state => state.currentWorkspacePath)
+  const currentWorkspacePath = useWorkspaceStore(state => state.currentWorkspacePath)
 
   const { settings, updateSettings } = useChatSettingsContext()
   const agentTask = useAgentStore(state => state.getActiveTaskByConversation(activeConversationsId))
@@ -80,7 +82,7 @@ export default function Chat() {
         referencedFiles,
         selectedSkill,
         mode: agentMode,
-        workspacePath: currentWorkspacePath || undefined,
+        workspacePath: currentWorkspacePath,
         modelConfig: {
           ...settings,
           features,

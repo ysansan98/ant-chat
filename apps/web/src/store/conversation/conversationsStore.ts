@@ -2,6 +2,7 @@ import type { StoreState, WorkspaceConversationsState } from './initialState'
 
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import { useWorkspaceStore } from '@/store/workspace'
 import {
   createInitialState,
   createWorkspaceConversationsState,
@@ -11,10 +12,18 @@ import {
 interface StoreActions {
   reset: () => void
   setActiveConversationsId: (id: string) => void
-  switchWorkspace: (workspacePath: string) => void
+  switchWorkspaceSlice: (workspacePath: string) => void
   saveCurrentWorkspaceSlice: () => void
 }
 export type ConversationsStore = StoreState & StoreActions
+
+/**
+ * 跨 store 读取当前工作区路径(SSOT 在 workspaceStore)。
+ * conversationsStore 不再持有 currentWorkspacePath,需要时统一从此取。
+ */
+function getCurrentWorkspacePath(): string {
+  return useWorkspaceStore.getState().currentWorkspacePath ?? ''
+}
 
 function getWorkspaceSlice(state: StoreState, workspacePath: string): WorkspaceConversationsState {
   return state.workspaceConversations[workspacePath] || createWorkspaceConversationsState()
@@ -26,13 +35,13 @@ export const useConversationsStore = create<ConversationsStore>()(
     (set, get) => ({
       ...initialState,
       reset: () => {
+        const currentPath = getCurrentWorkspacePath()
         set((state) => {
           const nextState = createInitialState()
           nextState.pageSize = state.pageSize
-          nextState.currentWorkspacePath = state.currentWorkspacePath
 
-          if (state.currentWorkspacePath) {
-            const currentSlice = getWorkspaceSlice(state, state.currentWorkspacePath)
+          if (currentPath) {
+            const currentSlice = getWorkspaceSlice(state, currentPath)
             const nextSlice: WorkspaceConversationsState = {
               ...currentSlice,
               conversations: [],
@@ -43,7 +52,7 @@ export const useConversationsStore = create<ConversationsStore>()(
             }
             nextState.workspaceConversations = {
               ...state.workspaceConversations,
-              [state.currentWorkspacePath]: nextSlice,
+              [currentPath]: nextSlice,
             }
             nextState.conversations = nextSlice.conversations
             nextState.pageIndex = nextSlice.pageIndex
@@ -59,14 +68,15 @@ export const useConversationsStore = create<ConversationsStore>()(
       },
       saveCurrentWorkspaceSlice: () => {
         const state = get()
-        if (!state.currentWorkspacePath) {
+        const currentPath = getCurrentWorkspacePath()
+        if (!currentPath) {
           return
         }
 
         set({
           workspaceConversations: {
             ...state.workspaceConversations,
-            [state.currentWorkspacePath]: {
+            [currentPath]: {
               conversations: state.conversations,
               pageIndex: state.pageIndex,
               conversationsTotal: state.conversationsTotal,
@@ -76,16 +86,17 @@ export const useConversationsStore = create<ConversationsStore>()(
           },
         })
       },
-      switchWorkspace: (workspacePath: string) => {
-        set((state) => {
-          if (workspacePath === state.currentWorkspacePath) {
-            return state
-          }
+      switchWorkspaceSlice: (workspacePath: string) => {
+        const currentPath = getCurrentWorkspacePath()
+        if (workspacePath === currentPath) {
+          return
+        }
 
+        set((state) => {
           const nextWorkspaceConversations = { ...state.workspaceConversations }
 
-          if (state.currentWorkspacePath) {
-            nextWorkspaceConversations[state.currentWorkspacePath] = {
+          if (currentPath) {
+            nextWorkspaceConversations[currentPath] = {
               conversations: state.conversations,
               pageIndex: state.pageIndex,
               conversationsTotal: state.conversationsTotal,
@@ -98,7 +109,6 @@ export const useConversationsStore = create<ConversationsStore>()(
 
           return {
             ...state,
-            currentWorkspacePath: workspacePath,
             workspaceConversations: nextWorkspaceConversations,
             conversations: nextSlice.conversations,
             pageIndex: nextSlice.pageIndex,

@@ -17,7 +17,6 @@ export interface StoreState {
   activeConversationsId: string
   streamingConversationIds: Set<string>
   loadVersion: number
-  currentWorkspacePath: string
   workspaceConversations: Record<string, WorkspaceConversationsState>
 }
 
@@ -41,7 +40,6 @@ export function createInitialState(): StoreState {
     conversationsTotal: 1,
     activeConversationsId: '',
     loadVersion: 0,
-    currentWorkspacePath: '',
     workspaceConversations: {},
   }
 }

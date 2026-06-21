@@ -62,9 +62,7 @@ const aiProvider = {
 const aiProviderFactory = vi.fn(async () => aiProvider)
 
 const appDataContext = {
-  workspaceService: {
-    getCurrentWorkspacePath: vi.fn(() => '/workspace'),
-  },
+  workspaceService: {} as unknown as AppDataContext['workspaceService'],
   modelCatalog: {
     resolveModel: vi.fn(async () => ({ model, provider })),
     getModel: vi.fn(async () => model),
@@ -103,6 +101,7 @@ describe('createAgentRuntimeController 行为', () => {
 
     await service.startTurn({
       prompt: 'inspect project',
+      workspacePath: '/workspace',
       modelConfig: {
         modelId: 'model-1',
         providerId: 'provider-1',
@@ -205,6 +204,7 @@ describe('createAgentRuntimeController 行为', () => {
 
     await expect(service.startTurn({
       prompt: 'inspect project',
+      workspacePath: '/workspace',
       modelConfig: {
         modelId: 'model-1',
         providerId: 'provider-1',
@@ -236,6 +236,7 @@ describe('createAgentRuntimeController 行为', () => {
 
     await service.startTurn({
       prompt: 'inspect project',
+      workspacePath: '/workspace',
       modelConfig: {
         modelId: 'model-1',
         providerId: 'provider-1',
@@ -272,6 +273,7 @@ describe('createAgentRuntimeController 行为', () => {
 
     await service.startTurn({
       prompt: 'inspect project',
+      workspacePath: '/workspace',
       modelConfig: {
         modelId: 'model-1',
         providerId: 'provider-1',
@@ -304,6 +306,7 @@ describe('createAgentRuntimeController 行为', () => {
 
     await service.startTurn({
       prompt: 'inspect project',
+      workspacePath: '/workspace',
       modelConfig: {
         modelId: 'model-1',
         providerId: 'provider-1',
@@ -319,6 +322,22 @@ describe('createAgentRuntimeController 行为', () => {
 
     expect(titleGenerator.updateTitle).toHaveBeenCalledWith('c1', { providerId: 'provider-1', modelId: 'model-1' })
     expect(emitConversationUpdated).toHaveBeenCalledWith(titledConversation)
+  })
+
+  it('startTurn 未传 workspacePath 时抛错,不再兜底 getCurrentWorkspacePath() 或 process.cwd()', async () => {
+    const service = createAgentRuntimeController(runtime, appDataContext, { aiProviderFactory })
+
+    await expect(service.startTurn({
+      prompt: 'inspect',
+      modelConfig: {
+        modelId: 'model-1',
+        providerId: 'provider-1',
+        systemPrompt: 'custom',
+        temperature: 0.2,
+        maxTokens: 2048,
+        features: { enableMCP: false },
+      },
+    } as any)).rejects.toThrow('workspacePath is required')
   })
 
   it('记住审批时写入工具白名单后再批准 pending action', () => {

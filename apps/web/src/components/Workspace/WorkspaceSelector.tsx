@@ -1,4 +1,4 @@
-import type { ListWorkspacesData, WorkspaceItem } from '@ant-chat/shared'
+import type { WorkspaceItem } from '@ant-chat/shared'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,14 +26,13 @@ import {
   PlusIcon,
   Trash2Icon,
 } from 'lucide-react'
-import { useEffect, useMemo, useReducer, useState } from 'react'
-import workspaceApi from '@/api/workspaceApi'
+import { useEffect, useMemo, useState } from 'react'
 import {
   emitWorkspaceChanged,
   WORKSPACE_CHANGED_EVENT,
 } from '@/constants/workspaceEvents'
-import { switchWorkspaceConversationsAction, useConversationsStore } from '@/store/conversation'
-import { setActiveConversationsId } from '@/store/messages'
+import { activateWorkspace } from '@/store/conversation'
+import { useWorkspaceStore } from '@/store/workspace'
 import { WorkspaceDirectoryPickerDialog } from './WorkspaceDirectoryPickerDialog'
 
 interface WorkspaceSelectorProps {
@@ -48,11 +47,6 @@ interface NoticeState {
 export function WorkspaceSelector({ compact = false }: WorkspaceSelectorProps) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
-  // useReducer to avoid react-hooks/set-state-in-effect: dispatch is allowed in effects
-  const [workspaceData, setWorkspaceData] = useReducer(
-    (_s: ListWorkspacesData | null, a: ListWorkspacesData | null) => a,
-    null,
-  )
   const [notice, setNotice] = useState<NoticeState | null>(null)
   const [removeTarget, setRemoveTarget] = useState<WorkspaceItem | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -63,15 +57,16 @@ export function WorkspaceSelector({ compact = false }: WorkspaceSelectorProps) {
     `
     : ''
 
+  // 唯一事实源:workspaceStore。不再持有本地 workspaceData(第三源)。
+  const workspaceData = useWorkspaceStore(state => state.workspaceData)
+  const currentWorkspacePath = useWorkspaceStore(state => state.currentWorkspacePath)
   const currentWorkspace = useMemo(
-    () => workspaceData?.workspaces.find(item => item.path === workspaceData.currentWorkspacePath),
-    [workspaceData],
+    () => workspaceData?.workspaces.find(item => item.path === currentWorkspacePath),
+    [workspaceData, currentWorkspacePath],
   )
 
   async function refreshWorkspaces() {
-    const data = await workspaceApi.listWorkspaces()
-    setWorkspaceData(data)
-    useConversationsStore.getState().switchWorkspace(data.currentWorkspacePath)
+    await useWorkspaceStore.getState().refresh()
   }
 
   useEffect(() => {
@@ -98,15 +93,6 @@ export function WorkspaceSelector({ compact = false }: WorkspaceSelectorProps) {
     return () => window.clearTimeout(timer)
   }, [notice])
 
-  async function applyWorkspaceData(data: ListWorkspacesData | null) {
-    if (!data) {
-      return
-    }
-    setWorkspaceData(data)
-    await setActiveConversationsId('')
-    await switchWorkspaceConversationsAction(data.currentWorkspacePath)
-  }
-
   function handleChooseWorkspace() {
     setPickerOpen(true)
   }
@@ -116,8 +102,8 @@ export function WorkspaceSelector({ compact = false }: WorkspaceSelectorProps) {
     setLoading(true)
     setNotice(null)
     try {
-      const data = await workspaceApi.addWorkspace(path)
-      await applyWorkspaceData(data)
+      await useWorkspaceStore.getState().addWorkspace(path)
+      await activateWorkspace(path)
       emitWorkspaceChanged()
       setNotice({ type: 'success', message: '工作区已添加' })
       setOpen(false)
@@ -131,15 +117,15 @@ export function WorkspaceSelector({ compact = false }: WorkspaceSelectorProps) {
   }
 
   async function handleOpenWorkspace(item: WorkspaceItem) {
-    if (item.path === workspaceData?.currentWorkspacePath) {
+    if (item.path === useWorkspaceStore.getState().currentWorkspacePath) {
       return
     }
 
     setLoading(true)
     setNotice(null)
     try {
-      const data = await workspaceApi.openWorkspace(item.path)
-      await applyWorkspaceData(data)
+      await useWorkspaceStore.getState().openWorkspace(item.path)
+      await activateWorkspace(item.path)
       setOpen(false)
     }
     catch (error) {
@@ -162,8 +148,8 @@ export function WorkspaceSelector({ compact = false }: WorkspaceSelectorProps) {
     setLoading(true)
     setNotice(null)
     try {
-      const data = await workspaceApi.removeWorkspace(removeTarget.path)
-      await applyWorkspaceData(data)
+      await useWorkspaceStore.getState().removeWorkspace(removeTarget.path)
+      await activateWorkspace(useWorkspaceStore.getState().currentWorkspacePath)
       emitWorkspaceChanged()
       setRemoveTarget(null)
     }
@@ -184,7 +170,7 @@ export function WorkspaceSelector({ compact = false }: WorkspaceSelectorProps) {
                 <WorkspaceRow
                   key={item.path}
                   item={item}
-                  active={item.path === workspaceData.currentWorkspacePath}
+                  active={item.path === currentWorkspacePath}
                   loading={loading}
                   onOpen={handleOpenWorkspace}
                   onRemove={handleRemoveWorkspace}

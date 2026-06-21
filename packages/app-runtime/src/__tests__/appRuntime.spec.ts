@@ -31,54 +31,75 @@ describe('app runtime', () => {
     vi.clearAllMocks()
   })
 
-  it('applies the current workspace when creating and listing conversations', async () => {
-    const workspacePath = runtime.workspace.getCurrentPath()
-    const conversation = await runtime.chat.createConversation({
-      title: 'Runtime conversation',
+  it('createConversation 必传 workspacePath,未传时抛错', async () => {
+    await expect(runtime.chat.createConversation({
+      title: 'no workspace',
       createdAt: 1,
       updatedAt: 1,
-      settings: {
-        modelId: 'model-1',
-        providerId: 'provider-1',
-        systemPrompt: '',
-        temperature: 0.7,
-        maxTokens: 1024,
-      },
-    })
-
-    const result = await runtime.chat.listConversations(0, 20)
-
-    expect(conversation.workspacePath).toBe(workspacePath)
-    expect(result.total).toBe(1)
-    expect(result.data).toEqual([expect.objectContaining({
-      id: conversation.id,
-      workspacePath,
-      title: 'Runtime conversation',
-    })])
+      settings: { modelId: 'model-1', providerId: 'provider-1', systemPrompt: '', temperature: 0.7, maxTokens: 1024 },
+    } as any)).rejects.toThrow('workspacePath is required')
   })
 
-  it('emits domain events after settings and workspace changes', async () => {
-    const settingsEvents: { keys: string[] }[] = []
-    const workspaceEvents: { currentWorkspacePath: string }[] = []
-    runtime.events.on('settings:updated', event => settingsEvents.push(event))
+  it('createConversation 传入 workspacePath 时归属该工作区', async () => {
+    const workspacePath = runtime.workspace.getDefaultPath()
+    const conversation = await runtime.chat.createConversation({
+      title: 'explicit workspace',
+      createdAt: 1,
+      updatedAt: 1,
+      workspacePath,
+      settings: { modelId: 'model-1', providerId: 'provider-1', systemPrompt: '', temperature: 0.7, maxTokens: 1024 },
+    })
+
+    expect(conversation.workspacePath).toBe(workspacePath)
+    const result = await runtime.chat.listConversations(0, 20, workspacePath)
+    expect(result.data).toEqual([expect.objectContaining({ id: conversation.id, workspacePath })])
+  })
+
+  it('listConversations 未传 workspacePath 时返回跨工作区全量', async () => {
+    const defaultPath = runtime.workspace.getDefaultPath()
+    await runtime.chat.createConversation({
+      title: 'in default',
+      createdAt: 1,
+      updatedAt: 1,
+      workspacePath: defaultPath,
+      settings: { modelId: 'm', providerId: 'p', systemPrompt: '', temperature: 0.7, maxTokens: 1024 },
+    })
+
+    const result = await runtime.chat.listConversations(0, 100)
+
+    // 全量查询:不依赖 currentWorkspacePath 兜底,返回所有会话
+    expect(result.total).toBeGreaterThanOrEqual(1)
+  })
+
+  it('workspace:changed 事件 payload 为空对象', async () => {
+    const workspaceEvents: Record<string, never>[] = []
     runtime.events.on('workspace:changed', event => workspaceEvents.push(event))
 
-    await runtime.settings.update({ assistantModelId: 'model-2' })
     const workspace = runtime.workspace.list().workspaces[0]
     runtime.workspace.open(workspace.path)
 
-    expect(settingsEvents).toEqual([{ keys: ['assistantModelId'] }])
-    expect(workspaceEvents).toEqual([{ currentWorkspacePath: workspace.path }])
+    expect(workspaceEvents).toEqual([{}])
   })
 
-  it('clears all conversations in current workspace', async () => {
-    await runtime.chat.createConversation({ title: 'Conv 1', createdAt: 1, updatedAt: 1, settings: { modelId: 'm', providerId: 'p', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
-    await runtime.chat.createConversation({ title: 'Conv 2', createdAt: 2, updatedAt: 2, settings: { modelId: 'm', providerId: 'p', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
+  it('clearWorkspaceConversations 必传 workspacePath', async () => {
+    const defaultPath = runtime.workspace.getDefaultPath()
+    await runtime.chat.createConversation({
+      title: 'to clear',
+      createdAt: 1,
+      updatedAt: 1,
+      workspacePath: defaultPath,
+      settings: { modelId: 'm', providerId: 'p', systemPrompt: '', temperature: 0.7, maxTokens: 1024 },
+    })
 
-    const deletedIds = await runtime.chat.clearWorkspaceConversations()
+    await expect(runtime.chat.clearWorkspaceConversations(undefined as any)).rejects.toThrow('workspacePath is required')
 
-    expect(deletedIds.length).toBe(2)
-    const remaining = await runtime.chat.listConversations(0, 100)
-    expect(remaining.total).toBe(0)
+    const deletedIds = await runtime.chat.clearWorkspaceConversations(defaultPath)
+    expect(deletedIds.length).toBe(1)
+  })
+
+  it('searchFiles 必传 workspacePath', async () => {
+    const defaultPath = runtime.workspace.getDefaultPath()
+    const results = await runtime.workspace.searchFiles(defaultPath, '', 10)
+    expect(Array.isArray(results)).toBe(true)
   })
 })

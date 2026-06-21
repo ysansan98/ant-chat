@@ -1,5 +1,4 @@
 export interface WorkspaceConfig {
-  currentWorkspacePath?: string
   workspaces: Array<{
     path: string
     addedAt: number
@@ -15,7 +14,6 @@ export interface WorkspaceItem {
 }
 
 export interface ListWorkspacesData {
-  currentWorkspacePath: string
   workspaces: WorkspaceItem[]
 }
 

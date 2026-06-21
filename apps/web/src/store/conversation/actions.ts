@@ -3,7 +3,8 @@ import type { AntChatFileStructure } from '@/constants'
 import { produce } from 'immer'
 import chatApi from '@/api/chatApi'
 import { useGeneralSettingsStore } from '@/store/generalSettings'
-import { clearActiveConversations } from '../messages'
+import { useWorkspaceStore } from '@/store/workspace'
+import { clearActiveConversations, setActiveConversationsId } from '../messages'
 import { useConversationsStore } from './conversationsStore'
 
 const loadingConversationPages = new Set<string>()
@@ -14,6 +15,10 @@ export function getConversationByIdAction(id: string) {
 
 function saveCurrentSlice() {
   useConversationsStore.getState().saveCurrentWorkspaceSlice()
+}
+
+function getCurrentWorkspacePath(): string {
+  return useWorkspaceStore.getState().currentWorkspacePath ?? ''
 }
 
 export async function ensureWorkspaceConversationsAction(workspacePath: string) {
@@ -68,9 +73,21 @@ export async function ensureWorkspaceConversationsAction(workspacePath: string) 
   }
 }
 
-export async function switchWorkspaceConversationsAction(workspacePath: string) {
+/**
+ * 统一的工作区激活入口:在 workspaceStore 已更新当前路径后,
+ * 同步会话分片缓存到该路径。所有切换/新增/删除场景调用此入口,
+ * 避免手动拼装 ensure+switch 导致的遗漏与闭包陷阱。
+ *
+ * 入参为目标工作区路径,由调用方传入(与紧邻的 workspaceStore action 的 path 入参一致),
+ * 不依赖任何闭包渲染期变量。activateWorkspace 不写 workspaceStore(SSOT 由 workspaceStore action 负责)。
+ */
+export async function activateWorkspace(workspacePath: string): Promise<void> {
+  if (!workspacePath) {
+    return
+  }
+  await setActiveConversationsId('')
   await ensureWorkspaceConversationsAction(workspacePath)
-  useConversationsStore.getState().switchWorkspace(workspacePath)
+  useConversationsStore.getState().switchWorkspaceSlice(workspacePath)
 
   const nextState = useConversationsStore.getState()
   if (nextState.conversations.length === 0 && nextState.conversationsTotal > 0) {
@@ -133,7 +150,7 @@ export async function importConversationsAction(_: AntChatFileStructure) {
 }
 
 export async function clearConversationsAction() {
-  const { currentWorkspacePath } = useConversationsStore.getState()
+  const currentWorkspacePath = getCurrentWorkspacePath()
   if (!currentWorkspacePath) {
     throw new Error('当前工作区路径不存在，无法清空对话')
   }
@@ -152,7 +169,8 @@ export async function clearConversationsAction() {
 }
 
 export async function nextPageConversationsAction() {
-  const { pageIndex, pageSize, loadVersion, currentWorkspacePath } = useConversationsStore.getState()
+  const { pageIndex, pageSize, loadVersion } = useConversationsStore.getState()
+  const currentWorkspacePath = getCurrentWorkspacePath()
   if (!currentWorkspacePath) {
     return
   }
@@ -169,8 +187,10 @@ export async function nextPageConversationsAction() {
     const { data: conversations, total } = await chatApi.getWorkspaceConversations(currentWorkspacePath, pageIndex, pageSize)
 
     useConversationsStore.setState(state => produce(state, (draft) => {
+      // 分页加载是异步的:加载期间用户可能切了工作区,加载回来时若 workspaceStore
+      // 当前路径已不是发起时的路径,则丢弃结果,不污染新工作区顶层 conversations。
       if (
-        draft.currentWorkspacePath !== currentWorkspacePath
+        useWorkspaceStore.getState().currentWorkspacePath !== currentWorkspacePath
         || draft.loadVersion !== loadVersion
         || draft.pageIndex !== pageIndex
       ) {

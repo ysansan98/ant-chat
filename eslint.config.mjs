@@ -27,6 +27,7 @@ export default antfu(
       'apps/desktop/.ant-chat/**',
       '.claude/**',
       '.agents/**',
+      '.superpowers/**',
     ],
     rules: {
       'no-console': ['off'],
