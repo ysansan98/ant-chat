@@ -11,7 +11,7 @@ export interface StartAgentTurnOptions {
   content?: IMessageContent
   referencedFiles?: string[]
   selectedSkill?: string
-  workspacePath?: string
+  workspacePath: string
   mode?: AgentMode
   modelConfig: Omit<ModelSettings, 'model' | 'features'> & {
     modelId: string

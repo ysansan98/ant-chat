@@ -68,7 +68,7 @@ export interface AppRendererEvents {
   'agent:task-updated': { task: AgentTaskSnapshot }
   'agent:approval-required': { taskId: string, conversationId: string, pendingAction: AgentPendingAction }
   'agent:secret-requested': { request: SecretRequest }
-  'workspace:changed': { currentWorkspacePath: string }
+  'workspace:changed': Record<string, never>
   'settings:updated': { keys: string[] }
   'mcp:status-changed': { serverName: string, status: 'connected' | 'disconnected', error?: string }
   'provider:changed': { providerId?: string }

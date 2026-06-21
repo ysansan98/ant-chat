@@ -106,11 +106,10 @@ export interface AppRpcContract {
   'workspace.addWorkspace': RpcEndpoint<{ path: string }, ListWorkspacesData>
   'workspace.removeWorkspace': RpcEndpoint<{ path: string }, ListWorkspacesData>
   'workspace.openWorkspace': RpcEndpoint<{ path: string }, ListWorkspacesData>
-  'workspace.getCurrentWorkspacePath': RpcEndpoint<undefined, string>
   'workspace.getDefaultWorkspacePath': RpcEndpoint<undefined, string>
   'workspace.listDirectories': RpcEndpoint<{ path?: string } | undefined, WorkspaceDirectoryListing>
   'workspace.createDirectory': RpcEndpoint<{ parentPath: string, name: string }, { name: string, path: string }>
-  'workspace.searchWorkspaceFiles': RpcEndpoint<{ query?: string, limit?: number } | undefined, WorkspaceFileSearchResult[]>
+  'workspace.searchWorkspaceFiles': RpcEndpoint<{ workspacePath: string, query?: string, limit?: number }, WorkspaceFileSearchResult[]>
 
   'agent.startTurn': RpcEndpoint<{ options: StartAgentTurnOptions }, AgentTurnResult>
   'agent.approvePendingAction': RpcEndpoint<{ options: ApprovePendingActionOptions }, null>
