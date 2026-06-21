@@ -392,6 +392,11 @@ describe('gui ui flow', () => {
       },
     })
 
+    // WorkspacePanels.initialize 在 render 后异步调用 activateWorkspace(currentWorkspacePath),
+    // 而 activateWorkspace 会先 setActiveConversationsId('') 清空调试会话。
+    // 将 workspaces mock 为空列表，使 refresh → pickLatestWorkspace([]) → '' → activateWorkspace('') 提前 return。
+    mocks.workspace.listWorkspaces.mockResolvedValue({ workspaces: [] })
+
     renderGui('/chat')
 
     expect(await screen.findByTestId('agent-approval-card')).toHaveTextContent('write_file')
@@ -424,6 +429,9 @@ describe('gui ui flow', () => {
 
     await setActiveConversationsId('conv-running' as ConversationsId)
 
+    // 阻止 WorkspacePanels.initialize → activateWorkspace 清空调试会话
+    mocks.workspace.listWorkspaces.mockResolvedValue({ workspaces: [] })
+
     renderGui('/chat')
 
     const cancelButton = await screen.findByTestId('chat-cancel')
@@ -455,6 +463,9 @@ describe('gui ui flow', () => {
     })
 
     await setActiveConversationsId('conv-steering' as ConversationsId)
+
+    // 阻止 WorkspacePanels.initialize → activateWorkspace 清空调试会话
+    mocks.workspace.listWorkspaces.mockResolvedValue({ workspaces: [] })
 
     renderGui('/chat')
 

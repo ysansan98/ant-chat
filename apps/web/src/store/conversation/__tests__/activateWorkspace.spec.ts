@@ -44,10 +44,10 @@ describe('activateWorkspace', () => {
     useMessagesStore.setState({ activeConversationsId: 'stale-id', messages: [] })
   })
 
-  it('空路径时仅清空 activeConversationsId,不加载会话', async () => {
+  it('空路径时不触发任何操作', async () => {
     await activateWorkspace('')
 
-    expect(useMessagesStore.getState().activeConversationsId).toBe('')
+    expect(useMessagesStore.getState().activeConversationsId).toBe('stale-id')
     expect(chatMocks.getWorkspaceConversations).not.toHaveBeenCalled()
   })
 

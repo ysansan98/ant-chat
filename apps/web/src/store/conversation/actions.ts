@@ -82,10 +82,10 @@ export async function ensureWorkspaceConversationsAction(workspacePath: string) 
  * 不依赖任何闭包渲染期变量。activateWorkspace 不写 workspaceStore(SSOT 由 workspaceStore action 负责)。
  */
 export async function activateWorkspace(workspacePath: string): Promise<void> {
-  await setActiveConversationsId('')
   if (!workspacePath) {
     return
   }
+  await setActiveConversationsId('')
   await ensureWorkspaceConversationsAction(workspacePath)
   useConversationsStore.getState().switchWorkspaceSlice(workspacePath)
 
