@@ -62,14 +62,7 @@ export class WorkspaceService {
       ? normalizedWorkspaces
       : [{ path: defaultPath, addedAt: Date.now(), lastOpenedAt: Date.now() }, ...normalizedWorkspaces]
 
-    const currentWorkspacePath = current.currentWorkspacePath && workspaces.some(item => item.path === current.currentWorkspacePath)
-      ? current.currentWorkspacePath
-      : defaultPath
-
-    const next = {
-      currentWorkspacePath,
-      workspaces: this.dedupeWorkspaces(workspaces),
-    }
+    const next = { workspaces: this.dedupeWorkspaces(workspaces) }
     this.saveConfig(next)
     return next
   }
@@ -77,7 +70,6 @@ export class WorkspaceService {
   listWorkspaces(): ListWorkspacesData {
     const config = this.ensureInitialized()
     return {
-      currentWorkspacePath: config.currentWorkspacePath || this.getDefaultWorkspacePath(),
       workspaces: this.toWorkspaceItems(config.workspaces),
     }
   }
@@ -92,7 +84,6 @@ export class WorkspaceService {
 
     const now = Date.now()
     this.saveConfig({
-      currentWorkspacePath: normalizedPath,
       workspaces: [
         ...config.workspaces,
         { path: normalizedPath, addedAt: now, lastOpenedAt: now },
@@ -113,7 +104,6 @@ export class WorkspaceService {
       : [{ path: defaultPath, addedAt: Date.now(), lastOpenedAt: Date.now() }, ...workspaces]
 
     this.saveConfig({
-      currentWorkspacePath: config.currentWorkspacePath === normalizedPath ? defaultPath : config.currentWorkspacePath,
       workspaces: nextWorkspaces,
     })
 
@@ -130,16 +120,10 @@ export class WorkspaceService {
 
     const now = Date.now()
     this.saveConfig({
-      currentWorkspacePath: normalizedPath,
       workspaces: config.workspaces.map(item => item.path === normalizedPath ? { ...item, lastOpenedAt: now } : item),
     })
 
     return this.listWorkspaces()
-  }
-
-  getCurrentWorkspacePath(): string {
-    const config = this.ensureInitialized()
-    return config.currentWorkspacePath || this.getDefaultWorkspacePath()
   }
 
   listDirectories(inputPath?: string): WorkspaceDirectoryListing {
@@ -255,12 +239,8 @@ export class WorkspaceService {
       }
     })
 
-    if (record.currentWorkspacePath !== undefined && typeof record.currentWorkspacePath !== 'string') {
-      throw new Error(`Invalid workspace settings file: ${this.options.filePath}`)
-    }
-
+    // 兼容旧配置文件中残留的 currentWorkspacePath 字段:忽略不解析
     return {
-      currentWorkspacePath: record.currentWorkspacePath,
       workspaces,
     }
   }
