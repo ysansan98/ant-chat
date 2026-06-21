@@ -16,10 +16,10 @@ import {
   setActiveConversationsId,
   useMessagesStore,
 } from '@/store/messages'
-import Sender from '../Sender'
-import { ModelControlPanel } from '../Sender/PickerModel'
-
 import { useWorkspaceStore } from '@/store/workspace'
+import Sender from '../Sender'
+
+import { ModelControlPanel } from '../Sender/PickerModel'
 
 const BubbleList = lazy(() => import('./BubbleList'))
 
@@ -82,7 +82,7 @@ export default function Chat() {
         referencedFiles,
         selectedSkill,
         mode: agentMode,
-        workspacePath: currentWorkspacePath || undefined,
+        workspacePath: currentWorkspacePath,
         modelConfig: {
           ...settings,
           features,

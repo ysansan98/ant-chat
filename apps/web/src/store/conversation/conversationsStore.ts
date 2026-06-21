@@ -2,12 +2,12 @@ import type { StoreState, WorkspaceConversationsState } from './initialState'
 
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import { useWorkspaceStore } from '@/store/workspace'
 import {
   createInitialState,
   createWorkspaceConversationsState,
   initialState,
 } from './initialState'
-import { useWorkspaceStore } from '@/store/workspace'
 
 interface StoreActions {
   reset: () => void

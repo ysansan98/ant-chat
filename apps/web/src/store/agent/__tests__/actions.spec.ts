@@ -32,6 +32,7 @@ describe('agent store actions', () => {
   it('调用 agent api', async () => {
     const created = await startAgentTurn({
       prompt: 'p',
+      workspacePath: '/workspace',
       modelConfig: {
         modelId: 'model-1',
         providerId: 'provider-1',

@@ -21,7 +21,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { activateWorkspace, ensureWorkspaceConversationsAction, useConversationsStore } from '@/store/conversation'
-import { useMessagesStore } from '@/store/messages'
+import { setActiveConversationsId, useMessagesStore } from '@/store/messages'
 import { useWorkspaceStore } from '@/store/workspace'
 import { WorkspaceDirectoryPickerDialog } from './WorkspaceDirectoryPickerDialog'
 

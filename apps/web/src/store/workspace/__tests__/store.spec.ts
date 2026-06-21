@@ -1,6 +1,8 @@
 import type { ListWorkspacesData } from '@ant-chat/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { useWorkspaceStore } from '../store'
+
 const mocks = vi.hoisted(() => ({
   listWorkspaces: vi.fn(),
   addWorkspace: vi.fn(),
@@ -11,8 +13,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/api/workspaceApi', () => ({
   default: mocks,
 }))
-
-import { useWorkspaceStore } from '../store'
 
 function makeWorkspaces(paths: Array<{ path: string, lastOpenedAt: number }>): ListWorkspacesData {
   return {

@@ -3,8 +3,8 @@ import type { AntChatFileStructure } from '@/constants'
 import { produce } from 'immer'
 import chatApi from '@/api/chatApi'
 import { useGeneralSettingsStore } from '@/store/generalSettings'
-import { clearActiveConversations, setActiveConversationsId } from '../messages'
 import { useWorkspaceStore } from '@/store/workspace'
+import { clearActiveConversations, setActiveConversationsId } from '../messages'
 import { useConversationsStore } from './conversationsStore'
 
 const loadingConversationPages = new Set<string>()

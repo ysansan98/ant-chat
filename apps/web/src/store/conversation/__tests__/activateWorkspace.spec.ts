@@ -1,6 +1,11 @@
 import type { IConversations } from '@ant-chat/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { useMessagesStore } from '@/store/messages'
+import { useWorkspaceStore } from '@/store/workspace'
+import { activateWorkspace, clearConversationsAction } from '../actions'
+import { useConversationsStore } from '../conversationsStore'
+
 const chatMocks = vi.hoisted(() => ({
   getWorkspaceConversations: vi.fn(),
   clearWorkspaceConversations: vi.fn(),
@@ -9,11 +14,6 @@ const chatMocks = vi.hoisted(() => ({
 vi.mock('@/api/chatApi', () => ({
   default: chatMocks,
 }))
-
-import { useWorkspaceStore } from '@/store/workspace'
-import { activateWorkspace, clearConversationsAction } from '../actions'
-import { useConversationsStore } from '../conversationsStore'
-import { useMessagesStore } from '@/store/messages'
 
 function makeConversation(id: string, workspacePath: string): IConversations {
   return {
