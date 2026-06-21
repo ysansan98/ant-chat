@@ -19,13 +19,15 @@ import {
 import Sender from '../Sender'
 import { ModelControlPanel } from '../Sender/PickerModel'
 
+import { useWorkspaceStore } from '@/store/workspace'
+
 const BubbleList = lazy(() => import('./BubbleList'))
 
 export default function Chat() {
   const messages = useMessagesStore(state => state.messages)
   const activeConversationsId = useMessagesStore(state => state.activeConversationsId)
   const currentConversations = useConversationsStore(state => state.conversations.find(item => item.id === activeConversationsId))
-  const currentWorkspacePath = useConversationsStore(state => state.currentWorkspacePath)
+  const currentWorkspacePath = useWorkspaceStore(state => state.currentWorkspacePath)
 
   const { settings, updateSettings } = useChatSettingsContext()
   const agentTask = useAgentStore(state => state.getActiveTaskByConversation(activeConversationsId))

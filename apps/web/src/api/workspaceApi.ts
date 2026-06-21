@@ -29,8 +29,8 @@ async function createDirectory(parentPath: string, name: string): Promise<{ name
   return getAppRpcClient().call('workspace.createDirectory', { parentPath, name })
 }
 
-async function searchWorkspaceFiles(query: string, limit = 50): Promise<WorkspaceFileSearchResult[]> {
-  return getAppRpcClient().call('workspace.searchWorkspaceFiles', { query, limit })
+async function searchWorkspaceFiles(workspacePath: string, query: string, limit = 50): Promise<WorkspaceFileSearchResult[]> {
+  return getAppRpcClient().call('workspace.searchWorkspaceFiles', { workspacePath, query, limit })
 }
 
 export default {

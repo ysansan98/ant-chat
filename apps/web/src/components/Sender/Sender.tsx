@@ -53,10 +53,10 @@ import {
   useChatSttingsStore,
 } from '@/store/chatSettings'
 import {
-  switchWorkspaceConversationsAction,
+  activateWorkspace,
   useConversationsStore,
 } from '@/store/conversation'
-import { setActiveConversationsId, useMessagesStore } from '@/store/messages'
+import { useMessagesStore } from '@/store/messages'
 import { useWorkspaceStore } from '@/store/workspace'
 import { fileToBase64 } from '@/utils'
 import TypingEffect from '../TypingEffect'
@@ -331,6 +331,7 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
   })
 
   const workspaceData = useWorkspaceStore(state => state.workspaceData)
+  const currentWorkspacePath = useWorkspaceStore(state => state.currentWorkspacePath)
   const refreshWorkspace = useWorkspaceStore(state => state.refresh)
   const openWorkspace = useWorkspaceStore(state => state.openWorkspace)
 
@@ -413,9 +414,9 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
   const currentWorkspace = useMemo(
     () =>
       workspaceData?.workspaces.find(
-        item => item.path === workspaceData?.currentWorkspacePath,
+        item => item.path === currentWorkspacePath,
       ),
-    [workspaceData],
+    [workspaceData, currentWorkspacePath],
   )
   const workspaceDisplayName = currentWorkspace?.displayName || '未选择工作区'
   const workspaceSwitchDisabled = workspaceLoading || !canSwitchWorkspaceSelect
@@ -437,7 +438,7 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
     }
 
     const timer = window.setTimeout(() => {
-      void workspaceApi.searchWorkspaceFiles(activeReferenceTrigger.query, 50)
+      void workspaceApi.searchWorkspaceFiles(currentWorkspacePath, activeReferenceTrigger.query, 50)
         .then((results) => {
           dispatchSenderData({ type: 'SET_FILE_RESULTS', results })
         })
@@ -479,7 +480,7 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
     if (
       !canSwitchWorkspace
       || !workspaceData
-      || nextWorkspacePath === workspaceData.currentWorkspacePath
+      || nextWorkspacePath === currentWorkspacePath
     ) {
       return
     }
@@ -492,8 +493,7 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
     try {
       await openWorkspace(nextWorkspacePath)
       setWorkspacePickerOpen(false)
-      await setActiveConversationsId('')
-      await switchWorkspaceConversationsAction(nextWorkspacePath)
+      await activateWorkspace(nextWorkspacePath)
     }
     catch (error) {
       setNotice((error as Error).message)
@@ -817,7 +817,7 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
             files={senderData.fileResults}
             skills={filteredSkills}
             builtinCommands={filteredCommands}
-            hasWorkspace={Boolean(workspaceData?.currentWorkspacePath)}
+            hasWorkspace={Boolean(currentWorkspacePath)}
             highlightedIndex={senderData.highlightedIndex}
             anchorRect={senderData.suggestionAnchorRect}
             onSelectFile={selectFileReference}
