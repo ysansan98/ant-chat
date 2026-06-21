@@ -5,7 +5,7 @@ import { ProviderLogoDisplay } from './renderProviderLogo'
 
 export interface SelectModelProps {
   value: { modelId: string, providerId: string }
-  onChange?: (info: { modelId: string, providerId: string }) => void
+  onChange?: (info: { modelId: string, providerId: string, maxTokens: number, temperature: number }) => void
   options?: AllAvailableModelsSchema[]
 }
 
@@ -40,13 +40,13 @@ export function SelectModel({ value, onChange, options }: SelectModelProps) {
                             hover:bg-(--hover-bg-color)
                           `}
                           onClick={() => {
-                            onChange?.({ modelId: model.id, providerId: model.providerId })
+                            onChange?.({ modelId: model.id, providerId: model.providerId, maxTokens: model.maxTokens, temperature: model.temperature })
                             setKeyword('')
                           }}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' || e.key === ' ') {
                               e.preventDefault()
-                              onChange?.({ modelId: model.id, providerId: model.providerId })
+                              onChange?.({ modelId: model.id, providerId: model.providerId, maxTokens: model.maxTokens, temperature: model.temperature })
                               setKeyword('')
                             }
                           }}

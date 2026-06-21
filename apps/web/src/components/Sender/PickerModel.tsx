@@ -15,7 +15,7 @@ import { SelectModel } from './SelectModel'
 
 interface ModelControlPanelProps {
   value: { modelId: string, providerId: string }
-  onChange?: (info: { modelId: string, providerId: string }) => void
+  onChange?: (info: { modelId: string, providerId: string, maxTokens: number, temperature: number }) => void
 }
 
 export function ModelControlPanel({ value, onChange }: ModelControlPanelProps) {
@@ -39,7 +39,7 @@ export function ModelControlPanel({ value, onChange }: ModelControlPanelProps) {
   React.useEffect(() => {
     if (!value.modelId && activeProviderServiceInfo?.models.length) {
       const firstModel = activeProviderServiceInfo.models[0]
-      onChange?.({ modelId: firstModel.id, providerId: firstModel.providerId })
+      onChange?.({ modelId: firstModel.id, providerId: firstModel.providerId, maxTokens: firstModel.maxTokens, temperature: firstModel.temperature })
     }
   }, [activeProviderServiceInfo, onChange, value])
 

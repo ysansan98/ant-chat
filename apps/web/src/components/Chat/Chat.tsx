@@ -153,8 +153,8 @@ export default function Chat() {
           actions={(
             <ModelControlPanel
               value={{ modelId: settings.modelId, providerId: settings.providerId }}
-              onChange={({ modelId, providerId }) => {
-                updateSettings({ modelId, providerId })
+              onChange={({ modelId, providerId, maxTokens, temperature }) => {
+                updateSettings({ modelId, providerId, maxTokens, temperature })
               }}
             />
           )}

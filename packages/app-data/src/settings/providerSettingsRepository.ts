@@ -109,6 +109,10 @@ export class ProviderSettingsRepository {
   }
 
   getModel(providerId: string, modelId: string): ProviderConfigModelSchema | null {
+    if (!providerId && modelId) {
+      const legacy = this.findModelByModelId(modelId)
+      return legacy ? toProviderConfigModel(legacy.provider.id, modelId, legacy.model) : null
+    }
     const provider = this.store.read().providers.find(p => p.id === providerId)
     if (!provider)
       return null
@@ -117,6 +121,15 @@ export class ProviderSettingsRepository {
   }
 
   resolveModel(providerId: string, modelId: string): { model: ProviderConfigModelSchema, provider: ProviderConfigSchema } | null {
+    if (!providerId && modelId) {
+      const legacy = this.findModelByModelId(modelId)
+      if (!legacy)
+        return null
+      return {
+        model: toProviderConfigModel(legacy.provider.id, modelId, legacy.model),
+        provider: toProviderConfig(legacy.provider),
+      }
+    }
     const provider = this.store.read().providers.find(p => p.id === providerId)
     if (!provider)
       return null
@@ -127,6 +140,18 @@ export class ProviderSettingsRepository {
       model: toProviderConfigModel(providerId, modelId, model),
       provider: toProviderConfig(provider),
     }
+  }
+
+  /**
+   * 旧会话数据只有 modelId、没有 providerId（升级前未拆分）。
+   * 在 providerId 为空时，按 modelId 跨已启用 provider 无歧义回退：
+   * 恰好 1 个已启用 provider 拥有该 modelId 才命中，0 个或多个则返回 null（保持报错，避免猜错）。
+   */
+  private findModelByModelId(modelId: string): { provider: ProviderSettingsSchema, model: ProviderModelSettingsSchema } | null {
+    const matches = this.store.read().providers.filter(p => p.isEnabled && p.models[modelId])
+    if (matches.length !== 1)
+      return null
+    return { provider: matches[0], model: matches[0].models[modelId] }
   }
 
   getAllAvailableModels(): AllAvailableModelsSchema[] {
