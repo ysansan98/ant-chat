@@ -95,11 +95,11 @@ describe('listen', () => {
 
   it('通过 SSE 推送运行时事件', async () => {
     const payload = await readSseEvent('workspace:changed', () => {
-      eventEmitter.emit('workspace:changed', { currentWorkspacePath: '/tmp/workspace' })
+      eventEmitter.emit('workspace:changed', {})
     })
 
     expect(payload).toContain('event: workspace:changed')
-    expect(payload).toContain('data: {"currentWorkspacePath":"/tmp/workspace"}')
+    expect(payload).toContain('data: {}')
   })
 
   it('通过 SSE 推送敏感信息请求事件', async () => {
