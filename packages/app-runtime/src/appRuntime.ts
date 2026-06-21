@@ -150,15 +150,18 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
         return conversation
       },
       listConversations: async (pageIndex: number, pageSize: number, workspacePath?: string) => {
-        const targetWorkspace = workspacePath ?? context.workspaceService.getCurrentWorkspacePath()
-        const includeNullWorkspace = targetWorkspace === context.workspaceService.getDefaultWorkspacePath()
-        return await context.conversationRepository.list(pageIndex, pageSize, targetWorkspace, includeNullWorkspace)
+        // 未传 workspacePath = 跨工作区全量查询(含 workspace_path IS NULL);
+        // 传了 = 按该路径筛选。不再用 currentWorkspacePath 兜底。
+        return await context.conversationRepository.list(pageIndex, pageSize, workspacePath, false)
       },
       getConversation: (id: string) => context.conversationRepository.getById(id),
       createConversation: async (conversation: AddConversationsSchema) => {
+        if (!conversation.workspacePath) {
+          throw new Error('workspacePath is required')
+        }
         const result = await context.conversationRepository.create({
           ...conversation,
-          workspacePath: conversation.workspacePath ?? context.workspaceService.getCurrentWorkspacePath(),
+          workspacePath: conversation.workspacePath,
         })
         events.emit('conversation:updated', { conversation: result })
         return result
@@ -173,11 +176,13 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
         await context.conversationRepository.delete(id)
         return null
       },
-      clearWorkspaceConversations: async (workspacePath?: string) => {
-        const targetWorkspace = workspacePath ?? context.workspaceService.getCurrentWorkspacePath()
-        const includeNullWorkspace = targetWorkspace === context.workspaceService.getDefaultWorkspacePath()
+      clearWorkspaceConversations: async (workspacePath: string) => {
+        if (!workspacePath) {
+          throw new Error('workspacePath is required')
+        }
+        const targetWorkspace = workspacePath
 
-        const listResult = await context.conversationRepository.list(0, Number.MAX_SAFE_INTEGER, targetWorkspace, includeNullWorkspace)
+        const listResult = await context.conversationRepository.list(0, Number.MAX_SAFE_INTEGER, targetWorkspace, false)
         const targetIds = listResult.data.map(c => c.id)
 
         if (targetIds.length === 0) {
@@ -188,7 +193,7 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
           await agentRuntime.closeConversation(id)
         }
 
-        return await context.conversationRepository.deleteByWorkspace(targetWorkspace, includeNullWorkspace)
+        return await context.conversationRepository.deleteByWorkspace(targetWorkspace, false)
       },
       listMessages: (conversationId: string) => context.messageRepository.listByConversation(conversationId),
       getMessage: (id: string) => context.messageRepository.getById(id),
@@ -364,13 +369,14 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
       add: (path: string) => emitWorkspaceResult(context.workspaceService.addWorkspace(path)),
       remove: (path: string) => emitWorkspaceResult(context.workspaceService.removeWorkspace(path)),
       open: (path: string) => emitWorkspaceResult(context.workspaceService.openWorkspace(path)),
-      getCurrentPath: () => context.workspaceService.getCurrentWorkspacePath(),
       getDefaultPath: () => context.workspaceService.getDefaultWorkspacePath(),
       listDirectories: (path?: string) => context.workspaceService.listDirectories(path),
       createDirectory: (parentPath: string, name: string) => context.workspaceService.createDirectory(parentPath, name),
-      searchFiles: async (query = '', limit = 50) => {
-        const workspacePath = context.workspaceService.getCurrentWorkspacePath()
-        return workspacePath ? await searchWorkspaceFiles(workspacePath, query, limit) : []
+      searchFiles: async (workspacePath: string, query = '', limit = 50) => {
+        if (!workspacePath) {
+          throw new Error('workspacePath is required')
+        }
+        return await searchWorkspaceFiles(workspacePath, query, limit)
       },
     },
     agent: {
@@ -432,7 +438,7 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
   }
 
   function emitWorkspaceResult(result: ReturnType<typeof context.workspaceService.listWorkspaces>) {
-    events.emit('workspace:changed', { currentWorkspacePath: result.currentWorkspacePath })
+    events.emit('workspace:changed', {})
     return result
   }
 

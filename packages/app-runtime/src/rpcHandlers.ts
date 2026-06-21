@@ -77,11 +77,10 @@ export function createAppRpcHandlers(runtime: AppRuntime): AppRpcHandlers {
     'workspace.addWorkspace': input => runtime.workspace.add(input.path),
     'workspace.removeWorkspace': input => runtime.workspace.remove(input.path),
     'workspace.openWorkspace': input => runtime.workspace.open(input.path),
-    'workspace.getCurrentWorkspacePath': () => runtime.workspace.getCurrentPath(),
     'workspace.getDefaultWorkspacePath': () => runtime.workspace.getDefaultPath(),
     'workspace.listDirectories': input => runtime.workspace.listDirectories(input?.path),
     'workspace.createDirectory': input => runtime.workspace.createDirectory(input.parentPath, input.name),
-    'workspace.searchWorkspaceFiles': input => runtime.workspace.searchFiles(input?.query, input?.limit),
+    'workspace.searchWorkspaceFiles': input => runtime.workspace.searchFiles(input.workspacePath, input?.query, input?.limit),
 
     'agent.startTurn': input => runtime.agent.startTurn(input.options),
     'agent.approvePendingAction': input => runtime.agent.approvePendingAction(input.options),
