@@ -61,8 +61,11 @@ export class SessionRuntime {
     if (!prompt) {
       throw new Error('invalid start task options: missing prompt')
     }
-    if (!options.modelId.trim()) {
-      throw new Error('invalid start task options: missing modelId')
+    if (!options.model?.id.trim()) {
+      throw new Error('invalid start task options: missing model')
+    }
+    if (!options.provider?.id.trim()) {
+      throw new Error('invalid start task options: missing provider')
     }
     if (!options.workspacePath.trim()) {
       throw new Error('invalid start task options: missing workspacePath')
@@ -74,23 +77,10 @@ export class SessionRuntime {
       throw new Error('invalid start task options: missing userMessageId')
     }
 
-    const modelCatalog = requireConfig(this.config.modelCatalog, 'modelCatalog')
+    const { model, provider } = options
+    const loadFileData = createCachedLoadFileData(this.config.loadFileData)
 
     const conversation = await getExistingConversation(store, options.conversationId)
-
-    if (this.listActiveTasks(conversation.id).length > 0) {
-      throw new Error('AGENT_TASK_ALREADY_RUNNING')
-    }
-
-    const model = await modelCatalog.getModelById(options.modelId)
-    if (!model) {
-      throw new Error(`Model not found: ${options.modelId}`)
-    }
-    const provider = await modelCatalog.getProviderById(model.providerId)
-    if (!provider) {
-      throw new Error(`Provider not found for model: ${model.model}`)
-    }
-    const loadFileData = createCachedLoadFileData(this.config.loadFileData)
 
     const aiProvider = options.aiProvider ?? (this.config.aiProviderFactory
       ? await this.config.aiProviderFactory({ model, provider })

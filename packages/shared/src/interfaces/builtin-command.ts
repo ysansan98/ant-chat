@@ -53,6 +53,7 @@ export interface RunBuiltinCommandParams {
   argument?: string
   modelConfig: {
     modelId: string
+    providerId: string
     systemPrompt: string
     temperature: number
     maxTokens: number

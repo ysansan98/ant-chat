@@ -8,6 +8,7 @@ import { useMessagesStore } from '@/store/messages'
 
 const DEFAULT_SETTINGS: ConversationsSettingsSchema = {
   modelId: '',
+  providerId: '',
   systemPrompt: '',
   temperature: 0.7,
   maxTokens: 1000,
@@ -25,6 +26,9 @@ export function useConversationSettings() {
 
     if (has(options, 'modelId')) {
       updatedSettings.modelId = options.modelId || ''
+    }
+    if (has(options, 'providerId')) {
+      updatedSettings.providerId = options.providerId || ''
     }
     if (has(options, 'systemPrompt')) {
       updatedSettings.systemPrompt = options.systemPrompt
@@ -56,6 +60,7 @@ export function useConversationSettings() {
     _updateSettings((draft) => {
       if (conversations?.settings) {
         draft.modelId = conversations.settings.modelId || ''
+        draft.providerId = conversations.settings.providerId || ''
         draft.systemPrompt = conversations.settings.systemPrompt || ''
         draft.temperature = conversations.settings.temperature || 0.7
         draft.maxTokens = conversations.settings.maxTokens || 1000
@@ -63,6 +68,7 @@ export function useConversationSettings() {
       }
       else {
         draft.modelId = ''
+        draft.providerId = ''
         draft.systemPrompt = ''
         draft.temperature = 0.7
         draft.maxTokens = 1000

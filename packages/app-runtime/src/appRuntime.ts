@@ -142,8 +142,8 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
 
   const runtime = {
     chat: {
-      createConversationTitle: async (conversationId: string, modelId: string) => {
-        const conversation = await titleGenerator.updateTitle(conversationId, modelId)
+      createConversationTitle: async (conversationId: string, modelId: string, providerId: string) => {
+        const conversation = await titleGenerator.updateTitle(conversationId, { providerId, modelId })
         if (conversation) {
           events.emit('conversation:updated', { conversation })
         }
@@ -259,10 +259,9 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
         return null
       },
       getById: (id: string) => requireValue(context.providerSettingsRepository.getProviderById(id), `Provider not found: ${id}`),
-      getByModelId: (id: string) => requireValue(context.providerSettingsRepository.getProviderByModelId(id), `Provider model not found: ${id}`),
       listAvailableModels: () => context.providerSettingsRepository.getAllAvailableModels(),
       listModels: (id: string) => context.providerSettingsRepository.listProviderModels(id),
-      getModel: (id: string) => requireValue(context.providerSettingsRepository.getModelById(id), `Provider model not found: ${id}`),
+      getModel: (providerId: string, modelId: string) => requireValue(context.providerSettingsRepository.getModel(providerId, modelId), `Provider model not found: ${providerId}/${modelId}`),
       setModelEnabled: (id: string, enabled: boolean) => {
         const result = context.providerSettingsRepository.setModelEnabledStatus(id, enabled)
         events.emit('provider:changed', { providerId: result.providerId })

@@ -39,6 +39,7 @@ describe('app runtime', () => {
       updatedAt: 1,
       settings: {
         modelId: 'model-1',
+        providerId: 'provider-1',
         systemPrompt: '',
         temperature: 0.7,
         maxTokens: 1024,
@@ -71,8 +72,8 @@ describe('app runtime', () => {
   })
 
   it('clears all conversations in current workspace', async () => {
-    await runtime.chat.createConversation({ title: 'Conv 1', createdAt: 1, updatedAt: 1, settings: { modelId: 'm', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
-    await runtime.chat.createConversation({ title: 'Conv 2', createdAt: 2, updatedAt: 2, settings: { modelId: 'm', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
+    await runtime.chat.createConversation({ title: 'Conv 1', createdAt: 1, updatedAt: 1, settings: { modelId: 'm', providerId: 'p', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
+    await runtime.chat.createConversation({ title: 'Conv 2', createdAt: 2, updatedAt: 2, settings: { modelId: 'm', providerId: 'p', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
 
     const deletedIds = await runtime.chat.clearWorkspaceConversations()
 

@@ -36,6 +36,7 @@ export default function Chat() {
   const { commandRunning, submitCommand, cancelCommand } = useBuiltinCommandSubmit({
     settings: {
       modelId: settings.modelId || '',
+      providerId: settings.providerId || '',
       systemPrompt: settings.systemPrompt,
       temperature: settings.temperature,
       maxTokens: settings.maxTokens,
@@ -151,10 +152,9 @@ export default function Chat() {
           disabled={commandRunning}
           actions={(
             <ModelControlPanel
-              value={settings.modelId}
-              onChange={(modelInfo) => {
-                const { id: modelId, maxTokens, temperature } = modelInfo
-                updateSettings({ modelId, maxTokens, temperature })
+              value={{ modelId: settings.modelId, providerId: settings.providerId }}
+              onChange={({ modelId, providerId }) => {
+                updateSettings({ modelId, providerId })
               }}
             />
           )}

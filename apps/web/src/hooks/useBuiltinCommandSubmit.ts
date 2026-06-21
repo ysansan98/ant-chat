@@ -9,6 +9,7 @@ import { setActiveConversationsId, useMessagesStore } from '@/store/messages'
 interface UseBuiltinCommandSubmitOptions {
   settings: {
     modelId: string
+    providerId?: string
     systemPrompt?: string
     temperature?: number
     maxTokens?: number
@@ -45,6 +46,7 @@ export function useBuiltinCommandSubmit(options: UseBuiltinCommandSubmitOptions)
         argument: command.argument,
         modelConfig: {
           modelId: options.settings.modelId,
+          providerId: options.settings.providerId || '',
           systemPrompt: options.settings.systemPrompt || '',
           temperature: options.settings.temperature || 0.7,
           maxTokens: options.settings.maxTokens || 4096,

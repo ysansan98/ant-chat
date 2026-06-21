@@ -34,6 +34,7 @@ describe('agent store actions', () => {
       prompt: 'p',
       modelConfig: {
         modelId: 'model-1',
+        providerId: 'provider-1',
         systemPrompt: '',
         temperature: 0.7,
         maxTokens: 1024,

@@ -127,6 +127,16 @@ export interface IAgentPathProvider {
 // Model Catalog
 // ============================================================
 
+export interface ModelRef {
+  providerId: string
+  modelId: string
+}
+
+export interface ResolvedModel {
+  model: AgentModel
+  provider: AgentProvider
+}
+
 export interface AgentModel {
   id: string
   model: string
@@ -138,8 +148,9 @@ export interface AgentModel {
 export type AgentProvider = ProviderConfigSchema
 
 export interface IModelCatalog {
-  getModelById: (id: string) => Promise<AgentModel | null>
-  getProviderById: (id: string) => Promise<ProviderConfigSchema | null>
+  resolveModel: (ref: ModelRef) => Promise<ResolvedModel | null>
+  getModel: (providerId: string, modelId: string) => Promise<AgentModel | null>
+  getProvider: (providerId: string) => Promise<ProviderConfigSchema | null>
 }
 
 // ============================================================
@@ -298,7 +309,8 @@ export interface AgentRuntimeStartTaskOptions {
   prompt: string
   conversationId: string
   userMessageId: string
-  modelId: string
+  model: AgentModel
+  provider: AgentProvider
   workspacePath: string
   aiProvider?: IAIProvider
   mode?: AgentMode

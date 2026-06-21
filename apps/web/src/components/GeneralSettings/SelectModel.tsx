@@ -1,14 +1,28 @@
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@workspace/ui/components/select'
 import { useAllAvailableModels } from '@/hooks/useAllAvailableModels'
-import { setAssistantModelId, useGeneralSettingsStore } from '@/store/generalSettings'
+import { setAssistantModel, useGeneralSettingsStore } from '@/store/generalSettings'
 
 export function SelectModel() {
   const { data: providers } = useAllAvailableModels()
 
   const assistantModelId = useGeneralSettingsStore(state => state.assistantModelId)
+  const assistantProviderId = useGeneralSettingsStore(state => state.assistantProviderId)
+
+  const currentValue = assistantModelId ? `${assistantProviderId}|${assistantModelId}` : '__default__'
 
   return (
-    <Select value={assistantModelId || '__default__'} onValueChange={value => setAssistantModelId(value === '__default__' ? '' : value)}>
+    <Select
+      value={currentValue}
+      onValueChange={(value) => {
+        if (value === '__default__') {
+          setAssistantModel('', '')
+        }
+        else {
+          const [providerId, modelId] = value.split('|')
+          setAssistantModel(modelId, providerId)
+        }
+      }}
+    >
       <SelectTrigger className="min-w-50">
         <SelectValue placeholder="选择模型" />
       </SelectTrigger>
@@ -18,7 +32,7 @@ export function SelectModel() {
           <SelectGroup key={item.name}>
             <SelectLabel>{item.name}</SelectLabel>
             {item.models.map(model => (
-              <SelectItem key={model.id} value={model.id}>
+              <SelectItem key={`${item.id}|${model.id}`} value={`${item.id}|${model.id}`}>
                 {model.name}
               </SelectItem>
             ))}

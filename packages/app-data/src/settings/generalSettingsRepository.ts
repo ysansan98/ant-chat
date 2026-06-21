@@ -5,6 +5,7 @@ import { AppSettingsStore } from './appSettingsStore'
 
 export const DEFAULT_GENERAL_SETTINGS: GeneralSettingsState = {
   assistantModelId: '',
+  assistantProviderId: '',
   proxySettings: {
     mode: 'none',
     customProxyUrl: '',

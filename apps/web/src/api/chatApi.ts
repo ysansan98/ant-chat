@@ -3,10 +3,11 @@ import { createIpcResponse } from '@ant-chat/shared'
 import { useGeneralSettingsStore } from '@/store/generalSettings'
 import { getAppRpcClient } from './transports/appRpc'
 
-async function initConversationsTitle(conversationsId: string, modelId?: string): Promise<IpcResponse<IConversations>> {
-  const { assistantModelId } = useGeneralSettingsStore.getState()
+async function initConversationsTitle(conversationsId: string, modelId?: string, providerId?: string): Promise<IpcResponse<IConversations>> {
+  const { assistantModelId, assistantProviderId } = useGeneralSettingsStore.getState()
   const finalModelId = modelId || assistantModelId
-  const conversation = await getAppRpcClient().call('chat.createConversationsTitle', { modelId: finalModelId, conversationsId })
+  const finalProviderId = providerId || assistantProviderId
+  const conversation = await getAppRpcClient().call('chat.createConversationsTitle', { modelId: finalModelId, providerId: finalProviderId, conversationsId })
   return createIpcResponse(true, conversation)
 }
 

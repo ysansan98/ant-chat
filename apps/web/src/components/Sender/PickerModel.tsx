@@ -14,8 +14,8 @@ import { ProviderLogoDisplay } from './renderProviderLogo'
 import { SelectModel } from './SelectModel'
 
 interface ModelControlPanelProps {
-  value: string
-  onChange?: (modelInfo: AllAvailableModelsSchema['models'][number]) => void
+  value: { modelId: string, providerId: string }
+  onChange?: (info: { modelId: string, providerId: string }) => void
 }
 
 export function ModelControlPanel({ value, onChange }: ModelControlPanelProps) {
@@ -33,12 +33,13 @@ export function ModelControlPanel({ value, onChange }: ModelControlPanelProps) {
     }
   }, [refresh])
 
-  const activeProviderServiceInfo = !value ? data?.[0] : data?.find(item => item.models.some(model => model.id === value))
-  const currentModelInfo = activeProviderServiceInfo?.models.find(model => model.id === value)
+  const activeProviderServiceInfo = !value.modelId ? data?.[0] : data?.find(item => item.id === value.providerId)
+  const currentModelInfo = activeProviderServiceInfo?.models.find(model => model.id === value.modelId)
 
   React.useEffect(() => {
-    if (!value && activeProviderServiceInfo?.models.length) {
-      onChange?.(activeProviderServiceInfo?.models[0])
+    if (!value.modelId && activeProviderServiceInfo?.models.length) {
+      const firstModel = activeProviderServiceInfo.models[0]
+      onChange?.({ modelId: firstModel.id, providerId: firstModel.providerId })
     }
   }, [activeProviderServiceInfo, onChange, value])
 
@@ -110,8 +111,8 @@ export function ModelControlPanel({ value, onChange }: ModelControlPanelProps) {
           ? (
               <SelectModel
                 value={value}
-                onChange={(nextModel) => {
-                  onChange?.(nextModel)
+                onChange={(nextInfo) => {
+                  onChange?.(nextInfo)
                   setOpenPopover(false)
                 }}
                 options={data}

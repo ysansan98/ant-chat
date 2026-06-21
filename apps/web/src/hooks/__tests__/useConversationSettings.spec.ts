@@ -39,6 +39,7 @@ describe('useConversationSettings', () => {
     const { result } = renderHook(() => useConversationSettings())
     expect(result.current.settings).toEqual({
       modelId: '',
+      providerId: '',
       systemPrompt: '',
       temperature: 0.7,
       maxTokens: 1000,
@@ -55,6 +56,7 @@ describe('useConversationSettings', () => {
       updatedAt: Date.now(),
       settings: {
         modelId: 'gpt-3',
+        providerId: '',
         systemPrompt: 'You are a bot',
         temperature: 0.5,
         maxTokens: 500,
@@ -64,6 +66,7 @@ describe('useConversationSettings', () => {
     const { result } = renderHook(() => useConversationSettings())
     expect(result.current.settings).toEqual({
       modelId: 'gpt-3',
+      providerId: '',
       systemPrompt: 'You are a bot',
       temperature: 0.5,
       maxTokens: 500,
@@ -80,6 +83,7 @@ describe('useConversationSettings', () => {
       updatedAt: Date.now(),
       settings: {
         modelId: 'gpt-3',
+        providerId: '',
         systemPrompt: 'You are a bot',
         temperature: 0.5,
         maxTokens: 500,
@@ -113,6 +117,7 @@ describe('useConversationSettings', () => {
       updatedAt: Date.now(),
       settings: {
         modelId: 'gpt-3',
+        providerId: '',
         systemPrompt: '',
         temperature: 0.7,
         maxTokens: 4096,
@@ -160,6 +165,7 @@ describe('useConversationSettings', () => {
           updatedAt: Date.now(),
           settings: {
             modelId: 'gpt-3',
+            providerId: '',
             systemPrompt: 'Prompt',
             temperature: 0.6,
             maxTokens: 800,
@@ -177,6 +183,7 @@ describe('useConversationSettings', () => {
     rerender()
     expect(result.current.settings).toEqual({
       modelId: '',
+      providerId: '',
       systemPrompt: '',
       temperature: 0.7,
       maxTokens: 1000,

@@ -19,6 +19,38 @@ export async function setAssistantModelId(id: string) {
   }
 }
 
+export async function setAssistantProviderId(providerId: string) {
+  useGeneralSettingsStore.setState(produce((state) => {
+    state.isLoading = true
+  }))
+  try {
+    const updates = { assistantProviderId: providerId }
+    const newSettings = await generalSettingsApi.updateSettings(updates)
+    useGeneralSettingsStore.setState(newSettings)
+  }
+  finally {
+    useGeneralSettingsStore.setState(produce((state) => {
+      state.isLoading = false
+    }))
+  }
+}
+
+export async function setAssistantModel(modelId: string, providerId: string) {
+  useGeneralSettingsStore.setState(produce((state) => {
+    state.isLoading = true
+  }))
+  try {
+    const updates = { assistantModelId: modelId, assistantProviderId: providerId }
+    const newSettings = await generalSettingsApi.updateSettings(updates)
+    useGeneralSettingsStore.setState(newSettings)
+  }
+  finally {
+    useGeneralSettingsStore.setState(produce((state) => {
+      state.isLoading = false
+    }))
+  }
+}
+
 export async function updateProxySettings(proxySettingsUpdates: Partial<ProxySettings>) {
   useGeneralSettingsStore.setState(produce((state) => {
     state.isLoading = true

@@ -22,12 +22,14 @@ describe('general settings repository', () => {
       filePath,
       initialSettings: {
         assistantModelId: 'model-1',
+        assistantProviderId: '',
         proxySettings: { mode: 'none', customProxyUrl: '' },
       },
     })
 
     await expect(repository.getGeneralSettings()).resolves.toEqual({
       assistantModelId: 'model-1',
+      assistantProviderId: '',
       proxySettings: { mode: 'none', customProxyUrl: '' },
     })
   })
@@ -37,6 +39,7 @@ describe('general settings repository', () => {
       filePath,
       initialSettings: {
         assistantModelId: 'model-1',
+        assistantProviderId: '',
         proxySettings: { mode: 'custom', customProxyUrl: 'http://localhost:7890' },
       },
     })
@@ -47,6 +50,7 @@ describe('general settings repository', () => {
 
     expect(settings).toEqual({
       assistantModelId: 'model-1',
+      assistantProviderId: '',
       proxySettings: { mode: 'system', customProxyUrl: 'http://localhost:7890' },
     })
   })

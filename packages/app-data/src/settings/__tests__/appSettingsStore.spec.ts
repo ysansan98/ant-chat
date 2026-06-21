@@ -22,6 +22,7 @@ describe('appSettingsStore', () => {
       const filePath = path.join(dir, 'settings.json')
       const existingSettings: AppSettingsState = {
         assistantModelId: 'test-model',
+        assistantProviderId: '',
         proxySettings: { mode: 'none' },
         toolApprovalWhitelist: [],
         providers: [
@@ -63,6 +64,7 @@ describe('appSettingsStore', () => {
       const filePath = path.join(dir, 'settings.json')
       const existingSettings: AppSettingsState = {
         assistantModelId: 'test-model',
+        assistantProviderId: '',
         proxySettings: { mode: 'none' },
         toolApprovalWhitelist: [],
         providers: [
@@ -119,6 +121,7 @@ describe('appSettingsStore', () => {
       const filePath = path.join(dir, 'settings.json')
       const existingSettings: AppSettingsState = {
         assistantModelId: 'test-model',
+        assistantProviderId: '',
         proxySettings: { mode: 'none' },
         toolApprovalWhitelist: [],
         providers: [],

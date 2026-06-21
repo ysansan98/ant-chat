@@ -4,8 +4,8 @@ import React from 'react'
 import { ProviderLogoDisplay } from './renderProviderLogo'
 
 export interface SelectModelProps {
-  value: string
-  onChange?: (value: AllAvailableModelsSchema['models'][number]) => void
+  value: { modelId: string, providerId: string }
+  onChange?: (info: { modelId: string, providerId: string }) => void
   options?: AllAvailableModelsSchema[]
 }
 
@@ -32,7 +32,7 @@ export function SelectModel({ value, onChange, options }: SelectModelProps) {
                     <div>
                       {item.models.filter(model => model.name.includes(keyword)).map(model => (
                         <div
-                          key={model.id}
+                          key={`${item.id}-${model.id}`}
                           role="button"
                           tabIndex={0}
                           className={`
@@ -40,13 +40,13 @@ export function SelectModel({ value, onChange, options }: SelectModelProps) {
                             hover:bg-(--hover-bg-color)
                           `}
                           onClick={() => {
-                            onChange?.(model)
+                            onChange?.({ modelId: model.id, providerId: model.providerId })
                             setKeyword('')
                           }}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' || e.key === ' ') {
                               e.preventDefault()
-                              onChange?.(model)
+                              onChange?.({ modelId: model.id, providerId: model.providerId })
                               setKeyword('')
                             }
                           }}
@@ -58,7 +58,7 @@ export function SelectModel({ value, onChange, options }: SelectModelProps) {
                             </span>
                           </div>
                           <div>
-                            {value === model.id ? <span>✓</span> : null}
+                            {value.modelId === model.id && value.providerId === item.id ? <span>✓</span> : null}
                           </div>
                         </div>
                       ))}

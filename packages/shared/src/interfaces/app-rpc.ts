@@ -67,13 +67,12 @@ export interface AppRpcContract {
   'provider.updateProvider': RpcEndpoint<{ config: UpdateProviderConfigSchema }, ProviderConfigSchema>
   'provider.deleteProvider': RpcEndpoint<{ id: string }, null>
   'provider.getProviderById': RpcEndpoint<{ id: string }, ProviderConfigSchema>
-  'provider.getProviderByModelId': RpcEndpoint<{ id: string }, ProviderConfigSchema>
   'provider.getAllAbvailableModels': RpcEndpoint<undefined, AllAvailableModelsSchema[]>
   'provider.listProviderModels': RpcEndpoint<{ id: string }, ProviderConfigModelSchema[]>
   'provider.setModelEnabledStatus': RpcEndpoint<{ id: string, status: boolean }, ProviderConfigModelSchema>
   'provider.createProviderModel': RpcEndpoint<{ config: CreateProviderConfigModelSchema }, ProviderConfigModelSchema>
   'provider.deleteProviderModel': RpcEndpoint<{ id: string }, null>
-  'provider.getModelById': RpcEndpoint<{ id: string }, ProviderConfigModelSchema>
+  'provider.getModel': RpcEndpoint<{ providerId: string, modelId: string }, ProviderConfigModelSchema>
   'provider.getModelsDevProviders': RpcEndpoint<undefined, ModelsDevProvider[]>
   'provider.getModelsDevModelsByProviderId': RpcEndpoint<{ providerId: string }, ModelsDevModel[]>
   'provider.importModelsDevModels': RpcEndpoint<{ providerId: string }, ModelsDevImportResult>

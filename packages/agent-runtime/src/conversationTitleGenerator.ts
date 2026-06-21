@@ -21,7 +21,7 @@ The name is:
 `
 
 export interface ConversationTitleGenerator {
-  updateTitle: (conversationsId: string, modelId: string) => Promise<IConversations>
+  updateTitle: (conversationsId: string, modelRef: { providerId: string, modelId: string }) => Promise<IConversations>
 }
 
 export interface ConversationTitleGeneratorDependencies {
@@ -47,15 +47,16 @@ export function createConversationTitleGenerator(
   }
 
   return {
-    async updateTitle(conversationsId, modelId) {
-      const modelInfo = deps.providerSettingsRepository.getModelById(modelId)
+    async updateTitle(conversationsId, modelRef) {
+      const { providerId, modelId } = modelRef
+      const modelInfo = deps.providerSettingsRepository.getModel(providerId, modelId)
       if (!modelInfo) {
-        throw new Error(`Model not found for id: ${modelId}`)
+        throw new Error(`Model not found: ${providerId}/${modelId}`)
       }
 
-      const providerConfig = deps.providerSettingsRepository.getProviderByModelId(modelId)
+      const providerConfig = deps.providerSettingsRepository.getProviderById(providerId)
       if (!providerConfig) {
-        throw new Error(`ProviderConfig not found for modelId: ${modelId}`)
+        throw new Error(`ProviderConfig not found: ${providerId}`)
       }
 
       const messages = await deps.messageRepository.listByConversation(conversationsId)

@@ -195,12 +195,14 @@ export async function nextPageConversationsAction() {
 }
 
 export async function initConversationsTitle(conversationsId: string) {
-  const { assistantModelId } = useGeneralSettingsStore.getState()
+  const { assistantModelId, assistantProviderId } = useGeneralSettingsStore.getState()
   let modelId = assistantModelId
+  let providerId = assistantProviderId
 
   if (!modelId) {
     const conversation = getConversationByIdAction(conversationsId)
     modelId = conversation?.settings?.modelId || ''
+    providerId = conversation?.settings?.providerId || ''
   }
 
   if (!modelId) {
@@ -208,7 +210,7 @@ export async function initConversationsTitle(conversationsId: string) {
     return
   }
 
-  const resp = await chatApi.initConversationsTitle(conversationsId, modelId)
+  const resp = await chatApi.initConversationsTitle(conversationsId, modelId, providerId)
 
   if (!resp.success) {
     console.error('initConversationsTitle fail. id => ', conversationsId)
