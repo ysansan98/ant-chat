@@ -3,8 +3,24 @@ import type { ProviderSettingsRepository } from './providerSettingsRepository'
 
 export function createModelCatalog(repository: ProviderSettingsRepository): IModelCatalog {
   return {
-    getModelById: async (id) => {
-      const model = repository.getModelById(id)
+    resolveModel: async (ref) => {
+      const resolved = repository.resolveModel(ref.providerId, ref.modelId)
+      if (!resolved) {
+        return null
+      }
+      return {
+        model: {
+          id: resolved.model.id,
+          model: resolved.model.model,
+          name: resolved.model.name,
+          providerId: resolved.model.providerId,
+          contextLength: resolved.model.contextLength,
+        },
+        provider: resolved.provider,
+      }
+    },
+    getModel: async (providerId, modelId) => {
+      const model = repository.getModel(providerId, modelId)
       if (!model) {
         return null
       }
@@ -16,7 +32,7 @@ export function createModelCatalog(repository: ProviderSettingsRepository): IMod
         contextLength: model.contextLength,
       }
     },
-    getProviderById: async (id) => {
+    getProvider: async (id) => {
       const provider = repository.getProviderById(id)
       if (!provider) {
         return null

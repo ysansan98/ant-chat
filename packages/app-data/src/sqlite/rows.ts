@@ -88,6 +88,10 @@ function parseConversationSettings(value: string): ConversationsSettingsSchema {
     }
     delete (settings.compaction as Record<string, unknown>).keepRecentPairs
   }
+  // Default providerId for legacy data that predates the (providerId, modelId) split
+  if (!settings.providerId) {
+    settings.providerId = ''
+  }
   return ConversationSettingsInput.parse(settings)
 }
 

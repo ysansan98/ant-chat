@@ -348,10 +348,10 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
   const { settings } = useChatSettingsContext()
 
   useEffect(() => {
-    if (!settings.modelId)
+    if (!settings.modelId || !settings.providerId)
       return
-    providerApi.getModelInfoById(settings.modelId).then(setCurrentModelInfo)
-  }, [settings.modelId])
+    providerApi.getModelInfoById(settings.modelId, settings.providerId).then(setCurrentModelInfo)
+  }, [settings.modelId, settings.providerId])
 
   const fileAccept = useMemo(
     () => buildAcceptFromModalities(currentModelInfo?.capabilities?.inputModalities ?? []),

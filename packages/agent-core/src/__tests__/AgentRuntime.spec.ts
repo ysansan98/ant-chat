@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AgentRuntime } from '../AgentRuntime'
 import { runAgentLoop } from '../loop/agentLoop'
 import { taskStore } from '../taskStore'
@@ -47,6 +47,7 @@ function createSessionStore(overrides: Partial<ISessionStore> = {}): ISessionSto
     updatedAt: 1,
     settings: {
       modelId: 'model-1',
+      providerId: 'provider-1',
       systemPrompt: '',
       temperature: 0.7,
       maxTokens: 1024,
@@ -136,14 +137,34 @@ function createSessionConfig(overrides: Partial<AgentRuntimeConfig> = {}): Agent
     ...createConfig(),
     sessionStore: createSessionStore(),
     modelCatalog: {
-      getModelById: vi.fn(async () => ({
+      resolveModel: vi.fn(async () => ({
+        model: {
+          id: 'model-1',
+          model: 'test-model',
+          name: 'Test Model',
+          providerId: 'provider-1',
+          contextLength: 128_000,
+        },
+        provider: {
+          id: 'provider-1',
+          name: 'provider',
+          apiMode: 'openai' as const,
+          apiKey: 'test-key',
+          baseUrl: 'https://example.com',
+          isOfficial: false,
+          isEnabled: true,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      })),
+      getModel: vi.fn(async () => ({
         id: 'model-1',
         model: 'test-model',
         name: 'Test Model',
         providerId: 'provider-1',
         contextLength: 128_000,
       })),
-      getProviderById: vi.fn(async () => ({
+      getProvider: vi.fn(async () => ({
         id: 'provider-1',
         name: 'provider',
         apiMode: 'openai' as const,
@@ -188,7 +209,8 @@ function createValidSessionStartInput(overrides: Partial<AgentRuntimeStartTaskOp
     conversationId: 'conv-session',
     userMessageId: 'user-msg-1',
     prompt: 'inspect project',
-    modelId: 'model-1',
+    model: { id: 'model-1', model: 'gpt-4', name: 'GPT-4', providerId: 'provider-1', contextLength: 128_000 },
+    provider: { id: 'provider-1', name: 'Provider 1', apiMode: 'openai', baseUrl: 'https://api.example.com', isOfficial: true, isEnabled: true, hasApiKey: true, createdAt: 0, updatedAt: 0 },
     workspacePath: '/workspace',
     mode: 'hybrid',
     ...overrides,
@@ -222,6 +244,10 @@ function cleanupTasks(ids: string[]) {
 }
 
 describe('agentRuntime 行为', () => {
+  afterEach(() => {
+    taskStore.clear()
+  })
+
   describe('startTask 行为', () => {
     it('返回 taskId 并在 store 中创建任务', async () => {
       const config = createConfig()
@@ -333,7 +359,8 @@ describe('agentRuntime 行为', () => {
         prompt: 'inspect project',
         conversationId: 'conv-session',
         userMessageId: 'user-msg-1',
-        modelId: 'model-1',
+        model: { id: 'model-1', model: 'gpt-4', name: 'GPT-4', providerId: 'provider-1', contextLength: 128_000 },
+        provider: { id: 'provider-1', name: 'Provider 1', apiMode: 'openai', baseUrl: 'https://api.example.com', isOfficial: true, isEnabled: true, hasApiKey: true, createdAt: 0, updatedAt: 0 },
         workspacePath: '/workspace',
         mode: 'hybrid',
       })
@@ -368,13 +395,13 @@ describe('agentRuntime 行为', () => {
       cleanupTasks([result.taskId])
     })
 
-    it('高层 task 参数缺少 modelId 时拒绝启动', async () => {
+    it('高层 task 参数缺少 model 时拒绝启动', async () => {
       const store = createSessionStore()
       const runtime = new AgentRuntime(createSessionConfig({ sessionStore: store }))
 
       await expect(runtime.startTask(createValidSessionStartInput({
-        modelId: '',
-      }))).rejects.toThrow('missing modelId')
+        model: { id: '', model: '', name: '', providerId: '', contextLength: 0 },
+      }))).rejects.toThrow('missing model')
       expect(store.createUserMessage).not.toHaveBeenCalled()
     })
 
@@ -388,39 +415,27 @@ describe('agentRuntime 行为', () => {
       expect(store.createUserMessage).not.toHaveBeenCalled()
     })
 
-    it('找不到模型时不创建用户消息', async () => {
-      const store = createSessionStore()
+    it('找不到会话时不创建用户消息', async () => {
+      const store = createSessionStore({
+        getConversation: vi.fn(async () => null),
+      })
       const runtime = new AgentRuntime(createSessionConfig({
         sessionStore: store,
-        modelCatalog: {
-          getModelById: vi.fn(async () => null),
-          getProviderById: vi.fn(),
-        },
       }))
 
-      await expect(runtime.startTask(createValidSessionStartInput({
-        modelId: 'missing-model',
-      }))).rejects.toThrow('Model not found: missing-model')
+      await expect(runtime.startTask(createValidSessionStartInput())).rejects.toThrow('Conversation not found: conv-session')
       expect(store.createUserMessage).not.toHaveBeenCalled()
     })
 
-    it('找不到模型 provider 时不创建用户消息', async () => {
-      const store = createSessionStore()
+    it('找不到用户消息时不创建用户消息', async () => {
+      const store = createSessionStore({
+        getMessages: vi.fn(async () => []),
+      })
       const runtime = new AgentRuntime(createSessionConfig({
         sessionStore: store,
-        modelCatalog: {
-          getModelById: vi.fn(async () => ({
-            id: 'model-1',
-            model: 'test-model',
-            name: 'Test Model',
-            providerId: 'missing-provider',
-            contextLength: 128_000,
-          })),
-          getProviderById: vi.fn(async () => null),
-        },
       }))
 
-      await expect(runtime.startTask(createValidSessionStartInput())).rejects.toThrow('Provider not found for model: test-model')
+      await expect(runtime.startTask(createValidSessionStartInput())).rejects.toThrow('User message not found: user-msg-1')
       expect(store.createUserMessage).not.toHaveBeenCalled()
     })
 
@@ -519,6 +534,7 @@ describe('agentRuntime 行为', () => {
         updatedAt: 1,
         settings: {
           modelId: 'model-1',
+          providerId: 'provider-1',
           systemPrompt: '',
           temperature: 0.7,
           maxTokens: 1024,
@@ -540,24 +556,9 @@ describe('agentRuntime 行为', () => {
       const config = createSessionConfig({
         sessionStore: store,
         modelCatalog: {
-          getModelById: vi.fn(async () => ({
-            id: 'model-1',
-            model: 'test-model',
-            name: 'Test Model',
-            providerId: 'provider-1',
-            contextLength: 20_000,
-          })),
-          getProviderById: vi.fn(async () => ({
-            id: 'provider-1',
-            name: 'provider',
-            apiMode: 'openai' as const,
-            apiKey: 'test-key',
-            baseUrl: 'https://example.com',
-            isOfficial: false,
-            isEnabled: true,
-            createdAt: 1,
-            updatedAt: 1,
-          })),
+          resolveModel: vi.fn(),
+          getModel: vi.fn(),
+          getProvider: vi.fn(),
         },
         compactionStrategy: {
           summarize: vi.fn(async () => ({
@@ -577,6 +578,7 @@ describe('agentRuntime 行为', () => {
 
       const firstResult = await runtime.startTask(createValidSessionStartInput({
         prompt: 'inspect project first',
+        model: { id: 'model-1', model: 'gpt-4', name: 'GPT-4', providerId: 'provider-1', contextLength: 20_000 },
       }))
       cleanupTasks([firstResult.taskId])
 
@@ -591,6 +593,7 @@ describe('agentRuntime 行为', () => {
 
       const secondResult = await runtime.startTask(createValidSessionStartInput({
         prompt: 'inspect project again',
+        model: { id: 'model-1', model: 'gpt-4', name: 'GPT-4', providerId: 'provider-1', contextLength: 20_000 },
       }))
 
       const loopCalls = vi.mocked(runAgentLoop).mock.calls
@@ -631,9 +634,9 @@ describe('agentRuntime 行为', () => {
         eventType: 'compaction',
         compactedThroughMessageId: 'a1',
         modelInfo: {
-          provider: 'provider',
+          provider: 'Provider 1',
           providerId: 'provider-1',
-          model: 'test-model',
+          model: 'gpt-4',
         },
         usage: {
           inputTokens: 12000,
@@ -655,6 +658,7 @@ describe('agentRuntime 行为', () => {
         updatedAt: 1,
         settings: {
           modelId: 'model-1',
+          providerId: 'provider-1',
           systemPrompt: '',
           temperature: 0.7,
           maxTokens: 1024,
@@ -683,24 +687,9 @@ describe('agentRuntime 行为', () => {
       const config = createSessionConfig({
         sessionStore: store,
         modelCatalog: {
-          getModelById: vi.fn(async () => ({
-            id: 'model-1',
-            model: 'test-model',
-            name: 'Test Model',
-            providerId: 'provider-1',
-            contextLength: 10_000,
-          })),
-          getProviderById: vi.fn(async () => ({
-            id: 'provider-1',
-            name: 'provider',
-            apiMode: 'openai' as const,
-            apiKey: 'test-key',
-            baseUrl: 'https://example.com',
-            isOfficial: false,
-            isEnabled: true,
-            createdAt: 1,
-            updatedAt: 1,
-          })),
+          resolveModel: vi.fn(),
+          getModel: vi.fn(),
+          getProvider: vi.fn(),
         },
         compactionStrategy: {
           summarize: vi.fn(async () => ({ text: 'usage-based summary' })),
@@ -710,6 +699,7 @@ describe('agentRuntime 行为', () => {
       const runtime = new AgentRuntime(config)
       const result = await runtime.startTask(createValidSessionStartInput({
         prompt: 'x'.repeat(400),
+        model: { id: 'model-1', model: 'gpt-4', name: 'GPT-4', providerId: 'provider-1', contextLength: 10_000 },
       }))
 
       expect(store.createEventMessage).toHaveBeenCalledOnce()
@@ -729,6 +719,7 @@ describe('agentRuntime 行为', () => {
         updatedAt: 1,
         settings: {
           modelId: 'model-1',
+          providerId: 'provider-1',
           systemPrompt: '',
           temperature: 0.7,
           maxTokens: 1024,
@@ -749,24 +740,9 @@ describe('agentRuntime 行为', () => {
       const config = createSessionConfig({
         sessionStore: store,
         modelCatalog: {
-          getModelById: vi.fn(async () => ({
-            id: 'model-1',
-            model: 'test-model',
-            name: 'Test Model',
-            providerId: 'provider-1',
-            contextLength: 20_000,
-          })),
-          getProviderById: vi.fn(async () => ({
-            id: 'provider-1',
-            name: 'provider',
-            apiMode: 'openai' as const,
-            apiKey: 'test-key',
-            baseUrl: 'https://example.com',
-            isOfficial: false,
-            isEnabled: true,
-            createdAt: 1,
-            updatedAt: 1,
-          })),
+          resolveModel: vi.fn(),
+          getModel: vi.fn(),
+          getProvider: vi.fn(),
         },
         compactionStrategy: {
           summarize: vi.fn(async () => {
@@ -776,7 +752,9 @@ describe('agentRuntime 行为', () => {
       })
 
       const runtime = new AgentRuntime(config)
-      const result = await runtime.startTask(createValidSessionStartInput())
+      const result = await runtime.startTask(createValidSessionStartInput({
+        model: { id: 'model-1', model: 'gpt-4', name: 'GPT-4', providerId: 'provider-1', contextLength: 20_000 },
+      }))
 
       expect(store.createEventMessage).toHaveBeenCalledWith({
         convId: 'conv-session',
@@ -791,9 +769,9 @@ describe('agentRuntime 行为', () => {
         content: [{ type: 'text', text: 'summary provider failed' }],
         eventType: 'compaction',
         modelInfo: {
-          provider: 'provider',
+          provider: 'Provider 1',
           providerId: 'provider-1',
-          model: 'test-model',
+          model: 'gpt-4',
         },
         usage: undefined,
       })
@@ -809,6 +787,7 @@ describe('agentRuntime 行为', () => {
         updatedAt: 1,
         settings: {
           modelId: 'model-1',
+          providerId: 'provider-1',
           systemPrompt: '',
           temperature: 0.7,
           maxTokens: 1024,
@@ -847,24 +826,9 @@ describe('agentRuntime 行为', () => {
       const config = createSessionConfig({
         sessionStore: store,
         modelCatalog: {
-          getModelById: vi.fn(async () => ({
-            id: 'model-1',
-            model: 'test-model',
-            name: 'Test Model',
-            providerId: 'provider-1',
-            contextLength: 10_000,
-          })),
-          getProviderById: vi.fn(async () => ({
-            id: 'provider-1',
-            name: 'provider',
-            apiMode: 'openai' as const,
-            apiKey: 'test-key',
-            baseUrl: 'https://example.com',
-            isOfficial: false,
-            isEnabled: true,
-            createdAt: 1,
-            updatedAt: 1,
-          })),
+          resolveModel: vi.fn(),
+          getModel: vi.fn(),
+          getProvider: vi.fn(),
         },
         compactionStrategy: {
           summarize: vi.fn(async () => ({ text: 'unused summary' })),
@@ -872,7 +836,9 @@ describe('agentRuntime 行为', () => {
       })
 
       const runtime = new AgentRuntime(config)
-      const result = await runtime.startTask(createValidSessionStartInput())
+      const result = await runtime.startTask(createValidSessionStartInput({
+        model: { id: 'model-1', model: 'gpt-4', name: 'GPT-4', providerId: 'provider-1', contextLength: 10_000 },
+      }))
 
       expect(store.createEventMessage).not.toHaveBeenCalled()
       expect(store.updateEventMessage).not.toHaveBeenCalled()

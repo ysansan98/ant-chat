@@ -31,6 +31,7 @@ export const DEFAULT_COMPACTION_SETTINGS: Readonly<CompactionSettingsSchema> = O
 // Conversation settings
 export const ConversationsSettingsSchema = z.object({
   modelId: z.string(),
+  providerId: z.string(),
   systemPrompt: z.string(),
   temperature: z.number(),
   maxTokens: z.number(),

@@ -4,6 +4,7 @@ import { createContext } from 'react'
 
 export const DEFAULT_SETTINGS: ConversationsSettingsSchema = {
   modelId: '',
+  providerId: '',
   systemPrompt: '',
   temperature: 0.7,
   maxTokens: 1000,

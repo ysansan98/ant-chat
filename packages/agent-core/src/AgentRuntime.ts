@@ -169,7 +169,7 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
 function isSessionStartOptions(
   options: RuntimeStartInput | AgentRuntimeStartTaskOptions,
 ): options is AgentRuntimeStartTaskOptions {
-  return 'modelId' in options
+  return 'model' in options
 }
 
 function requireSessionStore(config: AgentRuntimeConfig) {

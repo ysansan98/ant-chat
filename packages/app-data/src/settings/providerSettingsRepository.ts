@@ -108,9 +108,25 @@ export class ProviderSettingsRepository {
     return this.store.read().providers.find(provider => provider.id === id) ?? null
   }
 
-  getProviderByModelId(id: string): ProviderConfigSchema | null {
-    const provider = this.store.read().providers.find(provider => Boolean(provider.models[id]))
-    return provider ? toProviderConfig(provider) : null
+  getModel(providerId: string, modelId: string): ProviderConfigModelSchema | null {
+    const provider = this.store.read().providers.find(p => p.id === providerId)
+    if (!provider)
+      return null
+    const model = provider.models[modelId]
+    return model ? toProviderConfigModel(providerId, modelId, model) : null
+  }
+
+  resolveModel(providerId: string, modelId: string): { model: ProviderConfigModelSchema, provider: ProviderConfigSchema } | null {
+    const provider = this.store.read().providers.find(p => p.id === providerId)
+    if (!provider)
+      return null
+    const model = provider.models[modelId]
+    if (!model)
+      return null
+    return {
+      model: toProviderConfigModel(providerId, modelId, model),
+      provider: toProviderConfig(provider),
+    }
   }
 
   getAllAvailableModels(): AllAvailableModelsSchema[] {
@@ -221,16 +237,6 @@ export class ProviderSettingsRepository {
       })
       return { ...settings, providers }
     })
-  }
-
-  getModelById(id: string): ProviderConfigModelSchema | null {
-    for (const provider of this.store.read().providers) {
-      const model = provider.models[id]
-      if (model) {
-        return toProviderConfigModel(provider.id, id, model)
-      }
-    }
-    return null
   }
 
   async migratePlaintextApiKeys(secretStore: SecretStore): Promise<boolean> {

@@ -6,7 +6,7 @@ const DEFAULT_TITLE = 'Untitled'
 export async function runNew(params: {
   appDataContext: AppDataContext
   workspacePath: string
-  modelConfig: { modelId: string, systemPrompt: string, temperature: number, maxTokens: number }
+  modelConfig: { modelId: string, providerId: string, systemPrompt: string, temperature: number, maxTokens: number }
 }): Promise<RunBuiltinCommandResult> {
   const { appDataContext, workspacePath, modelConfig } = params
 
@@ -15,6 +15,7 @@ export async function runNew(params: {
     title: DEFAULT_TITLE,
     settings: {
       modelId: modelConfig.modelId,
+      providerId: modelConfig.providerId,
       systemPrompt: modelConfig.systemPrompt,
       temperature: modelConfig.temperature,
       maxTokens: modelConfig.maxTokens,

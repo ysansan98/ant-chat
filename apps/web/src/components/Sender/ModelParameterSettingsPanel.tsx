@@ -17,11 +17,15 @@ export function ModelParameterSettingsPanel() {
 
   useEffect(() => {
     const fetchModelInfo = async () => {
-      const info = await providerApi.getModelInfoById(settings.modelId)
+      if (!settings.modelId || !settings.providerId) {
+        setModelInfo(null)
+        return
+      }
+      const info = await providerApi.getModelInfoById(settings.modelId, settings.providerId)
       setModelInfo(info)
     }
     fetchModelInfo()
-  }, [settings.modelId])
+  }, [settings.modelId, settings.providerId])
 
   function updateCompaction(partial: Partial<CompactionSettingsSchema>) {
     updateSettings({ compaction: { ...compaction, ...partial } })

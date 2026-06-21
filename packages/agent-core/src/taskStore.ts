@@ -73,6 +73,12 @@ export class TaskStore {
     this.activeByConversation.delete(task.snapshot.conversationId)
     this.tasks.delete(taskId)
   }
+
+  /** Clear all tasks. Used in tests for isolation. */
+  clear(): void {
+    this.tasks.clear()
+    this.activeByConversation.clear()
+  }
 }
 
 export const taskStore = new TaskStore()

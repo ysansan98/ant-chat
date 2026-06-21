@@ -63,7 +63,7 @@ function renderSender(onSubmit = vi.fn()) {
     <TooltipProvider>
       <ChatSettingsContext
         value={{
-          settings: { ...DEFAULT_SETTINGS, modelId: 'test-model' },
+          settings: { ...DEFAULT_SETTINGS, modelId: 'test-model', providerId: 'test-provider' },
           updateSettings: vi.fn(),
         }}
       >

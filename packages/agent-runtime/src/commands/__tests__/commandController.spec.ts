@@ -31,8 +31,9 @@ function mockDeps(overrides: { activeTasks?: Array<{ status: string }> } = {}) {
       delete: vi.fn(),
     },
     modelCatalog: {
-      getModelById: vi.fn(),
-      getProviderById: vi.fn(),
+      getModel: vi.fn(),
+      getProvider: vi.fn(),
+      resolveModel: vi.fn(),
     },
   }
   return {
@@ -66,7 +67,7 @@ describe('commandController 任务守卫', () => {
       cc.runBuiltinCommand({
         id: 'compact',
         conversationId: 'conv-1',
-        modelConfig: { modelId: '', systemPrompt: '', temperature: 0, maxTokens: 0 },
+        modelConfig: { modelId: '', providerId: '', systemPrompt: '', temperature: 0, maxTokens: 0 },
         workspacePath: '',
       }),
     ).rejects.toThrow('Agent task is running')
@@ -80,7 +81,7 @@ describe('commandController 任务守卫', () => {
       cc.runBuiltinCommand({
         id: 'fork',
         conversationId: 'conv-1',
-        modelConfig: { modelId: '', systemPrompt: '', temperature: 0, maxTokens: 0 },
+        modelConfig: { modelId: '', providerId: '', systemPrompt: '', temperature: 0, maxTokens: 0 },
         workspacePath: '',
       }),
     ).rejects.toThrow('Agent task is running')
@@ -93,7 +94,7 @@ describe('commandController 任务守卫', () => {
 
     const result = await cc.runBuiltinCommand({
       id: 'new',
-      modelConfig: { modelId: 'm1', systemPrompt: '', temperature: 0.7, maxTokens: 4096 },
+      modelConfig: { modelId: 'm1', providerId: 'test-provider', systemPrompt: '', temperature: 0.7, maxTokens: 4096 },
       workspacePath: '/ws',
     })
     expect(result.status).toBe('success')
@@ -113,12 +114,12 @@ describe('commandController 任务守卫', () => {
     const cc = createCommandController(deps as any)
 
     deps.appDataContext.messageRepository.create.mockResolvedValue({ id: 'event-1' })
-    deps.appDataContext.modelCatalog.getModelById.mockResolvedValue(null)
+    deps.appDataContext.modelCatalog.resolveModel.mockResolvedValue(null)
 
     const result = await cc.runBuiltinCommand({
       id: 'compact',
       conversationId: 'conv-1',
-      modelConfig: { modelId: 'm1', systemPrompt: '', temperature: 0, maxTokens: 0 },
+      modelConfig: { modelId: 'm1', providerId: 'test-provider', systemPrompt: '', temperature: 0, maxTokens: 0 },
       workspacePath: '',
     })
 
@@ -135,7 +136,7 @@ describe('commandController 任务守卫', () => {
     await expect(
       cc.runBuiltinCommand({
         id: 'unknown-cmd',
-        modelConfig: { modelId: '', systemPrompt: '', temperature: 0, maxTokens: 0 },
+        modelConfig: { modelId: '', providerId: '', systemPrompt: '', temperature: 0, maxTokens: 0 },
         workspacePath: '',
       }),
     ).rejects.toThrow('Unknown built-in command')
@@ -161,7 +162,7 @@ describe('commandController 命令并发', () => {
     const firstPromise = cc.runBuiltinCommand({
       id: 'compact',
       conversationId: 'conv-1',
-      modelConfig: { modelId: 'm1', systemPrompt: '', temperature: 0, maxTokens: 0 },
+      modelConfig: { modelId: 'm1', providerId: 'test-provider', systemPrompt: '', temperature: 0, maxTokens: 0 },
       workspacePath: '',
     })
 
@@ -171,7 +172,7 @@ describe('commandController 命令并发', () => {
       cc.runBuiltinCommand({
         id: 'compact',
         conversationId: 'conv-1',
-        modelConfig: { modelId: 'm1', systemPrompt: '', temperature: 0, maxTokens: 0 },
+        modelConfig: { modelId: 'm1', providerId: 'test-provider', systemPrompt: '', temperature: 0, maxTokens: 0 },
         workspacePath: '',
       }),
     ).rejects.toThrow('already running')
@@ -195,13 +196,13 @@ describe('commandController 命令并发', () => {
       cc.runBuiltinCommand({
         id: 'compact',
         conversationId: 'conv-1',
-        modelConfig: { modelId: 'm1', systemPrompt: '', temperature: 0, maxTokens: 0 },
+        modelConfig: { modelId: 'm1', providerId: 'test-provider', systemPrompt: '', temperature: 0, maxTokens: 0 },
         workspacePath: '',
       }),
       cc.runBuiltinCommand({
         id: 'compact',
         conversationId: 'conv-2',
-        modelConfig: { modelId: 'm1', systemPrompt: '', temperature: 0, maxTokens: 0 },
+        modelConfig: { modelId: 'm1', providerId: 'test-provider', systemPrompt: '', temperature: 0, maxTokens: 0 },
         workspacePath: '',
       }),
     ])
@@ -222,17 +223,19 @@ describe('compact 命令错误和取消', () => {
       settings: { compaction: { enabled: true, thresholdPercent: 70, keepRecentTokens: 16 } },
     })
     deps.appDataContext.messageRepository.listByConversation.mockResolvedValue(compressibleMessages())
-    deps.appDataContext.modelCatalog.getModelById.mockResolvedValue({ id: 'm1', model: 'test-model', providerId: 'provider-1' })
-    deps.appDataContext.modelCatalog.getProviderById.mockResolvedValue({
-      id: 'provider-1',
-      name: 'provider',
-      apiMode: 'openai',
-      apiKey: 'test-key',
-      baseUrl: 'https://example.com',
-      isOfficial: false,
-      isEnabled: true,
-      createdAt: 1,
-      updatedAt: 1,
+    deps.appDataContext.modelCatalog.resolveModel.mockResolvedValue({
+      model: { id: 'm1', model: 'test-model', providerId: 'provider-1' },
+      provider: {
+        id: 'provider-1',
+        name: 'provider',
+        apiMode: 'openai',
+        apiKey: 'test-key',
+        baseUrl: 'https://example.com',
+        isOfficial: false,
+        isEnabled: true,
+        createdAt: 1,
+        updatedAt: 1,
+      },
     })
 
     const loadingEvent = {
@@ -257,7 +260,7 @@ describe('compact 命令错误和取消', () => {
     const result = await cc.runBuiltinCommand({
       id: 'compact',
       conversationId: 'conv-1',
-      modelConfig: { modelId: 'm1', systemPrompt: '', temperature: 0, maxTokens: 0 },
+      modelConfig: { modelId: 'm1', providerId: 'test-provider', systemPrompt: '', temperature: 0, maxTokens: 0 },
       workspacePath: '',
     })
 
@@ -275,13 +278,13 @@ describe('compact 命令错误和取消', () => {
     })
     deps.appDataContext.messageRepository.listByConversation.mockResolvedValue(compressibleMessages())
     deps.appDataContext.messageRepository.create.mockResolvedValue({ id: 'event-1' })
-    deps.appDataContext.modelCatalog.getModelById.mockResolvedValue(null)
+    deps.appDataContext.modelCatalog.resolveModel.mockResolvedValue(null)
 
     const cc = createCommandController(deps as any)
     const result = await cc.runBuiltinCommand({
       id: 'compact',
       conversationId: 'conv-1',
-      modelConfig: { modelId: 'm1', systemPrompt: '', temperature: 0, maxTokens: 0 },
+      modelConfig: { modelId: 'm1', providerId: 'test-provider', systemPrompt: '', temperature: 0, maxTokens: 0 },
       workspacePath: '',
     })
 
@@ -306,13 +309,13 @@ describe('compact 命令错误和取消', () => {
     const result = await cc.runBuiltinCommand({
       id: 'compact',
       conversationId: 'conv-1',
-      modelConfig: { modelId: 'm1', systemPrompt: '', temperature: 0, maxTokens: 0 },
+      modelConfig: { modelId: 'm1', providerId: 'test-provider', systemPrompt: '', temperature: 0, maxTokens: 0 },
       workspacePath: '',
     })
 
     expect(result.status).toBe('success')
     expect(result.summaryText).toContain('无需压缩')
-    expect(deps.appDataContext.modelCatalog.getModelById).not.toHaveBeenCalled()
+    expect(deps.appDataContext.modelCatalog.resolveModel).not.toHaveBeenCalled()
     expect(deps.appDataContext.messageRepository.create).not.toHaveBeenCalled()
   })
 
@@ -334,7 +337,7 @@ describe('compact 命令错误和取消', () => {
     const result = await cc.runBuiltinCommand({
       id: 'compact',
       conversationId: 'conv-1',
-      modelConfig: { modelId: 'm1', systemPrompt: '', temperature: 0, maxTokens: 0 },
+      modelConfig: { modelId: 'm1', providerId: 'test-provider', systemPrompt: '', temperature: 0, maxTokens: 0 },
       workspacePath: '',
     })
 
@@ -342,7 +345,7 @@ describe('compact 命令错误和取消', () => {
       status: 'success',
       summaryText: '当前上下文不足，无需压缩。',
     })
-    expect(deps.appDataContext.modelCatalog.getModelById).not.toHaveBeenCalled()
+    expect(deps.appDataContext.modelCatalog.resolveModel).not.toHaveBeenCalled()
     expect(deps.appDataContext.messageRepository.create).not.toHaveBeenCalled()
   })
 
@@ -372,24 +375,26 @@ describe('compact 命令错误和取消', () => {
       { id: 'u2', convId: 'conv-1', role: 'user', status: 'success', content: [{ type: 'text', text: 'new user request' }], createdAt: 6 },
     ])
     deps.appDataContext.messageRepository.create.mockResolvedValue({ id: 'event-2' })
-    deps.appDataContext.modelCatalog.getModelById.mockResolvedValue({ id: 'm1', model: 'test-model', providerId: 'provider-1' })
-    deps.appDataContext.modelCatalog.getProviderById.mockResolvedValue({
-      id: 'provider-1',
-      name: 'provider',
-      apiMode: 'openai',
-      apiKey: 'test-key',
-      baseUrl: 'https://example.com',
-      isOfficial: false,
-      isEnabled: true,
-      createdAt: 1,
-      updatedAt: 1,
+    deps.appDataContext.modelCatalog.resolveModel.mockResolvedValue({
+      model: { id: 'm1', model: 'test-model', providerId: 'provider-1' },
+      provider: {
+        id: 'provider-1',
+        name: 'provider',
+        apiMode: 'openai',
+        apiKey: 'test-key',
+        baseUrl: 'https://example.com',
+        isOfficial: false,
+        isEnabled: true,
+        createdAt: 1,
+        updatedAt: 1,
+      },
     })
 
     const cc = createCommandController(deps as any)
     const result = await cc.runBuiltinCommand({
       id: 'compact',
       conversationId: 'conv-1',
-      modelConfig: { modelId: 'm1', systemPrompt: '', temperature: 0, maxTokens: 0 },
+      modelConfig: { modelId: 'm1', providerId: 'test-provider', systemPrompt: '', temperature: 0, maxTokens: 0 },
       workspacePath: '',
     })
 
@@ -425,7 +430,7 @@ describe('compact 命令错误和取消', () => {
     deps.appDataContext.messageRepository.create.mockResolvedValue({ id: 'event-1' })
 
     let rejectModelLookup: (reason?: unknown) => void
-    deps.appDataContext.modelCatalog.getModelById.mockReturnValue(new Promise((_, reject) => {
+    deps.appDataContext.modelCatalog.resolveModel.mockReturnValue(new Promise((_, reject) => {
       rejectModelLookup = reject
     }))
 
@@ -433,7 +438,7 @@ describe('compact 命令错误和取消', () => {
     const runPromise = cc.runBuiltinCommand({
       id: 'compact',
       conversationId: 'conv-1',
-      modelConfig: { modelId: 'm1', systemPrompt: '', temperature: 0, maxTokens: 0 },
+      modelConfig: { modelId: 'm1', providerId: 'test-provider', systemPrompt: '', temperature: 0, maxTokens: 0 },
       workspacePath: '',
     })
 
@@ -491,24 +496,26 @@ describe('compact 命令错误和取消', () => {
       eventType: 'compaction',
       createdAt: 6,
     })
-    deps.appDataContext.modelCatalog.getModelById.mockResolvedValue({ id: 'm1', model: 'test-model', providerId: 'provider-1' })
-    deps.appDataContext.modelCatalog.getProviderById.mockResolvedValue({
-      id: 'provider-1',
-      name: 'provider',
-      apiMode: 'openai',
-      apiKey: 'test-key',
-      baseUrl: 'https://example.com',
-      isOfficial: false,
-      isEnabled: true,
-      createdAt: 1,
-      updatedAt: 1,
+    deps.appDataContext.modelCatalog.resolveModel.mockResolvedValue({
+      model: { id: 'm1', model: 'test-model', providerId: 'provider-1' },
+      provider: {
+        id: 'provider-1',
+        name: 'provider',
+        apiMode: 'openai',
+        apiKey: 'test-key',
+        baseUrl: 'https://example.com',
+        isOfficial: false,
+        isEnabled: true,
+        createdAt: 1,
+        updatedAt: 1,
+      },
     })
 
     const cc = createCommandController(deps as any)
     const runPromise = cc.runBuiltinCommand({
       id: 'compact',
       conversationId: 'conv-1',
-      modelConfig: { modelId: 'm1', systemPrompt: '', temperature: 0, maxTokens: 0 },
+      modelConfig: { modelId: 'm1', providerId: 'test-provider', systemPrompt: '', temperature: 0, maxTokens: 0 },
       workspacePath: '',
     })
 
@@ -563,7 +570,7 @@ describe('fork 命令', () => {
     const result = await cc.runBuiltinCommand({
       id: 'fork',
       conversationId: 'conv-1',
-      modelConfig: { modelId: 'm1', systemPrompt: '', temperature: 0, maxTokens: 0 },
+      modelConfig: { modelId: 'm1', providerId: 'test-provider', systemPrompt: '', temperature: 0, maxTokens: 0 },
       workspacePath: '/ws',
     })
 
@@ -629,7 +636,7 @@ describe('fork 命令', () => {
     const result = await cc.runBuiltinCommand({
       id: 'fork',
       conversationId: 'conv-1',
-      modelConfig: { modelId: 'm1', systemPrompt: '', temperature: 0, maxTokens: 0 },
+      modelConfig: { modelId: 'm1', providerId: 'test-provider', systemPrompt: '', temperature: 0, maxTokens: 0 },
       workspacePath: '/ws',
     })
 
@@ -670,7 +677,7 @@ describe('fork 命令', () => {
     const firstPromise = cc.runBuiltinCommand({
       id: 'fork',
       conversationId: 'conv-1',
-      modelConfig: { modelId: 'm1', systemPrompt: '', temperature: 0, maxTokens: 0 },
+      modelConfig: { modelId: 'm1', providerId: 'test-provider', systemPrompt: '', temperature: 0, maxTokens: 0 },
       workspacePath: '/ws',
     })
 
@@ -680,7 +687,7 @@ describe('fork 命令', () => {
       cc.runBuiltinCommand({
         id: 'fork',
         conversationId: 'conv-1',
-        modelConfig: { modelId: 'm1', systemPrompt: '', temperature: 0, maxTokens: 0 },
+        modelConfig: { modelId: 'm1', providerId: 'test-provider', systemPrompt: '', temperature: 0, maxTokens: 0 },
         workspacePath: '/ws',
       }),
     ).rejects.toThrow('already running')

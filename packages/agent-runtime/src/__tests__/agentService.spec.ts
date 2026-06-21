@@ -41,6 +41,7 @@ const conversation = {
   updatedAt: 1,
   settings: {
     modelId: 'model-1',
+    providerId: 'provider-1',
     systemPrompt: 'custom',
     temperature: 0.2,
     maxTokens: 2048,
@@ -65,8 +66,9 @@ const appDataContext = {
     getCurrentWorkspacePath: vi.fn(() => '/workspace'),
   },
   modelCatalog: {
-    getModelById: vi.fn(async () => model),
-    getProviderById: vi.fn(async () => provider),
+    resolveModel: vi.fn(async () => ({ model, provider })),
+    getModel: vi.fn(async () => model),
+    getProvider: vi.fn(async () => provider),
   },
   conversationRepository: {
     create: vi.fn(async () => conversation),
@@ -81,7 +83,7 @@ const appDataContext = {
     add: vi.fn(),
   },
   settingsRepository: {
-    getGeneralSettings: vi.fn(async () => ({ assistantModelId: '', proxySettings: { mode: 'none', customProxyUrl: '' } })),
+    getGeneralSettings: vi.fn(async () => ({ assistantModelId: '', assistantProviderId: '', proxySettings: { mode: 'none', customProxyUrl: '' } })),
   },
 } as unknown as AppDataContext
 
@@ -103,6 +105,7 @@ describe('createAgentRuntimeController 行为', () => {
       prompt: 'inspect project',
       modelConfig: {
         modelId: 'model-1',
+        providerId: 'provider-1',
         systemPrompt: 'custom',
         temperature: 0.2,
         maxTokens: 2048,
@@ -112,14 +115,14 @@ describe('createAgentRuntimeController 行为', () => {
       },
     })
 
-    expect(appDataContext.modelCatalog.getModelById).toHaveBeenCalledWith('model-1')
-    expect(appDataContext.modelCatalog.getProviderById).toHaveBeenCalledWith('provider-1')
+    expect(appDataContext.modelCatalog.resolveModel).toHaveBeenCalledWith({ providerId: 'provider-1', modelId: 'model-1' })
     expect(aiProviderFactory).toHaveBeenCalledWith({ model, provider })
     expect(appDataContext.conversationRepository.create).toHaveBeenCalledWith(expect.objectContaining({
       title: 'Untitled',
       workspacePath: '/workspace',
       settings: {
         modelId: 'model-1',
+        providerId: 'provider-1',
         systemPrompt: 'custom',
         temperature: 0.2,
         maxTokens: 2048,
@@ -136,7 +139,8 @@ describe('createAgentRuntimeController 行为', () => {
       prompt: 'inspect project',
       conversationId: 'c1',
       userMessageId: 'm1',
-      modelId: 'model-1',
+      model,
+      provider,
       workspacePath: '/workspace',
       aiProvider,
       mode: 'hybrid',
@@ -168,6 +172,7 @@ describe('createAgentRuntimeController 行为', () => {
       ],
       modelConfig: {
         modelId: 'model-1',
+        providerId: 'provider-1',
         systemPrompt: 'custom',
         temperature: 0.2,
         maxTokens: 2048,
@@ -202,6 +207,7 @@ describe('createAgentRuntimeController 行为', () => {
       prompt: 'inspect project',
       modelConfig: {
         modelId: 'model-1',
+        providerId: 'provider-1',
         systemPrompt: 'custom',
         temperature: 0.2,
         maxTokens: 2048,
@@ -232,6 +238,7 @@ describe('createAgentRuntimeController 行为', () => {
       prompt: 'inspect project',
       modelConfig: {
         modelId: 'model-1',
+        providerId: 'provider-1',
         systemPrompt: 'custom',
         temperature: 0.2,
         maxTokens: 2048,
@@ -242,13 +249,14 @@ describe('createAgentRuntimeController 行为', () => {
     })
     await new Promise(resolve => setTimeout(resolve, 0))
 
-    expect(titleGenerator.updateTitle).toHaveBeenCalledWith('c1', 'model-1')
+    expect(titleGenerator.updateTitle).toHaveBeenCalledWith('c1', { providerId: 'provider-1', modelId: 'model-1' })
     expect(emitConversationUpdated).toHaveBeenCalledWith(titledConversation)
   })
 
   it('初始化标题优先使用设置页面配置的助手模型', async () => {
     vi.mocked(appDataContext.settingsRepository.getGeneralSettings).mockResolvedValueOnce({
       assistantModelId: 'assistant-model-9',
+      assistantProviderId: 'provider-1',
       proxySettings: { mode: 'none', customProxyUrl: '' },
     })
     const titledConversation = { ...conversation, title: '项目检查' }
@@ -266,6 +274,7 @@ describe('createAgentRuntimeController 行为', () => {
       prompt: 'inspect project',
       modelConfig: {
         modelId: 'model-1',
+        providerId: 'provider-1',
         systemPrompt: 'custom',
         temperature: 0.2,
         maxTokens: 2048,
@@ -277,7 +286,7 @@ describe('createAgentRuntimeController 行为', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
 
     expect(appDataContext.settingsRepository.getGeneralSettings).toHaveBeenCalled()
-    expect(titleGenerator.updateTitle).toHaveBeenCalledWith('c1', 'assistant-model-9')
+    expect(titleGenerator.updateTitle).toHaveBeenCalledWith('c1', { providerId: 'provider-1', modelId: 'assistant-model-9' })
   })
 
   it('读取助手模型设置失败时回退到当前对话模型生成标题', async () => {
@@ -297,6 +306,7 @@ describe('createAgentRuntimeController 行为', () => {
       prompt: 'inspect project',
       modelConfig: {
         modelId: 'model-1',
+        providerId: 'provider-1',
         systemPrompt: 'custom',
         temperature: 0.2,
         maxTokens: 2048,
@@ -307,7 +317,7 @@ describe('createAgentRuntimeController 行为', () => {
     })
     await new Promise(resolve => setTimeout(resolve, 0))
 
-    expect(titleGenerator.updateTitle).toHaveBeenCalledWith('c1', 'model-1')
+    expect(titleGenerator.updateTitle).toHaveBeenCalledWith('c1', { providerId: 'provider-1', modelId: 'model-1' })
     expect(emitConversationUpdated).toHaveBeenCalledWith(titledConversation)
   })
 

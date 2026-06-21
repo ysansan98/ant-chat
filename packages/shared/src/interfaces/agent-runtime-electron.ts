@@ -15,6 +15,7 @@ export interface StartAgentTurnOptions {
   mode?: AgentMode
   modelConfig: Omit<ModelSettings, 'model' | 'features'> & {
     modelId: string
+    providerId: string
     features: ChatFeatures
   }
 }

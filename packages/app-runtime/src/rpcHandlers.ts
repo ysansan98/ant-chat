@@ -8,7 +8,7 @@ export type AppRpcHandlers = {
 export function createAppRpcHandlers(runtime: AppRuntime): AppRpcHandlers {
   return {
     'chat.createConversationsTitle': async (input) => {
-      const conversation = await runtime.chat.createConversationTitle(input.conversationsId, input.modelId)
+      const conversation = await runtime.chat.createConversationTitle(input.conversationsId, input.modelId, input.providerId)
       if (!conversation) {
         throw new Error(`Conversation title was not updated: ${input.conversationsId}`)
       }
@@ -38,13 +38,12 @@ export function createAppRpcHandlers(runtime: AppRuntime): AppRpcHandlers {
     'provider.updateProvider': input => runtime.provider.update(input.config),
     'provider.deleteProvider': input => runtime.provider.delete(input.id),
     'provider.getProviderById': input => runtime.provider.getById(input.id),
-    'provider.getProviderByModelId': input => runtime.provider.getByModelId(input.id),
     'provider.getAllAbvailableModels': () => runtime.provider.listAvailableModels(),
     'provider.listProviderModels': input => runtime.provider.listModels(input.id),
     'provider.setModelEnabledStatus': input => runtime.provider.setModelEnabled(input.id, input.status),
     'provider.createProviderModel': input => runtime.provider.createModel(input.config),
     'provider.deleteProviderModel': input => runtime.provider.deleteModel(input.id),
-    'provider.getModelById': input => runtime.provider.getModel(input.id),
+    'provider.getModel': input => runtime.provider.getModel(input.providerId, input.modelId),
     'provider.getModelsDevProviders': () => runtime.provider.getModelsDevProviders(),
     'provider.getModelsDevModelsByProviderId': input => runtime.provider.getModelsDevModels(input.providerId),
     'provider.importModelsDevModels': input => runtime.provider.importModelsDevModels(input.providerId),

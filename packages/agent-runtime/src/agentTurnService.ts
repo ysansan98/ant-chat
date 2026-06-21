@@ -39,15 +39,15 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
         ?? appDataContext.workspaceService.getCurrentWorkspacePath()
         ?? process.cwd()
 
-      const model = await appDataContext.modelCatalog.getModelById(options.modelConfig.modelId)
-      if (!model) {
-        throw new Error(`Model not found: ${options.modelConfig.modelId}`)
+      const resolved = await appDataContext.modelCatalog.resolveModel({
+        providerId: options.modelConfig.providerId,
+        modelId: options.modelConfig.modelId,
+      })
+      if (!resolved) {
+        throw new Error(`Model not found: ${options.modelConfig.providerId}/${options.modelConfig.modelId}`)
       }
 
-      const provider = await appDataContext.modelCatalog.getProviderById(model.providerId)
-      if (!provider) {
-        throw new Error(`Provider not found for model: ${model.model}`)
-      }
+      const { model, provider } = resolved
 
       const aiProvider = aiProviderFactory
         ? await aiProviderFactory({ model, provider })
@@ -66,6 +66,7 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
               workspacePath,
               settings: {
                 modelId: options.modelConfig.modelId,
+                providerId: options.modelConfig.providerId,
                 systemPrompt: options.modelConfig.systemPrompt ?? '',
                 temperature: options.modelConfig.temperature ?? 0.7,
                 maxTokens: options.modelConfig.maxTokens ?? 4096,
@@ -92,7 +93,8 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
           prompt,
           conversationId: conversation.id,
           userMessageId: userMessage.id,
-          modelId: options.modelConfig.modelId,
+          model,
+          provider,
           workspacePath,
           aiProvider,
           mode: options.mode ?? 'hybrid',
@@ -109,6 +111,7 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
         scheduleTitleInitialization({
           conversationId: result.conversationId,
           fallbackModelId: options.modelConfig.modelId,
+          fallbackProviderId: options.modelConfig.providerId,
           appDataContext,
           shouldInitializeTitle: conversationState.created || conversation.title === DEFAULT_TITLE,
           titleGenerator,
@@ -141,6 +144,7 @@ function resolveUserMessageContent(content: IMessageContent | undefined, prompt:
 function scheduleTitleInitialization(params: {
   conversationId: string
   fallbackModelId: string
+  fallbackProviderId: string
   appDataContext: AppDataContext
   shouldInitializeTitle: boolean
   titleGenerator?: ConversationTitleGenerator
@@ -150,6 +154,7 @@ function scheduleTitleInitialization(params: {
   const {
     conversationId,
     fallbackModelId,
+    fallbackProviderId,
     appDataContext,
     shouldInitializeTitle,
     titleGenerator,
@@ -161,8 +166,8 @@ function scheduleTitleInitialization(params: {
   }
 
   // 优先使用设置页面配置的助手模型生成标题，未配置或读取失败时回退到当前对话模型
-  void resolveTitleModelId(appDataContext, fallbackModelId, logger)
-    .then(modelId => titleGenerator.updateTitle(conversationId, modelId))
+  void resolveTitleModelId(appDataContext, fallbackModelId, fallbackProviderId, logger)
+    .then(modelRef => titleGenerator.updateTitle(conversationId, modelRef))
     .then((conversation) => {
       emitConversationUpdated?.(conversation)
     })
@@ -172,23 +177,26 @@ function scheduleTitleInitialization(params: {
 }
 
 /**
- * 解析生成标题使用的模型 ID：
- * 优先返回设置页面配置的助手模型（assistantModelId），
+ * 解析生成标题使用的模型引用：
+ * 优先返回设置页面配置的助手模型（assistantModelId + assistantProviderId），
  * 未配置或读取设置失败时回退到当前对话使用的模型。
  */
 async function resolveTitleModelId(
   appDataContext: AppDataContext,
   fallbackModelId: string,
+  fallbackProviderId: string,
   logger?: ILogger,
-): Promise<string> {
+): Promise<{ providerId: string, modelId: string }> {
   try {
-    const { assistantModelId } = await appDataContext.settingsRepository.getGeneralSettings()
-    return assistantModelId || fallbackModelId
+    const { assistantModelId, assistantProviderId } = await appDataContext.settingsRepository.getGeneralSettings()
+    if (assistantModelId && assistantProviderId) {
+      return { providerId: assistantProviderId, modelId: assistantModelId }
+    }
   }
   catch (error) {
     logger?.warn('读取助手模型设置失败，回退到对话模型生成标题', error)
-    return fallbackModelId
   }
+  return { providerId: fallbackProviderId, modelId: fallbackModelId }
 }
 
 async function rollbackStartedTurn(params: {

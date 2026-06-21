@@ -29,8 +29,8 @@ export const providerApi = {
     return getAppRpcClient().call('provider.getProviderById', { id })
   },
 
-  getProviderByModelId: async (id: string): Promise<ProviderConfigSchema> => {
-    return getAppRpcClient().call('provider.getProviderByModelId', { id })
+  getModelInfoById: async (modelId: string, providerId: string): Promise<ProviderConfigModelSchema> => {
+    return getAppRpcClient().call('provider.getModel', { providerId, modelId })
   },
 
   getAllAbvailableModels: async (): Promise<AllAvailableModelsSchema[]> => {
@@ -57,10 +57,6 @@ export const providerApi = {
     const result = await getAppRpcClient().call('provider.deleteProviderModel', { id })
     emitProviderChanged()
     return result
-  },
-
-  getModelInfoById: async (id: string): Promise<ProviderConfigModelSchema> => {
-    return getAppRpcClient().call('provider.getModelById', { id })
   },
 
   getModelsDevProviders: async (): Promise<ModelsDevProvider[]> => {

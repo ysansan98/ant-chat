@@ -52,19 +52,20 @@ export async function runCompact(params: {
     return { status: 'success', summaryText: '当前上下文不足，无需压缩。' }
   }
 
-  let modelInfo: Awaited<ReturnType<AppDataContext['modelCatalog']['getModelById']>>
-  let provider: Awaited<ReturnType<AppDataContext['modelCatalog']['getProviderById']>>
+  let resolved: Awaited<ReturnType<AppDataContext['modelCatalog']['resolveModel']>>
+  let modelInfo: NonNullable<typeof resolved>['model']
+  let provider: NonNullable<typeof resolved>['provider']
   try {
-    modelInfo = await appDataContext.modelCatalog.getModelById(modelConfig.modelId)
-    if (!modelInfo) {
+    resolved = await appDataContext.modelCatalog.resolveModel({
+      providerId: conversation.settings.providerId,
+      modelId: modelConfig.modelId,
+    })
+    if (!resolved) {
       throw new Error(`未找到压缩模型：${modelConfig.modelId}`)
     }
-    log(`model found: name=${modelInfo.model}, providerId=${modelInfo.providerId}`)
-
-    provider = await appDataContext.modelCatalog.getProviderById(modelInfo.providerId)
-    if (!provider) {
-      throw new Error(`未找到模型对应的 Provider：${modelInfo.providerId}`)
-    }
+    log(`model found: name=${resolved.model.model}, providerId=${resolved.model.providerId}`)
+    modelInfo = resolved.model
+    provider = resolved.provider
   }
   catch (err) {
     if (abortSignal?.aborted) {
