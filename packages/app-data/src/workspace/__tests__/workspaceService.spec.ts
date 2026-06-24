@@ -105,4 +105,39 @@ describe('workspaceService currentWorkspacePath 整合', () => {
       rmSync(dir, { force: true, recursive: true })
     }
   })
+
+  it('reorderWorkspaces 按传入路径顺序持久化工作区列表', () => {
+    const firstDir = mkdtempSync(path.join(tmpdir(), 'ant-chat-ws-first-'))
+    const secondDir = mkdtempSync(path.join(tmpdir(), 'ant-chat-ws-second-'))
+    try {
+      service.addWorkspace(firstDir)
+      service.addWorkspace(secondDir)
+      const before = service.listWorkspaces().workspaces
+      const nextPaths = [before[2].path, before[0].path, before[1].path]
+
+      const reordered = service.reorderWorkspaces(nextPaths)
+      const raw = JSON.parse(readFileSync(configPath, 'utf8')) as { workspaces: Array<{ path: string }> }
+
+      expect(reordered.workspaces.map(item => item.path)).toEqual(nextPaths)
+      expect(raw.workspaces.map(item => item.path)).toEqual(nextPaths)
+    }
+    finally {
+      rmSync(firstDir, { force: true, recursive: true })
+      rmSync(secondDir, { force: true, recursive: true })
+    }
+  })
+
+  it('reorderWorkspaces 拒绝缺失或重复的路径', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'ant-chat-ws-reorder-invalid-'))
+    try {
+      service.addWorkspace(dir)
+      const paths = service.listWorkspaces().workspaces.map(item => item.path)
+
+      expect(() => service.reorderWorkspaces([paths[0]])).toThrow('WORKSPACE_INVALID_PATH')
+      expect(() => service.reorderWorkspaces([paths[0], paths[0]])).toThrow('WORKSPACE_INVALID_PATH')
+    }
+    finally {
+      rmSync(dir, { force: true, recursive: true })
+    }
+  })
 })

@@ -126,6 +126,28 @@ export class WorkspaceService {
     return this.listWorkspaces()
   }
 
+  reorderWorkspaces(workspacePaths: string[]): ListWorkspacesData {
+    const config = this.ensureInitialized()
+    const normalizedPaths = workspacePaths.map(item => this.normalizeExistingDirectory(item))
+    const existingPaths = new Set(config.workspaces.map(item => item.path))
+    const requestedPaths = new Set(normalizedPaths)
+
+    if (
+      normalizedPaths.length !== config.workspaces.length
+      || requestedPaths.size !== normalizedPaths.length
+      || normalizedPaths.some(item => !existingPaths.has(item))
+    ) {
+      throw new Error(WORKSPACE_INVALID_PATH)
+    }
+
+    const workspaceByPath = new Map(config.workspaces.map(item => [item.path, item]))
+    this.saveConfig({
+      workspaces: normalizedPaths.map(item => workspaceByPath.get(item)!),
+    })
+
+    return this.listWorkspaces()
+  }
+
   listDirectories(inputPath?: string): WorkspaceDirectoryListing {
     const targetPath = inputPath ? path.resolve(inputPath) : os.homedir()
     const normalizedPath = path.normalize(targetPath)

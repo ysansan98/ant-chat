@@ -2,6 +2,9 @@ import type {
   IConversations,
   WorkspaceItem,
 } from '@ant-chat/shared'
+import type { DraggableProvidedDragHandleProps, DropResult } from '@hello-pangea/dnd'
+import type { CSSProperties } from 'react'
+import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@workspace/ui/components/alert-dialog'
 import { Button } from '@workspace/ui/components/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@workspace/ui/components/dropdown-menu'
@@ -35,6 +38,8 @@ interface WorkspacePanelsProps {
   onNavigate?: () => void
 }
 
+const EMPTY_WORKSPACES: WorkspaceItem[] = []
+
 export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
   const navigate = useNavigate()
   const currentConversations = useConversationsStore(
@@ -52,6 +57,7 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
   const openWorkspace = useWorkspaceStore(state => state.openWorkspace)
   const addWorkspace = useWorkspaceStore(state => state.addWorkspace)
   const removeWorkspace = useWorkspaceStore(state => state.removeWorkspace)
+  const reorderWorkspaces = useWorkspaceStore(state => state.reorderWorkspaces)
   const activeConversationsId = useMessagesStore(
     state => state.activeConversationsId,
   )
@@ -60,7 +66,12 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
   )
   const [panelError, setPanelError] = useState('')
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [optimisticWorkspacePaths, setOptimisticWorkspacePaths] = useState<string[] | null>(null)
   const initializedRef = useRef(false)
+  const workspaces = workspaceData?.workspaces ?? EMPTY_WORKSPACES
+  const visibleWorkspaces = optimisticWorkspacePaths
+    ? orderWorkspacesByPaths(workspaces, optimisticWorkspacePaths)
+    : workspaces
 
   const initialize = useCallback(async () => {
     if (initializedRef.current) {
@@ -161,6 +172,38 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
     onNavigate?.()
   }
 
+  async function persistWorkspaceOrder(nextWorkspaces: WorkspaceItem[]) {
+    const nextPaths = nextWorkspaces.map(item => item.path)
+    const currentPaths = visibleWorkspaces.map(item => item.path)
+    if (nextPaths.every((path, index) => path === currentPaths[index])) {
+      return
+    }
+
+    setOptimisticWorkspacePaths(nextPaths)
+    try {
+      setPanelError('')
+      await reorderWorkspaces(nextPaths)
+      setOptimisticWorkspacePaths(null)
+    }
+    catch (error) {
+      setPanelError((error as Error).message)
+      setOptimisticWorkspacePaths(null)
+      await refreshWorkspace()
+    }
+  }
+
+  function handleDragEnd(result: DropResult) {
+    if (!result.destination || result.source.index === result.destination.index) {
+      return
+    }
+
+    void persistWorkspaceOrder(reorderWorkspaceItems(
+      visibleWorkspaces,
+      result.source.index,
+      result.destination.index,
+    ))
+  }
+
   useEffect(() => {
     let cancelled = false
     const timer = window.setTimeout(() => {
@@ -174,8 +217,6 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
       window.clearTimeout(timer)
     }
   }, [initialize])
-
-  const workspaces = workspaceData?.workspaces || []
 
   return (
     <>
@@ -206,27 +247,52 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
           : null}
 
         <div className="mt-2 min-h-0 flex-1 overflow-y-auto pr-1">
-          {workspaces.length > 0
+          {visibleWorkspaces.length > 0
             ? (
-                workspaces.map(item => (
-                  <WorkspacePanel
-                    key={item.path}
-                    item={item}
-                    activeConversationId={activeConversationsId}
-                    expanded={expandedPaths.has(item.path)}
-                    state={getWorkspaceConversationState(
-                      item.path,
-                      currentWorkspacePath,
-                      currentConversations,
-                      currentConversationsTotal,
-                      workspaceConversations,
+                <DragDropContext onDragEnd={handleDragEnd}>
+                  <Droppable droppableId="workspace-list">
+                    {provided => (
+                      <div ref={provided.innerRef} {...provided.droppableProps}>
+                        {visibleWorkspaces.map((item, index) => (
+                          <Draggable
+                            key={item.path}
+                            draggableId={item.path}
+                            index={index}
+                            disableInteractiveElementBlocking
+                          >
+                            {(draggableProvided, snapshot) => (
+                              <div
+                                ref={draggableProvided.innerRef}
+                                {...draggableProvided.draggableProps}
+                                style={draggableProvided.draggableProps.style as CSSProperties | undefined}
+                              >
+                                <WorkspacePanel
+                                  item={item}
+                                  activeConversationId={activeConversationsId}
+                                  expanded={expandedPaths.has(item.path)}
+                                  state={getWorkspaceConversationState(
+                                    item.path,
+                                    currentWorkspacePath,
+                                    currentConversations,
+                                    currentConversationsTotal,
+                                    workspaceConversations,
+                                  )}
+                                  onToggle={toggleWorkspace}
+                                  onOpenConversation={openConversation}
+                                  onCreateConversation={createConversation}
+                                  onDeleteWorkspace={handleDeleteWorkspace}
+                                  dragging={snapshot.isDragging}
+                                  dragHandleProps={draggableProvided.dragHandleProps}
+                                />
+                              </div>
+                            )}
+                          </Draggable>
+                        ))}
+                        {provided.placeholder}
+                      </div>
                     )}
-                    onToggle={toggleWorkspace}
-                    onOpenConversation={openConversation}
-                    onCreateConversation={createConversation}
-                    onDeleteWorkspace={handleDeleteWorkspace}
-                  />
-                ))
+                  </Droppable>
+                </DragDropContext>
               )
             : (
                 <div className="px-3 py-8 text-center text-sm text-slate-400">
@@ -255,6 +321,8 @@ interface WorkspacePanelProps {
   onOpenConversation: (workspacePath: string, conversationId: string) => void
   onCreateConversation: (workspacePath: string) => void
   onDeleteWorkspace: (path: string) => void
+  dragging: boolean
+  dragHandleProps: DraggableProvidedDragHandleProps | null
 }
 
 function WorkspacePanel({
@@ -266,16 +334,22 @@ function WorkspacePanel({
   onOpenConversation,
   onCreateConversation,
   onDeleteWorkspace,
+  dragging,
+  dragHandleProps,
 }: WorkspacePanelProps) {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
 
   return (
     <div className="mb-1">
-      <div className="
-        group flex h-9 w-full items-center gap-1 rounded-md px-2
-        hover:bg-black/5
-        dark:hover:bg-white/10
-      "
+      <div
+        className={`
+          group flex h-9 w-full cursor-grab items-center gap-1 rounded-md px-2 transition
+          active:cursor-grabbing
+          hover:bg-black/5
+          dark:hover:bg-white/10
+          ${dragging ? 'opacity-50 shadow-sm' : ''}
+        `}
+        {...dragHandleProps}
       >
         <button
           type="button"
@@ -301,6 +375,9 @@ function WorkspacePanel({
               variant="ghost"
               size="icon-xs"
               className="opacity-0 group-hover:opacity-100"
+              onPointerDown={event => event.stopPropagation()}
+              onMouseDown={event => event.stopPropagation()}
+              onTouchStart={event => event.stopPropagation()}
               onClick={event => event.stopPropagation()}
             >
               <Ellipsis className="size-4" />
@@ -417,4 +494,32 @@ function getWorkspaceConversationState(
     total: slice?.conversationsTotal || 0,
     loading: !slice?.loaded,
   }
+}
+
+function reorderWorkspaceItems(
+  workspaces: WorkspaceItem[],
+  sourceIndex: number,
+  targetIndex: number,
+): WorkspaceItem[] {
+  const nextWorkspaces = [...workspaces]
+  const [workspace] = nextWorkspaces.splice(sourceIndex, 1)
+  nextWorkspaces.splice(targetIndex, 0, workspace)
+  return nextWorkspaces
+}
+
+function orderWorkspacesByPaths(
+  workspaces: WorkspaceItem[],
+  orderedPaths: string[],
+): WorkspaceItem[] {
+  if (workspaces.length !== orderedPaths.length) {
+    return workspaces
+  }
+
+  const workspaceByPath = new Map(workspaces.map(item => [item.path, item]))
+  const orderedWorkspaces = orderedPaths.map(path => workspaceByPath.get(path))
+  if (orderedWorkspaces.some(item => !item)) {
+    return workspaces
+  }
+
+  return orderedWorkspaces as WorkspaceItem[]
 }

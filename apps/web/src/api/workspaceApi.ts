@@ -17,6 +17,10 @@ async function openWorkspace(path: string): Promise<ListWorkspacesData> {
   return getAppRpcClient().call('workspace.openWorkspace', { path })
 }
 
+async function reorderWorkspaces(paths: string[]): Promise<ListWorkspacesData> {
+  return getAppRpcClient().call('workspace.reorderWorkspaces', { paths })
+}
+
 async function chooseWorkspace(): Promise<ListWorkspacesData | null> {
   return null
 }
@@ -38,6 +42,7 @@ export default {
   addWorkspace,
   removeWorkspace,
   openWorkspace,
+  reorderWorkspaces,
   chooseWorkspace,
   listDirectories,
   createDirectory,

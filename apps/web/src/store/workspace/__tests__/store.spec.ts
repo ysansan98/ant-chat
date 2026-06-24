@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   addWorkspace: vi.fn(),
   openWorkspace: vi.fn(),
   removeWorkspace: vi.fn(),
+  reorderWorkspaces: vi.fn(),
 }))
 
 vi.mock('@/api/workspaceApi', () => ({
@@ -111,5 +112,26 @@ describe('workspaceStore currentWorkspacePath SSOT', () => {
     await useWorkspaceStore.getState().removeWorkspace('/other')
 
     expect(useWorkspaceStore.getState().currentWorkspacePath).toBe('/cur')
+  })
+
+  it('reorderWorkspaces 后只更新列表顺序并保持当前工作区', async () => {
+    useWorkspaceStore.setState({
+      currentWorkspacePath: '/b',
+      workspaceData: makeWorkspaces([
+        { path: '/a', lastOpenedAt: 1 },
+        { path: '/b', lastOpenedAt: 5 },
+        { path: '/c', lastOpenedAt: 3 },
+      ]),
+    })
+    mocks.reorderWorkspaces.mockResolvedValue(makeWorkspaces([
+      { path: '/c', lastOpenedAt: 3 },
+      { path: '/a', lastOpenedAt: 1 },
+      { path: '/b', lastOpenedAt: 5 },
+    ]))
+
+    await useWorkspaceStore.getState().reorderWorkspaces(['/c', '/a', '/b'])
+
+    expect(useWorkspaceStore.getState().workspaceData?.workspaces.map(item => item.path)).toEqual(['/c', '/a', '/b'])
+    expect(useWorkspaceStore.getState().currentWorkspacePath).toBe('/b')
   })
 })

@@ -106,6 +106,7 @@ export interface AppRpcContract {
   'workspace.addWorkspace': RpcEndpoint<{ path: string }, ListWorkspacesData>
   'workspace.removeWorkspace': RpcEndpoint<{ path: string }, ListWorkspacesData>
   'workspace.openWorkspace': RpcEndpoint<{ path: string }, ListWorkspacesData>
+  'workspace.reorderWorkspaces': RpcEndpoint<{ paths: string[] }, ListWorkspacesData>
   'workspace.getDefaultWorkspacePath': RpcEndpoint<undefined, string>
   'workspace.listDirectories': RpcEndpoint<{ path?: string } | undefined, WorkspaceDirectoryListing>
   'workspace.createDirectory': RpcEndpoint<{ parentPath: string, name: string }, { name: string, path: string }>

@@ -369,6 +369,7 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
       add: (path: string) => emitWorkspaceResult(context.workspaceService.addWorkspace(path)),
       remove: (path: string) => emitWorkspaceResult(context.workspaceService.removeWorkspace(path)),
       open: (path: string) => emitWorkspaceResult(context.workspaceService.openWorkspace(path)),
+      reorder: (paths: string[]) => emitWorkspaceResult(context.workspaceService.reorderWorkspaces(paths)),
       getDefaultPath: () => context.workspaceService.getDefaultWorkspacePath(),
       listDirectories: (path?: string) => context.workspaceService.listDirectories(path),
       createDirectory: (parentPath: string, name: string) => context.workspaceService.createDirectory(parentPath, name),
