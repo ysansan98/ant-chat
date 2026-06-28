@@ -61,7 +61,7 @@ export default function BubbleFooter({ message, onCopy, time, modelInfo, duratio
     <MessageActions
       className="
         mt-2 opacity-0 transition-opacity duration-200
-        group-hover:opacity-100 text-xs
+        group-hover/message:opacity-100 text-xs
       "
     >
       <span>{copyButton}</span>

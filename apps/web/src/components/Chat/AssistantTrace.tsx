@@ -216,7 +216,7 @@ function CollapseChevron({ open }: { open: boolean }) {
     <ChevronDownIcon
       className={cn(
         'size-3.5 ml-auto shrink-0 opacity-0 transition-all',
-        'group-hover:opacity-100',
+        'group-hover/trace:opacity-100',
         open && 'rotate-180 opacity-100',
       )}
     />
@@ -236,7 +236,7 @@ function ReasoningStepItem({
     <Collapsible open={open} onOpenChange={() => onToggle(step.id)}>
       <CollapsibleTrigger
         className={cn(
-          'flex w-full items-center gap-1.5 py-1 text-sm transition-colors group',
+          'group/trace flex w-full items-center gap-1.5 py-1 text-sm transition-colors',
           'text-muted-foreground hover:text-foreground',
         )}
       >
@@ -324,7 +324,7 @@ function CompactToolItem({
     <Collapsible open={open} onOpenChange={() => onToggle(tool.id)}>
       <CollapsibleTrigger
         className={cn(
-          'flex w-full min-w-0 items-center gap-1.5 py-1 text-sm transition-colors group',
+          'group/trace flex w-full min-w-0 items-center gap-1.5 py-1 text-sm transition-colors',
           'text-muted-foreground hover:text-foreground',
         )}
       >
@@ -380,7 +380,7 @@ function ToolGroupItem({
     <Collapsible open={open} onOpenChange={() => onToggle(group.id)}>
       <CollapsibleTrigger
         className={cn(
-          'flex w-full items-center gap-1.5 py-1 text-sm transition-colors group',
+          'group/trace flex w-full items-center gap-1.5 py-1 text-sm transition-colors',
           'text-muted-foreground hover:text-foreground',
         )}
       >
