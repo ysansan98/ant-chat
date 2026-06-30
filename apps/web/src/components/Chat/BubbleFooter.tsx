@@ -14,20 +14,25 @@ interface BubbleFooterProps {
   time?: number
   modelInfo?: IModelInfo
   durationMs?: number
+  startedAt?: number
+  running?: boolean
 }
 
 const LIVE_TICK_MS = 200
 
-export default function BubbleFooter({ message, onCopy, time, modelInfo, durationMs }: BubbleFooterProps) {
-  const isRunning = message.status === 'loading' || message.status === 'typing'
-  const startRef = useRef(message.createdAt)
-  const [elapsedMs, dispatchElapsed] = useReducer((_prev: number, action: number) => action, 0)
+export default function BubbleFooter({ message, onCopy, time, modelInfo, durationMs, startedAt = message.createdAt, running }: BubbleFooterProps) {
+  const isRunning = running ?? (message.status === 'loading' || message.status === 'typing')
+  const startRef = useRef(startedAt)
+  const [elapsedMs, dispatchElapsed] = useReducer(
+    (_prev: number, action: number) => action,
+    Math.max(0, Date.now() - startedAt),
+  )
 
   useEffect(() => {
     if (!isRunning || durationMs != null)
       return
 
-    startRef.current = message.createdAt
+    startRef.current = startedAt
     dispatchElapsed(Date.now() - startRef.current)
 
     let frameId: number
@@ -41,7 +46,7 @@ export default function BubbleFooter({ message, onCopy, time, modelInfo, duratio
     }
     frameId = requestAnimationFrame(animate)
     return () => cancelAnimationFrame(frameId)
-  }, [isRunning, durationMs, message.createdAt])
+  }, [isRunning, durationMs, startedAt])
 
   const displayMs = durationMs ?? (isRunning ? elapsedMs : undefined)
 
@@ -76,7 +81,7 @@ export default function BubbleFooter({ message, onCopy, time, modelInfo, duratio
       }
       {
         displayMs != null && (
-          <span className="inline-flex items-center gap-1 text-muted-foreground">
+          <span className="inline-flex items-center gap-1 text-muted-foreground tabular-nums">
             <ClockIcon className="size-3" />
             耗时
             {formatDuration(displayMs)}

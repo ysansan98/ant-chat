@@ -63,7 +63,7 @@ export function MessageBubble({ messages, onCopyMessage }: MessageBubbleProps) {
   const assistantMessages = messages.filter(m => m.role === 'assistant')
   const lastAssistant = assistantMessages.at(-1)
   const footerMessage = lastAssistant || message
-  const isRunning = lastAssistant?.role === 'assistant'
+  const isAssistantStreaming = lastAssistant?.role === 'assistant'
     && (
       lastAssistant.status === 'loading'
       || lastAssistant.status === 'typing'
@@ -157,6 +157,9 @@ export function MessageBubble({ messages, onCopyMessage }: MessageBubbleProps) {
   const shouldShowProcess = isAI && processEntries.length > 0
 
   const taskDurationMs = lastAssistant?.durationMs
+  const taskStartedAt = assistantMessages[0]?.createdAt ?? footerMessage.createdAt
+  const isRunning = isAssistantStreaming
+    || (taskDurationMs == null && hasToolCallAfterLastVisibleResponse(assistantMessages))
 
   return (
     <Message
@@ -207,6 +210,8 @@ export function MessageBubble({ messages, onCopyMessage }: MessageBubbleProps) {
             modelInfo={isAI ? footerMessage.modelInfo : undefined}
             onCopy={() => onCopyMessage(footerMessage)}
             durationMs={isAI ? taskDurationMs : undefined}
+            startedAt={isAI ? taskStartedAt : undefined}
+            running={isAI ? isRunning : undefined}
           />
         </div>
       </div>
@@ -365,7 +370,9 @@ function splitTurnMessages(messages: IMessage[]): ProcessSplit {
       continue
     }
 
-    processEntries.push({ type: 'assistant', message })
+    if (message.reasoningContent || message.content.length > 0) {
+      processEntries.push({ type: 'assistant', message })
+    }
   }
 
   return {
@@ -387,4 +394,19 @@ function hasExecutingToolCalls(msg: IMessage, toolResultMap: Map<string, IMessag
     b.type === 'tool-call'
     && (b.executeState === 'executing' || !toolResultMap.has(b.toolCallId)),
   )
+}
+
+/** Tool 完成后到下一段 assistant 文本出现前，本轮仍处于执行中。 */
+function hasToolCallAfterLastVisibleResponse(messages: IMessage[]): boolean {
+  let lastToolCallIndex = -1
+  let lastVisibleResponseIndex = -1
+
+  messages.forEach((message, index) => {
+    if (messageHasToolCalls(message))
+      lastToolCallIndex = index
+    if (messageHasTextContent(message) && !messageHasToolCalls(message))
+      lastVisibleResponseIndex = index
+  })
+
+  return lastToolCallIndex > lastVisibleResponseIndex
 }

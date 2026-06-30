@@ -31,6 +31,71 @@ function renderBubble(messages: IMessage[]) {
 }
 
 describe('messageBubble', () => {
+  it('首个 assistant 内容为空时不展示空执行过程面板', () => {
+    renderBubble([createAssistantMessage('pending', [], 'loading')])
+
+    expect(screen.queryByText(/执行过程/)).not.toBeInTheDocument()
+  })
+
+  it('tool 完成后等待下一段 assistant 文本时保持执行过程展开', () => {
+    const toolCall = createAssistantMessage('tool-call', [{
+      type: 'tool-call',
+      toolCallId: 'call-1',
+      toolName: 'bash',
+      args: { command: 'pnpm check' },
+      executeState: 'completed',
+    }])
+    const toolResult: IMessage = {
+      id: 'tool-result',
+      convId: 'conv-1',
+      role: 'tool',
+      content: [{
+        type: 'tool-result',
+        toolCallId: 'call-1',
+        toolName: 'bash',
+        result: 'done',
+        isError: false,
+      }],
+      status: 'success',
+      createdAt: 2,
+      turnId: 'turn-1',
+    }
+
+    renderBubble([toolCall, toolResult])
+
+    const panel = screen.getByText('执行过程(1)').closest('[data-slot="collapsible"]')
+    expect(panel).toHaveAttribute('data-state', 'open')
+    expect(screen.getByText('bash')).toBeInTheDocument()
+  })
+
+  it('增量消息切换 footer 后仍按本轮首条 assistant 消息计时', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(11_000)
+
+    const first = createAssistantMessage('tool-call', [
+      {
+        type: 'tool-call',
+        toolCallId: 'call-1',
+        toolName: 'bash',
+        args: { command: 'pnpm check' },
+        executeState: 'executing',
+      },
+    ])
+    first.createdAt = 1_000
+    const second = createAssistantMessage('answer-1', [{ type: 'text', text: '处理中' }], 'typing')
+    second.createdAt = 9_000
+
+    const view = renderBubble([first, second])
+    expect(screen.getByText((_, element) => element?.textContent === '耗时10.0s')).toBeInTheDocument()
+
+    const third = createAssistantMessage('answer-2', [{ type: 'text', text: '继续处理' }], 'typing')
+    third.createdAt = 10_500
+    view.rerender(<MessageBubble messages={[first, second, third]} onCopyMessage={vi.fn()} />)
+
+    expect(screen.getByText((_, element) => element?.textContent === '耗时10.0s')).toBeInTheDocument()
+    vi.useRealTimers()
+  })
+
   it('renders a loading indicator for an active compaction event', () => {
     const { container } = renderBubble([
       {

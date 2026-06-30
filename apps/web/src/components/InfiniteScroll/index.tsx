@@ -28,7 +28,7 @@ interface Props {
 }
 
 export interface ImperativeHandleRef {
-  scrollToBottom: () => void
+  scrollToBottom: (behavior?: ScrollBehavior) => void
   containerRef: React.RefObject<HTMLElement | null>
   // 滚动到指定选择器的元素
   scrollToElement: (selector: string) => void
@@ -54,9 +54,9 @@ export const InfiniteScroll: React.FC<Props> = ({
   const bottomObserverRef = useRef<HTMLDivElement>(null)
   const oldScrollHeightRef = useRef<number>(0)
 
-  const scrollToBottom = () => {
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
     if (containerRef.current) {
-      containerRef.current.scrollTo({ top: containerRef.current.scrollHeight, behavior: 'smooth' })
+      containerRef.current.scrollTo({ top: containerRef.current.scrollHeight, behavior })
     }
   }
 

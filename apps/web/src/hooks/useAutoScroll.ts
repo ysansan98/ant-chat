@@ -38,17 +38,35 @@ export function useAutoScroll() {
   const scrollToBottom = useCallback(() => {
     clearScrollTimer()
     justClickedRef.current = true
-    infiniteScrollRef.current?.scrollToBottom()
+    infiniteScrollRef.current?.scrollToBottom('smooth')
     setAutoScrollToBottom(true)
   }, [clearScrollTimer])
 
-  // 每次 render 后若处于自动滚动模式，保持滚到底部
-  // 跳过用户点击触发的本次 render，避免 effect 二次调用打断 smooth 动画
+  // 增量内容和 tool 面板会连续改变高度。自动追随必须即时锚定底部，
+  // 否则多次 smooth 动画会相互打断，表现为大幅补滚和闪烁。
   useEffect(() => {
     if (autoScrollToBottom && !justClickedRef.current) {
-      infiniteScrollRef.current?.scrollToBottom()
+      infiniteScrollRef.current?.scrollToBottom('auto')
     }
     justClickedRef.current = false
+  })
+
+  useEffect(() => {
+    if (!autoScrollToBottom)
+      return
+
+    const container = infiniteScrollRef.current?.containerRef.current
+    if (!container || typeof ResizeObserver === 'undefined')
+      return
+
+    const observer = new ResizeObserver(() => {
+      infiniteScrollRef.current?.scrollToBottom('auto')
+    })
+    for (const child of container.children) {
+      observer.observe(child)
+    }
+
+    return () => observer.disconnect()
   })
 
   return {

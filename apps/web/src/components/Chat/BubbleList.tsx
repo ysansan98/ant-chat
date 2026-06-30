@@ -149,7 +149,7 @@ function BubbleList({ messages }: Props) {
       >
         {messageGroups.map(group => (
           <MessageBubble
-            key={group.map(message => message.id).join(':')}
+            key={group[0].id}
             messages={group}
             onCopyMessage={copyMessage}
           />
