@@ -7,6 +7,7 @@ import React from 'react'
 import { toast } from 'sonner'
 import { setEnableMCP, useChatSttingsStore } from '@/store/chatSettings'
 import { addMcpConfigAction, connectMcpServerAction, deleteMcpConfigAction, disconnectMcpServerAction, initializeMcpConfigs, reconnectMcpServerAction, upadteMcpConfigAction, useMcpConfigsStore } from '@/store/mcpConfigs'
+import { SettingsPageHeader } from '../SettingsPageHeader'
 import { MCPList } from './MCPList'
 
 const McpConfigDrawer = React.lazy(() => import('@/components/MCPManage/McpConfigDrawer'))
@@ -27,13 +28,18 @@ export default function MCPManage() {
   }, [])
 
   return (
-    <div className="p-2 text-sm">
+    <div className="flex flex-col gap-4 p-4">
+      <SettingsPageHeader
+        title="MCP 设置"
+        description="管理模型上下文协议服务器及其连接状态。"
+      />
       <div className={`
-        mb-4 flex justify-between rounded-xl border border-solid border-(--border-color) px-4 py-3
+        flex items-center justify-between rounded-xl border border-solid border-(--border-color) px-4 py-3
       `}
       >
         <div>
-          启用MCP功能
+          <h2 className="text-base leading-6 font-semibold">启用 MCP 功能</h2>
+          <p className="mt-0.5 text-xs leading-4 text-muted-foreground">开启后可配置和连接 MCP 服务器。</p>
         </div>
         <div>
           <Switch checked={enableMCP} onCheckedChange={setEnableMCP} />
@@ -140,9 +146,10 @@ export default function MCPManage() {
               </>
             )
           : (
-              <EmptyState
-                title="请先启用MCP以访问配置选项"
-              />
+              <EmptyState>
+                <h2 className="text-balance text-base leading-6 font-semibold">MCP 功能未启用</h2>
+                <p className="text-sm text-muted-foreground">启用后即可添加和管理服务器。</p>
+              </EmptyState>
             )
       }
     </div>

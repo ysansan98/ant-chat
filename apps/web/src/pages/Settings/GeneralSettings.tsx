@@ -7,6 +7,7 @@ import { CustomProxyUrl, ProxySettings } from '@/components/GeneralSettings/Prox
 import { SelectModel } from '@/components/GeneralSettings/SelectModel'
 import { updateProxySettings } from '@/store/generalSettings/actions'
 import { useGeneralSettingsStore } from '@/store/generalSettings/store'
+import { SettingsPageHeader } from './SettingsPageHeader'
 
 export function GeneralSettings() {
   const proxySettings = useGeneralSettingsStore(state => state.proxySettings)
@@ -33,7 +34,11 @@ export function GeneralSettings() {
   const showCustomUrl = draftProxyMode === 'custom'
 
   return (
-    <div className="flex flex-col gap-2 p-3">
+    <div className="flex flex-col gap-4 p-4">
+      <SettingsPageHeader
+        title="通用设置"
+        description="设置助手模型与网络连接方式。"
+      />
       <div className="flex flex-col gap-2">
         <GeneralSettingsItem
           title="助手模型"
@@ -75,7 +80,7 @@ interface GeneralSettingsItemProps {
 function GeneralSettingsItem({ title, help, icon, children }: GeneralSettingsItemProps) {
   return (
     <div className="flex items-center justify-between gap-2 px-4 py-1">
-      <span className="flex items-center gap-2 text-sm">
+      <span className="flex items-center gap-2 text-sm font-medium">
         {icon}
         {title}
         {

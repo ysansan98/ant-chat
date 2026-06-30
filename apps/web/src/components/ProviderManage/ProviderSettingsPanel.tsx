@@ -21,7 +21,7 @@ export function ProviderSettingsPanel({ item, onChange, onDelete }: ProviderSett
   const officialKeyUrl = getOfficialKeyUrl(item.id)
 
   return (
-    <div className="h-dvh flex-1 overflow-y-auto p-3">
+    <div className="h-full min-w-0 flex-1 overflow-y-auto p-4">
       {
         !item.isOfficial && (
           <div className="flex items-center justify-end">
@@ -44,7 +44,7 @@ export function ProviderSettingsPanel({ item, onChange, onDelete }: ProviderSett
       }
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
-          <label htmlFor="provider-api-url" className="font-medium">API URL</label>
+          <label htmlFor="provider-api-url" className="text-sm font-medium">API URL</label>
           <Input
             id="provider-api-url"
             defaultValue={item.baseUrl}
@@ -62,7 +62,7 @@ export function ProviderSettingsPanel({ item, onChange, onDelete }: ProviderSett
         </div>
 
         <div className="flex flex-col gap-1">
-          <label htmlFor="provider-api-key" className="font-medium">API Key</label>
+          <label htmlFor="provider-api-key" className="text-sm font-medium">API Key</label>
           <Input
             id="provider-api-key"
             type="password"
@@ -79,7 +79,7 @@ export function ProviderSettingsPanel({ item, onChange, onDelete }: ProviderSett
         </div>
 
         <div className="flex flex-col gap-1">
-          <span className="font-medium">模型列表</span>
+          <h2 className="text-base leading-6 font-semibold">模型列表</h2>
           <ModelList providerId={item.id} />
         </div>
       </div>

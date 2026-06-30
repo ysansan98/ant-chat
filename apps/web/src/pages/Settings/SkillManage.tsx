@@ -10,6 +10,7 @@ import React from 'react'
 import { toast } from 'sonner'
 import { skillApi } from '@/api/skillApi'
 import { getAppRuntimeCapabilities } from '@/api/transports/appRpc'
+import { SettingsPageHeader } from './SettingsPageHeader'
 
 interface SkillState { data: SkillIndex, loading: boolean }
 
@@ -69,19 +70,17 @@ export default function SkillManage() {
 
   return (
     <div className="flex h-full flex-col gap-4 p-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Skills</CardTitle>
-          <CardDescription>
-            {state.data.rootPath || 'Loading...'}
-          </CardDescription>
-          <CardAction className="flex gap-2">
+      <SettingsPageHeader
+        title="Skill 设置"
+        description={state.data.rootPath || '正在加载...'}
+        actions={(
+          <>
             <Button
               variant="outline"
               disabled={state.loading}
               onClick={() => void runAction(async () => skillApi.rebuildSkillIndex(), '索引已重建')}
             >
-              <RefreshCwIcon data-icon="inline-start" />
+              <RefreshCwIcon data-icon="inline-start" className="size-3.5" />
               Rebuild
             </Button>
             {nativeFilePicker && (
@@ -95,12 +94,12 @@ export default function SkillManage() {
               </Button>
             )}
             <Button disabled={state.loading} onClick={() => setGithubOpen(true)}>
-              <GitBranchIcon data-icon="inline-start" />
+              <GitBranchIcon data-icon="inline-start" className="size-3.5" />
               Import GitHub
             </Button>
-          </CardAction>
-        </CardHeader>
-      </Card>
+          </>
+        )}
+      />
 
       <div className="flex flex-col gap-3">
         {state.data.skills.length === 0
@@ -174,14 +173,14 @@ function SkillRow({
   return (
     <Card size="sm">
       <CardHeader>
-        <CardTitle className="flex min-w-0 items-center gap-2">
-          <span className="truncate">{skill.name}</span>
+        <CardTitle className="flex min-w-0 items-center gap-2 text-base leading-6 font-semibold">
+          <span className="truncate text-base">{skill.name}</span>
           <Badge variant={skill.enabled ? 'secondary' : 'outline'}>
             {skill.enabled ? 'Enabled' : 'Disabled'}
           </Badge>
           <Badge variant="outline">{skill.source}</Badge>
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="text-pretty">
           {skill.description || 'No description.'}
         </CardDescription>
         <CardAction className="flex items-center gap-2">

@@ -27,13 +27,13 @@ export function MCPList({ items, onTriggerAction }: MCPListProps) {
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-base">{item.icon}</span>
-                <span>{item.serverName}</span>
+                <span className="font-medium">{item.serverName}</span>
                 <span>
                   {getMcpServerRunStatus(connectStatusMap, item.serverName)}
                 </span>
               </div>
               {
-                item.description && <div className="pt-2 text-sm text-gray-400">{item.description}</div>
+                item.description && <div className="pt-2 text-xs leading-4 text-muted-foreground">{item.description}</div>
               }
             </div>
             <McpConfigActions

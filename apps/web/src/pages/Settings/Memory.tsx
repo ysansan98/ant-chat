@@ -8,6 +8,7 @@ import { PlusIcon, RotateCcwIcon, SaveIcon, Trash2Icon } from 'lucide-react'
 import React from 'react'
 import { toast } from 'sonner'
 import { memoryApi } from '@/api/memoryApi'
+import { SettingsPageHeader } from './SettingsPageHeader'
 
 type MemoryState
   = | { status: 'loading', data?: undefined }
@@ -96,13 +97,11 @@ export function MemorySettings() {
 
   return (
     <div className="flex h-full flex-col gap-4 p-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>记忆</CardTitle>
-          <CardDescription>
-            {state.status === 'ready' ? state.data.memoryRootPath : 'Loading...'}
-          </CardDescription>
-          <CardAction className="flex gap-2">
+      <SettingsPageHeader
+        title="记忆"
+        description={state.status === 'ready' ? state.data.memoryRootPath : '正在加载...'}
+        actions={(
+          <>
             <Button
               variant="outline"
               disabled={saving || state.status !== 'ready' || !state.data.lastSoulUpdate}
@@ -115,18 +114,19 @@ export function MemorySettings() {
               <SaveIcon className="size-4" />
               Save
             </Button>
-          </CardAction>
-        </CardHeader>
-        {state.status === 'ready' && state.data.lastSoulUpdate
-          ? (
-              <CardContent className="text-sm text-muted-foreground">
-                Last SOUL update:
-                {' '}
-                {state.data.lastSoulUpdate.summary}
-              </CardContent>
-            )
-          : null}
-      </Card>
+          </>
+        )}
+      />
+
+      {state.status === 'ready' && state.data.lastSoulUpdate
+        ? (
+            <p className="text-xs leading-4 text-muted-foreground">
+              Last SOUL update:
+              {' '}
+              {state.data.lastSoulUpdate.summary}
+            </p>
+          )
+        : null}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="min-h-0 flex-1">
         <TabsList variant="line" className="mb-2">
@@ -156,14 +156,14 @@ export function MemorySettings() {
         <TabsContent value="soul" className="min-h-0 flex-1">
           <Card className="min-h-0">
             <CardHeader>
-              <CardTitle>SOUL.md</CardTitle>
-              <CardDescription>Stable agent identity. Tool calls cannot edit this file.</CardDescription>
+              <CardTitle className="text-base leading-6 font-semibold">SOUL.md</CardTitle>
+              <CardDescription className="text-pretty">Stable agent identity. Tool calls cannot edit this file.</CardDescription>
             </CardHeader>
             <CardContent className="min-h-0 flex-1">
               <Textarea
                 value={soulMarkdown}
                 disabled={disabled}
-                className="h-[calc(100vh-280px)] resize-none font-mono text-sm"
+                className="h-[calc(100vh-240px)] resize-none font-mono text-[13px] leading-5"
                 onChange={event => setSoulMarkdown(event.target.value)}
               />
             </CardContent>
