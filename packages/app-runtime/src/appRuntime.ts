@@ -123,6 +123,7 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
     aiProviderFactory,
     titleGenerator,
     emitConversationUpdated: conversation => events.emit('conversation:updated', { conversation }),
+    emitMessageUpdated: message => events.emit('message:updated', { message }),
     logger,
   })
   const commandController = createCommandController({

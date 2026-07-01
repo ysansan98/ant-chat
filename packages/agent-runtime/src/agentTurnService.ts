@@ -4,6 +4,7 @@ import type {
   AgentRuntimeStartTaskResult,
   AIProviderFactory,
   ILogger,
+  IMessage,
   IMessageContent,
   StartAgentTurnOptions,
 } from '@ant-chat/shared'
@@ -17,6 +18,7 @@ export interface AgentTurnServiceDeps {
   aiProviderFactory?: AIProviderFactory
   titleGenerator?: ConversationTitleGenerator
   emitConversationUpdated?: (conversation: AgentRuntimeStartTaskResult['conversation']) => void
+  emitMessageUpdated?: (message: IMessage) => void
   logger?: ILogger
 }
 
@@ -25,7 +27,7 @@ export interface AgentTurnService {
 }
 
 export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnService {
-  const { runtime, appDataContext, aiProviderFactory, titleGenerator, emitConversationUpdated, logger } = deps
+  const { runtime, appDataContext, aiProviderFactory, titleGenerator, emitConversationUpdated, emitMessageUpdated, logger } = deps
 
   return {
     async startTurn(options) {
@@ -87,6 +89,8 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
         content: resolveUserMessageContent(options.content, prompt),
         turnId: undefined,
       })
+
+      emitMessageUpdated?.(userMessage)
 
       try {
         const result = await runtime.startTask({
