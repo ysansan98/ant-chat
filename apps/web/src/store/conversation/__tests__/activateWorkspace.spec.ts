@@ -37,6 +37,7 @@ describe('activateWorkspace', () => {
       pageSize: 20,
       conversationsTotal: 1,
       activeConversationsId: 'stale-id',
+      activeWorkspacePath: '',
       streamingConversationIds: new Set<string>(),
       loadVersion: 0,
       workspaceConversations: {},

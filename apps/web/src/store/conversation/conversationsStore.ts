@@ -87,16 +87,12 @@ export const useConversationsStore = create<ConversationsStore>()(
         })
       },
       switchWorkspaceSlice: (workspacePath: string) => {
-        const currentPath = getCurrentWorkspacePath()
-        if (workspacePath === currentPath) {
-          return
-        }
-
         set((state) => {
           const nextWorkspaceConversations = { ...state.workspaceConversations }
+          const previousPath = state.activeWorkspacePath
 
-          if (currentPath) {
-            nextWorkspaceConversations[currentPath] = {
+          if (previousPath) {
+            nextWorkspaceConversations[previousPath] = {
               conversations: state.conversations,
               pageIndex: state.pageIndex,
               conversationsTotal: state.conversationsTotal,
@@ -114,6 +110,7 @@ export const useConversationsStore = create<ConversationsStore>()(
             pageIndex: nextSlice.pageIndex,
             conversationsTotal: nextSlice.conversationsTotal,
             loadVersion: nextSlice.loadVersion,
+            activeWorkspacePath: workspacePath,
             activeConversationsId: '',
             streamingConversationIds: new Set<string>(),
             abortCallbacks: [],
