@@ -15,6 +15,7 @@ import { useAgentStore } from '../store/agent'
 import { useConversationsStore } from '../store/conversation'
 import { createInitialState } from '../store/conversation/initialState'
 import { setActiveConversationsId, useMessagesStore } from '../store/messages'
+import { usePendingMessagesStore } from '../store/pendingMessages'
 import { useWorkspaceStore } from '../store/workspace'
 
 const mocks = vi.hoisted(() => ({
@@ -152,6 +153,7 @@ describe('gui ui flow', () => {
     })
     useConversationsStore.setState(createInitialState())
     useAgentStore.setState({ pendingByTask: {}, tasks: {} })
+    usePendingMessagesStore.setState({ itemsByConversation: {} })
 
     mocks.provider.getAllAbvailableModels.mockResolvedValue([])
     mocks.skill.listSkills.mockResolvedValue({ skills: [] })
@@ -444,7 +446,7 @@ describe('gui ui flow', () => {
     })
   })
 
-  it('运行中的 Agent task 可以从输入区追加 steering', async () => {
+  it('运行中的输入先排队，用户点击立即追加后才进入当前任务', async () => {
     seedActiveConversation('conv-steering')
     const task = createTask({
       conversationId: 'conv-steering',
@@ -473,7 +475,16 @@ describe('gui ui flow', () => {
     fireEvent.change(input, {
       target: { value: '先修复类型错误，再继续实现' },
     })
-    fireEvent.click(screen.getByTestId('chat-steer'))
+    expect(screen.queryByTestId('chat-cancel')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('chat-submit'))
+
+    await screen.findByText('先修复类型错误，再继续实现')
+    expect(mocks.agent.injectSteering).not.toHaveBeenCalled()
+    expect(mocks.agent.startTurn).not.toHaveBeenCalled()
+    expect(input).toHaveValue('')
+    expect(screen.getByTestId('chat-cancel')).toHaveTextContent('停止')
+
+    fireEvent.click(screen.getByRole('button', { name: '引导' }))
 
     await waitFor(() => {
       expect(mocks.agent.injectSteering).toHaveBeenCalledWith(
@@ -482,8 +493,6 @@ describe('gui ui flow', () => {
       )
     })
     expect(mocks.agent.startTurn).not.toHaveBeenCalled()
-    expect(input).toHaveValue('')
-    expect(screen.getByTestId('chat-cancel')).toHaveTextContent('停止')
     expect(useMessagesStore.getState().messages).toEqual([
       expect.objectContaining({
         id: 'msg-steering-1',
