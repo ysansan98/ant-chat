@@ -66,31 +66,31 @@ describe('pending message actions', () => {
     expect(usePendingMessagesStore.getState().itemsByConversation['conv-1']).toEqual([])
   })
 
-  it('任务已结束时注入回退为普通 turn，失败时删除消息', async () => {
+  it('任务已结束时注入回退为普通 turn，失败时保留消息', async () => {
     const queued = enqueuePendingMessage('conv-1', '下一轮')
     mocks.startTurn.mockRejectedValue(new Error('网络不可用'))
     await injectPendingMessage('conv-1', queued.id)
     expect(mocks.injectSteering).not.toHaveBeenCalled()
-    expect(usePendingMessagesStore.getState().itemsByConversation['conv-1']).toEqual([])
+    // 失败后消息应保留在队列中，让用户决定重试还是手动删除
+    expect(usePendingMessagesStore.getState().itemsByConversation['conv-1']).toHaveLength(1)
   })
 
-  it('drain 与立即追加并发时按会话串行，不让后续项越过队首', async () => {
+  it('drain 与立即追加并发时按会话串行', async () => {
     const first = enqueuePendingMessage('conv-1', '队首')
     const second = enqueuePendingMessage('conv-1', '队尾')
-    let resolveInitialCheck!: (tasks: never[]) => void
-    mocks.listActiveTasks
-      .mockReturnValueOnce(new Promise((resolve) => { resolveInitialCheck = resolve }))
-      .mockResolvedValueOnce([{ conversationId: 'conv-1', taskId: 'new-task', status: 'running' }])
-    mocks.injectSteering.mockResolvedValue({ id: 'steering', convId: 'conv-1', role: 'user', status: 'success', content: [{ type: 'text', text: '队尾' }] })
 
     const draining = drainPendingMessages('conv-1')
     const injecting = injectPendingMessage('conv-1', second.id)
-    resolveInitialCheck([])
     await Promise.all([draining, injecting])
 
-    expect(mocks.startTurn).toHaveBeenCalledWith(expect.objectContaining({ prompt: '队首' }))
-    expect(mocks.injectSteering).toHaveBeenCalledWith('conv-1', '队尾')
-    expect(usePendingMessagesStore.getState().itemsByConversation['conv-1'].some(item => item.id === first.id)).toBe(false)
+    // drainOnce 不再检查 activeTask，直接 startTurn 处理队首
+    // inject 因无 active task 回退为 drainOnce，处理队尾
+    // 两者通过 runConversationOperation 串行化
+    expect(mocks.startTurn).toHaveBeenCalledTimes(2)
+    expect(mocks.startTurn).toHaveBeenNthCalledWith(1, expect.objectContaining({ prompt: '队首' }))
+    expect(mocks.startTurn).toHaveBeenNthCalledWith(2, expect.objectContaining({ prompt: '队尾' }))
+    expect(mocks.injectSteering).not.toHaveBeenCalled()
+    expect(usePendingMessagesStore.getState().itemsByConversation['conv-1']).toHaveLength(0)
   })
 
   it('清空全部队列不依赖当前已加载会话分页', () => {

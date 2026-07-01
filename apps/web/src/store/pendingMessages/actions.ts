@@ -6,7 +6,7 @@ import agentApi from '@/api/agentApi'
 import { buildTurnInput } from '@/components/Chat/buildTurnInput'
 import { startAgentTurn } from '@/store/agent'
 import { useChatSttingsStore } from '@/store/chatSettings'
-import { getConversationByIdAction, upsertConversationAction } from '@/store/conversation'
+import { getConversationByIdAction } from '@/store/conversation'
 import { addPendingSteeringMessage } from '@/store/messages'
 import { useWorkspaceStore } from '@/store/workspace'
 import { sortPendingMessages, usePendingMessagesStore } from './store'
@@ -129,7 +129,6 @@ async function injectPendingMessageOnce(conversationId: string, id: string) {
     addPendingSteeringMessage(message)
   }
   catch (error) {
-    removePendingMessage(conversationId, id)
     toast.error(error instanceof Error ? error.message : '追加消息失败')
   }
 }
@@ -154,22 +153,19 @@ export function drainPendingMessages(conversationId: string): Promise<void> {
 async function drainOnce(conversationId: string) {
   if (isConversationDeleting(conversationId))
     return
-  if (await listActiveTask(conversationId))
-    return
 
   const item = sortPendingMessages(usePendingMessagesStore.getState().itemsByConversation[conversationId] ?? [])[0]
   if (!item)
     return
 
   const conversation = getConversationByIdAction(conversationId)
-  if (!conversation?.settings?.modelId) {
-    removePendingMessage(conversationId, item.id)
-    toast.error('当前会话未配置模型')
+  if (!conversation) {
+    toast.error('当前会话已不存在')
     return
   }
 
   try {
-    const result = await startAgentTurn(buildTurnInput({
+    await startAgentTurn(buildTurnInput({
       conversationId,
       text: item.text,
       workspacePath: useWorkspaceStore.getState().currentWorkspacePath,
@@ -178,10 +174,11 @@ async function drainOnce(conversationId: string) {
       mode: useChatSttingsStore.getState().agentMode,
     }))
     removePendingMessage(conversationId, item.id)
-    upsertConversationAction(result.conversation)
+    // Runtime 侧已通过 turnService 发出 message:updated 事件，
+    // web UI 会自动收到用户消息，无需手动 upsert 会话
   }
   catch (error) {
-    removePendingMessage(conversationId, item.id)
+    // 失败时保留消息，让用户决定重试或手动删除
     toast.error(error instanceof Error ? error.message : '发送消息失败')
   }
 }
