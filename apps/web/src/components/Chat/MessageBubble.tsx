@@ -277,7 +277,7 @@ function ProcessMessagesPanel({
         </Button>
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <div className="space-y-3">
+        <div className="">
           {processEntries.map(entry => (
             entry.type === 'steering'
               ? <SteeringMessage key={entry.message.id} message={entry.message} />

@@ -441,7 +441,7 @@ function WorkspacePanel({
 
       {expanded
         ? (
-            <div className="pl-5">
+            <div className="pl-0">
               {state?.loading
                 ? (
                     <div className="px-3 py-2 text-sm text-slate-400">加载中...</div>
@@ -522,8 +522,9 @@ function ConversationListItem({ conversation, active, running, completed, onOpen
     <>
       <div
         className={`
-          group/conversation flex h-9 w-full items-center rounded-md px-2 text-[14px]
+          group/conversation flex py-1.5 w-full items-center rounded-md px-2 text-[14px]
           transition-colors duration-150 hover:bg-black/5 dark:hover:bg-white/10
+          mt-1
           ${active
       ? 'bg-black/5 font-medium text-slate-700 dark:bg-white/10 dark:text-slate-200'
       : 'text-slate-600 dark:text-slate-400'}
