@@ -7,6 +7,7 @@ import { addStreamingConversationId, removeStreamingConversationId, upsertConver
 import { refreshGeneralSettings } from '@/store/generalSettings/actions'
 import { onMcpServerStatusChanged } from '@/store/mcpConfigs/action'
 import { updateMessageActionV2 } from '@/store/messages'
+import { drainPendingMessages } from '@/store/pendingMessages'
 import { useWorkspaceStore } from '@/store/workspace'
 
 export function useAppEventListener() {
@@ -48,6 +49,10 @@ export function useAppEventListener() {
     eventBus.on('agent:task-updated', (_, payload) => {
       onAgentStateUpdated(payload.task)
     })
+    eventBus.on('agent:turn-finished', (_, payload) => {
+      if (payload.status !== 'cancel')
+        void drainPendingMessages(payload.conversationId)
+    })
     eventBus.on('agent:approval-required', (_, payload) => {
       onAgentApprovalRequired(payload.taskId, payload.pendingAction)
     })
@@ -67,6 +72,7 @@ export function useAppEventListener() {
       eventBus.removeAllListeners('conversation:updated')
       eventBus.removeAllListeners('message:updated')
       eventBus.removeAllListeners('agent:task-updated')
+      eventBus.removeAllListeners('agent:turn-finished')
       eventBus.removeAllListeners('agent:approval-required')
       eventBus.removeAllListeners('agent:secret-requested')
       eventBus.removeAllListeners('settings:updated')
