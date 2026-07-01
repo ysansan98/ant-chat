@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@workspace/ui/components/tooltip'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { enqueuePendingMessage, usePendingMessagesStore } from '@/store/pendingMessages'
 import { PendingMessageQueue } from '../PendingMessageQueue'
 
