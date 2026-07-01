@@ -2,7 +2,7 @@ import type { ConversationsId, IMessage } from '@ant-chat/shared'
 import { produce } from 'immer'
 import agentApi from '@/api/agentApi'
 import chatApi from '@/api/chatApi'
-import { syncConversationAgentState } from '../agent'
+import { syncConversationAgentState } from '../agent/actions'
 import { useConversationsStore } from '../conversation/conversationsStore'
 import { useMessagesStore } from './store'
 

@@ -9,7 +9,7 @@ import {
   preparePendingMessageDeletion,
 } from '@/store/pendingMessages'
 import { useWorkspaceStore } from '@/store/workspace'
-import { clearActiveConversations, setActiveConversationsId } from '../messages'
+import { clearActiveConversations, setActiveConversationsId } from '../messages/actions'
 import { useConversationsStore } from './conversationsStore'
 
 const loadingConversationPages = new Set<string>()

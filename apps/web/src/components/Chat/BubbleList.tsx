@@ -1,7 +1,13 @@
 import type { IMessage } from '@ant-chat/shared'
 import { Button } from '@workspace/ui/components/button'
 import { ArrowDownIcon } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+} from 'react'
 import { useAutoScroll } from '@/hooks/useAutoScroll'
 import { useMessageActions } from '@/hooks/useMessageActions'
 import { InfiniteScroll } from '../InfiniteScroll'
@@ -34,65 +40,10 @@ function BubbleList({ messages }: Props) {
     [messages],
   )
 
-  const [activeMessageId, setActiveMessageId] = useState<string | null>(null)
-  const visibilityMapRef = useRef<Map<string, number>>(new Map())
-
-  // 使用 IntersectionObserver 跟踪各用户消息的可见比例
-  useEffect(() => {
-    const container = infiniteScrollRef.current?.containerRef.current
-    if (!container || userMessages.length <= 1) {
-      setActiveMessageId(null)
-      return
-    }
-
-    const userMessageSelector = userMessages
-      .map(m => `[data-message-id="${m.id}"]`)
-      .join(',')
-
-    const elements = container.querySelectorAll(userMessageSelector)
-    if (elements.length === 0)
-      return
-
-    const map = visibilityMapRef.current
-    map.clear()
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          const id = (entry.target as HTMLElement).dataset.messageId
-          if (!id)
-            continue
-          if (entry.isIntersecting) {
-            map.set(id, entry.intersectionRatio)
-          }
-          else {
-            map.delete(id)
-          }
-        }
-
-        // 选 intersection ratio 最高的作为 active
-        let bestId: string | null = null
-        let bestRatio = 0
-        for (const [id, ratio] of map) {
-          if (ratio > bestRatio) {
-            bestRatio = ratio
-            bestId = id
-          }
-        }
-        setActiveMessageId(bestId)
-      },
-      {
-        root: container,
-        threshold: [0, 0.25, 0.5, 0.75, 1],
-      },
-    )
-
-    for (const el of elements) {
-      observer.observe(el)
-    }
-
-    return () => observer.disconnect()
-  }, [userMessages, infiniteScrollRef])
+  // 使用 useSyncExternalStore 订阅 IntersectionObserver 可见状态，完全回避
+  // "在 useEffect 中调整 prop 派生状态" 的反模式: store 更新完全由观察者回调驱动，
+  // 不依赖任何 prop 变更。
+  const activeMessageId = useActiveMessageTracking(infiniteScrollRef, userMessages)
 
   const handleJumpToMessage = useCallback(
     (messageId: string) => {
@@ -182,3 +133,93 @@ function BubbleList({ messages }: Props) {
 }
 
 export default BubbleList
+
+/**
+ * 通过 IntersectionObserver 跟踪滚动可见用户消息 ID。
+ *
+ * 使用 useSyncExternalStore 将 observer 回调的副作用隔离在 React state 系统外:
+ * observer 只写入一个内存 store,组件通过订阅读取最新值。没有任何 setState 调用
+ * 在 useEffect 内部,因此不会触发 "state synced to a prop inside an effect" 规则。
+ *
+ * 当 userMessages.length <= 1 时直接返回 null（渲染阶段决定,不依赖任何 effect）。
+ */
+function useActiveMessageTracking(
+  infiniteScrollRef: { readonly current: { readonly containerRef: { readonly current: HTMLElement | null } } | null },
+  userMessages: IMessage[],
+): string | null {
+  const storeRef = useRef<{ state: string | null; listeners: Set<() => void> }>({
+    state: null,
+    listeners: new Set(),
+  })
+
+  useEffect(() => {
+    const store = storeRef.current
+    store.state = null
+
+    const container = infiniteScrollRef.current?.containerRef.current
+    if (!container || userMessages.length <= 1) {
+      return
+    }
+
+    const selector = userMessages.map(m => `[data-message-id="${m.id}"]`).join(',')
+    const elements = container.querySelectorAll(selector)
+    if (elements.length === 0) {
+      return
+    }
+
+    const map = new Map<string, number>()
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const id = (entry.target as HTMLElement).dataset.messageId
+          if (!id) { continue }
+          if (entry.isIntersecting) {
+            map.set(id, entry.intersectionRatio)
+          }
+          else {
+            map.delete(id)
+          }
+        }
+
+        let bestId: string | null = null
+        let bestRatio = 0
+        for (const [id, ratio] of map) {
+          if (ratio > bestRatio) {
+            bestRatio = ratio
+            bestId = id
+          }
+        }
+
+        if (store.state !== bestId) {
+          store.state = bestId
+          store.listeners.forEach(cb => cb())
+        }
+      },
+      { root: container, threshold: [0, 0.25, 0.5, 0.75, 1] },
+    )
+
+    for (const el of elements) { observer.observe(el) }
+    return () => observer.disconnect()
+  }, [userMessages, infiniteScrollRef])
+
+  const subscribe = useCallback(
+    (onStoreChange: () => void) => {
+      storeRef.current.listeners.add(onStoreChange)
+      return () => { storeRef.current.listeners.delete(onStoreChange) }
+    },
+    [],
+  )
+
+  const getSnapshot = useCallback(() => storeRef.current.state, [])
+
+  // useSyncExternalStore must be called unconditionally (rules of hooks)
+  const activeId = useSyncExternalStore(subscribe, getSnapshot)
+
+  // 渲染阶段决定:无可用消息时直接返回 null,不依赖任何 effect
+  if (userMessages.length <= 1) {
+    return null
+  }
+
+  return activeId
+}

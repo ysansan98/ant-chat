@@ -10,7 +10,7 @@ import { Outlet, useNavigate } from 'react-router'
 import { useConversationsStore } from '@/store/conversation'
 import { setActiveConversationsId, useMessagesStore } from '@/store/messages'
 import { isElectronMacOS } from '@/utils/ipc-bus'
-import { SliderMenu } from './SiliderMenu'
+import { SliderMenu } from './SiliderMenu/SiliderMenu'
 
 /**
  * Chat 工作区布局壳。

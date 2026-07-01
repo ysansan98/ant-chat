@@ -1,7 +1,7 @@
 import { Toaster } from '@workspace/ui/components/sonner'
 import { Outlet } from 'react-router'
 import { AppProviders } from './AppProviders'
-import { UpdateNotification } from './components/UpdateNotification'
+import { UpdateNotification } from './components/UpdateNotification/UpdateNotification'
 import { useAppEventListener } from './hooks/useAppEventListener'
 import { useUpdateNotification } from './hooks/useUpdateNotification'
 
