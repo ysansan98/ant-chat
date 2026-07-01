@@ -31,7 +31,7 @@ export const ToolCallContentSchema = z.object({
   type: z.literal('tool-call'),
   toolCallId: z.string(),
   toolName: z.string(),
-  args: z.record(z.unknown()),
+  args: z.record(z.string(), z.unknown()),
   serverName: z.string().optional(),
   executeState: z.enum(['executing', 'completed']).optional(),
 })
@@ -182,7 +182,7 @@ export const McpToolCallSchema = z.object({
   id: z.string(),
   serverName: z.string(),
   toolName: z.string(),
-  args: z.record(z.unknown()),
+  args: z.record(z.string(), z.unknown()),
   executeState: z.enum(['await', 'executing', 'completed']),
   result: McpToolResultSchema.optional(),
 })
@@ -190,7 +190,7 @@ export const McpToolCallSchema = z.object({
 export type McpToolCall = z.infer<typeof McpToolCallSchema>
 
 const BaseMessage = z.object({
-  id: z.string().nanoid(),
+  id: z.nanoid(),
   convId: z.string(),
   content: MessageContentSchema,
   createAt: z.number(),

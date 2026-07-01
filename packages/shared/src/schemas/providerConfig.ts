@@ -3,7 +3,7 @@ import { z } from 'zod'
 export const ProviderConfigSchema = z.object({
   id: z.string(),
   name: z.string(),
-  baseUrl: z.string().url(),
+  baseUrl: z.url(),
   apiKey: z.string().optional(),
   apiKeySecretId: z.string().optional(),
   hasApiKey: z.boolean().optional(),

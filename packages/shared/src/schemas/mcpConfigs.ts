@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 export const BaseMcpConfig = z.object({
-  serverName: z.string({ message: 'serverName 是必填项' }),
+  serverName: z.string({ error: 'serverName 是必填项' }),
   icon: z.string(),
   description: z.string().optional().nullable(),
   timeout: z.number().optional(),
@@ -10,17 +10,17 @@ export const BaseMcpConfig = z.object({
 
 export const SSEMcpConfig = BaseMcpConfig.extend({
   transportType: z.literal('sse'),
-  url: z.string({ message: 'url 是必填项' }).url({ message: 'url格式错误' }),
-  headers: z.record(z.string()).optional(),
+  url: z.url({ error: 'url格式错误' }),
+  headers: z.record(z.string(), z.string()).optional(),
 })
 
 export type SSEMcpConfig = z.infer<typeof SSEMcpConfig>
 
 export const StdioMcpConfig = BaseMcpConfig.extend({
   transportType: z.literal('stdio'),
-  command: z.string({ message: '缺少command参数' }),
+  command: z.string({ error: '缺少command参数' }),
   args: z.array(z.string()).optional(),
-  env: z.record(z.any()).optional(),
+  env: z.record(z.string(), z.any()).optional(),
 })
 
 export type StdioMcpConfig = z.infer<typeof StdioMcpConfig>

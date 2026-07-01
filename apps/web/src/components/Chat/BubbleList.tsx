@@ -147,7 +147,7 @@ function useActiveMessageTracking(
   infiniteScrollRef: { readonly current: { readonly containerRef: { readonly current: HTMLElement | null } } | null },
   userMessages: IMessage[],
 ): string | null {
-  const storeRef = useRef<{ state: string | null; listeners: Set<() => void> }>({
+  const storeRef = useRef<{ state: string | null, listeners: Set<() => void> }>({
     state: null,
     listeners: new Set(),
   })
@@ -173,7 +173,9 @@ function useActiveMessageTracking(
       (entries) => {
         for (const entry of entries) {
           const id = (entry.target as HTMLElement).dataset.messageId
-          if (!id) { continue }
+          if (!id) {
+            continue
+          }
           if (entry.isIntersecting) {
             map.set(id, entry.intersectionRatio)
           }
@@ -199,14 +201,18 @@ function useActiveMessageTracking(
       { root: container, threshold: [0, 0.25, 0.5, 0.75, 1] },
     )
 
-    for (const el of elements) { observer.observe(el) }
+    for (const el of elements) {
+      observer.observe(el)
+    }
     return () => observer.disconnect()
   }, [userMessages, infiniteScrollRef])
 
   const subscribe = useCallback(
     (onStoreChange: () => void) => {
       storeRef.current.listeners.add(onStoreChange)
-      return () => { storeRef.current.listeners.delete(onStoreChange) }
+      return () => {
+        storeRef.current.listeners.delete(onStoreChange)
+      }
     },
     [],
   )
