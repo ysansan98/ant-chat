@@ -51,7 +51,7 @@
     "lint-staged": "^15.3.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-router": "^7.5.3",
+    "react-router": "^7.18.1",
     "simple-git-hooks": "^2.13.1",
     "tsx": "^4.19.3",
     "typescript": "catalog:",
