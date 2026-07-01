@@ -92,7 +92,9 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
     emitTurnChunk() {},
     emitTurnToolCalls() {},
     emitTurnToolResults() {},
-    emitTurnFinished() {},
+    emitTurnFinished(params) {
+      events.emit('agent:turn-finished', { conversationId: params.conversationId, status: params.status })
+    },
   }
   const agentRuntime = createAgentRuntime({
     host: {

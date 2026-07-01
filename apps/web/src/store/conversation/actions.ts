@@ -3,6 +3,11 @@ import type { AntChatFileStructure } from '@/constants'
 import { produce } from 'immer'
 import chatApi from '@/api/chatApi'
 import { useGeneralSettingsStore } from '@/store/generalSettings'
+import {
+  cancelPendingMessageDeletion,
+  completePendingMessageDeletion,
+  preparePendingMessageDeletion,
+} from '@/store/pendingMessages'
 import { useWorkspaceStore } from '@/store/workspace'
 import { clearActiveConversations, setActiveConversationsId } from '../messages'
 import { useConversationsStore } from './conversationsStore'
@@ -134,7 +139,15 @@ export async function renameConversationsAction(id: ConversationsId, title: stri
 }
 
 export async function deleteConversationsAction(id: ConversationsId) {
-  await chatApi.deleteConversation(id)
+  const deletion = await preparePendingMessageDeletion([id])
+  try {
+    await chatApi.deleteConversation(id)
+    completePendingMessageDeletion(deletion)
+  }
+  catch (error) {
+    cancelPendingMessageDeletion(deletion)
+    throw error
+  }
 
   await clearActiveConversations()
 
@@ -155,7 +168,23 @@ export async function clearConversationsAction() {
     throw new Error('当前工作区路径不存在，无法清空对话')
   }
 
-  await chatApi.clearWorkspaceConversations(currentWorkspacePath)
+  const loadedConversationIds = useConversationsStore.getState().conversations.map(conversation => conversation.id)
+  const loadedDeletion = await preparePendingMessageDeletion(loadedConversationIds)
+  let deletedConversationIds: string[]
+  try {
+    deletedConversationIds = await chatApi.clearWorkspaceConversations(currentWorkspacePath)
+    const deletedIds = new Set(deletedConversationIds)
+    const loadedIds = new Set(loadedConversationIds)
+    const unloadedDeletedIds = deletedConversationIds.filter(id => !loadedIds.has(id))
+    const unloadedDeletion = await preparePendingMessageDeletion(unloadedDeletedIds)
+    completePendingMessageDeletion(loadedDeletion, loadedConversationIds.filter(id => deletedIds.has(id)))
+    cancelPendingMessageDeletion(loadedDeletion, loadedConversationIds.filter(id => !deletedIds.has(id)))
+    completePendingMessageDeletion(unloadedDeletion)
+  }
+  catch (error) {
+    cancelPendingMessageDeletion(loadedDeletion)
+    throw error
+  }
 
   await clearActiveConversations()
 

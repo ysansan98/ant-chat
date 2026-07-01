@@ -72,6 +72,7 @@ import {
   syncSelectedSkill,
 } from './inputReferences'
 import MCPManagementPanel from './MCPManagementPanel'
+import { PendingMessageQueue } from './PendingMessageQueue'
 import { ReferenceSuggestionPanel } from './ReferenceSuggestionPanel'
 import { calculateSessionUsage } from './sessionUsage'
 
@@ -84,8 +85,12 @@ interface SenderProps {
     selectedSkill: string | undefined,
     features: ChatFeatures,
     agentMode: AgentMode,
-  ) => void
+  ) => Promise<boolean | void> | boolean | void
   onCancel?: () => void
+  canInjectPendingMessage?: boolean
+  onInjectPendingMessage?: (id: string) => void
+  onEditPendingMessage?: (id: string, text: string) => void
+  onRemovePendingMessage?: (id: string) => void
 }
 
 async function filePartToAttachment(part: FileUIPart, index: number) {
@@ -745,9 +750,11 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
       }
     })
 
-    await props.onSubmit?.(content, nextReferencedFiles, nextSelectedSkill, {
+    const submitted = await props.onSubmit?.(content, nextReferencedFiles, nextSelectedSkill, {
       enableMCP: mcpEnabled,
     }, agentMode)
+    if (submitted === false)
+      return
     setDraft('')
     setCursor(0)
     setReferencedFiles([])
@@ -765,86 +772,96 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
           <TypingEffect text="有什么可以帮忙的？" />
         </h1>
       )}
+      <div className="bg-secondary rounded-lg overflow-hidden">
 
-      <PromptInput
-        accept={fileAccept}
-        data-testid="chat-input-form"
-        maxFileSize={20 * 1024 * 1024}
-        multiple
-        onError={({ message }) => setNotice(message)}
-        onSubmit={async (message) => {
-          setNotice('')
-          await handleSubmit(message)
-        }}
-      >
-        <PromptInputBody className="bg-transparent px-1 pt-1">
-          <SenderAttachmentsPreview />
-          <div className="relative min-h-20 w-full md:min-h-24">
-            <ReferenceInputOverlay
-              text={draft}
-              referencedFiles={referencedFiles}
-              selectedSkill={selectedSkill}
-              scrollTop={textareaScrollTop}
-            />
-            <PromptInputTextarea
-              ref={textareaRef}
-              className="
+        <PendingMessageQueue
+          conversationId={activeConversationsId}
+          canInject={props.canInjectPendingMessage ?? false}
+          onInject={id => props.onInjectPendingMessage?.(id)}
+          onEdit={(id, text) => props.onEditPendingMessage?.(id, text)}
+          onRemove={id => props.onRemovePendingMessage?.(id)}
+        />
+
+        <PromptInput
+          accept={fileAccept}
+          className="bg-background rounded-lg overflow-hidden"
+          data-testid="chat-input-form"
+          maxFileSize={20 * 1024 * 1024}
+          multiple
+          onError={({ message }) => setNotice(message)}
+          onSubmit={async (message) => {
+            setNotice('')
+            await handleSubmit(message)
+          }}
+        >
+          <PromptInputBody className="bg-transparent px-1 pt-1">
+            <SenderAttachmentsPreview />
+            <div className="relative min-h-20 w-full md:min-h-24">
+              <ReferenceInputOverlay
+                text={draft}
+                referencedFiles={referencedFiles}
+                selectedSkill={selectedSkill}
+                scrollTop={textareaScrollTop}
+              />
+              <PromptInputTextarea
+                ref={textareaRef}
+                className="
                 relative z-10 max-h-48 min-h-20 border-0 bg-transparent p-1 text-transparent
                 text-sm caret-foreground
                 selection:bg-primary/20 selection:text-foreground
                 placeholder:text-muted-foreground
                 md:min-h-24
               "
-              data-testid="chat-input"
-              disabled={disabled}
-              value={draft}
-              onChange={(event) => {
-                updateDraft(event.currentTarget.value, event.currentTarget.selectionStart)
-              }}
-              onClick={event => updateCursorFromTextarea(event.currentTarget)}
-              onKeyDown={handleTextareaKeyDown}
-              onKeyUp={handleTextareaKeyUp}
-              onScroll={event => setTextareaScrollTop(event.currentTarget.scrollTop)}
-              placeholder={disabled
-                ? '指令执行中...'
-                : loading
-                  ? '输入追加指令，Enter发送'
-                  : 'Enter发送消息，Shift+Enter换行'}
+                data-testid="chat-input"
+                disabled={disabled}
+                value={draft}
+                onChange={(event) => {
+                  updateDraft(event.currentTarget.value, event.currentTarget.selectionStart)
+                }}
+                onClick={event => updateCursorFromTextarea(event.currentTarget)}
+                onKeyDown={handleTextareaKeyDown}
+                onKeyUp={handleTextareaKeyUp}
+                onScroll={event => setTextareaScrollTop(event.currentTarget.scrollTop)}
+                placeholder={disabled
+                  ? '指令执行中...'
+                  : loading
+                    ? '输入追加指令，Enter发送'
+                    : 'Enter发送消息，Shift+Enter换行'}
+              />
+            </div>
+            <ReferenceSuggestionPanel
+              trigger={activeReferenceTrigger}
+              files={senderData.fileResults}
+              skills={filteredSkills}
+              builtinCommands={filteredCommands}
+              hasWorkspace={Boolean(currentWorkspacePath)}
+              highlightedIndex={senderData.highlightedIndex}
+              anchorRect={senderData.suggestionAnchorRect}
+              onSelectFile={selectFileReference}
+              onSelectSkill={selectSkillReference}
+              onSelectCommand={selectCommandReference}
             />
-          </div>
-          <ReferenceSuggestionPanel
-            trigger={activeReferenceTrigger}
-            files={senderData.fileResults}
-            skills={filteredSkills}
-            builtinCommands={filteredCommands}
-            hasWorkspace={Boolean(currentWorkspacePath)}
-            highlightedIndex={senderData.highlightedIndex}
-            anchorRect={senderData.suggestionAnchorRect}
-            onSelectFile={selectFileReference}
-            onSelectSkill={selectSkillReference}
-            onSelectCommand={selectCommandReference}
-          />
-        </PromptInputBody>
+          </PromptInputBody>
 
-        <PromptInputFooter className="min-w-0">
-          <PromptInputTools className="scroll-hidden overflow-visible max-sm:overflow-x-auto">
-            <Popover
-              open={canSwitchWorkspaceSelect ? workspacePickerOpen : false}
-              onOpenChange={(next) => {
-                if (canSwitchWorkspaceSelect) {
-                  setWorkspacePickerOpen(next)
-                }
-              }}
-            >
-              <PopoverTrigger asChild>
-                <PromptInputButton
-                  type="button"
-                  variant="ghost"
-                  data-testid="workspace-switcher"
-                  disabled={workspaceLoading}
-                  aria-disabled={workspaceSwitchDisabled}
-                  aria-label={`工作区：${workspaceDisplayName}`}
-                  className={`
+          <PromptInputFooter className="min-w-0">
+            <PromptInputTools className="scroll-hidden overflow-visible max-sm:overflow-x-auto">
+              <Popover
+                open={canSwitchWorkspaceSelect ? workspacePickerOpen : false}
+                onOpenChange={(next) => {
+                  if (canSwitchWorkspaceSelect) {
+                    setWorkspacePickerOpen(next)
+                  }
+                }}
+              >
+                <PopoverTrigger asChild>
+                  <PromptInputButton
+                    type="button"
+                    variant="ghost"
+                    data-testid="workspace-switcher"
+                    disabled={workspaceLoading}
+                    aria-disabled={workspaceSwitchDisabled}
+                    aria-label={`工作区：${workspaceDisplayName}`}
+                    className={`
                     h-8 max-w-52 justify-start border px-2
                     max-sm:size-8 max-sm:justify-center max-sm:gap-0 max-sm:px-0
                     ${workspaceSwitchDisabled
@@ -854,129 +871,126 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
       `
       : ''}
                   `}
-                >
-                  <FolderOpenIcon className="size-4 shrink-0" />
-                  <span className="truncate text-xs max-sm:hidden">{workspaceDisplayName}</span>
-                </PromptInputButton>
-              </PopoverTrigger>
-              <PopoverContent align="start" className="w-64 p-1">
-                <div className="max-h-60 overflow-y-auto">
-                  {selectableWorkspaces.map(item => (
-                    <button
-                      key={item.path}
-                      type="button"
-                      className={`
+                  >
+                    <FolderOpenIcon className="size-4 shrink-0" />
+                    <span className="truncate text-xs max-sm:hidden">{workspaceDisplayName}</span>
+                  </PromptInputButton>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-64 p-1">
+                  <div className="max-h-60 overflow-y-auto">
+                    {selectableWorkspaces.map(item => (
+                      <button
+                        key={item.path}
+                        type="button"
+                        className={`
                         flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-sm
                         hover:bg-black/5
                         dark:hover:bg-white/10
                       `}
-                      onClick={() => {
-                        void handleSwitchWorkspace(item.path)
-                      }}
-                    >
-                      <FolderOpenIcon className="size-4 shrink-0" />
-                      <span className="truncate">{item.displayName}</span>
-                    </button>
-                  ))}
-                </div>
-              </PopoverContent>
-            </Popover>
+                        onClick={() => {
+                          void handleSwitchWorkspace(item.path)
+                        }}
+                      >
+                        <FolderOpenIcon className="size-4 shrink-0" />
+                        <span className="truncate">{item.displayName}</span>
+                      </button>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
 
-            <SenderAddAttachmentButton />
-            <SenderContextUsageButton contextLength={currentModelInfo?.contextLength ?? 1} />
+              <SenderAddAttachmentButton />
+              <SenderContextUsageButton contextLength={currentModelInfo?.contextLength ?? 1} />
 
-            <Popover>
-              <PopoverTrigger asChild>
-                <PromptInputButton
-                  size="sm"
-                  type="button"
-                  variant="ghost"
-                  aria-label={`权限模式：${currentAgentModeOption.label}`}
-                  className={`
+              <Popover>
+                <PopoverTrigger asChild>
+                  <PromptInputButton
+                    size="sm"
+                    type="button"
+                    variant="ghost"
+                    aria-label={`权限模式：${currentAgentModeOption.label}`}
+                    className={`
                     ${agentMode === 'full_managed' ? 'text-orange-600' : ''}
                   `}
-                >
-                  {currentAgentModeOption.icon}
-                  <span className="max-sm:hidden">{currentAgentModeOption.label}</span>
-                  <ChevronDownIcon className="size-3 max-sm:hidden" />
-                </PromptInputButton>
-              </PopoverTrigger>
-              <PopoverContent align="start" className="w-52 p-1">
-                {agentModeOptions.map(item => (
-                  <button
-                    key={item.value}
-                    type="button"
-                    className={`
+                  >
+                    {currentAgentModeOption.icon}
+                    <span className="max-sm:hidden">{currentAgentModeOption.label}</span>
+                    <ChevronDownIcon className="size-3 max-sm:hidden" />
+                  </PromptInputButton>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-52 p-1">
+                  {agentModeOptions.map(item => (
+                    <button
+                      key={item.value}
+                      type="button"
+                      className={`
                       flex h-9 w-full items-center justify-between rounded-md px-2 text-sm
                       hover:bg-black/5
                       dark:hover:bg-white/10
                     `}
-                    onClick={() => setAgentMode(item.value)}
-                  >
-                    <span className="flex items-center gap-2">
-                      {item.icon}
-                      {item.label}
-                    </span>
-                    {item.value === agentMode ? <span>✓</span> : null}
-                  </button>
-                ))}
-              </PopoverContent>
-            </Popover>
+                      onClick={() => setAgentMode(item.value)}
+                    >
+                      <span className="flex items-center gap-2">
+                        {item.icon}
+                        {item.label}
+                      </span>
+                      {item.value === agentMode ? <span>✓</span> : null}
+                    </button>
+                  ))}
+                </PopoverContent>
+              </Popover>
 
-            <Popover>
-              <PopoverTrigger asChild>
-                <PromptInputButton
-                  size="sm"
-                  type="button"
-                  variant={mcpEnabled ? 'secondary' : 'ghost'}
-                  aria-label="MCP 管理"
-                >
-                  <Cable className="size-3" />
-                  <span className="max-sm:hidden">MCP</span>
-                </PromptInputButton>
-              </PopoverTrigger>
-              <PopoverContent align="start" className="w-[calc(100vw-1rem)] max-w-85 p-0">
-                <MCPManagementPanel />
-              </PopoverContent>
-            </Popover>
-
-            {actions}
-          </PromptInputTools>
-
-          {loading
-            ? (
-                <>
+              <Popover>
+                <PopoverTrigger asChild>
                   <PromptInputButton
                     size="sm"
                     type="button"
-                    variant="outline"
-                    data-testid="chat-cancel"
-                    onClick={props.onCancel}
+                    variant={mcpEnabled ? 'secondary' : 'ghost'}
+                    aria-label="MCP 管理"
                   >
-                    <SquareIcon className="size-3" />
-                    停止
+                    <Cable className="size-3" />
+                    <span className="max-sm:hidden">MCP</span>
                   </PromptInputButton>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-[calc(100vw-1rem)] max-w-85 p-0">
+                  <MCPManagementPanel />
+                </PopoverContent>
+              </Popover>
+
+              {actions}
+            </PromptInputTools>
+
+            {loading
+              ? (
+                  <div className="min-w-17">
+                    {draft.trim()
+                      ? (
+                          <PromptInputSubmit className="sender-primary-action" size="sm" data-testid="chat-submit" status="ready">
+                            发送
+                          </PromptInputSubmit>
+                        )
+                      : (
+                          <PromptInputButton className="sender-primary-action" size="sm" type="button" variant="outline" data-testid="chat-cancel" onClick={props.onCancel}>
+                            <SquareIcon className="size-3" />
+                            停止
+                          </PromptInputButton>
+                        )}
+                  </div>
+                )
+              : (
                   <PromptInputSubmit
                     size="sm"
-                    data-testid="chat-steer"
-                    status="ready"
+                    data-testid={disabled ? 'chat-cancel' : 'chat-submit'}
+                    onStop={props.onCancel}
+                    status={disabled ? 'submitted' : 'ready'}
                   >
-                    追加
+                    {disabled ? '执行中' : '发送'}
                   </PromptInputSubmit>
-                </>
-              )
-            : (
-                <PromptInputSubmit
-                  size="sm"
-                  data-testid={disabled ? 'chat-cancel' : 'chat-submit'}
-                  onStop={props.onCancel}
-                  status={disabled ? 'submitted' : 'ready'}
-                >
-                  {disabled ? '执行中' : '发送'}
-                </PromptInputSubmit>
-              )}
-        </PromptInputFooter>
-      </PromptInput>
+                )}
+          </PromptInputFooter>
+        </PromptInput>
+
+      </div>
 
       {notice && (
         <div className="mt-2 text-xs text-red-500">{notice}</div>
