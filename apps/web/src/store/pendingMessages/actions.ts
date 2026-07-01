@@ -1,4 +1,5 @@
 import type { AgentTaskSnapshot } from '@ant-chat/shared'
+import type { PendingMessage } from './store'
 import { nanoid } from 'nanoid'
 import { toast } from 'sonner'
 import agentApi from '@/api/agentApi'
@@ -9,7 +10,6 @@ import { getConversationByIdAction, upsertConversationAction } from '@/store/con
 import { addPendingSteeringMessage } from '@/store/messages'
 import { useWorkspaceStore } from '@/store/workspace'
 import { sortPendingMessages, usePendingMessagesStore } from './store'
-import type { PendingMessage } from './store'
 
 const drainPromises = new Map<string, Promise<void>>()
 const operationPromises = new Map<string, Promise<void>>()
