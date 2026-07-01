@@ -5,21 +5,27 @@ import { toast } from 'sonner'
 import { AgentApprovalCard, AgentSecretRequestCard } from '@/components/Agent'
 import { useChatSettingsContext } from '@/contexts/chatSettings'
 import { useBuiltinCommandSubmit } from '@/hooks/useBuiltinCommandSubmit'
-import { approveAgentActionWithWhitelist, injectSteeringAction, rejectAgentAction, rejectSecretRequestAction, resolveSecretRequestAction, startAgentTurn, useAgentStore } from '@/store/agent'
+import { approveAgentActionWithWhitelist, rejectAgentAction, rejectSecretRequestAction, resolveSecretRequestAction, startAgentTurn, useAgentStore } from '@/store/agent'
 import {
   upsertConversationAction,
   useConversationsStore,
 } from '@/store/conversation'
 import {
   abortActiveRequest,
-  addPendingSteeringMessage,
   setActiveConversationsId,
   useMessagesStore,
 } from '@/store/messages'
+import {
+  editPendingMessage,
+  enqueuePendingMessage,
+  injectPendingMessage,
+  removePendingMessage,
+} from '@/store/pendingMessages'
 import { useWorkspaceStore } from '@/store/workspace'
 import Sender from '../Sender'
 
 import { ModelControlPanel } from '../Sender/PickerModel'
+import { buildTurnInput } from './buildTurnInput'
 
 const BubbleList = lazy(() => import('./BubbleList'))
 
@@ -52,44 +58,47 @@ export default function Chat() {
     selectedSkill: string | undefined,
     features: ChatFeatures,
     agentMode: AgentMode,
-  ) {
+  ): Promise<boolean> {
     const textBlocks = content.filter(block => block.type === 'text')
     const draftText = textBlocks.map(block => block.text).join('\n')
 
     if (agentTask) {
-      const message = await injectSteeringAction(agentTask.conversationId, draftText)
-      addPendingSteeringMessage(message)
-      return
+      const hasStructuredInput = content.some(block => block.type !== 'text') || referencedFiles.length > 0 || Boolean(selectedSkill)
+      if (hasStructuredInput) {
+        toast.error('任务进行中，待处理消息暂不支持附件或引用')
+        return false
+      }
+      enqueuePendingMessage(agentTask.conversationId, draftText)
+      return true
     }
 
     if (!settings.modelId) {
       toast.error('请选择模型')
-      return
+      return false
     }
 
     // Try built-in command first
     const handled = await submitCommand(draftText, referencedFiles, selectedSkill)
     if (handled)
-      return
+      return true
 
     // Regular agent turn
     const prompt = draftText
     try {
-      const result = await startAgentTurn({
+      const result = await startAgentTurn(buildTurnInput({
         conversationId: activeConversationsId || undefined,
-        prompt,
+        text: prompt,
         content,
         referencedFiles,
         selectedSkill,
         mode: agentMode,
         workspacePath: currentWorkspacePath,
-        modelConfig: {
-          ...settings,
-          features,
-        },
-      })
+        settings,
+        features,
+      }))
       upsertConversationAction(result.conversation)
       await setActiveConversationsId(result.conversationId)
+      return true
     }
     catch (error) {
       toast.error(error instanceof Error ? error.message : '发送消息失败')
@@ -161,6 +170,10 @@ export default function Chat() {
             />
           )}
           onSubmit={onSubmit}
+          canInjectPendingMessage={true}
+          onInjectPendingMessage={id => void injectPendingMessage(activeConversationsId, id)}
+          onEditPendingMessage={(id, text) => editPendingMessage(activeConversationsId, id, text)}
+          onRemovePendingMessage={id => removePendingMessage(activeConversationsId, id)}
           onCancel={async () => {
             if (commandRunning) {
               await cancelCommand()
