@@ -27,6 +27,24 @@ export function formatTime(time: number) {
   return date.format('YYYY年M月D日 HH:mm')
 }
 
+export function formatRelativeTime(time: number, now = Date.now()) {
+  const elapsedHours = Math.max(0, Math.floor((now - time) / 3_600_000))
+
+  if (elapsedHours < 1)
+    return '刚刚'
+  if (elapsedHours < 24)
+    return `${elapsedHours}小时`
+
+  const elapsedDays = Math.floor(elapsedHours / 24)
+  if (elapsedDays < 7)
+    return `${elapsedDays}天`
+  if (elapsedDays < 30)
+    return `${Math.floor(elapsedDays / 7)}周`
+  if (elapsedDays < 365)
+    return `${Math.floor(elapsedDays / 30)}个月`
+  return `${Math.floor(elapsedDays / 365)}年`
+}
+
 /**
  * 将毫秒耗时格式化为可读字符串。
  * - 小于 1 秒: "0.8s"

@@ -112,7 +112,6 @@ export const useConversationsStore = create<ConversationsStore>()(
             loadVersion: nextSlice.loadVersion,
             activeWorkspacePath: workspacePath,
             activeConversationsId: '',
-            streamingConversationIds: new Set<string>(),
             abortCallbacks: [],
           }
         })

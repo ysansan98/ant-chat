@@ -3,7 +3,7 @@ import { useEffect } from 'react'
 import { toast } from 'sonner'
 import { getAppEventBus } from '@/api/transports/appEventBus'
 import { onAgentApprovalRequired, onAgentSecretRequested, onAgentStateUpdated } from '@/store/agent'
-import { addStreamingConversationId, removeStreamingConversationId, upsertConversationAction } from '@/store/conversation'
+import { addStreamingConversationId, markConversationCompleted, removeStreamingConversationId, touchConversationUpdatedAt, upsertConversationAction, useConversationsStore } from '@/store/conversation'
 import { refreshGeneralSettings } from '@/store/generalSettings/actions'
 import { onMcpServerStatusChanged } from '@/store/mcpConfigs/action'
 import { updateMessageActionV2 } from '@/store/messages'
@@ -43,6 +43,7 @@ export function useAppEventListener() {
       console.log('message:updated => ', payload.message)
 
       handleStreamingConversationStatus(payload.message)
+      touchConversationUpdatedAt(payload.message.convId, Date.now())
       updateMessageActionV2(payload.message)
     })
 
@@ -50,6 +51,7 @@ export function useAppEventListener() {
       onAgentStateUpdated(payload.task)
     })
     eventBus.on('agent:turn-finished', (_, payload) => {
+      handleConversationTurnFinished(payload)
       if (payload.status !== 'cancel')
         void drainPendingMessages(payload.conversationId)
     })
@@ -79,6 +81,15 @@ export function useAppEventListener() {
       eventBus.removeAllListeners('workspace:changed')
     }
   }, [])
+}
+
+export function handleConversationTurnFinished(payload: { conversationId: string, status: 'success' | 'error' | 'cancel' }) {
+  if (
+    payload.status !== 'cancel'
+    && payload.conversationId !== useConversationsStore.getState().activeConversationsId
+  ) {
+    markConversationCompleted(payload.conversationId)
+  }
 }
 
 export function handleStreamingConversationStatus(msg: Pick<IMessage, 'status' | 'convId' | 'role'>) {

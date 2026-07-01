@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useConversationsStore } from '@/store/conversation'
-import { handleStreamingConversationStatus } from '../useAppEventListener'
+import { handleConversationTurnFinished, handleStreamingConversationStatus } from '../useAppEventListener'
 
 describe('handleStreamingConversationStatus', () => {
   beforeEach(() => {
@@ -17,5 +17,27 @@ describe('handleStreamingConversationStatus', () => {
     })
 
     expect(useConversationsStore.getState().streamingConversationIds.has('conv-1')).toBe(true)
+  })
+})
+
+describe('handleConversationTurnFinished', () => {
+  beforeEach(() => {
+    useConversationsStore.setState({
+      activeConversationsId: 'conv-active',
+      completedConversationIds: new Set(),
+    })
+  })
+
+  it('非当前会话运行成功后展示已完成状态', () => {
+    handleConversationTurnFinished({ conversationId: 'conv-background', status: 'success' })
+
+    expect(useConversationsStore.getState().completedConversationIds.has('conv-background')).toBe(true)
+  })
+
+  it('当前会话运行结束或后台任务取消时不展示已完成状态', () => {
+    handleConversationTurnFinished({ conversationId: 'conv-active', status: 'success' })
+    handleConversationTurnFinished({ conversationId: 'conv-cancelled', status: 'cancel' })
+
+    expect(useConversationsStore.getState().completedConversationIds.size).toBe(0)
   })
 })

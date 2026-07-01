@@ -1,6 +1,6 @@
 import dayjs from 'dayjs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { formatTime } from '../time'
+import { formatRelativeTime, formatTime } from '../time'
 
 describe('time', () => {
   describe('formatTime', () => {
@@ -40,6 +40,21 @@ describe('time', () => {
       const time = now.subtract(1, 'year').unix() * 1000
 
       expect(formatTime(time)).toBe('2023年5月23日 02:40')
+    })
+  })
+
+  describe('formatRelativeTime', () => {
+    const now = new Date('2026-07-01T12:00:00+08:00').getTime()
+
+    it.each([
+      [30 * 60_000, '刚刚'],
+      [3 * 3_600_000, '3小时'],
+      [2 * 24 * 3_600_000, '2天'],
+      [15 * 24 * 3_600_000, '2周'],
+      [65 * 24 * 3_600_000, '2个月'],
+      [800 * 24 * 3_600_000, '2年'],
+    ])('将 %i 毫秒前格式化为 %s', (elapsed, expected) => {
+      expect(formatRelativeTime(now - elapsed, now)).toBe(expected)
     })
   })
 })

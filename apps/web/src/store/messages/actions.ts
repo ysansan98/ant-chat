@@ -26,6 +26,8 @@ export async function setActiveConversationsId(id: ConversationsId | '') {
     return
   }
 
+  clearCompletedConversation(id)
+
   const version = ++loadVersion
 
   const [messages] = await Promise.all([
@@ -49,6 +51,15 @@ export async function setActiveConversationsId(id: ConversationsId | '') {
     draft.messages.splice(0, draft.messages.length, ...messages, ...pendingSteering)
   }))
   useConversationsStore.getState().setActiveConversationsId(id)
+  clearCompletedConversation(id)
+}
+
+function clearCompletedConversation(id: string) {
+  useConversationsStore.setState((state) => {
+    const completedConversationIds = new Set(state.completedConversationIds)
+    completedConversationIds.delete(id)
+    return { completedConversationIds }
+  })
 }
 
 export async function addMessageAction(message: IMessage) {

@@ -7,7 +7,9 @@ import type { CSSProperties } from 'react'
 import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@workspace/ui/components/alert-dialog'
 import { Button } from '@workspace/ui/components/button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@workspace/ui/components/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@workspace/ui/components/dropdown-menu'
+import { Input } from '@workspace/ui/components/input'
 import {
   Tooltip,
   TooltipContent,
@@ -17,15 +19,18 @@ import {
   Ellipsis,
   FolderIcon,
   FolderOpenIcon,
+  LoaderCircleIcon,
   PencilIcon,
   PlusIcon,
   Trash2,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { activateWorkspace, ensureWorkspaceConversationsAction, useConversationsStore } from '@/store/conversation'
+import { toast } from 'sonner'
+import { activateWorkspace, deleteConversationsAction, ensureWorkspaceConversationsAction, renameConversationsAction, useConversationsStore } from '@/store/conversation'
 import { setActiveConversationsId, useMessagesStore } from '@/store/messages'
 import { useWorkspaceStore } from '@/store/workspace'
+import { formatRelativeTime } from '@/utils'
 import { WorkspaceDirectoryPickerDialog } from './WorkspaceDirectoryPickerDialog'
 
 interface WorkspaceConversationState {
@@ -61,6 +66,8 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
   const activeConversationsId = useMessagesStore(
     state => state.activeConversationsId,
   )
+  const streamingConversationIds = useConversationsStore(state => state.streamingConversationIds)
+  const completedConversationIds = useConversationsStore(state => state.completedConversationIds)
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(
     () => new Set(),
   )
@@ -269,6 +276,8 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
                                 <WorkspacePanel
                                   item={item}
                                   activeConversationId={activeConversationsId}
+                                  streamingConversationIds={streamingConversationIds}
+                                  completedConversationIds={completedConversationIds}
                                   expanded={expandedPaths.has(item.path)}
                                   state={getWorkspaceConversationState(
                                     item.path,
@@ -315,6 +324,8 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
 interface WorkspacePanelProps {
   item: WorkspaceItem
   activeConversationId: string
+  streamingConversationIds: Set<string>
+  completedConversationIds: Set<string>
   expanded: boolean
   state?: WorkspaceConversationState
   onToggle: (item: WorkspaceItem) => void
@@ -328,6 +339,8 @@ interface WorkspacePanelProps {
 function WorkspacePanel({
   item,
   activeConversationId,
+  streamingConversationIds,
+  completedConversationIds,
   expanded,
   state,
   onToggle,
@@ -435,33 +448,16 @@ function WorkspacePanel({
                   )
                 : state?.data?.length
                   ? (
-                      state?.data.map((conversation) => {
-                        const activeConversationClass
-                          = conversation.id === activeConversationId
-                            ? 'bg-black/5 font-medium text-slate-700 dark:bg-white/10 dark:text-slate-200'
-                            : 'text-slate-600 dark:text-slate-400'
-
-                        return (
-                          <button
-                            key={conversation.id}
-                            type="button"
-                            className={`
-                              flex h-9 w-full items-center justify-start rounded-md px-3 text-[14px]
-                              hover:bg-black/5
-                              dark:hover:bg-white/10
-                              ${activeConversationClass}
-                            `}
-                            onClick={() =>
-                              onOpenConversation(item.path, conversation.id)}
-                          >
-                            <span className="flex min-w-0 items-center gap-1">
-                              <span className="max-w-40 truncate">
-                                {conversation.title}
-                              </span>
-                            </span>
-                          </button>
-                        )
-                      })
+                      state?.data.map(conversation => (
+                        <ConversationListItem
+                          key={conversation.id}
+                          conversation={conversation}
+                          active={conversation.id === activeConversationId}
+                          running={streamingConversationIds.has(conversation.id)}
+                          completed={completedConversationIds.has(conversation.id)}
+                          onOpen={() => onOpenConversation(item.path, conversation.id)}
+                        />
+                      ))
                     )
                   : (
                       <div className="px-3 py-2 text-sm text-slate-400">暂无会话</div>
@@ -470,6 +466,156 @@ function WorkspacePanel({
           )
         : null}
     </div>
+  )
+}
+
+interface ConversationListItemProps {
+  conversation: IConversations
+  active: boolean
+  running: boolean
+  completed: boolean
+  onOpen: () => void
+}
+
+function ConversationListItem({ conversation, active, running, completed, onOpen }: ConversationListItemProps) {
+  const [renameOpen, setRenameOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [title, setTitle] = useState(conversation.title)
+  const [submitting, setSubmitting] = useState(false)
+  const status = running ? 'running' : completed && !active ? 'completed' : null
+
+  async function handleRename() {
+    const nextTitle = title.trim()
+    if (!nextTitle || nextTitle === conversation.title) {
+      setRenameOpen(false)
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      await renameConversationsAction(conversation.id, nextTitle)
+      setRenameOpen(false)
+    }
+    catch (error) {
+      toast.error(`重命名失败：${(error as Error).message}`)
+    }
+    finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function handleDelete() {
+    setSubmitting(true)
+    try {
+      await deleteConversationsAction(conversation.id)
+      setDeleteOpen(false)
+    }
+    catch (error) {
+      toast.error(`删除失败：${(error as Error).message}`)
+    }
+    finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <>
+      <div
+        className={`
+          group/conversation flex h-9 w-full items-center rounded-md px-2 text-[14px]
+          transition-colors duration-150 hover:bg-black/5 dark:hover:bg-white/10
+          ${active
+      ? 'bg-black/5 font-medium text-slate-700 dark:bg-white/10 dark:text-slate-200'
+      : 'text-slate-600 dark:text-slate-400'}
+        `}
+      >
+        <span className="flex size-4 shrink-0 items-center justify-center" aria-label={status === 'running' ? '进行中' : status === 'completed' ? '已完成' : undefined}>
+          {status === 'running'
+            ? <LoaderCircleIcon className="size-3.5 animate-spin text-blue-500" />
+            : status === 'completed'
+              ? <span className="size-1.5 rounded-full bg-emerald-500" />
+              : null}
+        </span>
+        <button
+          type="button"
+          className="min-w-0 flex-1 truncate px-1.5 text-left"
+          onClick={onOpen}
+        >
+          {conversation.title}
+        </button>
+        <div className="relative flex h-full w-14 shrink-0 items-center justify-end">
+          <span className="tabular-nums text-[11px] text-slate-400 transition-[opacity,transform,filter] duration-150 group-hover/conversation:pointer-events-none group-hover/conversation:scale-25 group-hover/conversation:opacity-0 group-hover/conversation:blur-[4px]">
+            {formatRelativeTime(conversation.updatedAt)}
+          </span>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                aria-label={`管理对话：${conversation.title}`}
+                className="absolute right-0 scale-25 opacity-0 blur-[4px] transition-[opacity,transform,filter] duration-150 group-hover/conversation:scale-100 group-hover/conversation:opacity-100 group-hover/conversation:blur-none data-[state=open]:scale-100 data-[state=open]:opacity-100 data-[state=open]:blur-none"
+              >
+                <Ellipsis className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => {
+                setTitle(conversation.title)
+                setRenameOpen(true)
+              }}
+              >
+                <PencilIcon className="size-4" />
+                重命名对话
+              </DropdownMenuItem>
+              <DropdownMenuItem variant="destructive" onClick={() => setDeleteOpen(true)}>
+                <Trash2 className="size-4" />
+                删除对话
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
+      <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
+        <DialogContent>
+          <form onSubmit={(event) => {
+            event.preventDefault()
+            void handleRename()
+          }}
+          >
+            <DialogHeader>
+              <DialogTitle>重命名对话</DialogTitle>
+              <DialogDescription>输入一个便于识别的对话名称。</DialogDescription>
+            </DialogHeader>
+            <Input className="my-4" value={title} onChange={event => setTitle(event.target.value)} autoFocus maxLength={100} />
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setRenameOpen(false)}>取消</Button>
+              <Button type="submit" disabled={submitting || !title.trim()}>{submitting ? '保存中...' : '保存'}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>删除对话</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定删除「
+              {conversation.title}
+              」吗？此操作无法撤销。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="px-4 py-2">
+            <AlertDialogCancel size="sm">取消</AlertDialogCancel>
+            <AlertDialogAction size="sm" variant="destructive" disabled={submitting} onClick={() => void handleDelete()}>
+              {submitting ? '删除中...' : '删除'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }
 

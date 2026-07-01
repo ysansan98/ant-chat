@@ -130,9 +130,9 @@ export async function renameConversationsAction(id: ConversationsId, title: stri
   const data = await chatApi.updateConversation({ id, title })
 
   useConversationsStore.setState(state => produce(state, (draft) => {
-    const index = draft.conversations.findIndex(c => c.id === id)
-    if (index > -1) {
-      draft.conversations[index] = data
+    replaceConversation(draft.conversations, data)
+    for (const slice of Object.values(draft.workspaceConversations)) {
+      replaceConversation(slice.conversations, data)
     }
   }))
   saveCurrentSlice()
@@ -149,12 +149,26 @@ export async function deleteConversationsAction(id: ConversationsId) {
     throw error
   }
 
-  await clearActiveConversations()
+  if (useConversationsStore.getState().activeConversationsId === id) {
+    await clearActiveConversations()
+  }
 
   useConversationsStore.setState(state => produce(state, (draft) => {
+    const previousLength = draft.conversations.length
     draft.conversations = draft.conversations.filter(c => c.id !== id)
-    draft.conversationsTotal = Math.max(0, draft.conversationsTotal - 1)
+    if (draft.conversations.length !== previousLength) {
+      draft.conversationsTotal = Math.max(0, draft.conversationsTotal - 1)
+    }
+    for (const slice of Object.values(draft.workspaceConversations)) {
+      const previousLength = slice.conversations.length
+      slice.conversations = slice.conversations.filter(c => c.id !== id)
+      if (slice.conversations.length !== previousLength) {
+        slice.conversationsTotal = Math.max(0, slice.conversationsTotal - 1)
+      }
+    }
   }))
+  removeStreamingConversationId(id)
+  clearConversationCompleted(id)
   saveCurrentSlice()
 }
 
@@ -306,4 +320,41 @@ export function removeStreamingConversationId(id: string) {
     streamingConversationIds.delete(id)
     return { streamingConversationIds }
   })
+}
+
+export function markConversationCompleted(id: string) {
+  useConversationsStore.setState(state => ({
+    completedConversationIds: new Set(state.completedConversationIds).add(id),
+  }))
+}
+
+export function clearConversationCompleted(id: string) {
+  useConversationsStore.setState((state) => {
+    const completedConversationIds = new Set(state.completedConversationIds)
+    completedConversationIds.delete(id)
+    return { completedConversationIds }
+  })
+}
+
+export function touchConversationUpdatedAt(id: string, updatedAt: number) {
+  useConversationsStore.setState(state => produce(state, (draft) => {
+    touchConversation(draft.conversations, id, updatedAt)
+    for (const slice of Object.values(draft.workspaceConversations)) {
+      touchConversation(slice.conversations, id, updatedAt)
+    }
+  }))
+}
+
+function replaceConversation(conversations: IConversations[], conversation: IConversations) {
+  const index = conversations.findIndex(item => item.id === conversation.id)
+  if (index > -1) {
+    conversations[index] = conversation
+  }
+}
+
+function touchConversation(conversations: IConversations[], id: string, updatedAt: number) {
+  const conversation = conversations.find(item => item.id === id)
+  if (conversation && conversation.updatedAt < updatedAt) {
+    conversation.updatedAt = updatedAt
+  }
 }
