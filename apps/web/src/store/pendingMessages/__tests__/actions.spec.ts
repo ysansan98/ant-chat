@@ -76,7 +76,7 @@ describe('pending message actions', () => {
   })
 
   it('drain 与立即追加并发时按会话串行', async () => {
-    const first = enqueuePendingMessage('conv-1', '队首')
+    enqueuePendingMessage('conv-1', '队首')
     const second = enqueuePendingMessage('conv-1', '队尾')
 
     const draining = drainPendingMessages('conv-1')
