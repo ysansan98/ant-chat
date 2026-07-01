@@ -2,6 +2,9 @@ import type { ProviderConfigSchema, UpdateProviderConfigSchema } from '@ant-chat
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@workspace/ui/components/alert-dialog'
 import { Button } from '@workspace/ui/components/button'
 import { Input } from '@workspace/ui/components/input'
+import { Eye, EyeOff } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { providerApi } from '@/api/providerApi'
 import { ModelList } from '@/components/ProviderManage/ModelList/ModelList'
 import { AI_OFFICIAL_API_INFO } from '@/constants'
 
@@ -13,6 +16,30 @@ export interface ProviderSettingsPanelProps {
 }
 
 export function ProviderSettingsPanel({ item, onChange, onDelete }: ProviderSettingsPanelProps) {
+  const [apiKeyValue, setApiKeyValue] = useState<string>('')
+  const [showKey, setShowKey] = useState(false)
+  const [hasKey, setHasKey] = useState(false)
+
+  // 当选中服务商变化时，获取已保存的 API Key
+  useEffect(() => {
+    if (!item) {
+      setApiKeyValue('')
+      setHasKey(false)
+      return
+    }
+
+    providerApi.getProviderApiKey(item.id).then((key) => {
+      if (key) {
+        setApiKeyValue(key)
+        setHasKey(true)
+      }
+      else {
+        setApiKeyValue('')
+        setHasKey(false)
+      }
+    })
+  }, [item?.id])
+
   if (!item) {
     return null
   }
@@ -63,14 +90,30 @@ export function ProviderSettingsPanel({ item, onChange, onDelete }: ProviderSett
 
         <div className="flex flex-col gap-1">
           <label htmlFor="provider-api-key" className="text-sm font-medium">API Key</label>
-          <Input
-            id="provider-api-key"
-            type="password"
-            defaultValue={item.apiKey}
-            onBlur={(e) => {
-              onChange?.({ id: item.id, apiKey: e.target.value })
-            }}
-          />
+          <div className="relative">
+            <Input
+              id="provider-api-key"
+              type={showKey ? 'text' : 'password'}
+              value={apiKeyValue}
+              placeholder={hasKey ? '••••••••••••••••' : '未配置 API Key'}
+              onChange={(e) => {
+                setApiKeyValue(e.target.value)
+              }}
+              onBlur={(e) => {
+                onChange?.({ id: item.id, apiKey: e.target.value })
+              }}
+              className="pr-10"
+            />
+            <button
+              type="button"
+              className="absolute inset-y-0 right-0 flex items-center justify-center px-3 text-muted-foreground hover:text-foreground"
+              onClick={() => setShowKey(!showKey)}
+              tabIndex={-1}
+              aria-label={showKey ? '隐藏 API Key' : '显示 API Key'}
+            >
+              {showKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+            </button>
+          </div>
           {officialKeyUrl && (
             <a className="mt-1 text-xs" href={officialKeyUrl}>
               获取API Key

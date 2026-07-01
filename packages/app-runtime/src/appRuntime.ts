@@ -267,6 +267,17 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
         return null
       },
       getById: (id: string) => requireValue(context.providerSettingsRepository.getProviderById(id), `Provider not found: ${id}`),
+      getApiKey: async (id: string) => {
+        const provider = context.providerSettingsRepository.getProviderSettingsById(id)
+        if (!provider)
+          return null
+        try {
+          return await resolveProviderApiKey(provider)
+        }
+        catch {
+          return null
+        }
+      },
       listAvailableModels: () => context.providerSettingsRepository.getAllAvailableModels(),
       listModels: (id: string) => context.providerSettingsRepository.listProviderModels(id),
       getModel: (providerId: string, modelId: string) => requireValue(context.providerSettingsRepository.getModel(providerId, modelId), `Provider model not found: ${providerId}/${modelId}`),
