@@ -29,6 +29,10 @@ export const providerApi = {
     return getAppRpcClient().call('provider.getProviderById', { id })
   },
 
+  getProviderApiKey: async (id: string): Promise<string | null> => {
+    return getAppRpcClient().call('provider.getProviderApiKey', { id })
+  },
+
   getModelInfoById: async (modelId: string, providerId: string): Promise<ProviderConfigModelSchema> => {
     return getAppRpcClient().call('provider.getModel', { providerId, modelId })
   },

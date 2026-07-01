@@ -38,6 +38,7 @@ export function createAppRpcHandlers(runtime: AppRuntime): AppRpcHandlers {
     'provider.updateProvider': input => runtime.provider.update(input.config),
     'provider.deleteProvider': input => runtime.provider.delete(input.id),
     'provider.getProviderById': input => runtime.provider.getById(input.id),
+    'provider.getProviderApiKey': input => runtime.provider.getApiKey(input.id),
     'provider.getAllAbvailableModels': () => runtime.provider.listAvailableModels(),
     'provider.listProviderModels': input => runtime.provider.listModels(input.id),
     'provider.setModelEnabledStatus': input => runtime.provider.setModelEnabled(input.id, input.status),
