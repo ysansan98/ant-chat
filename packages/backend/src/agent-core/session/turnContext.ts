@@ -2,14 +2,15 @@ export interface TurnContextOptions {
   prompt: string
   referencedFiles?: string[]
   selectedSkill?: string
+  selectedSkills?: string[]
 }
 
 export function buildPromptWithTurnContext(options: TurnContextOptions): string {
   const prompt = options.prompt.trim()
   const referencedFiles = normalizeReferencedFiles(options.referencedFiles)
-  const selectedSkill = options.selectedSkill?.trim()
+  const selectedSkills = [...new Set([options.selectedSkill, ...(options.selectedSkills ?? [])].map(value => value?.trim()).filter(Boolean) as string[])]
 
-  if (referencedFiles.length === 0 && !selectedSkill) {
+  if (referencedFiles.length === 0 && selectedSkills.length === 0) {
     return prompt || ''
   }
 
@@ -22,8 +23,14 @@ export function buildPromptWithTurnContext(options: TurnContextOptions): string 
     }
   }
 
-  if (selectedSkill) {
-    context.push(`用户通过 / 指定本轮必须先加载 Skill "${selectedSkill}"。请先调用 use_skill，参数 name="${selectedSkill}"，再继续完成用户任务。`)
+  if (selectedSkills.length > 0) {
+    if (selectedSkills.length === 1) {
+      const [selectedSkill] = selectedSkills
+      context.push(`用户指定本轮必须先加载 Skill "${selectedSkill}"。请先调用 use_skill，参数 name="${selectedSkill}"，再继续完成用户任务。`)
+    }
+    else {
+      context.push(`本轮允许并要求按需加载这些 Skill：${selectedSkills.map(name => `"${name}"`).join('、')}。使用前请调用 use_skill。`)
+    }
   }
 
   context.push('</turn_context>')

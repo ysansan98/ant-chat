@@ -96,6 +96,7 @@ export class SessionRuntime {
       prompt,
       referencedFiles: options.referencedFiles,
       selectedSkill: options.selectedSkill,
+      selectedSkills: options.selectedSkills,
     })
 
     // Build user content.
@@ -155,6 +156,7 @@ export class SessionRuntime {
       workspacePath: options.workspacePath,
       mode,
       browserSession: this.browserSessions?.get(conversation.id),
+      turnSource: options.turnSource,
     })
     const memory = await this.getPromptMemorySnapshot(conversation.id)
     const systemPrompt = createLoopSystemPrompt(options.workspacePath, options.modelSettings?.systemPrompt, memory)
@@ -170,6 +172,7 @@ export class SessionRuntime {
       prompt: enrichedPrompt,
       workspacePath: options.workspacePath,
       mode,
+      turnSource: options.turnSource,
       messages,
       systemPrompt,
       registry,

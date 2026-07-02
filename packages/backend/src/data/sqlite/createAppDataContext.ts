@@ -6,7 +6,7 @@ import { AppSettingsStore, createModelCatalog, GeneralSettingsRepository, Provid
 import { WorkspaceService } from '../workspace'
 import { migrateAddCompactionBoundary, migrateAddDurationMs, migrateMessageAttachments, rebuildMessagesTable } from './migrations/migrateAttachments'
 import { SqliteMessageSearchQuery } from './queries'
-import { SqliteConversationRepository, SqliteMessageRepository } from './repositories'
+import { SqliteAutomationRepository, SqliteConversationRepository, SqliteMessageRepository } from './repositories'
 import { initializeAppDataSchema } from './schema'
 
 export interface CreateAppDataContextOptions {
@@ -35,6 +35,7 @@ export function createAppDataContext(options: CreateAppDataContextOptions) {
   })
 
   return {
+    automationRepository: new SqliteAutomationRepository(db),
     conversationRepository,
     messageRepository,
     messageSearchQuery: new SqliteMessageSearchQuery(db),

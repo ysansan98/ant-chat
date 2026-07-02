@@ -1,6 +1,18 @@
 import type { ToolOperationType, ToolScope } from './agent-tools'
+import type { AutomationPermissionPolicy } from './automation'
 
 export type AgentMode = 'strict' | 'hybrid' | 'full_managed'
+
+export type AgentTurnSource
+  = | { type: 'interactive' }
+    | {
+      type: 'automation'
+      automationId: string
+      runId: string
+      selectedSkills: string[]
+      selectedMcpServers: string[]
+      permissionPolicy: AutomationPermissionPolicy
+    }
 
 export type AgentTaskStatus
   = | 'running'
@@ -44,6 +56,7 @@ export interface AgentTaskSnapshot {
   updatedAt: number
   logPath: string
   prompt: string
+  turnSource?: AgentTurnSource
   pendingAction?: AgentPendingAction
   errorCode?: AgentErrorCode
   errorMessage?: string

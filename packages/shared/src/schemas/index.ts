@@ -1,4 +1,5 @@
 export * from './appSettings'
+export * from './automation'
 export * from './conversations'
 export * from './mcpConfigs'
 export * from './messages'

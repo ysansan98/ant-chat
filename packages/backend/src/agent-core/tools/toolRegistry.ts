@@ -1,4 +1,4 @@
-import type { AgentMode, AgentRuntimeConfig, AgentTool, AgentToolResult, RuntimeToolDefinition, SecretRef, SecretStore, SkillManifest, SkillReader, ToolOperationType, ToolScope } from '@ant-chat/shared'
+import type { AgentMode, AgentRuntimeConfig, AgentTool, AgentToolResult, AgentTurnSource, RuntimeToolDefinition, SecretRef, SecretStore, SkillManifest, SkillReader, ToolOperationType, ToolScope } from '@ant-chat/shared'
 import type { BrowserSessionState } from '../native-tools/tools/browserSessionManager'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -22,6 +22,7 @@ export interface CreateRegistryOptions {
   workspacePath: string
   mode: AgentMode
   browserSession?: BrowserSessionState
+  turnSource?: AgentTurnSource
 }
 
 export class ToolRegistry {
@@ -29,7 +30,7 @@ export class ToolRegistry {
   private readonly relaxedTools: Map<string, AgentTool>
 
   static async create(options: CreateRegistryOptions): Promise<ToolRegistry> {
-    const { config, workspacePath, mode, browserSession } = options
+    const { config, workspacePath, mode, browserSession, turnSource } = options
     const unrestricted = mode === 'full_managed'
     const skillReader = resolveSkillReader(config)
     const readableRoots = skillReader ? [skillReader.getSkillsRoot()] : []
@@ -46,9 +47,10 @@ export class ToolRegistry {
           browserSession,
         }).getTools()
     const skillTools = skillReader
-      ? await makeSkillTools(skillReader)
+      ? await makeSkillTools(skillReader, turnSource)
       : []
-    const agentLoopTools = config.memoryReader
+    // 自动化能力在 Turn 创建时固定；记忆修改等交互能力不进入该能力集合。
+    const agentLoopTools = config.memoryReader && turnSource?.type !== 'automation'
       ? [createMemoryTool(config.memoryReader)]
       : []
     if (config.secretRequester) {
@@ -57,9 +59,13 @@ export class ToolRegistry {
     const mcpTools = config.mcpClientHub
       ? createMcpTools(config.mcpClientHub)
       : []
+    const selectedMcpServers = turnSource?.type === 'automation' ? turnSource.selectedMcpServers : undefined
+    const allowedMcpTools = selectedMcpServers === undefined
+      ? mcpTools
+      : mcpTools.filter(tool => selectedMcpServers.includes(tool.serverName ?? ''))
 
     return new ToolRegistry(
-      [...nativeTools, ...skillTools, ...agentLoopTools, ...mcpTools],
+      [...nativeTools, ...skillTools, ...agentLoopTools, ...allowedMcpTools],
       unrestricted ? undefined : relaxedNativeTools,
       config.secretStore,
     )
@@ -294,12 +300,44 @@ function resolveSkillReader(config: AgentRuntimeConfig): SkillReader | null {
   return null
 }
 
-async function makeSkillTools(reader: SkillReader): Promise<AgentTool[]> {
+interface ResolvedSkillCapability {
+  manifest: SkillManifest
+  content: string
+  files: string[]
+}
+
+async function makeSkillTools(reader: SkillReader, turnSource?: AgentTurnSource): Promise<AgentTool[]> {
   const skills = await reader.getEnabledSkills()
+  if (turnSource?.type === 'automation') {
+    const allowed = new Set(turnSource.selectedSkills.map(name => name.trim()).filter(Boolean))
+    if (allowed.size === 0)
+      return []
+    const selectedSkills = skills.filter(skill => allowed.has(skill.name))
+    const capabilities = await Promise.all(selectedSkills.map(async manifest => ({
+      manifest,
+      content: await reader.readSkillMarkdown(manifest.name),
+      files: await listSkillFiles(reader.getSkillsRoot(), manifest.name),
+    })))
+    return [createResolvedUseSkillTool(capabilities)]
+  }
   return [
     createUseSkillTool(skills, reader),
     createInstallSkillFromGithubTool(reader),
   ]
+}
+
+function createResolvedUseSkillTool(capabilities: ResolvedSkillCapability[]): AgentTool {
+  const capabilityByName = new Map(capabilities.map(capability => [capability.manifest.name, capability]))
+  const tool = createUseSkillToolDefinition(capabilities.map(capability => capability.manifest))
+  return {
+    ...tool,
+    execute: async (input) => {
+      const capability = capabilityByName.get(String(input.name || '').trim())
+      if (!capability)
+        return { ok: false, result: '技能加载失败：当前执行未注入该 Skill' }
+      return { ok: true, result: formatSkillContent(capability.manifest.name, capability.content, capability.files) }
+    },
+  }
 }
 
 // ---- Skill tool factories ----
@@ -307,6 +345,24 @@ async function makeSkillTools(reader: SkillReader): Promise<AgentTool[]> {
 function createUseSkillTool(skills: SkillManifest[], skillReader: SkillReader): AgentTool {
   const enabled = skills.filter(s => s.enabled)
   const skillsRoot = skillReader.getSkillsRoot()
+  const tool = createUseSkillToolDefinition(enabled)
+  return {
+    ...tool,
+    execute: async (input) => {
+      const name = String(input.name || '').trim()
+      try {
+        const content = await skillReader.readSkillMarkdown(name)
+        const files = await listSkillFiles(skillsRoot, name)
+        return { ok: true, result: formatSkillContent(name, content, files) }
+      }
+      catch (error) {
+        return { ok: false, result: formatSkillError(error) }
+      }
+    },
+  }
+}
+
+function createUseSkillToolDefinition(enabled: SkillManifest[]): Omit<AgentTool, 'execute'> {
   const lines = [
     'Load an installed skill. Returns <skill_content> with the SKILL.md instructions to follow, and <skill_files> with absolute paths to companion files (use read_file to access).',
   ]
@@ -325,33 +381,26 @@ function createUseSkillTool(skills: SkillManifest[], skillReader: SkillReader): 
     inputSchema: {
       type: 'object',
       properties: {
-        name: { type: 'string', description: 'Name of the skill to load.' },
+        name: { type: 'string', enum: enabled.map(skill => skill.name), description: 'Name of the skill to load.' },
       },
       required: ['name'],
     },
     operationType: 'skill',
     inferScope: () => 'workspace',
-    execute: async (input) => {
-      const name = String(input.name || '')
-      try {
-        const content = await skillReader.readSkillMarkdown(name)
-        const files = await listSkillFiles(skillsRoot, name)
-        const output = [
-          `<skill_content name="${name}">`,
-          content,
-          '</skill_content>',
-          '',
-          '<skill_files>',
-          ...files.map(f => `- ${f}`),
-          '</skill_files>',
-        ].join('\n')
-        return { ok: true, result: output }
-      }
-      catch (error) {
-        return { ok: false, result: formatSkillError(error) }
-      }
-    },
+    validateInput: input => String(input.name || '').trim() ? null : 'name must be a non-empty string',
   }
+}
+
+function formatSkillContent(name: string, content: string, files: string[]): string {
+  return [
+    `<skill_content name="${name}">`,
+    content,
+    '</skill_content>',
+    '',
+    '<skill_files>',
+    ...files.map(f => `- ${f}`),
+    '</skill_files>',
+  ].join('\n')
 }
 
 function formatSkillError(error: unknown): string {

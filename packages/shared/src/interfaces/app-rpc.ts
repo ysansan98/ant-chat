@@ -19,6 +19,7 @@ import type {
   RejectPendingActionOptions,
 } from './agent-runtime'
 import type { AgentTurnResult, StartAgentTurnOptions } from './agent-runtime-electron'
+import type { AutomationDefinition, AutomationInput, AutomationRun, UpdateAutomationInput } from './automation'
 import type { RunBuiltinCommandParams, RunBuiltinCommandResult } from './builtin-command'
 import type { handleInitConversationTitleOptions } from './conversation-title'
 import type { IConversations, IMessage } from './db-types'
@@ -122,6 +123,14 @@ export interface AppRpcContract {
   'agent.cancelTask': RpcEndpoint<{ taskId: string }, null>
   'agent.injectSteering': RpcEndpoint<{ conversationId: string, text: string }, IMessage>
   'agent.listActiveTasks': RpcEndpoint<{ conversationId?: string } | undefined, AgentTaskSnapshot[]>
+
+  'automation.list': RpcEndpoint<undefined, AutomationDefinition[]>
+  'automation.create': RpcEndpoint<{ input: AutomationInput }, AutomationDefinition>
+  'automation.update': RpcEndpoint<{ input: UpdateAutomationInput }, AutomationDefinition>
+  'automation.delete': RpcEndpoint<{ id: string }, null>
+  'automation.setEnabled': RpcEndpoint<{ id: string, enabled: boolean }, AutomationDefinition>
+  'automation.runNow': RpcEndpoint<{ id: string }, AutomationRun>
+  'automation.listRuns': RpcEndpoint<{ automationId?: string, limit?: number }, AutomationRun[]>
 
   'commands.runBuiltinCommand': RpcEndpoint<RunBuiltinCommandParams, RunBuiltinCommandResult>
   'commands.cancelCommand': RpcEndpoint<{ conversationId: string }, null>
