@@ -530,13 +530,6 @@ function ConversationListItem({ conversation, active, running, completed, onOpen
       : 'text-slate-600 dark:text-slate-400'}
         `}
       >
-        <span className="flex size-4 shrink-0 items-center justify-center" aria-label={status === 'running' ? '进行中' : status === 'completed' ? '已完成' : undefined}>
-          {status === 'running'
-            ? <LoaderCircleIcon className="size-3.5 animate-spin text-blue-500" />
-            : status === 'completed'
-              ? <span className="size-1.5 rounded-full bg-emerald-500" />
-              : null}
-        </span>
         <button
           type="button"
           className="min-w-0 flex-1 truncate px-1.5 text-left"
@@ -545,9 +538,11 @@ function ConversationListItem({ conversation, active, running, completed, onOpen
           {conversation.title}
         </button>
         <div className="relative flex h-full w-14 shrink-0 items-center justify-end">
-          <span className="tabular-nums text-[11px] text-slate-400 transition-[opacity,transform,filter] duration-150 group-hover/conversation:pointer-events-none group-hover/conversation:scale-25 group-hover/conversation:opacity-0 group-hover/conversation:blur-[4px]">
-            {formatRelativeTime(conversation.updatedAt)}
-          </span>
+          {status === 'running'
+            ? <LoaderCircleIcon className="size-3.5 animate-spin text-blue-500" />
+            : status === 'completed'
+              ? <span className="size-1.5 rounded-full bg-emerald-500" />
+              : <span className="tabular-nums text-[11px] text-slate-400 transition-[opacity,transform,filter] duration-150 group-hover/conversation:pointer-events-none group-hover/conversation:scale-25 group-hover/conversation:opacity-0 group-hover/conversation:blur-[4px]">{formatRelativeTime(conversation.updatedAt)}</span>}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
