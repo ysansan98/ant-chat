@@ -147,7 +147,6 @@ export default function Chat() {
             <BubbleList
               key={currentConversations?.id}
               messages={messages}
-              conversationsId={activeConversationsId}
             />
           </Suspense>
         </div>

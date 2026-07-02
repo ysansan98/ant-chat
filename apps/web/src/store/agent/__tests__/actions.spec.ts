@@ -73,7 +73,29 @@ describe('agent store actions', () => {
     await syncConversationAgentState('c-running')
 
     expect(useAgentStore.getState().getActiveTaskByConversation('c-running')).toEqual(task)
+    expect(useAgentStore.getState().executionPhaseByTurn.m1).toBe('waiting_model')
     expect(useConversationsStore.getState().streamingConversationIds.has('c-running')).toBe(true)
+  })
+
+  it('任务进入终态时移除 turn 执行阶段', () => {
+    const task = {
+      taskId: 't-running',
+      conversationId: 'c-running',
+      userMessageId: 'm1',
+      workspacePath: '/tmp/workspace',
+      mode: 'hybrid',
+      status: 'running',
+      executionPhase: 'thinking',
+      createdAt: 1,
+      updatedAt: 2,
+      logPath: '',
+      prompt: 'p',
+    } as const
+    useAgentStore.getState().setTask(task)
+
+    useAgentStore.getState().setTask({ ...task, status: 'success' })
+
+    expect(useAgentStore.getState().executionPhaseByTurn.m1).toBeUndefined()
   })
 
   it('runtime 没有 active task 时清除 conversation 的陈旧运行状态', async () => {

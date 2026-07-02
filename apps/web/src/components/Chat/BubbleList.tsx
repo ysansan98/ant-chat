@@ -10,14 +10,15 @@ import {
 } from 'react'
 import { useAutoScroll } from '@/hooks/useAutoScroll'
 import { useMessageActions } from '@/hooks/useMessageActions'
+import { useAgentStore } from '@/store/agent'
 import { InfiniteScroll } from '../InfiniteScroll'
+import { buildConversationItems, getRootUserMessages } from './conversationItems'
+import { ConversationTurn } from './ConversationTurn'
 import { MessageBubble } from './MessageBubble'
-import { getRootUserMessages, groupMessages } from './messageGrouping'
 import { MessageJumpRail } from './MessageJumpRail'
 
 interface Props {
   messages: IMessage[]
-  conversationsId: string
 }
 
 function BubbleList({ messages }: Props) {
@@ -30,14 +31,16 @@ function BubbleList({ messages }: Props) {
   } = useAutoScroll()
 
   const { copyMessage } = useMessageActions()
-
-  const messageGroups = groupMessages(messages)
+  const executionPhaseByTurn = useAgentStore(state => state.executionPhaseByTurn)
+  const conversationItems = useMemo(
+    () => buildConversationItems(messages, executionPhaseByTurn),
+    [messages, executionPhaseByTurn],
+  )
 
   // ---- 用户消息跳转导航 ----
-
   const userMessages = useMemo(
-    () => getRootUserMessages(messages),
-    [messages],
+    () => getRootUserMessages(conversationItems),
+    [conversationItems],
   )
 
   // 使用 useSyncExternalStore 订阅 IntersectionObserver 可见状态，完全回避
@@ -98,13 +101,21 @@ function BubbleList({ messages }: Props) {
         direction="top"
         onWheel={handleWheel}
       >
-        {messageGroups.map(group => (
-          <MessageBubble
-            key={group[0].id}
-            messages={group}
-            onCopyMessage={copyMessage}
-          />
-        ))}
+        {conversationItems.map(item => item.type === 'turn'
+          ? (
+              <ConversationTurn
+                key={item.key}
+                turn={item.turn}
+                onCopyMessage={copyMessage}
+              />
+            )
+          : (
+              <MessageBubble
+                key={item.message.id}
+                messages={[item.message]}
+                onCopyMessage={copyMessage}
+              />
+            ))}
 
         <Button
           size="icon-sm"

@@ -94,7 +94,7 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
     emitTurnToolCalls() {},
     emitTurnToolResults() {},
     emitTurnFinished(params) {
-      events.emit('agent:turn-finished', { conversationId: params.conversationId, status: params.status })
+      events.emit('agent:turn-finished', { conversationId: params.conversationId, turnId: params.turnId, status: params.status })
     },
   }
   const agentRuntime = createAgentRuntime({

@@ -62,7 +62,7 @@ describe('executeToolStep 行为', () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
     const registry = new ToolRegistry([createReadTool()])
-    const task = createTask()
+    const task = createTask({ executionPhase: 'preparing_tool' })
 
     const result = await executeToolStep({
       task,
@@ -78,6 +78,8 @@ describe('executeToolStep 行为', () => {
     expect(result.toolCallId).toBeDefined()
     expect(result.isError).toBe(false)
     expect(result.toolResultContent).toBe('file content')
+    expect(task.snapshot.executionPhase).toBe('preparing_tool')
+    expect(emitter.emitTaskUpdated).not.toHaveBeenCalled()
   })
 
   it('保留模型提供的 tool call id', async () => {

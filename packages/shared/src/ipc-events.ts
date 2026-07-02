@@ -66,7 +66,7 @@ export interface AppRendererEvents {
   'conversation:updated': { conversation: IConversations }
   'message:updated': { message: IMessage }
   'agent:task-updated': { task: AgentTaskSnapshot }
-  'agent:turn-finished': { conversationId: string, status: 'success' | 'error' | 'cancel' }
+  'agent:turn-finished': { conversationId: string, turnId: string, status: 'success' | 'error' | 'cancel' }
   'agent:approval-required': { taskId: string, conversationId: string, pendingAction: AgentPendingAction }
   'agent:secret-requested': { request: SecretRequest }
   'workspace:changed': Record<string, never>

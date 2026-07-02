@@ -1,8 +1,9 @@
-import type { AgentPendingAction, AgentTaskSnapshot, SecretRequest } from '@ant-chat/shared'
+import type { AgentExecutionPhase, AgentPendingAction, AgentTaskSnapshot, SecretRequest } from '@ant-chat/shared'
 import { create } from 'zustand'
 
 interface AgentState {
   tasks: Record<string, AgentTaskSnapshot>
+  executionPhaseByTurn: Record<string, AgentExecutionPhase>
   pendingByTask: Record<string, AgentPendingAction>
   secretRequests: Record<string, SecretRequest>
   setTask: (task: AgentTaskSnapshot) => void
@@ -14,9 +15,22 @@ interface AgentState {
 
 export const useAgentStore = create<AgentState>((set, get) => ({
   tasks: {},
+  executionPhaseByTurn: {},
   pendingByTask: {},
   secretRequests: {},
-  setTask: task => set(state => ({ tasks: { ...state.tasks, [task.taskId]: task } })),
+  setTask: task => set((state) => {
+    const executionPhaseByTurn = { ...state.executionPhaseByTurn }
+    if (['running', 'awaiting_approval'].includes(task.status)) {
+      executionPhaseByTurn[task.userMessageId] = task.executionPhase ?? 'waiting_model'
+    }
+    else {
+      delete executionPhaseByTurn[task.userMessageId]
+    }
+    return {
+      tasks: { ...state.tasks, [task.taskId]: { ...task } },
+      executionPhaseByTurn,
+    }
+  }),
   setPending: (taskId, pending) => set((state) => {
     const next = { ...state.pendingByTask }
     if (pending)

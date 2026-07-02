@@ -380,6 +380,7 @@ describe('agentRuntime 行为', () => {
       })
       await eventEmitter.emitTurnFinished({
         conversationId: 'conv-session',
+        turnId: 'user-msg-1',
         text: '模型请求失败',
         status: 'error',
       })
