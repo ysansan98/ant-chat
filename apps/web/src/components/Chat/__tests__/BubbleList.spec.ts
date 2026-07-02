@@ -43,7 +43,7 @@ describe('buildConversationItems', () => {
     expect(getRootUserMessages(items).map(message => message.id)).toEqual(['user-1'])
   })
 
-  it('将系统事件保留为 turn 之外的独立列表项', () => {
+  it('系统事件位于 turn 中间时保留消息时间顺序', () => {
     const event = createMessage('event-1', 'event')
     event.eventType = 'compaction'
 
@@ -51,8 +51,17 @@ describe('buildConversationItems', () => {
       createMessage('user-1', 'user'),
       event,
       createMessage('assistant-1', 'assistant', 'user-1'),
-    ], {})
+    ], { 'user-1': 'generating_response' })
 
-    expect(items.map(item => item.type)).toEqual(['turn', 'event'])
+    expect(items.map(item => item.type)).toEqual(['turn', 'event', 'turn'])
+
+    const turns = items.flatMap(item => item.type === 'turn' ? [item.turn] : [])
+    expect(turns).toHaveLength(2)
+    expect(turns[0].userMessage?.id).toBe('user-1')
+    expect(turns[0].responseMessages).toEqual([])
+    expect(turns[0].executionPhase).toBeUndefined()
+    expect(turns[1].userMessage).toBeUndefined()
+    expect(turns[1].responseMessages.map(message => message.id)).toEqual(['assistant-1'])
+    expect(turns[1].executionPhase).toBe('generating_response')
   })
 })

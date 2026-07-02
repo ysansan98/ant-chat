@@ -104,7 +104,7 @@ function BubbleList({ messages }: Props) {
         {conversationItems.map(item => item.type === 'turn'
           ? (
               <ConversationTurn
-                key={item.turn.id}
+                key={item.key}
                 turn={item.turn}
                 onCopyMessage={copyMessage}
               />
