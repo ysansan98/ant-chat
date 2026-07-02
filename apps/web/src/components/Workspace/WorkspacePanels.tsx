@@ -542,8 +542,7 @@ function ConversationListItem({ conversation, active, running, completed, onOpen
             ? <LoaderCircleIcon className="size-3.5 animate-spin text-blue-500" />
             : status === 'completed'
               ? <span className="size-1.5 rounded-full bg-emerald-500" />
-              : <span className="tabular-nums text-[11px] text-slate-400 transition-[opacity,transform,filter] duration-150 group-hover/conversation:pointer-events-none group-hover/conversation:scale-25 group-hover/conversation:opacity-0 group-hover/conversation:blur-[4px]">{formatRelativeTime(conversation.updatedAt)}</span>
-          }
+              : <span className="tabular-nums text-[11px] text-slate-400 transition-[opacity,transform,filter] duration-150 group-hover/conversation:pointer-events-none group-hover/conversation:scale-25 group-hover/conversation:opacity-0 group-hover/conversation:blur-[4px]">{formatRelativeTime(conversation.updatedAt)}</span>}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
