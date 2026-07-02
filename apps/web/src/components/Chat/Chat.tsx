@@ -1,6 +1,6 @@
 import type { AgentMode, ChatFeatures, IMessageContent } from '@ant-chat/shared'
 import { Skeleton } from '@workspace/ui/components/skeleton'
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useRef } from 'react'
 import { toast } from 'sonner'
 import { AgentApprovalCard, AgentSecretRequestCard } from '@/components/Agent'
 import { useChatSettingsContext } from '@/contexts/chatSettings'
@@ -52,6 +52,8 @@ export default function Chat() {
     currentWorkspacePath,
   })
 
+  const senderRef = useRef<HTMLDivElement>(null)
+
   async function onSubmit(
     content: IMessageContent,
     referencedFiles: string[],
@@ -82,6 +84,10 @@ export default function Chat() {
     if (handled)
       return true
 
+    // 捕获首条消息时 Sender 的旧位置（页面居中）
+    const el = senderRef.current
+    const oldRect = messages.length === 0 && el ? el.getBoundingClientRect() : undefined
+
     // Regular agent turn
     const prompt = draftText
     try {
@@ -98,6 +104,26 @@ export default function Chat() {
       }))
       upsertConversationAction(result.conversation)
       await setActiveConversationsId(result.conversationId)
+
+      // FLIP 动画：输入框从居中位置平滑过渡到底部
+      if (oldRect && el) {
+        const newRect = el.getBoundingClientRect()
+        const dy = oldRect.top - newRect.top
+        if (Math.abs(dy) > 5) {
+          el.style.transition = 'none'
+          el.style.transform = `translateY(${dy}px)`
+          el.getBoundingClientRect()
+          requestAnimationFrame(() => {
+            el.style.transition = 'transform 0.5s cubic-bezier(0.22, 1, 0.36, 1)'
+            el.style.transform = ''
+            const onEnd = () => {
+              el.style.transition = ''
+            }
+            el.addEventListener('transitionend', onEnd, { once: true })
+          })
+        }
+      }
+
       return true
     }
     catch (error) {
@@ -110,7 +136,6 @@ export default function Chat() {
 
   return (
     <div
-      key={currentConversations?.id}
       className={`
         relative grid h-full min-w-0 w-full
         ${hasMessages ? 'grid-rows-[minmax(0,1fr)_auto]' : 'place-items-center'}
@@ -120,6 +145,7 @@ export default function Chat() {
         <div className="min-h-0 overflow-hidden">
           <Suspense fallback={<BubbleSkeleton />}>
             <BubbleList
+              key={currentConversations?.id}
               messages={messages}
               conversationsId={activeConversationsId}
             />
@@ -127,6 +153,7 @@ export default function Chat() {
         </div>
       )}
       <div
+        ref={senderRef}
         className={`
           w-full min-w-0 px-2
           md:px-3
