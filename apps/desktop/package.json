@@ -38,7 +38,7 @@
     "nanoid": "^5.0.9"
   },
   "devDependencies": {
-    "@ant-chat/app-runtime": "workspace:*",
+    "@ant-chat/backend": "workspace:*",
     "@ant-chat/shared": "workspace:*",
     "@copilotkit/aimock": "^1.16.4",
     "@electron-toolkit/preload": "^3.0.1",

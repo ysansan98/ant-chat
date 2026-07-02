@@ -1,4 +1,4 @@
-import type { AppRuntime, AppRuntimeEventName, AppRuntimeEvents } from '@ant-chat/app-runtime'
+import type { AppRuntime, AppRuntimeEventName, AppRuntimeEvents } from '@ant-chat/backend'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import fs from 'node:fs'

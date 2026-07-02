@@ -1,4 +1,4 @@
-import type { AppRuntime, AppRuntimeEventName } from '@ant-chat/app-runtime'
+import type { AppRuntime, AppRuntimeEventName } from '@ant-chat/backend'
 import { EventEmitter } from 'node:events'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { request } from 'node:http'

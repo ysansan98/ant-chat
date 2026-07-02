@@ -1,5 +1,5 @@
 import type { AddressInfo } from 'node:net'
-import type { AppRuntime } from '@ant-chat/app-runtime'
+import type { AppRuntime } from '@ant-chat/backend'
 import { request } from 'node:http'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createLocalServer } from '../createServer'

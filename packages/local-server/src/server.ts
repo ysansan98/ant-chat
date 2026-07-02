@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { createAppRuntime } from '@ant-chat/app-runtime'
+import { createAppRuntime } from '@ant-chat/backend'
 import { listen } from './serverHost'
 
 export interface StartLocalServerOptions {

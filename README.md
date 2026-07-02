@@ -117,12 +117,8 @@ ant-chat/
 │   ├── web/                # 浏览器端 UI
 │   └── website/            # 项目官网
 ├── packages/
-│   ├── agent-core/         # 模型接入、工具、权限策略
-│   ├── agent-runtime/      # Agent 会话、任务、命令
-│   ├── app-data/           # 数据库、仓储、应用数据
-│   ├── app-runtime/        # 应用运行时聚合层和 RPC handlers
+│   ├── backend/            # 后端运行时、Agent、数据、MCP 和 RPC handlers
 │   ├── local-server/       # Web 本地服务、RPC API、事件流
-│   ├── mcp-client-hub/     # MCP 客户端连接管理
 │   ├── shared/             # 共享类型、schema、常量
 │   └── ui/                 # shadcn/ui 组件和 Kami 主题
 └── docs/                   # 设计、计划和项目文档

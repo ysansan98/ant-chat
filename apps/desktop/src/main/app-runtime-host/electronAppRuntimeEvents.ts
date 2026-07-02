@@ -1,4 +1,4 @@
-import type { AppRuntime } from '@ant-chat/app-runtime'
+import type { AppRuntime } from '@ant-chat/backend'
 import type { IpcRendererEvent } from '@ant-chat/shared'
 import { APP_RENDERER_EVENT_NAMES } from '@ant-chat/shared'
 import { sendToRenderer } from '@main/utils/ipc-events'

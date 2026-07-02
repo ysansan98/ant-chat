@@ -42,7 +42,7 @@
     "keytar": "^7.9.0"
   },
   "devDependencies": {
-    "@ant-chat/app-runtime": "workspace:^",
+    "@ant-chat/backend": "workspace:^",
     "@ant-chat/shared": "workspace:^",
     "tsdown": "catalog:",
     "tsx": "^4.19.3",
