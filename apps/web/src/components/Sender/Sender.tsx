@@ -760,6 +760,10 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
     setReferencedFiles([])
     setSelectedSkill(undefined)
     setTextareaScrollTop(0)
+    // 恢复 textarea 焦点，防止因外部状态变化导致其失焦
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus()
+    })
   }
 
   return (
