@@ -110,7 +110,6 @@ export default function Chat() {
 
   return (
     <div
-      key={currentConversations?.id}
       className={`
         relative grid h-full min-w-0 w-full
         ${hasMessages ? 'grid-rows-[minmax(0,1fr)_auto]' : 'place-items-center'}
@@ -120,6 +119,7 @@ export default function Chat() {
         <div className="min-h-0 overflow-hidden">
           <Suspense fallback={<BubbleSkeleton />}>
             <BubbleList
+              key={currentConversations?.id}
               messages={messages}
               conversationsId={activeConversationsId}
             />
