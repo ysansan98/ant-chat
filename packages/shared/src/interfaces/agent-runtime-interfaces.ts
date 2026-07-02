@@ -1,6 +1,6 @@
 import type { AddConversationsSchema, AddMessage, LanguageModelUsage, ModelInfo, ProviderConfigSchema, SecretRef, SecretRequest, SecretRequestField, SecretRequestResult, ToolCallContent, ToolResultContent, UpdateConversationsSchema, UpdateMessageSchema } from '../schemas'
 import type { AgentMemoryReader } from './agent-memory'
-import type { AgentMode, AgentPendingAction, AgentTaskSnapshot, ToolApprovalWhitelistEntry } from './agent-runtime'
+import type { AgentMode, AgentPendingAction, AgentTaskSnapshot, AgentTurnSource, ToolApprovalWhitelistEntry } from './agent-runtime'
 import type { AgentTool } from './agent-tools'
 import type { IConversations, IMessage, IMessageContent } from './db-types'
 import type { McpServer, McpToolCallResponse } from './mcp'
@@ -317,6 +317,8 @@ export interface AgentRuntimeStartTaskOptions {
   content?: IMessageContent
   referencedFiles?: string[]
   selectedSkill?: string
+  selectedSkills?: string[]
+  turnSource?: AgentTurnSource
   modelSettings?: {
     systemPrompt?: string
     temperature?: number

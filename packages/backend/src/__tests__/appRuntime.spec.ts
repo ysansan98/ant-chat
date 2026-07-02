@@ -102,4 +102,37 @@ describe('app runtime', () => {
     const results = await runtime.workspace.searchFiles(defaultPath, '', 10)
     expect(Array.isArray(results)).toBe(true)
   })
+
+  it('重启运行时后仍能读取自动化定义', async () => {
+    const workspacePath = runtime.workspace.getDefaultPath()
+    const created = await runtime.automation.create({
+      name: '明日检查',
+      prompt: '检查项目状态',
+      workspacePath,
+      providerId: 'provider-1',
+      modelId: 'model-1',
+      selectedSkills: [],
+      selectedMcpServers: [],
+      permissionPolicy: {
+        workspaceAccess: 'read',
+        allowSkillScripts: false,
+        allowMcpMutations: false,
+        extraFileRoots: [],
+        allowArbitraryCommands: false,
+        commandPatterns: [],
+        allowNetwork: false,
+      },
+      schedule: { type: 'once', runAt: Date.now() + 60_000 },
+      enabled: true,
+    })
+
+    await runtime.dispose()
+    const { createAppRuntime } = await import('../appRuntime')
+    runtime = createAppRuntime({ appDataRoot })
+    await runtime.initialize()
+
+    await expect(runtime.automation.list()).resolves.toEqual([
+      expect.objectContaining({ id: created.id, name: '明日检查' }),
+    ])
+  })
 })

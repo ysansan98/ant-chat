@@ -35,6 +35,7 @@ import {
   SkillManagementService,
 } from './agent-runtime'
 import { createAgentBrowserPaths } from './agentBrowser'
+import { createAutomationScheduler, createAutomationService } from './automations'
 import { createAppDataContext, searchWorkspaceFiles } from './data'
 import { openAppDataDatabase } from './database'
 import { RuntimeEventBus } from './events'
@@ -133,6 +134,21 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
     aiProviderFactory,
     listActiveTasks: conversationId => agentRuntime.listActiveTasks(conversationId),
   })
+  const automationService = createAutomationService({
+    repository: context.automationRepository,
+    startTurn: input => agentController.startTurn(input),
+    cancelTask: taskId => agentRuntime.cancelTask({ taskId }),
+    events,
+    logger,
+  })
+  const automationScheduler = createAutomationScheduler({
+    repository: context.automationRepository,
+    execute: async (automation, runId) => {
+      await automationService.execute(automation, runId)
+    },
+    logger,
+  })
+  automationService.setScheduler(automationScheduler)
   const modelsDevImporter = createModelsDevImporter(context)
   let initialized = false
   let disposed = false
@@ -414,6 +430,18 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
         input: ApprovePendingActionOptions & { remember: boolean, workspacePath?: string },
       ) => agentController.approvePendingActionWithWhitelist(input),
     },
+    automation: {
+      list: () => automationService.list(),
+      create: automationService.create,
+      update: automationService.update,
+      delete: async (id: string) => {
+        await automationService.delete(id)
+        return null
+      },
+      setEnabled: automationService.setEnabled,
+      runNow: automationService.runNow,
+      listRuns: automationService.listRuns,
+    },
     commands: {
       run: (input: RunBuiltinCommandParams) => commandController.runBuiltinCommand(input),
       cancel: async (conversationId: string) => {
@@ -436,12 +464,15 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
       const settings = await context.settingsRepository.getGeneralSettings()
       await networkProxy.apply(settings.proxySettings)
       await mcpClientHub.initializeMcpServers(context.mcpSettingsRepository.getMcpConfigs())
+      await automationScheduler.start()
       initialized = true
     },
     async dispose() {
       if (disposed)
         return
       disposed = true
+      automationScheduler.dispose()
+      await context.automationRepository.cancelRunning(Date.now())
       for (const task of agentRuntime.listActiveTasks())
         agentRuntime.cancelTask({ taskId: task.taskId })
       await agentRuntime.dispose()

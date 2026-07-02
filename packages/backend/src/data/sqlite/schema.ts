@@ -42,5 +42,45 @@ export function initializeAppDataSchema(db: AppDataDatabase): void {
       size integer NOT NULL,
       created_at integer NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS automations (
+      id text PRIMARY KEY NOT NULL,
+      name text NOT NULL,
+      prompt text NOT NULL,
+      workspace_path text NOT NULL,
+      provider_id text NOT NULL,
+      model_id text NOT NULL,
+      selected_skills text NOT NULL,
+      selected_mcp_servers text NOT NULL,
+      permission_policy text NOT NULL,
+      schedule text NOT NULL,
+      enabled integer NOT NULL,
+      next_run_at integer,
+      last_run_at integer,
+      created_at integer NOT NULL,
+      updated_at integer NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_automations_due
+      ON automations (enabled, next_run_at);
+
+    CREATE TABLE IF NOT EXISTS automation_runs (
+      id text PRIMARY KEY NOT NULL,
+      automation_id text NOT NULL REFERENCES automations(id) ON DELETE CASCADE,
+      scheduled_at integer NOT NULL,
+      started_at integer,
+      finished_at integer,
+      status text NOT NULL,
+      task_id text,
+      conversation_id text,
+      summary text,
+      error_code text,
+      error_message text,
+      created_at integer NOT NULL,
+      UNIQUE (automation_id, scheduled_at)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_automation_runs_automation_started
+      ON automation_runs (automation_id, started_at DESC);
   `)
 }

@@ -1,4 +1,4 @@
-import type { AgentMode } from './agent-runtime'
+import type { AgentMode, AgentTurnSource } from './agent-runtime'
 import type { ChatFeatures, IConversations, IMessageContent } from './db-types'
 import type { ModelSettings } from './model-service'
 
@@ -11,6 +11,8 @@ export interface StartAgentTurnOptions {
   content?: IMessageContent
   referencedFiles?: string[]
   selectedSkill?: string
+  selectedSkills?: string[]
+  turnSource?: AgentTurnSource
   workspacePath: string
   mode?: AgentMode
   modelConfig: Omit<ModelSettings, 'model' | 'features'> & {

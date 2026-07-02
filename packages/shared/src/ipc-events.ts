@@ -1,4 +1,4 @@
-import type { AgentPendingAction, AgentTaskSnapshot, IConversations, IMessage, NotificationOption, ProgressInfo, UpdateError, UpdateInfo, UpdateStatus } from './interfaces'
+import type { AgentPendingAction, AgentTaskSnapshot, AutomationDefinition, AutomationRun, IConversations, IMessage, NotificationOption, ProgressInfo, UpdateError, UpdateInfo, UpdateStatus } from './interfaces'
 import type { SecretRequest } from './schemas'
 
 export function createIpcResponse<T>(success: boolean, data: T, msg?: string): IpcResponse<T> | ErrorIpcResponse {
@@ -73,6 +73,8 @@ export interface AppRendererEvents {
   'settings:updated': { keys: string[] }
   'mcp:status-changed': { serverName: string, status: 'connected' | 'disconnected', error?: string }
   'provider:changed': { providerId?: string }
+  'automation:changed': { automation: AutomationDefinition }
+  'automation:run-changed': { run: AutomationRun }
 }
 
 export const APP_RENDERER_EVENT_NAMES = [
@@ -86,6 +88,8 @@ export const APP_RENDERER_EVENT_NAMES = [
   'settings:updated',
   'mcp:status-changed',
   'provider:changed',
+  'automation:changed',
+  'automation:run-changed',
 ] as const satisfies readonly (keyof AppRendererEvents & string)[]
 
 /**

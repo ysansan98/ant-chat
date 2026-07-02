@@ -94,6 +94,14 @@ export function createAppRpcHandlers(runtime: AppRuntime): AppRpcHandlers {
     'agent.injectSteering': input => runtime.agent.injectSteering(input),
     'agent.listActiveTasks': input => runtime.agent.listActiveTasks(input?.conversationId),
 
+    'automation.list': () => runtime.automation.list(),
+    'automation.create': input => runtime.automation.create(input.input),
+    'automation.update': input => runtime.automation.update(input.input),
+    'automation.delete': input => runtime.automation.delete(input.id),
+    'automation.setEnabled': input => runtime.automation.setEnabled(input.id, input.enabled),
+    'automation.runNow': input => runtime.automation.runNow(input.id),
+    'automation.listRuns': input => runtime.automation.listRuns(input.automationId, input.limit),
+
     'commands.runBuiltinCommand': input => runtime.commands.run(input),
     'commands.cancelCommand': input => runtime.commands.cancel(input.conversationId),
   }

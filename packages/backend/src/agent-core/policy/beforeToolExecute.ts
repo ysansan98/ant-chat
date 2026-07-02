@@ -28,13 +28,24 @@ export function createBeforeToolExecuteHook(
       prepared.operationType,
       prepared.scope,
     )
+    const automationDecision = decideAutomationPolicy(
+      task.snapshot.turnSource?.type === 'automation'
+        ? task.snapshot.turnSource.permissionPolicy
+        : undefined,
+      prepared.toolName,
+      prepared.input,
+      prepared.operationType,
+      prepared.scope,
+      task.snapshot.workspacePath,
+    )
+    const effectiveDecision = automationDecision ?? policyDecision
 
     const context = {
       toolName: prepared.toolName,
       input: prepared.input,
       operationType: prepared.operationType,
       scope: prepared.scope,
-      policy: policyDecision.type,
+      policy: effectiveDecision.type,
     }
     onToolCallContext?.(context)
 
@@ -44,19 +55,19 @@ export function createBeforeToolExecuteHook(
       input: prepared.input,
       operationType: prepared.operationType,
       scope: prepared.scope,
-      policy: policyDecision.type,
+      policy: effectiveDecision.type,
       workspacePath: task.snapshot.workspacePath,
     })
 
-    if (policyDecision.type === 'allow') {
+    if (effectiveDecision.type === 'allow') {
       return { outcome: 'allow' }
     }
 
-    if (policyDecision.type === 'block') {
+    if (effectiveDecision.type === 'block') {
       return {
         outcome: 'block',
-        errorCode: policyDecision.errorCode,
-        reason: policyDecision.reason,
+        errorCode: effectiveDecision.errorCode,
+        reason: effectiveDecision.reason,
       }
     }
 
@@ -127,4 +138,48 @@ export function createBeforeToolExecuteHook(
 
     return { outcome: 'allow' }
   }
+}
+
+function decideAutomationPolicy(
+  policy: import('@ant-chat/shared').AutomationPermissionPolicy | undefined,
+  toolName: string,
+  input: Record<string, unknown>,
+  operationType: import('@ant-chat/shared').ToolOperationType,
+  scope: import('@ant-chat/shared').ToolScope,
+  workspacePath: string,
+) {
+  if (!policy)
+    return undefined
+  if (scope !== 'workspace')
+    return { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '自动化任务不允许访问工作区外资源' }
+  if (operationType === 'read')
+    return { type: 'allow' as const }
+  if (operationType === 'browser') {
+    return policy.allowNetwork
+      ? { type: 'allow' as const }
+      : { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '自动化任务未授权网络访问' }
+  }
+  if (operationType === 'write') {
+    return policy.workspaceAccess === 'write'
+      ? { type: 'allow' as const }
+      : { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '自动化任务仅有工作区读取权限' }
+  }
+  if (operationType === 'skill') {
+    // Skill 能力已由当前 Turn 的 ToolRegistry 最小化注入，权限层不再重复维护白名单。
+    return { type: 'allow' as const }
+  }
+  if (operationType === 'mcp') {
+    return policy.allowMcpMutations
+      ? { type: 'allow' as const }
+      : { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '自动化任务未授权 MCP 操作' }
+  }
+  if (!policy.allowArbitraryCommands)
+    return { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '自动化任务未授权命令执行' }
+  if (policy.commandPatterns.length === 0)
+    return { type: 'allow' as const }
+  const matchKey = extractInputKey(toolName, input)
+  const entries = policy.commandPatterns.map(pattern => ({ toolName, toolScope: scope, pattern, workspacePath }))
+  return isWhitelisted(entries, toolName, scope, matchKey, workspacePath)
+    ? { type: 'allow' as const }
+    : { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '命令不在自动化任务允许范围内' }
 }

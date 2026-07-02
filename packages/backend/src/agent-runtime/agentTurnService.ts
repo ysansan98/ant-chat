@@ -105,6 +105,8 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
           content: options.content,
           referencedFiles: options.referencedFiles,
           selectedSkill: options.selectedSkill,
+          selectedSkills: options.selectedSkills,
+          turnSource: options.turnSource,
           modelSettings: {
             systemPrompt: options.modelConfig.systemPrompt,
             temperature: options.modelConfig.temperature,

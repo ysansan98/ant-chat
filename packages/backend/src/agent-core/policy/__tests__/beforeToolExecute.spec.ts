@@ -53,6 +53,69 @@ function createPrepared() {
 }
 
 describe('createBeforeToolExecuteHook 行为', () => {
+  it('自动化只读策略直接阻止写入且不进入交互审批', async () => {
+    const waitForApproval = vi.fn(async () => ({ approved: true }))
+    const hook = createBeforeToolExecuteHook(waitForApproval)
+    const task = createTask({
+      turnSource: {
+        type: 'automation',
+        automationId: 'automation-1',
+        runId: 'run-1',
+        selectedSkills: [],
+        selectedMcpServers: [],
+        permissionPolicy: {
+          workspaceAccess: 'read',
+          allowSkillScripts: false,
+          allowMcpMutations: false,
+          extraFileRoots: [],
+          allowArbitraryCommands: false,
+          commandPatterns: [],
+          allowNetwork: false,
+        },
+      },
+    })
+
+    const result = await hook({
+      task,
+      prepared: { ...createPrepared(), operationType: 'write', scope: 'workspace' },
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+    })
+
+    expect(result).toEqual(expect.objectContaining({ outcome: 'block', errorCode: 'AGENT_POLICY_BLOCKED' }))
+    expect(waitForApproval).not.toHaveBeenCalled()
+  })
+
+  it('自动化策略允许执行当前 Turn 已注入的 Skill', async () => {
+    const waitForApproval = vi.fn(async () => ({ approved: true }))
+    const hook = createBeforeToolExecuteHook(waitForApproval)
+    const task = createTask({
+      turnSource: {
+        type: 'automation',
+        automationId: 'automation-1',
+        runId: 'run-1',
+        selectedSkills: ['review'],
+        selectedMcpServers: [],
+        permissionPolicy: {
+          workspaceAccess: 'read',
+          allowSkillScripts: false,
+          allowMcpMutations: false,
+          extraFileRoots: [],
+          allowArbitraryCommands: false,
+          commandPatterns: [],
+          allowNetwork: false,
+        },
+      },
+    })
+
+    await expect(hook({
+      task,
+      prepared: { ...createPrepared(), toolName: 'use_skill', operationType: 'skill', scope: 'workspace', input: { name: 'review' } },
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+    })).resolves.toEqual({ outcome: 'allow' })
+
+    expect(waitForApproval).not.toHaveBeenCalled()
+  })
+
   it('hybrid 模式下 workspace read 返回 allow', async () => {
     const hook = createBeforeToolExecuteHook(async () => ({ approved: true }))
     const task = createTask({ mode: 'hybrid' })
