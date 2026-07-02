@@ -1,5 +1,5 @@
-import type { AppRuntime } from '@ant-chat/app-runtime'
-import { createAppRuntime } from '@ant-chat/app-runtime'
+import type { AppRuntime } from '@ant-chat/backend'
+import { createAppRuntime } from '@ant-chat/backend'
 import { resolveAppDataRoot } from '@ant-chat/shared'
 import { attachAppRuntimeEvents } from '@main/app-runtime-host/electronAppRuntimeEvents'
 
