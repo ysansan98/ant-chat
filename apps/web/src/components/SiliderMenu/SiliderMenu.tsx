@@ -1,6 +1,7 @@
 import { cn } from '@workspace/ui/lib/utils'
 import {
   Pencil,
+  Repeat2,
   Search,
   Settings,
 } from 'lucide-react'
@@ -20,6 +21,7 @@ export function SliderMenu({ mobile = false, onNavigate }: SliderMenuProps) {
   const location = useLocation()
   const navigate = useNavigate()
   const isChatPage = location.pathname.includes('/chat')
+  const isAutomationsPage = location.pathname === '/chat/automations'
 
   function openSearch() {
     window.dispatchEvent(new Event('ant-chat:open-search'))
@@ -59,6 +61,16 @@ export function SliderMenu({ mobile = false, onNavigate }: SliderMenuProps) {
             onClick={() => {
               navigate('/chat')
               void setActiveConversationsId('')
+              onNavigate?.()
+            }}
+          />
+          <SidebarNavItem
+            icon={<Repeat2 className="size-4" />}
+            label="自动化"
+            dataTestId="sidebar-automations"
+            active={isAutomationsPage}
+            onClick={() => {
+              navigate('/chat/automations')
               onNavigate?.()
             }}
           />

@@ -4,6 +4,7 @@ import {
 } from 'react-router'
 import AntChatApp from '@/App'
 import { ChatLayout } from '@/components/ChatLayout'
+import { AutomationsPage } from '@/pages/Automations/Automations'
 import { ChatPage } from '@/pages/Chat'
 import { About } from '@/pages/Settings/About'
 import { GeneralSettings } from '@/pages/Settings/GeneralSettings'
@@ -60,6 +61,7 @@ const router = createHashRouter(
               Component: ChatLayout,
               children: [
                 { index: true, Component: ChatPage },
+                { path: 'automations', Component: AutomationsPage },
               ],
             },
             settingsRoute,
