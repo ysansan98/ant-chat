@@ -9,6 +9,13 @@ export type AgentTaskStatus
     | 'failed'
     | 'cancelled'
 
+export type AgentExecutionPhase
+  = | 'waiting_model'
+    | 'thinking'
+    | 'generating_response'
+    | 'preparing_tool'
+    | 'using_tool'
+
 export type AgentErrorCode
   = | 'AGENT_TASK_NOT_FOUND'
     | 'AGENT_TASK_ALREADY_RUNNING'
@@ -40,6 +47,8 @@ export interface AgentTaskSnapshot {
   workspacePath: string
   mode: AgentMode
   status: AgentTaskStatus
+  /** 执行阶段；可选以兼容未带该字段的旧 runtime 快照。 */
+  executionPhase?: AgentExecutionPhase
   createdAt: number
   updatedAt: number
   logPath: string

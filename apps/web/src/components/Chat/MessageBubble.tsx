@@ -1,4 +1,5 @@
 import type { IMessage } from '@ant-chat/shared'
+import type { ReactNode } from 'react'
 import {
   MessageContent as AiMessageContent,
   Message,
@@ -31,13 +32,14 @@ import MessageContent from './MessageContent'
 interface MessageBubbleProps {
   messages: IMessage[]
   onCopyMessage: (message: IMessage) => void
+  turnStatus?: ReactNode
 }
 
 type ProcessEntry
   = | { type: 'assistant', message: IMessage }
     | { type: 'steering', message: IMessage }
 
-export function MessageBubble({ messages, onCopyMessage }: MessageBubbleProps) {
+export function MessageBubble({ messages, onCopyMessage, turnStatus }: MessageBubbleProps) {
   const message = messages[0]
   const isUser = message.role === Role.USER
   const isAI = message.role === Role.AI
@@ -160,7 +162,6 @@ export function MessageBubble({ messages, onCopyMessage }: MessageBubbleProps) {
   const taskStartedAt = assistantMessages[0]?.createdAt ?? footerMessage.createdAt
   const isRunning = isAssistantStreaming
     || (taskDurationMs == null && hasToolCallAfterLastVisibleResponse(assistantMessages))
-
   return (
     <Message
       from={message.role === Role.USER ? 'user' : 'assistant'}
@@ -203,6 +204,8 @@ export function MessageBubble({ messages, onCopyMessage }: MessageBubbleProps) {
               ))}
             </div>
           </AiMessageContent>
+
+          {turnStatus}
 
           <BubbleFooter
             message={footerMessage}
@@ -330,6 +333,12 @@ function messageHasTextContent(msg: IMessage): boolean {
   return Array.isArray(msg.content) && msg.content.some(b => b.type === 'text' && b.text.length > 0)
 }
 
+function messageHasVisibleResponse(msg: IMessage): boolean {
+  return Array.isArray(msg.content) && msg.content.some(block =>
+    (block.type === 'text' && block.text.length > 0) || block.type === 'error',
+  )
+}
+
 function messageHasToolCalls(msg: IMessage): boolean {
   return Array.isArray(msg.content) && msg.content.some(b => b.type === 'tool-call')
 }
@@ -347,7 +356,7 @@ function splitTurnMessages(messages: IMessage[]): ProcessSplit {
   const assistantMessages = messages.filter(message => message.role === Role.AI)
   const visibleMessage = [...assistantMessages]
     .reverse()
-    .find(message => messageHasTextContent(message) && !messageHasToolCalls(message))
+    .find(message => messageHasVisibleResponse(message) && !messageHasToolCalls(message))
   const processEntries: ProcessEntry[] = []
 
   for (const message of messages) {

@@ -41,6 +41,7 @@ export async function rejectSecretRequestAction(requestId: string) {
 
 export async function syncConversationAgentState(conversationId: string) {
   const activeTasks = await agentApi.listActiveTasks(conversationId)
+
   const activeTaskIds = new Set(activeTasks.map(task => task.taskId))
 
   useAgentStore.setState((state) => {
@@ -52,14 +53,21 @@ export async function syncConversationAgentState(conversationId: string) {
       Object.entries(state.pendingByTask)
         .filter(([taskId]) => activeTaskIds.has(taskId) || state.tasks[taskId]?.conversationId !== conversationId),
     )
+    const executionPhaseByTurn = { ...state.executionPhaseByTurn }
+
+    for (const task of Object.values(state.tasks)) {
+      if (task.conversationId === conversationId)
+        delete executionPhaseByTurn[task.userMessageId]
+    }
 
     for (const task of activeTasks) {
       tasks[task.taskId] = task
+      executionPhaseByTurn[task.userMessageId] = task.executionPhase ?? 'waiting_model'
       if (task.pendingAction)
         pendingByTask[task.taskId] = task.pendingAction
     }
 
-    return { tasks, pendingByTask }
+    return { tasks, pendingByTask, executionPhaseByTurn }
   })
 
   if (activeTasks.some(isActiveTask))

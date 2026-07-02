@@ -1,6 +1,7 @@
 import type { IMessage } from '@ant-chat/shared'
-import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useAgentStore } from '@/store/agent'
 import BubbleList from '../BubbleList'
 
 class IntersectionObserverStub implements IntersectionObserver {
@@ -17,6 +18,10 @@ class IntersectionObserverStub implements IntersectionObserver {
 
 vi.stubGlobal('IntersectionObserver', IntersectionObserverStub)
 
+beforeEach(() => {
+  useAgentStore.setState({ tasks: {}, executionPhaseByTurn: {}, pendingByTask: {}, secretRequests: {} })
+})
+
 function createMessage(id: string, role: IMessage['role'], content: IMessage['content'], status: IMessage['status']): IMessage {
   return {
     id,
@@ -30,6 +35,66 @@ function createMessage(id: string, role: IMessage['role'], content: IMessage['co
 }
 
 describe('bubbleList', () => {
+  it('展示 agent loop 事件携带的执行阶段', () => {
+    const task = {
+      taskId: 'task-1',
+      conversationId: 'conv-1',
+      userMessageId: 'user-1',
+      workspacePath: '/workspace',
+      mode: 'hybrid' as const,
+      status: 'running' as const,
+      executionPhase: 'waiting_model' as const,
+      createdAt: 1,
+      updatedAt: 1,
+      logPath: '',
+      prompt: '开始任务',
+    }
+    useAgentStore.getState().setTask(task)
+
+    const assistantMessage = createMessage('tool-call', 'assistant', [{
+      type: 'tool-call',
+      toolCallId: 'call-1',
+      toolName: 'bash',
+      args: { command: 'pnpm check' },
+      executeState: 'executing',
+    }], 'success')
+    assistantMessage.turnId = undefined
+
+    const view = render(
+      <BubbleList
+        messages={[
+          createMessage('user-1', 'user', [{ type: 'text', text: '开始任务' }], 'success'),
+        ]}
+      />,
+    )
+
+    expect(screen.getByRole('status')).toHaveTextContent('等待模型回复')
+    expect(screen.getByRole('status').querySelector('.animate-shimmer')).not.toBeNull()
+
+    act(() => {
+      useAgentStore.getState().setTask({ ...task, executionPhase: 'using_tool' })
+    })
+    view.rerender(
+      <BubbleList
+        messages={[
+          createMessage('user-1', 'user', [{ type: 'text', text: '开始任务' }], 'success'),
+          assistantMessage,
+        ]}
+      />,
+    )
+
+    const runningStatus = screen.getByRole('status')
+    const elapsedTime = screen.getByText(/耗时/)
+    expect(runningStatus).toHaveTextContent('正在使用工具')
+    expect(runningStatus.compareDocumentPosition(elapsedTime) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+
+    act(() => {
+      useAgentStore.getState().setTask({ ...task, status: 'success' })
+    })
+
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
   it('同一轮增量消息到达时保留用户关闭的执行过程状态', () => {
     const messages = [
       createMessage('user-1', 'user', [{ type: 'text', text: '开始任务' }], 'success'),
@@ -43,7 +108,7 @@ describe('bubbleList', () => {
       createMessage('answer-1', 'assistant', [{ type: 'text', text: '处理中' }], 'typing'),
     ]
 
-    const view = render(<BubbleList messages={messages} conversationsId="conv-1" />)
+    const view = render(<BubbleList messages={messages} />)
     const trigger = screen.getByText('执行过程(1)')
     fireEvent.click(trigger)
     expect(trigger.closest('[data-slot="collapsible"]')).toHaveAttribute('data-state', 'closed')
@@ -54,7 +119,6 @@ describe('bubbleList', () => {
           ...messages,
           createMessage('answer-2', 'assistant', [{ type: 'text', text: '继续处理' }], 'typing'),
         ]}
-        conversationsId="conv-1"
       />,
     )
 

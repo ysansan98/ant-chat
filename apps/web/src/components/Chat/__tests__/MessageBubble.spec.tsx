@@ -37,6 +37,18 @@ describe('messageBubble', () => {
     expect(screen.queryByText(/执行过程/)).not.toBeInTheDocument()
   })
 
+  it('仅有错误内容时直接展示错误，不放入可折叠的执行过程', () => {
+    renderBubble([
+      createAssistantMessage('failed-answer', [
+        { type: 'error', error: '模型请求失败' },
+      ], 'error'),
+    ])
+
+    expect(screen.queryByText(/执行过程/)).not.toBeInTheDocument()
+    expect(screen.getByText('Request failed')).toBeInTheDocument()
+    expect(screen.getByText('模型请求失败')).toBeInTheDocument()
+  })
+
   it('tool 完成后等待下一段 assistant 文本时保持执行过程展开', () => {
     const toolCall = createAssistantMessage('tool-call', [{
       type: 'tool-call',
@@ -247,6 +259,51 @@ describe('messageBubble', () => {
     // Panel should be open because there's an executing tool
     const panel = container.querySelector('[data-slot="collapsible"]')
     expect(panel).toHaveAttribute('data-state', 'open')
+  })
+
+  it('运行中的 tool group 展开到工具列表，但不自动展开 tool 详情', () => {
+    const toolCalls = createAssistantMessage('tool-group', [
+      {
+        type: 'tool-call',
+        toolCallId: 'completed-tool',
+        toolName: 'read_file',
+        args: { path: 'README.md' },
+        executeState: 'completed',
+      },
+      {
+        type: 'tool-call',
+        toolCallId: 'executing-tool',
+        toolName: 'bash',
+        args: { command: 'pnpm check' },
+        executeState: 'executing',
+      },
+    ])
+    const toolResult: IMessage = {
+      id: 'completed-result',
+      convId: 'conv-1',
+      role: 'tool',
+      content: [{
+        type: 'tool-result',
+        toolCallId: 'completed-tool',
+        toolName: 'read_file',
+        result: '已读取 README',
+        isError: false,
+      }],
+      status: 'success',
+      createdAt: 2,
+      turnId: 'turn-1',
+    }
+
+    renderBubble([toolCalls, toolResult])
+
+    expect(screen.getByText('View 2 steps')).toBeInTheDocument()
+    expect(screen.getByText('read_file')).toBeInTheDocument()
+    expect(screen.getByText('bash')).toBeInTheDocument()
+    expect(screen.queryByText('已读取 README')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('read_file'))
+
+    expect(screen.getByText('已读取 README')).toBeInTheDocument()
   })
 
   it('renders partial assistant text before the failure alert', () => {

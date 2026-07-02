@@ -68,6 +68,7 @@ function createTask(taskId = 'task-loop-1', conversationId = 'conv-loop-1') {
       workspacePath: '/workspace',
       mode: 'hybrid' as const,
       status: 'running' as const,
+      executionPhase: 'waiting_model' as const,
       prompt: 'test',
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -353,6 +354,10 @@ describe('runAgentLoop 行为', () => {
     })
     const task = createTask(taskId, options.conversationId)
     taskStore.create(task)
+    const phases: Array<string | undefined> = []
+    vi.mocked(emitter.emitTaskUpdated).mockImplementation((snapshot) => {
+      phases.push(snapshot.executionPhase)
+    })
 
     await runAgentLoop({
       taskId,
@@ -367,10 +372,42 @@ describe('runAgentLoop 行为', () => {
     // Should have emitted tool calls
     expect(emitter.emitTurnToolCalls).toHaveBeenCalled()
 
+    expect(phases).toEqual(expect.arrayContaining([
+      'preparing_tool',
+      'using_tool',
+      'waiting_model',
+      'generating_response',
+    ]))
+    expect(phases.indexOf('preparing_tool')).toBeLessThan(phases.indexOf('using_tool'))
+    expect(phases.indexOf('using_tool')).toBeLessThan(phases.indexOf('waiting_model'))
+    expect(phases.indexOf('waiting_model')).toBeLessThan(phases.indexOf('generating_response'))
+
     // Should have finished successfully
     expect(emitter.emitTurnFinished).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'success', durationMs: expect.any(Number) }),
     )
+  })
+
+  it('模型流从推理切换到正文时依次发送执行阶段', async () => {
+    const aiProvider = createMockAIProvider([[
+      { reasoningContent: '正在思考' },
+      makeTextChunk('最终回复'),
+    ]])
+    const { taskId, options } = createBaseInput({ aiProvider: aiProvider as unknown as IAIProvider })
+    taskStore.create(createTask(taskId, options.conversationId))
+    const phases: Array<string | undefined> = []
+    vi.mocked(emitter.emitTaskUpdated).mockImplementation((snapshot) => {
+      phases.push(snapshot.executionPhase)
+    })
+
+    await runAgentLoop({
+      taskId,
+      options,
+      config: { eventEmitter: emitter, logger },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
+    })
+
+    expect(phases.slice(0, 2)).toEqual(['thinking', 'generating_response'])
   })
 
   it('保留同一次模型响应中的重复工具调用', async () => {

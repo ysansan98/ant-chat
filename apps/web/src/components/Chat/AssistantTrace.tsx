@@ -130,36 +130,16 @@ function isTraceStep(step: ContentStep): step is TraceStep {
 function useTraceAutoExpand(steps: ContentStep[]) {
   const traceSteps = useMemo(() => steps.filter(isTraceStep), [steps])
 
-  // Collect child-tool ids so they have entries in openState
-  const childToolEntries = useMemo(() => {
-    const entries: { id: string, isExecuting: boolean }[] = []
-    for (const step of traceSteps) {
-      if (step.type === 'tool-group') {
-        for (const tool of step.tools) {
-          entries.push({ id: tool.id, isExecuting: tool.isExecuting })
-        }
-      }
-    }
-    return entries
-  }, [traceSteps])
-
   const activeStepId = useMemo(() => {
-    // Check child tools first (most granular), then groups, then top-level steps
-    for (const e of childToolEntries) {
-      if (e.isExecuting)
-        return e.id
-    }
     for (let i = traceSteps.length - 1; i >= 0; i--) {
       const step = traceSteps[i]
       if (step.type === 'reasoning' && step.isStreaming)
-        return step.id
-      if (step.type === 'tool' && step.isExecuting)
         return step.id
       if (step.type === 'tool-group' && step.isExecuting)
         return step.id
     }
     return null
-  }, [traceSteps, childToolEntries])
+  }, [traceSteps])
 
   // User overrides: explicit open/close toggles that trump auto-behavior
   const [userOverrides, setUserOverrides] = useState<Record<string, boolean>>({})
@@ -185,15 +165,14 @@ function useTraceAutoExpand(steps: ContentStep[]) {
       if (step.type === 'tool-group') {
         setOpen(step.id, step.isExecuting)
         for (const tool of step.tools) {
-          setOpen(tool.id, tool.isExecuting)
+          setOpen(tool.id, false)
         }
       }
       else if (step.type === 'reasoning') {
         setOpen(step.id, step.isStreaming)
       }
       else {
-        // single tool
-        setOpen(step.id, step.isExecuting)
+        setOpen(step.id, false)
       }
     }
 
@@ -215,7 +194,7 @@ function CollapseChevron({ open }: { open: boolean }) {
   return (
     <ChevronDownIcon
       className={cn(
-        'size-3.5 ml-auto shrink-0 opacity-0 transition-all',
+        'size-3.5 ml-auto shrink-0 opacity-0 transition-[transform,opacity]',
         'group-hover/trace:opacity-100',
         open && 'rotate-180 opacity-100',
       )}
@@ -407,7 +386,7 @@ function ToolGroupItem({
           <CompactToolItem
             key={tool.id}
             tool={tool}
-            open={openState[tool.id] ?? !tool.toolResult}
+            open={openState[tool.id] ?? false}
             onToggle={onToggle}
           />
         ))}

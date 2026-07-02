@@ -152,7 +152,7 @@ describe('gui ui flow', () => {
       messages: [],
     })
     useConversationsStore.setState(createInitialState())
-    useAgentStore.setState({ pendingByTask: {}, tasks: {} })
+    useAgentStore.setState({ pendingByTask: {}, tasks: {}, executionPhaseByTurn: {} })
     usePendingMessagesStore.setState({ itemsByConversation: {} })
 
     mocks.provider.getAllAbvailableModels.mockResolvedValue([])
@@ -426,7 +426,7 @@ describe('gui ui flow', () => {
       taskId: 'task-running',
     })
     mocks.agent.listActiveTasks.mockResolvedValue([task])
-    useAgentStore.setState({ pendingByTask: {}, tasks: {} })
+    useAgentStore.setState({ pendingByTask: {}, tasks: {}, executionPhaseByTurn: {} })
     useConversationsStore.setState({ streamingConversationIds: new Set() })
 
     await setActiveConversationsId('conv-running' as ConversationsId)

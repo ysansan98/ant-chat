@@ -92,6 +92,7 @@ export class AgentRuntime {
       workspacePath: options.workspacePath,
       mode: options.mode,
       status: 'running',
+      executionPhase: 'waiting_model',
       createdAt: now,
       updatedAt: now,
       logPath,

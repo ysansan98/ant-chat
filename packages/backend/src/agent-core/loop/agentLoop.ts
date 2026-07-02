@@ -1,4 +1,4 @@
-import type { AgentRuntimeConfig, AgentTaskSnapshot, LoopMessage, McpToolCall, RuntimeToolDefinition, ToolResultContent } from '@ant-chat/shared'
+import type { AgentExecutionPhase, AgentRuntimeConfig, AgentTaskSnapshot, LoopMessage, McpToolCall, RuntimeToolDefinition, ToolResultContent } from '@ant-chat/shared'
 import type { BeforeTurnResult, RuntimeStartInput } from '../session/types'
 import type { BeforeToolExecuteHook, ToolCallContext } from '../tools/types'
 import { AgentError } from '../AgentError'
@@ -81,6 +81,8 @@ export async function runAgentLoop(input: {
         systemPrompt,
       }
 
+      await emitExecutionPhase(config, task, 'waiting_model')
+
       await config.eventEmitter.emitTurnStarted({
         conversationId: options.conversationId,
         model: { name: modelName, provider: providerName, providerId },
@@ -136,6 +138,7 @@ export async function runAgentLoop(input: {
       let modelText = ''
       let usage: Record<string, number | undefined> | undefined
       let finishReason: string | undefined
+      let streamPhase: AgentExecutionPhase = 'waiting_model'
       const requestedToolCalls: Array<{ id?: string, toolName: string, input: Record<string, unknown>, invalidArgsError?: string }> = []
 
       for await (const chunk of stream) {
@@ -145,13 +148,24 @@ export async function runAgentLoop(input: {
         if (chunk.finishReason) {
           finishReason = chunk.finishReason
         }
+        if (chunk.reasoningContent && streamPhase === 'waiting_model') {
+          streamPhase = 'thinking'
+          await emitExecutionPhase(config, task, streamPhase)
+        }
         const content = chunk.content || []
         for (const item of content) {
           if (item.type === 'text' && item.text) {
+            if (streamPhase !== 'generating_response') {
+              streamPhase = 'generating_response'
+              await emitExecutionPhase(config, task, streamPhase)
+            }
             modelText += item.text
           }
         }
         const functionCalls = chunk.functionCalls || []
+        if (functionCalls.length > 0 && requestedToolCalls.length === 0) {
+          await emitExecutionPhase(config, task, 'preparing_tool')
+        }
         for (const fc of functionCalls) {
           const argsResult = normalizeToolArgs(fc.args)
           requestedToolCalls.push({
@@ -195,6 +209,7 @@ export async function runAgentLoop(input: {
 
         await config.eventEmitter.emitTurnFinished({
           conversationId: options.conversationId,
+          turnId: options.userMessageId,
           text: finalAnswer,
           status: 'success',
           durationMs: Date.now() - taskStartedAt,
@@ -223,6 +238,7 @@ export async function runAgentLoop(input: {
           })
         }
         else {
+          await emitExecutionPhase(config, task, 'using_tool')
           const res = await executeToolStep({
             task,
             registry,
@@ -307,6 +323,18 @@ export async function runAgentLoop(input: {
   }
 }
 
+async function emitExecutionPhase(
+  config: AgentRuntimeConfig,
+  task: NonNullable<ReturnType<typeof taskStore.get>>,
+  phase: AgentExecutionPhase,
+) {
+  if (task.snapshot.executionPhase === phase)
+    return
+  task.snapshot.executionPhase = phase
+  task.snapshot.updatedAt = Date.now()
+  await config.eventEmitter.emitTaskUpdated(task.snapshot)
+}
+
 async function handleLoopFailure(options: {
   config: AgentRuntimeConfig
   task: NonNullable<ReturnType<typeof taskStore.get>>
@@ -330,6 +358,7 @@ async function handleLoopFailure(options: {
     task.snapshot.status = 'cancelled'
     await config.eventEmitter.emitTurnFinished({
       conversationId: task.snapshot.conversationId,
+      turnId: task.snapshot.userMessageId,
       text: 'Task cancelled.',
       status: 'cancel',
       durationMs,
@@ -341,6 +370,7 @@ async function handleLoopFailure(options: {
     task.snapshot.errorMessage = error.message
     await config.eventEmitter.emitTurnFinished({
       conversationId: task.snapshot.conversationId,
+      turnId: task.snapshot.userMessageId,
       text: transformErrorMessage(error.message),
       status: 'error',
       durationMs,
