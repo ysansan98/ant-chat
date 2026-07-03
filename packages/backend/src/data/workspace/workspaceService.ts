@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 import { WORKSPACE_DUPLICATED_PATH, WORKSPACE_INVALID_PATH } from '@ant-chat/shared'
-import { AtomicJsonFileStore } from '../file'
+import { JsonFileMigrationError, UnsupportedJsonSchemaVersionError, VersionedJsonFileStore } from '../file'
 
 export interface WorkspaceServiceOptions {
   filePath: string
@@ -13,12 +13,23 @@ export interface WorkspaceServiceOptions {
 }
 
 const DEFAULT_WORKSPACE_CONFIG: WorkspaceConfig = { workspaces: [] }
+const WORKSPACE_SCHEMA_VERSION = 1
+const WORKSPACE_MIGRATIONS = [
+  {
+    version: 1,
+    migrate: (value: unknown) => value,
+  },
+] as const
 
 export class WorkspaceService {
-  private readonly store: AtomicJsonFileStore<WorkspaceConfig>
+  private readonly store: VersionedJsonFileStore<WorkspaceConfig>
 
   constructor(private readonly options: WorkspaceServiceOptions) {
-    this.store = new AtomicJsonFileStore(options.filePath)
+    this.store = new VersionedJsonFileStore(options.filePath, {
+      currentVersion: WORKSPACE_SCHEMA_VERSION,
+      migrations: WORKSPACE_MIGRATIONS,
+      parse: value => this.parseConfig(value),
+    })
     if (!this.store.exists()) {
       this.saveConfig(options.initialConfig ?? DEFAULT_WORKSPACE_CONFIG)
       return
@@ -28,7 +39,10 @@ export class WorkspaceService {
       try {
         this.parseConfig(this.store.read())
       }
-      catch {
+      catch (error) {
+        if (error instanceof UnsupportedJsonSchemaVersionError || error instanceof JsonFileMigrationError) {
+          throw error
+        }
         this.saveConfig(options.initialConfig ?? DEFAULT_WORKSPACE_CONFIG)
       }
     }

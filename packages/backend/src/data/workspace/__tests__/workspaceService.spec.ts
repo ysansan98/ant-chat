@@ -47,9 +47,10 @@ describe('workspaceService currentWorkspacePath 整合', () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'ant-chat-ws-added-'))
     try {
       service.addWorkspace(dir)
-      const raw = JSON.parse(readFileSync(configPath, 'utf8')) as Record<string, unknown>
-      expect(raw).not.toHaveProperty('currentWorkspacePath')
-      expect(Array.isArray(raw.workspaces)).toBe(true)
+      const raw = readWorkspaceFile(configPath)
+      expect(raw.data).not.toHaveProperty('currentWorkspacePath')
+      expect(Array.isArray(raw.data.workspaces)).toBe(true)
+      expect(raw.schemaVersion).toBe(1)
     }
     finally {
       rmSync(dir, { force: true, recursive: true })
@@ -60,9 +61,9 @@ describe('workspaceService currentWorkspacePath 整合', () => {
     const list = service.listWorkspaces()
     const target = list.workspaces[0]
     service.openWorkspace(target.path)
-    const raw = JSON.parse(readFileSync(configPath, 'utf8')) as Record<string, unknown>
-    expect(raw).not.toHaveProperty('currentWorkspacePath')
-    const opened = (raw.workspaces as Array<{ path: string, lastOpenedAt?: number }>)
+    const raw = readWorkspaceFile(configPath)
+    expect(raw.data).not.toHaveProperty('currentWorkspacePath')
+    const opened = raw.data.workspaces
       .find(item => item.path === target.path)
     expect(opened?.lastOpenedAt).toBeTypeOf('number')
   })
@@ -72,8 +73,8 @@ describe('workspaceService currentWorkspacePath 整合', () => {
     try {
       service.addWorkspace(dir)
       service.removeWorkspace(dir)
-      const raw = JSON.parse(readFileSync(configPath, 'utf8')) as Record<string, unknown>
-      expect(raw).not.toHaveProperty('currentWorkspacePath')
+      const raw = readWorkspaceFile(configPath)
+      expect(raw.data).not.toHaveProperty('currentWorkspacePath')
     }
     finally {
       rmSync(dir, { force: true, recursive: true })
@@ -116,10 +117,10 @@ describe('workspaceService currentWorkspacePath 整合', () => {
       const nextPaths = [before[2].path, before[0].path, before[1].path]
 
       const reordered = service.reorderWorkspaces(nextPaths)
-      const raw = JSON.parse(readFileSync(configPath, 'utf8')) as { workspaces: Array<{ path: string }> }
+      const raw = readWorkspaceFile(configPath)
 
       expect(reordered.workspaces.map(item => item.path)).toEqual(nextPaths)
-      expect(raw.workspaces.map(item => item.path)).toEqual(nextPaths)
+      expect(raw.data.workspaces.map(item => item.path)).toEqual(nextPaths)
     }
     finally {
       rmSync(firstDir, { force: true, recursive: true })
@@ -141,3 +142,10 @@ describe('workspaceService currentWorkspacePath 整合', () => {
     }
   })
 })
+
+function readWorkspaceFile(filePath: string): {
+  schemaVersion: number
+  data: { workspaces: Array<{ path: string, lastOpenedAt?: number }> }
+} {
+  return JSON.parse(readFileSync(filePath, 'utf8'))
+}
