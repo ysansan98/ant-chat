@@ -22,6 +22,8 @@ interface Props {
   ref?: React.Ref<ImperativeHandleRef>
   onScroll?: (e: React.UIEvent<HTMLDivElement>) => void
   onWheel?: (e: React.WheelEvent) => void
+  onTouchStart?: (e: React.TouchEvent) => void
+  onTouchMove?: (e: React.TouchEvent) => void
   // 控制初始滚动位置。默认值: 当 direction='top' 时为 'bottom'
   // 设置为 'none' 可以禁止自动滚动，允许父组件自行控制位置
   initialScrollPosition?: 'bottom' | 'top' | 'none'

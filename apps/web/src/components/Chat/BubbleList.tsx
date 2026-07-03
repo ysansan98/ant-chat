@@ -27,6 +27,8 @@ function BubbleList({ messages }: Props) {
     setAutoScrollToBottom,
     infiniteScrollRef,
     handleWheel,
+    handleTouchStart,
+    handleTouchMove,
     scrollToBottom,
   } = useAutoScroll()
 
@@ -100,6 +102,8 @@ function BubbleList({ messages }: Props) {
         onLoadMore={async () => {}}
         direction="top"
         onWheel={handleWheel}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
       >
         {conversationItems.map(item => item.type === 'turn'
           ? (

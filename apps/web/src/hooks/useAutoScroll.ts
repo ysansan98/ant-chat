@@ -33,6 +33,39 @@ export function useAutoScroll() {
     }
   }, [clearScrollTimer])
 
+  // 移动端滑动手势检测（补充 wheel 事件在移动端不可靠的问题）
+  const touchStartRef = useRef<{ y: number } | null>(null)
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartRef.current = { y: e.touches[0].clientY }
+  }, [])
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!touchStartRef.current)
+      return
+
+    const target = e.currentTarget as HTMLElement
+    const touchDeltaY = touchStartRef.current.y - e.touches[0].clientY
+
+    if (touchDeltaY < -1) {
+      // 手指下划 → 滚动到历史消息 → 关闭自动滚动
+      if (target.scrollHeight > target.clientHeight) {
+        setAutoScrollToBottom(false)
+        clearScrollTimer()
+      }
+    }
+    else if (touchDeltaY > 1) {
+      // 手指上划 → 向下滚动 → 检查是否触底
+      const isAtBottom = target.scrollHeight - Math.abs(target.scrollTop) - target.clientHeight <= 1
+      if (isAtBottom) {
+        clearScrollTimer()
+        scrollEndTimerRef.current = setTimeout(() => {
+          setAutoScrollToBottom(true)
+        }, 150)
+      }
+    }
+  }, [clearScrollTimer])
+
   const justClickedRef = useRef(false)
 
   const scrollToBottom = useCallback(() => {
@@ -74,6 +107,8 @@ export function useAutoScroll() {
     setAutoScrollToBottom,
     infiniteScrollRef,
     handleWheel,
+    handleTouchStart,
+    handleTouchMove,
     scrollToBottom,
   }
 }
