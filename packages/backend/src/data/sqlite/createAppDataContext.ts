@@ -4,10 +4,9 @@ import { McpSettingsRepository, McpSettingsStore } from '../mcp'
 import { AgentMemoryManager } from '../memory'
 import { AppSettingsStore, createModelCatalog, GeneralSettingsRepository, ProviderSettingsRepository, ToolApprovalWhitelistRepository } from '../settings'
 import { WorkspaceService } from '../workspace'
-import { migrateAddCompactionBoundary, migrateAddDurationMs, migrateMessageAttachments, rebuildMessagesTable } from './migrations/migrateAttachments'
+import { createAppDataMigrations, runSqliteMigrations } from './migrations'
 import { SqliteMessageSearchQuery } from './queries'
 import { SqliteAutomationRepository, SqliteConversationRepository, SqliteMessageRepository } from './repositories'
-import { initializeAppDataSchema } from './schema'
 
 export interface CreateAppDataContextOptions {
   db: AppDataDatabase
@@ -21,11 +20,7 @@ export interface CreateAppDataContextOptions {
 export function createAppDataContext(options: CreateAppDataContextOptions) {
   const { db, settingsFilePath, mcpSettingsFilePath, memoryRootPath, workspaceSettingsFilePath } = options
   const attachmentsRootPath = options.attachmentsRootPath ?? path.join(path.dirname(settingsFilePath), 'attachments')
-  initializeAppDataSchema(db)
-  migrateAddDurationMs(db)
-  migrateMessageAttachments(db, attachmentsRootPath)
-  rebuildMessagesTable(db)
-  migrateAddCompactionBoundary(db)
+  runSqliteMigrations(db, createAppDataMigrations({ attachmentsRootPath }))
 
   const appSettingsStore = new AppSettingsStore({ filePath: settingsFilePath, resetInvalidFile: true })
   const providerSettingsRepository = new ProviderSettingsRepository(appSettingsStore)

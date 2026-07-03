@@ -1,5 +1,5 @@
 import type { AppSettingsState } from '@ant-chat/shared'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -15,6 +15,16 @@ describe('appSettingsStore', () => {
 
   afterEach(() => {
     rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('自动重置开启时也拒绝覆盖更高版本的设置文件', () => {
+    const filePath = path.join(dir, 'future-settings.json')
+    const original = JSON.stringify({ schemaVersion: 2, data: DEFAULT_APP_SETTINGS })
+    writeFileSync(filePath, original, 'utf8')
+
+    expect(() => new AppSettingsStore({ filePath, resetInvalidFile: true }))
+      .toThrow('文件 schema 版本 2 高于当前支持的 1')
+    expect(readFileSync(filePath, 'utf8')).toBe(original)
   })
 
   describe('mergeBuiltinProviders', () => {

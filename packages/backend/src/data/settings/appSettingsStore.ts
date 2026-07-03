@@ -1,7 +1,15 @@
 import type { AppSettingsState } from '@ant-chat/shared'
 import { AppSettingsSchema } from '@ant-chat/shared'
-import { AtomicJsonFileStore } from '../file'
+import { JsonFileMigrationError, UnsupportedJsonSchemaVersionError, VersionedJsonFileStore } from '../file'
 import { DEFAULT_APP_SETTINGS } from './defaultAppSettings'
+
+const APP_SETTINGS_SCHEMA_VERSION = 1
+const APP_SETTINGS_MIGRATIONS = [
+  {
+    version: 1,
+    migrate: (value: unknown) => value,
+  },
+] as const
 
 export interface AppSettingsStoreOptions {
   filePath: string
@@ -10,10 +18,20 @@ export interface AppSettingsStoreOptions {
 }
 
 export class AppSettingsStore {
-  private readonly store: AtomicJsonFileStore<AppSettingsState>
+  private readonly store: VersionedJsonFileStore<AppSettingsState>
 
   constructor(private readonly options: AppSettingsStoreOptions) {
-    this.store = new AtomicJsonFileStore(options.filePath)
+    this.store = new VersionedJsonFileStore(options.filePath, {
+      currentVersion: APP_SETTINGS_SCHEMA_VERSION,
+      migrations: APP_SETTINGS_MIGRATIONS,
+      parse: (value) => {
+        const parsed = AppSettingsSchema.safeParse(value)
+        if (!parsed.success) {
+          throw new Error(`Invalid settings file: ${options.filePath}: ${parsed.error.message}`)
+        }
+        return parsed.data
+      },
+    })
     if (!this.store.exists()) {
       this.write(options.initialSettings ?? DEFAULT_APP_SETTINGS)
       return
@@ -26,7 +44,10 @@ export class AppSettingsStore {
           this.write(options.initialSettings ?? DEFAULT_APP_SETTINGS)
         }
       }
-      catch {
+      catch (error) {
+        if (error instanceof UnsupportedJsonSchemaVersionError || error instanceof JsonFileMigrationError) {
+          throw error
+        }
         this.write(options.initialSettings ?? DEFAULT_APP_SETTINGS)
       }
     }
@@ -36,11 +57,7 @@ export class AppSettingsStore {
   }
 
   read(): AppSettingsState {
-    const parsed = AppSettingsSchema.safeParse(this.store.read())
-    if (!parsed.success) {
-      throw new Error(`Invalid settings file: ${this.options.filePath}: ${parsed.error.message}`)
-    }
-    return parsed.data
+    return this.store.read()
   }
 
   write(settings: AppSettingsState): AppSettingsState {
@@ -58,7 +75,14 @@ export class AppSettingsStore {
    * Only adds providers that don't exist in user's settings (by id).
    */
   private mergeBuiltinProviders(): void {
-    const parsed = AppSettingsSchema.safeParse(this.store.read())
+    let rawSettings: AppSettingsState
+    try {
+      rawSettings = this.store.read()
+    }
+    catch {
+      return
+    }
+    const parsed = AppSettingsSchema.safeParse(rawSettings)
     if (!parsed.success) {
       return
     }

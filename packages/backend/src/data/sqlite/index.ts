@@ -1,5 +1,6 @@
 export * from './attachmentFiles'
 export * from './createAppDataContext'
+export * from './migrations'
 export * from './queries'
 export * from './repositories'
 export * from './rows'
