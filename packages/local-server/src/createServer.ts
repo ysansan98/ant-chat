@@ -1,9 +1,7 @@
 import type { AppRuntime } from '@ant-chat/backend'
-import type { AppRpcMethod } from '@ant-chat/shared'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { Buffer } from 'node:buffer'
 import { createServer as createHttpServer } from 'node:http'
-import { createAppRpcHandlers } from '@ant-chat/backend/rpc-handlers'
 
 const MAX_RPC_BODY_BYTES = 32 * 1024 * 1024
 const RPC_BODY_TIMEOUT_MS = 30_000
@@ -85,14 +83,7 @@ async function routeRequest(url: URL, body: unknown, runtime: AppRuntime): Promi
 
 async function dispatchRpc(body: unknown, runtime: AppRuntime): Promise<unknown> {
   const { method, input } = parseRpcBody(body)
-  const handlers = createAppRpcHandlers(runtime)
-  const handler = handlers[method as AppRpcMethod]
-
-  if (!handler) {
-    throw new Error(`Unknown local RPC method: ${method}`)
-  }
-
-  return handler(input as never)
+  return runtime.invoke(method as never, input as never)
 }
 
 function parseRpcBody(body: unknown): { method: string, input: unknown } {

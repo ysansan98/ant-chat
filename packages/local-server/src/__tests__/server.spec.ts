@@ -8,10 +8,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { listen } from '../serverHost'
 
 const eventEmitter = new EventEmitter()
+const invoke = vi.fn()
 const runtime = {
-  chat: {
-    listConversations: vi.fn(),
-  },
+  invoke,
   dispose: vi.fn(),
   events: {
     on(name: AppRuntimeEventName, listener: (event: unknown) => void) {
@@ -31,7 +30,7 @@ beforeEach(async () => {
   webRoot = mkdtempSync(path.join(tmpdir(), 'ant-chat-local-server-'))
   writeFileSync(path.join(webRoot, 'index.html'), '<html>Ant Chat</html>')
   writeFileSync(path.join(webRoot, 'app.js'), 'console.log("Ant Chat")')
-  runtime.chat.listConversations = vi.fn().mockResolvedValue({ data: [], total: 0 })
+  invoke.mockResolvedValue({ data: [], total: 0 })
   server = await listen(runtime, {
     host: '127.0.0.1',
     port: 0,

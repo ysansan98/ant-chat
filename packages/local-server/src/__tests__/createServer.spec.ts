@@ -5,24 +5,24 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createLocalServer } from '../createServer'
 import type { RpcLimits } from '../createServer'
 
-const runtime = {
-  chat: {
-    listConversations: vi.fn(),
-  },
-  settings: {
-    get: vi.fn(),
-  },
-} as unknown as AppRuntime
+const invoke = vi.fn()
+const runtime = { invoke } as unknown as AppRuntime
 
 let server: ReturnType<typeof createLocalServer>
 let baseUrl: URL
 
 async function startServer(limits?: RpcLimits) {
   vi.clearAllMocks()
-  runtime.chat.listConversations = vi.fn().mockResolvedValue({ data: [], total: 0 })
-  runtime.settings.get = vi.fn().mockResolvedValue({
-    assistantModelId: 'model-1',
-    proxySettings: { mode: 'none' },
+  invoke.mockImplementation(async (method: string) => {
+    if (method === 'chat.getConversations')
+      return { data: [], total: 0 }
+    if (method === 'settings.getSettings') {
+      return {
+        assistantModelId: 'model-1',
+        proxySettings: { mode: 'none' },
+      }
+    }
+    throw new Error(`运行时路由不存在: ${method}`)
   })
   server = createLocalServer(runtime, limits)
   await new Promise<void>((resolve) => {
@@ -75,7 +75,7 @@ describe('createLocalServer', () => {
       success: true,
       data: { data: [], total: 0 },
     })
-    expect(runtime.chat.listConversations).toHaveBeenCalledWith(0, 20)
+    expect(invoke).toHaveBeenCalledWith('chat.getConversations', { pageIndex: 0, pageSize: 20 })
   })
 
   it('通过统一 handler 调用非 chat runtime 能力', async () => {
@@ -95,7 +95,7 @@ describe('createLocalServer', () => {
         proxySettings: { mode: 'none' },
       },
     })
-    expect(runtime.settings.get).toHaveBeenCalled()
+    expect(invoke).toHaveBeenCalledWith('settings.getSettings', undefined)
   })
 
   it('未知 RPC 方法返回错误响应', async () => {
@@ -110,7 +110,7 @@ describe('createLocalServer', () => {
     expect(response.statusCode).toBe(500)
     expect(JSON.parse(response.body)).toEqual({
       success: false,
-      msg: 'Unknown local RPC method: missing.method',
+      msg: '运行时路由不存在: missing.method',
     })
   })
 
@@ -138,7 +138,7 @@ describe('createLocalServer', () => {
 
     expect(response.statusCode).toBe(413)
     expect(JSON.parse(response.body).success).toBe(false)
-    expect(runtime.chat.listConversations).not.toHaveBeenCalled()
+    expect(invoke).not.toHaveBeenCalled()
   })
 
   it('分多个 chunk 超限也返回 413', async () => {

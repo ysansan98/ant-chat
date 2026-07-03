@@ -2,15 +2,18 @@ import { describe, expect, it, vi } from 'vitest'
 import { RuntimeIpcService } from '../ipc'
 
 const mocks = vi.hoisted(() => ({
-  settings: {
-    get: vi.fn(async () => ({
-      assistantModelId: 'model-1',
-      proxySettings: { mode: 'none' },
-    })),
-  },
-  chat: {
-    listConversations: vi.fn(async () => ({ data: [], total: 0 })),
-  },
+  invoke: vi.fn(async (method: string, input: unknown) => {
+    if (method === 'settings.getSettings') {
+      return {
+        assistantModelId: 'model-1',
+        proxySettings: { mode: 'none' },
+      }
+    }
+    if (method === 'chat.getConversations') {
+      return { data: [], total: 0, input }
+    }
+    throw new Error(`运行时路由不存在: ${method}`)
+  }),
 }))
 
 vi.mock('electron-ipc-decorator', () => ({
@@ -20,8 +23,7 @@ vi.mock('electron-ipc-decorator', () => ({
 
 vi.mock('@main/app-runtime-host/appRuntime', () => ({
   getAppRuntime: () => ({
-    chat: mocks.chat,
-    settings: mocks.settings,
+    invoke: mocks.invoke,
   }),
 }))
 
@@ -47,7 +49,7 @@ describe('runtime ipc', () => {
     const response = await service.call('chat.getConversations', { pageIndex: 0, pageSize: 20 })
 
     expect(response.success).toBe(true)
-    expect(mocks.chat.listConversations).toHaveBeenCalledWith(0, 20)
+    expect(mocks.invoke).toHaveBeenCalledWith('chat.getConversations', { pageIndex: 0, pageSize: 20 })
   })
 
   it('未知 RPC 方法返回错误响应', async () => {
@@ -56,7 +58,7 @@ describe('runtime ipc', () => {
 
     expect(response.success).toBe(false)
     if (!response.success) {
-      expect(response.msg).toBe('Unknown runtime RPC method: missing.method')
+      expect(response.msg).toBe('运行时路由不存在: missing.method')
     }
   })
 })

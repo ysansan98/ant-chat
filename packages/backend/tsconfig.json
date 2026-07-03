@@ -2,6 +2,7 @@
   "compilerOptions": {
     "composite": true,
     "target": "ES2020",
+    "experimentalDecorators": true,
     "baseUrl": ".",
     "customConditions": ["development"],
     "module": "ESNext",

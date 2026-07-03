@@ -1,4 +1,5 @@
 import type { IpcResponse, SkillManifest } from '@ant-chat/shared'
+import { SkillsModule } from '@ant-chat/backend'
 import { getAppRuntime } from '@main/app-runtime-host/appRuntime'
 import { withIpcResponse } from '@main/utils/ipc-response'
 import { getMainWindow } from '@main/windows/window'
@@ -24,7 +25,7 @@ export class SkillsIpcService extends IpcService {
       if (result.canceled || result.filePaths.length === 0) {
         return null
       }
-      return getAppRuntime().skills.importZip(result.filePaths[0])
+      return getAppRuntime().getModule(SkillsModule).importSkillFromZip(result.filePaths[0])
     }, '导入 Skill ZIP 失败')
   }
 }
