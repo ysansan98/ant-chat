@@ -1,6 +1,6 @@
 import type { AgentTaskSnapshot, ApprovePendingActionOptions, RejectPendingActionOptions, SecretRequest, StartAgentTurnOptions } from '@ant-chat/shared'
 import agentApi from '@/api/agentApi'
-import { addStreamingConversationId, removeStreamingConversationId } from '@/store/conversation'
+import { removeConversationState, setConversationState, useConversationsStore } from '@/store/conversation'
 import { useAgentStore } from './store'
 
 export async function startAgentTurn(options: StartAgentTurnOptions) {
@@ -71,17 +71,26 @@ export async function syncConversationAgentState(conversationId: string) {
   })
 
   if (activeTasks.some(isActiveTask))
-    addStreamingConversationId(conversationId)
+    setConversationState(conversationId, 'running')
   else
-    removeStreamingConversationId(conversationId)
+    removeConversationState(conversationId)
 }
 
 export function onAgentStateUpdated(task: Parameters<typeof useAgentStore.getState> extends never ? never : any) {
   useAgentStore.getState().setTask(task)
-  if (isActiveTask(task))
-    addStreamingConversationId(task.conversationId)
-  else
-    removeStreamingConversationId(task.conversationId)
+  if (isActiveTask(task)) {
+    setConversationState(task.conversationId, 'running')
+  }
+  else {
+    // 活跃会话的任务完成 → idle，后台会话 → completed
+    const activeId = useConversationsStore.getState().activeConversationsId
+    if (task.conversationId === activeId) {
+      removeConversationState(task.conversationId)
+    }
+    else {
+      setConversationState(task.conversationId, 'completed')
+    }
+  }
   if (!task.pendingAction) {
     useAgentStore.getState().setPending(task.taskId, undefined)
   }

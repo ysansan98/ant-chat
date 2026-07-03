@@ -427,7 +427,7 @@ describe('gui ui flow', () => {
     })
     mocks.agent.listActiveTasks.mockResolvedValue([task])
     useAgentStore.setState({ pendingByTask: {}, tasks: {}, executionPhaseByTurn: {} })
-    useConversationsStore.setState({ streamingConversationIds: new Set() })
+    useConversationsStore.setState({ conversationStates: {} })
 
     await setActiveConversationsId('conv-running' as ConversationsId)
 

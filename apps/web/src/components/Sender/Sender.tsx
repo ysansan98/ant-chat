@@ -345,7 +345,7 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
   )
   const hasMessage = useMessagesStore(state => !!state.messages.length)
   const loading = useConversationsStore(
-    state => state.streamingConversationIds.has(state.activeConversationsId),
+    state => state.conversationStates[state.activeConversationsId] === 'running',
   )
 
   const mcpEnabled = useChatSttingsStore(state => state.enableMCP)

@@ -66,8 +66,7 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
   const activeConversationsId = useMessagesStore(
     state => state.activeConversationsId,
   )
-  const streamingConversationIds = useConversationsStore(state => state.streamingConversationIds)
-  const completedConversationIds = useConversationsStore(state => state.completedConversationIds)
+  const conversationStates = useConversationsStore(state => state.conversationStates)
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(
     () => new Set(),
   )
@@ -276,8 +275,7 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
                                 <WorkspacePanel
                                   item={item}
                                   activeConversationId={activeConversationsId}
-                                  streamingConversationIds={streamingConversationIds}
-                                  completedConversationIds={completedConversationIds}
+                                  conversationStates={conversationStates}
                                   expanded={expandedPaths.has(item.path)}
                                   state={getWorkspaceConversationState(
                                     item.path,
@@ -324,8 +322,7 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
 interface WorkspacePanelProps {
   item: WorkspaceItem
   activeConversationId: string
-  streamingConversationIds: Set<string>
-  completedConversationIds: Set<string>
+  conversationStates: Record<string, 'running' | 'completed'>
   expanded: boolean
   state?: WorkspaceConversationState
   onToggle: (item: WorkspaceItem) => void
@@ -339,8 +336,7 @@ interface WorkspacePanelProps {
 function WorkspacePanel({
   item,
   activeConversationId,
-  streamingConversationIds,
-  completedConversationIds,
+  conversationStates,
   expanded,
   state,
   onToggle,
@@ -453,8 +449,8 @@ function WorkspacePanel({
                           key={conversation.id}
                           conversation={conversation}
                           active={conversation.id === activeConversationId}
-                          running={streamingConversationIds.has(conversation.id)}
-                          completed={completedConversationIds.has(conversation.id)}
+                          running={conversationStates[conversation.id] === 'running'}
+                          completed={conversationStates[conversation.id] === 'completed'}
                           onOpen={() => onOpenConversation(item.path, conversation.id)}
                         />
                       ))

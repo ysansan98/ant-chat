@@ -38,7 +38,7 @@ describe('activateWorkspace', () => {
       conversationsTotal: 1,
       activeConversationsId: 'stale-id',
       activeWorkspacePath: '',
-      streamingConversationIds: new Set<string>(),
+      conversationStates: {},
       loadVersion: 0,
       workspaceConversations: {},
     })
@@ -99,7 +99,7 @@ describe('clearConversationsAction 跨 store 取路径', () => {
       pageSize: 20,
       conversationsTotal: 1,
       activeConversationsId: '',
-      streamingConversationIds: new Set<string>(),
+      conversationStates: {},
       loadVersion: 0,
       workspaceConversations: {},
     })

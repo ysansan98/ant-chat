@@ -1,43 +1,41 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { useConversationsStore } from '@/store/conversation'
-import { handleConversationTurnFinished, handleStreamingConversationStatus } from '../useAppEventListener'
+import { removeConversationState, setConversationState, useConversationsStore } from '@/store/conversation'
 
-describe('handleStreamingConversationStatus', () => {
+describe('conversation state management', () => {
   beforeEach(() => {
     useConversationsStore.setState({
-      streamingConversationIds: new Set(['conv-1']),
+      conversationStates: {},
+      activeConversationsId: '',
     })
   })
 
-  it('does not clear streaming state when a steering user message is emitted', () => {
-    handleStreamingConversationStatus({
-      convId: 'conv-1',
-      role: 'user',
-      status: 'success',
-    })
-
-    expect(useConversationsStore.getState().streamingConversationIds.has('conv-1')).toBe(true)
-  })
-})
-
-describe('handleConversationTurnFinished', () => {
-  beforeEach(() => {
-    useConversationsStore.setState({
-      activeConversationsId: 'conv-active',
-      completedConversationIds: new Set(),
-    })
+  it('setConversationState stores streaming state', () => {
+    setConversationState('conv-1', 'running')
+    expect(useConversationsStore.getState().conversationStates['conv-1']).toBe('running')
   })
 
-  it('非当前会话运行成功后展示已完成状态', () => {
-    handleConversationTurnFinished({ conversationId: 'conv-background', status: 'success' })
-
-    expect(useConversationsStore.getState().completedConversationIds.has('conv-background')).toBe(true)
+  it('setConversationState stores completed state', () => {
+    setConversationState('conv-1', 'completed')
+    expect(useConversationsStore.getState().conversationStates['conv-1']).toBe('completed')
   })
 
-  it('当前会话运行结束或后台任务取消时不展示已完成状态', () => {
-    handleConversationTurnFinished({ conversationId: 'conv-active', status: 'success' })
-    handleConversationTurnFinished({ conversationId: 'conv-cancelled', status: 'cancel' })
+  it('removeConversationState clears state', () => {
+    setConversationState('conv-1', 'running')
+    removeConversationState('conv-1')
+    expect(useConversationsStore.getState().conversationStates['conv-1']).toBeUndefined()
+  })
 
-    expect(useConversationsStore.getState().completedConversationIds.size).toBe(0)
+  it('setConversationState overwrites previous state', () => {
+    setConversationState('conv-1', 'completed')
+    setConversationState('conv-1', 'running')
+    expect(useConversationsStore.getState().conversationStates['conv-1']).toBe('running')
+  })
+
+  it('a conversation cannot be both streaming and completed', () => {
+    setConversationState('conv-1', 'running')
+    setConversationState('conv-1', 'completed')
+    // After setting to completed, it should NOT be streaming
+    expect(useConversationsStore.getState().conversationStates['conv-1']).toBe('completed')
+    expect(useConversationsStore.getState().conversationStates['conv-1']).not.toBe('running')
   })
 })

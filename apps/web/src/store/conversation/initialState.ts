@@ -16,8 +16,7 @@ export interface StoreState {
   conversationsTotal: number
   activeConversationsId: string
   activeWorkspacePath: string
-  streamingConversationIds: Set<string>
-  completedConversationIds: Set<string>
+  conversationStates: Record<string, 'running' | 'completed'>
   loadVersion: number
   workspaceConversations: Record<string, WorkspaceConversationsState>
 }
@@ -36,8 +35,7 @@ export function createInitialState(): StoreState {
   return {
     conversations: [],
     abortCallbacks: [],
-    streamingConversationIds: new Set<string>(),
-    completedConversationIds: new Set<string>(),
+    conversationStates: {},
     pageIndex: 0,
     pageSize: 20,
     conversationsTotal: 1,

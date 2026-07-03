@@ -74,7 +74,7 @@ describe('agent store actions', () => {
 
     expect(useAgentStore.getState().getActiveTaskByConversation('c-running')).toEqual(task)
     expect(useAgentStore.getState().executionPhaseByTurn.m1).toBe('waiting_model')
-    expect(useConversationsStore.getState().streamingConversationIds.has('c-running')).toBe(true)
+    expect(useConversationsStore.getState().conversationStates['c-running']).toBe('running')
   })
 
   it('任务进入终态时移除 turn 执行阶段', () => {
@@ -117,13 +117,13 @@ describe('agent store actions', () => {
       pendingByTask: {},
     })
     useConversationsStore.setState({
-      streamingConversationIds: new Set(['c-stale']),
+      conversationStates: { 'c-stale': 'running' },
     })
     mocks.listActiveTasks.mockResolvedValue([])
 
     await syncConversationAgentState('c-stale')
 
     expect(useAgentStore.getState().getActiveTaskByConversation('c-stale')).toBeNull()
-    expect(useConversationsStore.getState().streamingConversationIds.has('c-stale')).toBe(false)
+    expect(useConversationsStore.getState().conversationStates['c-stale']).toBeUndefined()
   })
 })
