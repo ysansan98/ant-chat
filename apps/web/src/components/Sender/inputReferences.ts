@@ -56,6 +56,43 @@ export function insertReferenceToken(
   }
 }
 
+/**
+ * 把当前 @ 触发区段改写为 `@<nextQuery>`（不带尾空格），光标落在末尾。
+ *
+ * 用于目录补全与返回上级：不产生已确认 token、不入 referencedFiles、
+ * 不关闭面板，由新的 trigger.query 触发下一轮搜索。
+ *
+ * 与 {@link insertReferenceToken} 的区别：后者补尾空格、用于确认最终 token。
+ */
+export function rewriteReferenceTrigger(
+  text: string,
+  trigger: ActiveReferenceTrigger,
+  nextQuery: string,
+): { text: string, cursor: number } {
+  const before = text.slice(0, trigger.start)
+  const after = text.slice(trigger.end)
+  const token = `@${nextQuery}`
+  const nextText = `${before}${token}${after}`
+  return { text: nextText, cursor: before.length + token.length }
+}
+
+/**
+ * 计算返回上级后的 query。仅当 query 含 `/`（已钻取）时有效。
+ *
+ * - `src/components/` -> `src/`
+ * - `src/components`  -> `src/`
+ * - `src/`            -> `''`（回到根）
+ * - `src`             -> `null`（未钻取，不可返回）
+ */
+export function parentReferenceQuery(query: string): string | null {
+  if (!query.includes('/')) {
+    return null
+  }
+  const trimmed = query.endsWith('/') ? query.slice(0, -1) : query
+  const idx = trimmed.lastIndexOf('/')
+  return idx < 0 ? '' : trimmed.slice(0, idx + 1)
+}
+
 export function syncReferencedFiles(text: string, selected: string[]): string[] {
   const ranges = getReferenceTokenRanges(text, selected)
   return selected.filter(file =>

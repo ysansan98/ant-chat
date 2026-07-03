@@ -179,4 +179,154 @@ describe('sender reference token overlay', () => {
     })
     expect(screen.queryByTestId('reference-token')).toBeNull()
   })
+
+  it('点选目录补全路径并下钻到子目录', async () => {
+    mocks.searchWorkspaceFiles.mockImplementation((_ws, query) => {
+      if (query === 'd') {
+        return Promise.resolve([
+          { path: 'docs', name: 'docs', type: 'directory' },
+          { path: 'a.ts', name: 'a.ts', type: 'file' },
+        ])
+      }
+      if (query === 'docs/') {
+        return Promise.resolve([
+          { path: 'docs/guide.md', name: 'guide.md', type: 'file' },
+        ])
+      }
+      return Promise.resolve([])
+    })
+
+    renderSender()
+    await screen.findByText('workspace')
+    const textarea = screen.getByTestId('chat-input') as HTMLTextAreaElement
+
+    setTextareaValue(textarea, '@d')
+
+    await waitFor(() => {
+      expect(mocks.searchWorkspaceFiles).toHaveBeenCalledWith('/tmp/workspace', 'd', 50)
+    })
+
+    // 目录项点击后把目录路径补到 @ 之后（带尾斜杠），不关闭面板
+    fireEvent.mouseDown(await screen.findByText('docs'))
+
+    await waitFor(() => {
+      expect(textarea.value).toBe('@docs/')
+    })
+
+    // 下钻后应继续搜索 docs/ 下的内容
+    await waitFor(() => {
+      expect(mocks.searchWorkspaceFiles).toHaveBeenCalledWith('/tmp/workspace', 'docs/', 50)
+    })
+    // 子目录下的文件出现在面板
+    expect(await screen.findByText('docs/guide.md')).toBeInTheDocument()
+  })
+
+  it('钻取后点 .. 返回上级目录', async () => {
+    mocks.searchWorkspaceFiles.mockImplementation((_ws, query) => {
+      if (query === 'd') {
+        return Promise.resolve([{ path: 'docs', name: 'docs', type: 'directory' }])
+      }
+      if (query === 'docs/') {
+        return Promise.resolve([{ path: 'docs/guide.md', name: 'guide.md', type: 'file' }])
+      }
+      return Promise.resolve([])
+    })
+
+    renderSender()
+    await screen.findByText('workspace')
+    const textarea = screen.getByTestId('chat-input') as HTMLTextAreaElement
+
+    setTextareaValue(textarea, '@d')
+    fireEvent.mouseDown(await screen.findByText('docs'))
+    await waitFor(() => expect(textarea.value).toBe('@docs/'))
+
+    // 钻取态面板顶部出现 ..
+    fireEvent.mouseDown(await screen.findByText('..', { exact: true }))
+
+    await waitFor(() => {
+      expect(textarea.value).toBe('@')
+    })
+  })
+
+  it('目录项排在文件项之前', async () => {
+    mocks.searchWorkspaceFiles.mockResolvedValue([
+      { path: 'docs', name: 'docs', type: 'directory' },
+      { path: 'a.ts', name: 'a.ts', type: 'file' },
+    ])
+
+    renderSender()
+    await screen.findByText('workspace')
+    const textarea = screen.getByTestId('chat-input') as HTMLTextAreaElement
+
+    setTextareaValue(textarea, '@d')
+
+    const docsItem = await screen.findByText('docs')
+    const aTsItem = await screen.findByText('a.ts')
+
+    // docs 在 DOM 中先于 a.ts
+    expect(
+      docsItem.compareDocumentPosition(aTsItem) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  it('按 Enter 选中高亮目录项下钻', async () => {
+    mocks.searchWorkspaceFiles.mockImplementation((_ws, query) => {
+      if (query === 'd') {
+        return Promise.resolve([{ path: 'docs', name: 'docs', type: 'directory' }])
+      }
+      if (query === 'docs/') {
+        return Promise.resolve([{ path: 'docs/guide.md', name: 'guide.md', type: 'file' }])
+      }
+      return Promise.resolve([])
+    })
+
+    renderSender()
+    await screen.findByText('workspace')
+    const textarea = screen.getByTestId('chat-input') as HTMLTextAreaElement
+
+    setTextareaValue(textarea, '@d')
+    await screen.findByText('docs')
+
+    // 非钻取态高亮首项是目录 docs，Enter 下钻
+    fireEvent.keyDown(textarea, { key: 'Enter' })
+
+    await waitFor(() => {
+      expect(textarea.value).toBe('@docs/')
+    })
+  })
+
+  it('鼠标悬停时同步高亮索引，避免与键盘高亮并存', async () => {
+    mocks.searchWorkspaceFiles.mockResolvedValue([
+      { path: 'docs', name: 'docs', type: 'directory' },
+      { path: 'a.ts', name: 'a.ts', type: 'file' },
+      { path: 'b.ts', name: 'b.ts', type: 'file' },
+    ])
+
+    renderSender()
+    await screen.findByText('workspace')
+    const textarea = screen.getByTestId('chat-input') as HTMLTextAreaElement
+
+    setTextareaValue(textarea, '@d')
+
+    const docsItem = await screen.findByText('docs')
+    const aTsItem = await screen.findByText('a.ts')
+    const bTsItem = await screen.findByText('b.ts')
+
+    // 初始高亮在首项 docs
+    expect(docsItem.closest('[data-highlighted="true"]')).not.toBeNull()
+
+    // 键盘下移到 a.ts
+    fireEvent.keyDown(textarea, { key: 'ArrowDown' })
+    await waitFor(() => {
+      expect(aTsItem.closest('[data-highlighted="true"]')).not.toBeNull()
+      expect(docsItem.closest('[data-highlighted="true"]')).toBeNull()
+    })
+
+    // 鼠标悬停到 b.ts 时，高亮应同步到 b.ts，a.ts 取消高亮
+    fireEvent.mouseEnter(bTsItem)
+    await waitFor(() => {
+      expect(bTsItem.closest('[data-highlighted="true"]')).not.toBeNull()
+      expect(aTsItem.closest('[data-highlighted="true"]')).toBeNull()
+    })
+  })
 })
