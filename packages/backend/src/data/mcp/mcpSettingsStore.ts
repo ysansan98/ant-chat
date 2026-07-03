@@ -20,7 +20,7 @@ export interface McpSettingsStoreOptions {
 export class McpSettingsStore {
   private readonly store: VersionedJsonFileStore<McpSettingsSchema>
 
-  constructor(private readonly options: McpSettingsStoreOptions) {
+  constructor(options: McpSettingsStoreOptions) {
     this.store = new VersionedJsonFileStore(options.filePath, {
       currentVersion: MCP_SETTINGS_SCHEMA_VERSION,
       migrations: MCP_SETTINGS_MIGRATIONS,
