@@ -134,6 +134,8 @@ export interface AppRpcContract {
 
   'commands.runBuiltinCommand': RpcEndpoint<RunBuiltinCommandParams, RunBuiltinCommandResult>
   'commands.cancelCommand': RpcEndpoint<{ conversationId: string }, null>
+
+  'files.getAttachmentData': RpcEndpoint<{ fileId: string }, string | null>
 }
 
 export type AppRpcMethod = keyof AppRpcContract & string

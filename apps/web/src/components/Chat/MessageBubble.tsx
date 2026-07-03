@@ -24,6 +24,7 @@ import { ChevronRightIcon, Loader2Icon, ShrinkIcon } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Role } from '@/constants'
 import { formatTime } from '@/utils'
+import { extractMessageAttachments } from '@/utils/extractMessageAttachments'
 import { transformMessageContent } from '@/utils/messageTransform'
 import { AssistantTrace } from './AssistantTrace'
 import BubbleFooter from './BubbleFooter'
@@ -234,9 +235,13 @@ function AssistantMessageContent({
   showReasoning?: boolean
 }) {
   if (item.role !== Role.AI) {
+    const { images, attachments } = extractMessageAttachments(item)
+
     return (
       <MessageContent
         content={transformMessageContent(item)}
+        images={images}
+        attachments={attachments}
         status={item.status as 'success' | 'loading' | 'typing'}
         enableReferenceTokens
       />

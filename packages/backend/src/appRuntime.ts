@@ -449,6 +449,9 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
         return null
       },
     },
+    files: {
+      getAttachmentData: (fileId: string) => context.messageRepository.loadAttachmentData(fileId),
+    },
     events,
     async initialize() {
       if (initialized)
