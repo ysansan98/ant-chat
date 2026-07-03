@@ -105,7 +105,7 @@ describe('sender reference token overlay', () => {
       pageIndex: 0,
       pageSize: 20,
       conversationsTotal: 1,
-      streamingConversationIds: new Set<string>(),
+      conversationStates: {},
       loadVersion: 0,
       workspaceConversations: {},
     })

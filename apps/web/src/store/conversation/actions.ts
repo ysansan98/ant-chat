@@ -167,8 +167,7 @@ export async function deleteConversationsAction(id: ConversationsId) {
       }
     }
   }))
-  removeStreamingConversationId(id)
-  clearConversationCompleted(id)
+  removeConversationState(id)
   saveCurrentSlice()
 }
 
@@ -308,31 +307,23 @@ export async function updateConversationsSettingsAction(id: ConversationsId, con
   saveCurrentSlice()
 }
 
-export function addStreamingConversationId(id: string) {
-  useConversationsStore.setState(state => ({
-    streamingConversationIds: new Set(state.streamingConversationIds).add(id),
+/**
+ * 设置会话状态。一个会话不可能同时处于 streaming 和 completed。
+ * 无状态条目 = idle（空闲）。
+ */
+export function setConversationState(id: string, state: 'running' | 'completed') {
+  console.log(`[conversation] state => ${id} = ${state}`)
+  useConversationsStore.setState(prev => ({
+    conversationStates: { ...prev.conversationStates, [id]: state },
   }))
 }
 
-export function removeStreamingConversationId(id: string) {
-  useConversationsStore.setState((state) => {
-    const streamingConversationIds = new Set(state.streamingConversationIds)
-    streamingConversationIds.delete(id)
-    return { streamingConversationIds }
-  })
-}
-
-export function markConversationCompleted(id: string) {
-  useConversationsStore.setState(state => ({
-    completedConversationIds: new Set(state.completedConversationIds).add(id),
-  }))
-}
-
-export function clearConversationCompleted(id: string) {
-  useConversationsStore.setState((state) => {
-    const completedConversationIds = new Set(state.completedConversationIds)
-    completedConversationIds.delete(id)
-    return { completedConversationIds }
+export function removeConversationState(id: string) {
+  console.log(`[conversation] state => ${id} = idle`)
+  useConversationsStore.setState((prev) => {
+    const next = { ...prev.conversationStates }
+    delete next[id]
+    return { conversationStates: next }
   })
 }
 

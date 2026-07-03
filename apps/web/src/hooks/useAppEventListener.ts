@@ -1,9 +1,9 @@
-import type { IMessage, NotificationOption } from '@ant-chat/shared'
+import type { NotificationOption } from '@ant-chat/shared'
 import { useEffect } from 'react'
 import { toast } from 'sonner'
 import { getAppEventBus } from '@/api/transports/appEventBus'
 import { onAgentApprovalRequired, onAgentSecretRequested, onAgentStateUpdated } from '@/store/agent'
-import { addStreamingConversationId, markConversationCompleted, removeStreamingConversationId, touchConversationUpdatedAt, upsertConversationAction, useConversationsStore } from '@/store/conversation'
+import { touchConversationUpdatedAt, upsertConversationAction } from '@/store/conversation'
 import { refreshGeneralSettings } from '@/store/generalSettings/actions'
 import { onMcpServerStatusChanged } from '@/store/mcpConfigs/action'
 import { updateMessageActionV2 } from '@/store/messages'
@@ -42,18 +42,19 @@ export function useAppEventListener() {
     eventBus.on('message:updated', (_, payload) => {
       console.log('message:updated => ', payload.message)
 
-      handleStreamingConversationStatus(payload.message)
       touchConversationUpdatedAt(payload.message.convId, Date.now())
       updateMessageActionV2(payload.message)
     })
 
     eventBus.on('agent:task-updated', (_, payload) => {
       onAgentStateUpdated(payload.task)
-    })
-    eventBus.on('agent:turn-finished', (_, payload) => {
-      handleConversationTurnFinished(payload)
-      if (payload.status !== 'cancel')
-        void drainPendingMessages(payload.conversationId)
+      // 任务完成时排空待处理消息队列
+      // turn 完成与 task-updated 在时序上紧邻（turn-finished 总在 task-updated 之前），
+      // 此处统一处理，无需额外监听 agent:turn-finished
+      if (!['running', 'awaiting_approval'].includes(payload.task.status)) {
+        if (payload.task.status !== 'cancel')
+          void drainPendingMessages(payload.task.conversationId)
+      }
     })
     eventBus.on('agent:approval-required', (_, payload) => {
       onAgentApprovalRequired(payload.taskId, payload.pendingAction)
@@ -74,33 +75,10 @@ export function useAppEventListener() {
       eventBus.removeAllListeners('conversation:updated')
       eventBus.removeAllListeners('message:updated')
       eventBus.removeAllListeners('agent:task-updated')
-      eventBus.removeAllListeners('agent:turn-finished')
       eventBus.removeAllListeners('agent:approval-required')
       eventBus.removeAllListeners('agent:secret-requested')
       eventBus.removeAllListeners('settings:updated')
       eventBus.removeAllListeners('workspace:changed')
     }
   }, [])
-}
-
-export function handleConversationTurnFinished(payload: { conversationId: string, status: 'success' | 'error' | 'cancel' }) {
-  if (
-    payload.status !== 'cancel'
-    && payload.conversationId !== useConversationsStore.getState().activeConversationsId
-  ) {
-    markConversationCompleted(payload.conversationId)
-  }
-}
-
-export function handleStreamingConversationStatus(msg: Pick<IMessage, 'status' | 'convId' | 'role'>) {
-  if (msg.role === 'user') {
-    return
-  }
-
-  if (['typing', 'loading'].includes(msg.status)) {
-    addStreamingConversationId(msg.convId)
-  }
-  else {
-    removeStreamingConversationId(msg.convId)
-  }
 }

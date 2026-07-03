@@ -3,7 +3,7 @@ import { produce } from 'immer'
 import agentApi from '@/api/agentApi'
 import chatApi from '@/api/chatApi'
 import { syncConversationAgentState } from '../agent/actions'
-import { useConversationsStore } from '../conversation/conversationsStore'
+import { removeConversationState, useConversationsStore } from '../conversation'
 import { useMessagesStore } from './store'
 
 let loadVersion = 0
@@ -55,11 +55,7 @@ export async function setActiveConversationsId(id: ConversationsId | '') {
 }
 
 function clearCompletedConversation(id: string) {
-  useConversationsStore.setState((state) => {
-    const completedConversationIds = new Set(state.completedConversationIds)
-    completedConversationIds.delete(id)
-    return { completedConversationIds }
-  })
+  removeConversationState(id)
 }
 
 export async function addMessageAction(message: IMessage) {

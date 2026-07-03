@@ -7,6 +7,7 @@ import { useChatSettingsContext } from '@/contexts/chatSettings'
 import { useBuiltinCommandSubmit } from '@/hooks/useBuiltinCommandSubmit'
 import { approveAgentActionWithWhitelist, rejectAgentAction, rejectSecretRequestAction, resolveSecretRequestAction, startAgentTurn, useAgentStore } from '@/store/agent'
 import {
+  setConversationState,
   upsertConversationAction,
   useConversationsStore,
 } from '@/store/conversation'
@@ -104,6 +105,9 @@ export default function Chat() {
       }))
       upsertConversationAction(result.conversation)
       await setActiveConversationsId(result.conversationId)
+      // setActiveConversationsId 内部的 syncConversationAgentState 可能清除状态，
+      // 这里重新设置 running 确保即时响应，不等 agent:task-updated 回来
+      setConversationState(result.conversationId, 'running')
 
       // FLIP 动画：输入框从居中位置平滑过渡到底部
       if (oldRect && el) {
