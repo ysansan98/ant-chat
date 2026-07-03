@@ -70,7 +70,7 @@ describe('searchWorkspaceFiles', () => {
     await fs.promises.rm(workspacePath, { recursive: true, force: true })
   })
 
-  it('用户输入 @ 浏览根目录时，看到顶层目录与文件，忽略目录被排除', async () => {
+  it('用户输入 @ 浏览根目录时，被忽略目录作为入口出现但不泄漏内部文件', async () => {
     const results = await searchWorkspaceFiles(workspacePath, '', 50)
     const paths = results.map(item => item.path)
 
@@ -80,10 +80,13 @@ describe('searchWorkspaceFiles', () => {
     expect(paths).toContain('README.md')
     expect(paths).toContain('package.json')
 
-    // 忽略目录不泄漏
-    expect(paths).not.toContain('node_modules')
+    // 被忽略目录作为可钻取入口出现（directory 类型）
+    expect(results.find(item => item.path === 'node_modules')).toMatchObject({ type: 'directory' })
+    expect(results.find(item => item.path === '.git')).toMatchObject({ type: 'directory' })
+
+    // 但不自动下钻，内部文件不泄漏
+    expect(paths).not.toContain('node_modules/react')
     expect(paths).not.toContain('node_modules/react/index.js')
-    expect(paths).not.toContain('.git')
     expect(paths).not.toContain('.git/config')
   })
 
@@ -121,12 +124,19 @@ describe('searchWorkspaceFiles', () => {
     expect(paths).toContain('src/components/Button.tsx')
   })
 
-  it('用户钻取到只有构建产物的目录时，返回空（无可引用文件）', async () => {
+  it('用户钻取到只有构建产物的目录时，构建目录作为入口出现', async () => {
     // 模拟：用户 @packages → 选 packages → @packages/ → 选 built-pkg → @packages/built-pkg/
-    // built-pkg 下只有 dist 与 node_modules，均被忽略，应返回空而非泄漏构建产物
+    // built-pkg 下只有 dist 与 node_modules，它们作为可钻取入口出现
     const results = await searchWorkspaceFiles(workspacePath, 'packages/built-pkg/', 50)
+    const paths = results.map(item => item.path)
 
-    expect(results).toHaveLength(0)
+    // 构建目录作为入口出现，用户可继续主动钻取
+    expect(results.find(item => item.path === 'packages/built-pkg/dist')).toMatchObject({ type: 'directory' })
+    expect(results.find(item => item.path === 'packages/built-pkg/node_modules')).toMatchObject({ type: 'directory' })
+
+    // 但不自动下钻，构建产物文件不泄漏
+    expect(paths).not.toContain('packages/built-pkg/dist/index.js')
+    expect(paths).not.toContain('packages/built-pkg/node_modules/dep/index.js')
   })
 
   it('用户在目录内输入关键词时，模糊匹配子孙目录与文件', async () => {
@@ -156,12 +166,28 @@ describe('searchWorkspaceFiles', () => {
     expect(level3Paths).toContain('packages/shared/src/index.ts')
   })
 
+  it('用户主动进入被忽略目录时，正常看到其下内容', async () => {
+    // 进入 dist 构建产物目录 → 看到 index.js 文件
+    const distResults = await searchWorkspaceFiles(workspacePath, 'packages/built-pkg/dist/', 50)
+    const distPaths = distResults.map(item => item.path)
+    expect(distPaths).toContain('packages/built-pkg/dist/index.js')
+
+    // 进入 node_modules → 看到 react 子目录及其下文件
+    // react 本身不在 IGNORED_DIRS，用户主动进入 node_modules 后其内容正常浏览
+    const nmResults = await searchWorkspaceFiles(workspacePath, 'node_modules/', 50)
+    const nmPaths = nmResults.map(item => item.path)
+    expect(nmResults.find(item => item.path === 'node_modules/react')).toMatchObject({ type: 'directory' })
+    expect(nmPaths).toContain('node_modules/react/index.js')
+  })
+
   it('目录子限额不挤占文件名额，limit 较小时仍返回文件', async () => {
-    // 根目录有 src、packages 两个目录，limit=2 时应返回 2 目录；limit=3 时第 3 项是文件
-    const results = await searchWorkspaceFiles(workspacePath, '', 3)
-    expect(results).toHaveLength(3)
+    // 根目录有 src、packages、node_modules、.git 四个目录，limit=5 时应返回 4 目录 + 1 文件
+    const results = await searchWorkspaceFiles(workspacePath, '', 5)
+    expect(results).toHaveLength(5)
     expect(results[0].type).toBe('directory')
     expect(results[1].type).toBe('directory')
-    expect(results[2].type).toBe('file')
+    expect(results[2].type).toBe('directory')
+    expect(results[3].type).toBe('directory')
+    expect(results[4].type).toBe('file')
   })
 })

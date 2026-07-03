@@ -175,13 +175,12 @@ export async function searchWorkspaceFiles(
       visited += 1
 
       if (entry.isDirectory()) {
-        // 忽略目录：既不入结果也不再下钻
-        if (IGNORED_DIRS.has(entry.name)) {
-          continue
-        }
-
         const absolutePath = path.join(dir, entry.name)
         const relativePath = path.relative(root, absolutePath).split(path.sep).join('/')
+
+        // 被忽略目录（node_modules/dist 等）仍作为可钻取入口出现在结果中，
+        // 但不自动下钻（性能保护）。用户主动进入（scope 指向该目录）时，
+        // walk 从该目录起始，其下内容正常可见。
         if (
           !relativePath.startsWith('..')
           && !path.isAbsolute(relativePath)
@@ -195,8 +194,10 @@ export async function searchWorkspaceFiles(
           })
         }
 
-        // 无论是否入结果都继续下钻，深层文件/目录仍需参与匹配
-        await walk(absolutePath)
+        // 被忽略目录不自动下钻，避免扫描 node_modules 等大目录
+        if (!IGNORED_DIRS.has(entry.name)) {
+          await walk(absolutePath)
+        }
         continue
       }
 
