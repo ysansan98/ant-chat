@@ -15,7 +15,8 @@ import {
 import { FileIcon, SparklesIcon } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { skillApi } from '@/api/skillApi'
-import { attachmentToPreviewItem, ImageViewer } from './ImageViewer'
+import { attachmentToPreviewItem } from './imagePreviewItem'
+import { ImageViewer } from './ImageViewer'
 import { tokenizeMessageReferences } from './messageReferenceTokens'
 
 function toAttachmentData(

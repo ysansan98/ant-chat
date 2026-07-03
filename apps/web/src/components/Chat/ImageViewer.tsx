@@ -1,3 +1,4 @@
+import type { ImagePreviewItem } from './imagePreviewItem'
 import {
   Dialog,
   DialogClose,
@@ -6,11 +7,7 @@ import {
 import { cn } from '@workspace/ui/lib/utils'
 import { XIcon } from 'lucide-react'
 import { useState } from 'react'
-import type { ImagePreviewItem } from './imagePreviewItem'
 import { useAttachmentUrl } from './imagePreviewItem'
-
-export type { ImagePreviewItem }
-export { attachmentToPreviewItem } from './imagePreviewItem'
 
 function AttachmentImg({
   item,
@@ -62,14 +59,16 @@ export function ImageViewer({ items }: { items: ImagePreviewItem[] }) {
         }}
       >
         {previewIndex !== null && (
-          <style>{`
+          <style>
+            {`
             [data-slot="dialog-overlay"] {
               animation: none !important;
               backdrop-filter: none !important;
               -webkit-backdrop-filter: none !important;
               background: rgba(0, 0, 0, 0.85) !important;
             }
-          `}</style>
+          `}
+          </style>
         )}
         <DialogContent
           className="
