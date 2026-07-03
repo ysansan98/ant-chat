@@ -2,21 +2,26 @@ import type { AttachmentData } from '@workspace/ui/components/ai-elements/attach
 import type { BubbleContent } from '@/types/global'
 import {
   Attachment,
-  AttachmentHoverCard,
-  AttachmentHoverCardContent,
-  AttachmentHoverCardTrigger,
   AttachmentInfo,
   AttachmentPreview,
   Attachments,
 } from '@workspace/ui/components/ai-elements/attachments'
 import { MessageResponse } from '@workspace/ui/components/ai-elements/message'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@workspace/ui/components/tooltip'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@workspace/ui/components/tooltip'
 import { FileIcon, SparklesIcon } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { skillApi } from '@/api/skillApi'
+import { attachmentToPreviewItem } from './imagePreviewItem'
+import { ImageViewer } from './ImageViewer'
 import { tokenizeMessageReferences } from './messageReferenceTokens'
 
-function toAttachmentData(item: NonNullable<BubbleContent['attachments']>[number]): AttachmentData {
+function toAttachmentData(
+  item: NonNullable<BubbleContent['attachments']>[number],
+): AttachmentData {
   return {
     type: 'file',
     id: item.uid,
@@ -26,50 +31,32 @@ function toAttachmentData(item: NonNullable<BubbleContent['attachments']>[number
   }
 }
 
-function getAttachmentUrl(item: AttachmentData): string {
-  if (item.type === 'source-document') {
-    return ''
-  }
-
-  return item.url || ''
-}
-
 const EMPTY_IMAGES: NonNullable<BubbleContent['images']> = []
 const EMPTY_ATTACHMENTS: NonNullable<BubbleContent['attachments']> = []
 
-export default function MessageContent({ content = '', images = EMPTY_IMAGES, attachments = EMPTY_ATTACHMENTS, status, enableReferenceTokens = false }: Partial<BubbleContent> & { enableReferenceTokens?: boolean }) {
+export default function MessageContent({
+  content = '',
+  images = EMPTY_IMAGES,
+  attachments = EMPTY_ATTACHMENTS,
+  status,
+  enableReferenceTokens = false,
+}: Partial<BubbleContent> & { enableReferenceTokens?: boolean }) {
   const isStreaming = status === 'loading' || status === 'typing'
-  const imageItems = images.map(toAttachmentData)
+  const imageItems = images.map(attachmentToPreviewItem)
   const attachmentItems = attachments.map(toAttachmentData)
 
   return (
     <div className="space-y-3">
-      {content && (
-        enableReferenceTokens
-          ? <ReferenceTokenMessage content={content} />
-          : <MessageResponse isAnimating={isStreaming}>{content}</MessageResponse>
-      )}
+      {content
+        && (enableReferenceTokens
+          ? (
+              <ReferenceTokenMessage content={content} />
+            )
+          : (
+              <MessageResponse isAnimating={isStreaming}>{content}</MessageResponse>
+            ))}
 
-      {imageItems.length > 0 && (
-        <Attachments variant="grid" className="ml-0">
-          {imageItems.map(item => (
-            <AttachmentHoverCard key={item.id}>
-              <AttachmentHoverCardTrigger asChild>
-                <Attachment data={item}>
-                  <AttachmentPreview />
-                </Attachment>
-              </AttachmentHoverCardTrigger>
-              <AttachmentHoverCardContent>
-                <img
-                  src={getAttachmentUrl(item)}
-                  alt={item.filename || 'Image'}
-                  className="max-h-90 max-w-130 rounded-md object-contain"
-                />
-              </AttachmentHoverCardContent>
-            </AttachmentHoverCard>
-          ))}
-        </Attachments>
-      )}
+      <ImageViewer items={imageItems} />
 
       {attachmentItems.length > 0 && (
         <Attachments variant="list">
@@ -86,11 +73,14 @@ export default function MessageContent({ content = '', images = EMPTY_IMAGES, at
 }
 
 function ReferenceTokenMessage({ content }: { content: string }) {
-  const [skillDescriptions, setSkillDescriptions] = useState<Record<string, string>>({})
+  const [skillDescriptions, setSkillDescriptions] = useState<
+    Record<string, string>
+  >({})
   const skillNames = useMemo(
-    () => tokenizeMessageReferences(content)
-      .filter(part => part.type === 'skill')
-      .map(part => part.value),
+    () =>
+      tokenizeMessageReferences(content)
+        .filter(part => part.type === 'skill')
+        .map(part => part.value),
     [content],
   )
 
@@ -99,7 +89,8 @@ function ReferenceTokenMessage({ content }: { content: string }) {
       return
     }
 
-    void skillApi.listSkills()
+    void skillApi
+      .listSkills()
       .then((data) => {
         const next: Record<string, string> = {}
         for (const skill of data.skills) {
@@ -130,13 +121,19 @@ function ReferenceTokenMessage({ content }: { content: string }) {
                 "
               >
                 {isFile
-                  ? <FileIcon className="size-3 shrink-0" />
-                  : <SparklesIcon className="size-3 shrink-0" />}
+                  ? (
+                      <FileIcon className="size-3 shrink-0" />
+                    )
+                  : (
+                      <SparklesIcon className="size-3 shrink-0" />
+                    )}
                 <span className="max-w-72 truncate">{part.text}</span>
               </span>
             </TooltipTrigger>
             <TooltipContent side="top">
-              {isFile ? part.value : (skillDescriptions[part.value] || `Skill: ${part.value}`)}
+              {isFile
+                ? part.value
+                : skillDescriptions[part.value] || `Skill: ${part.value}`}
             </TooltipContent>
           </Tooltip>
         )

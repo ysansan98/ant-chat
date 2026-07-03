@@ -104,5 +104,7 @@ export function createAppRpcHandlers(runtime: AppRuntime): AppRpcHandlers {
 
     'commands.runBuiltinCommand': input => runtime.commands.run(input),
     'commands.cancelCommand': input => runtime.commands.cancel(input.conversationId),
+
+    'files.getAttachmentData': input => runtime.files.getAttachmentData(input.fileId),
   }
 }
