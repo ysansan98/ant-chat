@@ -40,8 +40,6 @@ export function useAppEventListener() {
       upsertConversationAction(payload.conversation)
     })
     eventBus.on('message:updated', (_, payload) => {
-      console.log('message:updated => ', payload.message)
-
       touchConversationUpdatedAt(payload.message.convId, Date.now())
       updateMessageActionV2(payload.message)
     })

@@ -312,14 +312,12 @@ export async function updateConversationsSettingsAction(id: ConversationsId, con
  * 无状态条目 = idle（空闲）。
  */
 export function setConversationState(id: string, state: 'running' | 'completed') {
-  console.log(`[conversation] state => ${id} = ${state}`)
   useConversationsStore.setState(prev => ({
     conversationStates: { ...prev.conversationStates, [id]: state },
   }))
 }
 
 export function removeConversationState(id: string) {
-  console.log(`[conversation] state => ${id} = idle`)
   useConversationsStore.setState((prev) => {
     const next = { ...prev.conversationStates }
     delete next[id]
