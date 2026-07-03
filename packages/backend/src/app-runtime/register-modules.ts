@@ -4,6 +4,7 @@ import { AgentModule } from './modules/agent'
 import { AutomationModule } from './modules/automation'
 import { ChatModule } from './modules/chat'
 import { CommandsModule } from './modules/commands'
+import { FilesModule } from './modules/files'
 import { McpModule } from './modules/mcp'
 import { MemoryModule } from './modules/memory'
 import { ProviderModule } from './modules/provider'
@@ -40,9 +41,10 @@ export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModu
   })
   const memory = new MemoryModule(core)
   const search = new SearchModule(core)
+  const files = new FilesModule(core)
 
   return {
-    routes: [chat, settings, provider, mcp, search, memory, skills, workspace, agent, automation, commands],
+    routes: [chat, settings, provider, mcp, search, memory, skills, workspace, agent, automation, commands, files],
     lifecycle: [workspace, skills, provider, settings, mcp, agent, automation],
   }
 }

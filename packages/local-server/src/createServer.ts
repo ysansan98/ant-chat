@@ -5,6 +5,7 @@ import { createServer as createHttpServer } from 'node:http'
 
 const MAX_RPC_BODY_BYTES = 32 * 1024 * 1024
 const RPC_BODY_TIMEOUT_MS = 30_000
+const FILE_PATH_PATTERN = /^\/api\/files\/([\w-]+)$/
 
 class RpcRequestError extends Error {
   constructor(
@@ -46,6 +47,17 @@ export function createLocalApiHandler(runtime: object, limits?: RpcLimits): Loca
       const url = new URL(req.url || '/', 'http://localhost')
       if (!isLocalApiRoute(url))
         return false
+
+      // 文件服务端点：GET /api/files/:fileId?type=mime/type
+      if (req.method === 'GET') {
+        const fileMatch = url.pathname.match(FILE_PATH_PATTERN)
+        if (fileMatch) {
+          const fileId = fileMatch[1]
+          const mimeType = url.searchParams.get('type') || 'application/octet-stream'
+          await serveAttachmentFile(fileId, mimeType, res, appRuntime)
+          return true
+        }
+      }
 
       if (req.method === 'OPTIONS') {
         res.writeHead(204)
@@ -146,4 +158,33 @@ async function readJsonBody(
   }
 
   return JSON.parse(Buffer.concat(chunks).toString('utf8'))
+}
+
+async function serveAttachmentFile(
+  fileId: string,
+  mimeType: string,
+  res: ServerResponse,
+  runtime: AppRuntime,
+): Promise<void> {
+  try {
+    const base64 = await runtime.invoke('files.getAttachmentData', { fileId })
+    if (!base64) {
+      res.writeHead(404, { 'content-type': 'application/json; charset=utf-8' })
+      res.end(JSON.stringify({ success: false, msg: 'File not found' }))
+      return
+    }
+
+    const buffer = Buffer.from(base64, 'base64')
+    res.writeHead(200, {
+      'content-type': mimeType,
+      'cache-control': 'public, max-age=86400, immutable',
+      'content-length': buffer.length.toString(),
+    })
+    res.end(buffer)
+  }
+  catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    res.writeHead(500, { 'content-type': 'application/json; charset=utf-8' })
+    res.end(JSON.stringify({ success: false, msg: message }))
+  }
 }
