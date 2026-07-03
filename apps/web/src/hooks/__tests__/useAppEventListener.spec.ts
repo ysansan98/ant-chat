@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { useConversationsStore } from '@/store/conversation'
 import { setConversationState, removeConversationState } from '@/store/conversation'
 

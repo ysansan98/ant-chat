@@ -52,7 +52,7 @@ export function useAppEventListener() {
       // turn 完成与 task-updated 在时序上紧邻（turn-finished 总在 task-updated 之前），
       // 此处统一处理，无需额外监听 agent:turn-finished
       if (!['running', 'awaiting_approval'].includes(payload.task.status)) {
-        if (payload.task.status !== 'cancel')
+        if (payload.task.status !== 'cancelled')
           void drainPendingMessages(payload.task.conversationId)
       }
     })
