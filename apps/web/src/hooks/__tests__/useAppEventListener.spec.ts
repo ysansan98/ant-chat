@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { useConversationsStore } from '@/store/conversation'
-import { setConversationState, removeConversationState } from '@/store/conversation'
+import { removeConversationState, setConversationState, useConversationsStore } from '@/store/conversation'
 
 describe('conversation state management', () => {
   beforeEach(() => {

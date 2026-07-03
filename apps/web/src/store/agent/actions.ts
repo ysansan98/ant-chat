@@ -1,6 +1,6 @@
 import type { AgentTaskSnapshot, ApprovePendingActionOptions, RejectPendingActionOptions, SecretRequest, StartAgentTurnOptions } from '@ant-chat/shared'
 import agentApi from '@/api/agentApi'
-import { setConversationState, removeConversationState, useConversationsStore } from '@/store/conversation'
+import { removeConversationState, setConversationState, useConversationsStore } from '@/store/conversation'
 import { useAgentStore } from './store'
 
 export async function startAgentTurn(options: StartAgentTurnOptions) {
