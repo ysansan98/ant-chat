@@ -18,9 +18,12 @@ export interface ListWorkspacesData {
 }
 
 export interface WorkspaceFileSearchResult {
+  /** 相对于 workspacePath 的 posix 路径 */
   path: string
+  /** basename */
   name: string
-  type: 'file'
+  /** file = 普通文件；directory = 目录（用于 @ 引用的路径补全钻取） */
+  type: 'file' | 'directory'
 }
 
 export interface WorkspaceDirectoryEntry {

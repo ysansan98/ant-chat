@@ -66,7 +66,9 @@ import {
   insertReferenceToken,
   isCompletedReferenceTrigger,
   moveCursorAcrossReferenceToken,
+  parentReferenceQuery,
   removeReferenceTokenAtCursor,
+  rewriteReferenceTrigger,
   snapCursorToReferenceTokenBoundary,
   syncReferencedFiles,
   syncSelectedSkill,
@@ -404,8 +406,21 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
     )
   }, [activeReferenceTrigger])
 
+  const directoryResults = useMemo(
+    () => senderData.fileResults.filter(item => item.type === 'directory'),
+    [senderData.fileResults],
+  )
+  const fileOnlyResults = useMemo(
+    () => senderData.fileResults.filter(item => item.type === 'file'),
+    [senderData.fileResults],
+  )
+  // 已钻取到子目录（query 含 `/`）时面板顶部渲染 `..` 返回上级
+  const canGoParent = !!activeReferenceTrigger
+    && activeReferenceTrigger.type === 'file'
+    && activeReferenceTrigger.query.includes('/')
+
   const suggestionItemCount = activeReferenceTrigger?.type === 'file'
-    ? senderData.fileResults.length
+    ? (canGoParent ? 1 : 0) + directoryResults.length + fileOnlyResults.length
     : activeReferenceTrigger?.type === 'skill'
       ? filteredCommands.length + filteredSkills.length
       : 0
@@ -442,18 +457,26 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
       return
     }
 
+    // 没有工作区时不搜索，避免后端抛错并清空已有结果
+    if (!currentWorkspacePath) {
+      dispatchSenderData({ type: 'CLEAR_FILE_RESULTS' })
+      return
+    }
+
     const timer = window.setTimeout(() => {
       void workspaceApi.searchWorkspaceFiles(currentWorkspacePath, activeReferenceTrigger.query, 50)
         .then((results) => {
           dispatchSenderData({ type: 'SET_FILE_RESULTS', results })
         })
-        .catch(() => {
+        .catch((error) => {
+          // 保留错误信息便于排查，同时清空结果避免展示过期数据
+          console.error('searchWorkspaceFiles failed', error)
           dispatchSenderData({ type: 'CLEAR_FILE_RESULTS' })
         })
     }, 120)
 
     return () => window.clearTimeout(timer)
-  }, [activeReferenceTrigger])
+  }, [activeReferenceTrigger, currentWorkspacePath])
 
   useLayoutEffect(() => {
     if (!activeReferenceTrigger) {
@@ -478,8 +501,10 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
   }, [activeReferenceTrigger, draft])
 
   useEffect(() => {
-    dispatchSenderData({ type: 'RESET_HIGHLIGHTED_INDEX' })
-  }, [activeReferenceTrigger?.type, activeReferenceTrigger?.query, suggestionItemCount])
+    // 钻取态首项是 `..`，reset 跳过它落到首个目录/文件，符合「继续向下选」的直觉
+    const initialIndex = activeReferenceTrigger?.type === 'file' && canGoParent ? 1 : 0
+    dispatchSenderData({ type: 'SET_HIGHLIGHTED_INDEX', index: initialIndex })
+  }, [activeReferenceTrigger?.type, activeReferenceTrigger?.query, suggestionItemCount, canGoParent])
 
   async function handleSwitchWorkspace(nextWorkspacePath: string) {
     if (
@@ -532,6 +557,39 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
     })
   }
 
+  function selectDirectoryReference(dir: WorkspaceFileSearchResult) {
+    if (!activeReferenceTrigger || activeReferenceTrigger.type !== 'file') {
+      return
+    }
+
+    // 把目录路径补到 @ 之后（带尾斜杠），改写 query 触发下一轮搜索
+    // 不入 referencedFiles、不关闭面板，由新 query 自然续搜
+    const nextQuery = `${dir.path}/`
+    const next = rewriteReferenceTrigger(draft, activeReferenceTrigger, nextQuery)
+    updateDraft(next.text, next.cursor)
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus()
+      textareaRef.current?.setSelectionRange(next.cursor, next.cursor)
+    })
+  }
+
+  function selectParentReference() {
+    if (!activeReferenceTrigger || activeReferenceTrigger.type !== 'file') {
+      return
+    }
+
+    const nextQuery = parentReferenceQuery(activeReferenceTrigger.query)
+    if (nextQuery === null) {
+      return
+    }
+    const next = rewriteReferenceTrigger(draft, activeReferenceTrigger, nextQuery)
+    updateDraft(next.text, next.cursor)
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus()
+      textareaRef.current?.setSelectionRange(next.cursor, next.cursor)
+    })
+  }
+
   function selectSkillReference(skill: SkillManifest) {
     if (!activeReferenceTrigger || activeReferenceTrigger.type !== 'skill') {
       return
@@ -569,7 +627,21 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
 
     const index = Math.min(senderData.highlightedIndex, suggestionItemCount - 1)
     if (activeReferenceTrigger.type === 'file') {
-      selectFileReference(senderData.fileResults[index])
+      const parentOffset = canGoParent ? 1 : 0
+      // 钻取态首项是 `..` 返回上级
+      if (canGoParent && index === 0) {
+        selectParentReference()
+        return true
+      }
+      // 目录项（钻取入口）
+      const dirIndex = index - parentOffset
+      if (dirIndex < directoryResults.length) {
+        selectDirectoryReference(directoryResults[dirIndex])
+        return true
+      }
+      // 文件项（插入引用 token）
+      const fileIndex = dirIndex - directoryResults.length
+      selectFileReference(fileOnlyResults[fileIndex])
       return true
     }
 
@@ -835,15 +907,20 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
             </div>
             <ReferenceSuggestionPanel
               trigger={activeReferenceTrigger}
-              files={senderData.fileResults}
+              directories={directoryResults}
+              files={fileOnlyResults}
               skills={filteredSkills}
               builtinCommands={filteredCommands}
               hasWorkspace={Boolean(currentWorkspacePath)}
+              canGoParent={canGoParent}
               highlightedIndex={senderData.highlightedIndex}
               anchorRect={senderData.suggestionAnchorRect}
               onSelectFile={selectFileReference}
+              onSelectDirectory={selectDirectoryReference}
+              onSelectParent={selectParentReference}
               onSelectSkill={selectSkillReference}
               onSelectCommand={selectCommandReference}
+              onSetHighlightedIndex={index => dispatchSenderData({ type: 'SET_HIGHLIGHTED_INDEX', index })}
             />
           </PromptInputBody>
 
