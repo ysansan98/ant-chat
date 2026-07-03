@@ -11,14 +11,6 @@
       "import": "./dist/index.mjs",
       "require": "./dist/index.cjs"
     },
-    "./rpc-handlers": {
-      "development": {
-        "types": "./src/rpcHandlers.ts",
-        "default": "./src/rpcHandlers.ts"
-      },
-      "import": "./dist/rpc-handlers.mjs",
-      "require": "./dist/rpc-handlers.cjs"
-    },
     "./package.json": "./package.json"
   },
   "main": "./dist/index.cjs",
