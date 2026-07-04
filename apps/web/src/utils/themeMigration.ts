@@ -39,19 +39,6 @@ export async function migrateLegacyTheme(): Promise<void> {
   if (localStorage.getItem(MIGRATION_MARKER_KEY))
     return
 
-  // 服务端已有新配置时跳过
-  try {
-    const currentSettings = useGeneralSettingsStore.getState()
-    if (currentSettings.appearance && currentSettings.appearance.mode) {
-      // 已有外观配置，标记迁移完成并返回
-      localStorage.setItem(MIGRATION_MARKER_KEY, 'done')
-      return
-    }
-  }
-  catch {
-    // 读取失败时继续尝试迁移
-  }
-
   // 读取旧主题配置
   try {
     const raw = localStorage.getItem(OLD_THEME_STORE_KEY)

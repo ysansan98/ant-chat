@@ -35,11 +35,9 @@ export function useThemeApplier(): void {
 
   // 服务端配置加载后，用服务端值校准并更新缓存
   useEffect(() => {
+    // 跳过首次渲染，保留首帧缓存的本地主题；等待服务端数据到达后校准
     if (!serverSettingsLoaded.current) {
       serverSettingsLoaded.current = true
-      // 第一次加载时用服务端值校准（覆盖缓存）
-      applyThemeToDocument(appearance)
-      cacheAppearance(appearance)
       return
     }
 
