@@ -73,6 +73,16 @@ export const DEFAULT_APP_SETTINGS: AppSettingsState = {
       isEnabled: false,
       models: {},
     },
+    {
+      id: 'opencode-go',
+      name: 'Opencode Go',
+      baseUrl: 'https://opencode.ai/zen/go/v1',
+      apiKeySecretId: 'provider:opencode-go:api_key',
+      apiMode: 'openai',
+      isOfficial: false,
+      isEnabled: false,
+      models: {},
+    },
   ],
   toolApprovalWhitelist: [],
 }
