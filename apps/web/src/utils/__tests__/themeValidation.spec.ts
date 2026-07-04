@@ -225,4 +225,136 @@ describe('themeValidation', () => {
       expect(Number.parseFloat(bgMatch![1])).toBeLessThan(0.4)
     })
   })
+
+  describe('cursor 灵感主题验证', () => {
+    const cursorLightTokens: Record<string, string> = {
+      '--background': 'oklch(0.975 0.004 107)',
+      '--foreground': 'oklch(0.20 0.015 95)',
+      '--card': 'oklch(0.985 0.003 107)',
+      '--card-foreground': 'oklch(0.20 0.015 95)',
+      '--popover': 'oklch(0.985 0.003 107)',
+      '--popover-foreground': 'oklch(0.20 0.015 95)',
+      '--primary': 'oklch(0.52 0.20 38)',
+      '--primary-foreground': 'oklch(0.12 0.008 70)',
+      '--secondary': 'oklch(0.94 0.008 90)',
+      '--secondary-foreground': 'oklch(0.25 0.015 95)',
+      '--muted': 'oklch(0.93 0.006 88)',
+      '--muted-foreground': 'oklch(0.42 0.02 90)',
+      '--accent': 'oklch(0.55 0.18 250)',
+      '--accent-foreground': 'oklch(0.985 0.005 90)',
+      '--destructive': 'oklch(0.60 0.19 25)',
+      '--destructive-foreground': 'oklch(0.12 0.008 70)',
+      '--border': 'oklch(0.88 0.008 90)',
+      '--input': 'oklch(0.88 0.008 90)',
+      '--ring': 'oklch(0.652 0.213 38)',
+      '--sidebar': 'oklch(0.955 0.006 107)',
+      '--sidebar-foreground': 'oklch(0.25 0.015 95)',
+      '--sidebar-primary': 'oklch(0.52 0.20 38)',
+      '--sidebar-primary-foreground': 'oklch(0.12 0.008 70)',
+      '--sidebar-accent': 'oklch(0.94 0.008 90)',
+      '--sidebar-accent-foreground': 'oklch(0.25 0.015 95)',
+      '--sidebar-border': 'oklch(0.88 0.008 90)',
+      '--sidebar-ring': 'oklch(0.652 0.213 38)',
+      '--surface': 'oklch(0.985 0.003 107)',
+      '--surface-foreground': 'oklch(0.20 0.015 95)',
+      '--code': 'oklch(0.20 0.015 95)',
+      '--code-foreground': 'oklch(0.94 0.008 88)',
+      '--code-highlight': 'oklch(0.30 0.018 95)',
+      '--code-number': 'oklch(0.60 0.18 38)',
+      '--selection': 'oklch(0.652 0.213 38 / 0.25)',
+      '--selection-foreground': 'oklch(0.20 0.015 95)',
+      '--chart-1': 'oklch(0.55 0.18 250)',
+      '--chart-2': 'oklch(0.60 0.15 160)',
+      '--chart-3': 'oklch(0.65 0.16 290)',
+      '--chart-4': 'oklch(0.62 0.15 30)',
+      '--chart-5': 'oklch(0.58 0.10 200)',
+    }
+
+    const cursorDarkTokens: Record<string, string> = {
+      '--background': 'oklch(0.14 0.008 70)',
+      '--foreground': 'oklch(0.92 0.008 88)',
+      '--card': 'oklch(0.18 0.01 70)',
+      '--card-foreground': 'oklch(0.92 0.008 88)',
+      '--popover': 'oklch(0.18 0.01 70)',
+      '--popover-foreground': 'oklch(0.92 0.008 88)',
+      '--primary': 'oklch(0.63 0.18 38)',
+      '--primary-foreground': 'oklch(0.14 0.008 70)',
+      '--secondary': 'oklch(0.25 0.012 70)',
+      '--secondary-foreground': 'oklch(0.88 0.008 88)',
+      '--muted': 'oklch(0.22 0.01 70)',
+      '--muted-foreground': 'oklch(0.65 0.015 85)',
+      '--accent': 'oklch(0.60 0.15 250)',
+      '--accent-foreground': 'oklch(0.14 0.008 70)',
+      '--destructive': 'oklch(0.62 0.17 25)',
+      '--destructive-foreground': 'oklch(0.14 0.008 70)',
+      '--border': 'oklch(0.30 0.012 70)',
+      '--input': 'oklch(0.30 0.012 70)',
+      '--ring': 'oklch(0.68 0.18 38)',
+      '--sidebar': 'oklch(0.16 0.01 70)',
+      '--sidebar-foreground': 'oklch(0.88 0.008 88)',
+      '--sidebar-primary': 'oklch(0.63 0.18 38)',
+      '--sidebar-primary-foreground': 'oklch(0.14 0.008 70)',
+      '--sidebar-accent': 'oklch(0.25 0.012 70)',
+      '--sidebar-accent-foreground': 'oklch(0.88 0.008 88)',
+      '--sidebar-border': 'oklch(0.30 0.012 70)',
+      '--sidebar-ring': 'oklch(0.68 0.18 38)',
+      '--surface': 'oklch(0.18 0.01 70)',
+      '--surface-foreground': 'oklch(0.92 0.008 88)',
+      '--code': 'oklch(0.10 0.005 70)',
+      '--code-foreground': 'oklch(0.92 0.008 88)',
+      '--code-highlight': 'oklch(0.25 0.012 70)',
+      '--code-number': 'oklch(0.68 0.15 38)',
+      '--selection': 'oklch(0.68 0.18 38 / 0.35)',
+      '--selection-foreground': 'oklch(0.14 0.008 70)',
+      '--chart-1': 'oklch(0.65 0.15 250)',
+      '--chart-2': 'oklch(0.68 0.12 160)',
+      '--chart-3': 'oklch(0.70 0.14 290)',
+      '--chart-4': 'oklch(0.67 0.13 30)',
+      '--chart-5': 'oklch(0.64 0.10 200)',
+    }
+
+    it('亮色变体应包含全部必需 token', () => {
+      const result = validateThemeTokens(cursorLightTokens, 'light')
+      expect(result.tokenCompleteness.missingTokens).toEqual([])
+    })
+
+    it('暗色变体应包含全部必需 token', () => {
+      const result = validateThemeTokens(cursorDarkTokens, 'dark')
+      expect(result.tokenCompleteness.missingTokens).toEqual([])
+    })
+
+    it('亮色变体所有颜色值应为可解析的 oklch', () => {
+      const result = validateThemeTokens(cursorLightTokens, 'light')
+      // 所有对比度检查不应有 null ratio（表示颜色可解析）
+      const unparseable = result.contrastResults.filter(r => r.ratio === null)
+      expect(unparseable).toEqual([])
+    })
+
+    it('暗色变体所有颜色值应为可解析的 oklch', () => {
+      const result = validateThemeTokens(cursorDarkTokens, 'dark')
+      const unparseable = result.contrastResults.filter(r => r.ratio === null)
+      expect(unparseable).toEqual([])
+    })
+
+    it('亮色变体应满足全部 WCAG 2.2 AA 对比度要求', () => {
+      const result = validateThemeTokens(cursorLightTokens, 'light')
+      const failed = result.contrastResults.filter(r => !r.pass)
+      // 打印失败项以便调试
+      if (failed.length > 0) {
+        console.log('Light theme contrast failures:', JSON.stringify(failed, null, 2))
+      }
+      expect(failed).toEqual([])
+      expect(result.valid).toBe(true)
+    })
+
+    it('暗色变体应满足全部 WCAG 2.2 AA 对比度要求', () => {
+      const result = validateThemeTokens(cursorDarkTokens, 'dark')
+      const failed = result.contrastResults.filter(r => !r.pass)
+      if (failed.length > 0) {
+        console.log('Dark theme contrast failures:', JSON.stringify(failed, null, 2))
+      }
+      expect(failed).toEqual([])
+      expect(result.valid).toBe(true)
+    })
+  })
 })
