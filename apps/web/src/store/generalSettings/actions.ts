@@ -1,5 +1,6 @@
 import type { AppearanceSettingsState, ProxySettings } from '@ant-chat/shared'
 import { produce } from 'immer'
+import { toast } from 'sonner'
 import { generalSettingsApi } from '@/api/generalSettingsApi'
 import { migrateLegacyTheme } from '@/utils/themeMigration'
 import { useGeneralSettingsStore } from './store'
@@ -88,6 +89,7 @@ export async function updateAppearance(appearanceUpdates: Partial<AppearanceSett
     }))
   }
   catch {
+    toast.error('外观设置保存失败')
     // 回滚
     useGeneralSettingsStore.setState(produce((state) => {
       state.appearance = prevAppearance
@@ -118,6 +120,9 @@ export async function refreshGeneralSettings() {
   try {
     const newSettings = await generalSettingsApi.getSettings()
     useGeneralSettingsStore.setState(newSettings)
+  }
+  catch {
+    // 服务端不可用时保留当前状态（含缓存主题）
   }
   finally {
     useGeneralSettingsStore.setState(produce((state) => {

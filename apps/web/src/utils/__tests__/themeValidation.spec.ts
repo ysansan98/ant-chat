@@ -6,7 +6,7 @@ import {
 } from '@/utils/themeValidation'
 
 describe('themeValidation', () => {
-  describe('rEQUIRED_THEME_TOKENS', () => {
+  describe('required theme tokens', () => {
     it('应包含所有必要的前景色和背景色 token', () => {
       expect(REQUIRED_THEME_TOKENS.length).toBeGreaterThan(30)
 
