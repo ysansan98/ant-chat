@@ -48,6 +48,10 @@ describe('themeEngine', () => {
       expect(isKnownThemeId('default')).toBe(true)
     })
 
+    it('airbnb 是已知主题', () => {
+      expect(isKnownThemeId('airbnb')).toBe(true)
+    })
+
     it('未知主题 ID 返回 false', () => {
       expect(isKnownThemeId('unknown-theme')).toBe(false)
     })
