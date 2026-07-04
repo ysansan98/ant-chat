@@ -12,8 +12,7 @@ interface SidebarNavItemProps {
 export function SidebarNavItem({ icon, label, active, dataTestId, disabled, onClick }: SidebarNavItemProps) {
   const activeClass = active
     ? `
-      bg-black/5 text-slate-700
-      dark:bg-white/10 dark:text-slate-200
+      bg-sidebar-accent text-sidebar-accent-foreground
     `
     : ''
 
@@ -23,10 +22,8 @@ export function SidebarNavItem({ icon, label, active, dataTestId, disabled, onCl
       disabled={disabled}
       className={`
         flex h-9 items-center justify-start gap-1 rounded-md px-3 text-[14px] font-medium
-        text-slate-500
-        hover:bg-black/5
-        dark:text-slate-400
-        dark:hover:bg-white/10
+        text-sidebar-foreground/70
+        hover:bg-sidebar-accent hover:text-sidebar-accent-foreground
         ${activeClass}
       `}
       onClick={onClick}

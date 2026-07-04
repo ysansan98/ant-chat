@@ -336,16 +336,14 @@ export default function McpConfigDrawer({ open, mode, defaultValues, onClose, on
             </div>
           </div>
           <div className="
-            flex-1 overflow-y-auto bg-[#f8f8f8]
-            dark:bg-black
+            flex-1 overflow-y-auto bg-muted/50
           "
           >
             {mcpTools.length
               ? (
                   <div className="p-3">
                     <div className="
-                      flex items-center gap-3 rounded-md bg-white p-3
-                      dark:bg-white/10
+                      flex items-center gap-3 rounded-md bg-card p-3 text-card-foreground
                     "
                     >
                       <div>
@@ -355,7 +353,7 @@ export default function McpConfigDrawer({ open, mode, defaultValues, onClose, on
                       </div>
                       <div>
                         <div className="text-xl">{mcpConfig?.serverName}</div>
-                        <div className="text-xs text-[#a3a3a3]">
+                        <div className="text-xs text-muted-foreground">
                           {mcpConfig?.serverName}
                           {' '}
                           MCP server 共有
@@ -431,8 +429,7 @@ function PreviewMcpToolItem({ item }: { item: McpTool }) {
 
   return (
     <div className="
-      rounded-sm bg-[#f0f0f0] p-2
-      dark:bg-white/10
+      rounded-sm bg-muted p-2
     "
     >
       <div
@@ -449,7 +446,7 @@ function PreviewMcpToolItem({ item }: { item: McpTool }) {
       >
         <div className="">
           <div>{item.name}</div>
-          <div className="mt-1 text-xs text-[#a3a3a3]">{item.description}</div>
+          <div className="mt-1 text-xs text-muted-foreground">{item.description}</div>
         </div>
         <ChevronRight className={`
           shrink-0 transition-transform
@@ -475,15 +472,14 @@ function PreviewMcpToolParams({ item }: { item: McpTool }) {
   const params = Object.entries(item.inputSchema.properties)
   if (params.length === 0) {
     return (
-      <div className="py-2 text-xs text-[#a3a3a3]">
+      <div className="py-2 text-xs text-muted-foreground">
         该工具没有参数
       </div>
     )
   }
   return (
     <div className="
-      mt-2 rounded-sm bg-[#ececec] p-2
-      dark:bg-white/10
+      mt-2 rounded-sm bg-background p-2
     "
     >
       <div className="mb-1 text-xs font-medium">工具参数</div>

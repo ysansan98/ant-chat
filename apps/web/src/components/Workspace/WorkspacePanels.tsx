@@ -227,7 +227,7 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
   return (
     <>
       <div className="flex h-full min-h-0 flex-col">
-        <div className="flex items-center justify-between px-2 text-xs font-medium text-slate-400">
+        <div className="flex items-center justify-between px-2 text-xs font-medium text-sidebar-foreground/60">
           <span>工作区</span>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -302,7 +302,7 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
                 </DragDropContext>
               )
             : (
-                <div className="px-3 py-8 text-center text-sm text-slate-400">
+                <div className="px-3 py-8 text-center text-sm text-sidebar-foreground/60">
                   暂无工作区
                 </div>
               )}
@@ -354,8 +354,7 @@ function WorkspacePanel({
         className={`
           group flex h-9 w-full cursor-grab items-center gap-1 rounded-md px-2 transition
           active:cursor-grabbing
-          hover:bg-black/5
-          dark:hover:bg-white/10
+          hover:bg-sidebar-accent
           ${dragging ? 'opacity-50 shadow-sm' : ''}
         `}
         {...dragHandleProps}
@@ -363,8 +362,7 @@ function WorkspacePanel({
         <button
           type="button"
           className={`
-            flex min-w-0 flex-1 items-center justify-start font-medium text-slate-600
-            dark:text-slate-300
+            flex min-w-0 flex-1 items-center justify-start font-medium text-sidebar-foreground/80
           `}
           onClick={() => onToggle(item)}
         >
@@ -440,7 +438,7 @@ function WorkspacePanel({
             <div className="pl-0">
               {state?.loading
                 ? (
-                    <div className="px-3 py-2 text-sm text-slate-400">加载中...</div>
+                    <div className="px-3 py-2 text-sm text-sidebar-foreground/60">加载中...</div>
                   )
                 : state?.data?.length
                   ? (
@@ -456,7 +454,7 @@ function WorkspacePanel({
                       ))
                     )
                   : (
-                      <div className="px-3 py-2 text-sm text-slate-400">暂无会话</div>
+                      <div className="px-3 py-2 text-sm text-sidebar-foreground/60">暂无会话</div>
                     )}
             </div>
           )
@@ -519,11 +517,11 @@ function ConversationListItem({ conversation, active, running, completed, onOpen
       <div
         className={`
           group/conversation flex py-1.5 w-full items-center rounded-md px-2 text-[14px]
-          transition-colors duration-150 hover:bg-black/5 dark:hover:bg-white/10
+          transition-colors duration-150 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground
           mt-1
           ${active
-      ? 'bg-black/5 font-medium text-slate-700 dark:bg-white/10 dark:text-slate-200'
-      : 'text-slate-600 dark:text-slate-400'}
+      ? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
+      : 'text-sidebar-foreground/80'}
         `}
       >
         <button
@@ -538,7 +536,7 @@ function ConversationListItem({ conversation, active, running, completed, onOpen
             ? <LoaderCircleIcon className="size-3.5 animate-spin text-blue-500" />
             : status === 'completed'
               ? <span className="size-1.5 rounded-full bg-emerald-500" />
-              : <span className="tabular-nums text-[11px] text-slate-400 transition-[opacity,transform,filter] duration-150 group-hover/conversation:pointer-events-none group-hover/conversation:scale-25 group-hover/conversation:opacity-0 group-hover/conversation:blur-[4px]">{formatRelativeTime(conversation.updatedAt)}</span>}
+              : <span className="tabular-nums text-[11px] text-sidebar-foreground/60 transition-[opacity,transform,filter] duration-150 group-hover/conversation:pointer-events-none group-hover/conversation:scale-25 group-hover/conversation:opacity-0 group-hover/conversation:blur-[4px]">{formatRelativeTime(conversation.updatedAt)}</span>}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button

@@ -210,7 +210,7 @@ function SenderContextUsageButton({
                 </>
               )
             : (
-                <div className="text-xs text-gray-500">No usage yet</div>
+                <div className="text-xs text-muted-foreground">暂无用量</div>
               )}
         </ContextUsageBody>
       </ContextUsageContent>
@@ -965,8 +965,7 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
                         type="button"
                         className={`
                         flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-sm
-                        hover:bg-black/5
-                        dark:hover:bg-white/10
+                        hover:bg-accent hover:text-accent-foreground
                       `}
                         onClick={() => {
                           void handleSwitchWorkspace(item.path)
@@ -1006,8 +1005,7 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
                       type="button"
                       className={`
                       flex h-9 w-full items-center justify-between rounded-md px-2 text-sm
-                      hover:bg-black/5
-                      dark:hover:bg-white/10
+                      hover:bg-accent hover:text-accent-foreground
                     `}
                       onClick={() => setAgentMode(item.value)}
                     >

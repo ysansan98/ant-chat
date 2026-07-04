@@ -173,13 +173,13 @@ export function WorkspaceDirectoryPickerDialog({
               </Button>
             ))}
 
-            <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto text-sm text-slate-500">
+            <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto text-sm text-muted-foreground">
               {breadcrumbSegments.map((segment, index) => (
                 <span key={`/${breadcrumbSegments.slice(0, index + 1).join('/')}`} className="flex items-center gap-0.5">
                   {index > 0 && <ChevronRightIcon className="size-3 shrink-0" />}
                   <button
                     type="button"
-                    className="shrink-0 truncate hover:text-slate-700 dark:hover:text-slate-300"
+                    className="shrink-0 truncate hover:text-foreground"
                     disabled={loading}
                     onClick={() => handleBreadcrumbClick(index, breadcrumbSegments)}
                   >
@@ -203,7 +203,7 @@ export function WorkspaceDirectoryPickerDialog({
 
           {/* Filter input */}
           <div className="relative shrink-0">
-            <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" />
+            <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               ref={filterInputRef}
               value={filter}
@@ -215,7 +215,7 @@ export function WorkspaceDirectoryPickerDialog({
             {filter && (
               <button
                 type="button"
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 onClick={() => setFilter('')}
               >
                 <XIcon className="size-3.5" />
@@ -228,7 +228,7 @@ export function WorkspaceDirectoryPickerDialog({
             {loading
               ? (
                   <div className="flex items-center justify-center py-8">
-                    <Loader2Icon className="size-5 animate-spin text-slate-400" />
+                    <Loader2Icon className="size-5 animate-spin text-muted-foreground" />
                   </div>
                 )
               : filteredDirectories.length
@@ -239,22 +239,21 @@ export function WorkspaceDirectoryPickerDialog({
                         type="button"
                         className={`
                           flex h-8 w-full items-center gap-2 px-3 text-sm
-                          hover:bg-black/5
-                          dark:hover:bg-white/10
+                          hover:bg-accent hover:text-accent-foreground
                           ${selectedPath === dir.path
-                        ? 'bg-black/5 font-medium dark:bg-white/10'
+                        ? 'bg-accent font-medium text-accent-foreground'
                         : ''}
                         `}
                         onClick={() => handleSelect(dir.path)}
                         onDoubleClick={() => handleDoubleClick(dir.path)}
                       >
-                        <FolderIcon className="size-4 shrink-0 text-slate-400" />
+                        <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
                         <span className="truncate">{dir.name}</span>
                       </button>
                     ))
                   )
                 : (
-                    <div className="py-8 text-center text-sm text-slate-400">
+                    <div className="py-8 text-center text-sm text-muted-foreground">
                       {filter ? '无匹配目录' : '暂无目录'}
                     </div>
                   )}

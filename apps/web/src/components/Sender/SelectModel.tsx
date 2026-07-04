@@ -28,7 +28,7 @@ export function SelectModel({ value, onChange, options }: SelectModelProps) {
             ? (
                 options.map(item => (
                   <div key={item.id}>
-                    <div className="mt-1 text-xs text-gray-500">{item.name}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">{item.name}</div>
                     <div>
                       {item.models.filter(model => model.name.includes(keyword)).map(model => (
                         <div

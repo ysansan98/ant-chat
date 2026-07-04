@@ -105,7 +105,7 @@ export default function SkillManage() {
         {state.data.skills.length === 0
           ? (
               <Card>
-                <CardContent className="py-8 text-center text-gray-400">
+                <CardContent className="py-8 text-center text-muted-foreground">
                   No skills installed.
                 </CardContent>
               </Card>

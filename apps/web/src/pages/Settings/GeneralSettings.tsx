@@ -88,7 +88,7 @@ function GeneralSettingsItem({ title, help, icon, children }: GeneralSettingsIte
             ? (
                 <Tooltip>
                   <TooltipTrigger type="button">
-                    <Info className="size-4 text-gray-500" />
+                    <Info className="size-4 text-muted-foreground" />
                   </TooltipTrigger>
                   <TooltipContent side="top">
                     <p>{help}</p>

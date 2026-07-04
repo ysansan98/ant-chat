@@ -19,7 +19,7 @@ export function MCPManagementPanel() {
       <div className="flex items-center justify-between p-2">
         <div>
           启用MCP
-          <div className="text-xs text-gray-500">
+          <div className="text-xs text-muted-foreground">
             启用MCP功能以使用工具调用
           </div>
         </div>

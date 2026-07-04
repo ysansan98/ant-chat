@@ -17,9 +17,8 @@ import { useState } from 'react'
 import { buildCron, describeNextRun, formatDateTime, splitCommaList, weekdays } from './automation-utils'
 
 const segmentedTabClassName = [
-  'rounded-md px-3 text-[14px] font-medium text-slate-500 shadow-none',
-  'data-active:bg-black/5 data-active:text-slate-700 data-active:shadow-none',
-  'dark:text-slate-400 dark:data-active:bg-white/10 dark:data-active:text-slate-200',
+  'rounded-md px-3 text-[14px] font-medium text-muted-foreground shadow-none',
+  'data-active:bg-accent data-active:text-accent-foreground data-active:shadow-none',
 ].join(' ')
 
 export function CreateAutomationSheet(props: {

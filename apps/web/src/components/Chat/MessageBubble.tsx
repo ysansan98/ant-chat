@@ -273,7 +273,7 @@ function ProcessMessagesPanel({
           type="button"
           variant="ghost"
           size="sm"
-          className="mb-1 h-7 px-2 text-gray-500"
+          className="mb-1 h-7 px-2 text-muted-foreground"
         >
           <ChevronRightIcon
             className={cn(

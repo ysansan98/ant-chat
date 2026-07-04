@@ -42,8 +42,7 @@ export function SelectTransportType({ value, onChange }: SelectTransportTypeProp
               <div className="text-base font-bold">
                 <div>{item.name}</div>
                 <div className={`
-                  mt-0.5 text-xs font-normal text-black/30
-                  dark:text-white/30
+                  mt-0.5 text-xs font-normal text-muted-foreground
                 `}
                 >
                   {item.descript}
