@@ -52,6 +52,10 @@ describe('themeEngine', () => {
       expect(isKnownThemeId('airbnb')).toBe(true)
     })
 
+    it('cursor 是已知主题', () => {
+      expect(isKnownThemeId('cursor')).toBe(true)
+    })
+
     it('未知主题 ID 返回 false', () => {
       expect(isKnownThemeId('unknown-theme')).toBe(false)
     })
@@ -69,6 +73,20 @@ describe('themeEngine', () => {
       applyThemeToDocument({ mode: 'dark', lightThemeId: 'default', darkThemeId: 'default' })
       expect(document.documentElement.classList.contains('dark')).toBe(true)
       expect(document.documentElement.getAttribute('data-theme')).toBe('default')
+      expect(document.documentElement.style.colorScheme).toBe('dark')
+    })
+
+    it('cursor 亮色主题应设置 data-theme="cursor" 和 light color-scheme', () => {
+      applyThemeToDocument({ mode: 'light', lightThemeId: 'cursor', darkThemeId: 'default' })
+      expect(document.documentElement.classList.contains('dark')).toBe(false)
+      expect(document.documentElement.getAttribute('data-theme')).toBe('cursor')
+      expect(document.documentElement.style.colorScheme).toBe('light')
+    })
+
+    it('cursor 暗色主题应设置 data-theme="cursor" 和 dark color-scheme', () => {
+      applyThemeToDocument({ mode: 'dark', lightThemeId: 'default', darkThemeId: 'cursor' })
+      expect(document.documentElement.classList.contains('dark')).toBe(true)
+      expect(document.documentElement.getAttribute('data-theme')).toBe('cursor')
       expect(document.documentElement.style.colorScheme).toBe('dark')
     })
 

@@ -18,6 +18,12 @@ const themeOptions = [
     subtitle: '非官方',
     colors: ['oklch(0.44 0.2 17)', 'oklch(0.99 0.003 85)', 'oklch(0.28 0.01 90)'],
   },
+  {
+    id: 'cursor',
+    label: 'Cursor 灵感',
+    subtitle: '非官方',
+    colors: ['oklch(0.652 0.213 38)', 'oklch(0.975 0.004 107)', 'oklch(0.20 0.015 95)'],
+  },
 ]
 
 /** Airbnb 主题预览色圆点 */

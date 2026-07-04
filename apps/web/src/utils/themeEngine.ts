@@ -35,7 +35,7 @@ export function resolveEffectiveThemeId(appearance: AppearanceSettingsState): st
  * 检查主题 ID 是否为已知主题。
  */
 export function isKnownThemeId(themeId: string): boolean {
-  return themeId === 'default' || themeId === 'airbnb'
+  return themeId === 'default' || themeId === 'airbnb' || themeId === 'cursor'
 }
 
 /**
