@@ -10,6 +10,11 @@ export const DEFAULT_GENERAL_SETTINGS: GeneralSettingsState = {
     mode: 'none',
     customProxyUrl: '',
   },
+  appearance: {
+    mode: 'system',
+    lightThemeId: 'default',
+    darkThemeId: 'default',
+  },
 }
 
 export interface GeneralSettingsRepositoryOptions {
@@ -46,6 +51,9 @@ export class GeneralSettingsRepository implements SettingsRepository {
       proxySettings: updates.proxySettings
         ? { ...currentSettings.proxySettings, ...updates.proxySettings }
         : currentSettings.proxySettings,
+      appearance: updates.appearance
+        ? { ...currentSettings.appearance, ...updates.appearance }
+        : currentSettings.appearance,
     })
     this.store.update(settings => ({ ...settings, ...nextSettings }))
     return nextSettings

@@ -1,6 +1,7 @@
-import type { ProxySettings } from '@ant-chat/shared'
+import type { AppearanceSettingsState, ProxySettings } from '@ant-chat/shared'
 import { produce } from 'immer'
 import { generalSettingsApi } from '@/api/generalSettingsApi'
+import { migrateLegacyTheme } from '@/utils/themeMigration'
 import { useGeneralSettingsStore } from './store'
 
 export async function setAssistantModelId(id: string) {
@@ -68,6 +69,33 @@ export async function updateProxySettings(proxySettingsUpdates: Partial<ProxySet
   }
 }
 
+export async function updateAppearance(appearanceUpdates: Partial<AppearanceSettingsState>) {
+  const prevAppearance = useGeneralSettingsStore.getState().appearance
+
+  // 乐观更新
+  useGeneralSettingsStore.setState(produce((state) => {
+    state.appearance = { ...state.appearance, ...appearanceUpdates }
+    state.isLoading = true
+  }))
+
+  try {
+    const newSettings = await generalSettingsApi.updateSettings({
+      appearance: { ...prevAppearance, ...appearanceUpdates },
+    })
+    useGeneralSettingsStore.setState(produce((state) => {
+      state.appearance = newSettings.appearance
+      state.isLoading = false
+    }))
+  }
+  catch {
+    // 回滚
+    useGeneralSettingsStore.setState(produce((state) => {
+      state.appearance = prevAppearance
+      state.isLoading = false
+    }))
+  }
+}
+
 export async function resetGeneralSettings() {
   useGeneralSettingsStore.setState(produce((state) => {
     state.isLoading = true
@@ -100,5 +128,7 @@ export async function refreshGeneralSettings() {
 
 // 初始化时加载设置
 export function initializeGeneralSettings() {
-  refreshGeneralSettings()
+  refreshGeneralSettings().then(() => {
+    migrateLegacyTheme()
+  })
 }

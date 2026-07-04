@@ -2,6 +2,14 @@ import { z } from 'zod'
 import { ProviderConfigSchema } from './providerConfig'
 import { ModelCapabilitiesSchema, ModelCostSchema } from './providerConfigModels'
 
+export const AppearanceSettingsSchema = z.object({
+  mode: z.enum(['system', 'light', 'dark']),
+  lightThemeId: z.string().min(1),
+  darkThemeId: z.string().min(1),
+})
+
+export type AppearanceSettingsState = z.infer<typeof AppearanceSettingsSchema>
+
 export const ProviderModelSettingsSchema = z.object({
   isEnabled: z.boolean(),
   temperature: z.number().min(0).max(2).optional(),
@@ -34,6 +42,11 @@ export const AppSettingsSchema = z.object({
   proxySettings: z.object({
     mode: z.enum(['none', 'system', 'custom']),
     customProxyUrl: z.string().optional(),
+  }),
+  appearance: AppearanceSettingsSchema.default({
+    mode: 'system',
+    lightThemeId: 'default',
+    darkThemeId: 'default',
   }),
   providers: z.array(ProviderSettingsSchema),
   toolApprovalWhitelist: z.array(ToolApprovalWhitelistEntrySchema).default([]),

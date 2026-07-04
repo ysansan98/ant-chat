@@ -13,6 +13,11 @@ const DEFAULT_SETTINGS: GeneralSettingsState = {
     mode: 'none',
     customProxyUrl: '',
   },
+  appearance: {
+    mode: 'system',
+    lightThemeId: 'default',
+    darkThemeId: 'default',
+  },
 }
 
 export const useGeneralSettingsStore = create<GeneralSettingsStoreState>()(

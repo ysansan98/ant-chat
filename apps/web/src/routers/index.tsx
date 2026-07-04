@@ -7,6 +7,7 @@ import { ChatLayout } from '@/components/ChatLayout'
 import { AutomationsPage } from '@/pages/Automations/Automations'
 import { ChatPage } from '@/pages/Chat'
 import { About } from '@/pages/Settings/About'
+import { AppearanceSettings } from '@/pages/Settings/AppearanceSettings'
 import { GeneralSettings } from '@/pages/Settings/GeneralSettings'
 import MCPManage from '@/pages/Settings/MCPManage'
 import { MemorySettings } from '@/pages/Settings/Memory'
@@ -24,6 +25,7 @@ const settingsRoute = {
   children: [
     { index: true, element: <Navigate to="./general" replace /> },
     { path: 'general', Component: GeneralSettings },
+    { path: 'appearance', Component: AppearanceSettings },
     { path: 'memory', Component: MemorySettings },
     { path: 'provider', Component: ProviderManage },
     { path: 'mcp', Component: MCPManage },

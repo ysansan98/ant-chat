@@ -7,6 +7,11 @@ export const DEFAULT_APP_SETTINGS: AppSettingsState = {
     mode: 'none',
     customProxyUrl: '',
   },
+  appearance: {
+    mode: 'system',
+    lightThemeId: 'default',
+    darkThemeId: 'default',
+  },
   providers: [
     {
       id: 'openai',

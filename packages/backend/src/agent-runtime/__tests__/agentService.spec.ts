@@ -259,6 +259,7 @@ describe('createAgentRuntimeController 行为', () => {
       assistantModelId: 'assistant-model-9',
       assistantProviderId: 'provider-1',
       proxySettings: { mode: 'none', customProxyUrl: '' },
+      appearance: { mode: 'system', lightThemeId: 'default', darkThemeId: 'default' },
     })
     const titledConversation = { ...conversation, title: '项目检查' }
     const titleGenerator = {
