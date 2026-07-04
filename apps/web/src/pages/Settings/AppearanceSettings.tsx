@@ -16,7 +16,7 @@ const themeOptions = [
     id: 'airbnb',
     label: 'Airbnb 灵感',
     subtitle: '非官方',
-    colors: ['oklch(0.44 0.2 17)', 'oklch(0.99 0.003 85)', 'oklch(0.28 0.01 90)'],
+    colors: ['oklch(0.6579 0.2309 17.07)', 'oklch(1 0 0)', 'oklch(0.252 0 0)'],
   },
   {
     id: 'cursor',
@@ -82,7 +82,7 @@ export function AppearanceSettings() {
                 `}
                 onClick={() => handleModeChange(option.id)}
               >
-                <option.icon className={`size-6 ${appearance.mode === option.id ? 'text-accent' : 'text-muted-foreground'}`} />
+                <option.icon className={`size-6 ${appearance.mode === option.id ? 'text-primary' : 'text-muted-foreground'}`} />
                 <div className="flex flex-col items-center gap-0.5">
                   <span className="font-medium">{option.label}</span>
                   <span className="text-xs text-muted-foreground">{option.description}</span>
