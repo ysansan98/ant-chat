@@ -10,11 +10,12 @@ export function initializeAppDataSchema(db: AppDataDatabase): void {
       title text NOT NULL,
       created_at integer NOT NULL,
       updated_at integer NOT NULL,
+      archived integer NOT NULL DEFAULT 0,
       settings text NOT NULL
     );
 
     CREATE INDEX IF NOT EXISTS idx_conversations_workspace_path_updated_at
-      ON conversations (workspace_path, updated_at);
+      ON conversations (workspace_path, updated_at DESC);
 
     CREATE INDEX IF NOT EXISTS idx_conversations_updated_at
       ON conversations (updated_at);

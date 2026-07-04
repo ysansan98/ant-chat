@@ -109,6 +109,35 @@ describe('sqlite repositories', () => {
     expect(messages).toEqual([expect.objectContaining({ id: message.id, convId: conversation.id })])
   })
 
+  it('归档后从普通列表隐藏，并可按工作区搜索和恢复', async () => {
+    const repository = new SqliteConversationRepository(sqlite)
+    const older = await repository.create({ title: '旧的设计讨论', workspacePath: '/ws-a', createdAt: 1, updatedAt: 1, settings: { modelId: 'm', providerId: '', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
+    const newer = await repository.create({ title: '归档设计讨论', workspacePath: '/ws-a', createdAt: 2, updatedAt: 2, settings: { modelId: 'm', providerId: '', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
+    await repository.create({ title: '其他工作区', workspacePath: '/ws-b', createdAt: 3, updatedAt: 3, settings: { modelId: 'm', providerId: '', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
+
+    await repository.setArchived(older.id, true)
+    await repository.setArchived(newer.id, true)
+
+    await expect(repository.list(0, 20, '/ws-a')).resolves.toEqual({ data: [], total: 0 })
+    await expect(repository.listArchivedWorkspaces('设计')).resolves.toEqual([{ workspacePath: '/ws-a', total: 2 }])
+    const archived = await repository.listArchived(0, 1, '/ws-a', '归档')
+    expect(archived).toEqual({ data: [expect.objectContaining({ id: newer.id, archived: true })], total: 1 })
+
+    const restored = await repository.setArchived(older.id, false)
+    expect(restored).toMatchObject({ id: older.id, archived: false, updatedAt: 1 })
+    await expect(repository.list(0, 20, '/ws-a')).resolves.toEqual({ data: [restored], total: 1 })
+  })
+
+  it('永久删除已归档会话时不会删除未归档会话', async () => {
+    const repository = new SqliteConversationRepository(sqlite)
+    const archived = await repository.create({ title: '归档', workspacePath: '/ws-a', createdAt: 1, updatedAt: 1, settings: { modelId: 'm', providerId: '', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
+    const visible = await repository.create({ title: '保留', workspacePath: '/ws-a', createdAt: 2, updatedAt: 2, settings: { modelId: 'm', providerId: '', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
+    await repository.setArchived(archived.id, true)
+
+    await expect(repository.deleteArchivedByWorkspace('/ws-a')).resolves.toEqual([archived.id])
+    await expect(repository.getById(visible.id)).resolves.toMatchObject({ id: visible.id, archived: false })
+  })
+
   it('uses a caller-provided message id', async () => {
     const conversationRepository = new SqliteConversationRepository(sqlite)
     const messageRepository = new SqliteMessageRepository(sqlite, { attachmentsRoot })

@@ -78,6 +78,9 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
           }
 
       const { conversation } = conversationState
+      if (conversation.archived) {
+        throw new Error('会话已归档，请先取消归档')
+      }
       if (runtime.listActiveTasks(conversation.id).length > 0) {
         throw new Error('AGENT_TASK_ALREADY_RUNNING')
       }

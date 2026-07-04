@@ -8,6 +8,7 @@ import { AutomationsPage } from '@/pages/Automations/Automations'
 import { ChatPage } from '@/pages/Chat'
 import { About } from '@/pages/Settings/About'
 import { AppearanceSettings } from '@/pages/Settings/AppearanceSettings'
+import { ArchivedConversations } from '@/pages/Settings/ArchivedConversations'
 import { GeneralSettings } from '@/pages/Settings/GeneralSettings'
 import MCPManage from '@/pages/Settings/MCPManage'
 import { MemorySettings } from '@/pages/Settings/Memory'
@@ -30,6 +31,7 @@ const settingsRoute = {
     { path: 'provider', Component: ProviderManage },
     { path: 'mcp', Component: MCPManage },
     { path: 'skills', Component: SkillManage },
+    { path: 'archived-conversations', Component: ArchivedConversations },
     { path: 'about', Component: About },
   ],
 }

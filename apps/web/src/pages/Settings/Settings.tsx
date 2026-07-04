@@ -1,4 +1,4 @@
-import { ArrowLeft, Cable, Crown, Info, NotebookTabsIcon, Palette, SettingsIcon, SparklesIcon } from 'lucide-react'
+import { ArchiveIcon, ArrowLeft, Cable, Crown, Info, NotebookTabsIcon, Palette, SettingsIcon, SparklesIcon } from 'lucide-react'
 import { Outlet, useLocation, useNavigate } from 'react-router'
 import { ipc, isElectronMacOS, isElectronRuntime } from '@/utils/ipc-bus'
 
@@ -13,6 +13,7 @@ export default function SettingsPage() {
     { id: 'provider', name: 'AI服务商设置', icon: <Crown className="size-[1em]" /> },
     { id: 'mcp', name: 'MCP设置', icon: <Cable className="size-[1em]" /> },
     { id: 'skills', name: 'Skill设置', icon: <SparklesIcon className="size-[1em]" /> },
+    { id: 'archived-conversations', name: '已归档的会话', icon: <ArchiveIcon className="size-[1em]" /> },
     { id: 'about', name: '关于', icon: <Info className="size-[1em]" /> },
   ]
 

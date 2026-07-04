@@ -1,3 +1,4 @@
+import { Toaster } from '@workspace/ui/components/sonner'
 import { Outlet } from 'react-router'
 import { AppProviders } from '@/AppProviders'
 import { useAppEventListener } from '@/hooks/useAppEventListener'
@@ -12,6 +13,7 @@ function SettingsApp() {
         <div className="h-dvh min-w-0 flex-1">
           <Outlet />
         </div>
+        <Toaster />
       </div>
     </AppProviders>
   )

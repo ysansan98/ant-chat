@@ -88,6 +88,16 @@ export class WorkspaceService {
     }
   }
 
+  isWorkspaceAvailable(workspacePath: string): boolean {
+    try {
+      fs.accessSync(workspacePath, fs.constants.R_OK | fs.constants.W_OK)
+      return fs.statSync(workspacePath).isDirectory()
+    }
+    catch {
+      return false
+    }
+  }
+
   addWorkspace(workspacePath: string): ListWorkspacesData {
     const config = this.ensureInitialized()
     const normalizedPath = this.normalizeExistingDirectory(workspacePath)

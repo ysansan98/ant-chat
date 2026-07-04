@@ -16,6 +16,7 @@ import {
   TooltipTrigger,
 } from '@workspace/ui/components/tooltip'
 import {
+  ArchiveIcon,
   Ellipsis,
   FolderIcon,
   FolderOpenIcon,
@@ -27,7 +28,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
-import { activateWorkspace, deleteConversationsAction, ensureWorkspaceConversationsAction, renameConversationsAction, useConversationsStore } from '@/store/conversation'
+import { activateWorkspace, archiveConversationAction, deleteConversationsAction, ensureWorkspaceConversationsAction, loadAllWorkspaceConversationsAction, renameConversationsAction, restoreConversationAction, useConversationsStore } from '@/store/conversation'
 import { setActiveConversationsId, useMessagesStore } from '@/store/messages'
 import { useWorkspaceStore } from '@/store/workspace'
 import { formatRelativeTime } from '@/utils'
@@ -70,6 +71,8 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(
     () => new Set(),
   )
+  const [showAllPaths, setShowAllPaths] = useState<Set<string>>(() => new Set())
+  const [loadingAllPaths, setLoadingAllPaths] = useState<Set<string>>(() => new Set())
   const [panelError, setPanelError] = useState('')
   const [pickerOpen, setPickerOpen] = useState(false)
   const [optimisticWorkspacePaths, setOptimisticWorkspacePaths] = useState<string[] | null>(null)
@@ -146,6 +149,25 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
       && !workspaceConversations[item.path]?.loaded
     ) {
       await ensureWorkspaceConversationsAction(item.path)
+    }
+  }
+
+  async function toggleAllConversations(workspacePath: string) {
+    if (showAllPaths.has(workspacePath)) {
+      setShowAllPaths(paths => withoutPath(paths, workspacePath))
+      return
+    }
+
+    setLoadingAllPaths(paths => new Set(paths).add(workspacePath))
+    try {
+      await loadAllWorkspaceConversationsAction(workspacePath)
+      setShowAllPaths(paths => new Set(paths).add(workspacePath))
+    }
+    catch (error) {
+      toast.error(`加载全部会话失败：${(error as Error).message}`)
+    }
+    finally {
+      setLoadingAllPaths(paths => withoutPath(paths, workspacePath))
     }
   }
 
@@ -284,7 +306,10 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
                                     currentConversationsTotal,
                                     workspaceConversations,
                                   )}
+                                  showAll={showAllPaths.has(item.path)}
+                                  loadingAll={loadingAllPaths.has(item.path)}
                                   onToggle={toggleWorkspace}
+                                  onToggleAll={toggleAllConversations}
                                   onOpenConversation={openConversation}
                                   onCreateConversation={createConversation}
                                   onDeleteWorkspace={handleDeleteWorkspace}
@@ -325,7 +350,10 @@ interface WorkspacePanelProps {
   conversationStates: Record<string, 'running' | 'completed'>
   expanded: boolean
   state?: WorkspaceConversationState
+  showAll: boolean
+  loadingAll: boolean
   onToggle: (item: WorkspaceItem) => void
+  onToggleAll: (workspacePath: string) => void
   onOpenConversation: (workspacePath: string, conversationId: string) => void
   onCreateConversation: (workspacePath: string) => void
   onDeleteWorkspace: (path: string) => void
@@ -339,7 +367,10 @@ function WorkspacePanel({
   conversationStates,
   expanded,
   state,
+  showAll,
+  loadingAll,
   onToggle,
+  onToggleAll,
   onOpenConversation,
   onCreateConversation,
   onDeleteWorkspace,
@@ -442,7 +473,7 @@ function WorkspacePanel({
                   )
                 : state?.data?.length
                   ? (
-                      state?.data.map(conversation => (
+                      (showAll ? state.data : state.data.slice(0, 5)).map(conversation => (
                         <ConversationListItem
                           key={conversation.id}
                           conversation={conversation}
@@ -456,6 +487,18 @@ function WorkspacePanel({
                   : (
                       <div className="px-3 py-2 text-sm text-sidebar-foreground/60">暂无会话</div>
                     )}
+              {state && state.total > 5
+                ? (
+                    <button
+                      type="button"
+                      className="mt-1 inline-flex px-3.5 py-1.5 text-left text-xs text-sidebar-foreground/60 transition-colors hover:text-sidebar-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={loadingAll}
+                      onClick={() => onToggleAll(item.path)}
+                    >
+                      {loadingAll ? '加载中...' : showAll ? '收起' : `查看全部（${state.total}）`}
+                    </button>
+                  )
+                : null}
             </div>
           )
         : null}
@@ -512,6 +555,29 @@ function ConversationListItem({ conversation, active, running, completed, onOpen
     }
   }
 
+  async function handleArchive() {
+    setSubmitting(true)
+    try {
+      const result = await archiveConversationAction(conversation.id)
+      toast.success('会话已归档', {
+        action: {
+          label: '撤销',
+          onClick: () => {
+            void restoreConversationAction(conversation.id)
+              .then(() => result.wasActive && onOpen())
+              .catch(error => toast.error(`撤销归档失败：${(error as Error).message}`))
+          },
+        },
+      })
+    }
+    catch (error) {
+      toast.error(`归档失败：${(error as Error).message}`)
+    }
+    finally {
+      setSubmitting(false)
+    }
+  }
+
   return (
     <>
       <div
@@ -536,7 +602,24 @@ function ConversationListItem({ conversation, active, running, completed, onOpen
             ? <LoaderCircleIcon className="size-3.5 animate-spin text-blue-500" />
             : status === 'completed'
               ? <span className="size-1.5 rounded-full bg-emerald-500" />
-              : <span className="tabular-nums text-[11px] text-sidebar-foreground/60 transition-[opacity,transform,filter] duration-150 group-hover/conversation:pointer-events-none group-hover/conversation:scale-25 group-hover/conversation:opacity-0 group-hover/conversation:blur-[4px]">{formatRelativeTime(conversation.updatedAt)}</span>}
+              : <span className="tabular-nums text-[11px] text-sidebar-foreground/60 transition-[opacity,transform,filter] duration-150 group-hover/conversation:pointer-events-none group-hover/conversation:scale-25 group-hover/conversation:opacity-0 group-hover/conversation:blur-xs">{formatRelativeTime(conversation.updatedAt)}</span>}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="absolute right-6 scale-25 opacity-0 blur-xs transition-[opacity,transform,filter] duration-150 group-hover/conversation:scale-100 group-hover/conversation:opacity-100 group-hover/conversation:blur-none focus-within:scale-100 focus-within:opacity-100 focus-within:blur-none">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label={`归档对话：${conversation.title}`}
+                  disabled={running || submitting}
+                  onClick={() => void handleArchive()}
+                >
+                  <ArchiveIcon className="size-3" />
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>{running ? '任务运行中，暂时无法归档' : '归档对话'}</TooltipContent>
+          </Tooltip>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -544,7 +627,7 @@ function ConversationListItem({ conversation, active, running, completed, onOpen
                 variant="ghost"
                 size="icon-xs"
                 aria-label={`管理对话：${conversation.title}`}
-                className="absolute right-0 scale-25 opacity-0 blur-[4px] transition-[opacity,transform,filter] duration-150 group-hover/conversation:scale-100 group-hover/conversation:opacity-100 group-hover/conversation:blur-none data-[state=open]:scale-100 data-[state=open]:opacity-100 data-[state=open]:blur-none"
+                className="absolute right-0 scale-25 opacity-0 blur-xs transition-[opacity,transform,filter] duration-150 group-hover/conversation:scale-100 group-hover/conversation:opacity-100 group-hover/conversation:blur-none data-[state=open]:scale-100 data-[state=open]:opacity-100 data-[state=open]:blur-none"
               >
                 <Ellipsis className="size-4" />
               </Button>
@@ -658,4 +741,10 @@ function orderWorkspacesByPaths(
   }
 
   return orderedWorkspaces as WorkspaceItem[]
+}
+
+function withoutPath(paths: Set<string>, path: string): Set<string> {
+  const next = new Set(paths)
+  next.delete(path)
+  return next
 }

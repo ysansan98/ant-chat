@@ -3,6 +3,7 @@ import type { createAgentRuntime } from '../../../agent-core'
 import type { createConversationTitleGenerator } from '../../../agent-runtime'
 import type { RuntimeCore } from '../../createRuntimeCore'
 import type { RuntimeModuleMethods } from '../../routeRegistry'
+import path from 'node:path'
 import { AddMessage, UpdateMessageSchema } from '@ant-chat/shared'
 import { Method, Module } from '../../decorators'
 
@@ -38,6 +39,61 @@ export class ChatModule implements RuntimeModuleMethods<'chat'> {
   }
 
   @Method()
+  async getArchivedConversationWorkspaces(input: AppRpcInput<'chat.getArchivedConversationWorkspaces'>) {
+    const query = input.query?.trim() ?? ''
+    const pageSize = Math.min(Math.max(input.pageSize, 1), 100)
+    const [allWorkspaces, matchedWorkspaces] = await Promise.all([
+      this.core.data.conversationRepository.listArchivedWorkspaces(),
+      query
+        ? this.core.data.conversationRepository.listArchivedWorkspaces(query)
+        : Promise.resolve(null),
+    ])
+    const matched = matchedWorkspaces ?? allWorkspaces
+    const totalByPath = new Map(allWorkspaces.map(workspace => [workspace.workspacePath, workspace.total]))
+    const configuredWorkspaces = this.core.data.workspaceService.listWorkspaces().workspaces
+    const configuredByPath = new Map(configuredWorkspaces.map((workspace, index) => [workspace.path, { ...workspace, index }]))
+
+    const workspaces = await Promise.all(matched.map(async (workspace) => {
+      const page = await this.core.data.conversationRepository.listArchived(0, pageSize, workspace.workspacePath, query)
+      const configured = configuredByPath.get(workspace.workspacePath)
+      return {
+        workspacePath: workspace.workspacePath,
+        displayName: configured?.displayName ?? path.basename(workspace.workspacePath),
+        total: totalByPath.get(workspace.workspacePath) ?? workspace.total,
+        matchedTotal: workspace.total,
+        available: this.core.data.workspaceService.isWorkspaceAvailable(workspace.workspacePath),
+        conversations: page.data,
+        order: configured?.index,
+      }
+    }))
+
+    workspaces.sort((left, right) => {
+      if (left.order !== undefined && right.order !== undefined)
+        return left.order - right.order
+      if (left.order !== undefined)
+        return -1
+      if (right.order !== undefined)
+        return 1
+      return left.displayName.localeCompare(right.displayName)
+    })
+
+    return {
+      total: allWorkspaces.reduce((sum, workspace) => sum + workspace.total, 0),
+      workspaces: workspaces.map(({ order: _order, ...workspace }) => workspace),
+    }
+  }
+
+  @Method()
+  getArchivedConversations(input: AppRpcInput<'chat.getArchivedConversations'>) {
+    return this.core.data.conversationRepository.listArchived(
+      input.pageIndex,
+      input.pageSize,
+      input.workspacePath,
+      input.query,
+    )
+  }
+
+  @Method()
   getConversationById(input: AppRpcInput<'chat.getConversationById'>) {
     return requireValue(this.core.data.conversationRepository.getById(input.id), `Conversation not found: ${input.id}`)
   }
@@ -64,6 +120,64 @@ export class ChatModule implements RuntimeModuleMethods<'chat'> {
     await this.agentRuntime.closeConversation(input.id)
     await this.core.data.conversationRepository.delete(input.id)
     return null
+  }
+
+  @Method()
+  async archiveConversation(input: AppRpcInput<'chat.archiveConversation'>) {
+    if (this.agentRuntime.listActiveTasks(input.id).length > 0) {
+      throw new Error('任务运行中，暂时无法归档')
+    }
+    const conversation = await this.core.data.conversationRepository.setArchived(input.id, true)
+    this.core.events.emit('conversation:updated', { conversation })
+    return conversation
+  }
+
+  @Method()
+  async restoreConversation(input: AppRpcInput<'chat.restoreConversation'>) {
+    const conversation = await this.core.data.conversationRepository.getById(input.id)
+    if (!conversation.archived) {
+      return conversation
+    }
+    if (!conversation.workspacePath || !this.core.data.workspaceService.isWorkspaceAvailable(conversation.workspacePath)) {
+      throw new Error('原工作区目录不存在或无权访问，无法取消归档')
+    }
+
+    const configured = this.core.data.workspaceService.listWorkspaces().workspaces.some(workspace => workspace.path === conversation.workspacePath)
+    if (!configured) {
+      this.core.data.workspaceService.addWorkspace(conversation.workspacePath)
+      this.core.events.emit('workspace:changed', {})
+    }
+
+    const restored = await this.core.data.conversationRepository.setArchived(input.id, false)
+    this.core.events.emit('conversation:updated', { conversation: restored })
+    return restored
+  }
+
+  @Method()
+  async deleteArchivedConversation(input: AppRpcInput<'chat.deleteArchivedConversation'>) {
+    await this.agentRuntime.closeConversation(input.id)
+    return await this.core.data.conversationRepository.deleteArchived(input.id)
+  }
+
+  @Method()
+  async deleteArchivedWorkspaceConversations(input: AppRpcInput<'chat.deleteArchivedWorkspaceConversations'>) {
+    const result = await this.core.data.conversationRepository.listArchived(0, Number.MAX_SAFE_INTEGER, input.workspacePath)
+    for (const conversation of result.data) {
+      await this.agentRuntime.closeConversation(conversation.id)
+    }
+    return await this.core.data.conversationRepository.deleteArchivedByWorkspace(input.workspacePath)
+  }
+
+  @Method()
+  async deleteAllArchivedConversations(_input: AppRpcInput<'chat.deleteAllArchivedConversations'>) {
+    const workspaces = await this.core.data.conversationRepository.listArchivedWorkspaces()
+    for (const workspace of workspaces) {
+      const result = await this.core.data.conversationRepository.listArchived(0, Number.MAX_SAFE_INTEGER, workspace.workspacePath)
+      for (const conversation of result.data) {
+        await this.agentRuntime.closeConversation(conversation.id)
+      }
+    }
+    return await this.core.data.conversationRepository.deleteAllArchived()
   }
 
   @Method()

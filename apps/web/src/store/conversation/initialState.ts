@@ -37,7 +37,7 @@ export function createInitialState(): StoreState {
     abortCallbacks: [],
     conversationStates: {},
     pageIndex: 0,
-    pageSize: 20,
+    pageSize: 5,
     conversationsTotal: 1,
     activeConversationsId: '',
     activeWorkspacePath: '',

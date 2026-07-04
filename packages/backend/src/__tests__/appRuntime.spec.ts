@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -75,6 +75,74 @@ describe('app runtime', () => {
 
     // 全量查询:不依赖 currentWorkspacePath 兜底,返回所有会话
     expect(result.total).toBeGreaterThanOrEqual(1)
+  })
+
+  it('归档会话后普通列表隐藏，恢复时保留更新时间', async () => {
+    const workspacePath = await runtime.invoke('workspace.getDefaultWorkspacePath', undefined)
+    const conversation = await runtime.invoke('chat.addConversation', {
+      conversation: {
+        title: '待归档',
+        createdAt: 10,
+        updatedAt: 20,
+        workspacePath,
+        settings: { modelId: 'm', providerId: 'p', systemPrompt: '', temperature: 0.7, maxTokens: 1024 },
+      },
+    })
+    const otherConversation = await runtime.invoke('chat.addConversation', {
+      conversation: {
+        title: '其他归档',
+        createdAt: 5,
+        updatedAt: 10,
+        workspacePath,
+        settings: { modelId: 'm', providerId: 'p', systemPrompt: '', temperature: 0.7, maxTokens: 1024 },
+      },
+    })
+
+    await expect(runtime.invoke('chat.archiveConversation', { id: conversation.id }))
+      .resolves
+      .toMatchObject({ id: conversation.id, archived: true })
+    await runtime.invoke('chat.archiveConversation', { id: otherConversation.id })
+    await expect(runtime.invoke('chat.getWorkspaceConversations', { pageIndex: 0, pageSize: 20, workspacePath }))
+      .resolves
+      .toEqual({ data: [], total: 0 })
+    const archivedGroups = await runtime.invoke('chat.getArchivedConversationWorkspaces', { query: '待归', pageSize: 20 } as never) as any
+    expect(archivedGroups).toEqual({
+      total: 2,
+      workspaces: [{
+        workspacePath,
+        displayName: path.basename(workspacePath),
+        total: 2,
+        matchedTotal: 1,
+        available: true,
+        conversations: [expect.objectContaining({ id: conversation.id, title: '待归档' })],
+      }],
+    })
+
+    const restored = await runtime.invoke('chat.restoreConversation', { id: conversation.id })
+    expect(restored).toMatchObject({ id: conversation.id, archived: false, updatedAt: 20 })
+  })
+
+  it('恢复已移除工作区的归档会话时重新加入原工作区', async () => {
+    const requestedPath = path.join(appDataRoot, 'restored-workspace')
+    mkdirSync(requestedPath)
+    const added = await runtime.invoke('workspace.addWorkspace', { path: requestedPath })
+    const workspacePath = added.workspaces.find(item => item.displayName === 'restored-workspace')!.path
+    const conversation = await runtime.invoke('chat.addConversation', {
+      conversation: {
+        title: '恢复工作区',
+        createdAt: 1,
+        updatedAt: 1,
+        workspacePath,
+        settings: { modelId: 'm', providerId: 'p', systemPrompt: '', temperature: 0.7, maxTokens: 1024 },
+      },
+    })
+    await runtime.invoke('chat.archiveConversation', { id: conversation.id })
+    await runtime.invoke('workspace.removeWorkspace', { path: workspacePath })
+
+    await runtime.invoke('chat.restoreConversation', { id: conversation.id })
+
+    const workspaces = await runtime.invoke('workspace.listWorkspaces', undefined)
+    expect(workspaces.workspaces.map(item => item.path)).toContain(workspacePath)
   })
 
   it('workspace:changed 事件 payload 为空对象', async () => {

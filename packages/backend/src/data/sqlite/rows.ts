@@ -20,6 +20,7 @@ export interface ConversationRow {
   title: string
   created_at: number
   updated_at: number
+  archived?: number
   settings: string
 }
 
@@ -46,6 +47,7 @@ export function mapConversationRow(row: ConversationRow): IConversations {
     title: row.title,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    archived: row.archived === 1,
     settings: parseConversationSettings(row.settings),
   }
 }

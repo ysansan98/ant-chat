@@ -16,6 +16,7 @@ const CONVERSATION_COLUMNS = `
   title,
   created_at,
   updated_at,
+  archived,
   settings
 `
 
@@ -27,15 +28,16 @@ export class SqliteConversationRepository implements ConversationRepository {
 
   async list(pageIndex: number, pageSize: number = 10, workspacePath?: string, includeNullWorkspace = false) {
     const workspaceWhere = getWorkspaceWhere(workspacePath, includeNullWorkspace)
+    const whereSql = appendCondition(workspaceWhere.sql, 'archived = 0')
     const totalResult = this.db.prepare<unknown[], { count: number }>(`
       SELECT count(1) AS count
       FROM conversations
-      ${workspaceWhere.sql}
+      ${whereSql}
     `).get(...workspaceWhere.params)
     const data = this.db.prepare<unknown[], ConversationRow>(`
       SELECT ${CONVERSATION_COLUMNS}
       FROM conversations
-      ${workspaceWhere.sql}
+      ${whereSql}
       ORDER BY updated_at DESC
       LIMIT ? OFFSET ?
     `).all(...workspaceWhere.params, pageSize, pageIndex * pageSize)
@@ -44,6 +46,43 @@ export class SqliteConversationRepository implements ConversationRepository {
       data: data.map(mapConversationRow),
       total: totalResult?.count ?? 0,
     }
+  }
+
+  async listArchived(pageIndex: number, pageSize: number, workspacePath: string, query = '') {
+    const normalizedQuery = query.trim()
+    const querySql = normalizedQuery ? ' AND instr(lower(title), lower(?)) > 0' : ''
+    const params = normalizedQuery ? [workspacePath, normalizedQuery] : [workspacePath]
+    const totalResult = this.db.prepare<unknown[], { count: number }>(`
+      SELECT count(1) AS count
+      FROM conversations
+      WHERE workspace_path = ? AND archived = 1${querySql}
+    `).get(...params)
+    const data = this.db.prepare<unknown[], ConversationRow>(`
+      SELECT ${CONVERSATION_COLUMNS}
+      FROM conversations
+      WHERE workspace_path = ? AND archived = 1${querySql}
+      ORDER BY updated_at DESC
+      LIMIT ? OFFSET ?
+    `).all(...params, pageSize, pageIndex * pageSize)
+
+    return {
+      data: data.map(mapConversationRow),
+      total: totalResult?.count ?? 0,
+    }
+  }
+
+  async listArchivedWorkspaces(query = '') {
+    const normalizedQuery = query.trim()
+    const querySql = normalizedQuery ? ' AND instr(lower(title), lower(?)) > 0' : ''
+    const params = normalizedQuery ? [normalizedQuery] : []
+    const rows = this.db.prepare<unknown[], { workspace_path: string, total: number }>(`
+      SELECT workspace_path, count(1) AS total
+      FROM conversations
+      WHERE archived = 1 AND workspace_path IS NOT NULL${querySql}
+      GROUP BY workspace_path
+    `).all(...params)
+
+    return rows.map(row => ({ workspacePath: row.workspace_path, total: row.total }))
   }
 
   async getById(id: string): Promise<IConversations> {
@@ -63,8 +102,8 @@ export class SqliteConversationRepository implements ConversationRepository {
     const parsed = AddConversationInput.parse(conversation)
     const id = `conv-${nanoid()}`
     const result = this.db.prepare<unknown[], ConversationRow>(`
-      INSERT INTO conversations (id, workspace_path, title, created_at, updated_at, settings)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO conversations (id, workspace_path, title, created_at, updated_at, archived, settings)
+      VALUES (?, ?, ?, ?, ?, 0, ?)
       RETURNING ${CONVERSATION_COLUMNS}
     `).get(
       id,
@@ -126,6 +165,27 @@ export class SqliteConversationRepository implements ConversationRepository {
     return mapConversationRow(result)
   }
 
+  async setArchived(id: string, archived: boolean): Promise<IConversations> {
+    const result = this.db.prepare<unknown[], ConversationRow>(`
+      UPDATE conversations
+      SET archived = ?
+      WHERE id = ? AND archived != ?
+      RETURNING ${CONVERSATION_COLUMNS}
+    `).get(archived ? 1 : 0, id, archived ? 1 : 0)
+
+    if (!result) {
+      const existing = this.db.prepare<unknown[], ConversationRow>(`
+        SELECT ${CONVERSATION_COLUMNS} FROM conversations WHERE id = ?
+      `).get(id)
+      if (!existing) {
+        throw new Error('会话未找到')
+      }
+      return mapConversationRow(existing)
+    }
+
+    return mapConversationRow(result)
+  }
+
   async delete(id: string): Promise<boolean> {
     let cleanupFiles = () => {}
     const deleteConversation = this.db.transaction(() => {
@@ -142,11 +202,52 @@ export class SqliteConversationRepository implements ConversationRepository {
 
   async deleteByWorkspace(workspacePath?: string, includeNullWorkspace = false): Promise<string[]> {
     const workspaceWhere = getWorkspaceWhere(workspacePath, includeNullWorkspace)
+    const whereSql = appendCondition(workspaceWhere.sql, 'archived = 0')
     const rows = this.db.prepare<unknown[], { id: string }>(`
-      SELECT id FROM conversations ${workspaceWhere.sql}
+      SELECT id FROM conversations ${whereSql}
     `).all(...workspaceWhere.params)
-    const ids = rows.map(row => row.id)
+    return this.deleteRows(rows.map(row => row.id))
+  }
 
+  async deleteArchived(id: string): Promise<string[]> {
+    const row = this.db.prepare<unknown[], { id: string }>(`
+      SELECT id FROM conversations WHERE id = ? AND archived = 1
+    `).get(id)
+    if (!row) {
+      throw new Error('已归档会话未找到')
+    }
+    return this.deleteRows([row.id])
+  }
+
+  async deleteArchivedByWorkspace(workspacePath: string): Promise<string[]> {
+    const rows = this.db.prepare<unknown[], { id: string }>(`
+      SELECT id FROM conversations WHERE workspace_path = ? AND archived = 1
+    `).all(workspacePath)
+    return this.deleteRows(rows.map(row => row.id))
+  }
+
+  async deleteAllArchived(): Promise<string[]> {
+    const rows = this.db.prepare<unknown[], { id: string }>(`
+      SELECT id FROM conversations WHERE archived = 1
+    `).all()
+    return this.deleteRows(rows.map(row => row.id))
+  }
+
+  async exists(id: string): Promise<boolean> {
+    const result = this.db.prepare<unknown[], { count: number }>(`
+      SELECT count(1) AS count
+      FROM conversations
+      WHERE id = ?
+    `).get(id)
+
+    return (result?.count ?? 0) > 0
+  }
+
+  async updateUpdatedAt(id: string, updatedAt: number): Promise<IConversations> {
+    return this.update({ id, updatedAt })
+  }
+
+  private deleteRows(ids: string[]): string[] {
     if (ids.length === 0) {
       return []
     }
@@ -163,25 +264,8 @@ export class SqliteConversationRepository implements ConversationRepository {
     })
 
     deleteAll()
-    for (const cleanup of cleanupCallbacks) {
-      cleanup()
-    }
-
+    cleanupCallbacks.forEach(cleanup => cleanup())
     return ids
-  }
-
-  async exists(id: string): Promise<boolean> {
-    const result = this.db.prepare<unknown[], { count: number }>(`
-      SELECT count(1) AS count
-      FROM conversations
-      WHERE id = ?
-    `).get(id)
-
-    return (result?.count ?? 0) > 0
-  }
-
-  async updateUpdatedAt(id: string, updatedAt: number): Promise<IConversations> {
-    return this.update({ id, updatedAt })
   }
 }
 
@@ -193,4 +277,8 @@ function getWorkspaceWhere(workspacePath?: string, includeNullWorkspace = false)
   return includeNullWorkspace
     ? { params: [workspacePath], sql: 'WHERE (workspace_path = ? OR workspace_path IS NULL)' }
     : { params: [workspacePath], sql: 'WHERE workspace_path = ?' }
+}
+
+function appendCondition(whereSql: string, condition: string): string {
+  return whereSql ? `${whereSql} AND ${condition}` : `WHERE ${condition}`
 }

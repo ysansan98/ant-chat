@@ -46,16 +46,17 @@ export const ConversationsSchema = z.object({
   title: z.string(),
   createdAt: z.number(),
   updatedAt: z.number(),
+  archived: z.boolean().default(false).optional(),
   settings: ConversationsSettingsSchema,
 })
 
 export type ConversationsSchema = z.infer<typeof ConversationsSchema>
 
 // ============================ Add Conversations Schema ============================
-export const AddConversationsSchema = ConversationsSchema.omit({ id: true })
+export const AddConversationsSchema = ConversationsSchema.omit({ id: true, archived: true })
 export type AddConversationsSchema = z.infer<typeof AddConversationsSchema>
 
 // ============================ Update Conversations Schema ============================
-export const UpdateConversationsSchema = ConversationsSchema.extend({ settings: ConversationsSettingsSchema }).partial().extend({ id: z.string() })
+export const UpdateConversationsSchema = ConversationsSchema.omit({ archived: true }).extend({ settings: ConversationsSettingsSchema }).partial().extend({ id: z.string() })
 
 export type UpdateConversationsSchema = z.infer<typeof UpdateConversationsSchema>
