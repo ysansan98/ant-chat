@@ -88,7 +88,8 @@ export async function updateAppearance(appearanceUpdates: Partial<AppearanceSett
       break
     }
   }
-  if (!hasChanges) return
+  if (!hasChanges)
+    return
 
   const nextAppearance = { ...prevAppearance, ...appearanceUpdates }
 

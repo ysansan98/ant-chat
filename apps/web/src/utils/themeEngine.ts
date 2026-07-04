@@ -70,8 +70,7 @@ export function applyThemeToDocument(appearance: AppearanceSettingsState): void 
   root.style.colorScheme = isDark ? 'dark' : 'light'
 
   // 强制同步重排，确保新样式已应用
-  // eslint-disable-next-line no-unused-expressions
-  root.offsetHeight
+  void root.offsetHeight
 
   // 恢复过渡
   root.classList.remove('no-transition')
