@@ -87,6 +87,13 @@ body,
   display: none; /* Chrome, Safari 和 Opera */
 }
 
+/* 主题切换时禁止所有 CSS 过渡，防止抖动 */
+.no-transition,
+.no-transition * {
+  animation: none !important;
+  transition: none !important;
+}
+
 .ant-bubble-list-container::before,
 .ant-bubble-list-container::after {
   display: block;

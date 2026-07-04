@@ -38,7 +38,6 @@ function ThemePreviewDot({ color }: { color: string }) {
 
 export function AppearanceSettings() {
   const appearance = useGeneralSettingsStore(state => state.appearance)
-  const isLoading = useGeneralSettingsStore(state => state.isLoading)
 
   const handleModeChange = async (mode: AppearanceSettingsState['mode']) => {
     await updateAppearance({ mode })
@@ -63,22 +62,19 @@ export function AppearanceSettings() {
         {/* 明暗模式选择 */}
         <div className="flex flex-col gap-2">
           <h3 className="text-sm font-medium">明暗模式</h3>
-          {isLoading && <p className="text-xs text-muted-foreground">保存中...</p>}
           <div className="flex flex-wrap gap-3">
             {modeOptions.map(option => (
               <button
                 key={option.id}
                 type="button"
-                disabled={isLoading}
                 data-active={appearance.mode === option.id}
                 className={`
                   flex flex-col items-center gap-2 rounded-xl border px-6 py-4 text-sm
-                  transition-all duration-150
+                  transition-colors duration-150 cursor-pointer
                   ${appearance.mode === option.id
                 ? 'border-ring bg-accent/10 shadow-sm'
                 : 'border-border hover:border-ring/50 hover:bg-muted/30'
               }
-                  disabled:opacity-50
                 `}
                 onClick={() => handleModeChange(option.id)}
               >
@@ -101,15 +97,13 @@ export function AppearanceSettings() {
               <button
                 key={theme.id}
                 type="button"
-                disabled={isLoading}
                 data-active={appearance.lightThemeId === theme.id}
                 className={`
-                  rounded-lg border px-4 py-2 text-sm transition-all duration-150 flex items-center gap-2
+                  rounded-lg border px-4 py-2 text-sm transition-colors duration-150 flex items-center gap-2 cursor-pointer
                   ${appearance.lightThemeId === theme.id
                 ? 'border-ring bg-accent/10 shadow-sm font-medium'
                 : 'border-border hover:border-ring/50 hover:bg-muted/30'
               }
-                  disabled:opacity-50
                 `}
                 onClick={() => handleLightThemeChange(theme.id)}
               >
@@ -136,15 +130,13 @@ export function AppearanceSettings() {
               <button
                 key={theme.id}
                 type="button"
-                disabled={isLoading}
                 data-active={appearance.darkThemeId === theme.id}
                 className={`
-                  rounded-lg border px-4 py-2 text-sm transition-all duration-150 flex items-center gap-2
+                  rounded-lg border px-4 py-2 text-sm transition-colors duration-150 flex items-center gap-2 cursor-pointer
                   ${appearance.darkThemeId === theme.id
                 ? 'border-ring bg-accent/10 shadow-sm font-medium'
                 : 'border-border hover:border-ring/50 hover:bg-muted/30'
               }
-                  disabled:opacity-50
                 `}
                 onClick={() => handleDarkThemeChange(theme.id)}
               >

@@ -2,8 +2,15 @@ import type { AppearanceSettingsState, ProxySettings } from '@ant-chat/shared'
 import { produce } from 'immer'
 import { toast } from 'sonner'
 import { generalSettingsApi } from '@/api/generalSettingsApi'
+import { applyThemeToDocument, cacheAppearance } from '@/utils/themeEngine'
 import { migrateLegacyTheme } from '@/utils/themeMigration'
 import { useGeneralSettingsStore } from './store'
+
+// 跳过下一轮 refreshGeneralSettings（当前窗口刚更新完，不需要再 GET）
+let _skipNextRefresh = false
+export function skipNextSettingsRefresh() {
+  _skipNextRefresh = true
+}
 
 export async function setAssistantModelId(id: string) {
   useGeneralSettingsStore.setState(produce((state) => {
@@ -73,28 +80,57 @@ export async function updateProxySettings(proxySettingsUpdates: Partial<ProxySet
 export async function updateAppearance(appearanceUpdates: Partial<AppearanceSettingsState>) {
   const prevAppearance = useGeneralSettingsStore.getState().appearance
 
-  // 乐观更新
+  // 值没有实际变化则跳过，避免重复点击触发无意义的 API 调用和重渲染
+  let hasChanges = false
+  for (const key of Object.keys(appearanceUpdates) as (keyof AppearanceSettingsState)[]) {
+    if (prevAppearance[key] !== appearanceUpdates[key]) {
+      hasChanges = true
+      break
+    }
+  }
+  if (!hasChanges) return
+
+  const nextAppearance = { ...prevAppearance, ...appearanceUpdates }
+
+  // 同步应用主题到 DOM，确保 CSS 变量在 React 重渲染前更新，
+  // 避免按钮 class 变动与 CSS 变量更新时机不一致导致的页面抖动
+  applyThemeToDocument(nextAppearance)
+  cacheAppearance(nextAppearance)
+
+  // 乐观更新（不设 isLoading，外观切换无加载态，避免 disabled 导致闪烁）
   useGeneralSettingsStore.setState(produce((state) => {
-    state.appearance = { ...state.appearance, ...appearanceUpdates }
-    state.isLoading = true
+    state.appearance = nextAppearance
   }))
 
   try {
+    skipNextSettingsRefresh()
     const newSettings = await generalSettingsApi.updateSettings({
       appearance: { ...prevAppearance, ...appearanceUpdates },
     })
-    useGeneralSettingsStore.setState(produce((state) => {
-      state.appearance = newSettings.appearance
-      state.isLoading = false
-    }))
+
+    // 如果服务器确认值和当前乐观值一致，保留引用避免不必要的重渲染
+    const currentAppearance = useGeneralSettingsStore.getState().appearance
+    const isSameAppearance = (
+      currentAppearance.mode === newSettings.appearance.mode
+      && currentAppearance.lightThemeId === newSettings.appearance.lightThemeId
+      && currentAppearance.darkThemeId === newSettings.appearance.darkThemeId
+    )
+
+    if (!isSameAppearance) {
+      useGeneralSettingsStore.setState(produce((state) => {
+        state.appearance = newSettings.appearance
+      }))
+    }
   }
   catch {
+    _skipNextRefresh = false
     toast.error('外观设置保存失败')
     // 回滚
     useGeneralSettingsStore.setState(produce((state) => {
       state.appearance = prevAppearance
-      state.isLoading = false
     }))
+    applyThemeToDocument(prevAppearance)
+    cacheAppearance(prevAppearance)
   }
 }
 
@@ -104,7 +140,19 @@ export async function resetGeneralSettings() {
   }))
   try {
     const newSettings = await generalSettingsApi.resetSettings()
-    useGeneralSettingsStore.setState(newSettings)
+
+    // 保留当前 appearance 引用避免不必要重渲染
+    const state = useGeneralSettingsStore.getState()
+    const isSameAppearance = (
+      state.appearance.mode === newSettings.appearance.mode
+      && state.appearance.lightThemeId === newSettings.appearance.lightThemeId
+      && state.appearance.darkThemeId === newSettings.appearance.darkThemeId
+    )
+
+    useGeneralSettingsStore.setState({
+      ...newSettings,
+      appearance: isSameAppearance ? state.appearance : newSettings.appearance,
+    })
   }
   finally {
     useGeneralSettingsStore.setState(produce((state) => {
@@ -114,12 +162,30 @@ export async function resetGeneralSettings() {
 }
 
 export async function refreshGeneralSettings() {
+  // 当前窗口刚完成 updateSettings（已返回完整数据），跳过不必要的 GET
+  if (_skipNextRefresh) {
+    _skipNextRefresh = false
+    return
+  }
+
   useGeneralSettingsStore.setState(produce((state) => {
     state.isLoading = true
   }))
   try {
     const newSettings = await generalSettingsApi.getSettings()
-    useGeneralSettingsStore.setState(newSettings)
+
+    // 如果数据和当前已缓存的一致，保留对象引用避免不必要重渲染
+    const state = useGeneralSettingsStore.getState()
+    const isSameAppearance = (
+      state.appearance.mode === newSettings.appearance.mode
+      && state.appearance.lightThemeId === newSettings.appearance.lightThemeId
+      && state.appearance.darkThemeId === newSettings.appearance.darkThemeId
+    )
+
+    useGeneralSettingsStore.setState({
+      ...newSettings,
+      appearance: isSameAppearance ? state.appearance : newSettings.appearance,
+    })
   }
   catch {
     // 服务端不可用时保留当前状态（含缓存主题）
