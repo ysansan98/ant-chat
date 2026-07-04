@@ -34,6 +34,7 @@ describe('appSettingsStore', () => {
         assistantModelId: 'test-model',
         assistantProviderId: '',
         proxySettings: { mode: 'none' },
+        appearance: { mode: 'system', lightThemeId: 'default', darkThemeId: 'default' },
         toolApprovalWhitelist: [],
         providers: [
           {
@@ -76,6 +77,7 @@ describe('appSettingsStore', () => {
         assistantModelId: 'test-model',
         assistantProviderId: '',
         proxySettings: { mode: 'none' },
+        appearance: { mode: 'system', lightThemeId: 'default', darkThemeId: 'default' },
         toolApprovalWhitelist: [],
         providers: [
           {
@@ -133,6 +135,7 @@ describe('appSettingsStore', () => {
         assistantModelId: 'test-model',
         assistantProviderId: '',
         proxySettings: { mode: 'none' },
+        appearance: { mode: 'system', lightThemeId: 'default', darkThemeId: 'default' },
         toolApprovalWhitelist: [],
         providers: [],
       }

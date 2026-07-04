@@ -14,6 +14,7 @@ describe('provider settings repository', () => {
     assistantModelId: '',
     assistantProviderId: '',
     proxySettings: { mode: 'none', customProxyUrl: '' },
+    appearance: { mode: 'system', lightThemeId: 'default', darkThemeId: 'default' },
     toolApprovalWhitelist: [],
     providers: [
       {
@@ -143,6 +144,7 @@ describe('provider settings repository', () => {
       assistantModelId: '',
       assistantProviderId: '',
       proxySettings: { mode: 'none' },
+      appearance: { mode: 'system', lightThemeId: 'default', darkThemeId: 'default' },
       toolApprovalWhitelist: [],
       providers: [
         {

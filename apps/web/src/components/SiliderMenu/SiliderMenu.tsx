@@ -8,7 +8,6 @@ import {
 import { useLocation, useNavigate } from 'react-router'
 import { setActiveConversationsId } from '@/store/messages'
 import { ipc, isElectronRuntime, unwrapIpcResponse } from '@/utils/ipc-bus'
-import { ThemeMenuItem } from '../ThemeButton'
 import { WorkspacePanels } from '../Workspace/WorkspacePanels'
 import { SidebarNavItem } from './SliderMenuItem'
 
@@ -87,7 +86,6 @@ export function SliderMenu({ mobile = false, onNavigate }: SliderMenuProps) {
         </div>
 
         <div className="mt-3 flex flex-col gap-1">
-          <ThemeMenuItem />
           <SidebarNavItem
             icon={<Settings className="size-4" />}
             label="设置"

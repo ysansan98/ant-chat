@@ -24,6 +24,7 @@ describe('general settings repository', () => {
         assistantModelId: 'model-1',
         assistantProviderId: '',
         proxySettings: { mode: 'none', customProxyUrl: '' },
+        appearance: { mode: 'system', lightThemeId: 'default', darkThemeId: 'default' },
       },
     })
 
@@ -31,6 +32,7 @@ describe('general settings repository', () => {
       assistantModelId: 'model-1',
       assistantProviderId: '',
       proxySettings: { mode: 'none', customProxyUrl: '' },
+      appearance: { mode: 'system', lightThemeId: 'default', darkThemeId: 'default' },
     })
   })
 
@@ -41,6 +43,7 @@ describe('general settings repository', () => {
         assistantModelId: 'model-1',
         assistantProviderId: '',
         proxySettings: { mode: 'custom', customProxyUrl: 'http://localhost:7890' },
+        appearance: { mode: 'system', lightThemeId: 'default', darkThemeId: 'default' },
       },
     })
 
@@ -52,6 +55,7 @@ describe('general settings repository', () => {
       assistantModelId: 'model-1',
       assistantProviderId: '',
       proxySettings: { mode: 'system', customProxyUrl: 'http://localhost:7890' },
+      appearance: { mode: 'system', lightThemeId: 'default', darkThemeId: 'default' },
     })
   })
 
