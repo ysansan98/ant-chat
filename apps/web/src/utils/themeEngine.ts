@@ -44,6 +44,9 @@ export function isKnownThemeId(themeId: string): boolean {
  * - .dark class (根据有效明暗模式)
  * - data-theme 属性 (当前有效主题 ID，未知 ID 降级为 default)
  * - color-scheme CSS 属性
+ *
+ * 为了防止 CSS 过渡动画在主题切换时引发页面抖动，
+ * 在修改变量前会临时禁用所有过渡，再强制重排后恢复。
  */
 export function applyThemeToDocument(appearance: AppearanceSettingsState): void {
   if (typeof document === 'undefined')
@@ -54,6 +57,9 @@ export function applyThemeToDocument(appearance: AppearanceSettingsState): void 
   const rawThemeId = resolveEffectiveThemeId(appearance)
   const themeId = isKnownThemeId(rawThemeId) ? rawThemeId : 'default'
 
+  // 临时禁用所有过渡，防止 CSS 变量变化时产生动画抖动
+  root.classList.add('no-transition')
+
   // 明暗 class
   root.classList.toggle('dark', isDark)
 
@@ -62,6 +68,13 @@ export function applyThemeToDocument(appearance: AppearanceSettingsState): void 
 
   // color-scheme
   root.style.colorScheme = isDark ? 'dark' : 'light'
+
+  // 强制同步重排，确保新样式已应用
+  // eslint-disable-next-line no-unused-expressions
+  root.offsetHeight
+
+  // 恢复过渡
+  root.classList.remove('no-transition')
 }
 
 /**

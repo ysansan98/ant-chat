@@ -41,6 +41,17 @@ export function useThemeApplier(): void {
       return
     }
 
+    // updateAppearance 已在 store 更新前同步调用了 applyThemeToDocument，
+    // 如果 DOM 已与应用一致则跳过，避免二次调用的 no-transition 打断过渡动画
+    const root = document.documentElement
+    const isDark = resolveEffectiveDarkMode(appearance)
+    const rawThemeId = resolveEffectiveThemeId(appearance)
+    const themeId = isKnownThemeId(rawThemeId) ? rawThemeId : 'default'
+
+    if (root.classList.contains('dark') === isDark && (root.getAttribute('data-theme') || 'default') === themeId) {
+      return
+    }
+
     applyThemeToDocument(appearance)
     cacheAppearance(appearance)
   }, [appearance])
