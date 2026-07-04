@@ -38,7 +38,10 @@ describe('app-data SQLite 迁移', () => {
       'conversations',
       'messages',
     ]))
-    expect(history).toEqual([{ version: 1, name: '初始化 app-data schema' }])
+    expect(history).toEqual([
+      { version: 1, name: '初始化 app-data schema' },
+      { version: 2, name: '增加会话归档状态' },
+    ])
   })
 
   it('无版本记录的旧数据库通过首个版本迁移到当前表结构', () => {
@@ -70,14 +73,16 @@ describe('app-data SQLite 迁移', () => {
 
     runSqliteMigrations(sqlite, createAppDataMigrations({ attachmentsRootPath }))
 
-    const columns = sqlite.prepare('PRAGMA table_info(messages)').all() as Array<{ name: string }>
-    const columnNames = columns.map(column => column.name)
-    expect(columnNames).toEqual(expect.arrayContaining([
+    const messageColumns = sqlite.prepare('PRAGMA table_info(messages)').all() as Array<{ name: string }>
+    const messageColumnNames = messageColumns.map(column => column.name)
+    expect(messageColumnNames).toEqual(expect.arrayContaining([
       'duration_ms',
       'compacted_through_message_id',
     ]))
-    expect(columnNames).not.toEqual(expect.arrayContaining(['images', 'attachments']))
-    expect(sqlite.prepare('SELECT version FROM app_data_migrations').all()).toEqual([{ version: 1 }])
+    expect(messageColumnNames).not.toEqual(expect.arrayContaining(['images', 'attachments']))
+    const conversationColumns = sqlite.prepare('PRAGMA table_info(conversations)').all() as Array<{ name: string }>
+    expect(conversationColumns.map(column => column.name)).toContain('archived')
+    expect(sqlite.prepare('SELECT version FROM app_data_migrations').all()).toEqual([{ version: 1 }, { version: 2 }])
   })
 })
 

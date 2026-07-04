@@ -22,5 +22,21 @@ export function createAppDataMigrations(
         migrateAddCompactionBoundary(db)
       },
     },
+    {
+      version: 2,
+      name: '增加会话归档状态',
+      migrate(db) {
+        const columns = db.prepare('PRAGMA table_info(conversations)').all() as Array<{ name: string }>
+        if (!columns.some(column => column.name === 'archived')) {
+          db.exec('ALTER TABLE conversations ADD COLUMN archived integer NOT NULL DEFAULT 0')
+        }
+        db.exec(`
+          CREATE INDEX IF NOT EXISTS idx_conversations_workspace_path_archived_updated_at
+            ON conversations (workspace_path, archived, updated_at DESC);
+          CREATE INDEX IF NOT EXISTS idx_conversations_archived_updated_at
+            ON conversations (archived, updated_at DESC);
+        `)
+      },
+    },
   ]
 }

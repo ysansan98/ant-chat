@@ -78,6 +78,33 @@ export async function ensureWorkspaceConversationsAction(workspacePath: string) 
   }
 }
 
+export async function loadAllWorkspaceConversationsAction(workspacePath: string) {
+  const state = useConversationsStore.getState()
+  const slice = workspacePath === getCurrentWorkspacePath()
+    ? { conversations: state.conversations, conversationsTotal: state.conversationsTotal }
+    : state.workspaceConversations[workspacePath]
+  if (!slice || slice.conversations.length >= slice.conversationsTotal) {
+    return
+  }
+
+  const { data, total } = await chatApi.getWorkspaceConversations(workspacePath, 0, slice.conversationsTotal)
+  useConversationsStore.setState(prev => produce(prev, (draft) => {
+    const target = draft.workspaceConversations[workspacePath]
+    if (target) {
+      target.conversations = data
+      target.conversationsTotal = total
+      target.pageIndex = 0
+      target.loaded = true
+    }
+    if (workspacePath === getCurrentWorkspacePath()) {
+      draft.conversations = data
+      draft.conversationsTotal = total
+      draft.pageIndex = 0
+    }
+  }))
+  saveCurrentSlice()
+}
+
 /**
  * 统一的工作区激活入口:在 workspaceStore 已更新当前路径后,
  * 同步会话分片缓存到该路径。所有切换/新增/删除场景调用此入口,
@@ -114,16 +141,32 @@ export async function addConversationsAction(conversation: AddConversationsSchem
 
 export function upsertConversationAction(conversation: IConversations) {
   useConversationsStore.setState(state => produce(state, (draft) => {
-    const index = draft.conversations.findIndex(item => item.id === conversation.id)
-    if (index > -1) {
-      draft.conversations[index] = conversation
-      return
+    syncConversationList(draft.conversations, conversation, draft.activeWorkspacePath, draft)
+    for (const [workspacePath, slice] of Object.entries(draft.workspaceConversations)) {
+      syncConversationList(slice.conversations, conversation, workspacePath, slice)
     }
-
-    draft.conversations.splice(0, 0, conversation)
-    draft.conversationsTotal += 1
   }))
   saveCurrentSlice()
+}
+
+export async function archiveConversationAction(id: ConversationsId) {
+  const wasActive = useConversationsStore.getState().activeConversationsId === id
+  const conversation = await chatApi.archiveConversation(id)
+  upsertConversationAction(conversation)
+  removeConversationState(id)
+  if (wasActive) {
+    await clearActiveConversations()
+  }
+  if (conversation.workspacePath) {
+    await backfillWorkspacePreview(conversation.workspacePath)
+  }
+  return { conversation, wasActive }
+}
+
+export async function restoreConversationAction(id: ConversationsId) {
+  const conversation = await chatApi.restoreConversation(id)
+  upsertConversationAction(conversation)
+  return conversation
 }
 
 export async function renameConversationsAction(id: ConversationsId, title: string) {
@@ -346,4 +389,55 @@ function touchConversation(conversations: IConversations[], id: string, updatedA
   if (conversation && conversation.updatedAt < updatedAt) {
     conversation.updatedAt = updatedAt
   }
+}
+
+function syncConversationList(
+  conversations: IConversations[],
+  conversation: IConversations,
+  listWorkspacePath: string,
+  totals: { conversationsTotal: number },
+) {
+  const index = conversations.findIndex(item => item.id === conversation.id)
+  const belongsToList = !conversation.archived && conversation.workspacePath === listWorkspacePath
+
+  if (!belongsToList) {
+    if (index > -1) {
+      conversations.splice(index, 1)
+      totals.conversationsTotal = Math.max(0, totals.conversationsTotal - 1)
+    }
+    return
+  }
+
+  if (index > -1) {
+    conversations[index] = conversation
+  }
+  else {
+    conversations.push(conversation)
+    totals.conversationsTotal += 1
+  }
+  conversations.sort((left, right) => right.updatedAt - left.updatedAt)
+}
+
+async function backfillWorkspacePreview(workspacePath: string) {
+  const state = useConversationsStore.getState()
+  const slice = workspacePath === getCurrentWorkspacePath()
+    ? { conversations: state.conversations, conversationsTotal: state.conversationsTotal }
+    : state.workspaceConversations[workspacePath]
+  if (!slice || slice.conversations.length >= Math.min(state.pageSize, slice.conversationsTotal)) {
+    return
+  }
+
+  const { data, total } = await chatApi.getWorkspaceConversations(workspacePath, 0, state.pageSize)
+  useConversationsStore.setState(prev => produce(prev, (draft) => {
+    const target = draft.workspaceConversations[workspacePath]
+    if (target) {
+      target.conversations = data
+      target.conversationsTotal = total
+    }
+    if (workspacePath === getCurrentWorkspacePath()) {
+      draft.conversations = data
+      draft.conversationsTotal = total
+    }
+  }))
+  saveCurrentSlice()
 }
