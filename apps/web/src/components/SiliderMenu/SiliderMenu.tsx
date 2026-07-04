@@ -6,7 +6,7 @@ import {
   Settings,
 } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router'
-import { setActiveConversationsId } from '@/store/messages'
+import { setActiveConversationsId, useMessagesStore } from '@/store/messages'
 import { ipc, isElectronRuntime, unwrapIpcResponse } from '@/utils/ipc-bus'
 import { WorkspacePanels } from '../Workspace/WorkspacePanels'
 import { SidebarNavItem } from './SliderMenuItem'
@@ -19,7 +19,7 @@ interface SliderMenuProps {
 export function SliderMenu({ mobile = false, onNavigate }: SliderMenuProps) {
   const location = useLocation()
   const navigate = useNavigate()
-  const isChatPage = location.pathname.includes('/chat')
+  const activeConversationsId = useMessagesStore(state => state.activeConversationsId)
   const isAutomationsPage = location.pathname === '/chat/automations'
 
   function openSearch() {
@@ -56,7 +56,7 @@ export function SliderMenu({ mobile = false, onNavigate }: SliderMenuProps) {
             icon={<Pencil className="size-4" />}
             label="新对话"
             dataTestId={mobile ? 'mobile-drawer-new-chat' : 'sidebar-new-chat'}
-            active={isChatPage && !location.search}
+            active={location.pathname === '/chat' && !activeConversationsId}
             onClick={() => {
               navigate('/chat')
               void setActiveConversationsId('')
