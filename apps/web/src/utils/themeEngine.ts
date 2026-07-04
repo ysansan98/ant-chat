@@ -33,10 +33,9 @@ export function resolveEffectiveThemeId(appearance: AppearanceSettingsState): st
 
 /**
  * 检查主题 ID 是否为已知主题。
- * 首个切片只有 'default'。
  */
 export function isKnownThemeId(themeId: string): boolean {
-  return themeId === 'default'
+  return themeId === 'default' || themeId === 'airbnb'
 }
 
 /**

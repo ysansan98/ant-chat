@@ -12,7 +12,23 @@ const modeOptions = [
 
 const themeOptions = [
   { id: 'default', label: '默认主题' },
+  {
+    id: 'airbnb',
+    label: 'Airbnb 灵感',
+    subtitle: '非官方',
+    colors: ['oklch(0.44 0.2 17)', 'oklch(0.99 0.003 85)', 'oklch(0.28 0.01 90)'],
+  },
 ]
+
+/** Airbnb 主题预览色圆点 */
+function ThemePreviewDot({ color }: { color: string }) {
+  return (
+    <span
+      className="inline-block size-3 rounded-full border border-border/50"
+      style={{ backgroundColor: color }}
+    />
+  )
+}
 
 export function AppearanceSettings() {
   const appearance = useGeneralSettingsStore(state => state.appearance)
@@ -82,7 +98,7 @@ export function AppearanceSettings() {
                 disabled={isLoading}
                 data-active={appearance.lightThemeId === theme.id}
                 className={`
-                  rounded-lg border px-4 py-2 text-sm transition-all duration-150
+                  rounded-lg border px-4 py-2 text-sm transition-all duration-150 flex items-center gap-2
                   ${appearance.lightThemeId === theme.id
                 ? 'border-ring bg-accent/10 shadow-sm font-medium'
                 : 'border-border hover:border-ring/50 hover:bg-muted/30'
@@ -91,7 +107,15 @@ export function AppearanceSettings() {
                 `}
                 onClick={() => handleLightThemeChange(theme.id)}
               >
-                {theme.label}
+                {theme.colors && (
+                  <span className="flex -space-x-1">
+                    {theme.colors.map(c => <ThemePreviewDot key={c} color={c} />)}
+                  </span>
+                )}
+                <span>{theme.label}</span>
+                {theme.subtitle && (
+                  <span className="text-[10px] text-muted-foreground">{theme.subtitle}</span>
+                )}
               </button>
             ))}
           </div>
@@ -109,7 +133,7 @@ export function AppearanceSettings() {
                 disabled={isLoading}
                 data-active={appearance.darkThemeId === theme.id}
                 className={`
-                  rounded-lg border px-4 py-2 text-sm transition-all duration-150
+                  rounded-lg border px-4 py-2 text-sm transition-all duration-150 flex items-center gap-2
                   ${appearance.darkThemeId === theme.id
                 ? 'border-ring bg-accent/10 shadow-sm font-medium'
                 : 'border-border hover:border-ring/50 hover:bg-muted/30'
@@ -118,7 +142,15 @@ export function AppearanceSettings() {
                 `}
                 onClick={() => handleDarkThemeChange(theme.id)}
               >
-                {theme.label}
+                {theme.colors && (
+                  <span className="flex -space-x-1">
+                    {theme.colors.map(c => <ThemePreviewDot key={c} color={c} />)}
+                  </span>
+                )}
+                <span>{theme.label}</span>
+                {theme.subtitle && (
+                  <span className="text-[10px] text-muted-foreground">{theme.subtitle}</span>
+                )}
               </button>
             ))}
           </div>
