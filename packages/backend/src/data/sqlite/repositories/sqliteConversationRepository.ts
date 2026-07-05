@@ -48,19 +48,20 @@ export class SqliteConversationRepository implements ConversationRepository {
     }
   }
 
-  async listArchived(pageIndex: number, pageSize: number, workspacePath: string, query = '') {
+  async listArchived(pageIndex: number, pageSize: number, workspacePath: string | null, query = '') {
     const normalizedQuery = query.trim()
     const querySql = normalizedQuery ? ' AND instr(lower(title), lower(?)) > 0' : ''
-    const params = normalizedQuery ? [workspacePath, normalizedQuery] : [workspacePath]
+    const workspaceWhere = getArchivedWorkspaceWhere(workspacePath)
+    const params = normalizedQuery ? [...workspaceWhere.params, normalizedQuery] : workspaceWhere.params
     const totalResult = this.db.prepare<unknown[], { count: number }>(`
       SELECT count(1) AS count
       FROM conversations
-      WHERE workspace_path = ? AND archived = 1${querySql}
+      WHERE ${workspaceWhere.sql} AND archived = 1${querySql}
     `).get(...params)
     const data = this.db.prepare<unknown[], ConversationRow>(`
       SELECT ${CONVERSATION_COLUMNS}
       FROM conversations
-      WHERE workspace_path = ? AND archived = 1${querySql}
+      WHERE ${workspaceWhere.sql} AND archived = 1${querySql}
       ORDER BY updated_at DESC
       LIMIT ? OFFSET ?
     `).all(...params, pageSize, pageIndex * pageSize)
@@ -75,10 +76,10 @@ export class SqliteConversationRepository implements ConversationRepository {
     const normalizedQuery = query.trim()
     const querySql = normalizedQuery ? ' AND instr(lower(title), lower(?)) > 0' : ''
     const params = normalizedQuery ? [normalizedQuery] : []
-    const rows = this.db.prepare<unknown[], { workspace_path: string, total: number }>(`
+    const rows = this.db.prepare<unknown[], { workspace_path: string | null, total: number }>(`
       SELECT workspace_path, count(1) AS total
       FROM conversations
-      WHERE archived = 1 AND workspace_path IS NOT NULL${querySql}
+      WHERE archived = 1${querySql}
       GROUP BY workspace_path
     `).all(...params)
 
@@ -219,10 +220,11 @@ export class SqliteConversationRepository implements ConversationRepository {
     return this.deleteRows([row.id])
   }
 
-  async deleteArchivedByWorkspace(workspacePath: string): Promise<string[]> {
+  async deleteArchivedByWorkspace(workspacePath: string | null): Promise<string[]> {
+    const workspaceWhere = getArchivedWorkspaceWhere(workspacePath)
     const rows = this.db.prepare<unknown[], { id: string }>(`
-      SELECT id FROM conversations WHERE workspace_path = ? AND archived = 1
-    `).all(workspacePath)
+      SELECT id FROM conversations WHERE ${workspaceWhere.sql} AND archived = 1
+    `).all(...workspaceWhere.params)
     return this.deleteRows(rows.map(row => row.id))
   }
 
@@ -281,4 +283,10 @@ function getWorkspaceWhere(workspacePath?: string, includeNullWorkspace = false)
 
 function appendCondition(whereSql: string, condition: string): string {
   return whereSql ? `${whereSql} AND ${condition}` : `WHERE ${condition}`
+}
+
+function getArchivedWorkspaceWhere(workspacePath: string | null): { params: string[], sql: string } {
+  return workspacePath === null
+    ? { params: [], sql: 'workspace_path IS NULL' }
+    : { params: [workspacePath], sql: 'workspace_path = ?' }
 }

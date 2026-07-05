@@ -138,6 +138,20 @@ describe('sqlite repositories', () => {
     await expect(repository.getById(visible.id)).resolves.toMatchObject({ id: visible.id, archived: false })
   })
 
+  it('将无工作区的归档会话纳入汇总、查询和分组删除', async () => {
+    const repository = new SqliteConversationRepository(sqlite)
+    const unassigned = await repository.create({ title: '未关联归档', workspacePath: null, createdAt: 1, updatedAt: 1, settings: { modelId: 'm', providerId: '', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
+    await repository.setArchived(unassigned.id, true)
+
+    await expect(repository.listArchivedWorkspaces()).resolves.toEqual([{ workspacePath: null, total: 1 }])
+    await expect(repository.listArchived(0, 20, null, '未关联')).resolves.toEqual({
+      data: [expect.objectContaining({ id: unassigned.id, workspacePath: null, archived: true })],
+      total: 1,
+    })
+    await expect(repository.deleteArchivedByWorkspace(null)).resolves.toEqual([unassigned.id])
+    await expect(repository.getById(unassigned.id)).rejects.toThrow(`${unassigned.id} 不存在`)
+  })
+
   it('uses a caller-provided message id', async () => {
     const conversationRepository = new SqliteConversationRepository(sqlite)
     const messageRepository = new SqliteMessageRepository(sqlite, { attachmentsRoot })

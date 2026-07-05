@@ -18,6 +18,8 @@ import { formatTime } from '@/utils'
 import { SettingsPageHeader } from './SettingsPageHeader'
 
 const PAGE_SIZE = 20
+const ALL_WORKSPACES_FILTER = 'all'
+const UNASSIGNED_WORKSPACE_KEY = 'unassigned'
 
 interface ConversationPageState {
   data: IConversations[]
@@ -29,7 +31,7 @@ interface ConversationPageState {
 
 type DeleteTarget
   = | { type: 'conversation', id: string, title: string, count: 1 }
-    | { type: 'workspace', workspacePath: string, title: string, count: number }
+    | { type: 'workspace', workspacePath: string | null, title: string, count: number }
     | { type: 'all', count: number }
 
 export function ArchivedConversations() {
@@ -37,7 +39,7 @@ export function ArchivedConversations() {
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [workspaces, setWorkspaces] = useState<ArchivedConversationWorkspace[]>([])
   const [workspaceOptions, setWorkspaceOptions] = useState<ArchivedConversationWorkspace[]>([])
-  const [workspaceFilter, setWorkspaceFilter] = useState('all')
+  const [workspaceFilter, setWorkspaceFilter] = useState(ALL_WORKSPACES_FILTER)
   const [totalArchived, setTotalArchived] = useState(0)
   const [pages, setPages] = useState<Record<string, ConversationPageState>>({})
   const [loading, setLoading] = useState(true)
@@ -63,10 +65,10 @@ export function ArchivedConversations() {
       setWorkspaces(result.workspaces)
       if (!debouncedQuery) {
         setWorkspaceOptions(result.workspaces)
-        setWorkspaceFilter(current => current === 'all' || result.workspaces.some(workspace => workspace.workspacePath === current) ? current : 'all')
+        setWorkspaceFilter(current => current === ALL_WORKSPACES_FILTER || result.workspaces.some(workspace => getWorkspaceKey(workspace.workspacePath) === current) ? current : ALL_WORKSPACES_FILTER)
       }
       setTotalArchived(result.total)
-      setPages(Object.fromEntries(result.workspaces.map(workspace => [workspace.workspacePath, {
+      setPages(Object.fromEntries(result.workspaces.map(workspace => [getWorkspaceKey(workspace.workspacePath), {
         data: workspace.conversations,
         total: workspace.matchedTotal,
         nextPage: 1,
@@ -97,8 +99,9 @@ export function ArchivedConversations() {
     return () => eventBus.removeListener('conversation:updated', refresh)
   }, [loadWorkspaces])
 
-  const loadPage = useCallback(async (workspacePath: string, reset = false) => {
-    const current = pages[workspacePath]
+  const loadPage = useCallback(async (workspacePath: string | null, reset = false) => {
+    const workspaceKey = getWorkspaceKey(workspacePath)
+    const current = pages[workspaceKey]
     if (current?.loading || (!reset && current && current.data.length >= current.total)) {
       return
     }
@@ -107,9 +110,9 @@ export function ArchivedConversations() {
     const version = requestVersionRef.current
     setPages(prev => ({
       ...prev,
-      [workspacePath]: {
-        data: reset ? [] : prev[workspacePath]?.data ?? [],
-        total: prev[workspacePath]?.total ?? 0,
+      [workspaceKey]: {
+        data: reset ? [] : prev[workspaceKey]?.data ?? [],
+        total: prev[workspaceKey]?.total ?? 0,
         nextPage: pageIndex,
         loading: true,
         error: '',
@@ -123,8 +126,8 @@ export function ArchivedConversations() {
       }
       setPages(prev => ({
         ...prev,
-        [workspacePath]: {
-          data: reset ? result.data : mergeConversations(prev[workspacePath]?.data ?? [], result.data),
+        [workspaceKey]: {
+          data: reset ? result.data : mergeConversations(prev[workspaceKey]?.data ?? [], result.data),
           total: result.total,
           nextPage: pageIndex + 1,
           loading: false,
@@ -138,9 +141,9 @@ export function ArchivedConversations() {
       }
       setPages(prev => ({
         ...prev,
-        [workspacePath]: {
-          data: prev[workspacePath]?.data ?? [],
-          total: prev[workspacePath]?.total ?? 0,
+        [workspaceKey]: {
+          data: prev[workspaceKey]?.data ?? [],
+          total: prev[workspaceKey]?.total ?? 0,
           nextPage: pageIndex,
           loading: false,
           error: (error as Error).message,
@@ -184,9 +187,9 @@ export function ArchivedConversations() {
     }
   }
 
-  const visibleWorkspaces = workspaceFilter === 'all'
+  const visibleWorkspaces = workspaceFilter === ALL_WORKSPACES_FILTER
     ? workspaces
-    : workspaces.filter(workspace => workspace.workspacePath === workspaceFilter)
+    : workspaces.filter(workspace => getWorkspaceKey(workspace.workspacePath) === workspaceFilter)
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-5 p-6">
@@ -222,9 +225,9 @@ export function ArchivedConversations() {
           </SelectTrigger>
           <SelectContent align="end">
             <SelectGroup>
-              <SelectItem value="all">全部工作区</SelectItem>
+              <SelectItem value={ALL_WORKSPACES_FILTER}>全部工作区</SelectItem>
               {workspaceOptions.map(workspace => (
-                <SelectItem key={workspace.workspacePath} value={workspace.workspacePath}>
+                <SelectItem key={getWorkspaceKey(workspace.workspacePath)} value={getWorkspaceKey(workspace.workspacePath)}>
                   {workspace.displayName}
                 </SelectItem>
               ))}
@@ -246,14 +249,15 @@ export function ArchivedConversations() {
               ? (
                   <EmptyState
                     icon={<ArchiveIcon className="!size-5" />}
-                    title={debouncedQuery || workspaceFilter !== 'all' ? '未找到匹配的已归档会话' : '暂无已归档的会话'}
-                    description={debouncedQuery || workspaceFilter !== 'all' ? '尝试调整关键词或工作区筛选。' : '归档后的会话会按工作区显示在这里。'}
+                    title={debouncedQuery || workspaceFilter !== ALL_WORKSPACES_FILTER ? '未找到匹配的已归档会话' : '暂无已归档的会话'}
+                    description={debouncedQuery || workspaceFilter !== ALL_WORKSPACES_FILTER ? '尝试调整关键词或工作区筛选。' : '归档后的会话会按工作区显示在这里。'}
                   />
                 )
               : visibleWorkspaces.map((workspace) => {
-                  const page = pages[workspace.workspacePath]
+                  const workspaceKey = getWorkspaceKey(workspace.workspacePath)
+                  const page = pages[workspaceKey]
                   return (
-                    <section key={workspace.workspacePath} className="border-b border-border/70 last:border-b-0">
+                    <section key={workspaceKey} className="border-b border-border/70 last:border-b-0">
                       <header className="sticky top-0 z-10 flex h-11 items-center justify-between gap-3 border-b border-border/70 bg-background/95 px-4 backdrop-blur">
                         <div className="flex min-w-0 items-center gap-2">
                           <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
@@ -291,7 +295,9 @@ export function ArchivedConversations() {
 
                       {!workspace.available && (
                         <p className="mx-4 mt-3 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
-                          原工作区目录不存在或无权访问，当前只能永久删除会话。
+                          {workspace.workspacePath === null
+                            ? '这些会话没有关联工作区，当前只能永久删除。'
+                            : '原工作区目录不存在或无权访问，当前只能永久删除会话。'}
                         </p>
                       )}
                       <div className="divide-y divide-border/70 px-4">
@@ -427,7 +433,9 @@ function DeleteArchivedDialog({
   const subject = target?.type === 'conversation'
     ? `会话「${target.title}」`
     : target?.type === 'workspace'
-      ? `工作区「${target.title}」中的 ${target.count} 个已归档会话`
+      ? target.workspacePath === null
+        ? `“未关联工作区”分组中的 ${target.count} 个已归档会话`
+        : `工作区「${target.title}」中的 ${target.count} 个已归档会话`
       : `全部 ${target?.count ?? 0} 个已归档会话`
 
   return (
@@ -455,4 +463,8 @@ function DeleteArchivedDialog({
 function mergeConversations(current: IConversations[], incoming: IConversations[]): IConversations[] {
   const ids = new Set(current.map(item => item.id))
   return [...current, ...incoming.filter(item => !ids.has(item.id))]
+}
+
+function getWorkspaceKey(workspacePath: string | null): string {
+  return workspacePath === null ? UNASSIGNED_WORKSPACE_KEY : `workspace:${workspacePath}`
 }
