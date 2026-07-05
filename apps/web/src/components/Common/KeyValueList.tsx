@@ -48,7 +48,7 @@ export function KeyValueList({
     <div className="flex flex-col gap-1">
       {label && <span className="text-sm font-medium">{label}</span>}
       {value.map((item, index) => (
-        <div key={index} className="mb-2 flex w-full items-center gap-2">
+        <div key={`${item.key + index}`} className="mb-2 flex w-full items-center gap-2">
           <Input
             placeholder={keyPlaceholder}
             value={item.key}
@@ -65,7 +65,7 @@ export function KeyValueList({
           />
           {!disabled && (
             <Button variant="ghost" size="icon-sm" onClick={() => handleRemove(index)}>
-              <MinusCircle />
+              <MinusCircle className="size-4" />
             </Button>
           )}
         </div>
@@ -76,7 +76,7 @@ export function KeyValueList({
           onClick={handleAdd}
           className="w-full"
         >
-          <Plus />
+          <Plus className="size-4" />
           {addButtonLabel}
         </Button>
       )}

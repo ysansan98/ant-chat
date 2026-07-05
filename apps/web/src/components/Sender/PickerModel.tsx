@@ -8,10 +8,10 @@ import { useRequest } from 'ahooks'
 import { Settings } from 'lucide-react'
 import React from 'react'
 import { providerApi } from '@/api/providerApi'
+import { ModelSelect } from '@/components/Common/ModelSelect'
 import { PROVIDER_CHANGED_EVENT } from '@/constants/providerEvents'
 import { ModelParameterSettingsPanel } from './ModelParameterSettingsPanel'
 import { ProviderLogoDisplay } from './renderProviderLogo'
-import { SelectModel } from './SelectModel'
 
 interface ModelControlPanelProps {
   value: { modelId: string, providerId: string }
@@ -20,7 +20,6 @@ interface ModelControlPanelProps {
 
 export function ModelControlPanel({ value, onChange }: ModelControlPanelProps) {
   const [openPopover, setOpenPopover] = React.useState(false)
-  const [panel, setPanel] = React.useState<'select' | 'parameter'>('select')
   const { data, refresh } = useRequest<AllAvailableModelsSchema[], []>(providerApi.getAllAbvailableModels)
 
   React.useEffect(() => {
@@ -44,85 +43,46 @@ export function ModelControlPanel({ value, onChange }: ModelControlPanelProps) {
   }, [activeProviderServiceInfo, onChange, value])
 
   return (
-    <Popover
-      open={openPopover}
-      onOpenChange={(nextOpen) => {
-        setOpenPopover(nextOpen)
-        if (!nextOpen && panel === 'parameter') {
-          setPanel('select')
-        }
-      }}
+    <div
+      className={`
+      model-control-trigger flex h-8 items-center rounded-md border border-solid overflow-hidden
+      border-(--border-color)
+    `}
     >
-      <PopoverTrigger
-        nativeButton={false}
-        render={(
-          <div
-            className={`
-            model-control-trigger flex h-8 cursor-pointer items-center rounded-md border border-solid overflow-hidden
-            border-(--border-color)
-            max-sm:size-8 max-sm:justify-center
-          `}
-          >
-            <div className={`
-            flex items-center gap-1 pl-2
-            hover:bg-(--hover-bg-color) h-full
-            max-sm:size-full max-sm:justify-center max-sm:gap-0 max-sm:pl-0
-          `}
-            >
-              <ProviderLogoDisplay providerId={activeProviderServiceInfo?.id || ''} />
-              <div className="flex max-w-30 items-center truncate text-xs font-medium max-sm:hidden">
-                <span className="truncate">{currentModelInfo?.name}</span>
-                <span className="px-2">›</span>
-              </div>
-            </div>
-            <div
-              className={`
-              model-control-settings h-full flex items-center justify-center overflow-hidden
-            `}
-            >
-              <span
-                role="button"
-                tabIndex={0}
-                className={`
-                size-full
-                flex items-center justify-center
-                hover:bg-(--hover-bg-color)
-              `}
-                onClick={(event) => {
-                  event.preventDefault()
-                  event.stopPropagation()
-                  setPanel('parameter')
-                  setOpenPopover(true)
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    setPanel('parameter')
-                    setOpenPopover(true)
-                  }
-                }}
-              >
-                <Settings size={16} />
-              </span>
-            </div>
-          </div>
-        )}
-      />
-      <PopoverContent align="start" className="w-80 p-0">
-        {panel === 'select'
-          ? (
-              <SelectModel
-                value={value}
-                onChange={(nextInfo) => {
-                  onChange?.(nextInfo)
-                  setOpenPopover(false)
-                }}
-                options={data}
-              />
-            )
-          : <ModelParameterSettingsPanel />}
-      </PopoverContent>
-    </Popover>
+      {/* Model selector - 2-level cascading submenu */}
+      <ModelSelect
+        value={value}
+        onChange={nextInfo => onChange?.(nextInfo)}
+        options={data}
+        className={`
+          flex cursor-default items-center gap-1 pl-2 h-full
+          hover:bg-(--hover-bg-color)
+          max-sm:size-full max-sm:justify-center max-sm:gap-0 max-sm:pl-0
+          outline-hidden
+        `}
+      >
+        <ProviderLogoDisplay providerId={activeProviderServiceInfo?.id || ''} />
+        <div className="flex max-w-30 items-center truncate text-xs font-medium max-sm:hidden">
+          <span className="truncate">{currentModelInfo?.name}</span>
+          <span className="px-2">›</span>
+        </div>
+      </ModelSelect>
+
+      {/* Settings gear - separate Popover */}
+      <Popover open={openPopover} onOpenChange={setOpenPopover}>
+        <PopoverTrigger
+          className={`
+          model-control-settings h-full flex items-center justify-center
+          px-1 hover:bg-(--hover-bg-color)
+          cursor-pointer outline-hidden
+        `}
+        >
+          <Settings size={16} />
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-80 p-0">
+          <ModelParameterSettingsPanel />
+        </PopoverContent>
+      </Popover>
+    </div>
   )
 }

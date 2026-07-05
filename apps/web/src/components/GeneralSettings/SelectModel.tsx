@@ -1,4 +1,6 @@
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@workspace/ui/components/select'
+import type { ModelSelectValue } from '@/components/Common/ModelSelect'
+import { ChevronDown } from 'lucide-react'
+import { ModelSelect } from '@/components/Common/ModelSelect'
 import { useAllAvailableModels } from '@/hooks/useAllAvailableModels'
 import { setAssistantModel, useGeneralSettingsStore } from '@/store/generalSettings'
 
@@ -8,48 +10,37 @@ export function SelectModel() {
   const assistantModelId = useGeneralSettingsStore(state => state.assistantModelId)
   const assistantProviderId = useGeneralSettingsStore(state => state.assistantProviderId)
 
-  const currentValue = assistantModelId ? `${assistantProviderId}|${assistantModelId}` : '__default__'
-  const items = [
-    { label: '使用默认模型', value: '__default__' },
-    ...(providers?.flatMap(provider => provider.models.map(model => ({
-      label: model.name,
-      value: `${provider.id}|${model.id}`,
-    }))) ?? []),
-  ]
+  const value: ModelSelectValue = { modelId: assistantModelId, providerId: assistantProviderId }
+  const hasSelection = Boolean(assistantModelId && assistantProviderId)
+
+  const selectedProvider = providers?.find(p => p.id === assistantProviderId)
+  const selectedModelName = selectedProvider?.models.find(m => m.id === assistantModelId)?.name
 
   return (
-    <Select
-      items={items}
-      value={currentValue}
-      onValueChange={(value) => {
-        if (!value) {
-          return
-        }
-        if (value === '__default__') {
-          setAssistantModel('', '')
+    <ModelSelect
+      value={value}
+      onChange={(nextValue) => {
+        if (nextValue.modelId && nextValue.providerId) {
+          setAssistantModel(nextValue.modelId, nextValue.providerId)
         }
         else {
-          const [providerId, modelId] = value.split('|')
-          setAssistantModel(modelId, providerId)
+          setAssistantModel('', '')
         }
       }}
+      options={providers}
+      allowUnset={true}
+      unsetLabel="使用默认模型"
+      className={`
+        flex h-9 w-52 cursor-default items-center justify-between gap-2 rounded-md
+        border border-input bg-transparent px-3 py-1 text-sm shadow-sm
+        hover:bg-accent
+        outline-hidden
+      `}
     >
-      <SelectTrigger className="min-w-50">
-        <SelectValue placeholder="选择模型" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="__default__">使用默认模型</SelectItem>
-        {providers?.map(item => (
-          <SelectGroup key={item.name}>
-            <SelectLabel>{item.name}</SelectLabel>
-            {item.models.map(model => (
-              <SelectItem key={`${item.id}|${model.id}`} value={`${item.id}|${model.id}`}>
-                {model.name}
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        ))}
-      </SelectContent>
-    </Select>
+      <span className="truncate">
+        {hasSelection ? selectedModelName : '使用默认模型'}
+      </span>
+      <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+    </ModelSelect>
   )
 }

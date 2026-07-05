@@ -123,8 +123,8 @@ export function AutomationsPage() {
               安排一次性或周期任务。每次执行都会创建独立会话，结果清楚可追溯。
             </p>
           </div>
-          <Button size="lg" onClick={() => setCreateOpen(true)}>
-            <Plus data-icon="inline-start" />
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <Plus data-icon="inline-start size-4" />
             新建自动化
           </Button>
         </header>

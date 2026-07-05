@@ -52,7 +52,7 @@ export function RunHistorySheet(props: {
 
   return (
     <Sheet open={Boolean(props.target)} onOpenChange={props.onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:w-136 sm:max-w-136">
+      <SheetContent className="w-full overflow-y-auto px-3">
         <SheetHeader>
           <SheetTitle className="text-xl">
             {selectedAutomation ? `${selectedAutomation.name} · 运行记录` : '全部运行记录'}
