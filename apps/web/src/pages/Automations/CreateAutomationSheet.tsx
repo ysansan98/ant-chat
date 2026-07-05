@@ -1,6 +1,7 @@
 import type { AutomationInput } from '@ant-chat/shared'
 import type { FormEvent, ReactNode } from 'react'
 import type { AutomationContextOptions, RepeatKind, ScheduleMode } from './automation-types'
+import type { ModelSelectValue } from '@/components/Common/ModelSelect'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -13,7 +14,8 @@ import { Switch } from '@workspace/ui/components/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@workspace/ui/components/tabs'
 import { Textarea } from '@workspace/ui/components/textarea'
 import { CalendarClock, Check, ChevronDown, FileKey2, FolderCode, ServerCog, ShieldCheck, Sparkles } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { ModelSelect } from '@/components/Common/ModelSelect'
 import { buildCron, describeNextRun, formatDateTime, splitCommaList, weekdays } from './automation-utils'
 
 const segmentedTabClassName = [
@@ -30,7 +32,7 @@ export function CreateAutomationSheet(props: {
   const [name, setName] = useState('')
   const [prompt, setPrompt] = useState('')
   const [workspace, setWorkspace] = useState('')
-  const [modelRef, setModelRef] = useState('')
+  const [modelValue, setModelValue] = useState<ModelSelectValue>({ modelId: '', providerId: '' })
   const [mode, setMode] = useState<ScheduleMode>('cron')
   const [repeatKind, setRepeatKind] = useState<RepeatKind>('weekly')
   const [time, setTime] = useState('09:00')
@@ -52,9 +54,27 @@ export function CreateAutomationSheet(props: {
 
   const cron = buildCron(repeatKind, time, selectedWeekdays, monthDay, customCron)
 
-  const firstModel = props.contextOptions.modelGroups.flatMap(group => group.models.map(model => ({ providerId: group.id, model })))[0]
+  const firstModel = useMemo(
+    () => props.contextOptions.modelGroups.flatMap(
+      group => group.models.map(model => ({ providerId: group.id, model })),
+    )[0],
+    [props.contextOptions.modelGroups],
+  )
   const effectiveWorkspace = workspace || props.contextOptions.workspaces[0]?.path || ''
-  const effectiveModelRef = modelRef || (firstModel ? `${firstModel.providerId}\n${firstModel.model.id}` : '')
+  const effectiveModel: ModelSelectValue = useMemo(
+    () => modelValue.modelId
+      ? modelValue
+      : (firstModel ? { modelId: firstModel.model.id, providerId: firstModel.providerId } : { modelId: '', providerId: '' }),
+    [modelValue, firstModel],
+  )
+
+  const modelDisplayName = useMemo(() => {
+    if (!effectiveModel.modelId)
+      return '选择模型'
+    const p = props.contextOptions.modelGroups.find(g => g.id === effectiveModel.providerId)
+    const m = p?.models.find(mod => mod.id === effectiveModel.modelId)
+    return m ? `${p!.name} · ${m.name}` : '选择模型'
+  }, [effectiveModel, props.contextOptions.modelGroups])
 
   function toggleWeekday(day: string) {
     setSelectedWeekdays((selected) => {
@@ -73,7 +93,7 @@ export function CreateAutomationSheet(props: {
     if (!name.trim() || !prompt.trim())
       return
 
-    const [providerId = '', modelId = ''] = effectiveModelRef.split('\n')
+    const { modelId, providerId } = effectiveModel
     await props.onCreate({
       name: name.trim(),
       prompt: prompt.trim(),
@@ -102,7 +122,7 @@ export function CreateAutomationSheet(props: {
 
   return (
     <Sheet open={props.open} onOpenChange={props.onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:w-152 sm:max-w-152">
+      <SheetContent className="w-full overflow-y-auto  data-[side=right]:w-full data-[side=right]:sm:max-w-160 px-3">
         <SheetHeader>
           <SheetTitle className="text-xl">新建自动化</SheetTitle>
           <SheetDescription>描述任务，并决定它什么时候运行。</SheetDescription>
@@ -162,35 +182,17 @@ export function CreateAutomationSheet(props: {
               </label>
               <label className="flex flex-col gap-2 text-sm font-medium">
                 模型
-                <Select
-                  items={props.contextOptions.modelGroups.flatMap(group => group.models.map(model => ({
-                    label: `${group.name} · ${model.name}`,
-                    value: `${group.id}\n${model.id}`,
-                  })))}
-                  value={effectiveModelRef}
-                  onValueChange={(value) => {
-                    if (value) {
-                      setModelRef(value)
-                    }
+                <ModelSelect
+                  value={effectiveModel}
+                  onChange={(next) => {
+                    setModelValue({ modelId: next.modelId, providerId: next.providerId })
                   }}
+                  options={props.contextOptions.modelGroups}
+                  className="flex h-9 w-full cursor-default items-center justify-between rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm hover:bg-accent outline-hidden"
                 >
-                  <SelectTrigger className="w-full" aria-label="模型">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {props.contextOptions.modelGroups.flatMap(group => group.models.map(model => (
-                        <SelectItem key={`${group.id}-${model.id}`} value={`${group.id}\n${model.id}`}>
-                          {group.name}
-                          {' '}
-                          ·
-                          {' '}
-                          {model.name}
-                        </SelectItem>
-                      )))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
+                  <span className="truncate">{modelDisplayName}</span>
+                  <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+                </ModelSelect>
               </label>
             </div>
 
