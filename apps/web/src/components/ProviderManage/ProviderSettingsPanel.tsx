@@ -53,9 +53,7 @@ export function ProviderSettingsPanel({ item, onChange, onDelete }: ProviderSett
         !item.isOfficial && (
           <div className="flex items-center justify-end">
             <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button size="sm" variant="destructive">删除</Button>
-              </AlertDialogTrigger>
+              <AlertDialogTrigger render={<Button size="sm" variant="destructive">删除</Button>} />
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>确认要删除这个提供商吗？</AlertDialogTitle>

@@ -369,20 +369,20 @@ export function AttachmentRemove({
 
 export type AttachmentHoverCardProps = ComponentProps<typeof HoverCard>
 
-export function AttachmentHoverCard({
-  openDelay = 0,
-  closeDelay = 0,
-  ...props
-}: AttachmentHoverCardProps) {
-  return <HoverCard closeDelay={closeDelay} openDelay={openDelay} {...props} />
+export function AttachmentHoverCard(props: AttachmentHoverCardProps) {
+  return <HoverCard {...props} />
 }
 
 export type AttachmentHoverCardTriggerProps = ComponentProps<
   typeof HoverCardTrigger
 >
 
-export function AttachmentHoverCardTrigger(props: AttachmentHoverCardTriggerProps) {
-  return <HoverCardTrigger {...props} />
+export function AttachmentHoverCardTrigger({
+  delay = 0,
+  closeDelay = 0,
+  ...props
+}: AttachmentHoverCardTriggerProps) {
+  return <HoverCardTrigger delay={delay} closeDelay={closeDelay} {...props} />
 }
 
 export type AttachmentHoverCardContentProps = ComponentProps<

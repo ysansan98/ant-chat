@@ -252,7 +252,7 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
         <div className="flex items-center justify-between px-2 text-xs font-medium text-sidebar-foreground/60">
           <span>工作区</span>
           <Tooltip>
-            <TooltipTrigger asChild>
+            <TooltipTrigger render={(
               <Button
                 variant="ghost"
                 size="icon-xs"
@@ -261,7 +261,8 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
               >
                 <PlusIcon className="size-4" />
               </Button>
-            </TooltipTrigger>
+            )}
+            />
             <TooltipContent>
               <span>
                 添加工作区
@@ -407,7 +408,7 @@ function WorkspacePanel({
           </span>
         </button>
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+          <DropdownMenuTrigger render={(
             <Button
               type="button"
               variant="ghost"
@@ -420,7 +421,8 @@ function WorkspacePanel({
             >
               <Ellipsis className="size-4" />
             </Button>
-          </DropdownMenuTrigger>
+          )}
+          />
           <DropdownMenuContent align="end">
             <DropdownMenuItem
               onClick={(event) => {
@@ -604,34 +606,37 @@ function ConversationListItem({ conversation, active, running, completed, onOpen
               ? <span className="size-1.5 rounded-full bg-emerald-500" />
               : <span className="tabular-nums text-[11px] text-sidebar-foreground/60 transition-[opacity,transform,filter] duration-150 group-hover/conversation:pointer-events-none group-hover/conversation:scale-25 group-hover/conversation:opacity-0 group-hover/conversation:blur-xs">{formatRelativeTime(conversation.updatedAt)}</span>}
           <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="absolute right-6 scale-25 opacity-0 blur-xs transition-[opacity,transform,filter] duration-150 group-hover/conversation:scale-100 group-hover/conversation:opacity-100 group-hover/conversation:blur-none focus-within:scale-100 focus-within:opacity-100 focus-within:blur-none">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label={`归档对话：${conversation.title}`}
-                  disabled={running || submitting}
-                  onClick={() => void handleArchive()}
-                >
-                  <ArchiveIcon className="size-3" />
-                </Button>
-              </span>
-            </TooltipTrigger>
+            <TooltipTrigger
+              render={(
+                <span className="absolute right-6 scale-25 opacity-0 blur-xs transition-[opacity,transform,filter] duration-150 group-hover/conversation:scale-100 group-hover/conversation:opacity-100 group-hover/conversation:blur-none focus-within:scale-100 focus-within:opacity-100 focus-within:blur-none">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label={`归档对话：${conversation.title}`}
+                    disabled={running || submitting}
+                    onClick={() => void handleArchive()}
+                  >
+                    <ArchiveIcon className="size-3" />
+                  </Button>
+                </span>
+              )}
+            />
             <TooltipContent>{running ? '任务运行中，暂时无法归档' : '归档对话'}</TooltipContent>
           </Tooltip>
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+            <DropdownMenuTrigger render={(
               <Button
                 type="button"
                 variant="ghost"
                 size="icon-xs"
                 aria-label={`管理对话：${conversation.title}`}
-                className="absolute right-0 scale-25 opacity-0 blur-xs transition-[opacity,transform,filter] duration-150 group-hover/conversation:scale-100 group-hover/conversation:opacity-100 group-hover/conversation:blur-none data-[state=open]:scale-100 data-[state=open]:opacity-100 data-[state=open]:blur-none"
+                className="absolute right-0 scale-25 opacity-0 blur-xs transition-[opacity,transform,filter] duration-150 group-hover/conversation:scale-100 group-hover/conversation:opacity-100 group-hover/conversation:blur-none data-popup-open:scale-100 data-popup-open:opacity-100 data-popup-open:blur-none"
               >
                 <Ellipsis className="size-4" />
               </Button>
-            </DropdownMenuTrigger>
+            )}
+            />
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => {
                 setTitle(conversation.title)

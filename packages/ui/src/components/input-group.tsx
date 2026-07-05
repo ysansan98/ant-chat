@@ -1,5 +1,3 @@
-'use client'
-
 import type { VariantProps } from 'class-variance-authority'
 import { Button } from '@workspace/ui/components/button'
 
@@ -90,8 +88,10 @@ function InputGroupButton({
   variant = 'ghost',
   size = 'xs',
   ...props
-}: Omit<React.ComponentProps<typeof Button>, 'size'>
-  & VariantProps<typeof inputGroupButtonVariants>) {
+}: Omit<React.ComponentProps<typeof Button>, 'size' | 'type'>
+  & VariantProps<typeof inputGroupButtonVariants> & {
+    type?: 'button' | 'submit' | 'reset'
+  }) {
   return (
     <Button
       type={type}

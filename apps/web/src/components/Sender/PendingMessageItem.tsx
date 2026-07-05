@@ -54,11 +54,12 @@ export function PendingMessageItem({ item, canInject, onInject, onEdit, onRemove
       </div>
       <div className="flex shrink-0 items-center opacity-60 transition-opacity duration-150 hover:opacity-100">
         <Tooltip>
-          <TooltipTrigger asChild>
+          <TooltipTrigger render={(
             <Button className="active:scale-[0.96]" size="icon" variant="ghost" aria-label="引导" disabled={!canInject} onClick={() => onInject(item.id)}>
               <CornerDownLeftIcon className="size-4 cursor-pointer" />
             </Button>
-          </TooltipTrigger>
+          )}
+          />
           <TooltipContent side="top">引导</TooltipContent>
         </Tooltip>
         <Button className="active:scale-[0.96]" size="icon" variant="ghost" aria-label="编辑待处理消息" onClick={() => setEditing(true)}>

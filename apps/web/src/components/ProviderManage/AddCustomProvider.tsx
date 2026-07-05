@@ -112,6 +112,10 @@ export function AddCustomProvider({ onAdd, existingProviderIds, loading }: AddCu
             <div className="flex flex-col gap-1">
               <label htmlFor="models-dev-select" className="text-sm font-medium">从 Models.dev 选择</label>
               <Select
+                items={availableModelsDevProviders.map(provider => ({
+                  label: `${provider.name} (${provider.id})`,
+                  value: provider.id,
+                }))}
                 onValueChange={(value) => {
                   if (!value) {
                     setSelectedModelsDevProviderId(null)
@@ -162,7 +166,19 @@ export function AddCustomProvider({ onAdd, existingProviderIds, loading }: AddCu
 
             <div className="flex flex-col gap-1">
               <label htmlFor="provider-api-mode" className="text-sm font-medium">API 模式 *</label>
-              <Select onValueChange={v => setValue('apiMode', v)} defaultValue="openai">
+              <Select
+                items={{
+                  openai: 'OpenAI 兼容',
+                  anthropic: 'Anthropic 兼容',
+                  google: 'Google 兼容',
+                }}
+                onValueChange={(value) => {
+                  if (value) {
+                    setValue('apiMode', value)
+                  }
+                }}
+                defaultValue="openai"
+              >
                 <SelectTrigger id="provider-api-mode">
                   <SelectValue placeholder="选择API兼容模式" />
                 </SelectTrigger>

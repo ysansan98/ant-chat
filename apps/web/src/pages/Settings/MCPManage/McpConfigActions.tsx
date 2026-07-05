@@ -53,11 +53,12 @@ export function McpConfigActions({ item, status, onTriggerAction }: McpConfigAct
       {
         status === 'disconnected' && (
           <AlertDialog>
-            <AlertDialogTrigger asChild>
+            <AlertDialogTrigger render={(
               <Button variant="ghost" size="icon-sm" title="删除">
                 <Trash2 />
               </Button>
-            </AlertDialogTrigger>
+            )}
+            />
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>

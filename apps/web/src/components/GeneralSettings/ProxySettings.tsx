@@ -19,8 +19,17 @@ export function ProxySettings({ draftMode, onModeChange }: ProxySettingsProps) {
 
   return (
     <Select
+      items={{
+        none: '不使用代理',
+        system: '系统代理',
+        custom: '自定义代理',
+      }}
       value={draftMode}
-      onValueChange={onModeChange}
+      onValueChange={(mode) => {
+        if (mode) {
+          onModeChange(mode)
+        }
+      }}
       disabled={isLoading}
     >
       <SelectTrigger className="min-w-32">

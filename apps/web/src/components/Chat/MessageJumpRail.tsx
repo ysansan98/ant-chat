@@ -70,26 +70,29 @@ export function MessageJumpRail({
           const isActive = message.id === activeMessageId
 
           return (
-            <Tooltip key={message.id} delayDuration={300}>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  aria-label={`跳转到用户消息 ${index + 1}`}
-                  aria-current={isActive ? 'true' : undefined}
-                  className={cn(
-                    'block rounded-full border transition-all duration-200',
-                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                    isActive
-                      ? 'size-2 border-primary bg-primary'
-                      : [
-                          'size-1.5',
-                          'border-muted-foreground/30 bg-background',
-                          'hover:size-2 hover:border-primary hover:ring-2 hover:ring-primary/20',
-                        ],
-                  )}
-                  onClick={() => onJumpToMessage(message.id)}
-                />
-              </TooltipTrigger>
+            <Tooltip key={message.id}>
+              <TooltipTrigger
+                delay={300}
+                render={(
+                  <button
+                    type="button"
+                    aria-label={`跳转到用户消息 ${index + 1}`}
+                    aria-current={isActive ? 'true' : undefined}
+                    className={cn(
+                      'block rounded-full border transition-all duration-200',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                      isActive
+                        ? 'size-2 border-primary bg-primary'
+                        : [
+                            'size-1.5',
+                            'border-muted-foreground/30 bg-background',
+                            'hover:size-2 hover:border-primary hover:ring-2 hover:ring-primary/20',
+                          ],
+                    )}
+                    onClick={() => onJumpToMessage(message.id)}
+                  />
+                )}
+              />
               <TooltipContent side="left" sideOffset={12}>
                 <p className="max-w-48 line-clamp-3 text-xs leading-relaxed whitespace-pre-wrap">
                   {summaries[index]}

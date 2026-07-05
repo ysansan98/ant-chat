@@ -15,7 +15,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@workspace/ui/components/select'
-import { writeClipboardText } from '@workspace/ui/lib/clipboard'
 import { cn } from '@workspace/ui/lib/utils'
 import { CheckIcon, CopyIcon } from 'lucide-react'
 import {
@@ -63,7 +62,7 @@ function addKeysToTokens(lines: ThemedToken[][]): KeyedLine[] {
 function TokenSpan({ token }: { token: ThemedToken }) {
   return (
     <span
-      className="dark:bg-(--shiki-dark-bg)! dark:text-(--shiki-dark)!"
+      className="dark:!bg-[var(--shiki-dark-bg)] dark:!text-[var(--shiki-dark)]"
       style={
         {
           backgroundColor: token.bgColor,
@@ -274,7 +273,7 @@ const CodeBlockBody = memo(
     return (
       <pre
         className={cn(
-          'dark:bg-(--shiki-dark-bg)! dark:text-(--shiki-dark)! m-0 p-4 text-sm',
+          'dark:!bg-[var(--shiki-dark-bg)] dark:!text-[var(--shiki-dark)] m-0 p-4 text-sm',
           className,
         )}
         style={preStyle}
@@ -481,9 +480,14 @@ export function CodeBlockCopyButton({
   const { code } = use(CodeBlockContext)
 
   const copyToClipboard = useCallback(async () => {
+    if (typeof window === 'undefined' || !navigator?.clipboard?.writeText) {
+      onError?.(new Error('Clipboard API not available'))
+      return
+    }
+
     try {
       if (!isCopied) {
-        await writeClipboardText(code)
+        await navigator.clipboard.writeText(code)
         setIsCopied(true)
         onCopy?.()
         timeoutRef.current = window.setTimeout(

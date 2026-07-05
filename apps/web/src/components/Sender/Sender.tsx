@@ -934,7 +934,7 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
                   }
                 }}
               >
-                <PopoverTrigger asChild>
+                <PopoverTrigger render={(
                   <PromptInputButton
                     type="button"
                     variant="ghost"
@@ -946,17 +946,18 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
                     h-8 max-w-52 justify-start border px-2
                     max-sm:size-8 max-sm:justify-center max-sm:gap-0 max-sm:px-0
                     ${workspaceSwitchDisabled
-      ? `
+                    ? `
         pointer-events-none opacity-100
         hover:bg-transparent
       `
-      : ''}
+                    : ''}
                   `}
                   >
                     <FolderOpenIcon className="size-4 shrink-0" />
                     <span className="truncate text-xs max-sm:hidden">{workspaceDisplayName}</span>
                   </PromptInputButton>
-                </PopoverTrigger>
+                )}
+                />
                 <PopoverContent align="start" className="w-64 p-1">
                   <div className="max-h-60 overflow-y-auto">
                     {selectableWorkspaces.map(item => (
@@ -983,7 +984,7 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
               <SenderContextUsageButton contextLength={currentModelInfo?.contextLength ?? 1} />
 
               <Popover>
-                <PopoverTrigger asChild>
+                <PopoverTrigger render={(
                   <PromptInputButton
                     size="sm"
                     type="button"
@@ -997,7 +998,8 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
                     <span className="max-sm:hidden">{currentAgentModeOption.label}</span>
                     <ChevronDownIcon className="size-3 max-sm:hidden" />
                   </PromptInputButton>
-                </PopoverTrigger>
+                )}
+                />
                 <PopoverContent align="start" className="w-52 p-1">
                   {agentModeOptions.map(item => (
                     <button
@@ -1020,7 +1022,7 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
               </Popover>
 
               <Popover>
-                <PopoverTrigger asChild>
+                <PopoverTrigger render={(
                   <PromptInputButton
                     size="sm"
                     type="button"
@@ -1030,7 +1032,8 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
                     <Cable className="size-3" />
                     <span className="max-sm:hidden">MCP</span>
                   </PromptInputButton>
-                </PopoverTrigger>
+                )}
+                />
                 <PopoverContent align="start" className="w-[calc(100vw-1rem)] max-w-85 p-0">
                   <MCPManagementPanel />
                 </PopoverContent>

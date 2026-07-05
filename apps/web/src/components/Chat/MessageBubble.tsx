@@ -118,12 +118,13 @@ export function MessageBubble({ messages, onCopyMessage, turnStatus }: MessageBu
       if (showPopover) {
         return (
           <Popover>
-            <PopoverTrigger asChild>
+            <PopoverTrigger render={(
               <Button type="button" variant="ghost" size="sm" className={triggerClass}>
                 <ShrinkIcon className="size-3" />
                 {eventLabel}
               </Button>
-            </PopoverTrigger>
+            )}
+            />
             <PopoverContent align="center" className={contentClass}>
               {eventText}
             </PopoverContent>
@@ -268,7 +269,7 @@ function ProcessMessagesPanel({
       open={open}
       onOpenChange={setOpen}
     >
-      <CollapsibleTrigger asChild>
+      <CollapsibleTrigger render={(
         <Button
           type="button"
           variant="ghost"
@@ -283,7 +284,8 @@ function ProcessMessagesPanel({
           />
           {`执行过程(${processEntries.length})`}
         </Button>
-      </CollapsibleTrigger>
+      )}
+      />
       <CollapsibleContent>
         <div className="">
           {processEntries.map(entry => (

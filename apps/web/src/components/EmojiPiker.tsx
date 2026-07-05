@@ -17,11 +17,12 @@ export function EmojiPickerHoc({ value, onChange }: EmojiPickerProps) {
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
+      <PopoverTrigger render={(
         <Button variant="outline" type="button" className="w-fit min-w-10">
           {value || '选择'}
         </Button>
-      </PopoverTrigger>
+      )}
+      />
       <PopoverContent className="w-72 p-0" align="start">
         <EmojiGrid onEmojiSelect={handleEmojiSelect} containerHeight={200} />
       </PopoverContent>

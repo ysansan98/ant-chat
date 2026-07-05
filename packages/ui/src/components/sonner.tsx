@@ -38,7 +38,6 @@ function Toaster({ ...props }: ToasterProps) {
       toastOptions={{
         classNames: {
           toast: 'cn-toast',
-          error: 'border-destructive/30 bg-destructive/10 text-destructive shadow-[0_18px_48px_-28px_var(--destructive)] dark:border-destructive/40 dark:bg-destructive/20 [&_[data-icon]]:text-destructive',
         },
       }}
       {...props}
