@@ -15,9 +15,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@fontsource-variable/jetbrains-mono": "^5.2.8",
+    "@base-ui/react": "^1.6.0",
+    "@fontsource-variable/nunito-sans": "^5.2.7",
     "@phosphor-icons/react": "^2.1.10",
-    "@radix-ui/react-use-controllable-state": "^1.2.2",
     "@rive-app/react-webgl2": "^4.28.2",
     "@shikijs/core": "^4.0.2",
     "@shikijs/engine-javascript": "^4.0.2",
@@ -38,9 +38,9 @@
     "js-base64": "^3.7.7",
     "lucide-react": "catalog:",
     "media-chrome": "^4.19.0",
+    "motion": "^12.42.2",
     "nanoid": "^5.1.6",
     "next-themes": "^0.4.6",
-    "radix-ui": "^1.4.3",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-jsx-parser": "^2.4.1",

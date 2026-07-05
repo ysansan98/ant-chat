@@ -113,23 +113,25 @@ function ReferenceTokenMessage({ content }: { content: string }) {
         const isFile = part.type === 'file'
         return (
           <Tooltip key={`${part.type}-${part.offset}-${part.value}`}>
-            <TooltipTrigger asChild>
-              <span
-                className="
+            <TooltipTrigger
+              render={(
+                <span
+                  className="
                   inline-flex max-w-full translate-y-0.5 items-center gap-1 rounded-md border
                   bg-muted px-1.5 py-0.5 text-xs text-foreground
                 "
-              >
-                {isFile
-                  ? (
-                      <FileIcon className="size-3 shrink-0" />
-                    )
-                  : (
-                      <SparklesIcon className="size-3 shrink-0" />
-                    )}
-                <span className="max-w-72 truncate">{part.text}</span>
-              </span>
-            </TooltipTrigger>
+                >
+                  {isFile
+                    ? (
+                        <FileIcon className="size-3 shrink-0" />
+                      )
+                    : (
+                        <SparklesIcon className="size-3 shrink-0" />
+                      )}
+                  <span className="max-w-72 truncate">{part.text}</span>
+                </span>
+              )}
+            />
             <TooltipContent side="top">
               {isFile
                 ? part.value

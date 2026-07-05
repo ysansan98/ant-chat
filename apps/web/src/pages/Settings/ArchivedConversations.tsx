@@ -218,7 +218,21 @@ export function ArchivedConversations() {
             onChange={event => setQuery(event.target.value)}
           />
         </InputGroup>
-        <Select value={workspaceFilter} onValueChange={setWorkspaceFilter}>
+        <Select
+          items={[
+            { label: '全部工作区', value: ALL_WORKSPACES_FILTER },
+            ...workspaceOptions.map(workspace => ({
+              label: workspace.displayName,
+              value: getWorkspaceKey(workspace.workspacePath),
+            })),
+          ]}
+          value={workspaceFilter}
+          onValueChange={(value) => {
+            if (value) {
+              setWorkspaceFilter(value)
+            }
+          }}
+        >
           <SelectTrigger className="w-52" size="sm" aria-label="筛选工作区">
             <FolderIcon className="size-4 text-muted-foreground" />
             <SelectValue placeholder="全部工作区" />
@@ -269,16 +283,17 @@ export function ArchivedConversations() {
                           </span>
                         </div>
                         <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
+                          <DropdownMenuTrigger render={(
                             <Button variant="ghost" size="icon-xs" aria-label={`管理工作区：${workspace.displayName}`}>
                               <EllipsisIcon className="size-3.5" />
                             </Button>
-                          </DropdownMenuTrigger>
+                          )}
+                          />
                           <DropdownMenuContent align="end" className="w-max">
                             <DropdownMenuGroup>
                               <DropdownMenuItem
                                 variant="destructive"
-                                onSelect={() => setDeleteTarget({
+                                onClick={() => setDeleteTarget({
                                   type: 'workspace',
                                   workspacePath: workspace.workspacePath,
                                   title: workspace.displayName,
@@ -363,27 +378,30 @@ function ArchivedConversationRow({
       </div>
       <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover/conversation:opacity-100 focus-within:opacity-100">
         <Tooltip>
-          <TooltipTrigger asChild>
-            <span>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                disabled={!canRestore}
-                aria-label={`取消归档：${conversation.title}`}
-                onClick={onRestore}
-              >
-                <RotateCcwIcon className="size-3.5" />
-              </Button>
-            </span>
-          </TooltipTrigger>
+          <TooltipTrigger
+            render={(
+              <span>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  disabled={!canRestore}
+                  aria-label={`取消归档：${conversation.title}`}
+                  onClick={onRestore}
+                >
+                  <RotateCcwIcon className="size-3.5" />
+                </Button>
+              </span>
+            )}
+          />
           <TooltipContent>{canRestore ? '取消归档' : '原工作区不可用'}</TooltipContent>
         </Tooltip>
         <Tooltip>
-          <TooltipTrigger asChild>
+          <TooltipTrigger render={(
             <Button variant="ghost" size="icon-sm" aria-label={`删除已归档会话：${conversation.title}`} onClick={onDelete}>
               <Trash2Icon className="size-3.5" />
             </Button>
-          </TooltipTrigger>
+          )}
+          />
           <TooltipContent>永久删除</TooltipContent>
         </Tooltip>
       </div>

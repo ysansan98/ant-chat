@@ -9,11 +9,22 @@ export function SelectModel() {
   const assistantProviderId = useGeneralSettingsStore(state => state.assistantProviderId)
 
   const currentValue = assistantModelId ? `${assistantProviderId}|${assistantModelId}` : '__default__'
+  const items = [
+    { label: '使用默认模型', value: '__default__' },
+    ...(providers?.flatMap(provider => provider.models.map(model => ({
+      label: model.name,
+      value: `${provider.id}|${model.id}`,
+    }))) ?? []),
+  ]
 
   return (
     <Select
+      items={items}
       value={currentValue}
       onValueChange={(value) => {
+        if (!value) {
+          return
+        }
         if (value === '__default__') {
           setAssistantModel('', '')
         }

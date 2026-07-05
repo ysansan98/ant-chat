@@ -1,7 +1,7 @@
 'use client'
 
 import type { LanguageModelUsage } from 'ai'
-import type { ComponentProps } from 'react'
+import type { ComponentProps, ReactElement } from 'react'
 import { Button } from '@workspace/ui/components/button'
 import {
   HoverCard,
@@ -49,7 +49,7 @@ export function ContextUsage({
 
   return (
     <ContextUsageCtx value={value}>
-      <HoverCard closeDelay={0} openDelay={0} {...props} />
+      <HoverCard {...props} />
     </ContextUsageCtx>
   )
 }
@@ -95,7 +95,9 @@ function CircleIcon() {
   )
 }
 
-export type ContextUsageTriggerProps = ComponentProps<typeof Button>
+export type ContextUsageTriggerProps = Omit<ComponentProps<typeof Button>, 'children'> & {
+  children?: ReactElement
+}
 
 export function ContextUsageTrigger({ children, ...props }: ContextUsageTriggerProps) {
   const { usedTokens, maxTokens } = useCtx()
@@ -106,8 +108,10 @@ export function ContextUsageTrigger({ children, ...props }: ContextUsageTriggerP
   }).format(Math.min(usedPercent, 1))
 
   return (
-    <HoverCardTrigger asChild>
-      {children ?? (
+    <HoverCardTrigger
+      closeDelay={0}
+      delay={0}
+      render={children ?? (
         <Button type="button" variant="ghost" {...props}>
           <span className="font-medium text-muted-foreground">
             {renderedPercent}
@@ -115,7 +119,7 @@ export function ContextUsageTrigger({ children, ...props }: ContextUsageTriggerP
           <CircleIcon />
         </Button>
       )}
-    </HoverCardTrigger>
+    />
   )
 }
 

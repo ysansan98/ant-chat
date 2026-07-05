@@ -76,7 +76,7 @@ describe('messageBubble', () => {
     renderBubble([toolCall, toolResult])
 
     const panel = screen.getByText('执行过程(1)').closest('[data-slot="collapsible"]')
-    expect(panel).toHaveAttribute('data-state', 'open')
+    expect(panel).toHaveAttribute('data-open')
     expect(screen.getByText('bash')).toBeInTheDocument()
   })
 
@@ -144,7 +144,7 @@ describe('messageBubble', () => {
     // Process panel is open
     expect(screen.getByText('执行过程(2)')).toBeInTheDocument()
     const panel = screen.getByText('执行过程(2)').closest('[data-slot="collapsible"]') as HTMLElement
-    expect(panel).toHaveAttribute('data-state', 'open')
+    expect(panel).toHaveAttribute('data-open')
 
     // Tool step is visible inside the panel
     const toolEl = within(panel).getByText('search_content')
@@ -170,7 +170,7 @@ describe('messageBubble', () => {
     expect(screen.getByText('执行过程(1)')).toBeInTheDocument()
     const trigger1 = screen.getByText('执行过程(1)')
     const panel1 = trigger1.closest('[data-slot="collapsible"]') as HTMLElement
-    expect(panel1).toHaveAttribute('data-state', 'open')
+    expect(panel1).toHaveAttribute('data-open')
 
     // Reasoning content is visible inside the panel
     expect(within(panel1).getByText('Reading files and planning the next step.')).toBeInTheDocument()
@@ -258,7 +258,7 @@ describe('messageBubble', () => {
 
     // Panel should be open because there's an executing tool
     const panel = container.querySelector('[data-slot="collapsible"]')
-    expect(panel).toHaveAttribute('data-state', 'open')
+    expect(panel).toHaveAttribute('data-open')
   })
 
   it('运行中的 tool group 展开到工具列表，但不自动展开 tool 详情', () => {

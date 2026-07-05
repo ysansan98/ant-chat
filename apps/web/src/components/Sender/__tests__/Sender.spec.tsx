@@ -140,7 +140,7 @@ describe('sender reference token overlay', () => {
     const trigger = usageIcon.closest('button')
     expect(trigger).not.toBeNull()
 
-    fireEvent.pointerEnter(trigger as HTMLButtonElement)
+    fireEvent.mouseEnter(trigger as HTMLButtonElement)
 
     expect(await screen.findByText('0 / 128K')).toBeInTheDocument()
   })

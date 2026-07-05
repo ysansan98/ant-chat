@@ -166,16 +166,17 @@ export function AutomationsPage() {
                       onCheckedChange={enabled => setEnabled(item.id, enabled)}
                     />
                     <DropdownMenu open={menuOpenId === item.id} onOpenChange={open => setMenuOpenId(open ? item.id : undefined)}>
-                      <DropdownMenuTrigger asChild>
+                      <DropdownMenuTrigger render={(
                         <Button variant="ghost" size="icon-sm" aria-label={`更多${item.name}操作`} onClick={() => setMenuOpenId(item.id)}>
                           <MoreHorizontal />
                         </Button>
-                      </DropdownMenuTrigger>
+                      )}
+                      />
                       <DropdownMenuContent align="end">
                         <DropdownMenuGroup>
-                          <DropdownMenuItem onSelect={() => void openHistory(item.id)}>查看运行记录</DropdownMenuItem>
-                          <DropdownMenuItem onSelect={() => void setEnabled(item.id, !item.enabled)}>{item.enabled ? '停用任务' : '启用任务'}</DropdownMenuItem>
-                          <DropdownMenuItem variant="destructive" onSelect={() => setDeleteTarget(item)}>
+                          <DropdownMenuItem onClick={() => void openHistory(item.id)}>查看运行记录</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => void setEnabled(item.id, !item.enabled)}>{item.enabled ? '停用任务' : '启用任务'}</DropdownMenuItem>
+                          <DropdownMenuItem variant="destructive" onClick={() => setDeleteTarget(item)}>
                             <Trash2 />
                             删除任务
                           </DropdownMenuItem>

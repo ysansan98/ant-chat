@@ -31,6 +31,10 @@ export function ModelParameterSettingsPanel() {
     updateSettings({ compaction: { ...compaction, ...partial } })
   }
 
+  function getSliderValue(value: number | readonly number[]) {
+    return typeof value === 'number' ? value : value[0]
+  }
+
   return (
     <div className="w-80 p-2 px-4">
       <h4 className="mb-3 text-sm font-medium text-muted-foreground">模型设置</h4>
@@ -56,7 +60,7 @@ export function ModelParameterSettingsPanel() {
             max={2}
             step={0.1}
             value={[settings.temperature]}
-            onValueChange={([v]) => updateSettings({ temperature: v })}
+            onValueChange={value => updateSettings({ temperature: getSliderValue(value) })}
           />
         </div>
 
@@ -73,7 +77,7 @@ export function ModelParameterSettingsPanel() {
             max={modelInfo?.maxTokens ?? 8000}
             step={1000}
             value={[settings.maxTokens]}
-            onValueChange={([v]) => updateSettings({ maxTokens: v })}
+            onValueChange={value => updateSettings({ maxTokens: getSliderValue(value) })}
           />
         </div>
       </div>
@@ -107,7 +111,7 @@ export function ModelParameterSettingsPanel() {
             max={90}
             step={10}
             value={[compaction.thresholdPercent]}
-            onValueChange={([v]) => updateCompaction({ thresholdPercent: v })}
+            onValueChange={value => updateCompaction({ thresholdPercent: getSliderValue(value) })}
           />
         </div>
 
@@ -124,7 +128,7 @@ export function ModelParameterSettingsPanel() {
             max={Math.max(compaction.keepRecentTokens, modelInfo?.contextLength ?? 100_000)}
             step={1000}
             value={[compaction.keepRecentTokens]}
-            onValueChange={([v]) => updateCompaction({ keepRecentTokens: v })}
+            onValueChange={value => updateCompaction({ keepRecentTokens: getSliderValue(value) })}
           />
           <p className="text-xs leading-relaxed text-muted-foreground">
             This is a target. The actual retained context may be slightly larger to keep complete messages and tool calls intact.

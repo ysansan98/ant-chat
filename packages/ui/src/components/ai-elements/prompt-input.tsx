@@ -424,16 +424,16 @@ export function PromptInputActionAddAttachments({
 }: PromptInputActionAddAttachmentsProps) {
   const attachments = usePromptInputAttachments()
 
-  const handleSelect = useCallback(
-    (e: Event) => {
-      e.preventDefault()
+  const handleClick: NonNullable<PromptInputActionAddAttachmentsProps['onClick']> = useCallback(
+    (event) => {
+      event.preventBaseUIHandler()
       attachments.openFileDialog()
     },
     [attachments],
   )
 
   return (
-    <DropdownMenuItem {...props} onSelect={handleSelect}>
+    <DropdownMenuItem {...props} onClick={handleClick}>
       <ImageIcon className="mr-2 size-4" />
       {' '}
       {label}
@@ -449,15 +449,15 @@ export type PromptInputActionAddScreenshotProps = ComponentProps<
 
 export function PromptInputActionAddScreenshot({
   label = 'Take screenshot',
-  onSelect,
+  onClick,
   ...props
 }: PromptInputActionAddScreenshotProps) {
   const attachments = usePromptInputAttachments()
 
-  const handleSelect = useCallback(
-    async (event: Event) => {
-      onSelect?.(event)
-      if (event.defaultPrevented) {
+  const handleClick: NonNullable<PromptInputActionAddScreenshotProps['onClick']> = useCallback(
+    async (event) => {
+      onClick?.(event)
+      if (event.defaultPrevented || event.baseUIHandlerPrevented) {
         return
       }
 
@@ -477,11 +477,11 @@ export function PromptInputActionAddScreenshot({
         throw error
       }
     },
-    [onSelect, attachments],
+    [onClick, attachments],
   )
 
   return (
-    <DropdownMenuItem {...props} onSelect={handleSelect}>
+    <DropdownMenuItem {...props} onClick={handleClick}>
       <Monitor className="mr-2 size-4" />
       {label}
     </DropdownMenuItem>
@@ -1171,7 +1171,7 @@ export function PromptInputButton({
 
   return (
     <Tooltip>
-      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipTrigger render={button} />
       <TooltipContent side={side}>
         {tooltipContent}
         {shortcut && (
@@ -1194,13 +1194,7 @@ export function PromptInputActionMenuTrigger({
   children,
   ...props
 }: PromptInputActionMenuTriggerProps) {
-  return (
-    <DropdownMenuTrigger asChild>
-      <PromptInputButton className={className} {...props}>
-        {children ?? <PlusIcon className="size-4" />}
-      </PromptInputButton>
-    </DropdownMenuTrigger>
-  )
+  return <DropdownMenuTrigger render={<PromptInputButton className={className} {...props} />}>{children ?? <PlusIcon className="size-4" />}</DropdownMenuTrigger>
 }
 
 export type PromptInputActionMenuContentProps = ComponentProps<
@@ -1255,14 +1249,14 @@ export function PromptInputSubmit({
     Icon = <XIcon className="size-4" />
   }
 
-  const handleClick = useCallback(
-    (e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleClick: NonNullable<PromptInputSubmitProps['onClick']> = useCallback(
+    (event) => {
       if (isGenerating && onStop) {
-        e.preventDefault()
+        event.preventDefault()
         onStop()
         return
       }
-      onClick?.(e)
+      onClick?.(event)
     },
     [isGenerating, onStop, onClick],
   )
@@ -1339,20 +1333,20 @@ export function PromptInputSelectValue({
 
 export type PromptInputHoverCardProps = ComponentProps<typeof HoverCard>
 
-export function PromptInputHoverCard({
-  openDelay = 0,
-  closeDelay = 0,
-  ...props
-}: PromptInputHoverCardProps) {
-  return <HoverCard closeDelay={closeDelay} openDelay={openDelay} {...props} />
+export function PromptInputHoverCard(props: PromptInputHoverCardProps) {
+  return <HoverCard {...props} />
 }
 
 export type PromptInputHoverCardTriggerProps = ComponentProps<
   typeof HoverCardTrigger
 >
 
-export function PromptInputHoverCardTrigger(props: PromptInputHoverCardTriggerProps) {
-  return <HoverCardTrigger {...props} />
+export function PromptInputHoverCardTrigger({
+  delay = 0,
+  closeDelay = 0,
+  ...props
+}: PromptInputHoverCardTriggerProps) {
+  return <HoverCardTrigger delay={delay} closeDelay={closeDelay} {...props} />
 }
 
 export type PromptInputHoverCardContentProps = ComponentProps<

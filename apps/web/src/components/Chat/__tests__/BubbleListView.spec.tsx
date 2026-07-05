@@ -69,7 +69,6 @@ describe('bubbleList', () => {
     )
 
     expect(screen.getByRole('status')).toHaveTextContent('等待模型回复')
-    expect(screen.getByRole('status').querySelector('.animate-shimmer')).not.toBeNull()
 
     act(() => {
       useAgentStore.getState().setTask({ ...task, executionPhase: 'using_tool' })
@@ -111,7 +110,7 @@ describe('bubbleList', () => {
     const view = render(<BubbleList messages={messages} />)
     const trigger = screen.getByText('执行过程(1)')
     fireEvent.click(trigger)
-    expect(trigger.closest('[data-slot="collapsible"]')).toHaveAttribute('data-state', 'closed')
+    expect(trigger.closest('[data-slot="collapsible"]')).toHaveAttribute('data-closed')
 
     view.rerender(
       <BubbleList
@@ -122,7 +121,7 @@ describe('bubbleList', () => {
       />,
     )
 
-    expect(screen.getByText('执行过程(2)').closest('[data-slot="collapsible"]')).toHaveAttribute('data-state', 'closed')
+    expect(screen.getByText('执行过程(2)').closest('[data-slot="collapsible"]')).toHaveAttribute('data-closed')
     expect(Element.prototype.scrollTo).toHaveBeenLastCalledWith(expect.objectContaining({ behavior: 'auto' }))
   })
 })

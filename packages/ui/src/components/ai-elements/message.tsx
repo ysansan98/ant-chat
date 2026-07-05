@@ -17,8 +17,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@workspace/ui/components/tooltip'
-import { useSmoothContent } from '@workspace/ui/hooks/useSmoothContent'
-import { installClipboardTextFallback } from '@workspace/ui/lib/clipboard'
 import { cn } from '@workspace/ui/lib/utils'
 import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
 import {
@@ -40,7 +38,7 @@ export function Message({ className, from, ...props }: MessageProps) {
   return (
     <div
       className={cn(
-        'group/message flex w-full max-w-[95%] flex-col gap-2',
+        'group flex w-full max-w-[95%] flex-col gap-2',
         from === 'user' ? 'is-user ml-auto justify-end' : 'is-assistant',
         className,
       )}
@@ -60,8 +58,8 @@ export function MessageContent({
     <div
       className={cn(
         'is-user:dark flex w-fit min-w-0 max-w-full flex-col gap-2 overflow-hidden text-sm',
-        'group-[.is-user]/message:ml-auto group-[.is-user]/message:rounded-lg group-[.is-user]/message:bg-secondary group-[.is-user]/message:px-4 group-[.is-user]/message:py-3 group-[.is-user]/message:text-foreground',
-        'group-[.is-assistant]/message:text-foreground',
+        'group-[.is-user]:ml-auto group-[.is-user]:rounded-lg group-[.is-user]:bg-secondary group-[.is-user]:px-4 group-[.is-user]:py-3 group-[.is-user]:text-foreground',
+        'group-[.is-assistant]:text-foreground',
         className,
       )}
       {...props}
@@ -109,7 +107,7 @@ export function MessageAction({
     return (
       <TooltipProvider>
         <Tooltip>
-          <TooltipTrigger asChild>{button}</TooltipTrigger>
+          <TooltipTrigger render={button} />
           <TooltipContent>
             <p>{tooltip}</p>
           </TooltipContent>
@@ -334,38 +332,17 @@ export type MessageResponseProps = ComponentProps<typeof Streamdown>
 
 const streamdownPlugins = { cjk, code, math, mermaid }
 
-const streamAnimated = {
-  animation: 'fadeIn' as const,
-  duration: 280,
-  easing: 'cubic-bezier(0.33, 0, 0.67, 1)',
-  sep: 'char' as const,
-  stagger: 0,
-}
-
 export const MessageResponse = memo(
-  ({ className, children, isAnimating, ...props }: MessageResponseProps) => {
-    const smoothed = useSmoothContent(
-      typeof children === 'string' ? children : '',
-      isAnimating ?? false,
-    )
-
-    useEffect(() => installClipboardTextFallback(), [])
-
-    return (
-      <Streamdown
-        className={cn(
-          'size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0',
-          className,
-        )}
-        plugins={streamdownPlugins}
-        animated={streamAnimated}
-        isAnimating={isAnimating}
-        {...props}
-      >
-        {smoothed}
-      </Streamdown>
-    )
-  },
+  ({ className, ...props }: MessageResponseProps) => (
+    <Streamdown
+      className={cn(
+        'size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0',
+        className,
+      )}
+      plugins={streamdownPlugins}
+      {...props}
+    />
+  ),
   (prevProps, nextProps) =>
     prevProps.children === nextProps.children
     && nextProps.isAnimating === prevProps.isAnimating,

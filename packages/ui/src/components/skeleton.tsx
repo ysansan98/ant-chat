@@ -1,10 +1,6 @@
 import { cn } from '@workspace/ui/lib/utils'
-import * as React from 'react'
 
-function Skeleton({
-  className,
-  ...props
-}: React.ComponentProps<'div'>) {
+function Skeleton({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       data-slot="skeleton"

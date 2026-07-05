@@ -141,7 +141,15 @@ export function CreateAutomationSheet(props: {
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="flex flex-col gap-2 text-sm font-medium">
                 工作区
-                <Select value={effectiveWorkspace} onValueChange={setWorkspace}>
+                <Select
+                  items={props.contextOptions.workspaces.map(item => ({ label: item.displayName, value: item.path }))}
+                  value={effectiveWorkspace}
+                  onValueChange={(value) => {
+                    if (value) {
+                      setWorkspace(value)
+                    }
+                  }}
+                >
                   <SelectTrigger className="w-full" aria-label="工作区">
                     <SelectValue />
                   </SelectTrigger>
@@ -154,7 +162,18 @@ export function CreateAutomationSheet(props: {
               </label>
               <label className="flex flex-col gap-2 text-sm font-medium">
                 模型
-                <Select value={effectiveModelRef} onValueChange={setModelRef}>
+                <Select
+                  items={props.contextOptions.modelGroups.flatMap(group => group.models.map(model => ({
+                    label: `${group.name} · ${model.name}`,
+                    value: `${group.id}\n${model.id}`,
+                  })))}
+                  value={effectiveModelRef}
+                  onValueChange={(value) => {
+                    if (value) {
+                      setModelRef(value)
+                    }
+                  }}
+                >
                   <SelectTrigger className="w-full" aria-label="模型">
                     <SelectValue />
                   </SelectTrigger>
@@ -211,7 +230,15 @@ export function CreateAutomationSheet(props: {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="flex flex-col gap-2 text-sm font-medium">
                     重复
-                    <Select value={repeatKind} onValueChange={value => setRepeatKind(value as RepeatKind)}>
+                    <Select
+                      items={{ daily: '每天', weekly: '每周', monthly: '每月', custom: '自定义 cron' }}
+                      value={repeatKind}
+                      onValueChange={(value) => {
+                        if (value) {
+                          setRepeatKind(value as RepeatKind)
+                        }
+                      }}
+                    >
                       <SelectTrigger className="w-full" aria-label="重复频率">
                         <SelectValue />
                       </SelectTrigger>
@@ -257,7 +284,18 @@ export function CreateAutomationSheet(props: {
                 {repeatKind === 'monthly' && (
                   <label className="flex flex-col gap-2 text-sm font-medium">
                     每月日期
-                    <Select value={monthDay} onValueChange={setMonthDay}>
+                    <Select
+                      items={Array.from({ length: 28 }, (_, index) => {
+                        const value = String(index + 1)
+                        return { label: `${value} 日`, value }
+                      })}
+                      value={monthDay}
+                      onValueChange={(value) => {
+                        if (value) {
+                          setMonthDay(value)
+                        }
+                      }}
+                    >
                       <SelectTrigger className="w-full" aria-label="每月日期">
                         <SelectValue />
                       </SelectTrigger>
@@ -331,8 +369,13 @@ export function CreateAutomationSheet(props: {
                   <p className="truncate text-xs text-muted-foreground">{effectiveWorkspace || '请先选择工作区'}</p>
                 </div>
                 <Select
+                  items={{ read: '只读', write: '读写' }}
                   value={permissionScopes.workspaceWrite ? 'write' : 'read'}
-                  onValueChange={value => setPermissionScopes(current => ({ ...current, workspaceWrite: value === 'write' }))}
+                  onValueChange={(value) => {
+                    if (value) {
+                      setPermissionScopes(current => ({ ...current, workspaceWrite: value === 'write' }))
+                    }
+                  }}
                 >
                   <SelectTrigger size="sm" aria-label="工作区权限">
                     <SelectValue />
@@ -411,7 +454,7 @@ function CapabilityPicker(props: {
 }) {
   return (
     <Collapsible className="group rounded-xl border border-border/70">
-      <CollapsibleTrigger asChild>
+      <CollapsibleTrigger render={(
         <Button type="button" variant="ghost" className="h-auto w-full justify-start rounded-xl px-4 py-3 text-left">
           <span className="flex min-w-0 flex-1 items-center gap-3">
             {props.icon}
@@ -428,10 +471,11 @@ function CapabilityPicker(props: {
               </span>
               <span className="block truncate text-xs font-normal text-muted-foreground">{props.description}</span>
             </span>
-            <ChevronDown className="transition-transform group-data-[state=open]:rotate-180" />
+            <ChevronDown className="transition-transform group-data-open:rotate-180" />
           </span>
         </Button>
-      </CollapsibleTrigger>
+      )}
+      />
       <CollapsibleContent>
         <div className="border-t border-border/70 p-3">
           {props.options.length > 0

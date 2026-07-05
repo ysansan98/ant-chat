@@ -229,8 +229,8 @@ function ReasoningStepItem({
       <CollapsibleContent
         className={cn(
           'ml-4 pl-2',
-          'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-1',
-          'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-top-1',
+          'data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-top-1',
+          'data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-top-1',
         )}
       >
         <div className="py-1 text-xs text-muted-foreground whitespace-pre-wrap">
@@ -319,8 +319,8 @@ function CompactToolItem({
       <CollapsibleContent
         className={cn(
           'ml-4 pl-2 space-y-2',
-          'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-1',
-          'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-top-1',
+          'data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-top-1',
+          'data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-top-1',
         )}
       >
         {tool.toolResult && (
@@ -378,8 +378,8 @@ function ToolGroupItem({
       <CollapsibleContent
         className={cn(
           'ml-4 pl-2 space-y-1',
-          'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-1',
-          'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-top-1',
+          'data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-top-1',
+          'data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-top-1',
         )}
       >
         {group.tools.map(tool => (

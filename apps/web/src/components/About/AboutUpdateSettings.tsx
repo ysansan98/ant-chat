@@ -143,8 +143,13 @@ export function AboutUpdateSettings() {
                   </p>
                 </div>
                 <Select
+                  items={{ startup: '启动时', daily: '每天', weekly: '每周' }}
                   value={config.checkInterval}
-                  onValueChange={value => updateConfig({ checkInterval: value as UpdateConfig['checkInterval'] })}
+                  onValueChange={(value) => {
+                    if (value) {
+                      updateConfig({ checkInterval: value as UpdateConfig['checkInterval'] })
+                    }
+                  }}
                 >
                   <SelectTrigger className="w-30">
                     <SelectValue />
