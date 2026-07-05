@@ -6,13 +6,13 @@ export interface PaginatedResult<T> {
 }
 
 export interface ArchivedWorkspaceCount {
-  workspacePath: string
+  workspacePath: string | null
   total: number
 }
 
 export interface ConversationRepository {
   list: (pageIndex: number, pageSize: number, workspacePath?: string, includeNullWorkspace?: boolean) => Promise<PaginatedResult<IConversations>>
-  listArchived: (pageIndex: number, pageSize: number, workspacePath: string, query?: string) => Promise<PaginatedResult<IConversations>>
+  listArchived: (pageIndex: number, pageSize: number, workspacePath: string | null, query?: string) => Promise<PaginatedResult<IConversations>>
   listArchivedWorkspaces: (query?: string) => Promise<ArchivedWorkspaceCount[]>
   getById: (id: string) => Promise<IConversations>
   create: (conversation: AddConversationsSchema) => Promise<IConversations>
@@ -21,6 +21,6 @@ export interface ConversationRepository {
   delete: (id: string) => Promise<boolean>
   deleteByWorkspace: (workspacePath?: string, includeNullWorkspace?: boolean) => Promise<string[]>
   deleteArchived: (id: string) => Promise<string[]>
-  deleteArchivedByWorkspace: (workspacePath: string) => Promise<string[]>
+  deleteArchivedByWorkspace: (workspacePath: string | null) => Promise<string[]>
   deleteAllArchived: () => Promise<string[]>
 }

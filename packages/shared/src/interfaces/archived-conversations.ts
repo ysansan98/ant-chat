@@ -1,7 +1,7 @@
 import type { IConversations } from './db-types'
 
 export interface ArchivedConversationWorkspace {
-  workspacePath: string
+  workspacePath: string | null
   displayName: string
   total: number
   matchedTotal: number

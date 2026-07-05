@@ -48,7 +48,7 @@ export interface AppRpcContract {
   'chat.getConversations': RpcEndpoint<{ pageIndex: number, pageSize: number }, { data: IConversations[], total: number }>
   'chat.getWorkspaceConversations': RpcEndpoint<{ workspacePath: string, pageIndex: number, pageSize: number }, { data: IConversations[], total: number }>
   'chat.getArchivedConversationWorkspaces': RpcEndpoint<{ query?: string, pageSize: number }, ArchivedConversationWorkspaceResult>
-  'chat.getArchivedConversations': RpcEndpoint<{ workspacePath: string, pageIndex: number, pageSize: number, query?: string }, { data: IConversations[], total: number }>
+  'chat.getArchivedConversations': RpcEndpoint<{ workspacePath: string | null, pageIndex: number, pageSize: number, query?: string }, { data: IConversations[], total: number }>
   'chat.getConversationById': RpcEndpoint<{ id: string }, IConversations>
   'chat.addConversation': RpcEndpoint<{ conversation: AddConversationsSchema }, IConversations>
   'chat.updateConversation': RpcEndpoint<{ conversation: UpdateConversationsSchema }, IConversations>
@@ -56,7 +56,7 @@ export interface AppRpcContract {
   'chat.archiveConversation': RpcEndpoint<{ id: string }, IConversations>
   'chat.restoreConversation': RpcEndpoint<{ id: string }, IConversations>
   'chat.deleteArchivedConversation': RpcEndpoint<{ id: string }, string[]>
-  'chat.deleteArchivedWorkspaceConversations': RpcEndpoint<{ workspacePath: string }, string[]>
+  'chat.deleteArchivedWorkspaceConversations': RpcEndpoint<{ workspacePath: string | null }, string[]>
   'chat.deleteAllArchivedConversations': RpcEndpoint<undefined, string[]>
   'chat.clearWorkspaceConversations': RpcEndpoint<{ workspacePath: string }, string[]>
   'chat.getMessagesByConvId': RpcEndpoint<{ convId: string }, IMessage[]>

@@ -55,19 +55,27 @@ export class ChatModule implements RuntimeModuleMethods<'chat'> {
 
     const workspaces = await Promise.all(matched.map(async (workspace) => {
       const page = await this.core.data.conversationRepository.listArchived(0, pageSize, workspace.workspacePath, query)
-      const configured = configuredByPath.get(workspace.workspacePath)
+      const configured = workspace.workspacePath === null ? undefined : configuredByPath.get(workspace.workspacePath)
       return {
         workspacePath: workspace.workspacePath,
-        displayName: configured?.displayName ?? path.basename(workspace.workspacePath),
+        displayName: workspace.workspacePath === null
+          ? '未关联工作区'
+          : configured?.displayName ?? path.basename(workspace.workspacePath),
         total: totalByPath.get(workspace.workspacePath) ?? workspace.total,
         matchedTotal: workspace.total,
-        available: this.core.data.workspaceService.isWorkspaceAvailable(workspace.workspacePath),
+        available: workspace.workspacePath !== null && this.core.data.workspaceService.isWorkspaceAvailable(workspace.workspacePath),
         conversations: page.data,
         order: configured?.index,
       }
     }))
 
     workspaces.sort((left, right) => {
+      if (left.workspacePath === null && right.workspacePath === null)
+        return 0
+      if (left.workspacePath === null)
+        return 1
+      if (right.workspacePath === null)
+        return -1
       if (left.order !== undefined && right.order !== undefined)
         return left.order - right.order
       if (left.order !== undefined)

@@ -23,7 +23,7 @@ async function getArchivedConversationWorkspaces(query = '', pageSize = 20): Pro
   return getAppRpcClient().call('chat.getArchivedConversationWorkspaces', { query, pageSize })
 }
 
-async function getArchivedConversations(workspacePath: string, pageIndex: number, pageSize: number, query = ''): Promise<{ data: IConversations[], total: number }> {
+async function getArchivedConversations(workspacePath: string | null, pageIndex: number, pageSize: number, query = ''): Promise<{ data: IConversations[], total: number }> {
   return getAppRpcClient().call('chat.getArchivedConversations', { workspacePath, pageIndex, pageSize, query })
 }
 
@@ -55,7 +55,7 @@ async function deleteArchivedConversation(id: string): Promise<string[]> {
   return getAppRpcClient().call('chat.deleteArchivedConversation', { id })
 }
 
-async function deleteArchivedWorkspaceConversations(workspacePath: string): Promise<string[]> {
+async function deleteArchivedWorkspaceConversations(workspacePath: string | null): Promise<string[]> {
   return getAppRpcClient().call('chat.deleteArchivedWorkspaceConversations', { workspacePath })
 }
 
