@@ -81,7 +81,7 @@ export default function SkillManage() {
               onClick={() => void runAction(async () => skillApi.rebuildSkillIndex(), '索引已重建')}
             >
               <RefreshCwIcon data-icon="inline-start" className="size-3.5" />
-              Rebuild
+              重建索引
             </Button>
             {nativeFilePicker && (
               <Button
@@ -90,12 +90,12 @@ export default function SkillManage() {
                 onClick={() => void runAction(async () => skillApi.importSkillFromZip(), 'ZIP 已导入')}
               >
                 <ArchiveIcon data-icon="inline-start" />
-                Import ZIP
+                导入 ZIP
               </Button>
             )}
             <Button disabled={state.loading} onClick={() => setGithubOpen(true)}>
               <GitBranchIcon data-icon="inline-start" className="size-3.5" />
-              Import GitHub
+              从 GitHub 导入
             </Button>
           </>
         )}
@@ -106,7 +106,7 @@ export default function SkillManage() {
           ? (
               <Card>
                 <CardContent className="py-8 text-center text-muted-foreground">
-                  No skills installed.
+                  当前没有安装任何 Skill
                 </CardContent>
               </Card>
             )
