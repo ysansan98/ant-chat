@@ -1,3 +1,4 @@
+import fs from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { defineConfig } from 'electron-vite'
 
@@ -28,7 +29,19 @@ export default defineConfig(({ command, mode }) => {
 
         },
       },
-      plugins: visualizerPlugin('main'),
+      plugins: [
+        ...visualizerPlugin('main'),
+        {
+          name: 'copy-builtin-skills',
+          async closeBundle() {
+            await fs.cp(
+              resolve('../../packages/backend/dist/builtin-skills'),
+              resolve('out/main/builtin-skills'),
+              { recursive: true },
+            )
+          },
+        },
+      ],
     },
     preload: {
       build: {

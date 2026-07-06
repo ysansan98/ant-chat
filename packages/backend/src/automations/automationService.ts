@@ -105,6 +105,19 @@ export function createAutomationService(options: {
       await options.repository.delete(id)
       await scheduler?.reschedule()
     },
+    async cancelActiveRuns(automationId: string) {
+      const runs = await options.repository.listRuns(automationId)
+      const activeRuns = runs.filter(run => run.status === 'queued' || run.status === 'running')
+      for (const run of activeRuns) {
+        if (run.taskId) {
+          runByTaskId.delete(run.taskId)
+          options.cancelTask(run.taskId)
+        }
+        const cancelled = await options.repository.updateRun(run.id, { status: 'cancelled', finishedAt: Date.now() })
+        options.events.emit('automation:run-changed', { run: cancelled })
+      }
+      return activeRuns.length
+    },
     async runNow(id: string) {
       const automation = await options.repository.getById(id)
       const run = await options.repository.createManualRun(id, Date.now())

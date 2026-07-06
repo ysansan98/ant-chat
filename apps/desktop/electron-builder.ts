@@ -95,6 +95,7 @@ const config: Configuration = {
     '!**/amd/**',
     '!**/{.DS_Store,Thumbs.db,thumbs.db,__pycache__}',
     '!**/{LICENSE,license,LICENSE.*,*.LICENSE.txt,NOTICE.txt,README.md,readme.md,CHANGELOG.md}',
+    'out/main/builtin-skills/**/*.md',
   ],
   electronDownload: {
     mirror: 'https://npmmirror.com/mirrors/electron/',

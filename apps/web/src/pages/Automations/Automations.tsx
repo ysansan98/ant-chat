@@ -7,7 +7,7 @@ import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader,
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from '@workspace/ui/components/dropdown-menu'
 import { Switch } from '@workspace/ui/components/switch'
 import { CalendarClock, CheckCircle2, Clock3, History, MoreHorizontal, Plus, Sparkles, Trash2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { automationApi } from '@/api/automationApi'
@@ -15,6 +15,7 @@ import { getMcpServers } from '@/api/mcpApi'
 import { providerApi } from '@/api/providerApi'
 import { skillApi } from '@/api/skillApi'
 import workspaceApi from '@/api/workspaceApi'
+import { AUTOMATION_CHANGED_EVENT, AUTOMATION_RUN_CHANGED_EVENT } from '@/constants/automationEvents'
 import { activateWorkspace } from '@/store/conversation'
 import { setActiveConversationsId } from '@/store/messages'
 import { useWorkspaceStore } from '@/store/workspace'
@@ -33,18 +34,39 @@ export function AutomationsPage() {
   const [deleteTarget, setDeleteTarget] = useState<AutomationItem>()
   const [menuOpenId, setMenuOpenId] = useState<string>()
 
-  useEffect(() => {
-    void Promise.all([
+  const refreshPage = useCallback(async () => {
+    const [definitions, workspaceResult, modelGroups, skillIndex, mcpServers] = await Promise.all([
       automationApi.list(),
       workspaceApi.listWorkspaces(),
       providerApi.getAllAbvailableModels(),
       skillApi.listSkills(),
       getMcpServers(),
-    ]).then(([definitions, workspaceResult, modelGroups, skillIndex, mcpServers]) => {
-      setContextOptions({ workspaces: workspaceResult.workspaces, modelGroups, skills: skillIndex.skills.filter(skill => skill.enabled), mcpServers })
-      setAutomations(definitions.map(definition => toAutomationItem(definition, modelGroups)))
-    })
+    ])
+    setContextOptions({ workspaces: workspaceResult.workspaces, modelGroups, skills: skillIndex.skills.filter(skill => skill.enabled), mcpServers })
+    setAutomations(definitions.map(definition => toAutomationItem(definition, modelGroups)))
   }, [])
+
+  useEffect(() => {
+    void refreshPage()
+    const handleChanged = () => void refreshPage()
+    window.addEventListener(AUTOMATION_CHANGED_EVENT, handleChanged)
+    window.addEventListener(AUTOMATION_RUN_CHANGED_EVENT, handleChanged)
+    return () => {
+      window.removeEventListener(AUTOMATION_CHANGED_EVENT, handleChanged)
+      window.removeEventListener(AUTOMATION_RUN_CHANGED_EVENT, handleChanged)
+    }
+  }, [refreshPage])
+
+  useEffect(() => {
+    if (!historyTarget) {
+      return
+    }
+    const refreshRuns = () => {
+      void automationApi.listRuns(historyTarget === 'all' ? undefined : historyTarget).then(setRuns)
+    }
+    window.addEventListener(AUTOMATION_RUN_CHANGED_EVENT, refreshRuns)
+    return () => window.removeEventListener(AUTOMATION_RUN_CHANGED_EVENT, refreshRuns)
+  }, [historyTarget])
 
   async function setEnabled(id: string, enabled: boolean) {
     const definition = await automationApi.setEnabled(id, enabled)

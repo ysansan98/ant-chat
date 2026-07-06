@@ -1,5 +1,6 @@
 import type { RuntimeCore } from './createRuntimeCore'
 import type { RuntimeModule } from './runtimeModule'
+import { AppControl } from '../app-control/appControl'
 import { AgentModule } from './modules/agent'
 import { AutomationModule } from './modules/automation'
 import { ChatModule } from './modules/chat'
@@ -16,6 +17,7 @@ import { WorkspaceModule } from './modules/workspace'
 export interface RegisteredRuntimeModules {
   lifecycle: RuntimeModule[]
   routes: object[]
+  appControl: AppControl
 }
 
 export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModules {
@@ -43,8 +45,17 @@ export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModu
   const search = new SearchModule(core)
   const files = new FilesModule(core)
 
+  const appControl = new AppControl(
+    { settings, provider, mcp, automation },
+    core.secretStore,
+  )
+
+  // 注入 appControl 到 AgentModule（避免循环依赖）
+  agent.setAppControl({ execute: cmd => appControl.execute(cmd) })
+
   return {
     routes: [chat, settings, provider, mcp, search, memory, skills, workspace, agent, automation, commands, files],
     lifecycle: [workspace, skills, provider, settings, mcp, agent, automation],
+    appControl,
   }
 }
