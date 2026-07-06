@@ -66,6 +66,10 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
     })
   }
 
+  setAppControl(appControl: NonNullable<import('@ant-chat/shared').AgentRuntimeConfig['appControl']>) {
+    this.runtime.setAppControl(appControl)
+  }
+
   async dispose() {
     for (const task of this.runtime.listActiveTasks())
       this.runtime.cancelTask({ taskId: task.taskId })

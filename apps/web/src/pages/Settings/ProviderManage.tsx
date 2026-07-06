@@ -9,11 +9,17 @@ import { providerApi } from '@/api/providerApi'
 import { ProviderLogo } from '@/components/Chat/providerLogo'
 import { AddCustomProvider } from '@/components/ProviderManage/AddCustomProvider'
 import { ProviderSettingsPanel } from '@/components/ProviderManage/ProviderSettingsPanel'
+import { PROVIDER_CHANGED_EVENT } from '@/constants/providerEvents'
 import { SettingsPageHeader } from './SettingsPageHeader'
 
 export default function ProviderManage() {
   const [activeProvider, setActiveProvider] = React.useState<ProviderConfigSchema | null>(null)
   const { data, error, refresh, loading } = useRequest(providerApi.listProviders)
+
+  React.useEffect(() => {
+    window.addEventListener(PROVIDER_CHANGED_EVENT, refresh)
+    return () => window.removeEventListener(PROVIDER_CHANGED_EVENT, refresh)
+  }, [refresh])
 
   const handleAddProvider = async (provider: Parameters<typeof providerApi.createProvider>[0]) => {
     await providerApi.createProvider(provider)

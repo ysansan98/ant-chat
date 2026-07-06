@@ -20,7 +20,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsdown",
+    "build": "tsdown && node scripts/copy-builtin-skills.mjs",
     "clean": "rm -rf dist node_modules",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"

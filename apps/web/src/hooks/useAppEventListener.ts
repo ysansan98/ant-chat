@@ -2,10 +2,12 @@ import type { NotificationOption } from '@ant-chat/shared'
 import { useEffect } from 'react'
 import { toast } from 'sonner'
 import { getAppEventBus } from '@/api/transports/appEventBus'
+import { emitAutomationChanged, emitAutomationRunChanged } from '@/constants/automationEvents'
+import { emitProviderChanged } from '@/constants/providerEvents'
 import { onAgentApprovalRequired, onAgentSecretRequested, onAgentStateUpdated } from '@/store/agent'
 import { touchConversationUpdatedAt, upsertConversationAction } from '@/store/conversation'
 import { refreshGeneralSettings } from '@/store/generalSettings/actions'
-import { onMcpServerStatusChanged } from '@/store/mcpConfigs/action'
+import { onMcpServerStatusChanged, refreshMcpConfigs } from '@/store/mcpConfigs/action'
 import { updateMessageActionV2 } from '@/store/messages'
 import { drainPendingMessages } from '@/store/pendingMessages'
 import { useWorkspaceStore } from '@/store/workspace'
@@ -63,6 +65,18 @@ export function useAppEventListener() {
     eventBus.on('settings:updated', () => {
       void refreshGeneralSettings()
     })
+    eventBus.on('mcp:changed', () => {
+      void refreshMcpConfigs()
+    })
+    eventBus.on('provider:changed', () => {
+      emitProviderChanged()
+    })
+    eventBus.on('automation:changed', () => {
+      emitAutomationChanged()
+    })
+    eventBus.on('automation:run-changed', () => {
+      emitAutomationRunChanged()
+    })
     eventBus.on('workspace:changed', () => {
       void useWorkspaceStore.getState().refresh()
     })
@@ -76,6 +90,10 @@ export function useAppEventListener() {
       eventBus.removeAllListeners('agent:approval-required')
       eventBus.removeAllListeners('agent:secret-requested')
       eventBus.removeAllListeners('settings:updated')
+      eventBus.removeAllListeners('mcp:changed')
+      eventBus.removeAllListeners('provider:changed')
+      eventBus.removeAllListeners('automation:changed')
+      eventBus.removeAllListeners('automation:run-changed')
       eventBus.removeAllListeners('workspace:changed')
     }
   }, [])

@@ -3,8 +3,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Button } from '@workspace/ui/components/button'
 import { Input } from '@workspace/ui/components/input'
 import { Eye, EyeOff } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { providerApi } from '@/api/providerApi'
+import { useState } from 'react'
 import { ModelList } from '@/components/ProviderManage/ModelList/ModelList'
 import { AI_OFFICIAL_API_INFO } from '@/constants'
 
@@ -18,27 +17,9 @@ export interface ProviderSettingsPanelProps {
 export function ProviderSettingsPanel({ item, onChange, onDelete }: ProviderSettingsPanelProps) {
   const [apiKeyValue, setApiKeyValue] = useState<string>('')
   const [showKey, setShowKey] = useState(false)
-  const [hasKey, setHasKey] = useState(false)
 
-  // 当选中服务商变化时，获取已保存的 API Key
-  useEffect(() => {
-    if (!item) {
-      setApiKeyValue('')
-      setHasKey(false)
-      return
-    }
-
-    providerApi.getProviderApiKey(item.id).then((key) => {
-      if (key) {
-        setApiKeyValue(key)
-        setHasKey(true)
-      }
-      else {
-        setApiKeyValue('')
-        setHasKey(false)
-      }
-    })
-  }, [item?.id])
+  // 使用 item.hasApiKey 判断是否已配置密钥（不再调 getProviderApiKey 回显原值）
+  const hasKey = item?.hasApiKey ?? false
 
   if (!item) {
     return null

@@ -1,6 +1,7 @@
 {
   "name": "@ant-chat/shared",
   "type": "module",
+  "version": "1.0.0-alpha.1",
   "license": "MIT",
   "keywords": [],
   "exports": {

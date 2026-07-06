@@ -12,6 +12,11 @@ export async function initializeMcpConfigs() {
   }))
 }
 
+/** 刷新 MCP 配置（用于监听 mcp:changed 事件后刷新列表） */
+export async function refreshMcpConfigs() {
+  return initializeMcpConfigs()
+}
+
 export async function addMcpConfigAction(config: McpConfigSchema) {
   const data = await addMcpConfig(config)
 
