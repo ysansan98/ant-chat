@@ -67,13 +67,11 @@ export function createModelsDevImporter(appDataContext: AppDataContext): ModelsD
 
 function toModelCapabilities(model: { toolCall?: boolean, reasoning?: boolean, supportsTemperature?: boolean, structuredOutput?: boolean, modalities?: { input?: string[], output?: string[] } }) {
   return {
-    toolCall: model.toolCall ?? false,
+    functionCall: model.toolCall ?? false,
     reasoning: model.reasoning ?? false,
     supportsTemperature: model.supportsTemperature ?? false,
     structuredOutput: model.structuredOutput ?? false,
-    modalities: {
-      input: model.modalities?.input ?? [],
-      output: model.modalities?.output ?? [],
-    },
+    inputModalities: (model.modalities?.input ?? []) as ('text' | 'image' | 'pdf' | 'video' | 'audio')[],
+    outputModalities: (model.modalities?.output ?? []) as ('text' | 'image')[],
   }
 }
