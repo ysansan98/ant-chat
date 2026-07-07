@@ -4,6 +4,7 @@ import type {
   ContextItemSnapshot,
   DeltaStorage,
   LoopMessage,
+  ModelRequestCompletedPayload,
   ModelRequestTracePayload,
   RuntimeToolDefinition,
 } from '@ant-chat/shared'
@@ -184,7 +185,7 @@ export class ContextTraceWriter {
     conversationId: string,
     requestId: string,
     text: string,
-    usage?: ModelRequestTracePayload['responseUsage'],
+    usage?: ModelRequestCompletedPayload['usage'],
     finishReason?: string,
   ): void {
     if (!this.config.enabled)
