@@ -25,6 +25,7 @@ export interface RuntimeCore {
   logger: SystemLogger
   paths: AppRuntimePaths
   secretStore: KeychainSecretStore
+  contextDiagnosticsEnabled: boolean
 }
 
 export function createRuntimeCore(options: CreateAppRuntimeOptions): RuntimeCore {
@@ -48,5 +49,6 @@ export function createRuntimeCore(options: CreateAppRuntimeOptions): RuntimeCore
     logger,
     paths,
     secretStore: new KeychainSecretStoreImpl(),
+    contextDiagnosticsEnabled: options.contextDiagnosticsEnabled ?? false,
   }
 }

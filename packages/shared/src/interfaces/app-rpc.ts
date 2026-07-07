@@ -12,6 +12,7 @@ import type {
   UpdateMcpConfigSchema,
   UpdateProviderConfigSchema,
 } from '../schemas'
+import type { ContextTraceItemDetail, ContextTraceListItem } from '../schemas/contextTrace'
 import type { AgentMemoryFiles, UpdateAgentMemoryInput } from './agent-memory'
 import type {
   AgentTaskSnapshot,
@@ -130,6 +131,21 @@ export interface AppRpcContract {
   'agent.cancelTask': RpcEndpoint<{ taskId: string }, null>
   'agent.injectSteering': RpcEndpoint<{ conversationId: string, text: string }, IMessage>
   'agent.listActiveTasks': RpcEndpoint<{ conversationId?: string } | undefined, AgentTaskSnapshot[]>
+
+  'agent.listContextTrace': RpcEndpoint<{
+    conversationId: string
+    before?: string
+    limit?: number
+  }, {
+    items: ContextTraceListItem[]
+    nextCursor?: string
+    hasMore: boolean
+  }>
+  'agent.getContextTraceItem': RpcEndpoint<{
+    conversationId: string
+    requestId: string
+    itemId: string
+  }, ContextTraceItemDetail | null>
 
   'automation.list': RpcEndpoint<undefined, AutomationDefinition[]>
   'automation.create': RpcEndpoint<{ input: AutomationInput }, AutomationDefinition>

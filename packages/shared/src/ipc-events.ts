@@ -76,6 +76,7 @@ export interface AppRendererEvents {
   'provider:changed': { providerId?: string }
   'automation:changed': { automation: AutomationDefinition }
   'automation:run-changed': { run: AutomationRun }
+  'agent:context-trace-updated': { conversationId: string }
 }
 
 export const APP_RENDERER_EVENT_NAMES = [
@@ -92,6 +93,7 @@ export const APP_RENDERER_EVENT_NAMES = [
   'provider:changed',
   'automation:changed',
   'automation:run-changed',
+  'agent:context-trace-updated',
 ] as const satisfies readonly (keyof AppRendererEvents & string)[]
 
 /**

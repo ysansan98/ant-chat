@@ -47,6 +47,7 @@ export async function runAgentLoop(input: {
   let systemPrompt = initialSystemPrompt
   let lastLoggedMessages: LoopMessage[] = []
   let lastLoggedSystemPrompt = ''
+  let previousRequestId: string | undefined
   const taskStartedAt = Date.now()
 
   try {
@@ -90,6 +91,32 @@ export async function runAgentLoop(input: {
 
       currentToolMessages = []
 
+      const requestId = `req-${taskId}-${step}`
+
+      // 上下文诊断：捕获完整上下文快照（开发环境）
+      if (config.contextTraceCapture) {
+        const messageIdentities = loopMessages.map((_, i) => `loop-${i}`)
+        config.contextTraceCapture({
+          requestId,
+          previousRequestId,
+          conversationId: options.conversationId,
+          userTurnId: options.userMessageId,
+          step,
+          model: modelName,
+          provider: providerName,
+          providerId,
+          apiMode: options.apiMode,
+          systemPrompt,
+          messages: loopMessages,
+          messageIdentities,
+          toolDefs,
+          modelSettings,
+          isCompactionBaseline: beforeTurnResult?.compacted,
+        } as Record<string, unknown>)
+      }
+      previousRequestId = requestId
+
+      // 遗留 trace 日志（preview 格式）
       const requestPreview = createRequestPreview({
         messages: loopMessages,
         systemPrompt,
@@ -206,6 +233,15 @@ export async function runAgentLoop(input: {
       if (requestedToolCalls.length === 0) {
         finalAnswer = currentModelText || 'Task completed.'
         loopMessages.push({ role: 'assistant', content: [{ type: 'text', text: modelText }] })
+
+        // 写入模型响应到上下文诊断（最终无工具调用时）
+        if (config.contextTraceCaptureResponse) {
+          config.contextTraceCaptureResponse({
+            conversationId: options.conversationId,
+            requestId,
+            text: finalAnswer,
+          })
+        }
 
         await config.eventEmitter.emitTurnFinished({
           conversationId: options.conversationId,
