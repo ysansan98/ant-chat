@@ -23,6 +23,7 @@ describe('general settings repository', () => {
       initialSettings: {
         assistantModelId: 'model-1',
         assistantProviderId: '',
+        autoGenerateTitle: false,
         proxySettings: { mode: 'none', customProxyUrl: '' },
         appearance: { mode: 'system', lightThemeId: 'default', darkThemeId: 'default' },
       },
@@ -31,6 +32,7 @@ describe('general settings repository', () => {
     await expect(repository.getGeneralSettings()).resolves.toEqual({
       assistantModelId: 'model-1',
       assistantProviderId: '',
+      autoGenerateTitle: false,
       proxySettings: { mode: 'none', customProxyUrl: '' },
       appearance: { mode: 'system', lightThemeId: 'default', darkThemeId: 'default' },
     })
@@ -42,6 +44,7 @@ describe('general settings repository', () => {
       initialSettings: {
         assistantModelId: 'model-1',
         assistantProviderId: '',
+        autoGenerateTitle: false,
         proxySettings: { mode: 'custom', customProxyUrl: 'http://localhost:7890' },
         appearance: { mode: 'system', lightThemeId: 'default', darkThemeId: 'default' },
       },
@@ -54,6 +57,7 @@ describe('general settings repository', () => {
     expect(settings).toEqual({
       assistantModelId: 'model-1',
       assistantProviderId: '',
+      autoGenerateTitle: false,
       proxySettings: { mode: 'system', customProxyUrl: 'http://localhost:7890' },
       appearance: { mode: 'system', lightThemeId: 'default', darkThemeId: 'default' },
     })

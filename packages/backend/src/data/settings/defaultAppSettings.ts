@@ -3,6 +3,7 @@ import type { AppSettingsState } from '@ant-chat/shared'
 export const DEFAULT_APP_SETTINGS: AppSettingsState = {
   assistantModelId: '',
   assistantProviderId: '',
+  autoGenerateTitle: false,
   proxySettings: {
     mode: 'none',
     customProxyUrl: '',

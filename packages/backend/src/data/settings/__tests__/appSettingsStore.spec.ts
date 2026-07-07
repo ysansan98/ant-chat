@@ -33,6 +33,7 @@ describe('appSettingsStore', () => {
       const existingSettings: AppSettingsState = {
         assistantModelId: 'test-model',
         assistantProviderId: '',
+        autoGenerateTitle: false,
         proxySettings: { mode: 'none' },
         appearance: { mode: 'system', lightThemeId: 'default', darkThemeId: 'default' },
         toolApprovalWhitelist: [],
@@ -76,6 +77,7 @@ describe('appSettingsStore', () => {
       const existingSettings: AppSettingsState = {
         assistantModelId: 'test-model',
         assistantProviderId: '',
+        autoGenerateTitle: false,
         proxySettings: { mode: 'none' },
         appearance: { mode: 'system', lightThemeId: 'default', darkThemeId: 'default' },
         toolApprovalWhitelist: [],
@@ -134,6 +136,7 @@ describe('appSettingsStore', () => {
       const existingSettings: AppSettingsState = {
         assistantModelId: 'test-model',
         assistantProviderId: '',
+        autoGenerateTitle: false,
         proxySettings: { mode: 'none' },
         appearance: { mode: 'system', lightThemeId: 'default', darkThemeId: 'default' },
         toolApprovalWhitelist: [],

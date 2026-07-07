@@ -11,6 +11,7 @@ import type { AppDataContext } from '../data'
 import type { ConversationTitleGenerator } from './conversationTitleGenerator'
 
 const DEFAULT_TITLE = 'Untitled'
+const MAX_TITLE_LENGTH = 30
 
 export interface AgentTurnServiceDeps {
   runtime: AgentRuntime
@@ -122,6 +123,7 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
           appDataContext,
           shouldInitializeTitle: conversationState.created || conversation.title === DEFAULT_TITLE,
           titleGenerator,
+          userPrompt: prompt,
           emitConversationUpdated,
           logger,
         })
@@ -155,6 +157,7 @@ function scheduleTitleInitialization(params: {
   appDataContext: AppDataContext
   shouldInitializeTitle: boolean
   titleGenerator?: ConversationTitleGenerator
+  userPrompt: string
   emitConversationUpdated?: AgentTurnServiceDeps['emitConversationUpdated']
   logger?: ILogger
 }) {
@@ -165,45 +168,60 @@ function scheduleTitleInitialization(params: {
     appDataContext,
     shouldInitializeTitle,
     titleGenerator,
+    userPrompt,
     emitConversationUpdated,
     logger,
   } = params
-  if (!shouldInitializeTitle || !titleGenerator) {
+  if (!shouldInitializeTitle) {
     return
   }
 
-  // 优先使用设置页面配置的助手模型生成标题，未配置或读取失败时回退到当前对话模型
-  void resolveTitleModelId(appDataContext, fallbackModelId, fallbackProviderId, logger)
-    .then(modelRef => titleGenerator.updateTitle(conversationId, modelRef))
-    .then((conversation) => {
-      emitConversationUpdated?.(conversation)
-    })
-    .catch((error) => {
+  void (async () => {
+    try {
+      // 读取设置决定使用 AI 生成还是截取，读取失败时默认走 AI 生成
+      let autoGenerateTitle = true
+      let assistantModelId = ''
+      let assistantProviderId = ''
+      try {
+        const settings = await appDataContext.settingsRepository.getGeneralSettings()
+        autoGenerateTitle = settings.autoGenerateTitle
+        assistantModelId = settings.assistantModelId
+        assistantProviderId = settings.assistantProviderId
+      }
+      catch (error) {
+        logger?.warn('读取标题生成设置失败，默认使用 AI 生成', error)
+      }
+
+      if (autoGenerateTitle && titleGenerator) {
+        // AI 生成标题：优先使用助手模型，未配置则回退到对话模型
+        const modelRef = (assistantModelId && assistantProviderId)
+          ? { providerId: assistantProviderId, modelId: assistantModelId }
+          : { providerId: fallbackProviderId, modelId: fallbackModelId }
+        const conversation = await titleGenerator.updateTitle(conversationId, modelRef)
+        emitConversationUpdated?.(conversation)
+      }
+      else if (userPrompt) {
+        // 截取用户首条消息作为标题
+        const truncated = truncateText(userPrompt, MAX_TITLE_LENGTH)
+        const conversation = await appDataContext.conversationRepository.update({ id: conversationId, title: truncated })
+        emitConversationUpdated?.(conversation)
+      }
+    }
+    catch (error) {
       logger?.warn('初始化会话标题失败', error)
-    })
+    }
+  })()
 }
 
 /**
- * 解析生成标题使用的模型引用：
- * 优先返回设置页面配置的助手模型（assistantModelId + assistantProviderId），
- * 未配置或读取设置失败时回退到当前对话使用的模型。
+ * 截取文本前 N 个字符作为标题，超出则添加省略号。
  */
-async function resolveTitleModelId(
-  appDataContext: AppDataContext,
-  fallbackModelId: string,
-  fallbackProviderId: string,
-  logger?: ILogger,
-): Promise<{ providerId: string, modelId: string }> {
-  try {
-    const { assistantModelId, assistantProviderId } = await appDataContext.settingsRepository.getGeneralSettings()
-    if (assistantModelId && assistantProviderId) {
-      return { providerId: assistantProviderId, modelId: assistantModelId }
-    }
+function truncateText(text: string, maxLength: number): string {
+  const trimmed = text.trim()
+  if (trimmed.length <= maxLength) {
+    return trimmed
   }
-  catch (error) {
-    logger?.warn('读取助手模型设置失败，回退到对话模型生成标题', error)
-  }
-  return { providerId: fallbackProviderId, modelId: fallbackModelId }
+  return `${trimmed.slice(0, maxLength)}…`
 }
 
 async function rollbackStartedTurn(params: {

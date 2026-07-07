@@ -28,6 +28,7 @@ import Sender from '../Sender'
 import { ModelControlPanel } from '../Sender/PickerModel'
 import { buildTurnInput } from './buildTurnInput'
 import { ContextDiagnosticsPanel } from './ContextDiagnostics'
+import { ConversationTitleBar } from './ConversationTitleBar'
 
 const BubbleList = lazy(() => import('./BubbleList'))
 
@@ -56,7 +57,6 @@ export default function Chat() {
 
   const senderRef = useRef<HTMLDivElement>(null)
 
-  // 上下文诊断面板状态
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
   const [diagnosticsWidth, setDiagnosticsWidth] = useState(420)
 
@@ -145,86 +145,91 @@ export default function Chat() {
 
   return (
     <div className="relative flex h-full min-w-0 w-full">
-      <div className={`flex min-w-0 flex-1 flex-col ${!hasMessages ? 'justify-center' : ''}`}>
-        {hasMessages && (
-          <div className="min-h-0 flex-1 overflow-hidden">
-            <Suspense fallback={<BubbleSkeleton />}>
-              <BubbleList
-                key={currentConversations?.id}
-                messages={messages}
-              />
-            </Suspense>
-          </div>
+      <div className="flex min-w-0 flex-1 flex-col">
+        {currentConversations && (
+          <ConversationTitleBar conversation={currentConversations} />
         )}
-        <div
-          ref={senderRef}
-          className="w-full min-w-0 px-2 md:px-3 pb-2"
-        >
-          {agentTask && pending
-            ? (
-                <AgentApprovalCard
-                  pending={pending}
-                  workspacePath={currentWorkspacePath}
-                  onApprove={(remember, workspacePath) => {
-                    void approveAgentActionWithWhitelist({
-                      taskId: agentTask.taskId,
-                      actionId: pending.actionId,
-                      remember,
-                      workspacePath,
-                    })
-                  }}
-                  onReject={() => void rejectAgentAction({ taskId: agentTask.taskId, actionId: pending.actionId, reason: '用户拒绝' })}
+        <div className={`flex min-w-0 flex-1 flex-col ${!hasMessages ? 'justify-center' : ''}`}>
+          {hasMessages && (
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <Suspense fallback={<BubbleSkeleton />}>
+                <BubbleList
+                  key={currentConversations?.id}
+                  messages={messages}
                 />
-              )
-            : null}
-          {secretRequest
-            ? (
-                <AgentSecretRequestCard
-                  request={secretRequest}
-                  onSubmit={values => void resolveSecretRequestAction(secretRequest.requestId, values)}
-                  onReject={() => void rejectSecretRequestAction(secretRequest.requestId)}
-                />
-              )
-            : null}
-          <Sender
-            disabled={commandRunning}
-            actions={(
-              <div className="flex items-center gap-1">
-                {import.meta.env.DEV && (
-                  <button
-                    type="button"
-                    onClick={() => setDiagnosticsOpen(prev => !prev)}
-                    className={`flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] transition-colors ${
-                      diagnosticsOpen
-                        ? 'border-border bg-surface text-foreground'
-                        : 'border-transparent text-muted-foreground hover:border-border/60 hover:text-foreground'
-                    }`}
-                  >
-                    <span className={`h-1.5 w-1.5 rounded-full ${diagnosticsOpen ? 'bg-emerald-500 shadow-[0_0_0_2px_rgba(34,197,94,0.15)]' : 'bg-muted-foreground/30'}`} />
-                    上下文
-                  </button>
-                )}
-                <ModelControlPanel
-                  value={{ modelId: settings.modelId, providerId: settings.providerId }}
-                  onChange={({ modelId, providerId, maxTokens, temperature }) => {
-                    updateSettings({ modelId, providerId, maxTokens, temperature })
-                  }}
-                />
-              </div>
-            )}
-            onSubmit={onSubmit}
-            canInjectPendingMessage={true}
-            onInjectPendingMessage={id => void injectPendingMessage(activeConversationsId, id)}
-            onEditPendingMessage={(id, text) => editPendingMessage(activeConversationsId, id, text)}
-            onRemovePendingMessage={id => removePendingMessage(activeConversationsId, id)}
-            onCancel={async () => {
-              if (commandRunning) {
-                await cancelCommand()
-                return
-              }
-              await abortActiveRequest(activeConversationsId)
-            }}
-          />
+              </Suspense>
+            </div>
+          )}
+          <div
+            ref={senderRef}
+            className={`w-full min-w-0 px-2 md:px-3 ${hasMessages ? 'pb-[max(0.5rem,env(safe-area-inset-bottom))] md:pb-4' : ''}`}
+          >
+            {agentTask && pending
+              ? (
+                  <AgentApprovalCard
+                    pending={pending}
+                    workspacePath={currentWorkspacePath}
+                    onApprove={(remember, workspacePath) => {
+                      void approveAgentActionWithWhitelist({
+                        taskId: agentTask.taskId,
+                        actionId: pending.actionId,
+                        remember,
+                        workspacePath,
+                      })
+                    }}
+                    onReject={() => void rejectAgentAction({ taskId: agentTask.taskId, actionId: pending.actionId, reason: '用户拒绝' })}
+                  />
+                )
+              : null}
+            {secretRequest
+              ? (
+                  <AgentSecretRequestCard
+                    request={secretRequest}
+                    onSubmit={values => void resolveSecretRequestAction(secretRequest.requestId, values)}
+                    onReject={() => void rejectSecretRequestAction(secretRequest.requestId)}
+                  />
+                )
+              : null}
+            <Sender
+              disabled={commandRunning}
+              actions={(
+                <div className="flex items-center gap-1">
+                  {import.meta.env.DEV && (
+                    <button
+                      type="button"
+                      onClick={() => setDiagnosticsOpen(prev => !prev)}
+                      className={`flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] transition-colors ${
+                        diagnosticsOpen
+                          ? 'border-border bg-surface text-foreground'
+                          : 'border-transparent text-muted-foreground hover:border-border/60 hover:text-foreground'
+                      }`}
+                    >
+                      <span className={`h-1.5 w-1.5 rounded-full ${diagnosticsOpen ? 'bg-emerald-500 shadow-[0_0_0_2px_rgba(34,197,94,0.15)]' : 'bg-muted-foreground/30'}`} />
+                      上下文
+                    </button>
+                  )}
+                  <ModelControlPanel
+                    value={{ modelId: settings.modelId, providerId: settings.providerId }}
+                    onChange={({ modelId, providerId, maxTokens, temperature }) => {
+                      updateSettings({ modelId, providerId, maxTokens, temperature })
+                    }}
+                  />
+                </div>
+              )}
+              onSubmit={onSubmit}
+              canInjectPendingMessage={true}
+              onInjectPendingMessage={id => void injectPendingMessage(activeConversationsId, id)}
+              onEditPendingMessage={(id, text) => editPendingMessage(activeConversationsId, id, text)}
+              onRemovePendingMessage={id => removePendingMessage(activeConversationsId, id)}
+              onCancel={async () => {
+                if (commandRunning) {
+                  await cancelCommand()
+                  return
+                }
+                await abortActiveRequest(activeConversationsId)
+              }}
+            />
+          </div>
         </div>
       </div>
 

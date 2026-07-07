@@ -1,16 +1,17 @@
 import type { ProxySettings as ProxySettingsType } from '@ant-chat/shared'
+import { Switch } from '@workspace/ui/components/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@workspace/ui/components/tooltip'
-import { Globe, Info, Link } from 'lucide-react'
+import { Globe, Info, Link, Sparkles } from 'lucide-react'
 import React from 'react'
 import AssistantIcon from '@/assets/icons/assistant.svg?react'
 import { CustomProxyUrl, ProxySettings } from '@/components/GeneralSettings/ProxySettings'
 import { SelectModel } from '@/components/GeneralSettings/SelectModel'
-import { updateProxySettings } from '@/store/generalSettings/actions'
-import { useGeneralSettingsStore } from '@/store/generalSettings/store'
+import { setAutoGenerateTitle, updateProxySettings, useGeneralSettingsStore } from '@/store/generalSettings'
 import { SettingsPageHeader } from './SettingsPageHeader'
 
 export function GeneralSettings() {
   const proxySettings = useGeneralSettingsStore(state => state.proxySettings)
+  const autoGenerateTitle = useGeneralSettingsStore(state => state.autoGenerateTitle)
   const [draftProxyMode, setDraftProxyMode] = React.useState<ProxySettingsType['mode']>(proxySettings.mode)
 
   React.useEffect(() => {
@@ -41,12 +42,25 @@ export function GeneralSettings() {
       />
       <div className="flex flex-col gap-2">
         <GeneralSettingsItem
-          title="助手模型"
-          help="用于生成对话标题的模型，不设置将使用对话时选择的模型"
-          icon={<AssistantIcon className="size-4" />}
+          title="自动生成标题"
+          help="开启后使用 AI 模型自动生成对话标题，关闭时将使用首条消息的前 30 个字符作为标题"
+          icon={<Sparkles className="size-4" />}
         >
-          <SelectModel />
+          <Switch
+            checked={autoGenerateTitle}
+            onCheckedChange={setAutoGenerateTitle}
+          />
         </GeneralSettingsItem>
+
+        {autoGenerateTitle && (
+          <GeneralSettingsItem
+            title="标题生成模型"
+            help="用于生成对话标题的模型，不设置将使用对话时选择的模型"
+            icon={<AssistantIcon className="size-4" />}
+          >
+            <SelectModel />
+          </GeneralSettingsItem>
+        )}
 
         <GeneralSettingsItem
           title="网络代理"

@@ -1,14 +1,13 @@
-import { Button } from '@workspace/ui/components/button'
 import {
   Sheet,
   SheetContent,
   SheetTitle,
 } from '@workspace/ui/components/sheet'
-import { MenuIcon, SquarePenIcon } from 'lucide-react'
+import { MenuIcon, PencilIcon, Search } from 'lucide-react'
 import { useState } from 'react'
 import { Outlet, useNavigate } from 'react-router'
-import { useConversationsStore } from '@/store/conversation'
-import { setActiveConversationsId, useMessagesStore } from '@/store/messages'
+import { SidebarProvider } from '@/contexts/sidebar'
+import { setActiveConversationsId } from '@/store/messages'
 import { isElectronMacOS } from '@/utils/ipc-bus'
 import { SliderMenu } from './SiliderMenu/SiliderMenu'
 
@@ -17,16 +16,12 @@ import { SliderMenu } from './SiliderMenu/SiliderMenu'
  *
  * 侧边栏（会话列表 + 工作区）只随 chat 路由渲染，
  * 这样 settings 作为独立页面时不会被侧边栏挤占空间。
- * 移动端通过顶部 header + Sheet 抽屉提供同样的会话访问入口。
+ * 移动端通过顶部按钮 + Sheet 抽屉提供同样的会话访问入口。
  */
 export function ChatLayout() {
   const [showSliderMenu, setShowSliderMenu] = useState(true)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const navigate = useNavigate()
-  const activeConversationsId = useMessagesStore(state => state.activeConversationsId)
-  const currentConversation = useConversationsStore(
-    state => state.conversations.find(item => item.id === activeConversationsId),
-  )
 
   function createNewConversation() {
     navigate('/chat')
@@ -34,39 +29,12 @@ export function ChatLayout() {
     setMobileMenuOpen(false)
   }
 
+  function openSearch() {
+    window.dispatchEvent(new Event('ant-chat:open-search'))
+  }
+
   return (
     <div className="flex h-dvh w-full overflow-hidden">
-      <div
-        role="button"
-        tabIndex={0}
-        aria-label={showSliderMenu ? '收起侧边栏' : '展开侧边栏'}
-        data-testid="desktop-sidebar-trigger"
-        className={`
-          absolute top-4 z-9990 hidden cursor-pointer text-muted-foreground
-          hover:text-foreground
-          md:block
-          ${isElectronMacOS() ? 'left-22.5' : 'left-4'}
-        `}
-        onClick={() => {
-          setShowSliderMenu(prev => !prev)
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault()
-            setShowSliderMenu(prev => !prev)
-          }
-        }}
-      >
-        <span
-          className={`
-            text-xl
-            ${showSliderMenu
-      ? 'icon-[fluent--panel-left-24-filled]'
-      : 'icon-[fluent--panel-left-24-regular]'}
-          `}
-        >
-        </span>
-      </div>
       <div
         data-state={showSliderMenu ? 'open' : 'closed'}
         data-testid="desktop-sidebar-shell"
@@ -75,43 +43,98 @@ export function ChatLayout() {
         <SliderMenu />
       </div>
       <div className="flex h-dvh min-w-0 flex-1 flex-col">
-        <header
+        {/* 桌面端侧边栏控制 + 快捷入口（保持原有浮动定位） */}
+        <div
           className={`
-            app-region-no-drag grid h-13 shrink-0 grid-cols-[2.5rem_minmax(0,1fr)_2.5rem]
-            items-center border-b border-border/60 bg-background/95 px-2 pt-[env(safe-area-inset-top)]
-            supports-backdrop-filter:backdrop-blur-xl
-            md:hidden
+            absolute top-4 z-9990 hidden cursor-pointer items-center gap-2
+            md:flex
+            ${isElectronMacOS() ? 'left-22.5' : 'left-4'}
           `}
         >
-          <Button
+          <span
+            role="button"
+            tabIndex={0}
+            data-testid="desktop-sidebar-trigger"
+            aria-label={showSliderMenu ? '收起侧边栏' : '展开侧边栏'}
+            className={`
+              inline-flex text-muted-foreground hover:text-foreground
+              text-xl
+              ${
+    showSliderMenu
+      ? 'icon-[fluent--panel-left-24-filled]'
+      : 'icon-[fluent--panel-left-24-regular]'}
+            `}
+            onClick={() => setShowSliderMenu(prev => !prev)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                setShowSliderMenu(prev => !prev)
+              }
+            }}
+          />
+
+          {/* 侧边栏隐藏时显示快捷入口 */}
+          {!showSliderMenu && (
+            <>
+              <span
+                role="button"
+                tabIndex={0}
+                aria-label="新对话"
+                className="inline-flex text-muted-foreground hover:text-foreground"
+                onClick={createNewConversation}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    createNewConversation()
+                  }
+                }}
+              >
+                <PencilIcon className="size-[18px]" />
+              </span>
+              <span
+                role="button"
+                tabIndex={0}
+                aria-label="搜索"
+                className="inline-flex text-muted-foreground hover:text-foreground"
+                onClick={openSearch}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    openSearch()
+                  }
+                }}
+              >
+                <Search className="size-[18px]" />
+              </span>
+            </>
+          )}
+        </div>
+
+        {/* 移动端侧边栏触发 */}
+        <div className="flex h-13 shrink-0 items-center gap-1 border-b border-border/60 px-4 pt-[env(safe-area-inset-top)] md:hidden">
+          <button
             type="button"
-            variant="ghost"
-            size="icon-lg"
             data-testid="mobile-menu-trigger"
             aria-label="打开会话列表"
+            className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
             onClick={() => setMobileMenuOpen(true)}
           >
             <MenuIcon />
-          </Button>
-          <div className="min-w-0 px-2 text-center">
-            <div className="truncate text-sm font-semibold">
-              {currentConversation?.title || '新对话'}
-            </div>
-          </div>
-          <Button
+          </button>
+          <button
             type="button"
-            variant="ghost"
-            size="icon-lg"
-            data-testid="mobile-new-chat"
             aria-label="新建对话"
+            className="ml-auto flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
             onClick={createNewConversation}
           >
-            <SquarePenIcon />
-          </Button>
-        </header>
+            <PencilIcon className="size-4" />
+          </button>
+        </div>
 
         <div className="min-h-0 flex-1">
-          <Outlet />
+          <SidebarProvider value={{ showSliderMenu }}>
+            <Outlet />
+          </SidebarProvider>
         </div>
       </div>
 
