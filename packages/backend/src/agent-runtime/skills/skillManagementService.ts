@@ -10,26 +10,38 @@ import yaml from 'js-yaml'
 const INDEX_FILE = '.index.json'
 const SKILL_NAME_PATTERN = /^[\w.-]+$/
 const BUILTIN_SKILL_INSTALLER = 'skill-installer'
+const BUILTIN_SKILL_MANAGER = 'ant-chat-manager'
 
 const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---/
 
-/** 内置 skill-installer 的 SKILL.md 正文（不含 frontmatter） */
-const BUILTIN_SKILL_INSTALLER_BODY = `# Skill Installer
-
-Install skills from GitHub into the Ant Chat skills directory.
-
-Use this skill when the user asks to install, list, or manage skills from GitHub. Prefer the built-in install_skill_from_github tool for installation. Installed skills are stored under {skillsRoot}.
-`
+/** 从已知位置定位 builtin-skills 源目录。 */
+function resolveBuiltinSkillsSourceRoot(): string {
+  const moduleDir = import.meta.dirname ?? __dirname
+  const candidates = [
+    path.join(moduleDir, 'builtin-skills'),
+    path.resolve(moduleDir, '../../../builtin-skills'),
+  ]
+  for (const candidate of candidates) {
+    if (fs.existsSync(path.join(candidate, BUILTIN_SKILL_INSTALLER, 'SKILL.md'))) {
+      return candidate
+    }
+  }
+  throw new Error('内置 Skill 资源不存在，请先构建 backend 包')
+}
 
 export interface SkillManagementServiceOptions {
   skillsRoot: string
+  /** 内置 Skill 源文件目录。默认从项目根目录 builtin-skills/ 解析。 */
+  builtinSkillsSourceRoot?: string
 }
 
 export class SkillManagementService {
   private readonly skillsRoot: string
+  private readonly builtinSkillsSourceRoot: string
 
   constructor(options: SkillManagementServiceOptions) {
     this.skillsRoot = options.skillsRoot
+    this.builtinSkillsSourceRoot = options.builtinSkillsSourceRoot ?? resolveBuiltinSkillsSourceRoot()
   }
 
   getSkillsRoot(): string {
@@ -40,6 +52,7 @@ export class SkillManagementService {
     await fs.promises.mkdir(this.skillsRoot, { recursive: true })
     await this.migrateFromManifestJson()
     await this.ensureBuiltinSkillInstaller()
+    await this.ensureBuiltinAntChatManager()
   }
 
   async listSkills(): Promise<SkillIndex> {
@@ -347,14 +360,12 @@ export class SkillManagementService {
     const skillPath = path.join(this.skillsRoot, BUILTIN_SKILL_INSTALLER)
     await fs.promises.mkdir(skillPath, { recursive: true })
 
-    // 生成带 frontmatter 的 SKILL.md
+    const sourceFile = path.join(this.builtinSkillsSourceRoot, BUILTIN_SKILL_INSTALLER, 'SKILL.md')
+    let content = await fs.promises.readFile(sourceFile, 'utf8')
+    // 替换运行时变量
+    content = content.replace('{skillsRoot}', this.skillsRoot)
+
     const skillFile = path.join(skillPath, 'SKILL.md')
-    const frontmatter = yaml.dump({
-      name: BUILTIN_SKILL_INSTALLER,
-      description: 'Install skills from GitHub into Ant Chat.',
-    }, { lineWidth: -1 }).trim()
-    const body = BUILTIN_SKILL_INSTALLER_BODY.replace('{skillsRoot}', this.skillsRoot)
-    const content = `---\n${frontmatter}\n---\n\n${body}`
     await fs.promises.writeFile(skillFile, content, 'utf8')
 
     // 确保 appState 中有记录
@@ -362,6 +373,32 @@ export class SkillManagementService {
     if (!appState[BUILTIN_SKILL_INSTALLER]) {
       const now = Date.now()
       appState[BUILTIN_SKILL_INSTALLER] = {
+        enabled: true,
+        builtin: true,
+        source: 'builtin',
+        installedAt: now,
+        updatedAt: now,
+      }
+      await this.writeAppState(appState)
+    }
+  }
+
+  /** 确保内置 ant-chat-manager Skill 存在 */
+  private async ensureBuiltinAntChatManager(): Promise<void> {
+    const skillPath = path.join(this.skillsRoot, BUILTIN_SKILL_MANAGER)
+    await fs.promises.mkdir(skillPath, { recursive: true })
+
+    const sourceFile = path.join(this.builtinSkillsSourceRoot, BUILTIN_SKILL_MANAGER, 'SKILL.md')
+    const content = await fs.promises.readFile(sourceFile, 'utf8')
+
+    const skillFile = path.join(skillPath, 'SKILL.md')
+    await fs.promises.writeFile(skillFile, content, 'utf8')
+
+    // 确保 appState 中有记录（默认启用）
+    const appState = await this.readAppState()
+    if (!appState[BUILTIN_SKILL_MANAGER]) {
+      const now = Date.now()
+      appState[BUILTIN_SKILL_MANAGER] = {
         enabled: true,
         builtin: true,
         source: 'builtin',

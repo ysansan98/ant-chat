@@ -38,5 +38,19 @@ export function createAppDataMigrations(
         `)
       },
     },
+    {
+      version: 3,
+      name: '重命名自动化 selected 字段为 allowed',
+      migrate(db) {
+        const columns = db.prepare('PRAGMA table_info(automations)').all() as Array<{ name: string }>
+        const colNames = new Set(columns.map(c => c.name))
+        if (colNames.has('selected_skills') && !colNames.has('allowed_skills')) {
+          db.exec('ALTER TABLE automations RENAME COLUMN selected_skills TO allowed_skills')
+        }
+        if (colNames.has('selected_mcp_servers') && !colNames.has('allowed_mcp_servers')) {
+          db.exec('ALTER TABLE automations RENAME COLUMN selected_mcp_servers TO allowed_mcp_servers')
+        }
+      },
+    },
   ]
 }

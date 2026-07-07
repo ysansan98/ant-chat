@@ -125,6 +125,10 @@ export class AgentRuntime {
     this.approvalController.cancelTask(options)
   }
 
+  setAppControl(appControl: NonNullable<AgentRuntimeConfig['appControl']>): void {
+    this.config.appControl = appControl
+  }
+
   async injectSteering(conversationId: string, text: string): Promise<IMessage> {
     return await this.sessionRuntime.injectSteering(conversationId, text)
   }

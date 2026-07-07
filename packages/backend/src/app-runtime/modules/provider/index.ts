@@ -56,25 +56,19 @@ export class ProviderModule implements RuntimeModuleMethods<'provider'> {
     return null
   }
 
+  /** 安全地启用/禁用 Provider（通过 isEnabled 字段） */
+  async setProviderEnabled(id: string, enabled: boolean) {
+    const provider = this.core.data.providerSettingsRepository.updateProvider({ id, isEnabled: enabled })
+    this.core.events.emit('provider:changed', { providerId: id })
+    return provider
+  }
+
   @Method()
   getProviderById(input: AppRpcInput<'provider.getProviderById'>) {
     return requireValue(
       this.core.data.providerSettingsRepository.getProviderById(input.id),
       `Provider not found: ${input.id}`,
     )
-  }
-
-  @Method()
-  async getProviderApiKey(input: AppRpcInput<'provider.getProviderApiKey'>) {
-    const provider = this.core.data.providerSettingsRepository.getProviderSettingsById(input.id)
-    if (!provider)
-      return null
-    try {
-      return await resolveProviderApiKey(this.core.secretStore, provider)
-    }
-    catch {
-      return null
-    }
   }
 
   @Method()

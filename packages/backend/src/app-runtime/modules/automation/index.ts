@@ -65,6 +65,19 @@ export class AutomationModule implements RuntimeModuleMethods<'automation'> {
     return null
   }
 
+  /** 安全删除 — 检查活跃 run 并支持 force */
+  async safeDelete(id: string, force?: boolean): Promise<void> {
+    const runs = await this.service.listRuns(id)
+    const hasActiveRun = runs.some(r => r.status === 'queued' || r.status === 'running')
+    if (hasActiveRun && !force) {
+      throw new Error(`Automation ${id} has active runs. Use --force to cancel and delete.`)
+    }
+    if (hasActiveRun && force) {
+      await this.service.cancelActiveRuns(id)
+    }
+    await this.service.delete(id)
+  }
+
   @Method()
   setEnabled(input: AppRpcInput<'automation.setEnabled'>) {
     return this.service.setEnabled(input.id, input.enabled)

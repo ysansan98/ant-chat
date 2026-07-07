@@ -95,8 +95,6 @@ export class SessionRuntime {
     const enrichedPrompt = buildPromptWithTurnContext({
       prompt,
       referencedFiles: options.referencedFiles,
-      selectedSkill: options.selectedSkill,
-      selectedSkills: options.selectedSkills,
     })
 
     // Build user content.

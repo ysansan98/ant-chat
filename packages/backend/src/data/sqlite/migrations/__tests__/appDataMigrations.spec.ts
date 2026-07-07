@@ -41,6 +41,7 @@ describe('app-data SQLite 迁移', () => {
     expect(history).toEqual([
       { version: 1, name: '初始化 app-data schema' },
       { version: 2, name: '增加会话归档状态' },
+      { version: 3, name: '重命名自动化 selected 字段为 allowed' },
     ])
   })
 
@@ -82,7 +83,7 @@ describe('app-data SQLite 迁移', () => {
     expect(messageColumnNames).not.toEqual(expect.arrayContaining(['images', 'attachments']))
     const conversationColumns = sqlite.prepare('PRAGMA table_info(conversations)').all() as Array<{ name: string }>
     expect(conversationColumns.map(column => column.name)).toContain('archived')
-    expect(sqlite.prepare('SELECT version FROM app_data_migrations').all()).toEqual([{ version: 1 }, { version: 2 }])
+    expect(sqlite.prepare('SELECT version FROM app_data_migrations').all()).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }])
   })
 })
 

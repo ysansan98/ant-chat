@@ -72,6 +72,7 @@ export interface AppRendererEvents {
   'workspace:changed': Record<string, never>
   'settings:updated': { keys: string[] }
   'mcp:status-changed': { serverName: string, status: 'connected' | 'disconnected', error?: string }
+  'mcp:changed': { serverName?: string }
   'provider:changed': { providerId?: string }
   'automation:changed': { automation: AutomationDefinition }
   'automation:run-changed': { run: AutomationRun }
@@ -88,6 +89,7 @@ export const APP_RENDERER_EVENT_NAMES = [
   'workspace:changed',
   'settings:updated',
   'mcp:status-changed',
+  'mcp:changed',
   'provider:changed',
   'automation:changed',
   'automation:run-changed',

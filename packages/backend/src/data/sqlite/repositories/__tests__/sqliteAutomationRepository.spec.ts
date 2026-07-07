@@ -14,8 +14,8 @@ const input: AutomationInput = {
   workspacePath: '/workspace',
   providerId: 'provider-1',
   modelId: 'model-1',
-  selectedSkills: ['review'],
-  selectedMcpServers: [],
+  allowedSkills: ['review'],
+  allowedMcpServers: [],
   permissionPolicy: {
     workspaceAccess: 'read',
     allowSkillScripts: false,
@@ -48,7 +48,7 @@ describe('sqliteAutomationRepository', () => {
     expect(restored).toEqual(expect.objectContaining({
       name: '每日检查',
       nextRunAt: 1_000,
-      selectedSkills: ['review'],
+      allowedSkills: ['review'],
     }))
   })
 

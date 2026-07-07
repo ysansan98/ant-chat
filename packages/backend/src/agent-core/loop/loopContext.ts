@@ -38,6 +38,13 @@ export function createLoopSystemPrompt(workspacePath: string, customPrompt?: str
       ].join('\n')
 
   const sections = [basePrompt]
+
+  sections.push([
+    '<skill_reference>',
+    '用户可以使用 /skill-name 的语法引用 Skill。当一个以 / 开头的标记匹配可用的 Skill 名称时，应将其解释为 Skill 调用，而不是文件系统路径或普通文本，并在继续处理任务之前加载该 Skill。',
+    '</skill_reference>',
+  ].join('\n'))
+
   const memory = memorySnapshot?.memory?.trim()
   const soul = memorySnapshot?.soul?.trim()
   const user = memorySnapshot?.user?.trim()

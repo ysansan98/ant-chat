@@ -12,8 +12,8 @@ describe('automationService', () => {
       workspacePath: '/workspace',
       providerId: 'provider-1',
       modelId: 'model-1',
-      selectedSkills: ['review'],
-      selectedMcpServers: ['github'],
+      allowedSkills: ['review'],
+      allowedMcpServers: ['github'],
       permissionPolicy: {
         workspaceAccess: 'read',
         allowSkillScripts: false,
@@ -59,13 +59,44 @@ describe('automationService', () => {
         type: 'automation',
         automationId: automation.id,
         runId: 'run-1',
-        selectedSkills: ['review'],
-        selectedMcpServers: ['github'],
+        allowedSkills: ['review'],
+        allowedMcpServers: ['github'],
         permissionPolicy: automation.permissionPolicy,
       },
     }))
     const startInput = startTurn.mock.calls[0]?.[0] as { prompt: string }
     expect(startInput.prompt).not.toContain('review')
     expect(startInput.prompt).not.toContain('github')
+  })
+
+  it('强制删除前取消活跃运行并广播最终状态', async () => {
+    const running = {
+      automationId: 'automation-1',
+      createdAt: 1,
+      id: 'run-1',
+      scheduledAt: 1,
+      status: 'running',
+      taskId: 'task-1',
+    } satisfies AutomationRun
+    const cancelled = { ...running, finishedAt: 2, status: 'cancelled' as const }
+    const repository = {
+      listRuns: vi.fn(async () => [running]),
+      updateRun: vi.fn(async () => cancelled),
+    }
+    const cancelTask = vi.fn()
+    const events = new RuntimeEventBus()
+    const changed: AutomationRun[] = []
+    events.on('automation:run-changed', ({ run }) => changed.push(run))
+    const service = createAutomationService({
+      cancelTask,
+      events,
+      repository: repository as never,
+      startTurn: vi.fn(),
+    })
+
+    await expect(service.cancelActiveRuns('automation-1')).resolves.toBe(1)
+    expect(cancelTask).toHaveBeenCalledWith('task-1')
+    expect(repository.updateRun).toHaveBeenCalledWith('run-1', expect.objectContaining({ status: 'cancelled' }))
+    expect(changed).toEqual([cancelled])
   })
 })

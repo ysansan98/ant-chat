@@ -9,8 +9,8 @@ export type AgentTurnSource
       type: 'automation'
       automationId: string
       runId: string
-      selectedSkills: string[]
-      selectedMcpServers: string[]
+      allowedSkills: string[]
+      allowedMcpServers: string[]
       permissionPolicy: AutomationPermissionPolicy
     }
 

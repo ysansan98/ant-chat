@@ -18,7 +18,6 @@ export function buildTurnInput(options: BuildTurnInputOptions): StartAgentTurnOp
     prompt: options.text,
     content: options.content ?? [{ type: 'text', text: options.text }],
     referencedFiles: options.referencedFiles ?? [],
-    selectedSkill: options.selectedSkill,
     mode: options.mode,
     workspacePath: options.workspacePath,
     modelConfig: {

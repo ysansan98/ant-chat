@@ -12,8 +12,8 @@ interface AutomationRow {
   workspace_path: string
   provider_id: string
   model_id: string
-  selected_skills: string
-  selected_mcp_servers: string
+  allowed_skills: string
+  allowed_mcp_servers: string
   permission_policy: string
   schedule: string
   enabled: number
@@ -38,7 +38,7 @@ interface RunRow {
   created_at: number
 }
 
-const AUTOMATION_COLUMNS = 'id, name, prompt, workspace_path, provider_id, model_id, selected_skills, selected_mcp_servers, permission_policy, schedule, enabled, next_run_at, last_run_at, created_at, updated_at'
+const AUTOMATION_COLUMNS = 'id, name, prompt, workspace_path, provider_id, model_id, allowed_skills, allowed_mcp_servers, permission_policy, schedule, enabled, next_run_at, last_run_at, created_at, updated_at'
 const RUN_COLUMNS = 'id, automation_id, scheduled_at, started_at, finished_at, status, task_id, conversation_id, summary, error_code, error_message, created_at'
 
 export class SqliteAutomationRepository implements AutomationRepository {
@@ -66,8 +66,8 @@ export class SqliteAutomationRepository implements AutomationRepository {
       value.workspacePath,
       value.providerId,
       value.modelId,
-      JSON.stringify(value.selectedSkills),
-      JSON.stringify(value.selectedMcpServers),
+      JSON.stringify(value.allowedSkills),
+      JSON.stringify(value.allowedMcpServers),
       JSON.stringify(value.permissionPolicy),
       JSON.stringify(value.schedule),
       value.enabled ? 1 : 0,
@@ -83,14 +83,14 @@ export class SqliteAutomationRepository implements AutomationRepository {
     const current = await this.getById(input.id)
     const value = AutomationInputSchema.parse({ ...current, ...input })
     const updatedAt = Date.now()
-    this.db.prepare(`UPDATE automations SET name=?, prompt=?, workspace_path=?, provider_id=?, model_id=?, selected_skills=?, selected_mcp_servers=?, permission_policy=?, schedule=?, enabled=?, next_run_at=?, updated_at=? WHERE id=?`).run(
+    this.db.prepare(`UPDATE automations SET name=?, prompt=?, workspace_path=?, provider_id=?, model_id=?, allowed_skills=?, allowed_mcp_servers=?, permission_policy=?, schedule=?, enabled=?, next_run_at=?, updated_at=? WHERE id=?`).run(
       value.name,
       value.prompt,
       value.workspacePath,
       value.providerId,
       value.modelId,
-      JSON.stringify(value.selectedSkills),
-      JSON.stringify(value.selectedMcpServers),
+      JSON.stringify(value.allowedSkills),
+      JSON.stringify(value.allowedMcpServers),
       JSON.stringify(value.permissionPolicy),
       JSON.stringify(value.schedule),
       value.enabled ? 1 : 0,
@@ -218,8 +218,8 @@ function mapAutomation(row: AutomationRow): AutomationDefinition {
     workspacePath: row.workspace_path,
     providerId: row.provider_id,
     modelId: row.model_id,
-    selectedSkills: z.array(z.string()).parse(JSON.parse(row.selected_skills)),
-    selectedMcpServers: z.array(z.string()).parse(JSON.parse(row.selected_mcp_servers)),
+    allowedSkills: z.array(z.string()).parse(JSON.parse(row.allowed_skills)),
+    allowedMcpServers: z.array(z.string()).parse(JSON.parse(row.allowed_mcp_servers)),
     permissionPolicy: AutomationPermissionPolicySchema.parse(JSON.parse(row.permission_policy)),
     schedule: AutomationScheduleSchema.parse(JSON.parse(row.schedule)),
     enabled: row.enabled === 1,

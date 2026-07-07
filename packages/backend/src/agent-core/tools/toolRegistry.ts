@@ -1,4 +1,4 @@
-import type { AgentMode, AgentRuntimeConfig, AgentTool, AgentToolResult, AgentTurnSource, RuntimeToolDefinition, SecretRef, SecretStore, SkillManifest, SkillReader, ToolOperationType, ToolScope } from '@ant-chat/shared'
+import type { AgentMode, AgentRuntimeConfig, AgentTool, AgentToolResult, AgentTurnSource, AppControlCommand, RuntimeToolDefinition, SecretRef, SecretStore, SkillManifest, SkillReader, ToolOperationType, ToolScope } from '@ant-chat/shared'
 import type { BrowserSessionState } from '../native-tools/tools/browserSessionManager'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -59,13 +59,18 @@ export class ToolRegistry {
     const mcpTools = config.mcpClientHub
       ? createMcpTools(config.mcpClientHub)
       : []
-    const selectedMcpServers = turnSource?.type === 'automation' ? turnSource.selectedMcpServers : undefined
-    const allowedMcpTools = selectedMcpServers === undefined
+    const allowedMcpServers = turnSource?.type === 'automation' ? turnSource.allowedMcpServers : undefined
+    const allowedMcpTools = allowedMcpServers === undefined
       ? mcpTools
-      : mcpTools.filter(tool => selectedMcpServers.includes(tool.serverName ?? ''))
+      : mcpTools.filter(tool => allowedMcpServers.includes(tool.serverName ?? ''))
+
+    // 自动化 Turn 不注册 ant_chat 工具，防止任务修改自己的调度或安全策略
+    const appControlTool = config.appControl && turnSource?.type !== 'automation'
+      ? [createAppControlTool(config.appControl)]
+      : []
 
     return new ToolRegistry(
-      [...nativeTools, ...skillTools, ...agentLoopTools, ...allowedMcpTools],
+      [...nativeTools, ...skillTools, ...agentLoopTools, ...allowedMcpTools, ...appControlTool],
       unrestricted ? undefined : relaxedNativeTools,
       config.secretStore,
     )
@@ -309,11 +314,11 @@ interface ResolvedSkillCapability {
 async function makeSkillTools(reader: SkillReader, turnSource?: AgentTurnSource): Promise<AgentTool[]> {
   const skills = await reader.getEnabledSkills()
   if (turnSource?.type === 'automation') {
-    const allowed = new Set(turnSource.selectedSkills.map(name => name.trim()).filter(Boolean))
+    const allowed = new Set(turnSource.allowedSkills.map(name => name.trim()).filter(Boolean))
     if (allowed.size === 0)
       return []
-    const selectedSkills = skills.filter(skill => allowed.has(skill.name))
-    const capabilities = await Promise.all(selectedSkills.map(async manifest => ({
+    const matchedSkills = skills.filter(skill => allowed.has(skill.name))
+    const capabilities = await Promise.all(matchedSkills.map(async manifest => ({
       manifest,
       content: await reader.readSkillMarkdown(manifest.name),
       files: await listSkillFiles(reader.getSkillsRoot(), manifest.name),
@@ -443,4 +448,98 @@ async function listSkillFiles(skillsRoot: string, name: string): Promise<string[
     .filter(e => e.isFile() && e.name !== '.index.json')
     .map(e => path.join(e.parentPath ?? skillPath, e.name))
     .sort()
+}
+
+/**
+ * 创建 ant_chat 应用管理工具。
+ * 该工具让 Agent 在对话内管理设置、服务商、MCP 和自动化。
+ * 查询命令 scope=workspace 直接允许，修改/删除命令 scope=outside 进入审批。
+ * 自动化 Turn 不注册该工具（在 create 方法中判断）。
+ */
+function createAppControlTool(appControl: NonNullable<AgentRuntimeConfig['appControl']>): AgentTool {
+  return {
+    name: 'ant_chat',
+    source: 'native' as const,
+    serverName: 'native',
+    description: [
+      '管理 ant-chat 应用的主控制工具，涵盖设置、AI 服务商、MCP 和自动化管理。',
+      '',
+      '基本用法：',
+      '  查询（无需审批）：settings show, provider list, mcp list, automation list, provider get <id>, mcp get <name>, automation get <id>',
+      '  修改（需审批）：provider create/update/enable/disable, mcp install/edit/start/stop, automation create',
+      '  删除（需审批）：provider delete <id>, mcp delete <name>, automation delete <id> [--force]',
+      '',
+      '隐私规则：',
+      '  - API Key、Token、密码必须通过 requestSecret 收集，不在聊天中传递',
+      '  - 不要在聊天中粘贴或要求用户粘贴 API Key',
+      '  - 返回的数据中 API Key 只会显示 hasApiKey 布尔值',
+      '  - SecretRef 一次性使用，不可复用',
+      '  - 创建 provider 时使用 key:set 子命令并通过 SecretRef 传入 API Key',
+      '',
+      'Secret 工作流：',
+      '  1. 调用 requestSecret 获取用户的 API Key',
+      '  2. 使用 key:set + 完整 secretRef 对象设置',
+      '  3. 系统自动将 SecretRef 持久化到 Keychain',
+    ].join('\n'),
+    inputSchema: {
+      type: 'object',
+      properties: {
+        type: {
+          type: 'string',
+          enum: ['settings', 'provider', 'mcp', 'automation'],
+          description: '管理类别',
+        },
+        action: {
+          type: 'string',
+          description: '操作动作',
+        },
+        secretRef: {
+          type: 'object',
+          description: '仅 provider key:set 使用；必须是 requestSecret 返回的完整 SecretRef 对象',
+        },
+      },
+      required: ['type', 'action'],
+    },
+    operationType: 'app',
+    inferScope: (input: Record<string, unknown>) => {
+      const action = String(input.action ?? '')
+      if (['show', 'list', 'get', 'models', 'runs'].includes(action)) {
+        return 'workspace'
+      }
+      return 'outside'
+    },
+    validateInput: (input) => {
+      if (input.type === 'provider' && 'apiKey' in input) {
+        return 'Agent 不得直接提交 apiKey，请使用 requestSecret 后通过 provider key:set 的 secretRef 传入'
+      }
+      if (input.type === 'provider' && input.action === 'key:set') {
+        if (!isSecretRef(input.secretRef)) {
+          return 'provider key:set 需要完整 secretRef 对象'
+        }
+      }
+      return null
+    },
+    execute: async (input: Record<string, unknown>) => {
+      try {
+        const command = toAppControlCommand(input)
+        const result = await appControl.execute(command)
+        return { ok: true, result: JSON.stringify(result), diagnostics: { data: result } }
+      }
+      catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        return { ok: false, result: message }
+      }
+    },
+  }
+}
+
+function toAppControlCommand(input: Record<string, unknown>): AppControlCommand {
+  if (input.type === 'provider' && input.action === 'key:set') {
+    if (typeof input.secretRef !== 'string') {
+      throw new TypeError('敏感信息解析失败')
+    }
+    const { secretRef, ...command } = input
+    return { ...command, apiKey: secretRef } as unknown as AppControlCommand
+  }
+  return input as unknown as AppControlCommand
 }

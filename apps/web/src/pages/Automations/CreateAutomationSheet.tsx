@@ -100,8 +100,8 @@ export function CreateAutomationSheet(props: {
       workspacePath: effectiveWorkspace,
       providerId,
       modelId,
-      selectedSkills,
-      selectedMcpServers: selectedMcps,
+      allowedSkills: selectedSkills,
+      allowedMcpServers: selectedMcps,
       permissionPolicy: {
         workspaceAccess: permissionScopes.workspaceWrite ? 'write' : 'read',
         allowSkillScripts: permissionScopes.skillScripts,

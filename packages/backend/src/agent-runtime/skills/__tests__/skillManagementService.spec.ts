@@ -28,14 +28,11 @@ describe('skillManagementService', () => {
     const index = await reader.listSkills()
 
     expect(index.rootPath).toBe(skillsRoot)
-    expect(index.skills).toHaveLength(1)
-    expect(index.skills[0]).toMatchObject({
-      name: 'skill-installer',
-      description: 'Install skills from GitHub into Ant Chat.',
-      source: 'builtin',
-      enabled: true,
-      builtin: true,
-    })
+    expect(index.skills).toHaveLength(2)
+    expect(index.skills).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'skill-installer', source: 'builtin', enabled: true, builtin: true }),
+      expect.objectContaining({ name: 'ant-chat-manager', source: 'builtin', enabled: true, builtin: true }),
+    ]))
   })
 
   it('内置 skill-installer 的 SKILL.md 包含正确的 YAML frontmatter', async () => {
@@ -46,7 +43,7 @@ describe('skillManagementService', () => {
 
     expect(content).toMatch(/^---\n/)
     expect(content).toContain('name: skill-installer')
-    expect(content).toContain('description: Install skills from GitHub into Ant Chat.')
+    expect(content).toContain('description: Install and manage Ant Chat skills from GitHub.')
     expect(content).toContain('# Skill Installer')
   })
 
@@ -73,7 +70,7 @@ describe('skillManagementService', () => {
       source: 'zip',
       enabled: true,
     })
-    expect(index.skills.map(item => item.name)).toEqual(['skill-installer', 'writer'])
+    expect(index.skills.map(item => item.name)).toEqual(['ant-chat-manager', 'skill-installer', 'writer'])
     expect(markdown).toContain('Write short release notes.')
   })
 
@@ -125,8 +122,7 @@ describe('skillManagementService', () => {
 
     expect(fs.existsSync(path.join(skillsRoot, 'writer'))).toBe(false)
     const index = await reader.listSkills()
-    expect(index.skills).toHaveLength(1)
-    expect(index.skills[0].name).toBe('skill-installer')
+    expect(index.skills.map(item => item.name)).toEqual(['ant-chat-manager', 'skill-installer'])
   })
 
   it('.index.json 使用新版格式（version: 1, skills map）', async () => {

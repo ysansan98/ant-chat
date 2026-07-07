@@ -56,8 +56,8 @@ describe('toolRegistry Skill 白名单', () => {
         type: 'automation',
         automationId: 'automation-1',
         runId: 'run-1',
-        selectedSkills: ['review'],
-        selectedMcpServers: [],
+        allowedSkills: ['review'],
+        allowedMcpServers: [],
         permissionPolicy: {
           workspaceAccess: 'read',
           allowSkillScripts: false,
@@ -93,8 +93,8 @@ describe('toolRegistry Skill 白名单', () => {
         type: 'automation',
         automationId: 'automation-1',
         runId: 'run-1',
-        selectedSkills: [],
-        selectedMcpServers: [],
+        allowedSkills: [],
+        allowedMcpServers: [],
         permissionPolicy: {
           workspaceAccess: 'read',
           allowSkillScripts: false,
@@ -126,5 +126,127 @@ describe('toolRegistry Skill 白名单', () => {
 
     await expect(registry.prepare('use_skill', { name: 'deploy' }).execute()).resolves.toEqual(expect.objectContaining({ ok: true, result: expect.stringContaining('# deploy') }))
     expect(config.skillReader?.readSkillMarkdown).toHaveBeenCalledWith('deploy')
+  })
+
+  it('ant_chat 使用敏感信息工具返回的完整 SecretRef 设置 API Key', async () => {
+    const appControl = { execute: vi.fn(async () => ({ hasApiKey: true, id: 'provider-1' })) }
+    const config = {
+      ...createConfig(),
+      appControl,
+      secretStore: {
+        clearTurnSecrets: vi.fn(),
+        createTurnSecret: vi.fn(),
+        deleteProviderApiKey: vi.fn(),
+        getProviderApiKey: vi.fn(),
+        resolve: vi.fn(async () => 'sk-secret'),
+        saveProviderApiKey: vi.fn(),
+      },
+    } as unknown as AgentRuntimeConfig
+    const registry = await ToolRegistry.create({
+      config,
+      mode: 'hybrid',
+      turnSource: { type: 'interactive' },
+      workspacePath: '/workspace',
+    })
+
+    const result = await registry.prepare('ant_chat', {
+      action: 'key:set',
+      id: 'provider-1',
+      secretRef: { id: 'turn:task-1:secret-1', kind: 'secret_ref', scope: 'turn' },
+      type: 'provider',
+    }).execute()
+
+    expect(result.ok).toBe(true)
+    expect(appControl.execute).toHaveBeenCalledWith({
+      action: 'key:set',
+      apiKey: 'sk-secret',
+      id: 'provider-1',
+      type: 'provider',
+    })
+  })
+
+  it('ant_chat 拒绝 Agent 在 provider 命令中直接提交 API Key', async () => {
+    const config = { ...createConfig(), appControl: { execute: vi.fn() } } as AgentRuntimeConfig
+    const registry = await ToolRegistry.create({
+      config,
+      mode: 'hybrid',
+      turnSource: { type: 'interactive' },
+      workspacePath: '/workspace',
+    })
+
+    const prepared = registry.prepare('ant_chat', {
+      action: 'create',
+      apiKey: 'sk-plaintext',
+      apiMode: 'openai',
+      baseUrl: 'https://api.openai.com/v1',
+      name: 'OpenAI',
+      type: 'provider',
+    })
+
+    expect(prepared.validationError).toContain('不得直接提交 apiKey')
+  })
+
+  it('ant_chat 在执行前解析 MCP 凭据但不改变其明文持久化语义', async () => {
+    const appControl = { execute: vi.fn(async () => ({ mcpServer: { name: 'remote', status: 'connected' } })) }
+    const config = {
+      ...createConfig(),
+      appControl,
+      secretStore: {
+        clearTurnSecrets: vi.fn(),
+        createTurnSecret: vi.fn(),
+        deleteProviderApiKey: vi.fn(),
+        getProviderApiKey: vi.fn(),
+        resolve: vi.fn(async () => 'Bearer mcp-token'),
+        saveProviderApiKey: vi.fn(),
+      },
+    } as unknown as AgentRuntimeConfig
+    const registry = await ToolRegistry.create({
+      config,
+      mode: 'hybrid',
+      turnSource: { type: 'interactive' },
+      workspacePath: '/workspace',
+    })
+
+    await registry.prepare('ant_chat', {
+      action: 'install',
+      headers: {
+        Authorization: { id: 'turn:task-1:secret-2', kind: 'secret_ref', scope: 'turn' },
+      },
+      serverName: 'remote',
+      transportType: 'sse',
+      type: 'mcp',
+      url: 'https://example.com/mcp',
+    }).execute()
+
+    expect(appControl.execute).toHaveBeenCalledWith(expect.objectContaining({
+      headers: { Authorization: 'Bearer mcp-token' },
+    }))
+  })
+
+  it('自动化 Turn 不注册 ant_chat 工具', async () => {
+    const config = { ...createConfig(), appControl: { execute: vi.fn() } } as AgentRuntimeConfig
+    const registry = await ToolRegistry.create({
+      config,
+      mode: 'strict',
+      turnSource: {
+        automationId: 'automation-1',
+        permissionPolicy: {
+          allowArbitraryCommands: false,
+          allowMcpMutations: false,
+          allowNetwork: false,
+          allowSkillScripts: false,
+          commandPatterns: [],
+          extraFileRoots: [],
+          workspaceAccess: 'read',
+        },
+        runId: 'run-1',
+        allowedMcpServers: [],
+        allowedSkills: [],
+        type: 'automation',
+      },
+      workspacePath: '/workspace',
+    })
+
+    expect(registry.listTools().some(tool => tool.name === 'ant_chat')).toBe(false)
   })
 })
