@@ -73,13 +73,14 @@ export class AgentRuntime {
     const now = Date.now()
     const taskId = randomUUID()
 
-    // 合并 runtime 提供的 eventEmitter，以及 options 透传的 taskLogger
-    const needMerge = runtime?.eventEmitter || options.taskLogger
+    // 合并 runtime 提供的 eventEmitter 和 contextTraceCapture，以及 options 透传的 taskLogger
+    const needMerge = runtime?.eventEmitter || options.taskLogger || options.contextTraceCapture
     const config = needMerge
       ? {
           ...this.config,
           ...(runtime?.eventEmitter ? { eventEmitter: runtime.eventEmitter } : {}),
           ...(options.taskLogger ? { taskLogger: options.taskLogger } : {}),
+          ...(options.contextTraceCapture ? { contextTraceCapture: options.contextTraceCapture } : {}),
         }
       : this.config
 

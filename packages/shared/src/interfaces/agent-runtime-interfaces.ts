@@ -275,6 +275,10 @@ export interface AgentRuntimeOverrides {
   logger?: ILogger
   aiProviderFactory?: AIProviderFactory
   compactionStrategy?: CompactionStrategy
+  /** 上下文诊断捕获回调（开发环境使用） */
+  contextTraceCapture?: (payload: Record<string, unknown>) => void
+  /** 模型响应捕获回调（最终请求写入响应文本） */
+  contextTraceCaptureResponse?: (payload: { conversationId: string, requestId: string, text: string }) => void
 }
 
 export interface AgentRuntimeOptions {

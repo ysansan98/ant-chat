@@ -5,8 +5,11 @@ import type { RuntimeCore } from '../../createRuntimeCore'
 import type { RuntimeModuleMethods } from '../../routeRegistry'
 import { createAgentRuntime } from '../../../agent-core'
 import {
+  ContextTraceWriter,
+  ConversationTaskLoggerManager,
   createAgentRuntimeController,
   createAppDataSessionStore,
+  createContextTraceReader,
   createConversationTitleGenerator,
   createTaskLoggerFactory,
 } from '../../../agent-runtime'
@@ -17,6 +20,7 @@ export interface AgentModuleDependencies {
   aiProviderFactory: AIProviderFactory
   mcpClientHub: MCPClientHub
   skills: SkillManagementService
+  contextDiagnosticsEnabled?: boolean
 }
 
 @Module('agent')
@@ -26,6 +30,9 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
   readonly eventEmitter: IAgentEventEmitter
   readonly titleGenerator: ReturnType<typeof createConversationTitleGenerator>
   private readonly secretRequester: RuntimeSecretRequestController
+  private readonly contextTraceReader: ReturnType<typeof createContextTraceReader>
+  private readonly conversationLoggerManager: ConversationTaskLoggerManager | null
+  private contextDiagnosticsEnabled: boolean
 
   constructor(core: RuntimeCore, dependencies: AgentModuleDependencies) {
     this.eventEmitter = createAgentEventEmitter(core)
@@ -34,6 +41,24 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
         core.events.emit('agent:secret-requested', { request })
       },
     })
+    this.contextTraceReader = createContextTraceReader({ taskLogsRoot: core.paths.taskLogsRoot })
+    this.contextDiagnosticsEnabled = dependencies.contextDiagnosticsEnabled ?? false
+    if (this.contextDiagnosticsEnabled) {
+      this.conversationLoggerManager = new ConversationTaskLoggerManager(core.paths.taskLogsRoot)
+    }
+    else {
+      this.conversationLoggerManager = null
+    }
+
+    // 创建 ContextTraceWriter（诊断启用时注入全局 config）
+    let contextTraceWriter: ContextTraceWriter | undefined
+    if (this.contextDiagnosticsEnabled && this.conversationLoggerManager) {
+      contextTraceWriter = new ContextTraceWriter({
+        enabled: true,
+        loggerManager: this.conversationLoggerManager,
+      })
+    }
+
     this.runtime = createAgentRuntime({
       host: {
         eventEmitter: this.eventEmitter,
@@ -49,7 +74,16 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
         secretStore: core.secretStore,
         secretRequester: this.secretRequester,
       },
-      overrides: { logger: core.logger, aiProviderFactory: dependencies.aiProviderFactory },
+      overrides: {
+        logger: core.logger,
+        aiProviderFactory: dependencies.aiProviderFactory,
+        contextTraceCapture: contextTraceWriter
+          ? (payload) => { contextTraceWriter.capture(payload as never) }
+          : undefined,
+        contextTraceCaptureResponse: contextTraceWriter
+          ? (payload) => { contextTraceWriter.captureResponse(payload.conversationId, payload.requestId, payload.text) }
+          : undefined,
+      },
     })
     this.titleGenerator = createConversationTitleGenerator({
       providerSettingsRepository: core.data.providerSettingsRepository,
@@ -70,6 +104,7 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
     for (const task of this.runtime.listActiveTasks())
       this.runtime.cancelTask({ taskId: task.taskId })
     await this.runtime.dispose()
+    this.conversationLoggerManager?.closeAll()
   }
 
   @Method()
@@ -117,6 +152,22 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
   @Method()
   listActiveTasks(input: AppRpcInput<'agent.listActiveTasks'>) {
     return this.controller.listActiveTasks(input?.conversationId)
+  }
+
+  @Method()
+  listContextTrace(input: AppRpcInput<'agent.listContextTrace'>) {
+    if (!this.contextDiagnosticsEnabled) {
+      throw new Error('Context diagnostics is not enabled')
+    }
+    return this.contextTraceReader.listTraceItems(input.conversationId, input.before, input.limit)
+  }
+
+  @Method()
+  getContextTraceItem(input: AppRpcInput<'agent.getContextTraceItem'>) {
+    if (!this.contextDiagnosticsEnabled) {
+      throw new Error('Context diagnostics is not enabled')
+    }
+    return this.contextTraceReader.getTraceItem(input.conversationId, input.requestId, input.itemId)
   }
 }
 
