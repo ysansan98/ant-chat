@@ -2,11 +2,7 @@
 // 本类型定义了一组白名单命令，涵盖设置、Provider、MCP、自动化管理。
 // 所有敏感值（API Key、Token、密码）在结果中归约/脱敏为 hasSecret 布尔值。
 //
-// 规则：
-// - 查询命令（show/list/get）→ scope=workspace，无需审批
-// - 修改命令（set/update/create/enable/disable）→ scope=outside，需审批
-// - 删除/关键操作 → scope=outside，需审批
-// - CLI 和 Agent 原生工具都使用此联合，不额外复制业务规则。
+// CLI 使用此联合，不额外复制业务规则。
 
 import type { ProviderConfigSchema } from '../schemas/providerConfig'
 import type { AutomationDefinition, AutomationRun } from './automation'
@@ -67,7 +63,7 @@ export interface ProviderCreateCommand {
   name: string
   baseUrl: string
   apiMode: 'openai' | 'anthropic' | 'google' | 'deepseek'
-  /** 外部 CLI 可提交真实值；Agent 工具必须通过 secretRef 字段输入。 */
+  /** CLI 可提交真实值，Skill 应通过 bash.env 注入，避免进入聊天文本。 */
   apiKey?: string
   isOfficial?: boolean
   isEnabled?: boolean
@@ -113,7 +109,7 @@ export interface ProviderKeySetCommand {
   type: 'provider'
   action: 'key:set'
   id: string
-  /** 外部 CLI 使用的真实值；Agent 工具不会向模型暴露此字段。 */
+  /** CLI 使用的真实值，Skill 应通过 bash.env 注入，避免进入聊天文本。 */
   apiKey?: string
 }
 
@@ -333,122 +329,4 @@ export interface ProviderModelItem {
   providerId: string
   displayName?: string
   isEnabled: boolean
-}
-
-// ── 权限辅助 ──────────────────────────────────────────
-
-/** 将 AppControlCommand 映射到操作类型 */
-export function getAppControlOperationType(cmd: AppControlCommand): 'read' | 'write' {
-  switch (true) {
-    case cmd.action === 'show':
-    case cmd.action === 'list':
-    case cmd.action === 'get':
-    case cmd.action === 'models':
-    case cmd.action === 'runs':
-      return 'read'
-    default:
-      return 'write'
-  }
-}
-
-/** 敏感操作 — 需要额外审批 */
-export function isSensitiveAppControlCommand(cmd: AppControlCommand): boolean {
-  switch (true) {
-    case cmd.action === 'delete':
-    case cmd.type === 'provider' && cmd.action === 'key:clear':
-      return true
-    default:
-      return false
-  }
-}
-
-/** 命令的人类可读描述 */
-export function describeAppControlCommand(cmd: AppControlCommand): string {
-  const parts: string[] = []
-  switch (cmd.type) {
-    case 'settings':
-      parts.push('设置')
-      break
-    case 'provider':
-      parts.push('AI 服务商')
-      break
-    case 'mcp':
-      parts.push('MCP')
-      break
-    case 'automation':
-      parts.push('自动化')
-      break
-  }
-  switch (cmd.action) {
-    case 'show':
-      parts.push('查看')
-      break
-    case 'theme:set':
-      parts.push('切换主题')
-      break
-    case 'assistant:set':
-      parts.push('修改助理模型')
-      break
-    case 'proxy:set':
-      parts.push('修改网络代理')
-      break
-    case 'proxy:test':
-      parts.push('测试代理连接')
-      break
-    case 'list':
-      parts.push('列表')
-      break
-    case 'get':
-      parts.push('查看详情')
-      break
-    case 'create':
-      parts.push('创建')
-      break
-    case 'update':
-      parts.push('更新')
-      break
-    case 'delete':
-      parts.push('删除')
-      break
-    case 'enable':
-      parts.push('启用')
-      break
-    case 'disable':
-      parts.push('禁用')
-      break
-    case 'models':
-      parts.push('查看模型列表')
-      break
-    case 'key:set':
-      parts.push('配置 API Key')
-      break
-    case 'key:clear':
-      parts.push('清除 API Key')
-      break
-    case 'install':
-      parts.push('安装')
-      break
-    case 'edit':
-      parts.push('编辑')
-      break
-    case 'start':
-      parts.push('启动')
-      break
-    case 'stop':
-      parts.push('停止')
-      break
-    case 'runs':
-      parts.push('查看运行记录')
-      break
-  }
-  if ('id' in cmd && typeof cmd.id === 'string') {
-    parts.push(`[${cmd.id}]`)
-  }
-  if ('name' in cmd && typeof cmd.name === 'string' && !('id' in cmd)) {
-    parts.push(`[${cmd.name}]`)
-  }
-  if ('serverName' in cmd && typeof cmd.serverName === 'string') {
-    parts.push(`[${cmd.serverName}]`)
-  }
-  return parts.join(' ')
 }

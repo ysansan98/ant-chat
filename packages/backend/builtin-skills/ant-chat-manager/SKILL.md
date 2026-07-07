@@ -1,160 +1,136 @@
 ---
 name: ant-chat-manager
-description: Manage Ant Chat settings, AI providers, MCP servers, and automations. Use when the user asks to switch themes or models, change proxy settings, configure providers or API keys, manage MCP servers, or query, create, and delete automations.
+description: Manage Ant Chat settings, AI providers, MCP servers, and automations through the ant-chat CLI. Use when the user asks to switch themes or models, change proxy settings, configure providers or API keys, manage MCP servers, or query, create, and delete automations.
 ---
 
 # Ant Chat 管理
 
-使用 `ant_chat` 工具管理应用。修改前查询当前状态，操作后再次查询验证结果。不要直接编辑设置文件或数据库。
+通过 `bash` 工具调用 `ant-chat` CLI 管理应用。修改前先查询当前状态，操作后再次查询验证结果。不要直接编辑设置文件或数据库。
+
+所有查询命令加 `--json`，便于读取结构化结果。修改、删除、启动、停止等命令交由系统审批。
 
 ## 安全规则
 
-- Provider API Key 必须先通过 `requestSecret` 收集。
-- 将 `requestSecret` 返回的完整 `SecretRef` 对象放入 `secretRef`，不要只传 `id`。
+- Provider API Key、MCP Token、密码必须先通过 `requestSecret` 收集。
+- `requestSecret` 只返回 `SecretRef`。后续把 `SecretRef` 放进 `bash.env`，不要放进命令文本。
+- Provider API Key 使用环境变量 `ANT_CHAT_PROVIDER_API_KEY` 传给 CLI。
+- MCP `env` 和 `headers` 最终按普通配置明文保存。执行前明确告知用户这一点，不要声称它们存入 Keychain。
+- MCP 敏感字段通过 `--env-from-env` 或 `--headers-from-env` 从环境变量读取。
 - 不要要求用户在聊天中粘贴 API Key、Token 或密码。
-- MCP 凭据也必须通过 `requestSecret` 收集，并把完整 `SecretRef` 直接放到对应的 `env` 或 `headers` 值中。工具只在执行前解析引用，最终仍按普通配置明文保存；执行前明确告知用户这一点，不要声称它们存入 Keychain。
-- 删除 Provider、MCP 或自动化前说明影响，交由系统审批。
 
 ## 设置
 
 查看设置：
 
-```text
-{ "type": "settings", "action": "show" }
+```bash
+ant-chat settings show --json
 ```
 
 切换模式和主题：
 
-```text
-{
-  "type": "settings",
-  "action": "theme:set",
-  "mode": "dark",
-  "lightThemeId": "cursor",
-  "darkThemeId": "cursor"
-}
+```bash
+ant-chat settings theme set --mode=dark --theme=cursor --json
+ant-chat settings theme set --light-theme=airbnb --dark-theme=cursor --json
 ```
 
-设置助理模型前，先查询 Provider 和模型，确认二者均已启用：
+设置助理模型前，先确认 Provider 和模型均已启用：
 
-```text
-{
-  "type": "settings",
-  "action": "assistant:set",
-  "providerId": "provider-id",
-  "modelId": "model-id"
-}
+```bash
+ant-chat provider list --json
+ant-chat provider models provider-id --json
+ant-chat settings assistant set --provider=provider-id --model=model-id --json
+ant-chat settings show --json
 ```
 
 设置或测试代理：
 
-```text
-{ "type": "settings", "action": "proxy:set", "mode": "manual", "url": "http://127.0.0.1:7890" }
-{ "type": "settings", "action": "proxy:test" }
+```bash
+ant-chat settings proxy set --mode=manual --url=http://127.0.0.1:7890 --json
+ant-chat settings proxy test --json
 ```
 
 ## AI 服务商
 
-常用查询：
+查询：
 
-```text
-{ "type": "provider", "action": "list" }
-{ "type": "provider", "action": "get", "id": "provider-id" }
-{ "type": "provider", "action": "models", "id": "provider-id" }
+```bash
+ant-chat provider list --json
+ant-chat provider get provider-id --json
+ant-chat provider models provider-id --json
 ```
 
 创建、修改和启停：
 
-```text
-{
-  "type": "provider",
-  "action": "create",
-  "name": "My Provider",
-  "baseUrl": "https://api.example.com/v1",
-  "apiMode": "openai",
-  "isEnabled": true
-}
-{ "type": "provider", "action": "update", "id": "provider-id", "name": "新名称" }
-{ "type": "provider", "action": "enable", "id": "provider-id" }
-{ "type": "provider", "action": "disable", "id": "provider-id" }
+```bash
+ant-chat provider create --name="My Provider" --base-url=https://api.example.com/v1 --api-mode=openai --json
+ant-chat provider update provider-id --name="New Name" --json
+ant-chat provider enable provider-id --json
+ant-chat provider disable provider-id --json
 ```
 
 配置 API Key：
 
-1. 调用 `requestSecret`。
-2. 将返回的完整引用传给 `secretRef`。
+1. 调用 `requestSecret`，让用户在原生敏感输入框中输入 API Key。
+2. 调用 `bash`，命令文本不包含密钥，`env.ANT_CHAT_PROVIDER_API_KEY` 使用上一步返回的 `SecretRef`。
 3. 设置后查询 Provider，确认 `hasApiKey` 为 `true`。
 
 ```text
-{
-  "type": "provider",
-  "action": "key:set",
-  "id": "provider-id",
-  "secretRef": {
-    "kind": "secret_ref",
-    "id": "turn:task-id:secret-id",
-    "scope": "turn"
-  }
-}
+tool: bash
+input:
+  command: ant-chat provider key set provider-id --json
+  env:
+    ANT_CHAT_PROVIDER_API_KEY: <SecretRef>
 ```
 
 清除或删除：
 
-```text
-{ "type": "provider", "action": "key:clear", "id": "provider-id" }
-{ "type": "provider", "action": "delete", "id": "provider-id" }
+```bash
+ant-chat provider key clear provider-id --json
+ant-chat provider delete provider-id --json
 ```
 
 ## MCP
 
 查询：
 
-```text
-{ "type": "mcp", "action": "list" }
-{ "type": "mcp", "action": "get", "name": "server-name" }
+```bash
+ant-chat mcp list --json
+ant-chat mcp get server-name --json
 ```
 
 安装 stdio MCP：
 
-```text
-{
-  "type": "mcp",
-  "action": "install",
-  "serverName": "filesystem",
-  "transportType": "stdio",
-  "command": "npx",
-  "args": ["-y", "@modelcontextprotocol/server-filesystem", "/workspace"]
-}
+```bash
+ant-chat mcp install --name=filesystem --command=npx --args="-y @modelcontextprotocol/server-filesystem /workspace" --json
 ```
 
-安装 SSE MCP。先告知用户 `headers` 最终会明文保存，再用 `requestSecret` 收集完整的 Authorization 值，并把返回的引用直接作为字段值：
+安装 SSE MCP。若 Authorization 是敏感值，先说明它最终会明文保存，再用 `requestSecret` 收集完整 header 值：
 
 ```text
-{
-  "type": "mcp",
-  "action": "install",
-  "serverName": "remote",
-  "transportType": "sse",
-  "url": "https://example.com/sse",
-  "headers": {
-    "Authorization": {
-      "kind": "secret_ref",
-      "id": "turn:task-id:secret-id",
-      "scope": "turn"
-    }
-  }
-}
+tool: bash
+input:
+  command: ant-chat mcp install --name=remote --transport-type=sse --url=https://example.com/mcp --headers-from-env=Authorization=ANT_CHAT_MCP_AUTHORIZATION --json
+  env:
+    ANT_CHAT_MCP_AUTHORIZATION: <SecretRef>
 ```
 
-stdio `env` 中的 Token 或密码使用相同方式录入。不要在聊天或工具参数中写明文凭据；SecretRef 只保护录入链路，不改变 MCP 配置的明文持久化方式。
+stdio `env` 中的 Token 或密码使用同样方式：
+
+```text
+tool: bash
+input:
+  command: ant-chat mcp install --name=demo --command=npx --args="-y demo-server" --env-from-env=API_KEY=ANT_CHAT_MCP_API_KEY --json
+  env:
+    ANT_CHAT_MCP_API_KEY: <SecretRef>
+```
 
 编辑、启停和删除：
 
-```text
-{ "type": "mcp", "action": "edit", "serverName": "filesystem", "description": "新说明" }
-{ "type": "mcp", "action": "start", "name": "filesystem" }
-{ "type": "mcp", "action": "stop", "name": "filesystem" }
-{ "type": "mcp", "action": "delete", "name": "filesystem" }
+```bash
+ant-chat mcp edit filesystem --description="New description" --json
+ant-chat mcp start filesystem --json
+ant-chat mcp stop filesystem --json
+ant-chat mcp delete filesystem --json
 ```
 
 安装或重连失败时，配置仍可能已经保存。根据返回的 `status` 和 `error` 明确报告部分成功。
@@ -163,37 +139,21 @@ stdio `env` 中的 Token 或密码使用相同方式录入。不要在聊天或�
 
 查询定义和运行记录：
 
-```text
-{ "type": "automation", "action": "list" }
-{ "type": "automation", "action": "get", "id": "automation-id" }
-{ "type": "automation", "action": "runs", "id": "automation-id" }
+```bash
+ant-chat automation list --json
+ant-chat automation get automation-id --json
+ant-chat automation runs automation-id --json
 ```
 
 创建前验证工作区、Provider、模型、Skill 和 MCP 均存在：
 
-```json
-{
-  "type": "automation",
-  "action": "create",
-  "name": "工作日报",
-  "prompt": "生成今天的工作日报",
-  "workspacePath": "/workspace",
-  "providerId": "provider-id",
-  "modelId": "model-id",
-  "schedule": {
-    "type": "cron",
-    "expression": "0 9 * * 1-5",
-    "timezone": "Asia/Shanghai"
-  },
-  "selectedSkills": [],
-  "selectedMcpServers": [],
-  "enabled": true
-}
+```bash
+ant-chat automation create --name="工作日报" --prompt="生成今天的工作日报" --workspace-path=/workspace --provider-id=provider-id --model-id=model-id --schedule-type=cron --expression="0 9 * * 1-5" --timezone=Asia/Shanghai --json
 ```
 
-删除存在活跃运行的自动化时，先报告影响；仅在用户确认后设置 `force`：
+删除存在活跃运行的自动化时，先报告影响；仅在用户确认后设置 `--force=true`：
 
-```text
-{ "type": "automation", "action": "delete", "id": "automation-id" }
-{ "type": "automation", "action": "delete", "id": "automation-id", "force": true }
+```bash
+ant-chat automation delete automation-id --json
+ant-chat automation delete automation-id --force=true --json
 ```

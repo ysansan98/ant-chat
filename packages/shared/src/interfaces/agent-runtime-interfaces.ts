@@ -270,10 +270,6 @@ export interface AgentRuntimeHost {
   /** 加载附件文件数据（用于将 file_id 转换为 base64 数据） */
   loadFileData?: (fileId: string) => Promise<string | null>
   getToolApprovalWhitelistEntries?: () => ToolApprovalWhitelistEntry[]
-  /** 应用控制接口（供 ant_chat 原生工具使用） */
-  appControl?: {
-    execute: (command: import('./app-control').AppControlCommand) => Promise<import('./app-control').AppControlResult>
-  }
 }
 
 export interface AgentRuntimeOverrides {
@@ -312,10 +308,6 @@ export interface AgentRuntimeConfig extends AgentRuntimeOverrides {
   secretRequester?: SecretRequestController
   /** 加载附件文件数据（用于将 file_id 转换为 base64 数据） */
   loadFileData?: (fileId: string) => Promise<string | null>
-  /** 应用控制接口（供 ant_chat 原生工具使用） */
-  appControl?: {
-    execute: (command: import('./app-control').AppControlCommand) => Promise<import('./app-control').AppControlResult>
-  }
 }
 
 export interface AgentRuntimeStartTaskOptions {

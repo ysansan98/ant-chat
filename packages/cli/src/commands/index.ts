@@ -157,7 +157,7 @@ function parseProvider(args: string[]): AppControlCommand {
         name: parsed.name as string,
         baseUrl: parsed.baseUrl as string,
         apiMode: parsed.apiMode as 'openai' | 'anthropic' | 'google' | 'deepseek',
-        apiKey: parsed.apiKey,
+        apiKey: parsed.apiKey ?? readEnvOption(parsed.apiKeyEnv, '--api-key-env'),
         isOfficial: parsed.isOfficial === 'true',
         isEnabled: parsed.isEnabled !== 'false',
       }
@@ -176,7 +176,7 @@ function parseProvider(args: string[]): AppControlCommand {
         name: parsed.name,
         baseUrl: parsed.baseUrl,
         apiMode,
-        apiKey: parsed.apiKey,
+        apiKey: parsed.apiKey ?? readEnvOption(parsed.apiKeyEnv, '--api-key-env'),
         isOfficial: parseOptionalBoolean(parsed.isOfficial, '--is-official'),
         isEnabled: parseOptionalBoolean(parsed.isEnabled, '--is-enabled'),
       }
@@ -214,7 +214,10 @@ function parseProvider(args: string[]): AppControlCommand {
         }
         const id = keyRest[0]
         const parsed = parseNamedArgs(keyRest.slice(1))
-        const apiKey = parsed.apiKey ?? readPasswordFromTty('Enter API Key: ')
+        const apiKey = parsed.apiKey
+          ?? readEnvOption(parsed.apiKeyEnv, '--api-key-env')
+          ?? process.env.ANT_CHAT_PROVIDER_API_KEY
+          ?? readPasswordFromTty('Enter API Key: ')
         return { type: 'provider', action: 'key:set', id, apiKey }
       }
       if (keyAction === 'clear') {
@@ -262,9 +265,15 @@ function parseMcp(args: string[]): AppControlCommand {
         transportType: transportType as 'stdio' | 'sse',
         command: parsed.command as string | undefined,
         args: parsed.args ? (parsed.args as string).split(' ') : undefined,
-        env: parsed.env ? parseKeyValuePairs(parsed.env) : undefined,
+        env: mergeKeyValuePairs(
+          parsed.env ? parseKeyValuePairs(parsed.env) : undefined,
+          parsed.envFromEnv ? readKeyValuePairsFromEnv(parsed.envFromEnv, '--env-from-env') : undefined,
+        ),
         url: parsed.url as string | undefined,
-        headers: parsed.headers ? parseKeyValuePairs(parsed.headers) : undefined,
+        headers: mergeKeyValuePairs(
+          parsed.headers ? parseKeyValuePairs(parsed.headers) : undefined,
+          parsed.headersFromEnv ? readKeyValuePairsFromEnv(parsed.headersFromEnv, '--headers-from-env') : undefined,
+        ),
         icon: parsed.icon as string | undefined,
         description: parsed.description as string | undefined,
         timeout: parsed.timeout ? Number(parsed.timeout) : undefined,
@@ -284,9 +293,15 @@ function parseMcp(args: string[]): AppControlCommand {
         transportType: parsed.transportType as 'stdio' | 'sse' | undefined,
         command: parsed.command as string | undefined,
         args: parsed.args ? (parsed.args as string).split(' ') : undefined,
-        env: parsed.env ? parseKeyValuePairs(parsed.env) : undefined,
+        env: mergeKeyValuePairs(
+          parsed.env ? parseKeyValuePairs(parsed.env) : undefined,
+          parsed.envFromEnv ? readKeyValuePairsFromEnv(parsed.envFromEnv, '--env-from-env') : undefined,
+        ),
         url: parsed.url as string | undefined,
-        headers: parsed.headers ? parseKeyValuePairs(parsed.headers) : undefined,
+        headers: mergeKeyValuePairs(
+          parsed.headers ? parseKeyValuePairs(parsed.headers) : undefined,
+          parsed.headersFromEnv ? readKeyValuePairsFromEnv(parsed.headersFromEnv, '--headers-from-env') : undefined,
+        ),
         icon: parsed.icon as string | undefined,
         description: parsed.description as string | undefined,
         timeout: parsed.timeout ? Number(parsed.timeout) : undefined,
@@ -618,6 +633,38 @@ function parseKeyValuePairs(input: string): Record<string, string> {
     }
   }
   return result
+}
+
+function readKeyValuePairsFromEnv(input: string, option: string): Record<string, string> {
+  const result: Record<string, string> = {}
+  for (const [key, envName] of Object.entries(parseKeyValuePairs(input))) {
+    const value = readEnvOption(envName, option)
+    if (value === undefined) {
+      throw new Error(`${option} references missing env var: ${envName}`)
+    }
+    result[key] = value
+  }
+  return result
+}
+
+function readEnvOption(envName: string | undefined, option: string): string | undefined {
+  if (envName === undefined) {
+    return undefined
+  }
+  if (!/^[A-Z_]\w*$/i.test(envName)) {
+    throw new Error(`${option} must reference a valid env var name`)
+  }
+  return process.env[envName]
+}
+
+function mergeKeyValuePairs(
+  base: Record<string, string> | undefined,
+  fromEnv: Record<string, string> | undefined,
+): Record<string, string> | undefined {
+  if (!base && !fromEnv) {
+    return undefined
+  }
+  return { ...base, ...fromEnv }
 }
 
 function readPasswordFromTty(prompt: string): string {

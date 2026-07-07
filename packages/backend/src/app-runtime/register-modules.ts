@@ -51,9 +51,6 @@ export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModu
     core.secretStore,
   )
 
-  // 注入 appControl 到 AgentModule（避免循环依赖）
-  agent.setAppControl({ execute: cmd => appControl.execute(cmd) })
-
   return {
     routes: [chat, settings, provider, mcp, search, memory, skills, workspace, agent, automation, commands, files],
     lifecycle: [workspace, skills, provider, settings, mcp, agent, automation],

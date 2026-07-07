@@ -1,5 +1,5 @@
 import type { AppControlCommand } from '@ant-chat/shared'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { executeCommand } from './index'
 
 function createClient(result: object = { deleted: true }) {
@@ -9,6 +9,14 @@ function createClient(result: object = { deleted: true }) {
 }
 
 describe('ant-chat CLI 命令', () => {
+  const envKeys = ['ANT_CHAT_PROVIDER_API_KEY', 'ANT_CHAT_TEST_MCP_AUTHORIZATION', 'ANT_CHAT_TEST_MCP_API_KEY']
+
+  afterEach(() => {
+    for (const key of envKeys) {
+      delete process.env[key]
+    }
+  })
+
   it('将文档中的 kebab-case provider 参数转换为控制命令', async () => {
     const client = createClient({ provider: { id: 'provider-1', name: 'OpenAI' } })
 
@@ -81,6 +89,51 @@ describe('ant-chat CLI 命令', () => {
       id: 'provider-1',
       type: 'provider',
     })
+  })
+
+  it('允许 Skill 通过 bash.env 给 provider key:set 注入 API Key', async () => {
+    process.env.ANT_CHAT_PROVIDER_API_KEY = 'sk-from-env'
+    const client = createClient({ hasApiKey: true, id: 'provider-1' })
+
+    const result = await executeCommand(client as never, [
+      'provider',
+      'key',
+      'set',
+      'provider-1',
+    ], { json: true })
+
+    expect(result.exitCode).toBe(0)
+    expect(client.send).toHaveBeenCalledWith({
+      action: 'key:set',
+      apiKey: 'sk-from-env',
+      id: 'provider-1',
+      type: 'provider',
+    })
+  })
+
+  it('允许 Skill 通过 bash.env 给 MCP env 和 headers 注入敏感值', async () => {
+    process.env.ANT_CHAT_TEST_MCP_AUTHORIZATION = 'Bearer secret'
+    process.env.ANT_CHAT_TEST_MCP_API_KEY = 'mcp-secret'
+    const client = createClient({ mcpServer: { name: 'remote', status: 'connected' } })
+
+    const result = await executeCommand(client as never, [
+      'mcp',
+      'install',
+      '--name=remote',
+      '--transport-type=sse',
+      '--url=https://example.com/mcp',
+      '--headers-from-env=Authorization=ANT_CHAT_TEST_MCP_AUTHORIZATION',
+      '--env-from-env=API_KEY=ANT_CHAT_TEST_MCP_API_KEY',
+    ], { json: true })
+
+    expect(result.exitCode).toBe(0)
+    expect(client.send).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'install',
+      env: { API_KEY: 'mcp-secret' },
+      headers: { Authorization: 'Bearer secret' },
+      serverName: 'remote',
+      type: 'mcp',
+    }))
   })
 
   it('更新 provider 时转换 kebab-case 参数和布尔值', async () => {
