@@ -46,10 +46,11 @@ export function snapshotMessage(
   // 构建 tools 列表
   const tools: ContextItemSnapshot['tools'] = allToolContent.length > 0
     ? allToolContent.map((t) => {
+        const r = (t as ToolResultContent).result
         if (t.type === 'tool-call') {
           return { type: 'tool-call' as const, toolName: t.toolName, toolCallId: (t as ToolCallContent).toolCallId, args: (t as ToolCallContent).args }
         }
-        return { type: 'tool-result' as const, toolName: t.toolName, toolCallId: (t as ToolResultContent).toolCallId, result: (t as ToolResultContent).result, isError: (t as ToolResultContent).isError }
+        return { type: 'tool-result' as const, toolName: t.toolName, toolCallId: (t as ToolResultContent).toolCallId, result: typeof r === 'string' ? r : JSON.stringify(r), isError: (t as ToolResultContent).isError }
       })
     : undefined
 
@@ -67,7 +68,8 @@ export function snapshotMessage(
     }
     else {
       toolCallId = (firstTool as ToolResultContent).toolCallId
-      toolResult = (firstTool as ToolResultContent).result
+      const r = (firstTool as ToolResultContent).result
+      toolResult = typeof r === 'string' ? r : JSON.stringify(r)
       isError = (firstTool as ToolResultContent).isError
     }
   }
