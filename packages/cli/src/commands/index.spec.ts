@@ -43,8 +43,8 @@ describe('ant-chat CLI 命令', () => {
       '--model-id=model-1',
       '--schedule-type=once',
       '--run-at=1712345678000',
-      '--selected-skills=writer,review',
-      '--selected-mcp-servers=filesystem',
+      '--allowed-skills=writer,review',
+      '--allowed-mcp-servers=filesystem',
     ], { json: true })
 
     expect(result.exitCode).toBe(0)
