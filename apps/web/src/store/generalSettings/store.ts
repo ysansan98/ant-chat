@@ -9,6 +9,7 @@ interface GeneralSettingsStoreState extends GeneralSettingsState {
 const DEFAULT_SETTINGS: GeneralSettingsState = {
   assistantModelId: '',
   assistantProviderId: '',
+  autoGenerateTitle: false,
   proxySettings: {
     mode: 'none',
     customProxyUrl: '',

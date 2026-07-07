@@ -6,6 +6,7 @@ import { AppSettingsSchema } from '../schemas/appSettings'
 export const GeneralSettingsSchema = AppSettingsSchema.pick({
   assistantModelId: true,
   assistantProviderId: true,
+  autoGenerateTitle: true,
   proxySettings: true,
   appearance: true,
 })

@@ -12,6 +12,22 @@ export function skipNextSettingsRefresh() {
   _skipNextRefresh = true
 }
 
+export async function setAutoGenerateTitle(autoGenerateTitle: boolean) {
+  useGeneralSettingsStore.setState(produce((state) => {
+    state.isLoading = true
+  }))
+  try {
+    const updates = { autoGenerateTitle }
+    const newSettings = await generalSettingsApi.updateSettings(updates)
+    useGeneralSettingsStore.setState(newSettings)
+  }
+  finally {
+    useGeneralSettingsStore.setState(produce((state) => {
+      state.isLoading = false
+    }))
+  }
+}
+
 export async function setAssistantModelId(id: string) {
   useGeneralSettingsStore.setState(produce((state) => {
     state.isLoading = true

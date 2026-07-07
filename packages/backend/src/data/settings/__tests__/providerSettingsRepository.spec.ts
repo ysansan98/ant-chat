@@ -13,6 +13,7 @@ describe('provider settings repository', () => {
   const initialSettings: AppSettingsState = {
     assistantModelId: '',
     assistantProviderId: '',
+    autoGenerateTitle: false,
     proxySettings: { mode: 'none', customProxyUrl: '' },
     appearance: { mode: 'system', lightThemeId: 'default', darkThemeId: 'default' },
     toolApprovalWhitelist: [],
@@ -143,6 +144,7 @@ describe('provider settings repository', () => {
     const baseSettings: AppSettingsState = {
       assistantModelId: '',
       assistantProviderId: '',
+      autoGenerateTitle: false,
       proxySettings: { mode: 'none' },
       appearance: { mode: 'system', lightThemeId: 'default', darkThemeId: 'default' },
       toolApprovalWhitelist: [],

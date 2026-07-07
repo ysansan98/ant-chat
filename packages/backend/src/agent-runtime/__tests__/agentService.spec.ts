@@ -81,7 +81,7 @@ const appDataContext = {
     add: vi.fn(),
   },
   settingsRepository: {
-    getGeneralSettings: vi.fn(async () => ({ assistantModelId: '', assistantProviderId: '', proxySettings: { mode: 'none', customProxyUrl: '' } })),
+    getGeneralSettings: vi.fn(async () => ({ assistantModelId: '', assistantProviderId: '', autoGenerateTitle: true, proxySettings: { mode: 'none', customProxyUrl: '' } })),
   },
 } as unknown as AppDataContext
 
@@ -255,6 +255,7 @@ describe('createAgentRuntimeController 行为', () => {
     vi.mocked(appDataContext.settingsRepository.getGeneralSettings).mockResolvedValueOnce({
       assistantModelId: 'assistant-model-9',
       assistantProviderId: 'provider-1',
+      autoGenerateTitle: true,
       proxySettings: { mode: 'none', customProxyUrl: '' },
       appearance: { mode: 'system', lightThemeId: 'default', darkThemeId: 'default' },
     })

@@ -39,6 +39,7 @@ export const ToolApprovalWhitelistEntrySchema = z.object({
 export const AppSettingsSchema = z.object({
   assistantModelId: z.string(),
   assistantProviderId: z.string().default(''),
+  autoGenerateTitle: z.boolean().default(false),
   proxySettings: z.object({
     mode: z.enum(['none', 'system', 'custom']),
     customProxyUrl: z.string().optional(),
