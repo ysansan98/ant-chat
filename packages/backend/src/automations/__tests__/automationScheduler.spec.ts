@@ -11,8 +11,8 @@ describe('automationScheduler', () => {
       workspacePath: '/workspace',
       providerId: 'provider-1',
       modelId: 'model-1',
-      selectedSkills: [],
-      selectedMcpServers: [],
+      allowedSkills: [],
+      allowedMcpServers: [],
       permissionPolicy: {
         workspaceAccess: 'read',
         allowSkillScripts: false,

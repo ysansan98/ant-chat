@@ -212,8 +212,8 @@ export interface AutomationCreateCommand {
   providerId: string
   modelId: string
   schedule: { type: 'once', runAt: number } | { type: 'cron', expression: string, timezone: string }
-  selectedSkills?: string[]
-  selectedMcpServers?: string[]
+  allowedSkills?: string[]
+  allowedMcpServers?: string[]
   permissionPolicy?: {
     workspaceAccess?: 'read' | 'write'
     allowSkillScripts?: boolean

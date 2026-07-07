@@ -355,7 +355,7 @@ export class MultiProvider {
         throw new AgentError('AGENT_CANCELLED', 'Task cancelled')
       }
       else {
-        this.logger.warn('not match chunk type: ', chunk.type)
+        // this.logger.warn('not match chunk type: ', chunk.type)
       }
     }
     // 如果模型不支持 fullStream，则使用 textStream

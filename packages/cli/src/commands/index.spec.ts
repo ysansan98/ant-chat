@@ -56,8 +56,8 @@ describe('ant-chat CLI 命令', () => {
       prompt: '生成日报',
       providerId: 'provider-1',
       schedule: { runAt: 1712345678000, type: 'once' },
-      selectedMcpServers: ['filesystem'],
-      selectedSkills: ['writer', 'review'],
+      allowedMcpServers: ['filesystem'],
+      allowedSkills: ['writer', 'review'],
       type: 'automation',
       workspacePath: '/workspace',
     })

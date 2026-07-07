@@ -1,14 +1,12 @@
 #!/usr/bin/env node
 
 import process from 'node:process'
+import { resolveAppDataRoot } from '@ant-chat/shared'
 import { executeCommand } from './commands'
 import { SocketClient } from './socket-client'
 
-// 默认 appDataRoot
-const APP_DATA_ROOT = process.env.ANT_CHAT_DATA_ROOT
-  ?? (process.platform === 'darwin'
-    ? `${process.env.HOME}/Library/Application Support/ant-chat`
-    : `${process.env.HOME}/.ant-chat`)
+// 默认 appDataRoot，与桌面端和 local-server 共享路径（~/.ant-chat）
+const APP_DATA_ROOT = process.env.ANT_CHAT_DATA_ROOT ?? resolveAppDataRoot()
 
 async function main() {
   const argv = process.argv.slice(2)

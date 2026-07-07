@@ -61,8 +61,8 @@ describe('createBeforeToolExecuteHook 行为', () => {
         type: 'automation',
         automationId: 'automation-1',
         runId: 'run-1',
-        selectedSkills: [],
-        selectedMcpServers: [],
+        allowedSkills: [],
+        allowedMcpServers: [],
         permissionPolicy: {
           workspaceAccess: 'read',
           allowSkillScripts: false,
@@ -93,8 +93,8 @@ describe('createBeforeToolExecuteHook 行为', () => {
         type: 'automation',
         automationId: 'automation-1',
         runId: 'run-1',
-        selectedSkills: ['review'],
-        selectedMcpServers: [],
+        allowedSkills: ['review'],
+        allowedMcpServers: [],
         permissionPolicy: {
           workspaceAccess: 'read',
           allowSkillScripts: false,

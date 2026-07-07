@@ -145,7 +145,6 @@ describe('createAgentRuntimeController 行为', () => {
       mode: 'hybrid',
       content: undefined,
       referencedFiles: undefined,
-      selectedSkill: undefined,
       modelSettings: {
         systemPrompt: 'custom',
         temperature: 0.2,
@@ -163,7 +162,6 @@ describe('createAgentRuntimeController 行为', () => {
       workspacePath: '/explicit-workspace',
       mode: 'strict',
       referencedFiles: ['src/main.ts'],
-      selectedSkill: 'review',
       content: [
         { type: 'text', text: 'run it' },
         { type: 'image-block', source: { type: 'file_id', file_id: 'img-1' }, name: 'a.png', media_type: 'image/png', size: 1 },
@@ -187,7 +185,6 @@ describe('createAgentRuntimeController 行为', () => {
       workspacePath: '/explicit-workspace',
       mode: 'strict',
       referencedFiles: ['src/main.ts'],
-      selectedSkill: 'review',
       content: [
         { type: 'text', text: 'run it' },
         { type: 'image-block', source: { type: 'file_id', file_id: 'img-1' }, name: 'a.png', media_type: 'image/png', size: 1 },

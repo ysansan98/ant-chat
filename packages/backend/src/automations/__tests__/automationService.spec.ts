@@ -12,8 +12,8 @@ describe('automationService', () => {
       workspacePath: '/workspace',
       providerId: 'provider-1',
       modelId: 'model-1',
-      selectedSkills: ['review'],
-      selectedMcpServers: ['github'],
+      allowedSkills: ['review'],
+      allowedMcpServers: ['github'],
       permissionPolicy: {
         workspaceAccess: 'read',
         allowSkillScripts: false,
@@ -59,8 +59,8 @@ describe('automationService', () => {
         type: 'automation',
         automationId: automation.id,
         runId: 'run-1',
-        selectedSkills: ['review'],
-        selectedMcpServers: ['github'],
+        allowedSkills: ['review'],
+        allowedMcpServers: ['github'],
         permissionPolicy: automation.permissionPolicy,
       },
     }))

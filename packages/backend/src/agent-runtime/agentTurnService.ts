@@ -107,8 +107,6 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
           mode: options.mode ?? 'hybrid',
           content: options.content,
           referencedFiles: options.referencedFiles,
-          selectedSkill: options.selectedSkill,
-          selectedSkills: options.selectedSkills,
           turnSource: options.turnSource,
           modelSettings: {
             systemPrompt: options.modelConfig.systemPrompt,

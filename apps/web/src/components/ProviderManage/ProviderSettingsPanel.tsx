@@ -3,7 +3,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Button } from '@workspace/ui/components/button'
 import { Input } from '@workspace/ui/components/input'
 import { Eye, EyeOff } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ModelList } from '@/components/ProviderManage/ModelList/ModelList'
 import { AI_OFFICIAL_API_INFO } from '@/constants'
 
@@ -17,6 +17,12 @@ export interface ProviderSettingsPanelProps {
 export function ProviderSettingsPanel({ item, onChange, onDelete }: ProviderSettingsPanelProps) {
   const [apiKeyValue, setApiKeyValue] = useState<string>('')
   const [showKey, setShowKey] = useState(false)
+
+  // 切换 Provider 时清空 API Key 输入状态，防止跨 Provider 泄漏
+  useEffect(() => {
+    setApiKeyValue('')
+    setShowKey(false)
+  }, [item?.id])
 
   // 使用 item.hasApiKey 判断是否已配置密钥（不再调 getProviderApiKey 回显原值）
   const hasKey = item?.hasApiKey ?? false

@@ -59,10 +59,10 @@ export class ToolRegistry {
     const mcpTools = config.mcpClientHub
       ? createMcpTools(config.mcpClientHub)
       : []
-    const selectedMcpServers = turnSource?.type === 'automation' ? turnSource.selectedMcpServers : undefined
-    const allowedMcpTools = selectedMcpServers === undefined
+    const allowedMcpServers = turnSource?.type === 'automation' ? turnSource.allowedMcpServers : undefined
+    const allowedMcpTools = allowedMcpServers === undefined
       ? mcpTools
-      : mcpTools.filter(tool => selectedMcpServers.includes(tool.serverName ?? ''))
+      : mcpTools.filter(tool => allowedMcpServers.includes(tool.serverName ?? ''))
 
     // 自动化 Turn 不注册 ant_chat 工具，防止任务修改自己的调度或安全策略
     const appControlTool = config.appControl && turnSource?.type !== 'automation'
@@ -314,11 +314,11 @@ interface ResolvedSkillCapability {
 async function makeSkillTools(reader: SkillReader, turnSource?: AgentTurnSource): Promise<AgentTool[]> {
   const skills = await reader.getEnabledSkills()
   if (turnSource?.type === 'automation') {
-    const allowed = new Set(turnSource.selectedSkills.map(name => name.trim()).filter(Boolean))
+    const allowed = new Set(turnSource.allowedSkills.map(name => name.trim()).filter(Boolean))
     if (allowed.size === 0)
       return []
-    const selectedSkills = skills.filter(skill => allowed.has(skill.name))
-    const capabilities = await Promise.all(selectedSkills.map(async manifest => ({
+    const matchedSkills = skills.filter(skill => allowed.has(skill.name))
+    const capabilities = await Promise.all(matchedSkills.map(async manifest => ({
       manifest,
       content: await reader.readSkillMarkdown(manifest.name),
       files: await listSkillFiles(reader.getSkillsRoot(), manifest.name),
