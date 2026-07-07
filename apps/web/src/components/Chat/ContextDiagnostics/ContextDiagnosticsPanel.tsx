@@ -1,7 +1,7 @@
 import type { BaselineStorage, ContextItemSnapshot, ContextTraceItemDetail, ContextTraceListItem } from '@ant-chat/shared'
-import { getAppEventBus } from '@/api/transports/appEventBus'
 import { X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { getAppEventBus } from '@/api/transports/appEventBus'
 import { getContextTraceItem, listContextTrace } from './api'
 import { TurnDivider } from './Dividers'
 
@@ -68,7 +68,7 @@ export function ContextDiagnosticsPanel({
       setHasMore(result.hasMore)
 
       // 预加载所有 trace item 详情
-      result.items.forEach(item => {
+      result.items.forEach((item) => {
         getContextTraceItem(conversationId, item.requestId).then((detail) => {
           if (detail) {
             setTraceItems(p => p.map(t =>
@@ -94,7 +94,7 @@ export function ContextDiagnosticsPanel({
       setCursor(result.nextCursor)
       setHasMore(result.hasMore)
 
-      result.items.forEach(item => {
+      result.items.forEach((item) => {
         getContextTraceItem(conversationId, item.requestId).then((detail) => {
           if (detail) {
             setTraceItems(p => p.map(t =>
@@ -127,7 +127,8 @@ export function ContextDiagnosticsPanel({
       group.lastItem = item
 
       const detail = item.detail
-      if (!detail) continue
+      if (!detail)
+        continue
 
       const items = detail.storage.kind === 'baseline'
         ? detail.storage.items
@@ -231,7 +232,12 @@ export function ContextDiagnosticsPanel({
             <span className="rounded border border-border/60 px-1 py-0.5 text-[9px] font-bold tracking-wider text-muted-foreground/70">DEV</span>
             {turnGroups.length > 0 && (
               <span className="truncate text-[11px] text-muted-foreground">
-                {turnGroups.length} Turn · {traceItems.length} 次请求
+                {turnGroups.length}
+                {' '}
+                Turn ·
+                {traceItems.length}
+                {' '}
+                次请求
               </span>
             )}
           </div>
@@ -357,7 +363,11 @@ function TurnBlock({ group }: { group: TurnMessages }) {
                 )}
                 {group.lastItem.detail.response.usage && (
                   <span className="text-[9px] text-muted-foreground/40">
-                    ↑{group.lastItem.detail.response.usage.inputTokens ?? '?'} / ↓{group.lastItem.detail.response.usage.outputTokens ?? '?'}
+                    ↑
+                    {group.lastItem.detail.response.usage.inputTokens ?? '?'}
+                    {' '}
+                    / ↓
+                    {group.lastItem.detail.response.usage.outputTokens ?? '?'}
                     {group.lastItem.detail.response.usage.reasoningTokens ? ` / 🧠${group.lastItem.detail.response.usage.reasoningTokens}` : ''}
                   </span>
                 )}
@@ -481,9 +491,22 @@ function ItemDetail({ item }: { item: ContextItemSnapshot }) {
     return (
       <div>
         <div className="text-muted-foreground mb-1">
-          {item.source && <span className="mr-2">source: {item.source}</span>}
-          {item.serverName && <span className="mr-2">server: {item.serverName}</span>}
-          <span>tool: {item.toolName}</span>
+          {item.source && (
+            <span className="mr-2">
+              source:
+              {item.source}
+            </span>
+          )}
+          {item.serverName && (
+            <span className="mr-2">
+              server:
+              {item.serverName}
+            </span>
+          )}
+          <span>
+            tool:
+            {item.toolName}
+          </span>
         </div>
         {item.content && <pre className="whitespace-pre-wrap break-all">{item.content}</pre>}
       </div>
@@ -495,7 +518,10 @@ function ItemDetail({ item }: { item: ContextItemSnapshot }) {
       <div className="space-y-0.5">
         {Object.entries(item.settings).map(([key, value]) => (
           <div key={key} className="flex gap-2">
-            <span className="text-muted-foreground shrink-0">{key}:</span>
+            <span className="text-muted-foreground shrink-0">
+              {key}
+              :
+            </span>
             <span className="break-all">{String(value)}</span>
           </div>
         ))}

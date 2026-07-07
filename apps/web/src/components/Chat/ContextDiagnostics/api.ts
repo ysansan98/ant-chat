@@ -1,4 +1,4 @@
-import type { ListContextTraceInput, ListContextTraceOutput, ContextTraceItemDetail } from '@ant-chat/shared'
+import type { ContextTraceItemDetail, ListContextTraceInput, ListContextTraceOutput } from '@ant-chat/shared'
 import { getAppRpcClient } from '@/api/transports/appRpc'
 
 const rpc = getAppRpcClient()

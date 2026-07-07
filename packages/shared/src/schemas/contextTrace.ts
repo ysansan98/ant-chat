@@ -9,7 +9,8 @@
 
 /** Context Item 的快照身份标识（用于增量比较） */
 export interface ContextItemIdentity {
-  /** 类型相关稳定身份
+  /**
+   * 类型相关稳定身份
    * - Message: message.id (持久化) 或 requestId + role + ordinal (运行中生成)
    * - System Prompt: 'system-prompt'
    * - Tool Definition: `source|serverName|toolName`
