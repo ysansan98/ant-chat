@@ -147,8 +147,12 @@ function SenderAttachmentsPreview() {
   )
 }
 
-function SenderAddAttachmentButton() {
+function SenderAddAttachmentButton({ accept }: { accept: string }) {
   const attachments = usePromptInputAttachments()
+
+  if (!accept) {
+    return null
+  }
 
   return (
     <PromptInputButton
@@ -306,15 +310,13 @@ const MODALITY_ACCEPT_MAP: Record<string, string> = {
   audio: 'audio/*',
 }
 
-const DEFAULT_ACCEPT = 'image/*'
-
 function buildAcceptFromModalities(inputModalities?: string[]): string {
   if (!inputModalities || inputModalities.length === 0)
-    return DEFAULT_ACCEPT
+    return ''
   return inputModalities
     .map(m => MODALITY_ACCEPT_MAP[m])
     .filter(Boolean)
-    .join(',') || DEFAULT_ACCEPT
+    .join(',')
 }
 
 function Sender({ disabled = false, actions, ...props }: SenderProps) {
@@ -980,7 +982,7 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
                 </PopoverContent>
               </Popover>
 
-              <SenderAddAttachmentButton />
+              <SenderAddAttachmentButton accept={fileAccept} />
               <SenderContextUsageButton contextLength={currentModelInfo?.contextLength ?? 1} />
 
               <Popover>

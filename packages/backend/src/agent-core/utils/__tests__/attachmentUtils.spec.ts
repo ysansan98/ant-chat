@@ -25,7 +25,7 @@ describe('contentBlocksToLoopMessageContent 行为', () => {
     ])
   })
 
-  it('发送给模型前解码文本文件引用', async () => {
+  it('发送给模型前将文件引用加载为 base64 file content', async () => {
     const loadFileData = vi.fn(async () => Buffer.from('hello\n', 'utf8').toString('base64'))
 
     const content = await contentBlocksToLoopMessageContent([
@@ -39,8 +39,9 @@ describe('contentBlocksToLoopMessageContent 行为', () => {
 
     expect(content).toEqual([
       {
-        type: 'text',
-        text: '<document name="note.txt" type="text/plain">\nhello\n\n</document>',
+        type: 'file',
+        mimeType: 'text/plain',
+        data: Buffer.from('hello\n', 'utf8').toString('base64'),
       },
     ])
   })

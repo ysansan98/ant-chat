@@ -15,6 +15,7 @@ export interface LoopMessage {
   content: Array<
     | { type: 'text', text: string }
     | { type: 'image', mimeType: string, data: string }
+    | { type: 'file', mimeType: string, data: string }
     | ToolCallContent
     | ToolResultContent
   >

@@ -185,6 +185,13 @@ export class MultiProvider {
               mimeType: content.mimeType,
             })
           }
+          else if (content.type === 'file') {
+            parts.push({
+              type: 'file' as const,
+              data: content.data,
+              mimeType: content.mimeType,
+            })
+          }
         }
 
         aiSdkMessages.push({
