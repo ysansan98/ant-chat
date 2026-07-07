@@ -3,6 +3,7 @@ import type { SkillManagementService } from '../../../agent-runtime'
 import type { MCPClientHub } from '../../../mcp'
 import type { RuntimeCore } from '../../createRuntimeCore'
 import type { RuntimeModuleMethods } from '../../routeRegistry'
+import path from 'node:path'
 import { createAgentRuntime } from '../../../agent-core'
 import {
   ContextTraceWriter,
@@ -31,6 +32,7 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
   readonly titleGenerator: ReturnType<typeof createConversationTitleGenerator>
   private readonly secretRequester: RuntimeSecretRequestController
   private readonly contextTraceReader: ReturnType<typeof createContextTraceReader>
+  private readonly contextTraceLogsRoot: string
   private readonly conversationLoggerManager: ConversationTaskLoggerManager | null
   private contextDiagnosticsEnabled: boolean
 
@@ -41,6 +43,7 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
         core.events.emit('agent:secret-requested', { request })
       },
     })
+    this.contextTraceLogsRoot = core.paths.taskLogsRoot
     this.contextTraceReader = createContextTraceReader({ taskLogsRoot: core.paths.taskLogsRoot })
     this.contextDiagnosticsEnabled = dependencies.contextDiagnosticsEnabled ?? false
     if (this.contextDiagnosticsEnabled) {
@@ -172,6 +175,14 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
       throw new Error('Context diagnostics is not enabled')
     }
     return this.contextTraceReader.getTraceItem(input.conversationId, input.requestId, input.itemId)
+  }
+
+  @Method()
+  getContextTraceLogPath(input: AppRpcInput<'agent.getContextTraceLogPath'>) {
+    if (!this.contextDiagnosticsEnabled) {
+      throw new Error('Context diagnostics is not enabled')
+    }
+    return path.join(this.contextTraceLogsRoot, `${input.conversationId}.jsonl`)
   }
 }
 

@@ -147,6 +147,10 @@ export interface AppRpcContract {
     itemId: string
   }, ContextTraceItemDetail | null>
 
+  'agent.getContextTraceLogPath': RpcEndpoint<{
+    conversationId: string
+  }, string | null>
+
   'automation.list': RpcEndpoint<undefined, AutomationDefinition[]>
   'automation.create': RpcEndpoint<{ input: AutomationInput }, AutomationDefinition>
   'automation.update': RpcEndpoint<{ input: UpdateAutomationInput }, AutomationDefinition>

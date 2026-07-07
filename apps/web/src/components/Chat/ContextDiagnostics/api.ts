@@ -17,3 +17,10 @@ export async function getContextTraceItem(
 ): Promise<ContextTraceItemDetail | null> {
   return rpc.call('agent.getContextTraceItem', { conversationId, requestId, itemId: '' })
 }
+
+/** 获取当前会话的日志文件路径 */
+export async function getContextTraceLogPath(
+  conversationId: string,
+): Promise<string | null> {
+  return rpc.call('agent.getContextTraceLogPath', { conversationId })
+}

@@ -1,8 +1,10 @@
 import type { BaselineStorage, ContextItemSnapshot, ContextTraceItemDetail, ContextTraceListItem } from '@ant-chat/shared'
-import { X } from 'lucide-react'
+import { ClipboardCopy, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { toast } from 'sonner'
 import { getAppEventBus } from '@/api/transports/appEventBus'
-import { getContextTraceItem, listContextTrace } from './api'
+import { clipboardWrite } from '@/utils'
+import { getContextTraceItem, getContextTraceLogPath, listContextTrace } from './api'
 import { TurnDivider } from './Dividers'
 
 // ================================================================
@@ -195,12 +197,31 @@ export function ContextDiagnosticsPanel({
     void loadLatest()
   }, [scrollToBottom, loadLatest])
 
+  const handleCopyLogPath = useCallback(async () => {
+    if (!conversationId) {
+      toast.error('请先选择一个会话')
+      return
+    }
+    try {
+      const logPath = await getContextTraceLogPath(conversationId)
+      if (!logPath) {
+        toast.error('上下文字迹未启用')
+        return
+      }
+      await clipboardWrite({ text: logPath })
+      toast.success('日志路径已复制')
+    }
+    catch {
+      toast.error('获取日志路径失败')
+    }
+  }, [conversationId])
+
   if (!isOpen)
     return null
 
   return (
     <div
-      className="relative flex h-full border-l border-border bg-surface/80"
+      className="relative flex h-full border-l border-border"
       style={{ width: `${width}px`, minWidth: '340px', maxWidth: '50vw' }}
     >
       <div
@@ -241,14 +262,25 @@ export function ContextDiagnosticsPanel({
               </span>
             )}
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded p-1 text-muted-foreground hover:bg-accent/10 hover:text-foreground"
-            aria-label="关闭"
-          >
-            <X className="size-3.5" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={handleCopyLogPath}
+              className="rounded p-1 text-muted-foreground hover:bg-accent/10 hover:text-foreground"
+              aria-label="复制日志路径"
+              title="复制日志文件路径"
+            >
+              <ClipboardCopy className="size-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded p-1 text-muted-foreground hover:bg-accent/10 hover:text-foreground"
+              aria-label="关闭"
+            >
+              <X className="size-3.5" />
+            </button>
+          </div>
         </div>
 
         <div
@@ -357,7 +389,7 @@ function TurnBlock({ group }: { group: TurnMessages }) {
           {group.lastItem?.detail?.response && (
             <div className="mt-2">
               <div className="flex items-center gap-2 py-0.5 mb-0.5">
-                <span className="px-1 py-[1px] rounded bg-blue-500/15 text-blue-600 dark:text-blue-400 text-[8px] font-bold uppercase tracking-wider leading-none">Response</span>
+                <span className="px-1 py-[1px] rounded bg-accent/15 text-accent text-[8px] font-bold uppercase tracking-wider leading-none">Response</span>
                 {group.lastItem.detail.response.finishReason && (
                   <span className="text-[9px] text-muted-foreground/50">{group.lastItem.detail.response.finishReason}</span>
                 )}
@@ -398,9 +430,9 @@ function TurnBlock({ group }: { group: TurnMessages }) {
 
 const STATUS_COLORS: Record<string, string> = {
   full: 'text-muted-foreground border-muted-foreground/40',
-  added: 'text-emerald-600 dark:text-emerald-500 border-emerald-500/50',
-  updated: 'text-amber-600 dark:text-amber-500 border-amber-500/50',
-  removed: 'text-red-600 dark:text-red-500 border-red-500/50',
+  added: 'text-chart-3 border-chart-3/50',
+  updated: 'text-chart-4 border-chart-4/50',
+  removed: 'text-destructive border-destructive/50',
 }
 
 const KIND_LABELS: Record<string, string> = {
@@ -413,7 +445,7 @@ const KIND_LABELS: Record<string, string> = {
 function ContextItemRow({ item }: { item: ContextItemSnapshot }) {
   const isErrorStatus = item.isError && item.kind === 'message' && item.toolResult !== undefined
   const statusColor = isErrorStatus
-    ? 'text-red-600 dark:text-red-500 border-red-500/50'
+    ? 'text-destructive border-destructive/50'
     : (STATUS_COLORS[item.status] || STATUS_COLORS.full)
   const kindLabel = KIND_LABELS[item.kind] || item.kind
 
