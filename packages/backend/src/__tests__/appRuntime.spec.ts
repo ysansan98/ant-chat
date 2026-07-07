@@ -188,8 +188,8 @@ describe('app runtime', () => {
         workspacePath,
         providerId: 'provider-1',
         modelId: 'model-1',
-        selectedSkills: [],
-        selectedMcpServers: [],
+        allowedSkills: [],
+        allowedMcpServers: [],
         permissionPolicy: {
           workspaceAccess: 'read',
           allowSkillScripts: false,

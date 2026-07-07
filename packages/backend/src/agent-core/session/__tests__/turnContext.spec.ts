@@ -17,15 +17,4 @@ describe('buildPromptWithTurnContext 行为', () => {
     expect(result).not.toContain('../bad.ts')
     expect(result).not.toContain('/tmp/outside.ts')
   })
-
-  it('注入 / skill 强制 use_skill 指令', () => {
-    const result = buildPromptWithTurnContext({
-      prompt: '检查代码',
-      selectedSkill: 'code-review',
-    })
-
-    expect(result).toContain('必须先加载 Skill "code-review"')
-    expect(result).toContain('调用 use_skill')
-    expect(result).toContain('name="code-review"')
-  })
 })

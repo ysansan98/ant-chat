@@ -229,9 +229,10 @@ export class AppControl {
           }
           case 'install': {
             const { serverName, transportType, command: cmd, args, env, url, headers, icon, description, timeout } = command
+            const resolvedIcon = icon ?? (transportType === 'stdio' ? 'terminal' : 'globe')
             const config = transportType === 'stdio'
-              ? { serverName, transportType, command: cmd, args, env, icon, description, timeout }
-              : { serverName, transportType, url, headers, icon, description, timeout }
+              ? { serverName, transportType, command: cmd, args, env, icon: resolvedIcon, description, timeout }
+              : { serverName, transportType, url, headers, icon: resolvedIcon, description, timeout }
             const result = await this.modules.mcp.installServer(config as McpConfigSchema)
             return {
               mcpServer: {
@@ -294,7 +295,7 @@ export class AppControl {
             return { automation } as AppControlResult
           }
           case 'create': {
-            const { name, prompt, workspacePath, providerId, modelId, schedule, selectedSkills, selectedMcpServers, permissionPolicy, enabled } = command
+            const { name, prompt, workspacePath, providerId, modelId, schedule, allowedSkills, allowedMcpServers, permissionPolicy, enabled } = command
             const automation = await this.modules.automation.create({
               input: {
                 name,
@@ -303,8 +304,8 @@ export class AppControl {
                 providerId,
                 modelId,
                 schedule,
-                selectedSkills: selectedSkills ?? [],
-                selectedMcpServers: selectedMcpServers ?? [],
+                allowedSkills: allowedSkills ?? [],
+                allowedMcpServers: allowedMcpServers ?? [],
                 permissionPolicy: {
                   workspaceAccess: permissionPolicy?.workspaceAccess ?? 'read',
                   allowSkillScripts: permissionPolicy?.allowSkillScripts ?? false,

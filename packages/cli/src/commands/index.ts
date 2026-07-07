@@ -367,8 +367,8 @@ function parseAutomation(args: string[]): AppControlCommand {
         providerId: parsed.providerId as string,
         modelId: parsed.modelId as string,
         schedule,
-        selectedSkills: parsed.selectedSkills ? (parsed.selectedSkills as string).split(',') : undefined,
-        selectedMcpServers: parsed.selectedMcpServers ? (parsed.selectedMcpServers as string).split(',') : undefined,
+        allowedSkills: parsed.allowedSkills ? (parsed.allowedSkills as string).split(',') : undefined,
+        allowedMcpServers: parsed.allowedMcpServers ? (parsed.allowedMcpServers as string).split(',') : undefined,
         enabled: parsed.enabled !== 'false',
       }
     }

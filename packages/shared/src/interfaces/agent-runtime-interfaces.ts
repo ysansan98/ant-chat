@@ -324,8 +324,6 @@ export interface AgentRuntimeStartTaskOptions {
   mode?: AgentMode
   content?: IMessageContent
   referencedFiles?: string[]
-  selectedSkill?: string
-  selectedSkills?: string[]
   turnSource?: AgentTurnSource
   modelSettings?: {
     systemPrompt?: string

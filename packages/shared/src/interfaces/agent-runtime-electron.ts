@@ -10,8 +10,6 @@ export interface StartAgentTurnOptions {
   prompt: string
   content?: IMessageContent
   referencedFiles?: string[]
-  selectedSkill?: string
-  selectedSkills?: string[]
   turnSource?: AgentTurnSource
   workspacePath: string
   mode?: AgentMode

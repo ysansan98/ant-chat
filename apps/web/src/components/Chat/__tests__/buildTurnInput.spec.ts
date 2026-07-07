@@ -18,7 +18,6 @@ describe('buildTurnInput', () => {
       prompt: '继续实现',
       content: [{ type: 'text', text: '继续实现' }],
       referencedFiles: ['src/a.ts'],
-      selectedSkill: 'review',
       workspacePath: '/workspace',
       mode: 'hybrid',
       modelConfig: { modelId: 'model', providerId: 'provider', systemPrompt: 'system', temperature: 0.2, maxTokens: 2048, features: { enableMCP: true } },
