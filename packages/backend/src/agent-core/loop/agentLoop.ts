@@ -400,6 +400,13 @@ function createModelRequestDiagnostics(input: {
             dataPreview: `${part.data.slice(0, 100)}...`,
           }
         }
+        if (part.type === 'file') {
+          return {
+            type: 'file',
+            mimeType: part.mimeType,
+            dataPreview: `${part.data.slice(0, 100)}...`,
+          }
+        }
         if (part.type === 'tool-call') {
           return {
             type: 'tool-call',
