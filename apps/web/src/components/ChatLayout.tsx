@@ -131,7 +131,7 @@ export function ChatLayout() {
           </button>
         </div>
 
-        <div className="min-h-0 flex-1">
+        <div className="min-h-0 flex-1 h-full overflow-hidden">
           <SidebarProvider value={{ showSliderMenu }}>
             <Outlet />
           </SidebarProvider>

@@ -149,9 +149,9 @@ export default function Chat() {
         {currentConversations && (
           <ConversationTitleBar conversation={currentConversations} />
         )}
-        <div className={`flex min-w-0 flex-1 flex-col ${!hasMessages ? 'justify-center' : ''}`}>
+        <div className={`flex min-w-0 flex-1 flex-col min-h-0 ${!hasMessages ? 'justify-center' : ''}`}>
           {hasMessages && (
-            <div className="min-h-0 flex-1 overflow-hidden">
+            <div className="min-h-0 flex-1 flex flex-col overflow-hidden">
               <Suspense fallback={<BubbleSkeleton />}>
                 <BubbleList
                   key={currentConversations?.id}
