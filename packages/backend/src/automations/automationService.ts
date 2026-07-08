@@ -24,7 +24,7 @@ export function createAutomationService(options: {
     }
     else if (task.status === 'success' || task.status === 'failed' || task.status === 'cancelled') {
       const status = task.status === 'success' ? 'succeeded' : task.status
-      void finishRun(runId, status, task.errorCode, task.errorMessage)
+      void finishRun(runId, status, task.errorCode, task.errorMessage, task.summary)
     }
   })
   options.events.on('agent:secret-requested', ({ request }) => {
@@ -35,8 +35,8 @@ export function createAutomationService(options: {
     void finishRun(runId, 'needs_attention', 'AUTOMATION_SECRET_REQUIRED', '任务需要补充秘密信息')
   })
 
-  async function finishRun(runId: string, status: AutomationRun['status'], errorCode?: string, errorMessage?: string) {
-    const run = await options.repository.updateRun(runId, { status, errorCode, errorMessage, finishedAt: Date.now() })
+  async function finishRun(runId: string, status: AutomationRun['status'], errorCode?: string, errorMessage?: string, summary?: string) {
+    const run = await options.repository.updateRun(runId, { status, errorCode, errorMessage, summary, finishedAt: Date.now() })
     if (run.taskId)
       runByTaskId.delete(run.taskId)
     options.events.emit('automation:run-changed', { run })

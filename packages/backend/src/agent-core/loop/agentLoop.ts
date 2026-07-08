@@ -336,6 +336,7 @@ export async function runAgentLoop(input: {
     }
 
     task.snapshot.status = 'success'
+    task.snapshot.summary = finalAnswer || 'Task completed.'
     await config.eventEmitter.emitTaskUpdated(task.snapshot)
     const completedPayload = { runId: taskId, taskId, conversationId: options.conversationId, userMessageId: options.userMessageId, durationMs: Date.now() - taskStartedAt, finalAnswer }
     traceLogger.write('task_completed', completedPayload)
@@ -392,6 +393,7 @@ async function handleLoopFailure(options: {
   }
   if (error instanceof AgentError && error.code === 'AGENT_CANCELLED') {
     task.snapshot.status = 'cancelled'
+    task.snapshot.summary = '任务已取消'
     await config.eventEmitter.emitTurnFinished({
       conversationId: task.snapshot.conversationId,
       turnId: task.snapshot.userMessageId,
@@ -404,6 +406,7 @@ async function handleLoopFailure(options: {
     task.snapshot.status = 'failed'
     task.snapshot.errorCode = (error instanceof AgentError ? error.code : error.message) as AgentTaskSnapshot['errorCode']
     task.snapshot.errorMessage = error.message
+    task.snapshot.summary = error.message
     await config.eventEmitter.emitTurnFinished({
       conversationId: task.snapshot.conversationId,
       turnId: task.snapshot.userMessageId,

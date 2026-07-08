@@ -69,6 +69,8 @@ export interface AgentTaskSnapshot {
   pendingAction?: AgentPendingAction
   errorCode?: AgentErrorCode
   errorMessage?: string
+  /** 任务执行摘要：成功时为 AI 最终回复，失败时为错误信息 */
+  summary?: string
   /** 上下文用量信息 */
   contextUsage?: {
     estimatedTokens: number
