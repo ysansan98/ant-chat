@@ -497,6 +497,8 @@ function ItemDetail({ item }: { item: ContextItemSnapshot }) {
   }
 
   if (item.kind === 'message') {
+    const hasMultiTools = item.tools && item.tools.length > 0
+
     return (
       <div className="space-y-1">
         {item.content && (
@@ -505,16 +507,41 @@ function ItemDetail({ item }: { item: ContextItemSnapshot }) {
             <pre className="whitespace-pre-wrap break-all mt-0.5">{item.content}</pre>
           </div>
         )}
-        {item.toolName && item.toolArgs && (
-          <pre className="whitespace-pre-wrap break-all mt-0.5 rounded border border-border/40 bg-code p-2 text-[10px] leading-relaxed text-code-foreground">
-            {JSON.stringify(item.toolArgs, null, 2)}
-          </pre>
-        )}
-        {item.toolName && item.toolResult !== undefined && (
-          <pre className="whitespace-pre-wrap break-all mt-0.5 rounded border border-border/40 bg-code p-2 text-[10px] leading-relaxed text-code-foreground">
-            {item.toolResult}
-          </pre>
-        )}
+
+        {hasMultiTools
+          ? item.tools!.map((tc, idx) => (
+              <div key={`${tc.toolCallId ?? idx}`}>
+                <div className="text-muted-foreground text-[10px] mt-1 first:mt-0">
+                  {tc.type === 'tool-call' ? 'tool-call:' : 'tool-result:'}
+                  {tc.toolName}
+                  {tc.isError ? ' ⚠️' : ''}
+                </div>
+                {tc.type === 'tool-call' && tc.args && (
+                  <pre className="whitespace-pre-wrap break-all mt-0.5 rounded border border-border/40 bg-code p-2 text-[10px] leading-relaxed text-code-foreground">
+                    {JSON.stringify(tc.args, null, 2)}
+                  </pre>
+                )}
+                {tc.type === 'tool-result' && tc.result !== undefined && (
+                  <pre className="whitespace-pre-wrap break-all mt-0.5 rounded border border-border/40 bg-code p-2 text-[10px] leading-relaxed text-code-foreground">
+                    {tc.result}
+                  </pre>
+                )}
+              </div>
+            ))
+          : (
+              <>
+                {item.toolName && item.toolArgs && (
+                  <pre className="whitespace-pre-wrap break-all mt-0.5 rounded border border-border/40 bg-code p-2 text-[10px] leading-relaxed text-code-foreground">
+                    {JSON.stringify(item.toolArgs, null, 2)}
+                  </pre>
+                )}
+                {item.toolName && item.toolResult !== undefined && (
+                  <pre className="whitespace-pre-wrap break-all mt-0.5 rounded border border-border/40 bg-code p-2 text-[10px] leading-relaxed text-code-foreground">
+                    {item.toolResult}
+                  </pre>
+                )}
+              </>
+            )}
       </div>
     )
   }
