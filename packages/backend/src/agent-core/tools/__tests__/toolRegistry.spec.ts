@@ -63,9 +63,8 @@ describe('toolRegistry Skill 白名单', () => {
           allowSkillScripts: false,
           allowMcpMutations: false,
           extraFileRoots: [],
-          allowArbitraryCommands: false,
-          commandPatterns: [],
-          allowNetwork: false,
+          allowBashCommands: false,
+          bashCommandPatterns: [],
         },
       },
     })
@@ -100,9 +99,8 @@ describe('toolRegistry Skill 白名单', () => {
           allowSkillScripts: false,
           allowMcpMutations: false,
           extraFileRoots: [],
-          allowArbitraryCommands: false,
-          commandPatterns: [],
-          allowNetwork: false,
+          allowBashCommands: false,
+          bashCommandPatterns: [],
         },
       },
     })
@@ -231,11 +229,10 @@ describe('toolRegistry Skill 白名单', () => {
       turnSource: {
         automationId: 'automation-1',
         permissionPolicy: {
-          allowArbitraryCommands: false,
+          allowBashCommands: false,
           allowMcpMutations: false,
-          allowNetwork: false,
           allowSkillScripts: false,
-          commandPatterns: [],
+          bashCommandPatterns: [],
           extraFileRoots: [],
           workspaceAccess: 'read',
         },

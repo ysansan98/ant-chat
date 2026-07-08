@@ -112,3 +112,39 @@ export function formatRunStatus(status: AutomationRun['status']) {
 export function splitCommaList(value: string) {
   return value.split(',').map(item => item.trim()).filter(Boolean)
 }
+
+/** 将 cron 表达式反向解析为表单字段，用于编辑模式回填 */
+export function parseCronForForm(expression: string): {
+  repeatKind: RepeatKind
+  time: string
+  selectedWeekdays: string[]
+  monthDay: string
+  customCron: string
+} {
+  const parts = expression.trim().split(/\s+/)
+  if (parts.length < 5) {
+    return { repeatKind: 'custom', time: '09:00', selectedWeekdays: ['1', '3', '5'], monthDay: '1', customCron: expression }
+  }
+  const [minute = '0', hour = '0', dayOfMonth, , dayOfWeek] = parts
+  const time = `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`
+
+  if (dayOfMonth === '*' && dayOfWeek === '*') {
+    return { repeatKind: 'daily', time, selectedWeekdays: [], monthDay: '1', customCron: expression }
+  }
+  if (dayOfMonth !== '*' && dayOfWeek === '*') {
+    return { repeatKind: 'monthly', time, selectedWeekdays: [], monthDay: dayOfMonth, customCron: expression }
+  }
+  if (dayOfMonth === '*' && dayOfWeek) {
+    const days = dayOfWeek.split(',').map(d => d.trim()).filter(Boolean)
+    return { repeatKind: 'weekly', time, selectedWeekdays: days, monthDay: '1', customCron: expression }
+  }
+
+  return { repeatKind: 'custom', time: '09:00', selectedWeekdays: ['1', '3', '5'], monthDay: '1', customCron: expression }
+}
+
+/** 将毫秒时间戳转为 datetime-local input 可用的字符串 */
+export function timestampToDatetimeLocal(ts: number): string {
+  const d = new Date(ts)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}

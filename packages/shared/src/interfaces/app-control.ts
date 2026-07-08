@@ -219,9 +219,8 @@ export interface AutomationCreateCommand {
     allowSkillScripts?: boolean
     allowMcpMutations?: boolean
     extraFileRoots?: string[]
-    allowArbitraryCommands?: boolean
-    commandPatterns?: string[]
-    allowNetwork?: boolean
+    allowBashCommands?: boolean
+    bashCommandPatterns?: string[]
   }
   enabled?: boolean
 }

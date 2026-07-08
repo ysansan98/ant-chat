@@ -1,4 +1,4 @@
-import type { AutomationInput } from '@ant-chat/shared'
+import type { AutomationDefinition, AutomationInput, UpdateAutomationInput } from '@ant-chat/shared'
 import type { FormEvent, ReactNode } from 'react'
 import type { AutomationContextOptions, RepeatKind, ScheduleMode } from './automation-types'
 import type { ModelSelectValue } from '@/components/Common/ModelSelect'
@@ -14,9 +14,9 @@ import { Switch } from '@workspace/ui/components/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@workspace/ui/components/tabs'
 import { Textarea } from '@workspace/ui/components/textarea'
 import { CalendarClock, Check, ChevronDown, FileKey2, FolderCode, ServerCog, ShieldCheck, Sparkles } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ModelSelect } from '@/components/Common/ModelSelect'
-import { buildCron, describeNextRun, formatDateTime, splitCommaList, weekdays } from './automation-utils'
+import { buildCron, describeNextRun, formatDateTime, parseCronForForm, splitCommaList, timestampToDatetimeLocal, weekdays } from './automation-utils'
 
 const segmentedTabClassName = [
   'rounded-md px-3 text-[14px] font-medium text-muted-foreground shadow-none',
@@ -27,8 +27,12 @@ export function CreateAutomationSheet(props: {
   open: boolean
   onOpenChange: (open: boolean) => void
   onCreate: (input: AutomationInput) => Promise<void>
+  onUpdate?: (input: UpdateAutomationInput) => Promise<void>
+  editingDefinition?: AutomationDefinition
   contextOptions: AutomationContextOptions
 }) {
+  const isEditing = Boolean(props.editingDefinition)
+
   const [name, setName] = useState('')
   const [prompt, setPrompt] = useState('')
   const [workspace, setWorkspace] = useState('')
@@ -46,11 +50,71 @@ export function CreateAutomationSheet(props: {
     workspaceWrite: true,
     skillScripts: true,
     mcpMutations: false,
-    arbitraryCommands: false,
-    network: false,
+    bashCommands: false,
   })
   const [extraFileRoots, setExtraFileRoots] = useState('')
-  const [commandPatterns, setCommandPatterns] = useState('')
+  const [bashCommandPatterns, setBashCommandPatterns] = useState('')
+
+  // 编辑模式：从已有定义回填表单
+  useEffect(() => {
+    const def = props.editingDefinition
+    if (!def) {
+      // 重置为创建模式的默认值
+      setName('')
+      setPrompt('')
+      setWorkspace('')
+      setModelValue({ modelId: '', providerId: '' })
+      setMode('cron')
+      setRepeatKind('weekly')
+      setTime('09:00')
+      setOnceAt('2026-07-08T16:00')
+      setSelectedWeekdays(['1', '3', '5'])
+      setMonthDay('1')
+      setCustomCron('0 9 * * 1-5')
+      setSelectedSkills([])
+      setSelectedMcps([])
+      setPermissionScopes({
+        workspaceWrite: true,
+        skillScripts: true,
+        mcpMutations: false,
+        bashCommands: false,
+      })
+      setExtraFileRoots('')
+      setBashCommandPatterns('')
+      return
+    }
+
+    setName(def.name)
+    setPrompt(def.prompt)
+    setWorkspace(def.workspacePath)
+    setModelValue({ modelId: def.modelId, providerId: def.providerId })
+    setSelectedSkills(def.allowedSkills)
+    setSelectedMcps(def.allowedMcpServers)
+
+    const policy = def.permissionPolicy
+    setPermissionScopes({
+      workspaceWrite: policy.workspaceAccess === 'write',
+      skillScripts: policy.allowSkillScripts,
+      mcpMutations: policy.allowMcpMutations,
+      bashCommands: policy.allowBashCommands,
+    })
+    setExtraFileRoots(policy.extraFileRoots.join(', '))
+    setBashCommandPatterns(policy.bashCommandPatterns.join(', '))
+
+    if (def.schedule.type === 'once') {
+      setMode('once')
+      setOnceAt(timestampToDatetimeLocal(def.schedule.runAt))
+    }
+    else {
+      setMode('cron')
+      const parsed = parseCronForForm(def.schedule.expression)
+      setRepeatKind(parsed.repeatKind)
+      setTime(parsed.time)
+      setSelectedWeekdays(parsed.selectedWeekdays)
+      setMonthDay(parsed.monthDay)
+      setCustomCron(parsed.customCron)
+    }
+  }, [props.editingDefinition])
 
   const cron = buildCron(repeatKind, time, selectedWeekdays, monthDay, customCron)
 
@@ -76,6 +140,14 @@ export function CreateAutomationSheet(props: {
     return m ? `${p!.name} · ${m.name}` : '选择模型'
   }, [effectiveModel, props.contextOptions.modelGroups])
 
+  // 编辑模式下识别已引用但不可用的 skill（已删除/已禁用）
+  const orphanedSkills = useMemo(() => {
+    if (!isEditing)
+      return []
+    const available = new Set(props.contextOptions.skills.filter(s => s.enabled).map(s => s.name))
+    return selectedSkills.filter(s => !available.has(s))
+  }, [isEditing, props.contextOptions.skills, selectedSkills])
+
   function toggleWeekday(day: string) {
     setSelectedWeekdays((selected) => {
       if (selected.includes(day))
@@ -94,7 +166,7 @@ export function CreateAutomationSheet(props: {
       return
 
     const { modelId, providerId } = effectiveModel
-    await props.onCreate({
+    const input = {
       name: name.trim(),
       prompt: prompt.trim(),
       workspacePath: effectiveWorkspace,
@@ -103,32 +175,45 @@ export function CreateAutomationSheet(props: {
       allowedSkills: selectedSkills,
       allowedMcpServers: selectedMcps,
       permissionPolicy: {
-        workspaceAccess: permissionScopes.workspaceWrite ? 'write' : 'read',
+        workspaceAccess: permissionScopes.workspaceWrite ? 'write' as const : 'read' as const,
         allowSkillScripts: permissionScopes.skillScripts,
         allowMcpMutations: permissionScopes.mcpMutations,
         extraFileRoots: splitCommaList(extraFileRoots),
-        allowArbitraryCommands: permissionScopes.arbitraryCommands,
-        commandPatterns: splitCommaList(commandPatterns),
-        allowNetwork: permissionScopes.network,
+        allowBashCommands: permissionScopes.bashCommands,
+        bashCommandPatterns: splitCommaList(bashCommandPatterns),
       },
       schedule: mode === 'cron'
-        ? { type: 'cron', expression: cron, timezone: 'Asia/Shanghai' }
-        : { type: 'once', runAt: new Date(onceAt).getTime() },
+        ? { type: 'cron' as const, expression: cron, timezone: 'Asia/Shanghai' }
+        : { type: 'once' as const, runAt: new Date(onceAt).getTime() },
       enabled: true,
-    })
-    setName('')
-    setPrompt('')
+    }
+
+    if (isEditing && props.onUpdate) {
+      await props.onUpdate({ id: props.editingDefinition!.id, ...input })
+    }
+    else {
+      await props.onCreate(input)
+    }
+
+    // 编辑完成后关闭 sheet，创建由父组件控制关闭
+    if (isEditing) {
+      props.onOpenChange(false)
+    }
+    else {
+      setName('')
+      setPrompt('')
+    }
   }
 
   return (
     <Sheet open={props.open} onOpenChange={props.onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto  data-[side=right]:w-full data-[side=right]:sm:max-w-160 px-3">
+      <SheetContent className="w-full overflow-y-auto  data-[side=right]:w-full data-[side=right]:sm:max-w-160">
         <SheetHeader>
-          <SheetTitle className="text-xl">新建自动化</SheetTitle>
-          <SheetDescription>描述任务，并决定它什么时候运行。</SheetDescription>
+          <SheetTitle className="text-xl">{isEditing ? '编辑自动化' : '新建自动化'}</SheetTitle>
+          <SheetDescription>{isEditing ? '修改任务配置、执行计划或权限。' : '描述任务，并决定它什么时候运行。'}</SheetDescription>
         </SheetHeader>
 
-        <form id="create-automation" className="flex flex-1 flex-col gap-6" onSubmit={submit}>
+        <form id="create-automation" className="flex flex-1 flex-col gap-6  px-3" onSubmit={submit}>
           <fieldset className="flex flex-col gap-4">
             <legend className="mb-3 text-sm font-semibold">任务</legend>
             <label className="flex flex-col gap-2 text-sm font-medium">
@@ -200,9 +285,13 @@ export function CreateAutomationSheet(props: {
               icon={<Sparkles aria-hidden="true" />}
               title="Skills"
               description="可多选，Agent 会按任务需要组合使用。"
-              options={props.contextOptions.skills.map(skill => ({ value: skill.name, label: skill.name, description: skill.description || 'Agent Skill' }))}
+              options={props.contextOptions.skills.filter(s => s.enabled).map(skill => ({ value: skill.name, label: skill.name, description: skill.description || 'Agent Skill' }))}
               selected={selectedSkills}
               onToggle={value => toggleSelection(value, selectedSkills, setSelectedSkills)}
+              orphaned={orphanedSkills.map(name => ({ value: name, label: name }))}
+              onRemoveOrphaned={(value) => {
+                setSelectedSkills(current => current.filter(s => s !== value))
+              }}
             />
 
             <CapabilityPicker
@@ -416,30 +505,24 @@ export function CreateAutomationSheet(props: {
               </div>
               <Separator />
               <PermissionSwitch
-                label="允许任意终端命令"
-                description="关闭时，仅允许所选 Skill 的自带脚本"
-                checked={permissionScopes.arbitraryCommands}
-                onCheckedChange={checked => setPermissionScopes(value => ({ ...value, arbitraryCommands: checked }))}
+                label="允许终端命令"
+                description="关闭时，Agent 无法执行 bash 等终端命令"
+                checked={permissionScopes.bashCommands}
+                onCheckedChange={checked => setPermissionScopes(value => ({ ...value, bashCommands: checked }))}
               />
-              {permissionScopes.arbitraryCommands && (
+              {permissionScopes.bashCommands && (
                 <label className="ml-4 flex flex-col gap-2 border-l border-border pl-4 text-sm font-medium">
                   允许的命令模式
-                  <Input value={commandPatterns} placeholder="git status, git diff, pnpm test" aria-label="允许的命令模式" onChange={event => setCommandPatterns(event.target.value)} />
+                  <Input value={bashCommandPatterns} placeholder="ls *, cat **, git status" aria-label="允许的命令模式" onChange={event => setBashCommandPatterns(event.target.value)} />
                 </label>
               )}
-              <PermissionSwitch
-                label="允许直接访问网络"
-                description="MCP 自身的连接不受此项影响；仅控制脚本和终端命令"
-                checked={permissionScopes.network}
-                onCheckedChange={checked => setPermissionScopes(value => ({ ...value, network: checked }))}
-              />
             </div>
           </fieldset>
         </form>
 
         <SheetFooter>
           <Button type="button" variant="outline" onClick={() => props.onOpenChange(false)}>取消</Button>
-          <Button type="submit" form="create-automation">创建自动化</Button>
+          <Button type="submit" form="create-automation">{isEditing ? '保存修改' : '创建自动化'}</Button>
         </SheetFooter>
       </SheetContent>
     </Sheet>
@@ -453,7 +536,10 @@ function CapabilityPicker(props: {
   options: Array<{ value: string, label: string, description: string }>
   selected: string[]
   onToggle: (value: string) => void
+  orphaned?: Array<{ value: string, label: string }>
+  onRemoveOrphaned?: (value: string) => void
 }) {
+  const hasOrphaned = (props.orphaned?.length ?? 0) > 0
   return (
     <Collapsible className="group rounded-xl border border-border/70">
       <CollapsibleTrigger render={(
@@ -470,6 +556,13 @@ function CapabilityPicker(props: {
                     个已选
                   </Badge>
                 )}
+                {hasOrphaned && (
+                  <Badge variant="destructive">
+                    {props.orphaned!.length}
+                    {' '}
+                    个不可用
+                  </Badge>
+                )}
               </span>
               <span className="block truncate text-xs font-normal text-muted-foreground">{props.description}</span>
             </span>
@@ -483,6 +576,29 @@ function CapabilityPicker(props: {
           {props.options.length > 0
             ? <MultiChoiceGrid options={props.options} selected={props.selected} onToggle={props.onToggle} />
             : <p className="py-3 text-center text-sm text-muted-foreground">暂无可用项</p>}
+          {hasOrphaned && (
+            <div className="mt-3 border-t border-border/50 pt-3">
+              <p className="mb-2 text-xs font-medium text-muted-foreground">不可用（skill 已删除或禁用）</p>
+              <div className="flex flex-wrap gap-2">
+                {props.orphaned!.map(item => (
+                  <Badge key={item.value} variant="outline" className="flex items-center gap-1 border-destructive/40 text-destructive">
+                    {item.label}
+                    <button
+                      type="button"
+                      className="ml-1 inline-flex size-3.5 items-center justify-center rounded-full hover:bg-destructive/10"
+                      aria-label={`移除 ${item.label}`}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        props.onRemoveOrphaned?.(item.value)
+                      }}
+                    >
+                      ×
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </CollapsibleContent>
     </Collapsible>

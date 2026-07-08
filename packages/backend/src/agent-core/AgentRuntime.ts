@@ -98,6 +98,7 @@ export class AgentRuntime {
       updatedAt: now,
       logPath,
       prompt: options.prompt,
+      turnSource: options.turnSource,
     }
 
     taskStore.create({ snapshot, abortController: new AbortController(), steeringQueue: [], pendingSteeringMessages: [] })

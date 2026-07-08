@@ -1,4 +1,4 @@
-import type { AgentMode, CompactionSettingsSchema, IAIProvider, ITaskLogger, LoopMessage } from '@ant-chat/shared'
+import type { AgentMode, AgentTurnSource, CompactionSettingsSchema, IAIProvider, ITaskLogger, LoopMessage } from '@ant-chat/shared'
 import type { ToolRegistry } from '../tools/toolRegistry'
 
 /** 上下文诊断捕获回调类型 */
@@ -39,6 +39,9 @@ export interface RuntimeStartInput {
   temperature?: number
   maxTokens?: number
   compaction?: CompactionSettingsSchema
+
+  /** 自动化/交互来源标记 */
+  turnSource?: AgentTurnSource
 
   /** 上下文诊断捕获（开发环境使用，由 SessionRuntime 设置） */
   contextTraceCapture?: ContextTraceCaptureFn

@@ -220,7 +220,7 @@ function mapAutomation(row: AutomationRow): AutomationDefinition {
     modelId: row.model_id,
     allowedSkills: z.array(z.string()).parse(JSON.parse(row.allowed_skills)),
     allowedMcpServers: z.array(z.string()).parse(JSON.parse(row.allowed_mcp_servers)),
-    permissionPolicy: AutomationPermissionPolicySchema.parse(JSON.parse(row.permission_policy)),
+    permissionPolicy: parsePermissionPolicy(row.permission_policy),
     schedule: AutomationScheduleSchema.parse(JSON.parse(row.schedule)),
     enabled: row.enabled === 1,
     nextRunAt: row.next_run_at ?? undefined,
@@ -228,6 +228,24 @@ function mapAutomation(row: AutomationRow): AutomationDefinition {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
+}
+
+/**
+ * 解析权限策略，兼容存量数据中的旧字段名。
+ * 存量自动化可能使用 allowArbitraryCommands / commandPatterns，
+ * 新写入使用 allowBashCommands / bashCommandPatterns。
+ */
+function parsePermissionPolicy(raw: string) {
+  const obj = JSON.parse(raw)
+  if ('allowArbitraryCommands' in obj && !('allowBashCommands' in obj)) {
+    obj.allowBashCommands = obj.allowArbitraryCommands
+    delete obj.allowArbitraryCommands
+  }
+  if ('commandPatterns' in obj && !('bashCommandPatterns' in obj)) {
+    obj.bashCommandPatterns = obj.commandPatterns
+    delete obj.commandPatterns
+  }
+  return AutomationPermissionPolicySchema.parse(obj)
 }
 
 function mapRun(row: RunRow): AutomationRun {

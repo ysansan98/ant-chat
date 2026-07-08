@@ -1,4 +1,4 @@
-import type { AutomationInput, AutomationRun } from '@ant-chat/shared'
+import type { AutomationDefinition, AutomationInput, AutomationRun, UpdateAutomationInput } from '@ant-chat/shared'
 import type { AutomationContextOptions, AutomationItem } from './automation-types'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@workspace/ui/components/alert-dialog'
 import { Badge } from '@workspace/ui/components/badge'
@@ -6,7 +6,7 @@ import { Button } from '@workspace/ui/components/button'
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@workspace/ui/components/card'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from '@workspace/ui/components/dropdown-menu'
 import { Switch } from '@workspace/ui/components/switch'
-import { CalendarClock, CheckCircle2, Clock3, History, MoreHorizontal, Plus, Sparkles, Trash2 } from 'lucide-react'
+import { CalendarClock, CheckCircle2, Clock3, History, MoreHorizontal, Pencil, Plus, Sparkles, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
@@ -26,9 +26,11 @@ import { CreateAutomationSheet } from './CreateAutomationSheet'
 export function AutomationsPage() {
   const navigate = useNavigate()
   const [automations, setAutomations] = useState<AutomationItem[]>([])
+  const [definitions, setDefinitions] = useState<AutomationDefinition[]>([])
   const [contextOptions, setContextOptions] = useState<AutomationContextOptions>({ workspaces: [], modelGroups: [], skills: [], mcpServers: [] })
   const [runs, setRuns] = useState<AutomationRun[]>([])
   const [createOpen, setCreateOpen] = useState(false)
+  const [editingTarget, setEditingTarget] = useState<AutomationDefinition>()
   const [runningId, setRunningId] = useState<string>()
   const [historyTarget, setHistoryTarget] = useState<'all' | string>()
   const [deleteTarget, setDeleteTarget] = useState<AutomationItem>()
@@ -43,6 +45,7 @@ export function AutomationsPage() {
       getMcpServers(),
     ])
     setContextOptions({ workspaces: workspaceResult.workspaces, modelGroups, skills: skillIndex.skills.filter(skill => skill.enabled), mcpServers })
+    setDefinitions(definitions)
     setAutomations(definitions.map(definition => toAutomationItem(definition, modelGroups)))
   }, [])
 
@@ -70,6 +73,7 @@ export function AutomationsPage() {
 
   async function setEnabled(id: string, enabled: boolean) {
     const definition = await automationApi.setEnabled(id, enabled)
+    setDefinitions(items => items.map(item => item.id === id ? definition : item))
     setAutomations(items => items.map(item => item.id === id ? toAutomationItem(definition, contextOptions.modelGroups) : item))
   }
 
@@ -108,8 +112,17 @@ export function AutomationsPage() {
 
   async function createAutomation(input: AutomationInput) {
     const definition = await automationApi.create(input)
+    setDefinitions(items => [definition, ...items])
     setAutomations(items => [toAutomationItem(definition, contextOptions.modelGroups), ...items])
     setCreateOpen(false)
+  }
+
+  async function updateAutomation(input: UpdateAutomationInput) {
+    const definition = await automationApi.update(input)
+    setDefinitions(items => items.map(item => item.id === definition.id ? definition : item))
+    setAutomations(items => items.map(item => item.id === definition.id ? toAutomationItem(definition, contextOptions.modelGroups) : item))
+    toast.success('自动化已更新')
+    setEditingTarget(undefined)
   }
 
   async function openHistory(target: 'all' | string) {
@@ -121,6 +134,7 @@ export function AutomationsPage() {
     if (!deleteTarget)
       return
     await automationApi.delete(deleteTarget.id)
+    setDefinitions(items => items.filter(item => item.id !== deleteTarget.id))
     setAutomations(items => items.filter(item => item.id !== deleteTarget.id))
     toast.success('自动化已删除')
     setDeleteTarget(undefined)
@@ -196,10 +210,18 @@ export function AutomationsPage() {
                       />
                       <DropdownMenuContent align="end">
                         <DropdownMenuGroup>
-                          <DropdownMenuItem onClick={() => void openHistory(item.id)}>查看运行记录</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => void setEnabled(item.id, !item.enabled)}>{item.enabled ? '停用任务' : '启用任务'}</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => {
+                            const def = definitions.find(d => d.id === item.id)
+                            if (def) {
+                              setEditingTarget(def)
+                            }
+                          }}
+                          >
+                            <Pencil className="size-3.5" />
+                            编辑任务
+                          </DropdownMenuItem>
                           <DropdownMenuItem variant="destructive" onClick={() => setDeleteTarget(item)}>
-                            <Trash2 />
+                            <Trash2 className="size-3.5" />
                             删除任务
                           </DropdownMenuItem>
                         </DropdownMenuGroup>
@@ -230,9 +252,16 @@ export function AutomationsPage() {
       </div>
 
       <CreateAutomationSheet
-        open={createOpen}
-        onOpenChange={setCreateOpen}
+        open={createOpen || Boolean(editingTarget)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCreateOpen(false)
+            setEditingTarget(undefined)
+          }
+        }}
         onCreate={createAutomation}
+        onUpdate={updateAutomation}
+        editingDefinition={editingTarget}
         contextOptions={contextOptions}
       />
       <RunHistorySheet

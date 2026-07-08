@@ -318,6 +318,8 @@ async function makeSkillTools(reader: SkillReader, turnSource?: AgentTurnSource)
     if (allowed.size === 0)
       return []
     const matchedSkills = skills.filter(skill => allowed.has(skill.name))
+    if (matchedSkills.length === 0)
+      return []
     const capabilities = await Promise.all(matchedSkills.map(async manifest => ({
       manifest,
       content: await reader.readSkillMarkdown(manifest.name),

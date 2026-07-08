@@ -68,9 +68,8 @@ describe('createBeforeToolExecuteHook 行为', () => {
           allowSkillScripts: false,
           allowMcpMutations: false,
           extraFileRoots: [],
-          allowArbitraryCommands: false,
-          commandPatterns: [],
-          allowNetwork: false,
+          allowBashCommands: false,
+          bashCommandPatterns: [],
         },
       },
     })
@@ -100,9 +99,8 @@ describe('createBeforeToolExecuteHook 行为', () => {
           allowSkillScripts: false,
           allowMcpMutations: false,
           extraFileRoots: [],
-          allowArbitraryCommands: false,
-          commandPatterns: [],
-          allowNetwork: false,
+          allowBashCommands: false,
+          bashCommandPatterns: [],
         },
       },
     })
