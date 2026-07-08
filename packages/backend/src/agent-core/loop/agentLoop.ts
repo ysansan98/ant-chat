@@ -395,7 +395,7 @@ async function handleLoopFailure(options: {
     await config.eventEmitter.emitTurnFinished({
       conversationId: task.snapshot.conversationId,
       turnId: task.snapshot.userMessageId,
-      text: 'Task cancelled.',
+      text: '用户主动取消.',
       status: 'cancel',
       durationMs,
     })
