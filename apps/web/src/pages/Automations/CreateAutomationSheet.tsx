@@ -72,13 +72,13 @@ export function CreateAutomationSheet(props: {
 
   return (
     <Sheet open={props.open} onOpenChange={props.onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto  data-[side=right]:w-full data-[side=right]:sm:max-w-160">
+      <SheetContent className="w-full overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-160">
         <SheetHeader>
           <SheetTitle className="text-xl">{isEditing ? '编辑自动化' : '新建自动化'}</SheetTitle>
           <SheetDescription>{isEditing ? '修改任务配置、执行计划或权限。' : '描述任务，并决定它什么时候运行。'}</SheetDescription>
         </SheetHeader>
 
-        <form id="create-automation" className="flex flex-1 flex-col gap-6  px-3" onSubmit={handleSubmit}>
+        <form id="create-automation" className="flex flex-1 flex-col gap-6 px-3" onSubmit={handleSubmit}>
           <fieldset className="flex flex-col gap-4">
             <legend className="mb-3 text-sm font-semibold">任务</legend>
             <label className="flex flex-col gap-2 text-sm font-medium">
@@ -142,7 +142,7 @@ export function CreateAutomationSheet(props: {
                     })
                   }}
                   options={props.contextOptions.modelGroups}
-                  className="flex h-9 w-full cursor-default items-center justify-between rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm hover:bg-accent outline-hidden"
+                  className="flex h-9 w-full cursor-default items-center justify-between rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm outline-hidden hover:bg-accent"
                 >
                   <span className="truncate">{modelDisplayName}</span>
                   <ChevronDown className="size-4 shrink-0 text-muted-foreground" />

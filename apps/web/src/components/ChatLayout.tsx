@@ -57,8 +57,8 @@ export function ChatLayout() {
             data-testid="desktop-sidebar-trigger"
             aria-label={showSliderMenu ? '收起侧边栏' : '展开侧边栏'}
             className={`
-              inline-flex text-muted-foreground hover:text-foreground
-              text-xl
+              inline-flex text-xl text-muted-foreground
+              hover:text-foreground
               ${
     showSliderMenu
       ? 'icon-[fluent--panel-left-24-filled]'
@@ -89,7 +89,7 @@ export function ChatLayout() {
                   }
                 }}
               >
-                <PencilIcon className="size-[18px]" />
+                <PencilIcon className="size-4.5" />
               </span>
               <span
                 role="button"
@@ -104,7 +104,7 @@ export function ChatLayout() {
                   }
                 }}
               >
-                <Search className="size-[18px]" />
+                <Search className="size-4.5" />
               </span>
             </>
           )}
@@ -131,7 +131,7 @@ export function ChatLayout() {
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 h-full overflow-hidden">
+        <div className="h-full min-h-0 flex-1 overflow-hidden">
           <SidebarProvider value={{ showSliderMenu }}>
             <Outlet />
           </SidebarProvider>

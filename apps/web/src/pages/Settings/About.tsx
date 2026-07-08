@@ -29,13 +29,13 @@ export function About() {
           </div>
 
           <div>
-            <h2 className="mb-2 text-balance text-2xl leading-8 font-bold">Ant Chat</h2>
+            <h2 className="mb-2 text-2xl/8 font-bold text-balance">Ant Chat</h2>
             <p className="text-sm text-muted-foreground">
               现代化的 AI 聊天桌面应用
             </p>
           </div>
 
-          <p className="mx-auto max-w-md text-pretty text-sm text-muted-foreground">
+          <p className="mx-auto max-w-md text-sm text-pretty text-muted-foreground">
             基于 Electron 和 Ant Design X 构建，支持多种 AI 提供商，
             提供丰富的聊天体验和 MCP 协议集成。
           </p>

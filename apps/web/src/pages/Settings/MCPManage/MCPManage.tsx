@@ -38,8 +38,8 @@ export default function MCPManage() {
       `}
       >
         <div>
-          <h2 className="text-base leading-6 font-semibold">启用 MCP 功能</h2>
-          <p className="mt-0.5 text-xs leading-4 text-muted-foreground">开启后可配置和连接 MCP 服务器。</p>
+          <h2 className="text-base/6 font-semibold">启用 MCP 功能</h2>
+          <p className="mt-0.5 text-xs/4 text-muted-foreground">开启后可配置和连接 MCP 服务器。</p>
         </div>
         <div>
           <Switch checked={enableMCP} onCheckedChange={setEnableMCP} />
@@ -147,7 +147,7 @@ export default function MCPManage() {
             )
           : (
               <EmptyState>
-                <h2 className="text-balance text-base leading-6 font-semibold">MCP 功能未启用</h2>
+                <h2 className="text-base/6 font-semibold text-balance">MCP 功能未启用</h2>
                 <p className="text-sm text-muted-foreground">启用后即可添加和管理服务器。</p>
               </EmptyState>
             )

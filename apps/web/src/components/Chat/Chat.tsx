@@ -144,14 +144,14 @@ export default function Chat() {
   const hasMessages = messages.length > 0
 
   return (
-    <div className="relative flex h-full min-w-0 w-full">
+    <div className="relative flex size-full min-w-0">
       <div className="flex min-w-0 flex-1 flex-col">
         {currentConversations && (
           <ConversationTitleBar conversation={currentConversations} />
         )}
-        <div className={`flex min-w-0 flex-1 flex-col min-h-0 ${!hasMessages ? 'justify-center' : ''}`}>
+        <div className={`flex min-h-0 min-w-0 flex-1 flex-col ${!hasMessages ? 'justify-center' : ''}`}>
           {hasMessages && (
-            <div className="min-h-0 flex-1 flex flex-col overflow-hidden">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <Suspense fallback={<BubbleSkeleton />}>
                 <BubbleList
                   key={currentConversations?.id}
@@ -204,7 +204,7 @@ export default function Chat() {
                           : 'border-transparent text-muted-foreground hover:border-border/60 hover:text-foreground'
                       }`}
                     >
-                      <span className={`h-1.5 w-1.5 rounded-full ${diagnosticsOpen ? 'bg-emerald-500 shadow-[0_0_0_2px_rgba(34,197,94,0.15)]' : 'bg-muted-foreground/30'}`} />
+                      <span className={`size-1.5 rounded-full ${diagnosticsOpen ? 'bg-emerald-500 shadow-[0_0_0_2px_rgba(34,197,94,0.15)]' : 'bg-muted-foreground/30'}`} />
                       上下文
                     </button>
                   )}

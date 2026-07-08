@@ -152,10 +152,10 @@ export function AutomationsPage() {
               <Sparkles aria-hidden="true" />
               自动化
             </div>
-            <h1 className="font-heading text-2xl leading-tight font-semibold tracking-tight md:text-3xl">
+            <h1 className="font-heading text-2xl/tight font-semibold tracking-tight md:text-3xl">
               让重复工作按时发生
             </h1>
-            <p className="text-sm leading-6 text-muted-foreground md:text-base">
+            <p className="text-sm/6 text-muted-foreground md:text-base">
               安排一次性或周期任务。每次执行都会创建独立会话，结果清楚可追溯。
             </p>
           </div>

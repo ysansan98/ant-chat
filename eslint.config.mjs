@@ -1,7 +1,7 @@
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import antfu from '@antfu/eslint-config'
-import eslintPluginBetterTailwindcss from 'eslint-plugin-better-tailwindcss'
+import tailwindcss from 'eslint-plugin-better-tailwindcss'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -36,10 +36,11 @@ export default antfu(
     },
   },
   {
-    files: ['packages/**/*.{ts,tsx}'],
-  },
-  {
-    files: ['apps/desktop/src/**/*.{ts,tsx}'],
+    files: [
+      'packages/ui/src/**/*.{ts,tsx}',
+      'apps/desktop/src/**/*.{ts,tsx}',
+      'apps/web/src/**/*.{ts,tsx}',
+    ],
     languageOptions: {
       parserOptions: {
         ecmaFeatures: {
@@ -48,32 +49,45 @@ export default antfu(
       },
     },
     plugins: {
-      'better-tailwindcss': eslintPluginBetterTailwindcss,
+      'better-tailwindcss': tailwindcss,
     },
     rules: {
-      // enable all recommended rules to report a warning
-      ...eslintPluginBetterTailwindcss.configs['recommended-warn'].rules,
-      // enable all recommended rules to report an error
-      ...eslintPluginBetterTailwindcss.configs['recommended-error'].rules,
+      // 启用推荐规则
+      ...tailwindcss.configs['recommended-warn'].rules,
+      ...tailwindcss.configs['recommended-error'].rules,
 
-      // or configure rules individually
-      'better-tailwindcss/enforce-consistent-line-wrapping': [
-        'warn',
-        { printWidth: 100 },
-      ],
+      // 关闭换行规则，看着不舒服
+      'better-tailwindcss/enforce-consistent-line-wrapping': 'off',
+
+      // 忽略自定义 class 白名单
       'better-tailwindcss/no-unknown-classes': [
         'warn',
         {
           detectComponentClasses: true,
           ignore: [
             'antd-css-var',
-            'ant-*',
+            'ant-.*',
             'mermaid-container',
             'app-region-drag',
             'app-region-no-drag',
+            'inputs', // cn() 参数名误识别
+            'toaster', // sonner toast
+            'sender-primary-action',
+            'scrollbar-thin',
+            'scroll-hidden',
+            'desktop-sidebar-shell',
+            'font-message',
+            'model-control-settings',
+            'model-control-trigger',
+            'pending-message-scroll',
+            'pending-message-enter',
+            'is-user',
+            'is-user:.*',
+            'is-assistant',
           ],
         },
       ],
+
       'ts/no-require-imports': ['off'],
       'node/prefer-global/process': ['off'],
     },
@@ -81,6 +95,7 @@ export default antfu(
       'better-tailwindcss': {
         cwd: resolve(__dirname, 'packages/ui'),
         entryPoint: 'src/styles/globals.css',
+        rootFontSize: 16,
       },
     },
   },

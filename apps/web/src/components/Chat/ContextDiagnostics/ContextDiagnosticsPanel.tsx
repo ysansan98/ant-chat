@@ -226,7 +226,7 @@ export function ContextDiagnosticsPanel({
     >
       <div
         ref={resizeRef}
-        className="absolute left-0 top-0 bottom-0 z-10 w-1 cursor-ew-resize hover:bg-accent/30 active:bg-accent/50"
+        className="absolute inset-y-0 left-0 z-10 w-1 cursor-ew-resize hover:bg-accent/30 active:bg-accent/50"
         onPointerDown={(e) => {
           const startX = e.clientX
           const startWidth = width
@@ -247,10 +247,10 @@ export function ContextDiagnosticsPanel({
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border pl-3 pr-1 py-1">
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border py-1 pr-1 pl-3">
           <div className="flex min-w-0 items-center gap-2">
             <span className="text-xs font-semibold text-foreground/90">模型上下文</span>
-            <span className="rounded border border-border/60 px-1 py-0.5 text-[9px] font-bold tracking-wider text-muted-foreground/70">DEV</span>
+            <span className="rounded-sm border border-border/60 px-1 py-0.5 text-[9px] font-bold tracking-wider text-muted-foreground/70">DEV</span>
             {turnGroups.length > 0 && (
               <span className="truncate text-[11px] text-muted-foreground">
                 {turnGroups.length}
@@ -266,7 +266,7 @@ export function ContextDiagnosticsPanel({
             <button
               type="button"
               onClick={handleCopyLogPath}
-              className="rounded p-1 text-muted-foreground hover:bg-accent/10 hover:text-foreground"
+              className="rounded-sm p-1 text-muted-foreground hover:bg-accent/10 hover:text-foreground"
               aria-label="复制日志路径"
               title="复制日志文件路径"
             >
@@ -275,7 +275,7 @@ export function ContextDiagnosticsPanel({
             <button
               type="button"
               onClick={onClose}
-              className="rounded p-1 text-muted-foreground hover:bg-accent/10 hover:text-foreground"
+              className="rounded-sm p-1 text-muted-foreground hover:bg-accent/10 hover:text-foreground"
               aria-label="关闭"
             >
               <X className="size-3.5" />
@@ -291,7 +291,7 @@ export function ContextDiagnosticsPanel({
               void loadMore()
           }}
         >
-          <div className="px-3 pb-6 pt-2 text-[13px] leading-relaxed">
+          <div className="px-3 pt-2 pb-6 text-[13px] leading-relaxed">
             {loading && traceItems.length === 0 && (
               <div className="flex items-center justify-center py-12 text-xs text-muted-foreground">加载中…</div>
             )}
@@ -360,13 +360,13 @@ function TurnBlock({ group }: { group: TurnMessages }) {
 
       {/* Tab 栏 */}
       {availableTabs.length > 1 && (
-        <div className="flex gap-1 border-b border-border/30 mb-1">
+        <div className="mb-1 flex gap-1 border-b border-border/30">
           {availableTabs.map(kind => (
             <button
               key={kind}
               type="button"
               onClick={() => setActiveTab(kind)}
-              className={`px-2 py-1 text-[10px] font-bold uppercase tracking-wider border-b-2 transition-colors ${
+              className={`border-b-2 px-2 py-1 text-[10px] font-bold tracking-wider uppercase transition-colors ${
                 kind === effectiveTab
                   ? 'border-foreground/80 text-foreground/90'
                   : 'border-transparent text-muted-foreground/50 hover:text-muted-foreground/80'
@@ -388,8 +388,8 @@ function TurnBlock({ group }: { group: TurnMessages }) {
           {/* 模型响应 */}
           {group.lastItem?.detail?.response && (
             <div className="mt-2">
-              <div className="flex items-center gap-2 py-0.5 mb-0.5">
-                <span className="px-1 py-[1px] rounded bg-accent/15 text-accent text-[8px] font-bold uppercase tracking-wider leading-none">Response</span>
+              <div className="mb-0.5 flex items-center gap-2 py-0.5">
+                <span className="rounded-sm bg-accent/15 px-1 py-px text-[8px] leading-none font-bold tracking-wider text-accent uppercase">Response</span>
                 {group.lastItem.detail.response.finishReason && (
                   <span className="text-[9px] text-muted-foreground/50">{group.lastItem.detail.response.finishReason}</span>
                 )}
@@ -404,7 +404,7 @@ function TurnBlock({ group }: { group: TurnMessages }) {
                   </span>
                 )}
               </div>
-              <pre className="whitespace-pre-wrap break-all mx-0.5 rounded border border-border/40 bg-code p-2 text-[10px] leading-relaxed text-code-foreground max-h-[320px] overflow-auto">
+              <pre className="mx-0.5 max-h-80 overflow-auto rounded-sm border border-border/40 bg-code p-2 text-[10px] leading-relaxed break-all whitespace-pre-wrap text-code-foreground">
                 {group.lastItem.detail.response.text}
               </pre>
             </div>
@@ -455,17 +455,17 @@ function ContextItemRow({ item }: { item: ContextItemSnapshot }) {
   const [open, setOpen] = useState(false)
 
   return (
-    <div className={`border-b border-border/30 last:border-b-0 ${open ? 'bg-accent/[0.03]' : ''}`}>
+    <div className={`border-b border-border/30 last:border-b-0 ${open ? 'bg-accent/3' : ''}`}>
       <button
         type="button"
         onClick={() => setOpen(!open)}
         className="flex w-full items-center gap-2 px-2 py-1 text-left hover:bg-accent/5"
       >
-        <span className={`text-[10px] font-mono transition-transform ${open ? 'rotate-90' : ''} text-muted-foreground/40`}>▶</span>
-        <span className={`inline-flex items-center rounded-[3px] border px-1 py-[1px] text-[8px] font-bold uppercase leading-none tracking-wider ${statusColor}`}>
+        <span className={`font-mono text-[10px] transition-transform ${open ? 'rotate-90' : ''} text-muted-foreground/40`}>▶</span>
+        <span className={`inline-flex items-center rounded-[3px] border px-1 py-px text-[8px] leading-none font-bold tracking-wider uppercase ${statusColor}`}>
           {item.status}
         </span>
-        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">
+        <span className="text-[10px] font-bold tracking-wider text-muted-foreground/60 uppercase">
           {kindLabel}
         </span>
         <span className="min-w-0 truncate text-xs text-foreground/80">
@@ -479,7 +479,7 @@ function ContextItemRow({ item }: { item: ContextItemSnapshot }) {
       </button>
 
       {open && (
-        <div className="mx-3 mb-2 max-h-[320px] overflow-auto rounded-lg border border-border/50 bg-code p-2.5 text-[11px] leading-relaxed text-code-foreground scrollbar-thin">
+        <div className="scrollbar-thin mx-3 mb-2 max-h-80 overflow-auto rounded-lg border border-border/50 bg-code p-2.5 text-[11px] leading-relaxed text-code-foreground">
           <ItemDetail item={item} />
         </div>
       )}
@@ -493,7 +493,7 @@ function ContextItemRow({ item }: { item: ContextItemSnapshot }) {
 
 function ItemDetail({ item }: { item: ContextItemSnapshot }) {
   if (item.kind === 'system-prompt' && item.content) {
-    return <pre className="whitespace-pre-wrap break-all">{item.content}</pre>
+    return <pre className="break-all whitespace-pre-wrap">{item.content}</pre>
   }
 
   if (item.kind === 'message') {
@@ -503,26 +503,26 @@ function ItemDetail({ item }: { item: ContextItemSnapshot }) {
       <div className="space-y-1">
         {item.content && (
           <div>
-            <div className="text-muted-foreground text-[10px]">text:</div>
-            <pre className="whitespace-pre-wrap break-all mt-0.5">{item.content}</pre>
+            <div className="text-[10px] text-muted-foreground">text:</div>
+            <pre className="mt-0.5 break-all whitespace-pre-wrap">{item.content}</pre>
           </div>
         )}
 
         {hasMultiTools
           ? item.tools!.map((tc, idx) => (
               <div key={`${tc.toolCallId ?? idx}`}>
-                <div className="text-muted-foreground text-[10px] mt-1 first:mt-0">
+                <div className="mt-1 text-[10px] text-muted-foreground first:mt-0">
                   {tc.type === 'tool-call' ? 'tool-call:' : 'tool-result:'}
                   {tc.toolName}
                   {tc.isError ? ' ⚠️' : ''}
                 </div>
                 {tc.type === 'tool-call' && tc.args && (
-                  <pre className="whitespace-pre-wrap break-all mt-0.5 rounded border border-border/40 bg-code p-2 text-[10px] leading-relaxed text-code-foreground">
+                  <pre className="mt-0.5 rounded-sm border border-border/40 bg-code p-2 text-[10px] leading-relaxed break-all whitespace-pre-wrap text-code-foreground">
                     {JSON.stringify(tc.args, null, 2)}
                   </pre>
                 )}
                 {tc.type === 'tool-result' && tc.result !== undefined && (
-                  <pre className="whitespace-pre-wrap break-all mt-0.5 rounded border border-border/40 bg-code p-2 text-[10px] leading-relaxed text-code-foreground">
+                  <pre className="mt-0.5 rounded-sm border border-border/40 bg-code p-2 text-[10px] leading-relaxed break-all whitespace-pre-wrap text-code-foreground">
                     {tc.result}
                   </pre>
                 )}
@@ -531,12 +531,12 @@ function ItemDetail({ item }: { item: ContextItemSnapshot }) {
           : (
               <>
                 {item.toolName && item.toolArgs && (
-                  <pre className="whitespace-pre-wrap break-all mt-0.5 rounded border border-border/40 bg-code p-2 text-[10px] leading-relaxed text-code-foreground">
+                  <pre className="mt-0.5 rounded-sm border border-border/40 bg-code p-2 text-[10px] leading-relaxed break-all whitespace-pre-wrap text-code-foreground">
                     {JSON.stringify(item.toolArgs, null, 2)}
                   </pre>
                 )}
                 {item.toolName && item.toolResult !== undefined && (
-                  <pre className="whitespace-pre-wrap break-all mt-0.5 rounded border border-border/40 bg-code p-2 text-[10px] leading-relaxed text-code-foreground">
+                  <pre className="mt-0.5 rounded-sm border border-border/40 bg-code p-2 text-[10px] leading-relaxed break-all whitespace-pre-wrap text-code-foreground">
                     {item.toolResult}
                   </pre>
                 )}
@@ -549,7 +549,7 @@ function ItemDetail({ item }: { item: ContextItemSnapshot }) {
   if (item.kind === 'tool-definition') {
     return (
       <div>
-        <div className="text-muted-foreground mb-1">
+        <div className="mb-1 text-muted-foreground">
           {item.source && (
             <span className="mr-2">
               source:
@@ -567,7 +567,7 @@ function ItemDetail({ item }: { item: ContextItemSnapshot }) {
             {item.toolName}
           </span>
         </div>
-        {item.content && <pre className="whitespace-pre-wrap break-all">{item.content}</pre>}
+        {item.content && <pre className="break-all whitespace-pre-wrap">{item.content}</pre>}
       </div>
     )
   }
@@ -577,7 +577,7 @@ function ItemDetail({ item }: { item: ContextItemSnapshot }) {
       <div className="space-y-0.5">
         {Object.entries(item.settings).map(([key, value]) => (
           <div key={key} className="flex gap-2">
-            <span className="text-muted-foreground shrink-0">
+            <span className="shrink-0 text-muted-foreground">
               {key}
               :
             </span>
@@ -588,7 +588,7 @@ function ItemDetail({ item }: { item: ContextItemSnapshot }) {
     )
   }
 
-  return <pre className="whitespace-pre-wrap break-all">{JSON.stringify(item, null, 2)}</pre>
+  return <pre className="break-all whitespace-pre-wrap">{JSON.stringify(item, null, 2)}</pre>
 }
 
 // ================================================================

@@ -91,7 +91,7 @@ export function AboutUpdateSettings() {
   return (
     <div className="flex flex-col gap-3 text-sm">
       {/* 版本信息卡片 */}
-      <Card size="sm" className="w-full ">
+      <Card size="sm" className="w-full">
         <CardContent className="flex items-center justify-between">
           <div className="flex items-center gap-1">
             <CheckCircle className="size-4 text-green-500" />

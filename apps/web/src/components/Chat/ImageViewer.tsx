@@ -72,8 +72,8 @@ export function ImageViewer({ items }: { items: ImagePreviewItem[] }) {
         )}
         <DialogContent
           className="
-            top-0! left-0! translate-x-0! translate-y-0!
-            h-screen! w-screen! max-w-none! border-0 rounded-none bg-black/50 p-0
+            top-0! left-0! h-screen! w-screen!
+            max-w-none! translate-0! rounded-none border-0 bg-black/50 p-0
             duration-0!
           "
           showCloseButton={false}
@@ -106,7 +106,7 @@ function ImageCarousel({
   onImageClick: (index: number) => void
 }) {
   return (
-    <div className="flex gap-2 overflow-x-auto scrollbar-thin pb-1">
+    <div className="scrollbar-thin flex gap-2 overflow-x-auto pb-1">
       {items.map((item, index) => (
         <button
           key={item.id}
@@ -114,7 +114,7 @@ function ImageCarousel({
           className={cn(
             'shrink-0 overflow-hidden rounded-lg border border-border/50',
             'transition-shadow hover:shadow-md',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
           )}
           onClick={() => onImageClick(index)}
         >
@@ -171,7 +171,7 @@ function ImagePreviewSlider({
       {hasPrev && (
         <button
           type="button"
-          className="absolute left-4 top-1/2 -translate-y-1/2 rounded-full bg-black/40 p-3 text-white transition-colors hover:bg-black/60"
+          className="absolute top-1/2 left-4 -translate-y-1/2 rounded-full bg-black/40 p-3 text-white transition-colors hover:bg-black/60"
           onClick={() => onIndexChange(currentIndex - 1)}
           aria-label="上一张"
         >
@@ -185,7 +185,7 @@ function ImagePreviewSlider({
       {hasNext && (
         <button
           type="button"
-          className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full bg-black/40 p-3 text-white transition-colors hover:bg-black/60"
+          className="absolute top-1/2 right-4 -translate-y-1/2 rounded-full bg-black/40 p-3 text-white transition-colors hover:bg-black/60"
           onClick={() => onIndexChange(currentIndex + 1)}
           aria-label="下一张"
         >

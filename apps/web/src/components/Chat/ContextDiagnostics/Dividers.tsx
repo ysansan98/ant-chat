@@ -12,7 +12,7 @@ export interface TurnDividerProps {
 export function TurnDivider({ turn, time }: TurnDividerProps) {
   return (
     <div className="flex items-center gap-3 py-1">
-      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">
+      <span className="text-[10px] font-bold tracking-wider text-muted-foreground/60 uppercase">
         Turn
         {' '}
         {turn}
@@ -35,7 +35,7 @@ export interface ModelRequestDividerProps {
 
 export function ModelRequestDivider({ step, kind, time }: ModelRequestDividerProps) {
   return (
-    <div className="flex items-center gap-2 pl-4 py-[2px]">
+    <div className="flex items-center gap-2 py-0.5 pl-4">
       <span className="text-[10px] text-muted-foreground/70">
         Model Request
         {' '}
@@ -63,7 +63,7 @@ export function CompactionBoundary({ trigger, time }: CompactionBoundaryProps) {
   return (
     <div className="flex items-center gap-2 py-2">
       <ArrowDownToDot className="size-3 text-amber-500/70" />
-      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-500/70">
+      <span className="text-[10px] font-bold tracking-wider text-amber-500/70 uppercase">
         Compaction
       </span>
       <span className="text-[9px] text-amber-500/50">

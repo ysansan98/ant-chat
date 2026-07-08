@@ -94,7 +94,7 @@ export function RunHistorySheet(props: {
                   </CardAction>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm leading-6">{record.summary || record.errorMessage || '任务正在执行，完成后会显示结果。'}</p>
+                  <p className="text-sm/6">{record.summary || record.errorMessage || '任务正在执行，完成后会显示结果。'}</p>
                 </CardContent>
                 <CardFooter className="justify-between">
                   <span className="text-xs text-muted-foreground">独立会话</span>

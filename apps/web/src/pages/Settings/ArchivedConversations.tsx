@@ -262,7 +262,7 @@ export function ArchivedConversations() {
             : visibleWorkspaces.length === 0
               ? (
                   <EmptyState
-                    icon={<ArchiveIcon className="!size-5" />}
+                    icon={<ArchiveIcon className="size-5!" />}
                     title={debouncedQuery || workspaceFilter !== ALL_WORKSPACES_FILTER ? '未找到匹配的已归档会话' : '暂无已归档的会话'}
                     description={debouncedQuery || workspaceFilter !== ALL_WORKSPACES_FILTER ? '尝试调整关键词或工作区筛选。' : '归档后的会话会按工作区显示在这里。'}
                   />
@@ -272,7 +272,7 @@ export function ArchivedConversations() {
                   const page = pages[workspaceKey]
                   return (
                     <section key={workspaceKey} className="border-b border-border/70 last:border-b-0">
-                      <header className="sticky top-0 z-10 flex h-11 items-center justify-between gap-3 border-b border-border/70 bg-background/95 px-4 backdrop-blur">
+                      <header className="sticky top-0 z-10 flex h-11 items-center justify-between gap-3 border-b border-border/70 bg-background/95 px-4 backdrop-blur-sm">
                         <div className="flex min-w-0 items-center gap-2">
                           <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
                           <span className="truncate text-sm font-medium">{workspace.displayName}</span>
@@ -372,7 +372,7 @@ function ArchivedConversationRow({
     <div className="group/conversation flex min-h-16 items-center gap-3 py-3">
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{conversation.title}</p>
-        <time className="mt-1 block text-xs tabular-nums text-muted-foreground" dateTime={new Date(conversation.updatedAt).toISOString()}>
+        <time className="mt-1 block text-xs text-muted-foreground tabular-nums" dateTime={new Date(conversation.updatedAt).toISOString()}>
           {formatTime(conversation.updatedAt)}
         </time>
       </div>

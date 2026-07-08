@@ -152,14 +152,14 @@ export default function McpConfigDrawer({ open, mode, defaultValues, onClose, on
       <SheetContent
         side="right"
         className="
-          data-[side=right]:w-[90vw] data-[side=right]:sm:max-w-[90vw]
-          flex flex-col gap-0 p-0
+          flex flex-col
+          gap-0 p-0 data-[side=right]:w-[90vw] data-[side=right]:sm:max-w-[90vw]
         "
       >
         <SheetHeader className="border-b px-4 py-3">
           <SheetTitle>{mode === 'add' ? '添加MCP服务器' : '更新MCP服务器'}</SheetTitle>
         </SheetHeader>
-        <div className="flex flex-1 w-[90vw] max-w-[90vw] overflow-hidden">
+        <div className="flex w-[90vw] max-w-[90vw] flex-1 overflow-hidden">
           <div className="w-[55vw] shrink-0 overflow-y-auto px-2 pt-5">
             <QuickImport onImport={(e) => {
               if (e.transportType === 'stdio') {
@@ -317,7 +317,7 @@ export default function McpConfigDrawer({ open, mode, defaultValues, onClose, on
                   <Input placeholder="补充该MCP服务的使用说明和场景等信息" {...register('description')} />
                 </div>
 
-                <SheetFooter className="flex-row w-full justify-end">
+                <SheetFooter className="w-full flex-row justify-end">
                   <Button
                     type="button"
                     variant="outline"

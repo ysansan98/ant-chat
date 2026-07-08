@@ -107,7 +107,7 @@ export function ProviderSettingsPanel({ item, onChange, onDelete }: ProviderSett
         </div>
 
         <div className="flex flex-col gap-1">
-          <h2 className="text-base leading-6 font-semibold">模型列表</h2>
+          <h2 className="text-base/6 font-semibold">模型列表</h2>
           <ModelList providerId={item.id} />
         </div>
       </div>

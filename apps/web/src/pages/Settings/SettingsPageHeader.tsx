@@ -13,11 +13,11 @@ export function SettingsPageHeader({ title, description, actions }: SettingsPage
   return (
     <header className="flex min-h-14 shrink-0 flex-col items-start justify-between gap-3 lg:flex-row">
       <div className="min-w-0">
-        <h1 className="text-balance text-xl leading-7 font-semibold tracking-tight">
+        <h1 className="text-xl/7 font-semibold tracking-tight text-balance">
           {title}
         </h1>
         {description && (
-          <div className="mt-1 truncate text-xs leading-4 text-muted-foreground">
+          <div className="mt-1 truncate text-xs/4 text-muted-foreground">
             {description}
           </div>
         )}

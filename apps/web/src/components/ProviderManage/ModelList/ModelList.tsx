@@ -91,7 +91,7 @@ export function ModelList({ providerId }: ModelListProps) {
               last:border-0
             `}
           >
-            <div className="flex text-sm items-center gap-1">{item.name}</div>
+            <div className="flex items-center gap-1 text-sm">{item.name}</div>
 
             <div className="flex items-center gap-2">
               {item.isBuiltin
@@ -127,10 +127,10 @@ export function ModelList({ providerId }: ModelListProps) {
               >
                 {item.isEnabled
                   ? (
-                      <CheckCircle className="text-green-500 size-4" />
+                      <CheckCircle className="size-4 text-green-500" />
                     )
                   : (
-                      <MinusCircle className="text-red-500 size-4" />
+                      <MinusCircle className="size-4 text-red-500" />
                     )}
               </Button>
             </div>

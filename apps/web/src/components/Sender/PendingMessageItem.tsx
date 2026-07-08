@@ -23,7 +23,7 @@ export function PendingMessageItem({ item, canInject, onInject, onEdit, onRemove
   }
 
   return (
-    <div className="pending-message-enter flex items-center gap-1 px-2 py-2">
+    <div className="pending-message-enter flex items-center gap-1 p-2">
       <GripVerticalIcon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground/60" />
       <div className="min-w-0 flex-1">
         {editing
@@ -49,7 +49,7 @@ export function PendingMessageItem({ item, canInject, onInject, onEdit, onRemove
               />
             )
           : (
-              <p className="line-clamp-2 text-sm wrap-break-word text-pretty">{item.text}</p>
+              <p className="line-clamp-2 text-sm text-pretty wrap-break-word">{item.text}</p>
             )}
       </div>
       <div className="flex shrink-0 items-center opacity-60 transition-opacity duration-150 hover:opacity-100">
@@ -65,7 +65,7 @@ export function PendingMessageItem({ item, canInject, onInject, onEdit, onRemove
         <Button className="active:scale-[0.96]" size="icon" variant="ghost" aria-label="编辑待处理消息" onClick={() => setEditing(true)}>
           <PencilIcon className="size-4 cursor-pointer" />
         </Button>
-        <Button className=" active:scale-[0.96]" size="icon" variant="ghost" aria-label="删除待处理消息" onClick={() => onRemove(item.id)}>
+        <Button className="active:scale-[0.96]" size="icon" variant="ghost" aria-label="删除待处理消息" onClick={() => onRemove(item.id)}>
           <Trash2Icon className="size-4 cursor-pointer" />
         </Button>
       </div>

@@ -60,10 +60,10 @@ export function MessageJumpRail({
       <nav
         aria-label="Message navigation"
         className={`
-          fixed right-3 top-1/2 z-20 -translate-y-1/2
-          hidden md:flex flex-col items-center gap-1.5
-          opacity-[0.42] transition-opacity duration-200
-          hover:opacity-100 focus-within:opacity-100
+          fixed top-1/2 right-3 z-20 hidden
+          -translate-y-1/2 flex-col items-center gap-1.5 opacity-[0.42]
+          transition-opacity duration-200 focus-within:opacity-100
+          hover:opacity-100 md:flex
         `}
       >
         {userMessages.map((message, index) => {
@@ -80,7 +80,7 @@ export function MessageJumpRail({
                     aria-current={isActive ? 'true' : undefined}
                     className={cn(
                       'block rounded-full border transition-all duration-200',
-                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                      'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
                       isActive
                         ? 'size-2 border-primary bg-primary'
                         : [
@@ -94,7 +94,7 @@ export function MessageJumpRail({
                 )}
               />
               <TooltipContent side="left" sideOffset={12}>
-                <p className="max-w-48 line-clamp-3 text-xs leading-relaxed whitespace-pre-wrap">
+                <p className="line-clamp-3 max-w-48 text-xs/relaxed whitespace-pre-wrap">
                   {summaries[index]}
                 </p>
               </TooltipContent>
@@ -107,11 +107,11 @@ export function MessageJumpRail({
       <nav
         aria-label="Message navigation"
         className={`
-          sticky bottom-0 left-0 right-0 z-20
-          flex md:hidden items-center justify-center gap-1.5
-          bg-background/80 backdrop-blur-sm py-1.5
-          opacity-[0.6] transition-opacity duration-200
-          hover:opacity-100 focus-within:opacity-100
+          sticky inset-x-0 bottom-0 z-20
+          flex items-center justify-center gap-1.5 bg-background/80
+          py-1.5 opacity-[0.6] backdrop-blur-sm
+          transition-opacity duration-200 focus-within:opacity-100
+          hover:opacity-100 md:hidden
         `}
       >
         {userMessages.map((message, index) => {
@@ -125,7 +125,7 @@ export function MessageJumpRail({
               aria-current={isActive ? 'true' : undefined}
               className={cn(
                 'block rounded-full border transition-all duration-200',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
                 isActive
                   ? 'size-2 border-primary bg-primary'
                   : [

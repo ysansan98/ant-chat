@@ -74,7 +74,7 @@ export function ConversationTitleBar({ conversation }: ConversationTitleBarProps
                 </span>
                 <button
                   type="button"
-                  className="flex size-6 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
+                  className="flex size-6 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-accent hover:text-foreground focus-visible:opacity-100"
                   onClick={() => setEditing(true)}
                   aria-label="重命名"
                 >

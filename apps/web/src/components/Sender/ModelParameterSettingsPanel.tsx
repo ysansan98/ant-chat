@@ -130,7 +130,7 @@ export function ModelParameterSettingsPanel() {
             value={[compaction.keepRecentTokens]}
             onValueChange={value => updateCompaction({ keepRecentTokens: getSliderValue(value) })}
           />
-          <p className="text-xs leading-relaxed text-muted-foreground">
+          <p className="text-xs/relaxed text-muted-foreground">
             This is a target. The actual retained context may be slightly larger to keep complete messages and tool calls intact.
           </p>
         </div>

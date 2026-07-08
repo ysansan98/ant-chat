@@ -45,7 +45,7 @@ export function ModelControlPanel({ value, onChange }: ModelControlPanelProps) {
   return (
     <div
       className={`
-      model-control-trigger flex h-8 items-center rounded-md border border-solid overflow-hidden
+      model-control-trigger flex h-8 items-center overflow-hidden rounded-md border border-solid
       border-(--border-color)
     `}
     >
@@ -55,10 +55,10 @@ export function ModelControlPanel({ value, onChange }: ModelControlPanelProps) {
         onChange={nextInfo => onChange?.(nextInfo)}
         options={data}
         className={`
-          flex cursor-default items-center gap-1 pl-2 h-full
-          hover:bg-(--hover-bg-color)
-          max-sm:size-full max-sm:justify-center max-sm:gap-0 max-sm:pl-0
+          flex h-full cursor-default items-center gap-1 pl-2
           outline-hidden
+          hover:bg-(--hover-bg-color) max-sm:size-full max-sm:justify-center max-sm:gap-0
+          max-sm:pl-0
         `}
       >
         <ProviderLogoDisplay providerId={activeProviderServiceInfo?.id || ''} />
@@ -72,9 +72,9 @@ export function ModelControlPanel({ value, onChange }: ModelControlPanelProps) {
       <Popover open={openPopover} onOpenChange={setOpenPopover}>
         <PopoverTrigger
           className={`
-          model-control-settings h-full flex items-center justify-center
-          px-1 hover:bg-(--hover-bg-color)
-          cursor-pointer outline-hidden
+          model-control-settings flex h-full cursor-pointer items-center
+          justify-center px-1
+          outline-hidden hover:bg-(--hover-bg-color)
         `}
         >
           <Settings size={16} />

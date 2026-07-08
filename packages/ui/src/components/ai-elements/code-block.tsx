@@ -62,7 +62,7 @@ function addKeysToTokens(lines: ThemedToken[][]): KeyedLine[] {
 function TokenSpan({ token }: { token: ThemedToken }) {
   return (
     <span
-      className="dark:!bg-[var(--shiki-dark-bg)] dark:!text-[var(--shiki-dark)]"
+      className="dark:bg-(--shiki-dark-bg)! dark:text-(--shiki-dark)!"
       style={
         {
           backgroundColor: token.bgColor,
@@ -273,7 +273,7 @@ const CodeBlockBody = memo(
     return (
       <pre
         className={cn(
-          'dark:!bg-[var(--shiki-dark-bg)] dark:!text-[var(--shiki-dark)] m-0 p-4 text-sm',
+          'm-0 p-4 text-sm dark:bg-(--shiki-dark-bg)! dark:text-(--shiki-dark)!',
           className,
         )}
         style={preStyle}
@@ -334,7 +334,7 @@ export function CodeBlockHeader({
   return (
     <div
       className={cn(
-        'flex items-center justify-between border-b bg-muted/80 px-3 py-2 text-muted-foreground text-xs',
+        'flex items-center justify-between border-b bg-muted/80 px-3 py-2 text-xs text-muted-foreground',
         className,
       )}
       {...props}

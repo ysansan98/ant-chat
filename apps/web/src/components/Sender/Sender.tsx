@@ -846,11 +846,11 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
       className="mx-auto w-full max-w-(--chat-width)"
     >
       {!hasMessage && (
-        <h1 className="mb-3 py-3 text-center text-2xl text-muted-foreground text-balance md:text-4xl">
+        <h1 className="mb-3 py-3 text-center text-2xl text-balance text-muted-foreground md:text-4xl">
           <TypingEffect text="有什么可以帮忙的？" />
         </h1>
       )}
-      <div className="bg-secondary rounded-lg overflow-hidden">
+      <div className="overflow-hidden rounded-lg bg-secondary">
 
         <PendingMessageQueue
           conversationId={activeConversationsId}
@@ -862,7 +862,7 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
 
         <PromptInput
           accept={fileAccept}
-          className="bg-background rounded-lg overflow-hidden"
+          className="overflow-hidden rounded-lg bg-background"
           data-testid="chat-input-form"
           maxFileSize={20 * 1024 * 1024}
           multiple
@@ -884,8 +884,8 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
               <PromptInputTextarea
                 ref={textareaRef}
                 className="
-                relative z-10 max-h-48 min-h-20 border-0 bg-transparent p-1 text-transparent
-                text-sm caret-foreground
+                relative z-10 max-h-48 min-h-20 border-0 bg-transparent p-1 text-sm
+                text-transparent caret-foreground
                 selection:bg-primary/20 selection:text-foreground
                 placeholder:text-muted-foreground
                 md:min-h-24

@@ -16,7 +16,7 @@ export function EmojiGrid({ onEmojiSelect, className, containerHeight = 200 }: E
   return (
     <div className={cn('flex flex-col', className)}>
       {/* Group tabs */}
-      <div className="flex gap-1 border-b border-[var(--border-color)] px-2 pt-1">
+      <div className="flex gap-1 border-b border-(--border-color) px-2 pt-1">
         {EMOJI_GROUPS.map((group, idx) => (
           <button
             key={group.label}
@@ -24,7 +24,7 @@ export function EmojiGrid({ onEmojiSelect, className, containerHeight = 200 }: E
             className={cn(
               'rounded-t px-2.5 py-1 text-xs transition-colors',
               idx === activeGroup
-                ? 'bg-background text-foreground border border-b-0 border-[var(--border-color)] -mb-px'
+                ? '-mb-px border border-b-0 border-(--border-color) bg-background text-foreground'
                 : 'text-muted-foreground hover:text-foreground',
             )}
             onClick={() => setActiveGroup(idx)}
@@ -44,7 +44,7 @@ export function EmojiGrid({ onEmojiSelect, className, containerHeight = 200 }: E
             <button
               key={emoji}
               type="button"
-              className="flex size-7 cursor-pointer items-center justify-center rounded text-lg leading-none hover:bg-[var(--hover-bg-color)]"
+              className="flex size-7 cursor-pointer items-center justify-center rounded-sm text-lg leading-none hover:bg-(--hover-bg-color)"
               onClick={() => onEmojiSelect?.(emoji)}
               title={emoji}
             >

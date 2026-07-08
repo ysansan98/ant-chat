@@ -55,13 +55,13 @@ export function ContextItemRow({
           }`}
         />
         <span
-          className={`inline-flex items-center rounded-[3px] border px-1 py-[1px] text-[8px] font-bold uppercase leading-none tracking-wide ${
+          className={`inline-flex items-center rounded-[3px] border px-1 py-px text-[8px] leading-none font-bold tracking-wide uppercase ${
             statusColorMap[status]
           }`}
         >
           {statusLabelMap[status]}
         </span>
-        <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground/80">
+        <span className="text-[10px] font-bold tracking-wide text-muted-foreground/80 uppercase">
           {kind}
         </span>
         <span className="truncate text-[12px] text-foreground/85">{summary}</span>
@@ -73,7 +73,7 @@ export function ContextItemRow({
       {isExpanded && (
         <div
           ref={contentRef}
-          className="mx-4 mb-2 max-h-[320px] overflow-auto rounded-lg border border-border/50 bg-code p-2.5 text-[11px] leading-relaxed text-code-foreground"
+          className="mx-4 mb-2 max-h-80 overflow-auto rounded-lg border border-border/50 bg-code p-2.5 text-[11px] leading-relaxed text-code-foreground"
         >
           {children}
         </div>

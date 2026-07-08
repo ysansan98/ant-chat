@@ -120,7 +120,7 @@ export function MemorySettings() {
 
       {state.status === 'ready' && state.data.lastSoulUpdate
         ? (
-            <p className="text-xs leading-4 text-muted-foreground">
+            <p className="text-xs/4 text-muted-foreground">
               Last SOUL update:
               {' '}
               {state.data.lastSoulUpdate.summary}
@@ -156,14 +156,14 @@ export function MemorySettings() {
         <TabsContent value="soul" className="min-h-0 flex-1">
           <Card className="min-h-0">
             <CardHeader>
-              <CardTitle className="text-base leading-6 font-semibold">SOUL.md</CardTitle>
+              <CardTitle className="text-base/6 font-semibold">SOUL.md</CardTitle>
               <CardDescription className="text-pretty">Stable agent identity. Tool calls cannot edit this file.</CardDescription>
             </CardHeader>
             <CardContent className="min-h-0 flex-1">
               <Textarea
                 value={soulMarkdown}
                 disabled={disabled}
-                className="h-[calc(100vh-240px)] resize-none font-mono text-[13px] leading-5"
+                className="h-[calc(100vh-240px)] resize-none font-mono text-[13px]/5"
                 onChange={event => setSoulMarkdown(event.target.value)}
               />
             </CardContent>

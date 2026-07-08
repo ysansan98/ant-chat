@@ -312,7 +312,7 @@ function ProcessMessagesPanel({
 function SteeringMessage({ message }: { message: IMessage }) {
   return (
     <div
-      className="ml-3 mr-1 border-l-2 border-primary/25 py-1 pl-4"
+      className="mr-1 ml-3 border-l-2 border-primary/25 py-1 pl-4"
       data-message-id={message.id}
     >
       <div className="rounded-lg bg-primary/8 px-3 py-2.5 ring-1 ring-primary/18">
@@ -320,7 +320,7 @@ function SteeringMessage({ message }: { message: IMessage }) {
           <span className="text-xs font-medium text-primary">
             追加指令
           </span>
-          <span className="text-[11px] tabular-nums text-muted-foreground">
+          <span className="text-[11px] text-muted-foreground tabular-nums">
             {formatTime(message.createdAt)}
           </span>
         </div>

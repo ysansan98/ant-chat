@@ -173,7 +173,7 @@ function SkillRow({
   return (
     <Card size="sm">
       <CardHeader>
-        <CardTitle className="flex min-w-0 items-center gap-2 text-base leading-6 font-semibold">
+        <CardTitle className="flex min-w-0 items-center gap-2 text-base/6 font-semibold">
           <span className="truncate text-base">{skill.name}</span>
           <Badge variant={skill.enabled ? 'secondary' : 'outline'}>
             {skill.enabled ? 'Enabled' : 'Disabled'}

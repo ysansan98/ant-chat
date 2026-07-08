@@ -69,8 +69,8 @@ export function AppearanceSettings() {
                 type="button"
                 data-active={appearance.mode === option.id}
                 className={`
-                  flex flex-col items-center gap-2 rounded-xl border px-6 py-4 text-sm
-                  transition-colors duration-150 cursor-pointer
+                  flex cursor-pointer flex-col items-center gap-2 rounded-xl border px-6 py-4
+                  text-sm transition-colors duration-150
                   ${appearance.mode === option.id
                 ? 'border-ring bg-accent/10 shadow-sm'
                 : 'border-border hover:border-ring/50 hover:bg-muted/30'
@@ -99,9 +99,9 @@ export function AppearanceSettings() {
                 type="button"
                 data-active={appearance.lightThemeId === theme.id}
                 className={`
-                  rounded-lg border px-4 py-2 text-sm transition-colors duration-150 flex items-center gap-2 cursor-pointer
+                  flex cursor-pointer items-center gap-2 rounded-lg border px-4 py-2 text-sm transition-colors duration-150
                   ${appearance.lightThemeId === theme.id
-                ? 'border-ring bg-accent/10 shadow-sm font-medium'
+                ? 'border-ring bg-accent/10 font-medium shadow-sm'
                 : 'border-border hover:border-ring/50 hover:bg-muted/30'
               }
                 `}
@@ -132,9 +132,9 @@ export function AppearanceSettings() {
                 type="button"
                 data-active={appearance.darkThemeId === theme.id}
                 className={`
-                  rounded-lg border px-4 py-2 text-sm transition-colors duration-150 flex items-center gap-2 cursor-pointer
+                  flex cursor-pointer items-center gap-2 rounded-lg border px-4 py-2 text-sm transition-colors duration-150
                   ${appearance.darkThemeId === theme.id
-                ? 'border-ring bg-accent/10 shadow-sm font-medium'
+                ? 'border-ring bg-accent/10 font-medium shadow-sm'
                 : 'border-border hover:border-ring/50 hover:bg-muted/30'
               }
                 `}

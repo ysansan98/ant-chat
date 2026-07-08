@@ -33,7 +33,7 @@ export function MCPList({ items, onTriggerAction }: MCPListProps) {
                 </span>
               </div>
               {
-                item.description && <div className="pt-2 text-xs leading-4 text-muted-foreground">{item.description}</div>
+                item.description && <div className="pt-2 text-xs/4 text-muted-foreground">{item.description}</div>
               }
             </div>
             <McpConfigActions

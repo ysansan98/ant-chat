@@ -194,7 +194,7 @@ function CollapseChevron({ open }: { open: boolean }) {
   return (
     <ChevronDownIcon
       className={cn(
-        'size-3.5 ml-auto shrink-0 opacity-0 transition-[transform,opacity]',
+        'ml-auto size-3.5 shrink-0 opacity-0 transition-[transform,opacity]',
         'group-hover/trace:opacity-100',
         open && 'rotate-180 opacity-100',
       )}
@@ -233,7 +233,7 @@ function ReasoningStepItem({
           'data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-top-1',
         )}
       >
-        <div className="py-1 text-xs text-muted-foreground whitespace-pre-wrap">
+        <div className="py-1 text-xs whitespace-pre-wrap text-muted-foreground">
           {step.content}
         </div>
       </CollapsibleContent>
@@ -308,9 +308,9 @@ function CompactToolItem({
         )}
       >
         <ToolStatusIcon state={state} />
-        <span className="font-medium text-xs shrink-0">{tool.toolCall.toolName}</span>
+        <span className="shrink-0 text-xs font-medium">{tool.toolCall.toolName}</span>
         {inlineParam && (
-          <span className="text-xs text-muted-foreground/60 truncate min-w-0">
+          <span className="min-w-0 truncate text-xs text-muted-foreground/60">
             {inlineParam}
           </span>
         )}
@@ -318,7 +318,7 @@ function CompactToolItem({
       </CollapsibleTrigger>
       <CollapsibleContent
         className={cn(
-          'ml-4 pl-2 space-y-2',
+          'ml-4 space-y-2 pl-2',
           'data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-top-1',
           'data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-top-1',
         )}
@@ -326,14 +326,14 @@ function CompactToolItem({
         {tool.toolResult && (
           <div
             className={cn(
-              'rounded text-xs overflow-y-auto',
-              '[&_pre]:text-xs! [&_code]:text-xs!',
+              'overflow-y-auto rounded-sm text-xs',
+              '[&_code]:text-xs! [&_pre]:text-xs!',
               tool.toolResult.isError
                 ? 'text-destructive'
                 : 'bg-muted/50 text-foreground',
             )}
           >
-            <CodeBlock code={String(tool.toolResult.result)} language="json" className="max-h-40 overflow-y-auto mb-1" />
+            <CodeBlock code={String(tool.toolResult.result)} language="json" className="mb-1 max-h-40 overflow-y-auto" />
 
           </div>
         )}
@@ -377,7 +377,7 @@ function ToolGroupItem({
       </CollapsibleTrigger>
       <CollapsibleContent
         className={cn(
-          'ml-4 pl-2 space-y-1',
+          'ml-4 space-y-1 pl-2',
           'data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-top-1',
           'data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-top-1',
         )}
@@ -481,7 +481,7 @@ export function AssistantTrace({ message, toolResultMap, showReasoning = true }:
           return (
             <div
               key={group.steps[0].id}
-              className="ml-3 border-l-2 border-muted/60 pl-4 space-y-0.5"
+              className="ml-3 space-y-0.5 border-l-2 border-muted/60 pl-4"
             >
               {group.steps.map(step => (
                 <TraceStepItem
@@ -510,7 +510,7 @@ export function AssistantTrace({ message, toolResultMap, showReasoning = true }:
               return null
             }
             return (
-              <p key={step.id} className="text-destructive whitespace-pre-wrap text-sm">
+              <p key={step.id} className="text-sm whitespace-pre-wrap text-destructive">
                 {step.error}
               </p>
             )

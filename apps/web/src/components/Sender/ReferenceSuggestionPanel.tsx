@@ -122,7 +122,7 @@ export function ReferenceSuggestionPanel({
                 <CommandItem
                   key="__parent__"
                   value=".."
-                  className="data-[selected=true]:bg-transparent data-[selected=true]:text-inherit data-[highlighted=true]:bg-muted"
+                  className="data-[highlighted=true]:bg-muted data-[selected=true]:bg-transparent data-[selected=true]:text-inherit"
                   data-highlighted={highlightedIndex === 0}
                   onMouseEnter={() => onSetHighlightedIndex(0)}
                   onMouseDown={(event) => {
@@ -154,7 +154,7 @@ export function ReferenceSuggestionPanel({
                   <CommandItem
                     key={dir.path}
                     value={dir.path}
-                    className="data-[highlighted=true]:bg-muted data-[selected=true]:!bg-transparent data-[selected=true]:!text-inherit"
+                    className="data-[highlighted=true]:bg-muted data-[selected=true]:bg-transparent! data-[selected=true]:text-inherit!"
                     data-highlighted={globalIndex === highlightedIndex}
                     onMouseEnter={() => onSetHighlightedIndex(globalIndex)}
                     onMouseDown={(event) => {
@@ -175,7 +175,7 @@ export function ReferenceSuggestionPanel({
                   <CommandItem
                     key={file.path}
                     value={file.path}
-                    className="data-[selected=true]:bg-transparent data-[selected=true]:text-inherit data-[highlighted=true]:bg-muted"
+                    className="data-[highlighted=true]:bg-muted data-[selected=true]:bg-transparent data-[selected=true]:text-inherit"
                     data-highlighted={globalIndex === highlightedIndex}
                     onMouseEnter={() => onSetHighlightedIndex(globalIndex)}
                     onMouseDown={(event) => {
@@ -199,9 +199,9 @@ export function ReferenceSuggestionPanel({
                   value={cmd.id}
                   className="
                     items-start
+                    data-[highlighted=true]:bg-muted
                     data-[selected=true]:bg-transparent
                     data-[selected=true]:text-inherit
-                    data-[highlighted=true]:bg-muted
                   "
                   data-highlighted={index === highlightedIndex}
                   onMouseEnter={() => onSetHighlightedIndex(index)}
@@ -240,9 +240,9 @@ export function ReferenceSuggestionPanel({
                     value={skill.name}
                     className="
                       items-start
+                      data-[highlighted=true]:bg-muted
                       data-[selected=true]:bg-transparent
                       data-[selected=true]:text-inherit
-                      data-[highlighted=true]:bg-muted
                     "
                     data-highlighted={globalIndex === highlightedIndex}
                     onMouseEnter={() => onSetHighlightedIndex(globalIndex)}

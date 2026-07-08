@@ -385,8 +385,8 @@ function WorkspacePanel({
       <div
         className={`
           group flex h-9 w-full cursor-grab items-center gap-1 rounded-md px-2 transition
-          active:cursor-grabbing
           hover:bg-sidebar-accent
+          active:cursor-grabbing
           ${dragging ? 'opacity-50 shadow-sm' : ''}
         `}
         {...dragHandleProps}
@@ -584,9 +584,9 @@ function ConversationListItem({ conversation, active, running, completed, onOpen
     <>
       <div
         className={`
-          group/conversation flex py-1.5 w-full items-center rounded-md px-2 text-[14px]
-          transition-colors duration-150 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground
-          mt-1
+          group/conversation mt-1 flex w-full items-center rounded-md px-2 py-1.5
+          text-[14px] transition-colors duration-150 hover:bg-sidebar-accent
+          hover:text-sidebar-accent-foreground
           ${active
       ? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
       : 'text-sidebar-foreground/80'}
@@ -604,7 +604,7 @@ function ConversationListItem({ conversation, active, running, completed, onOpen
             ? <LoaderCircleIcon className="size-3.5 animate-spin text-blue-500" />
             : status === 'completed'
               ? <span className="size-1.5 rounded-full bg-emerald-500" />
-              : <span className="tabular-nums text-[11px] text-sidebar-foreground/60 transition-[opacity,transform,filter] duration-150 group-hover/conversation:pointer-events-none group-hover/conversation:scale-25 group-hover/conversation:opacity-0 group-hover/conversation:blur-xs">{formatRelativeTime(conversation.updatedAt)}</span>}
+              : <span className="text-[11px] text-sidebar-foreground/60 tabular-nums transition-[opacity,transform,filter] duration-150 group-hover/conversation:pointer-events-none group-hover/conversation:scale-25 group-hover/conversation:opacity-0 group-hover/conversation:blur-xs">{formatRelativeTime(conversation.updatedAt)}</span>}
           <Tooltip>
             <TooltipTrigger
               render={(
