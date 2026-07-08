@@ -15,11 +15,6 @@ import { CapabilityPicker, PermissionSwitch } from './automation-components'
 import { describeNextRun, formatDateTime, weekdays } from './automation-utils'
 import { useAutomationForm } from './useAutomationForm'
 
-const segmentedTabClassName = [
-  'rounded-md px-3 text-[14px] font-medium text-muted-foreground shadow-none',
-  'data-active:bg-accent data-active:text-accent-foreground data-active:shadow-none',
-].join(' ')
-
 export function CreateAutomationSheet(props: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -183,9 +178,9 @@ export function CreateAutomationSheet(props: {
               计划
             </legend>
             <Tabs value={form.mode} onValueChange={value => updateForm((draft) => { draft.mode = value as typeof form.mode })}>
-              <TabsList className="grid h-9 w-full grid-cols-2 bg-transparent p-0">
-                <TabsTrigger className={segmentedTabClassName} value="once">仅一次</TabsTrigger>
-                <TabsTrigger className={segmentedTabClassName} value="cron">周期执行</TabsTrigger>
+              <TabsList className="grid h-9 w-full grid-cols-2 p-0">
+                <TabsTrigger value="once">仅一次</TabsTrigger>
+                <TabsTrigger value="cron">周期执行</TabsTrigger>
               </TabsList>
 
               <TabsContent value="cron" className="flex flex-col gap-4">

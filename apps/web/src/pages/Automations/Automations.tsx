@@ -160,7 +160,7 @@ export function AutomationsPage() {
             </p>
           </div>
           <Button size="sm" onClick={() => setCreateOpen(true)}>
-            <Plus data-icon="inline-start size-4" />
+            <Plus data-icon="inline-start size-3.5" />
             新建自动化
           </Button>
         </header>
