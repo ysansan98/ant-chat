@@ -31,8 +31,8 @@
   "scripts": {
     "build": "tsdown && pnpm -F @ant-chat/web build --outDir ../../packages/local-server/dist/web --emptyOutDir false",
     "clean": "rm -rf dist node_modules",
-    "dev": "tsx watch --conditions=development --exclude '../../apps/web/node_modules' --exclude '../../apps/web/dist' --exclude '../../apps/desktop/out' --exclude '../../apps/desktop/release' src/dev.ts",
-    "dev:web": "tsx watch --conditions=development --exclude '../../apps/web/node_modules' --exclude '../../apps/web/dist' --exclude '../../apps/desktop/out' --exclude '../../apps/desktop/release' src/dev.ts --web",
+    "dev": "node ../../scripts/link-cli-dev.mjs && tsx watch --conditions=development --exclude '../../apps/web/node_modules' --exclude '../../apps/web/dist' --exclude '../../apps/desktop/out' --exclude '../../apps/desktop/release' src/dev.ts",
+    "dev:web": "node ../../scripts/link-cli-dev.mjs && PATH=\"$PWD/../../node_modules/.bin:$PATH\" tsx watch --conditions=development --exclude '../../apps/web/node_modules' --exclude '../../apps/web/dist' --exclude '../../apps/desktop/out' --exclude '../../apps/desktop/release' src/dev.ts --web",
     "prepack": "pnpm build",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
