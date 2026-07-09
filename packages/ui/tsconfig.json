@@ -5,6 +5,7 @@
     "jsx": "react-jsx",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "baseUrl": ".",
+    "customConditions": ["development"],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "paths": {

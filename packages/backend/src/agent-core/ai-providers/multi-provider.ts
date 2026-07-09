@@ -1,14 +1,14 @@
 import type { AnthropicProvider } from '@ai-sdk/anthropic'
 import type { DeepSeekProvider } from '@ai-sdk/deepseek'
-import type { GoogleGenerativeAIProvider } from '@ai-sdk/google'
+import type { GoogleProvider } from '@ai-sdk/google'
 import type { OpenAIProvider } from '@ai-sdk/openai'
-import type { ILogger, ProviderConfigSchema } from '@ant-chat/shared'
-import type { LanguageModelUsage } from 'ai'
+import type { IAIStreamChunk, ILogger, ProviderConfigSchema } from '@ant-chat/shared'
+import type { LanguageModel, LanguageModelUsage, ModelMessage } from 'ai'
 import type { ProviderFormat } from './types'
 import process from 'node:process'
 import { createAnthropic } from '@ai-sdk/anthropic'
 import { createDeepSeek } from '@ai-sdk/deepseek'
-import { createGoogleGenerativeAI } from '@ai-sdk/google'
+import { createGoogle } from '@ai-sdk/google'
 import { createOpenAI } from '@ai-sdk/openai'
 import { dynamicTool, generateText, jsonSchema, streamText } from 'ai'
 import { AgentError } from '../AgentError'
@@ -24,12 +24,26 @@ const noopLogger: ProviderLogger = {
   warn: () => {},
 }
 
+// 工厂表：取代构造函数里的 switch，所有厂商统一返回 LanguageModel 接口（无 any）
+const PROVIDER_FACTORIES = {
+  anthropic: createAnthropic,
+  deepseek: createDeepSeek,
+  google: createGoogle,
+  openai: createOpenAI,
+} as const
+
 /**
  * 多提供商 AI 提供商
  * 支持 DeepSeek、OpenAI、Gemini、Anthropic 等多种 AI 提供商
+ *
+ * v7 实现要点：
+ * - PROVIDER_FACTORIES 表取代构造函数 switch，消除 any 返回类型；
+ * - 系统提示走 streamText/generateText 的 instructions 选项（v7 默认拒绝 messages 里的 system 角色）；
+ * - transformToAISdkMessages 返回类型化的 ModelMessage[]，图片统一用 file 部件；
+ * - 流消费遍历 result.stream（类型化 TextStreamPart），usage 以 result.usage 为单一来源。
  */
 export class MultiProvider {
-  private client: DeepSeekProvider | OpenAIProvider | GoogleGenerativeAIProvider | AnthropicProvider
+  private client: DeepSeekProvider | OpenAIProvider | GoogleProvider | AnthropicProvider
   private format: ProviderFormat
   private logger: ProviderLogger
 
@@ -42,8 +56,9 @@ export class MultiProvider {
       inputTokens: usage.inputTokens,
       outputTokens: usage.outputTokens,
       totalTokens: usage.totalTokens,
-      reasoningTokens: usage.reasoningTokens,
-      cachedInputTokens: usage.cachedInputTokens,
+      // v7：推理/缓存 token 移入嵌套字段
+      reasoningTokens: usage.outputTokenDetails?.reasoningTokens,
+      cachedInputTokens: usage.inputTokenDetails?.cacheReadTokens,
     }
   }
 
@@ -76,173 +91,76 @@ export class MultiProvider {
       throw new Error(errorMsg)
     }
 
-    // 根据格式初始化不同的客户端
-    switch (this.format) {
-      case 'deepseek':
-        this.logger.debug?.('Creating DeepSeek client with baseURL:', options.baseUrl)
-        this.client = createDeepSeek({
-          apiKey: options.apiKey,
-          baseURL: options.baseUrl,
-        })
-        break
-
-      case 'openai':
-        this.logger.debug?.('Creating OpenAI client with baseURL:', options.baseUrl)
-        this.client = createOpenAI({
-          apiKey: options.apiKey,
-          baseURL: options.baseUrl,
-        })
-        break
-
-      case 'google':
-        this.logger.debug?.('Creating Google client with baseURL:', options.baseUrl)
-        this.client = createGoogleGenerativeAI({
-          apiKey: options.apiKey,
-          baseURL: options.baseUrl,
-        })
-        break
-
-      case 'anthropic':
-        this.logger.debug?.('Creating Anthropic client with baseURL:', options.baseUrl)
-        this.client = createAnthropic({
-          apiKey: options.apiKey,
-          baseURL: options.baseUrl,
-        })
-        break
-
-      default:
-        throw new Error(`Unsupported format: ${this.format}`)
-    }
+    this.client = PROVIDER_FACTORIES[this.format]({
+      apiKey: options.apiKey,
+      baseURL: options.baseUrl,
+    })
   }
 
   /**
-   * 创建模型客户端
+   * 创建模型客户端。OpenAI 走 Chat Completions（.chat），其余走统一的 .languageModel。
    */
-  private createModelClient(model: string): any {
-    if (!this.client) {
-      throw new Error('Client not initialized')
+  private createModelClient(model: string): LanguageModel {
+    if (this.format === 'openai' && 'chat' in this.client) {
+      return this.client.chat(model)
     }
 
-    if (!model || model.trim() === '') {
-      const errorMsg = `Model name is required for ${this.format} provider. Please provide a valid model name.`
-      this.logger.error(errorMsg)
-      throw new Error(errorMsg)
-    }
-
-    this.logger.debug?.(`Creating model client for model: ${model}`)
-
-    // 对于OpenAI格式，使用 Chat Completions API（而不是默认的 Responses API）
-    if (this.format === 'openai') {
-      const modelClient = this.client.chat(model)
-      this.logger.debug?.('OpenAI Chat model client created successfully')
-      return modelClient
-    }
-
-    // 对于DeepSeek格式，直接使用默认方式
-    if (this.format === 'deepseek') {
-      const modelClient = this.client(model)
-      this.logger.debug?.('DeepSeek model client created successfully')
-      return modelClient
-    }
-
-    // 对于其他格式，使用默认方式
-    const modelClient = this.client(model)
-    this.logger.debug?.('Model client created successfully')
-    return modelClient
+    return this.client.languageModel(model)
   }
 
   /**
-   * 将内部消息格式转换为 AI SDK 消息格式
+   * 将内部消息格式转换为 AI SDK 的 ModelMessage[]。
+   * 系统提示不再进 messages（由调用方通过 instructions 传入）；图片统一用 file 部件。
    */
-  private transformToAISdkMessages(messages: any[], systemPrompt: string) {
-    const aiSdkMessages: any[] = []
+  private transformToAISdkMessages(messages: any[]): ModelMessage[] {
+    const aiSdkMessages: ModelMessage[] = []
 
-    // 添加系统提示词
-    if (systemPrompt.length > 0) {
-      aiSdkMessages.push({
-        role: 'system' as const,
-        content: systemPrompt,
-      })
-    }
-
-    // 转换消息
     for (const message of messages) {
       if (message.role === 'user') {
-        // 处理用户消息
         const parts: any[] = []
-
         for (const content of message.content) {
           if (content.type === 'text') {
-            parts.push({
-              type: 'text' as const,
-              text: content.text,
-            })
+            parts.push({ type: 'text', text: content.text })
           }
           else if (content.type === 'image') {
-            parts.push({
-              type: 'image' as const,
-              image: content.data,
-              mimeType: content.mimeType,
-            })
+            parts.push({ type: 'file', data: content.data, mediaType: content.mimeType })
           }
           else if (content.type === 'file') {
-            parts.push({
-              type: 'file' as const,
-              data: content.data,
-              mimeType: content.mimeType,
-            })
+            parts.push({ type: 'file', data: content.data, mediaType: content.mimeType })
           }
         }
-
         aiSdkMessages.push({
-          role: 'user' as const,
-          content: parts.length === 1 && parts[0].type === 'text'
-            ? parts[0].text
-            : parts,
+          role: 'user',
+          content: parts.length === 1 && parts[0].type === 'text' ? parts[0].text : parts,
         })
       }
       else if (message.role === 'assistant') {
-        // 处理助手消息
         const parts: any[] = []
-
         for (const content of message.content) {
           if (content.type === 'text') {
-            parts.push({
-              type: 'text' as const,
-              text: content.text,
-            })
+            parts.push({ type: 'text', text: content.text })
           }
           else if (content.type === 'tool-call') {
             parts.push({
-              type: 'tool-call' as const,
+              type: 'tool-call',
               toolCallId: content.toolCallId,
               toolName: content.toolName,
               input: content.args,
             })
           }
           else if (content.type === 'image') {
-            parts.push({
-              type: 'file' as const,
-              data: content.data,
-              mediaType: content.mimeType,
-            })
+            parts.push({ type: 'file', data: content.data, mediaType: content.mimeType })
           }
         }
-
-        aiSdkMessages.push({
-          role: 'assistant' as const,
-          content: parts,
-        })
+        aiSdkMessages.push({ role: 'assistant', content: parts })
       }
       else if (message.role === 'tool') {
-        // 处理工具结果消息
         const parts: any[] = []
-
         for (const content of message.content) {
           if (content.type === 'tool-result') {
             const outputType = content.isError ? 'error-text' : 'text'
             parts.push({
-              type: 'tool-result' as const,
+              type: 'tool-result',
               toolCallId: content.toolCallId,
               toolName: content.toolName,
               output: {
@@ -252,12 +170,8 @@ export class MultiProvider {
             })
           }
         }
-
         if (parts.length > 0) {
-          aiSdkMessages.push({
-            role: 'tool' as const,
-            content: parts,
-          })
+          aiSdkMessages.push({ role: 'tool', content: parts })
         }
       }
     }
@@ -283,12 +197,12 @@ export class MultiProvider {
       serverName?: string
     }>
     abortSignal?: AbortSignal
-  }) {
+  }): AsyncGenerator<IAIStreamChunk> {
     const { messages, modelSettings, abortSignal, tools } = options
     const { model, temperature, maxTokens, systemPrompt } = modelSettings
 
-    // 构建 AI SDK 格式的消息
-    const aiSdkMessages = this.transformToAISdkMessages(messages, systemPrompt)
+    // 构建 AI SDK 格式的消息（系统提示已通过 instructions 传入，不在此构造）
+    const aiSdkMessages = this.transformToAISdkMessages(messages)
 
     const aiTools = tools && tools.length > 0
       ? Object.fromEntries(tools.map(item => [item.name, dynamicTool({
@@ -300,101 +214,57 @@ export class MultiProvider {
         })]))
       : undefined
 
-    // 使用 AI SDK 的流式处理
-    let finalUsage: LanguageModelUsage | undefined
-    let finishReason: string | undefined
-
     const result = streamText({
       model: this.createModelClient(model),
+      // v7：系统提示走 instructions，不再塞进 messages
+      instructions: systemPrompt || undefined,
       messages: aiSdkMessages,
       temperature,
       maxOutputTokens: maxTokens,
       tools: aiTools,
       abortSignal,
-      onFinish: ({ totalUsage, usage, finishReason: reason }) => {
-        finalUsage = totalUsage || usage
-        finishReason = reason
-      },
     })
 
-    // 处理流式响应 - 优先使用 fullStream 支持推理内容
-    let usedFullStream = false
+    let finishReason: string | undefined
 
-    for await (const chunk of result.fullStream) {
-      usedFullStream = true
-
-      if (chunk.type === 'reasoning-delta') {
-        // 处理推理内容（实时输出）
-        yield {
-          content: [],
-          reasoningContent: chunk.text,
-        }
-      }
-      else if (chunk.type === 'text-delta') {
-        // 处理普通文本内容（实时输出）
-        const content: any[] = [{ type: 'text', text: chunk.text }]
-
-        yield {
-          content,
-        }
-      }
-      else if (chunk.type === 'tool-call') {
-        const toolDef = tools?.find(item => item.name === chunk.toolName)
-        yield {
-          content: [],
-          functionCalls: [{
-            id: chunk.toolCallId,
-            serverName: toolDef?.serverName || 'native',
-            toolName: chunk.toolName,
-            args: (chunk as any).input || {},
-            executeState: 'await' as const,
-          }],
-        }
-      }
-      else if (chunk.type === 'finish') {
-        finalUsage = chunk.totalUsage || finalUsage
-        finishReason = (chunk as { finishReason?: string }).finishReason || finishReason
-      }
-      else if (chunk.type === 'error') {
-        throw this.normalizeError(chunk.error)
-      }
-      else if (chunk.type === 'abort') {
-        throw new AgentError('AGENT_CANCELLED', 'Task cancelled')
-      }
-      else {
-        // this.logger.warn('not match chunk type: ', chunk.type)
-      }
-    }
-    // 如果模型不支持 fullStream，则使用 textStream
-    if (!usedFullStream) {
-      this.logger.debug?.('Using textStream fallback')
-
-      // 处理流式响应
-      for await (const chunk of result.textStream) {
-        const content: any[] = [{ type: 'text', text: chunk }]
-
-        yield {
-          content,
-        }
-      }
-
-      // 处理推理内容（如果有）- 在流式输出完成后处理
-      if (result.reasoningText) {
-        const reasoningText = await result.reasoningText
-        if (reasoningText) {
+    // 遍历 result.stream（v7 对 fullStream 的重命名），类型化为 TextStreamPart
+    for await (const part of result.stream) {
+      switch (part.type) {
+        case 'reasoning-delta':
+          yield { content: [], reasoningContent: part.text }
+          break
+        case 'text-delta':
+          yield { content: [{ type: 'text', text: part.text }] }
+          break
+        case 'tool-call': {
+          const toolDef = tools?.find(item => item.name === part.toolName)
           yield {
             content: [],
-            reasoningContent: reasoningText,
+            functionCalls: [{
+              id: part.toolCallId,
+              serverName: toolDef?.serverName || 'native',
+              toolName: part.toolName,
+              args: (part.input ?? {}) as Record<string, unknown>,
+              executeState: 'await' as const,
+            }],
           }
+          break
         }
+        case 'finish':
+          finishReason = part.finishReason
+          break
+        case 'error':
+          throw this.normalizeError(part.error)
+        case 'abort':
+          throw new AgentError('AGENT_CANCELLED', 'Task cancelled')
       }
     }
 
-    const totalUsage = finalUsage || await result.totalUsage
-    const normalizedUsage = this.normalizeUsage(totalUsage)
+    // 单一 usage 来源，取代 onFinish 回调 + fullStream.finish.totalUsage + result.totalUsage 三处冗余读取
+    const usage = await result.usage
     yield {
       content: [],
-      usage: normalizedUsage,
+      usage: this.normalizeUsage(usage),
       finishReason,
     }
   }
@@ -414,16 +284,15 @@ export class MultiProvider {
     const { messages, modelSettings, abortSignal } = options
     const { model, systemPrompt, maxTokens } = modelSettings
 
-    const aiSdkMessages: any[] = []
-    if (systemPrompt) {
-      aiSdkMessages.push({ role: 'system', content: systemPrompt })
-    }
-    for (const msg of messages) {
-      aiSdkMessages.push({ role: msg.role, content: msg.content })
-    }
+    const aiSdkMessages: ModelMessage[] = messages.map(msg => ({
+      // v7 默认拒绝 messages 里的 system 角色；systemPrompt 已通过 instructions 传入，这里兜底转 user
+      role: msg.role === 'system' ? 'user' : msg.role,
+      content: msg.content,
+    }))
 
     const result = await generateText({
       model: this.createModelClient(model),
+      instructions: systemPrompt || undefined,
       messages: aiSdkMessages,
       maxOutputTokens: maxTokens,
       abortSignal,
@@ -445,12 +314,13 @@ export class MultiProvider {
     const { context, model } = options
 
     try {
-      const result = streamText({
+      // v7：直接用 generateText 取 result.text，无需为读文本而走 streamText
+      const { text } = await generateText({
         model: this.createModelClient(model),
         prompt: context,
       })
 
-      return result.text
+      return text
     }
     catch (error) {
       this.logger.error('Error in createConversationTitle:', error)
@@ -469,13 +339,13 @@ export class MultiProvider {
 
       const modelClient = this.createModelClient(model)
 
-      const result = await streamText({
+      // v7：用 generateText 做一次最小调用即可验证连通性
+      const { text } = await generateText({
         model: modelClient,
         prompt: 'Hi',
         maxOutputTokens: 1,
       })
 
-      const text = await result.text
       if (text !== undefined && text !== null) {
         this.logger.info(`✅ Connection validation successful for ${this.format} provider`)
         return { success: true }

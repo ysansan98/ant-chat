@@ -45,6 +45,8 @@ export interface IAIStreamChunk {
     serverName?: string
     toolName: string
     args: Record<string, unknown>
+    /** 工具调用执行状态，与消息 schema 的 ToolCallContent.executeState 对齐 */
+    executeState?: 'await' | 'executing' | 'completed'
   }>
   usage?: {
     inputTokens?: number

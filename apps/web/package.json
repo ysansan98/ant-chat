@@ -15,7 +15,7 @@
     "@hello-pangea/dnd": "^18.0.1",
     "@workspace/ui": "workspace:*",
     "ahooks": "^3.8.4",
-    "ai": "^6.0.69",
+    "ai": "^7.0.18",
     "dayjs": "^1.11.13",
     "electron-ipc-decorator": "^1.0.0",
     "immer": "^10.1.1",
