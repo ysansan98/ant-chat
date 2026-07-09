@@ -1,7 +1,7 @@
 import type { IMessage } from '@ant-chat/shared'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useAgentStore } from '@/store/agent'
+import { useAgentRuntimeStore } from '@/store/agentRuntime'
 import BubbleList from '../BubbleList'
 
 class IntersectionObserverStub implements IntersectionObserver {
@@ -19,7 +19,7 @@ class IntersectionObserverStub implements IntersectionObserver {
 vi.stubGlobal('IntersectionObserver', IntersectionObserverStub)
 
 beforeEach(() => {
-  useAgentStore.setState({ tasks: {}, executionPhaseByTurn: {}, pendingByTask: {}, secretRequests: {} })
+  useAgentRuntimeStore.setState({ tasks: {}, executionPhaseByTurn: {}, pendingByTask: {}, secretRequests: {} })
 })
 
 function createMessage(id: string, role: IMessage['role'], content: IMessage['content'], status: IMessage['status']): IMessage {
@@ -49,7 +49,7 @@ describe('bubbleList', () => {
       logPath: '',
       prompt: '开始任务',
     }
-    useAgentStore.getState().setTask(task)
+    useAgentRuntimeStore.getState().setTask(task)
 
     const assistantMessage = createMessage('tool-call', 'assistant', [{
       type: 'tool-call',
@@ -71,7 +71,7 @@ describe('bubbleList', () => {
     expect(screen.getByRole('status')).toHaveTextContent('等待模型回复')
 
     act(() => {
-      useAgentStore.getState().setTask({ ...task, executionPhase: 'using_tool' })
+      useAgentRuntimeStore.getState().setTask({ ...task, executionPhase: 'using_tool' })
     })
     view.rerender(
       <BubbleList
@@ -88,7 +88,7 @@ describe('bubbleList', () => {
     expect(runningStatus.compareDocumentPosition(elapsedTime) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
 
     act(() => {
-      useAgentStore.getState().setTask({ ...task, status: 'success' })
+      useAgentRuntimeStore.getState().setTask({ ...task, status: 'success' })
     })
 
     expect(screen.queryByRole('status')).not.toBeInTheDocument()

@@ -1,8 +1,7 @@
 import type { ConversationsId, IMessage } from '@ant-chat/shared'
 import { produce } from 'immer'
-import agentApi from '@/api/agentApi'
 import chatApi from '@/api/chatApi'
-import { syncConversationAgentState } from '../agent/actions'
+import { syncConversationRuntime } from '../agentRuntime'
 import { useConversationsStore } from '../conversation'
 import { useMessagesStore } from './store'
 
@@ -30,7 +29,7 @@ export async function setActiveConversationsId(id: ConversationsId | '') {
 
   const [messages] = await Promise.all([
     chatApi.getMessagesByConvId(id),
-    syncConversationAgentState(id),
+    syncConversationRuntime(id),
   ])
 
   if (version !== loadVersion) {
@@ -120,12 +119,4 @@ export function addPendingSteeringMessage(message: IMessage) {
     if (message.convId === draft.activeConversationsId)
       draft.messages.push(message)
   }))
-}
-
-export async function abortActiveRequest(conversationId: string) {
-  const taskList = await agentApi.listActiveTasks(conversationId)
-  const activeTask = taskList.find(item => ['running', 'awaiting_approval'].includes(item.status))
-  if (activeTask) {
-    await agentApi.cancelTask(activeTask.taskId)
-  }
 }

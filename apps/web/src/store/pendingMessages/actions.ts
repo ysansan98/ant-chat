@@ -1,10 +1,9 @@
-import type { AgentTaskSnapshot } from '@ant-chat/shared'
 import type { PendingMessage } from './store'
 import { nanoid } from 'nanoid'
 import { toast } from 'sonner'
 import agentApi from '@/api/agentApi'
 import { buildTurnInput } from '@/components/Chat/buildTurnInput'
-import { startAgentTurn } from '@/store/agent'
+import { isTaskActive, startAgentTurn } from '@/store/agentRuntime'
 import { useChatSttingsStore } from '@/store/chatSettings'
 import { getConversationByIdAction } from '@/store/conversation'
 import { addPendingSteeringMessage } from '@/store/messages'
@@ -14,7 +13,6 @@ import { sortPendingMessages, usePendingMessagesStore } from './store'
 const drainPromises = new Map<string, Promise<void>>()
 const operationPromises = new Map<string, Promise<void>>()
 const deletionBarriers = new Map<string, Set<symbol>>()
-const activeStatuses = new Set<AgentTaskSnapshot['status']>(['running', 'awaiting_approval'])
 let lastCreatedAt = 0
 
 function updateConversationItems(conversationId: string, update: (items: PendingMessage[]) => PendingMessage[]) {
@@ -101,7 +99,7 @@ export function getPendingMessageOperationStateForTests() {
 
 async function listActiveTask(conversationId: string) {
   const tasks = await agentApi.listActiveTasks(conversationId)
-  return tasks.find(task => activeStatuses.has(task.status))
+  return tasks.find(isTaskActive)
 }
 
 export async function injectPendingMessage(conversationId: string, id: string) {

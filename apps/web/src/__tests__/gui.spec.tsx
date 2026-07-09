@@ -11,7 +11,7 @@ import { ChatLayout } from '../components/ChatLayout'
 import { ChatPage } from '../pages/Chat'
 import { MemorySettings } from '../pages/Settings/Memory'
 import SettingsPage from '../pages/Settings/Settings'
-import { useAgentStore } from '../store/agent'
+import { useAgentRuntimeStore } from '../store/agentRuntime'
 import { useConversationsStore } from '../store/conversation'
 import { createInitialState } from '../store/conversation/initialState'
 import { setActiveConversationsId, useMessagesStore } from '../store/messages'
@@ -152,7 +152,7 @@ describe('gui ui flow', () => {
       messages: [],
     })
     useConversationsStore.setState(createInitialState())
-    useAgentStore.setState({ pendingByTask: {}, tasks: {}, executionPhaseByTurn: {} })
+    useAgentRuntimeStore.setState({ pendingByTask: {}, tasks: {}, executionPhaseByTurn: {} })
     usePendingMessagesStore.setState({ itemsByConversation: {} })
 
     mocks.provider.getAllAbvailableModels.mockResolvedValue([])
@@ -374,7 +374,7 @@ describe('gui ui flow', () => {
 
   it('agent 审批卡片支持批准和拒绝', async () => {
     seedActiveConversation('conv-approval')
-    useAgentStore.setState({
+    useAgentRuntimeStore.setState({
       pendingByTask: {
         'task-approval': {
           actionId: 'action-1',
@@ -426,7 +426,7 @@ describe('gui ui flow', () => {
       taskId: 'task-running',
     })
     mocks.agent.listActiveTasks.mockResolvedValue([task])
-    useAgentStore.setState({ pendingByTask: {}, tasks: {}, executionPhaseByTurn: {} })
+    useAgentRuntimeStore.setState({ pendingByTask: {}, tasks: {}, executionPhaseByTurn: {} })
     useConversationsStore.setState({ conversationStates: {} })
 
     await setActiveConversationsId('conv-running' as ConversationsId)

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { useAgentStore } from '@/store/agent/store'
+import { useAgentRuntimeStore } from '@/store/agentRuntime'
 
 describe('agentRecovery', () => {
   it('按 conversation 恢复 active task', () => {
-    useAgentStore.setState({
+    useAgentRuntimeStore.setState({
       tasks: {
         t1: {
           taskId: 't1',
@@ -21,7 +21,7 @@ describe('agentRecovery', () => {
       pendingByTask: {},
     })
 
-    const task = useAgentStore.getState().getActiveTaskByConversation('c1')
+    const task = useAgentRuntimeStore.getState().getActiveTaskByConversation('c1')
     expect(task?.taskId).toBe('t1')
   })
 })

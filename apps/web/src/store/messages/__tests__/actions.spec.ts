@@ -6,7 +6,7 @@ import { useMessagesStore } from '../store'
 const mocks = vi.hoisted(() => ({
   getMessagesByConvId: vi.fn<(conversationId: string) => Promise<IMessage[]>>(),
   listActiveTasks: vi.fn(async () => []),
-  syncConversationAgentState: vi.fn(async () => {}),
+  syncConversationRuntime: vi.fn(async () => {}),
 }))
 
 vi.mock('@/api/chatApi', () => ({
@@ -21,8 +21,8 @@ vi.mock('@/api/agentApi', () => ({
   },
 }))
 
-vi.mock('../agent', () => ({
-  syncConversationAgentState: mocks.syncConversationAgentState,
+vi.mock('../agentRuntime', () => ({
+  syncConversationRuntime: mocks.syncConversationRuntime,
 }))
 
 describe('message actions', () => {

@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import { getAppEventBus } from '@/api/transports/appEventBus'
 import { emitAutomationChanged, emitAutomationRunChanged } from '@/constants/automationEvents'
 import { emitProviderChanged } from '@/constants/providerEvents'
-import { onAgentApprovalRequired, onAgentSecretRequested, onAgentStateUpdated } from '@/store/agent'
+import { applyApprovalRequired, applySecretRequest, applyTaskUpdate, isTaskActive } from '@/store/agentRuntime'
 import { touchConversationUpdatedAt, upsertConversationAction } from '@/store/conversation'
 import { refreshGeneralSettings } from '@/store/generalSettings/actions'
 import { onMcpServerStatusChanged, refreshMcpConfigs } from '@/store/mcpConfigs/action'
@@ -47,20 +47,20 @@ export function useAppEventListener() {
     })
 
     eventBus.on('agent:task-updated', (_, payload) => {
-      onAgentStateUpdated(payload.task)
+      applyTaskUpdate(payload.task)
       // 任务完成时排空待处理消息队列
       // turn 完成与 task-updated 在时序上紧邻（turn-finished 总在 task-updated 之前），
       // 此处统一处理，无需额外监听 agent:turn-finished
-      if (!['running', 'awaiting_approval'].includes(payload.task.status)) {
+      if (!isTaskActive(payload.task)) {
         if (payload.task.status !== 'cancelled')
           void drainPendingMessages(payload.task.conversationId)
       }
     })
     eventBus.on('agent:approval-required', (_, payload) => {
-      onAgentApprovalRequired(payload.taskId, payload.pendingAction)
+      applyApprovalRequired(payload.taskId, payload.pendingAction)
     })
     eventBus.on('agent:secret-requested', (_, payload) => {
-      onAgentSecretRequested(payload.request)
+      applySecretRequest(payload.request)
     })
     eventBus.on('settings:updated', () => {
       void refreshGeneralSettings()

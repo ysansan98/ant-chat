@@ -10,7 +10,7 @@ import {
 } from 'react'
 import { useAutoScroll } from '@/hooks/useAutoScroll'
 import { useMessageActions } from '@/hooks/useMessageActions'
-import { useAgentStore } from '@/store/agent'
+import { useAgentRuntimeStore } from '@/store/agentRuntime'
 import { InfiniteScroll } from '../InfiniteScroll'
 import { buildConversationItems, getRootUserMessages } from './conversationItems'
 import { ConversationTurn } from './ConversationTurn'
@@ -33,7 +33,7 @@ function BubbleList({ messages }: Props) {
   } = useAutoScroll()
 
   const { copyMessage } = useMessageActions()
-  const executionPhaseByTurn = useAgentStore(state => state.executionPhaseByTurn)
+  const executionPhaseByTurn = useAgentRuntimeStore(state => state.executionPhaseByTurn)
   const conversationItems = useMemo(
     () => buildConversationItems(messages, executionPhaseByTurn),
     [messages, executionPhaseByTurn],
