@@ -17,7 +17,7 @@ vi.mock('@ai-sdk/deepseek', () => ({
 }))
 
 vi.mock('@ai-sdk/google', () => ({
-  createGoogleGenerativeAI: vi.fn(),
+  createGoogle: vi.fn(),
 }))
 
 vi.mock('@ai-sdk/openai', () => ({
@@ -40,17 +40,12 @@ describe('multiProvider 行为', () => {
   })
 
   it('模型流中止时抛出 AGENT_CANCELLED', async () => {
-    async function* fullStream() {
+    async function* streamGen() {
       yield { type: 'abort', reason: 'user requested cancellation' }
     }
 
     mocks.streamText.mockReturnValue({
-      fullStream: fullStream(),
-      totalUsage: Promise.resolve({
-        inputTokens: 0,
-        outputTokens: 0,
-        totalTokens: 0,
-      }),
+      stream: streamGen(),
     })
 
     const provider = new MultiProvider({
@@ -108,8 +103,9 @@ describe('multiProvider 行为', () => {
         inputTokens: 9000,
         outputTokens: 300,
         totalTokens: 9300,
-        reasoningTokens: 20,
-        cachedInputTokens: 100,
+        // v7：推理/缓存 token 移入嵌套字段
+        outputTokenDetails: { reasoningTokens: 20 },
+        inputTokenDetails: { cacheReadTokens: 100 },
       },
     })
     const provider = new MultiProvider({

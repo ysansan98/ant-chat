@@ -41,15 +41,6 @@ describe('calculateSessionUsage', () => {
       totalTokens: 210,
       reasoningTokens: 0,
       cachedInputTokens: 0,
-      inputTokenDetails: {
-        noCacheTokens: undefined,
-        cacheReadTokens: undefined,
-        cacheWriteTokens: undefined,
-      },
-      outputTokenDetails: {
-        reasoningTokens: undefined,
-        textTokens: undefined,
-      },
     })
   })
 })

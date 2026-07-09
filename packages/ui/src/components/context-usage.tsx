@@ -1,6 +1,6 @@
 'use client'
 
-import type { LanguageModelUsage } from 'ai'
+import type { LanguageModelUsage } from '@ant-chat/shared'
 import type { ComponentProps, ReactElement } from 'react'
 import { Button } from '@workspace/ui/components/button'
 import {

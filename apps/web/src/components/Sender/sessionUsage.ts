@@ -1,5 +1,4 @@
-import type { IMessage } from '@ant-chat/shared'
-import type { LanguageModelUsage } from 'ai'
+import type { IMessage, LanguageModelUsage } from '@ant-chat/shared'
 
 export function calculateSessionUsage(messages: IMessage[]): LanguageModelUsage | undefined {
   let inputTokens = 0
@@ -28,14 +27,5 @@ export function calculateSessionUsage(messages: IMessage[]): LanguageModelUsage 
     totalTokens,
     reasoningTokens,
     cachedInputTokens,
-    inputTokenDetails: {
-      noCacheTokens: undefined,
-      cacheReadTokens: undefined,
-      cacheWriteTokens: undefined,
-    },
-    outputTokenDetails: {
-      reasoningTokens: undefined,
-      textTokens: undefined,
-    },
   }
 }
