@@ -1,15 +1,14 @@
 import type { RuntimeCore } from './createRuntimeCore'
+import type { RegisteredRoute } from './routeRegistry'
 import type { RuntimeModule } from './runtimeModule'
 import { AppControl } from '../app-control/appControl'
 import { AgentModule } from './modules/agent'
 import { AutomationModule } from './modules/automation'
 import { ChatModule } from './modules/chat'
 import { CommandsModule } from './modules/commands'
-import { FilesModule } from './modules/files'
+import { createDataRoutes } from './modules/dataRoutes'
 import { McpModule } from './modules/mcp'
-import { MemoryModule } from './modules/memory'
 import { ProviderModule } from './modules/provider'
-import { SearchModule } from './modules/search'
 import { SettingsModule } from './modules/settings'
 import { SkillsModule } from './modules/skills'
 import { WorkspaceModule } from './modules/workspace'
@@ -17,6 +16,8 @@ import { WorkspaceModule } from './modules/workspace'
 export interface RegisteredRuntimeModules {
   lifecycle: RuntimeModule[]
   routes: object[]
+  /** 纯转发的数据访问路由（memory / search / files），声明式绑定到 app-data。 */
+  routeBindings: RegisteredRoute[]
   appControl: AppControl
 }
 
@@ -42,9 +43,6 @@ export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModu
     aiProviderFactory: provider.aiProviderFactory,
     eventEmitter: agent.eventEmitter,
   })
-  const memory = new MemoryModule(core)
-  const search = new SearchModule(core)
-  const files = new FilesModule(core)
 
   const appControl = new AppControl(
     { settings, provider, mcp, automation },
@@ -52,8 +50,9 @@ export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModu
   )
 
   return {
-    routes: [chat, settings, provider, mcp, search, memory, skills, workspace, agent, automation, commands, files],
+    routes: [chat, settings, provider, mcp, skills, workspace, agent, automation, commands],
     lifecycle: [workspace, skills, provider, settings, mcp, agent, automation],
+    routeBindings: createDataRoutes(core),
     appControl,
   }
 }

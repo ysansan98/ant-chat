@@ -15,6 +15,7 @@ export function createAppRuntime(options: CreateAppRuntimeOptions) {
   for (const module of modules.routes) {
     routes.register(module)
   }
+  routes.registerRoutes(modules.routeBindings)
 
   const controlServer = new LocalControlServer(modules.appControl, {
     appDataRoot: options.appDataRoot,

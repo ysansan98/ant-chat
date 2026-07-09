@@ -33,4 +33,17 @@ describe('routeRegistry', () => {
 
     await expect(registry.invoke('settings.getSettings', undefined)).rejects.toThrow('运行时路由不存在: settings.getSettings')
   })
+
+  it('registerRoutes 声明式绑定路由并拒绝重复', async () => {
+    const registry = new RouteRegistry()
+    registry.registerRoutes([
+      { method: 'settings.getSettings', handler: () => ({ theme: 'dark' }) },
+    ])
+
+    await expect(registry.invoke('settings.getSettings', undefined)).resolves.toEqual({ theme: 'dark' })
+
+    expect(() => registry.registerRoutes([
+      { method: 'settings.getSettings', handler: () => null },
+    ])).toThrow('运行时路由重复注册: settings.getSettings')
+  })
 })
