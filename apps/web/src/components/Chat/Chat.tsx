@@ -5,17 +5,13 @@ import { toast } from 'sonner'
 import { AgentApprovalCard, AgentSecretRequestCard } from '@/components/Agent'
 import { useChatSettingsContext } from '@/contexts/chatSettings'
 import { useBuiltinCommandSubmit } from '@/hooks/useBuiltinCommandSubmit'
-import { approveAgentActionWithWhitelist, rejectAgentAction, rejectSecretRequestAction, resolveSecretRequestAction, startAgentTurn, useAgentStore } from '@/store/agent'
+import { abortConversationRuntime, approveAgentActionWithWhitelist, rejectAgentAction, rejectSecretRequestAction, resolveSecretRequestAction, startAgentTurn, useAgentRuntimeStore } from '@/store/agentRuntime'
 import {
   setConversationState,
   upsertConversationAction,
   useConversationsStore,
 } from '@/store/conversation'
-import {
-  abortActiveRequest,
-  setActiveConversationsId,
-  useMessagesStore,
-} from '@/store/messages'
+import { setActiveConversationsId, useMessagesStore } from '@/store/messages'
 import {
   editPendingMessage,
   enqueuePendingMessage,
@@ -39,10 +35,10 @@ export default function Chat() {
   const currentWorkspacePath = useWorkspaceStore(state => state.currentWorkspacePath)
 
   const { settings, updateSettings } = useChatSettingsContext()
-  const agentTask = useAgentStore(state => state.getActiveTaskByConversation(activeConversationsId))
+  const agentTask = useAgentRuntimeStore(state => state.getActiveTaskByConversation(activeConversationsId))
   const agentTaskId = agentTask?.taskId
-  const pending = useAgentStore(state => (agentTaskId ? state.pendingByTask[agentTaskId] : undefined))
-  const secretRequest = useAgentStore(state => Object.values(state.secretRequests).find(request => request.conversationId === activeConversationsId))
+  const pending = useAgentRuntimeStore(state => (agentTaskId ? state.pendingByTask[agentTaskId] : undefined))
+  const secretRequest = useAgentRuntimeStore(state => Object.values(state.secretRequests).find(request => request.conversationId === activeConversationsId))
 
   const { commandRunning, submitCommand, cancelCommand } = useBuiltinCommandSubmit({
     settings: {
@@ -110,7 +106,7 @@ export default function Chat() {
       }))
       upsertConversationAction(result.conversation)
       await setActiveConversationsId(result.conversationId)
-      // setActiveConversationsId 内部的 syncConversationAgentState 可能清除状态，
+      // setActiveConversationsId 内部的 syncConversationRuntime 可能清除状态，
       // 这里重新设置 running 确保即时响应，不等 agent:task-updated 回来
       setConversationState(result.conversationId, 'running')
 
@@ -226,7 +222,7 @@ export default function Chat() {
                   await cancelCommand()
                   return
                 }
-                await abortActiveRequest(activeConversationsId)
+                await abortConversationRuntime(activeConversationsId)
               }}
             />
           </div>
