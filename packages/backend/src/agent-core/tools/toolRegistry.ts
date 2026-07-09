@@ -1,6 +1,7 @@
 import type { AgentMode, AgentRuntimeConfig, AgentTool, AgentToolResult, AgentTurnSource, RuntimeToolDefinition, SecretRef, SecretStore, SkillManifest, SkillReader, ToolOperationType, ToolScope } from '@ant-chat/shared'
 import type { BrowserSessionState } from '../native-tools/tools/browserSessionManager'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { getNativeToolService } from '../native-tools/nativeToolService'
 import { createMcpTools } from './mcpToolAdapter'
@@ -33,7 +34,7 @@ export class ToolRegistry {
     const { config, workspacePath, mode, browserSession, turnSource } = options
     const unrestricted = mode === 'full_managed'
     const skillReader = resolveSkillReader(config)
-    const readableRoots = skillReader ? [skillReader.getSkillsRoot()] : []
+    const readableRoots = await resolveTrustedRoots(skillReader, turnSource)
     const nativeTools = getNativeToolService(workspacePath, unrestricted, {
       readableRoots,
       browser: config.browser,
@@ -131,6 +132,43 @@ export class ToolRegistry {
       }
     })
   }
+}
+
+async function resolveTrustedRoots(skillReader: SkillReader | null, turnSource?: AgentTurnSource): Promise<string[]> {
+  if (turnSource?.type !== 'automation') {
+    return skillReader ? [skillReader.getSkillsRoot()] : []
+  }
+
+  const roots = turnSource.permissionPolicy.extraFileRoots
+    .map(root => root.trim())
+    .filter(Boolean)
+    .map(resolveConfiguredRoot)
+  if (!skillReader || !turnSource.permissionPolicy.allowSelectedSkillRuntime) {
+    return roots
+  }
+
+  const allowed = new Set(turnSource.allowedSkills.map(name => name.trim()).filter(Boolean))
+  if (allowed.size === 0) {
+    return roots
+  }
+  const skills = await skillReader.getEnabledSkills()
+  for (const skill of skills) {
+    if (allowed.has(skill.name)) {
+      roots.push(path.join(skillReader.getSkillsRoot(), skill.name))
+    }
+  }
+  return roots
+}
+
+function resolveConfiguredRoot(rootPath: string): string {
+  const trimmed = rootPath.trim()
+  if (trimmed === '~') {
+    return os.homedir()
+  }
+  if (trimmed.startsWith('~/')) {
+    return path.join(os.homedir(), trimmed.slice(2))
+  }
+  return path.resolve(trimmed)
 }
 
 function createRequestSecretTool(): AgentTool {

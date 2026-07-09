@@ -65,7 +65,7 @@ describe('createBeforeToolExecuteHook 行为', () => {
         allowedMcpServers: [],
         permissionPolicy: {
           workspaceAccess: 'read',
-          allowSkillScripts: false,
+          allowSelectedSkillRuntime: false,
           allowMcpMutations: false,
           extraFileRoots: [],
           allowBashCommands: false,
@@ -96,7 +96,7 @@ describe('createBeforeToolExecuteHook 行为', () => {
         allowedMcpServers: [],
         permissionPolicy: {
           workspaceAccess: 'read',
-          allowSkillScripts: false,
+          allowSelectedSkillRuntime: false,
           allowMcpMutations: false,
           extraFileRoots: [],
           allowBashCommands: false,

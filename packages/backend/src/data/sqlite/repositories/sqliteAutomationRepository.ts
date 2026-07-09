@@ -232,11 +232,15 @@ function mapAutomation(row: AutomationRow): AutomationDefinition {
 
 /**
  * 解析权限策略，兼容存量数据中的旧字段名。
- * 存量自动化可能使用 allowArbitraryCommands / commandPatterns，
- * 新写入使用 allowBashCommands / bashCommandPatterns。
+ * 存量自动化可能使用 allowSkillScripts / allowArbitraryCommands / commandPatterns，
+ * 新写入使用 allowSelectedSkillRuntime / allowBashCommands / bashCommandPatterns。
  */
 function parsePermissionPolicy(raw: string) {
   const obj = JSON.parse(raw)
+  if ('allowSkillScripts' in obj && !('allowSelectedSkillRuntime' in obj)) {
+    obj.allowSelectedSkillRuntime = obj.allowSkillScripts
+    delete obj.allowSkillScripts
+  }
   if ('allowArbitraryCommands' in obj && !('allowBashCommands' in obj)) {
     obj.allowBashCommands = obj.allowArbitraryCommands
     delete obj.allowArbitraryCommands

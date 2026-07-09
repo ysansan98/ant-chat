@@ -8,7 +8,7 @@ import { buildCron, parseCronForForm, splitCommaList, timestampToDatetimeLocal }
 /** 权限开关表单状态 */
 export interface PermissionFormState {
   workspaceWrite: boolean
-  skillScripts: boolean
+  selectedSkillRuntime: boolean
   mcpMutations: boolean
   bashCommands: boolean
 }
@@ -35,7 +35,7 @@ export interface AutomationFormState {
 
 const DEFAULT_PERMISSION_SCOPES: PermissionFormState = {
   workspaceWrite: true,
-  skillScripts: true,
+  selectedSkillRuntime: true,
   mcpMutations: false,
   bashCommands: false,
 }
@@ -106,7 +106,7 @@ export function useAutomationForm(opts: {
 
       const policy = def.permissionPolicy
       draft.permissionScopes.workspaceWrite = policy.workspaceAccess === 'write'
-      draft.permissionScopes.skillScripts = policy.allowSkillScripts
+      draft.permissionScopes.selectedSkillRuntime = policy.allowSelectedSkillRuntime
       draft.permissionScopes.mcpMutations = policy.allowMcpMutations
       draft.permissionScopes.bashCommands = policy.allowBashCommands
       draft.extraFileRoots = policy.extraFileRoots.join(', ')
@@ -205,7 +205,7 @@ export function useAutomationForm(opts: {
       allowedMcpServers: form.selectedMcps,
       permissionPolicy: {
         workspaceAccess: form.permissionScopes.workspaceWrite ? 'write' as const : 'read' as const,
-        allowSkillScripts: form.permissionScopes.skillScripts,
+        allowSelectedSkillRuntime: form.permissionScopes.selectedSkillRuntime,
         allowMcpMutations: form.permissionScopes.mcpMutations,
         extraFileRoots: splitCommaList(form.extraFileRoots),
         allowBashCommands: form.permissionScopes.bashCommands,

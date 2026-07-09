@@ -8,9 +8,11 @@ import { ToolRegistry } from '../toolRegistry'
 
 describe('toolRegistry Skill 白名单', () => {
   let skillsRoot: string
+  let workspacePath: string
 
   beforeEach(async () => {
     skillsRoot = mkdtempSync(path.join(tmpdir(), 'ant-chat-tool-registry-'))
+    workspacePath = mkdtempSync(path.join(tmpdir(), 'ant-chat-tool-registry-workspace-'))
     await mkdir(path.join(skillsRoot, 'review'), { recursive: true })
     await mkdir(path.join(skillsRoot, 'deploy'), { recursive: true })
     writeFileSync(path.join(skillsRoot, 'review', 'SKILL.md'), '# Review\n')
@@ -19,6 +21,7 @@ describe('toolRegistry Skill 白名单', () => {
 
   afterEach(() => {
     rmSync(skillsRoot, { recursive: true, force: true })
+    rmSync(workspacePath, { recursive: true, force: true })
   })
 
   function createSkillReader(): SkillReader {
@@ -50,7 +53,7 @@ describe('toolRegistry Skill 白名单', () => {
     const config = createConfig()
     const registry = await ToolRegistry.create({
       config,
-      workspacePath: '/workspace',
+      workspacePath,
       mode: 'strict',
       turnSource: {
         type: 'automation',
@@ -60,7 +63,7 @@ describe('toolRegistry Skill 白名单', () => {
         allowedMcpServers: [],
         permissionPolicy: {
           workspaceAccess: 'read',
-          allowSkillScripts: false,
+          allowSelectedSkillRuntime: false,
           allowMcpMutations: false,
           extraFileRoots: [],
           allowBashCommands: false,
@@ -86,7 +89,7 @@ describe('toolRegistry Skill 白名单', () => {
   it('自动化未选择 Skill 时不注册 use_skill 工具', async () => {
     const registry = await ToolRegistry.create({
       config: createConfig(),
-      workspacePath: '/workspace',
+      workspacePath,
       mode: 'strict',
       turnSource: {
         type: 'automation',
@@ -96,7 +99,7 @@ describe('toolRegistry Skill 白名单', () => {
         allowedMcpServers: [],
         permissionPolicy: {
           workspaceAccess: 'read',
-          allowSkillScripts: false,
+          allowSelectedSkillRuntime: false,
           allowMcpMutations: false,
           extraFileRoots: [],
           allowBashCommands: false,
@@ -108,11 +111,62 @@ describe('toolRegistry Skill 白名单', () => {
     expect(registry.listTools().some(tool => tool.name === 'use_skill')).toBe(false)
   })
 
+  it('自动化仅在开启运行所选 Skills 时信任已选 Skill 根目录', async () => {
+    const registry = await ToolRegistry.create({
+      config: createConfig(),
+      workspacePath,
+      mode: 'strict',
+      turnSource: {
+        type: 'automation',
+        automationId: 'automation-1',
+        runId: 'run-1',
+        allowedSkills: ['review'],
+        allowedMcpServers: [],
+        permissionPolicy: {
+          workspaceAccess: 'read',
+          allowSelectedSkillRuntime: true,
+          allowMcpMutations: false,
+          extraFileRoots: [],
+          allowBashCommands: false,
+          bashCommandPatterns: [],
+        },
+      },
+    })
+
+    expect(registry.prepare('read_file', { path: path.join(skillsRoot, 'review', 'SKILL.md') }).scope).toBe('workspace')
+    expect(registry.prepare('read_file', { path: path.join(skillsRoot, 'deploy', 'SKILL.md') }).scope).toBe('outside')
+  })
+
+  it('自动化未开启运行所选 Skills 时不把已选 Skill 根目录视为工作区范围', async () => {
+    const registry = await ToolRegistry.create({
+      config: createConfig(),
+      workspacePath,
+      mode: 'strict',
+      turnSource: {
+        type: 'automation',
+        automationId: 'automation-1',
+        runId: 'run-1',
+        allowedSkills: ['review'],
+        allowedMcpServers: [],
+        permissionPolicy: {
+          workspaceAccess: 'read',
+          allowSelectedSkillRuntime: false,
+          allowMcpMutations: false,
+          extraFileRoots: [],
+          allowBashCommands: false,
+          bashCommandPatterns: [],
+        },
+      },
+    })
+
+    expect(registry.prepare('read_file', { path: path.join(skillsRoot, 'review', 'SKILL.md') }).scope).toBe('outside')
+  })
+
   it('普通交互 Turn 不继承自动化限制并重新提供当前可用 Skill', async () => {
     const config = createConfig()
     const registry = await ToolRegistry.create({
       config,
-      workspacePath: '/workspace',
+      workspacePath,
       mode: 'hybrid',
       turnSource: { type: 'interactive' },
     })
@@ -132,7 +186,7 @@ describe('toolRegistry Skill 白名单', () => {
       config,
       mode: 'hybrid',
       turnSource: { type: 'interactive' },
-      workspacePath: '/workspace',
+      workspacePath,
     })
 
     expect(registry.listTools().some(tool => tool.name === 'ant_chat')).toBe(false)

@@ -18,7 +18,7 @@ const input: AutomationInput = {
   allowedMcpServers: [],
   permissionPolicy: {
     workspaceAccess: 'read',
-    allowSkillScripts: false,
+    allowSelectedSkillRuntime: false,
     allowMcpMutations: false,
     extraFileRoots: [],
     allowBashCommands: false,

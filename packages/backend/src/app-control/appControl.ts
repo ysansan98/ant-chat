@@ -308,7 +308,7 @@ export class AppControl {
                 allowedMcpServers: allowedMcpServers ?? [],
                 permissionPolicy: {
                   workspaceAccess: permissionPolicy?.workspaceAccess ?? 'read',
-                  allowSkillScripts: permissionPolicy?.allowSkillScripts ?? false,
+                  allowSelectedSkillRuntime: permissionPolicy?.allowSelectedSkillRuntime ?? permissionPolicy?.allowSkillScripts ?? false,
                   allowMcpMutations: permissionPolicy?.allowMcpMutations ?? false,
                   extraFileRoots: permissionPolicy?.extraFileRoots ?? [],
                   allowBashCommands: permissionPolicy?.allowBashCommands ?? false,

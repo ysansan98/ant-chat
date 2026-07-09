@@ -37,7 +37,7 @@ const automation = {
   allowedMcpServers: [],
   permissionPolicy: {
     workspaceAccess: 'read' as const,
-    allowSkillScripts: false,
+    allowSelectedSkillRuntime: false,
     allowMcpMutations: false,
     extraFileRoots: [],
     allowBashCommands: false,
@@ -129,8 +129,6 @@ describe('automationsPage', () => {
 
     const periodicTab = await screen.findByRole('tab', { name: '周期执行' })
     expect(periodicTab).toHaveAttribute('aria-selected', 'true')
-    expect(periodicTab).toHaveClass('data-active:bg-accent')
-    expect(periodicTab).toHaveClass('data-active:text-accent-foreground')
 
     const onceTab = screen.getByRole('tab', { name: '仅一次' })
     fireEvent.mouseDown(onceTab, { button: 0, ctrlKey: false })

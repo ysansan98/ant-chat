@@ -212,6 +212,8 @@ export interface AutomationCreateCommand {
   allowedMcpServers?: string[]
   permissionPolicy?: {
     workspaceAccess?: 'read' | 'write'
+    allowSelectedSkillRuntime?: boolean
+    /** @deprecated use allowSelectedSkillRuntime */
     allowSkillScripts?: boolean
     allowMcpMutations?: boolean
     extraFileRoots?: string[]

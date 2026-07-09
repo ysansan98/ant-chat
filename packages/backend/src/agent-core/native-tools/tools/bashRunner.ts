@@ -15,6 +15,7 @@ const BLOCKED_TOKENS = ['>', '<', '|', ';', '||', '`', '$(', '\n']
 
 interface BashRunnerOptions {
   blockAgentBrowser?: boolean
+  trustedPaths?: string[]
 }
 
 export async function runBashTool(
@@ -42,12 +43,11 @@ export async function runBashTool(
   if (options.blockAgentBrowser && commands.some(isAgentBrowserCommand)) {
     return blockedResult()
   }
-  if (!unrestricted && !commands.every(item => isCommandAllowed(item.command, item.args))) {
+  const policy = createPathPolicyByMode(workspacePath, unrestricted ? 'unrestricted' : 'workspace', options.trustedPaths)
+  const cwd = policy.resolveExisting(input.cwd || '.')
+  if (!unrestricted && !commands.every(item => isCommandAllowed(item, cwd, policy, options.trustedPaths ?? []))) {
     return blockedResult()
   }
-
-  const policy = createPathPolicyByMode(workspacePath, unrestricted ? 'unrestricted' : 'workspace')
-  const cwd = policy.resolveExisting(input.cwd || '.')
   for (const item of commands) {
     if (item.command === 'mkdir' && !validateMkdirTargets(item.args.slice(1), cwd, policy))
       return { ok: false, result: 'mkdir 目标路径不在允许的工作区范围内。', diagnostics: { durationMs: Date.now() - startedAt, data: { code: WORKSPACE_INVALID_PATH } } }
@@ -182,16 +182,22 @@ function parseSingleCommand(command: string): { command: string, args: string[] 
   return { command: tokens[0], args: tokens.slice(1) }
 }
 
-function isCommandAllowed(command: string, args: string[]): boolean {
-  if (command === 'mkdir') {
-    return isAllowedMkdir(args)
+function isCommandAllowed(
+  command: { command: string, args: string[] },
+  cwd: string,
+  policy: ReturnType<typeof createPathPolicyByMode>,
+  trustedPaths: string[],
+): boolean {
+  if (command.command === 'mkdir') {
+    return isAllowedMkdir(command.args) && validateMkdirTargets(command.args.slice(1), cwd, policy)
   }
 
-  if (!READ_ONLY_COMMANDS.has(command)) {
-    return false
+  if (READ_ONLY_COMMANDS.has(command.command)) {
+    return command.args.every(arg => !isPathOutsidePolicy(arg, cwd, policy))
   }
 
-  return !args.some(hasObviousPathEscape)
+  return commandTouchesTrustedRoot(command, cwd, trustedPaths)
+    && command.args.every(arg => !isPathOutsidePolicy(arg, cwd, policy))
 }
 
 function isAllowedMkdir(args: string[]): boolean {
@@ -225,6 +231,64 @@ function validateMkdirTargets(targets: string[], cwd: string, policy: ReturnType
 
 function hasObviousPathEscape(arg: string): boolean {
   return arg.startsWith('/') || arg.startsWith('~') || arg === '..' || arg.includes('../') || arg.includes('..\\')
+}
+
+function isPathOutsidePolicy(arg: string, cwd: string, policy: ReturnType<typeof createPathPolicyByMode>): boolean {
+  if (!looksLikePath(arg)) {
+    return false
+  }
+  const resolved = resolveShellPath(arg, cwd)
+  return !policy.isInsideWorkspace(resolved)
+}
+
+function commandTouchesTrustedRoot(
+  command: { command: string, args: string[] },
+  cwd: string,
+  trustedPaths: string[],
+): boolean {
+  return isInsideAnyRoot(cwd, trustedPaths)
+    || isInsideAnyRoot(resolveShellPath(command.command, cwd), trustedPaths)
+    || command.args.some(arg => looksLikePath(arg) && isInsideAnyRoot(resolveShellPath(arg, cwd), trustedPaths))
+}
+
+function looksLikePath(arg: string): boolean {
+  return arg.startsWith('/')
+    || arg.startsWith('~/')
+    || arg === '~'
+    || arg.startsWith('./')
+    || arg.startsWith('../')
+    || arg.includes('/')
+    || arg.includes('\\')
+}
+
+function resolveShellPath(inputPath: string, cwd: string): string {
+  if (inputPath === '~') {
+    return process.env.HOME || cwd
+  }
+  if (inputPath.startsWith('~/')) {
+    return path.resolve(process.env.HOME || cwd, inputPath.slice(2))
+  }
+  return path.isAbsolute(inputPath)
+    ? path.resolve(inputPath)
+    : path.resolve(cwd, inputPath)
+}
+
+function isInsideAnyRoot(candidatePath: string, roots: string[]): boolean {
+  return roots.some((root) => {
+    const rootPath = normalizePathForBoundary(root)
+    const candidate = normalizePathForBoundary(candidatePath)
+    const relativePath = path.relative(rootPath, candidate)
+    return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath))
+  })
+}
+
+function normalizePathForBoundary(inputPath: string): string {
+  try {
+    return fs.realpathSync.native(inputPath)
+  }
+  catch {
+    return path.resolve(inputPath)
+  }
 }
 
 function appendTruncated(current: string, next: string): string {
@@ -301,7 +365,7 @@ export function preValidateBashScope(
     }
   }
 
-  const policy = createPathPolicyByMode(workspacePath, 'workspace')
+  const policy = createPathPolicyByMode(workspacePath, 'workspace', options.trustedPaths)
   let cwd: string
   try {
     cwd = policy.resolveExisting(input.cwd || '.')
@@ -321,7 +385,12 @@ export function preValidateBashScope(
     }
   }
 
-  return needsApproval ? 'outside' : 'workspace'
+  if (!needsApproval) {
+    return 'workspace'
+  }
+  return commands.every(item => isCommandAllowed(item, cwd, policy, options.trustedPaths ?? []))
+    ? 'workspace'
+    : 'outside'
 }
 
 function isAgentBrowserCommand(command: { command: string, args: string[] }): boolean {

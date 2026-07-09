@@ -2,17 +2,20 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { preValidateBashScope } from '../bashRunner'
+import { preValidateBashScope, runBashTool } from '../bashRunner'
 
 describe('preValidateBashScope 行为', () => {
   let workspacePath: string
+  let skillPath: string
 
   beforeEach(() => {
     workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'ant-chat-bashscope-'))
+    skillPath = fs.mkdtempSync(path.join(os.tmpdir(), 'ant-chat-bashscope-skill-'))
   })
 
   afterEach(() => {
     fs.rmSync(workspacePath, { recursive: true, force: true })
+    fs.rmSync(skillPath, { recursive: true, force: true })
   })
 
   describe('blocked — 直接拦截（无法解析）', () => {
@@ -113,6 +116,39 @@ describe('preValidateBashScope 行为', () => {
 
     it('mkdir -p 工作区内新目录', () => {
       expect(preValidateBashScope({ command: 'mkdir -p src/nested' }, workspacePath)).toBe('workspace')
+    })
+
+    it('已信任 Skill 根目录内的非只读命令判定为 workspace', () => {
+      fs.writeFileSync(path.join(skillPath, 'run.js'), 'console.log("ok")\n')
+
+      expect(preValidateBashScope(
+        { command: `${process.execPath} run.js`, cwd: skillPath },
+        workspacePath,
+        { trustedPaths: [skillPath] },
+      )).toBe('workspace')
+    })
+
+    it('未信任 Skill 根目录时相同命令仍判定为 outside', () => {
+      fs.writeFileSync(path.join(skillPath, 'run.js'), 'console.log("ok")\n')
+
+      expect(preValidateBashScope(
+        { command: `${process.execPath} run.js`, cwd: skillPath },
+        workspacePath,
+      )).toBe('outside')
+    })
+
+    it('已信任 Skill 根目录内的命令可真实执行', async () => {
+      fs.writeFileSync(path.join(skillPath, 'run.js'), 'console.log("skill-runtime-ok")\n')
+
+      const result = await runBashTool(
+        { command: `${process.execPath} run.js`, cwd: skillPath },
+        workspacePath,
+        false,
+        { trustedPaths: [skillPath] },
+      )
+
+      expect(result.ok).toBe(true)
+      expect(result.diagnostics?.stdout).toContain('skill-runtime-ok')
     })
   })
 })

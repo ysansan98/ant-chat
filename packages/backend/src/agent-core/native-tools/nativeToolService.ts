@@ -58,6 +58,7 @@ export class NativeToolService {
       createEditFileTool(policy, this.workspacePath, this.unrestricted),
       createBashTool(this.workspacePath, this.unrestricted, {
         blockAgentBrowser: Boolean(this.options.browser),
+        trustedPaths: this.options.readableRoots ?? [],
       }),
       ...(this.options.browser
         ? [createBrowserTool(this.workspacePath, this.options.browser, browserSession)]

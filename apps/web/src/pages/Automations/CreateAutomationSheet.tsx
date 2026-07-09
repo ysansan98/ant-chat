@@ -353,10 +353,10 @@ export function CreateAutomationSheet(props: {
               </div>
               <Separator />
               <PermissionSwitch
-                label="允许所选 Skill 执行自带脚本"
-                description={`仅限 ${form.selectedSkills.length} 个已选 Skill 安装目录内的脚本`}
-                checked={form.permissionScopes.skillScripts}
-                onCheckedChange={checked => updateForm((draft) => { draft.permissionScopes.skillScripts = checked })}
+                label="运行所选 Skills"
+                description={`允许 ${form.selectedSkills.length} 个已选 Skill 在自身安装目录内读、写、执行`}
+                checked={form.permissionScopes.selectedSkillRuntime}
+                onCheckedChange={checked => updateForm((draft) => { draft.permissionScopes.selectedSkillRuntime = checked })}
               />
               <PermissionSwitch
                 label="允许 MCP 执行有副作用的操作"

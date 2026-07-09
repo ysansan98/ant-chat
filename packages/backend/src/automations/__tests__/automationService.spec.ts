@@ -16,7 +16,7 @@ describe('automationService', () => {
       allowedMcpServers: ['github'],
       permissionPolicy: {
         workspaceAccess: 'read',
-        allowSkillScripts: false,
+        allowSelectedSkillRuntime: false,
         allowMcpMutations: false,
         extraFileRoots: [],
         allowBashCommands: false,
