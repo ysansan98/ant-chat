@@ -20,7 +20,7 @@ export class SettingsModule implements RuntimeModuleMethods<'settings'> {
   }
 
   @Method()
-  getSettings(_input: AppRpcInput<'settings.getSettings'>) {
+  getSettings(_input?: AppRpcInput<'settings.getSettings'>) {
     return this.core.data.settingsRepository.getGeneralSettings()
   }
 

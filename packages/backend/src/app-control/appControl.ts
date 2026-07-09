@@ -4,11 +4,8 @@ import type {
   McpConfigSchema,
   McpConnection,
 } from '@ant-chat/shared'
-import type { AutomationModule } from '../app-runtime/modules/automation'
-import type { McpModule } from '../app-runtime/modules/mcp'
-import type { ProviderModule } from '../app-runtime/modules/provider'
-import type { SettingsModule } from '../app-runtime/modules/settings'
 import type { KeychainSecretStore } from '../secretStore'
+import type { ControlPlaneModules } from './controlPlane'
 
 /**
  * AppControl — 应用管理的控制面编排模块。
@@ -20,15 +17,12 @@ import type { KeychainSecretStore } from '../secretStore'
  * 4. 合并结果到 AppControlResult。
  *
  * 调用方（CLI / 原生 Agent 工具 / AppRuntime）都通过同一个 execute 入口。
+ * 依赖 {@link ControlPlaneModules} 这个 seam 与运行时模块解耦：控制面只看到
+ * 它需要的方法，运行时模块换实现不影响命令映射。
  */
 export class AppControl {
   constructor(
-    private readonly modules: {
-      settings: SettingsModule
-      provider: ProviderModule
-      mcp: McpModule
-      automation: AutomationModule
-    },
+    private readonly modules: ControlPlaneModules,
     private readonly secretStore: KeychainSecretStore,
   ) {}
 
@@ -38,11 +32,11 @@ export class AppControl {
       case 'settings': {
         switch (command.action) {
           case 'show': {
-            const settings = await this.modules.settings.getSettings(undefined as never)
+            const settings = await this.modules.settings.getSettings()
             return { settings } as AppControlResult
           }
           case 'theme:set': {
-            const current = await this.modules.settings.getSettings(undefined as never)
+            const current = await this.modules.settings.getSettings()
             const appearance = {
               ...current.appearance,
               ...(command.mode ? { mode: command.mode } : {}),
@@ -59,7 +53,7 @@ export class AppControl {
           }
           case 'assistant:set': {
             // 验证 provider/model 组合存在且已启用
-            const provider = this.modules.provider.listProviders(undefined as never)
+            const provider = this.modules.provider.listProviders()
               .find(p => p.id === command.providerId)
             if (!provider) {
               throw new Error(`Provider not found: ${command.providerId}`)
@@ -87,7 +81,7 @@ export class AppControl {
           }
           case 'proxy:set': {
             const { mode, url } = command
-            const current = await this.modules.settings.getSettings(undefined as never)
+            const current = await this.modules.settings.getSettings()
             const proxySettings = mode === 'none'
               ? { mode: 'none' as const }
               : mode === 'system'
@@ -99,7 +93,7 @@ export class AppControl {
             return { mode } as AppControlResult
           }
           case 'proxy:test': {
-            const current = await this.modules.settings.getSettings(undefined as never)
+            const current = await this.modules.settings.getSettings()
             const proxyUrl = command.url ?? current.proxySettings.customProxyUrl
             const ok = proxyUrl ? await this.modules.settings.testProxyConnection({ proxyUrl }) : false
             return { ok } as AppControlResult
@@ -113,7 +107,7 @@ export class AppControl {
       case 'provider': {
         switch (command.action) {
           case 'list': {
-            const providers = this.modules.provider.listProviders(undefined as never)
+            const providers = this.modules.provider.listProviders()
             return {
               providers: providers.map(p => ({
                 id: p.id,
@@ -158,11 +152,11 @@ export class AppControl {
             return { deleted: true } as AppControlResult
           }
           case 'enable': {
-            await this.modules.provider.setProviderEnabled(command.id, true)
+            await this.modules.provider.updateProvider({ config: { id: command.id, isEnabled: true } })
             return { id: command.id, enabled: true } as AppControlResult
           }
           case 'disable': {
-            await this.modules.provider.setProviderEnabled(command.id, false)
+            await this.modules.provider.updateProvider({ config: { id: command.id, isEnabled: false } })
             return { id: command.id, enabled: false } as AppControlResult
           }
           case 'models': {
@@ -201,8 +195,8 @@ export class AppControl {
       case 'mcp': {
         switch (command.action) {
           case 'list': {
-            const configs = this.modules.mcp.getConfigs(undefined as never)
-            const activeConnections = this.modules.mcp.getConnections(undefined as never)
+            const configs = this.modules.mcp.getConfigs()
+            const activeConnections = this.modules.mcp.getConnections()
             const connections: McpConnection[] = configs.map((cfg: McpConfigSchema) => {
               const conn = activeConnections.find((c: McpConnection) => c.name === cfg.serverName)
               return {
@@ -216,7 +210,7 @@ export class AppControl {
           }
           case 'get': {
             const config = this.modules.mcp.getConfigByServerName({ serverName: command.name })
-            const connection = this.modules.mcp.getConnections(undefined as never)
+            const connection = this.modules.mcp.getConnections()
               .find((c: McpConnection) => c.name === command.name)
             return {
               mcpServer: {
@@ -283,11 +277,11 @@ export class AppControl {
       case 'automation': {
         switch (command.action) {
           case 'list': {
-            const automations = await this.modules.automation.list(undefined as never)
+            const automations = await this.modules.automation.list()
             return { automations } as AppControlResult
           }
           case 'get': {
-            const automations = await this.modules.automation.list(undefined as never)
+            const automations = await this.modules.automation.list()
             const automation = automations.find(item => item.id === command.id)
             if (!automation) {
               throw new Error(`Automation not found: ${command.id}`)

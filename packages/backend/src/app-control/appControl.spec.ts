@@ -14,7 +14,6 @@ describe('appControl 行为', () => {
     getProviderById: vi.fn(),
     listProviderModels: vi.fn(),
     listProviders: vi.fn(),
-    setProviderEnabled: vi.fn(),
     updateProvider: vi.fn(),
   }
   const mcp = {
@@ -196,5 +195,32 @@ describe('appControl 行为', () => {
         id: 'provider-1',
       },
     })
+  })
+
+  it('provider enable/disable 复用 updateProvider 而非控制面专属方法', async () => {
+    provider.updateProvider.mockResolvedValue({ id: 'provider-1', isEnabled: true })
+
+    await createControl().execute({ action: 'enable', id: 'provider-1', type: 'provider' })
+    expect(provider.updateProvider).toHaveBeenLastCalledWith({
+      config: { id: 'provider-1', isEnabled: true },
+    })
+
+    await createControl().execute({ action: 'disable', id: 'provider-1', type: 'provider' })
+    expect(provider.updateProvider).toHaveBeenLastCalledWith({
+      config: { id: 'provider-1', isEnabled: false },
+    })
+  })
+
+  it('settings show 无参读取，不再向运行时模块传 undefined as never', async () => {
+    settings.getSettings.mockResolvedValue({
+      appearance: { darkThemeId: 'default', lightThemeId: 'default', mode: 'system' },
+      assistantModelId: '',
+      assistantProviderId: '',
+      proxySettings: { mode: 'none' },
+    })
+
+    await createControl().execute({ action: 'show', type: 'settings' })
+
+    expect(settings.getSettings).toHaveBeenCalledWith()
   })
 })

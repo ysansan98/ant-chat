@@ -28,7 +28,7 @@ export class ProviderModule implements RuntimeModuleMethods<'provider'> {
   }
 
   @Method()
-  listProviders(_input: AppRpcInput<'provider.listProviders'>) {
+  listProviders(_input?: AppRpcInput<'provider.listProviders'>) {
     return this.core.data.providerSettingsRepository.listProviders()
   }
 
@@ -54,13 +54,6 @@ export class ProviderModule implements RuntimeModuleMethods<'provider'> {
     await this.core.secretStore.deleteProviderApiKey(input.id)
     this.core.events.emit('provider:changed', { providerId: input.id })
     return null
-  }
-
-  /** 安全地启用/禁用 Provider（通过 isEnabled 字段） */
-  async setProviderEnabled(id: string, enabled: boolean) {
-    const provider = this.core.data.providerSettingsRepository.updateProvider({ id, isEnabled: enabled })
-    this.core.events.emit('provider:changed', { providerId: id })
-    return provider
   }
 
   @Method()

@@ -45,7 +45,7 @@ export class AutomationModule implements RuntimeModuleMethods<'automation'> {
   }
 
   @Method()
-  list(_input: AppRpcInput<'automation.list'>) {
+  list(_input?: AppRpcInput<'automation.list'>) {
     return this.service.list()
   }
 
