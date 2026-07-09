@@ -26,7 +26,7 @@ export class McpModule implements RuntimeModuleMethods<'mcp'> {
   }
 
   @Method()
-  getConfigs(_input: AppRpcInput<'mcp.getConfigs'>) {
+  getConfigs(_input?: AppRpcInput<'mcp.getConfigs'>) {
     return this.core.data.mcpSettingsRepository.getMcpConfigs()
   }
 
@@ -60,7 +60,7 @@ export class McpModule implements RuntimeModuleMethods<'mcp'> {
   }
 
   @Method()
-  getConnections(_input: AppRpcInput<'mcp.getConnections'>) {
+  getConnections(_input?: AppRpcInput<'mcp.getConnections'>) {
     return this.clientHub.connections.map(({ server }) => ({
       name: server.name,
       config: server.config,
