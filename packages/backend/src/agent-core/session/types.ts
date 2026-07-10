@@ -1,4 +1,4 @@
-import type { AgentMode, AgentTurnSource, CompactionSettingsSchema, IAIProvider, ITaskLogger, LoopMessage } from '@ant-chat/shared'
+import type { AgentMode, AgentTurnSource, CompactionSettingsSchema, IAIProvider, ITaskLogger, LoopMessage, ReasoningEffortLevel } from '@ant-chat/shared'
 import type { ToolRegistry } from '../tools/toolRegistry'
 
 /** 上下文诊断捕获回调类型 */
@@ -38,6 +38,8 @@ export interface RuntimeStartInput {
   // ===== 可选配置 =====
   temperature?: number
   maxTokens?: number
+  /** 推理强度档位（ai-sdk v7 统一参数）。未设置时由厂商默认决定。 */
+  reasoningEffort?: ReasoningEffortLevel
   compaction?: CompactionSettingsSchema
 
   /** 自动化/交互来源标记 */

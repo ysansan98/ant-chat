@@ -114,6 +114,7 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
             systemPrompt: options.modelConfig.systemPrompt,
             temperature: options.modelConfig.temperature,
             maxTokens: options.modelConfig.maxTokens,
+            reasoningEffort: options.modelConfig.reasoningEffort,
           },
         })
 

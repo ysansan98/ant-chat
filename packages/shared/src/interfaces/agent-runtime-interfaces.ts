@@ -1,4 +1,4 @@
-import type { AddConversationsSchema, AddMessage, LanguageModelUsage, ModelInfo, ProviderConfigSchema, SecretRef, SecretRequest, SecretRequestField, SecretRequestResult, ToolCallContent, ToolResultContent, UpdateConversationsSchema, UpdateMessageSchema } from '../schemas'
+import type { AddConversationsSchema, AddMessage, LanguageModelUsage, ModelInfo, ProviderConfigSchema, ReasoningEffortLevel, SecretRef, SecretRequest, SecretRequestField, SecretRequestResult, ToolCallContent, ToolResultContent, UpdateConversationsSchema, UpdateMessageSchema } from '../schemas'
 import type { AgentMemoryReader } from './agent-memory'
 import type { AgentMode, AgentPendingAction, AgentTaskSnapshot, AgentTurnSource, ToolApprovalWhitelistEntry } from './agent-runtime'
 import type { AgentTool } from './agent-tools'
@@ -66,6 +66,8 @@ export interface IAIProvider {
       temperature?: number
       maxTokens?: number
       systemPrompt: string
+      /** 推理强度档位（ai-sdk v7 统一参数）。未设置时由厂商默认决定。 */
+      reasoningEffort?: ReasoningEffortLevel
     }
     tools?: RuntimeToolDefinition[]
     abortSignal?: AbortSignal
@@ -325,6 +327,8 @@ export interface AgentRuntimeStartTaskOptions {
     systemPrompt?: string
     temperature?: number
     maxTokens?: number
+    /** 推理强度档位（ai-sdk v7 统一参数）。未设置时由厂商默认决定。 */
+    reasoningEffort?: ReasoningEffortLevel
   }
 }
 

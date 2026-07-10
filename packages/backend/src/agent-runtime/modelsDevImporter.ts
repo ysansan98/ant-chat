@@ -1,3 +1,4 @@
+import type { ReasoningEffortLevel } from '@ant-chat/shared'
 import type { AppDataContext } from '../data'
 import { getModelsDevModelsByProviderId, getModelsDevProviders } from './modelsDev'
 
@@ -65,10 +66,11 @@ export function createModelsDevImporter(appDataContext: AppDataContext): ModelsD
   }
 }
 
-function toModelCapabilities(model: { toolCall?: boolean, reasoning?: boolean, supportsTemperature?: boolean, structuredOutput?: boolean, modalities?: { input?: string[], output?: string[] } }) {
+function toModelCapabilities(model: { toolCall?: boolean, reasoning?: boolean, reasoningLevels?: ReasoningEffortLevel[], supportsTemperature?: boolean, structuredOutput?: boolean, modalities?: { input?: string[], output?: string[] } }) {
   return {
     functionCall: model.toolCall ?? false,
     reasoning: model.reasoning ?? false,
+    reasoningLevels: model.reasoningLevels,
     supportsTemperature: model.supportsTemperature ?? false,
     structuredOutput: model.structuredOutput ?? false,
     inputModalities: (model.modalities?.input ?? []) as ('text' | 'image' | 'pdf' | 'video' | 'audio')[],

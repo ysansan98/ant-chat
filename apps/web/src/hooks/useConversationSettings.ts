@@ -12,6 +12,7 @@ const DEFAULT_SETTINGS: ConversationsSettingsSchema = {
   systemPrompt: '',
   temperature: 0.7,
   maxTokens: 1000,
+  reasoningEffort: undefined,
   compaction: DEFAULT_COMPACTION_SETTINGS,
 }
 
@@ -39,6 +40,9 @@ export function useConversationSettings() {
     if (has(options, 'maxTokens')) {
       updatedSettings.maxTokens = options.maxTokens
     }
+    if (has(options, 'reasoningEffort')) {
+      updatedSettings.reasoningEffort = options.reasoningEffort
+    }
     if (has(options, 'compaction')) {
       updatedSettings.compaction = options.compaction
     }
@@ -64,6 +68,7 @@ export function useConversationSettings() {
         draft.systemPrompt = conversations.settings.systemPrompt || ''
         draft.temperature = conversations.settings.temperature || 0.7
         draft.maxTokens = conversations.settings.maxTokens || 1000
+        draft.reasoningEffort = conversations.settings.reasoningEffort
         draft.compaction = conversations.settings.compaction || DEFAULT_COMPACTION_SETTINGS
       }
       else {
@@ -72,6 +77,7 @@ export function useConversationSettings() {
         draft.systemPrompt = ''
         draft.temperature = 0.7
         draft.maxTokens = 1000
+        draft.reasoningEffort = undefined
         draft.compaction = DEFAULT_COMPACTION_SETTINGS
       }
     })

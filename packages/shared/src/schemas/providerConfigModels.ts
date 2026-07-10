@@ -1,6 +1,46 @@
 import { z } from 'zod'
 import { ProviderConfigSchema } from './providerConfig'
 
+/**
+ * 推理强度档位，对齐 ai-sdk v7 统一的 `reasoning` 参数。
+ * `provider-default` 表示交由厂商默认，不显式覆盖。
+ */
+export const ReasoningEffortSchema = z.enum([
+  'provider-default',
+  'none',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+])
+
+export type ReasoningEffortLevel = z.infer<typeof ReasoningEffortSchema>
+
+// models.dev 的 effort 档位到 ai-sdk v7 档位的映射（max → xhigh）
+const MODELS_DEV_EFFORT_TO_V7: Record<string, ReasoningEffortLevel> = {
+  none: 'none',
+  minimal: 'minimal',
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  max: 'xhigh',
+}
+
+/**
+ * 将 models.dev 返回的 effort 档位值映射为 ai-sdk v7 档位。
+ * 未知档位被丢弃；无有效档位时返回 undefined。
+ */
+export function mapModelsDevEffortToV7(values: string[] | undefined): ReasoningEffortLevel[] | undefined {
+  if (!values || values.length === 0) {
+    return undefined
+  }
+  const mapped = values
+    .map(value => MODELS_DEV_EFFORT_TO_V7[value])
+    .filter((level): level is ReasoningEffortLevel => Boolean(level))
+  return mapped.length > 0 ? mapped : undefined
+}
+
 export const ModelCostSchema = z.object({
   input: z.number(),
   output: z.number(),
@@ -16,6 +56,8 @@ const OutputModalitiesSchema = z.array(z.enum(['text', 'image']))
 export const ModelCapabilitiesSchema = z.object({
   functionCall: z.boolean().optional(),
   reasoning: z.boolean().optional(),
+  /** 模型支持的推理强度档位（来自 models.dev 的 effort 选项，已映射为 ai-sdk v7 档位）。存在该字段即表示可配置推理强度。 */
+  reasoningLevels: z.array(ReasoningEffortSchema).optional(),
   supportsTemperature: z.boolean().optional(),
   structuredOutput: z.boolean().optional(),
   inputModalities: InputModalitiesSchema.optional(),
