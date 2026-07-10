@@ -1,5 +1,5 @@
 import type { AgentErrorCode, AgentMode, AgentPendingAction, ToolApprovalWhitelistEntry, ToolOperationType, ToolScope } from '@ant-chat/shared'
-import type { RuntimeTask } from '../taskStore'
+import type { TaskStore } from '../taskStore'
 import type { ToolAuthorization } from '../tools/types'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
@@ -7,7 +7,7 @@ import { AgentError } from '../AgentError'
 import { createAgentTraceLogger } from '../agentTraceLogger'
 
 export function createToolAuthorization(
-  waitForApproval: (task: RuntimeTask) => Promise<{ approved: boolean, reason?: string }>,
+  taskStore: TaskStore,
   getWhitelistEntries?: () => ToolApprovalWhitelistEntry[],
 ): ToolAuthorization {
   return async (input) => {
@@ -111,16 +111,7 @@ export function createToolAuthorization(
       whitelistPattern,
       createdAt: Date.now(),
     }
-    task.snapshot.status = 'awaiting_approval'
-    task.snapshot.pendingAction = pendingAction
-    config.eventEmitter.emitTaskUpdated(task.snapshot)
-    config.eventEmitter.emitApprovalRequired(
-      task.snapshot.taskId,
-      task.snapshot.conversationId,
-      pendingAction,
-    )
-
-    const decisionResult = await waitForApproval(task)
+    const decisionResult = await taskStore.requestApproval(task, pendingAction, config.eventEmitter)
     if (
       task.abortController.signal.aborted
       || decisionResult.reason === 'AGENT_CANCELLED'

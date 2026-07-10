@@ -53,6 +53,9 @@ export function createAppDataSessionStore(appDataContext: AppDataContext): ISess
     async updateEventMessage(id: string, patch: UpdateEventMessageInput) {
       return await messageRepository.update({ id, ...patch })
     },
+    async deleteEventMessage(id: string) {
+      await messageRepository.delete(id)
+    },
   }
 }
 

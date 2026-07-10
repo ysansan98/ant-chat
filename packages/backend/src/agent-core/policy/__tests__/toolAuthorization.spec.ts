@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createToolAuthorization } from '../toolAuthorization'
 import type { AgentTaskSnapshot, IAgentEventEmitter, ILogger, ToolApprovalWhitelistEntry } from '@ant-chat/shared'
-import type { RuntimeTask } from '../../taskStore'
+import type { RuntimeTask, TaskStore } from '../../taskStore'
 
 function createMockEmitter(): IAgentEventEmitter {
   return {
@@ -34,9 +34,6 @@ function createTask(overrides: Record<string, unknown> = {}): RuntimeTask {
       ...overrides,
     } as AgentTaskSnapshot,
     abortController: new AbortController(),
-    steeringQueue: [],
-    pendingSteeringMessages: [],
-    pendingResolver: undefined,
   }
 }
 
@@ -52,10 +49,22 @@ function createPrepared() {
   }
 }
 
+function createTaskState(waitForApproval: (task: RuntimeTask) => Promise<{ approved: boolean, reason?: string }>): TaskStore {
+  return {
+    requestApproval: async (task, pendingAction, eventEmitter) => {
+      task.snapshot.status = 'awaiting_approval'
+      task.snapshot.pendingAction = pendingAction
+      void eventEmitter.emitTaskUpdated(task.snapshot)
+      void eventEmitter.emitApprovalRequired(task.snapshot.taskId, task.snapshot.conversationId, pendingAction)
+      return await waitForApproval(task)
+    },
+  } as TaskStore
+}
+
 describe('createToolAuthorization 行为', () => {
   it('自动化只读策略直接阻止写入且不进入交互审批', async () => {
     const waitForApproval = vi.fn(async () => ({ approved: true }))
-    const hook = createToolAuthorization(waitForApproval)
+    const hook = createToolAuthorization(createTaskState(waitForApproval))
     const task = createTask({
       turnSource: {
         type: 'automation',
@@ -86,7 +95,7 @@ describe('createToolAuthorization 行为', () => {
 
   it('自动化策略允许执行当前 Turn 已注入的 Skill', async () => {
     const waitForApproval = vi.fn(async () => ({ approved: true }))
-    const hook = createToolAuthorization(waitForApproval)
+    const hook = createToolAuthorization(createTaskState(waitForApproval))
     const task = createTask({
       turnSource: {
         type: 'automation',
@@ -115,7 +124,7 @@ describe('createToolAuthorization 行为', () => {
   })
 
   it('hybrid 模式下 workspace read 返回 allow', async () => {
-    const hook = createToolAuthorization(async () => ({ approved: true }))
+    const hook = createToolAuthorization(createTaskState(async () => ({ approved: true })))
     const task = createTask({ mode: 'hybrid' })
 
     const result = await hook({
@@ -128,7 +137,7 @@ describe('createToolAuthorization 行为', () => {
   })
 
   it('blocked scope 返回 block', async () => {
-    const hook = createToolAuthorization(async () => ({ approved: true }))
+    const hook = createToolAuthorization(createTaskState(async () => ({ approved: true })))
     const task = createTask({ mode: 'strict' })
 
     const result = await hook({
@@ -144,7 +153,7 @@ describe('createToolAuthorization 行为', () => {
   })
 
   it('full_managed 模式下无论 scope 都返回 allow', async () => {
-    const hook = createToolAuthorization(async () => ({ approved: true }))
+    const hook = createToolAuthorization(createTaskState(async () => ({ approved: true })))
     const task = createTask({ mode: 'full_managed' })
 
     const result = await hook({
@@ -167,7 +176,7 @@ describe('createToolAuthorization 行为', () => {
       })
     })
 
-    const hook = createToolAuthorization(waitForApproval)
+    const hook = createToolAuthorization(createTaskState(waitForApproval))
     const task = createTask({ mode: 'strict' })
 
     const resultPromise = hook({
@@ -200,7 +209,7 @@ describe('createToolAuthorization 行为', () => {
       })
     })
 
-    const hook = createToolAuthorization(waitForApproval)
+    const hook = createToolAuthorization(createTaskState(waitForApproval))
     const task = createTask({ mode: 'strict' })
 
     const resultPromise = hook({
@@ -230,7 +239,7 @@ describe('createToolAuthorization 行为', () => {
       })
     })
 
-    const hook = createToolAuthorization(waitForApproval)
+    const hook = createToolAuthorization(createTaskState(waitForApproval))
     const task = createTask({ mode: 'strict' })
 
     await expect(
@@ -243,7 +252,7 @@ describe('createToolAuthorization 行为', () => {
   })
 
   it('调用 onToolCallContext 回调', async () => {
-    const hook = createToolAuthorization(async () => ({ approved: true }))
+    const hook = createToolAuthorization(createTaskState(async () => ({ approved: true })))
     const task = createTask({ mode: 'hybrid' })
     const onContext = vi.fn()
 
@@ -276,7 +285,7 @@ describe('createToolAuthorization 行为', () => {
     }]
 
     const hook = createToolAuthorization(
-      async () => ({ approved: true }),
+      createTaskState(async () => ({ approved: true })),
       () => whitelist,
     )
     const task = createTask({ mode: 'strict' })
@@ -309,7 +318,7 @@ describe('createToolAuthorization 行为', () => {
       })
     })
 
-    const hook = createToolAuthorization(waitForApproval, () => whitelist)
+    const hook = createToolAuthorization(createTaskState(waitForApproval), () => whitelist)
     const task = createTask({ mode: 'strict' })
 
     const resultPromise = hook({
@@ -335,7 +344,7 @@ describe('createToolAuthorization 行为', () => {
       })
     })
 
-    const hook = createToolAuthorization(waitForApproval, () => [])
+    const hook = createToolAuthorization(createTaskState(waitForApproval), () => [])
     const task = createTask({ mode: 'strict' })
 
     const resultPromise = hook({
@@ -361,7 +370,7 @@ describe('createToolAuthorization 行为', () => {
       })
     })
 
-    const hook = createToolAuthorization(waitForApproval)
+    const hook = createToolAuthorization(createTaskState(waitForApproval))
     const task = createTask({ mode: 'strict' })
 
     const resultPromise = hook({

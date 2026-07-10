@@ -1,6 +1,6 @@
 import type { CompactionSettingsSchema, IAIProvider, ILogger, LanguageModelUsage, LoopMessage, ModelInfo } from '@ant-chat/shared'
 import type { ConversationContextEntry } from '../loop/loopContext'
-import type { CompactionSkipReason, CompactionTrigger } from './compaction'
+import type { CompactionPlan, CompactionSkipReason, CompactionTrigger } from './compaction'
 import { calculateContextTokens, compactMessages, planCompaction } from './compaction'
 
 export interface CompactionEventPersistence {
@@ -36,12 +36,13 @@ export async function runCompactionTransaction(input: {
   instruction?: string
   abortSignal?: AbortSignal
   logger?: ILogger
+  plan?: CompactionPlan
 }): Promise<CompactionTransactionResult> {
   const messages = input.contextEntries.map(entry => entry.message)
   const contextTokens = input.trigger === 'automatic' && input.pendingUserMessage
     ? calculateContextTokens(input.contextEntries, input.pendingUserMessage)
     : undefined
-  const plan = planCompaction({
+  const plan = input.plan ?? planCompaction({
     messages,
     settings: input.settings,
     trigger: input.trigger,

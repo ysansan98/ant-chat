@@ -1,5 +1,4 @@
 import type { IAgentEventEmitter, ISessionStore, MessageContent } from '@ant-chat/shared'
-import type { TaskStore } from '../taskStore'
 
 const STREAM_UPDATE_INTERVAL_MS = 80
 
@@ -12,7 +11,7 @@ interface TurnMeta {
   persistedToolCallIds: Set<string>
 }
 
-export function createPersistedTurnEmitter(store: ISessionStore, delegate: IAgentEventEmitter, turnId: string, taskStore: TaskStore): IAgentEventEmitter {
+export function createPersistedTurnEmitter(store: ISessionStore, delegate: IAgentEventEmitter, turnId: string, conversationId: string, takePendingSteeringMessages: () => Array<{ id: string, text: string, turnId: string }>): IAgentEventEmitter {
   const turns = new Map<string, TurnMeta>()
 
   function newTurnMeta(msgId: string): TurnMeta {
@@ -38,14 +37,11 @@ export function createPersistedTurnEmitter(store: ISessionStore, delegate: IAgen
   }
 
   async function persistPendingSteeringMessages() {
-    const activeTask = taskStore.listActive().find(task => task.userMessageId === turnId)
-    if (!activeTask)
-      return
-    const pending = taskStore.takePendingSteeringMessages(activeTask.taskId)
+    const pending = takePendingSteeringMessages()
     for (const input of pending) {
       const msg = await store.createUserMessage({
         id: input.id,
-        convId: activeTask.conversationId,
+        convId: conversationId,
         role: 'user',
         status: 'success',
         content: [{ type: 'text', text: input.text }],

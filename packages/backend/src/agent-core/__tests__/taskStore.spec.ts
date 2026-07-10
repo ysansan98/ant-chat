@@ -18,8 +18,6 @@ function createTask(overrides: Partial<RuntimeTask['snapshot']> = {}): RuntimeTa
       ...overrides,
     },
     abortController: new AbortController(),
-    steeringQueue: [],
-    pendingSteeringMessages: [],
   }
 }
 
@@ -29,7 +27,7 @@ describe('taskStore 行为', () => {
       const store = new TaskStore()
       const task = createTask()
       store.create(task)
-      expect(store.get('task-1')).toBe(task)
+      expect(store.get('task-1')).toEqual(expect.objectContaining({ snapshot: task.snapshot }))
     })
 
     it('同一会话已有活跃任务时抛错', () => {
@@ -54,7 +52,7 @@ describe('taskStore 行为', () => {
       const store = new TaskStore()
       const task = createTask()
       store.create(task)
-      expect(store.get('task-1')).toBe(task)
+      expect(store.get('task-1')).toEqual(expect.objectContaining({ snapshot: task.snapshot }))
     })
 
     it('未知 taskId 返回 undefined', () => {

@@ -127,6 +127,7 @@ function createSessionStore(overrides: Partial<ISessionStore> = {}): ISessionSto
       usage: patch.usage ?? undefined,
       compactedThroughMessageId: patch.compactedThroughMessageId ?? undefined,
     })),
+    deleteEventMessage: vi.fn(async () => {}),
     ...overrides,
   }
 }
@@ -539,7 +540,7 @@ describe('agentRuntime 行为', () => {
       const loopCalls = vi.mocked(runAgentLoop).mock.calls
       const loopCall = loopCalls[loopCalls.length - 1]
       const loopOptions = loopCall?.[0].options
-      expect(loopCall?.[0].onBeforeTurn).toBeUndefined()
+      expect(loopCall?.[0].options).toBeDefined()
       expect(loopOptions?.systemPrompt).toContain('Updated memory after compaction.')
       expect(loopOptions?.systemPrompt).not.toContain('Initial memory.')
       expect(loopOptions?.messages).toEqual([

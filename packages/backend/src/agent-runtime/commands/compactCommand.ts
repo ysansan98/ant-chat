@@ -95,6 +95,7 @@ export async function runCompact(params: {
     instruction,
     abortSignal,
     logger,
+    plan,
     persistence: {
       createLoading: async (convId) => {
         const event = await appDataContext.messageRepository.create({ convId, role: 'event', status: 'loading', content: [{ type: 'text', text: '正在压缩上下文...' }], eventType: 'compaction' })

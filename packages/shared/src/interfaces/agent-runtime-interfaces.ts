@@ -116,6 +116,7 @@ export interface ISessionStore extends IConversationQuery {
   createEventMessage: (data: CreateEventMessageInput) => Promise<IMessage>
   updateAssistantMessage: (id: string, patch: UpdateAssistantMessageInput) => Promise<IMessage>
   updateEventMessage: (id: string, patch: UpdateEventMessageInput) => Promise<IMessage>
+  deleteEventMessage: (id: string) => Promise<void>
 }
 
 // ============================================================

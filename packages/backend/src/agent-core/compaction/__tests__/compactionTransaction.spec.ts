@@ -52,4 +52,29 @@ describe('compaction transaction 行为', () => {
     expect(result.status).toBe('compacted')
     expect(persistence.update).toHaveBeenCalledWith('event-1', expect.objectContaining({ status: 'success', compactedThroughMessageId: 'u2', usage: { totalTokens: 8 } }))
   })
+
+  it('取消时删除 loading event', async () => {
+    const controller = new AbortController()
+    const persistence = { createLoading: vi.fn(async () => ({ id: 'event-1' })), update: vi.fn(), delete: vi.fn() }
+    const entries = [entry('u1', 'first'), entry('a1', 'second'), entry('u2', 'third'), entry('a2', 'recent')]
+
+    const result = await runCompactionTransaction({
+      trigger: 'manual',
+      conversationId: 'conv-1',
+      contextEntries: entries,
+      settings: { ...DEFAULT_COMPACTION_SETTINGS, keepRecentTokens: 1 },
+      aiProvider: provider,
+      modelName: 'model-1',
+      modelInfo,
+      abortSignal: controller.signal,
+      summarize: vi.fn(async () => {
+        controller.abort()
+        return { text: 'summary' }
+      }),
+      persistence,
+    })
+
+    expect(result.status).toBe('cancelled')
+    expect(persistence.delete).toHaveBeenCalledWith('event-1')
+  })
 })

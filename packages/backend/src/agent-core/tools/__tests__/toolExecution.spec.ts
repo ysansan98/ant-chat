@@ -51,9 +51,6 @@ function createTask(overrides: Record<string, unknown> = {}) {
       ...overrides,
     } as AgentTaskSnapshot,
     abortController: new AbortController(),
-    steeringQueue: [],
-    pendingSteeringMessages: [],
-    pendingResolver: undefined as ((v: { approved: boolean, reason?: string }) => void) | undefined,
   }
 }
 

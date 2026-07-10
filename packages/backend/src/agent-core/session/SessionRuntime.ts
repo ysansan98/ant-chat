@@ -41,7 +41,7 @@ export class SessionRuntime {
     this.browserSessions = config.browser ? new BrowserSessionManager(config.browser) : null
   }
 
-  async prepareTask(options: AgentRuntimeStartTaskOptions): Promise<{ input: RuntimeStartInput, eventEmitter: IAgentEventEmitter, conversation: Awaited<ReturnType<ISessionStore['getConversation']>> }> {
+  async prepareTask(options: AgentRuntimeStartTaskOptions): Promise<{ input: RuntimeStartInput, createEventEmitter: (taskId: string) => IAgentEventEmitter, conversation: Awaited<ReturnType<ISessionStore['getConversation']>> }> {
     const store = requireSessionStore(this.config)
     const prompt = options.prompt.trim()
     if (!prompt) {
@@ -172,11 +172,9 @@ export class SessionRuntime {
       compaction: compactionSettings,
     }
 
-    const eventEmitter = createPersistedTurnEmitter(store, this.config.eventEmitter, turnId, this.taskStore)
-
     return {
       input: taskSnapshot,
-      eventEmitter,
+      createEventEmitter: taskId => createPersistedTurnEmitter(store, this.config.eventEmitter, turnId, conversation.id, () => this.taskStore.takePendingSteeringMessages(taskId)),
       conversation,
     }
   }
@@ -256,7 +254,7 @@ async function compactPersistedHistoryBeforeTurn(params: {
     persistence: {
       createLoading: async convId => await store.createEventMessage({ convId, role: 'event', status: 'loading', content: [{ type: 'text', text: '正在压缩上下文...' }], eventType: 'compaction' }),
       update: async (eventId, patch) => { await store.updateEventMessage(eventId, { role: 'event', eventType: 'compaction', status: patch.status, content: [{ type: 'text', text: patch.text }], modelInfo: patch.modelInfo, usage: patch.usage, compactedThroughMessageId: patch.compactedThroughMessageId }) },
-      delete: async () => {},
+      delete: async eventId => await store.deleteEventMessage(eventId),
     },
   })
   return { compacted: result.status === 'compacted', messages: result.messages }

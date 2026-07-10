@@ -1,5 +1,5 @@
 import type { AgentExecutionPhase, AgentRuntimeConfig, AgentTaskSnapshot, LoopMessage, McpToolCall, RuntimeToolDefinition, ToolResultContent } from '@ant-chat/shared'
-import type { BeforeTurnResult, RuntimeStartInput } from '../session/types'
+import type { RuntimeStartInput } from '../session/types'
 import type { RuntimeTask } from '../taskStore'
 import type { ToolAuthorization, ToolCallContext } from '../tools/types'
 import { AgentError } from '../AgentError'
@@ -9,21 +9,14 @@ import { transformErrorMessage } from '../utils/errorMessages'
 import { normalizeToolArgs } from './loopContext'
 
 export async function runAgentLoop(input: {
-  task?: RuntimeTask
-  taskId?: string
-  dequeueSteeringInputs?: () => import('../taskStore').SteeringInput[]
-  finishTask?: () => void
+  task: RuntimeTask
+  dequeueSteeringInputs: () => import('../taskStore').SteeringInput[]
+  finishTask: () => void
   options: RuntimeStartInput
   config: AgentRuntimeConfig
-  onBeforeTurn?: (ctx: {
-    messages: LoopMessage[]
-    step: number
-  }) => Promise<BeforeTurnResult>
   beforeToolExecute: ToolAuthorization
 }) {
-  const { task, options, config, onBeforeTurn, beforeToolExecute } = input
-  if (!task)
-    throw new AgentError('AGENT_TASK_NOT_FOUND', 'Task not found')
+  const { task, options, config, beforeToolExecute } = input
   const { taskId } = task.snapshot
   const traceLogger = createAgentTraceLogger(config)
 
@@ -46,8 +39,8 @@ export async function runAgentLoop(input: {
   let currentToolMessages: McpToolCall[] = []
   let currentModelText = ''
   let lastToolCallContext: ToolCallContext | null = null
-  let loopMessages: LoopMessage[] = [...initialMessages]
-  let systemPrompt = initialSystemPrompt
+  const loopMessages: LoopMessage[] = [...initialMessages]
+  const systemPrompt = initialSystemPrompt
   let lastLoggedMessages: LoopMessage[] = []
   let lastLoggedSystemPrompt = ''
   let previousRequestId: string | undefined
@@ -62,18 +55,8 @@ export async function runAgentLoop(input: {
       if (!aiProvider)
         throw new AgentError('AGENT_TOOL_EXEC_FAILED', 'AI provider not ready')
 
-      // === Plan A: 外层 compaction hook（agent-loop 完全无感） ===
-      let beforeTurnResult: BeforeTurnResult | undefined
-      if (onBeforeTurn) {
-        beforeTurnResult = await onBeforeTurn({ messages: loopMessages, step })
-        loopMessages = beforeTurnResult.messages
-        if (beforeTurnResult.systemPrompt !== undefined) {
-          systemPrompt = beforeTurnResult.systemPrompt
-        }
-      }
-
       // === Steering: 检查是否有运行中追加的用户输入 ===
-      const steeringInputs = input.dequeueSteeringInputs?.() ?? []
+      const steeringInputs = input.dequeueSteeringInputs()
       for (const input of steeringInputs) {
         loopMessages.push({ role: 'user', content: [{ type: 'text', text: input.text }] })
       }
@@ -114,7 +97,7 @@ export async function runAgentLoop(input: {
           messageIdentities,
           toolDefs,
           modelSettings,
-          isCompactionBaseline: beforeTurnResult?.compacted,
+          isCompactionBaseline: false,
         } as Record<string, unknown>)
       }
       previousRequestId = requestId
@@ -126,7 +109,7 @@ export async function runAgentLoop(input: {
         lastLoggedMessages,
         lastLoggedSystemPrompt,
         step,
-        compacted: beforeTurnResult?.compacted ?? false,
+        compacted: false,
       })
       const requestDiagnostics = createModelRequestDiagnostics({
         messages: requestPreview.messages,
@@ -357,7 +340,7 @@ export async function runAgentLoop(input: {
     await config.secretStore?.clearTurnSecrets(taskId)
     task.snapshot.updatedAt = Date.now()
     if (['success', 'failed', 'cancelled'].includes(task.snapshot.status)) {
-      input.finishTask?.()
+      input.finishTask()
     }
     traceLogger.close()
   }

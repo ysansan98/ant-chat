@@ -1,4 +1,4 @@
-import type { AgentTaskSnapshot } from '@ant-chat/shared'
+import type { AgentPendingAction, AgentTaskSnapshot, IAgentEventEmitter } from '@ant-chat/shared'
 import { AgentError } from './AgentError'
 
 export interface SteeringInput {
@@ -15,6 +15,9 @@ export interface PendingSteeringMessage {
 export interface RuntimeTask {
   snapshot: AgentTaskSnapshot
   abortController: AbortController
+}
+
+interface StoredTask extends RuntimeTask {
   pendingResolver?: (value: { approved: boolean, reason?: string }) => void
   steeringQueue: SteeringInput[]
   pendingSteeringMessages: PendingSteeringMessage[]
@@ -28,18 +31,22 @@ export interface ApprovalDecision {
 const APPROVAL_TIMEOUT_MS = 5 * 60 * 1000
 
 export class TaskStore {
-  private readonly tasks = new Map<string, RuntimeTask>()
+  private readonly tasks = new Map<string, StoredTask>()
   private readonly activeByConversation = new Map<string, string>()
 
   create(task: RuntimeTask) {
     if (this.activeByConversation.has(task.snapshot.conversationId)) {
       throw new Error('AGENT_TASK_ALREADY_RUNNING')
     }
-    this.tasks.set(task.snapshot.taskId, task)
+    this.tasks.set(task.snapshot.taskId, {
+      ...task,
+      steeringQueue: [],
+      pendingSteeringMessages: [],
+    })
     this.activeByConversation.set(task.snapshot.conversationId, task.snapshot.taskId)
   }
 
-  get(taskId: string) {
+  get(taskId: string): RuntimeTask | undefined {
     return this.tasks.get(taskId)
   }
 
@@ -113,19 +120,33 @@ export class TaskStore {
   }
 
   waitForApproval(task: RuntimeTask): Promise<ApprovalDecision> {
+    const storedTask = this.getStored(task.snapshot.taskId)
+    if (!storedTask)
+      return Promise.reject(new AgentError('AGENT_TASK_NOT_FOUND', 'Task not found'))
     let timer: ReturnType<typeof setTimeout>
     return new Promise<ApprovalDecision>((resolve, reject) => {
-      task.pendingResolver = (decision) => {
+      storedTask.pendingResolver = (decision) => {
         clearTimeout(timer)
         resolve(decision)
       }
       timer = setTimeout(() => {
-        if (task.snapshot.status === 'awaiting_approval') {
-          task.pendingResolver = undefined
+        if (storedTask.snapshot.status === 'awaiting_approval') {
+          storedTask.pendingResolver = undefined
           reject(new AgentError('AGENT_APPROVAL_TIMEOUT', 'Approval timeout'))
         }
       }, APPROVAL_TIMEOUT_MS)
     })
+  }
+
+  async requestApproval(task: RuntimeTask, pendingAction: AgentPendingAction, eventEmitter: IAgentEventEmitter): Promise<ApprovalDecision> {
+    const storedTask = this.getStored(task.snapshot.taskId)
+    if (!storedTask)
+      throw new AgentError('AGENT_TASK_NOT_FOUND', 'Task not found')
+    storedTask.snapshot.status = 'awaiting_approval'
+    storedTask.snapshot.pendingAction = pendingAction
+    void eventEmitter.emitTaskUpdated(storedTask.snapshot)
+    void eventEmitter.emitApprovalRequired(storedTask.snapshot.taskId, storedTask.snapshot.conversationId, pendingAction)
+    return await this.waitForApproval(storedTask)
   }
 
   finish(taskId: string) {
@@ -150,7 +171,7 @@ export class TaskStore {
     this.activeByConversation.clear()
   }
 
-  private getApprovableTask(taskId: string, actionId: string): RuntimeTask {
+  private getApprovableTask(taskId: string, actionId: string): StoredTask {
     const task = this.tasks.get(taskId)
     if (!task)
       throw new AgentError('AGENT_TASK_NOT_FOUND', 'Task not found')
@@ -159,5 +180,9 @@ export class TaskStore {
     if (task.snapshot.pendingAction.actionId !== actionId)
       throw new AgentError('AGENT_APPROVAL_ACTION_MISMATCH', 'Approval action mismatch')
     return task
+  }
+
+  private getStored(taskId: string): StoredTask | undefined {
+    return this.tasks.get(taskId)
   }
 }

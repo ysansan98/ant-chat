@@ -75,9 +75,6 @@ function createTask(taskId = 'task-loop-1', conversationId = 'conv-loop-1') {
       logPath: '',
     },
     abortController: new AbortController(),
-    steeringQueue: [],
-    pendingSteeringMessages: [],
-    pendingResolver: undefined as ((v: { approved: boolean, reason?: string }) => void) | undefined,
   }
 }
 
@@ -147,6 +144,7 @@ describe('runAgentLoop 行为', () => {
     await runAgentLoop({
       task: taskStore.get(taskId)!,
       finishTask: () => taskStore.finish(taskId),
+      dequeueSteeringInputs: () => taskStore.dequeueSteeringInputs(taskId),
       options,
       config: { eventEmitter: emitter, logger },
       beforeToolExecute: async () => ({ outcome: 'allow' }),
@@ -191,6 +189,7 @@ describe('runAgentLoop 行为', () => {
     await runAgentLoop({
       task: taskStore.get(taskId)!,
       finishTask: () => taskStore.finish(taskId),
+      dequeueSteeringInputs: () => taskStore.dequeueSteeringInputs(taskId),
       options,
       config: { eventEmitter: emitter, logger, taskLogger },
       beforeToolExecute: async () => ({ outcome: 'allow' }),
@@ -248,6 +247,7 @@ describe('runAgentLoop 行为', () => {
     await runAgentLoop({
       task: taskStore.get(taskId)!,
       finishTask: () => taskStore.finish(taskId),
+      dequeueSteeringInputs: () => taskStore.dequeueSteeringInputs(taskId),
       options,
       config: { eventEmitter: emitter, logger, taskLogger },
       beforeToolExecute: async () => ({ outcome: 'allow' }),
@@ -276,291 +276,6 @@ describe('runAgentLoop 行为', () => {
     ])
   })
 
-  it('压缩后写入完整模型请求快照', async () => {
-    const taskLogger = {
-      filePath: '/tmp/task.jsonl',
-      write: vi.fn(),
-      close: vi.fn(),
-    }
-    const readTool = createReadTool()
-    const aiProvider = createMockAIProvider([
-      [makeToolCallChunk('read_file', { path: 'test.txt' }, 'tool-call-1')],
-      [makeTextChunk('Done after compaction')],
-    ])
-    let beforeTurnCount = 0
-    const onBeforeTurn = vi.fn(async (ctx: { messages: RuntimeStartInput['messages'], step: number }) => {
-      beforeTurnCount++
-      if (beforeTurnCount === 1) {
-        return { messages: ctx.messages, compacted: false }
-      }
-      return {
-        messages: [{ role: 'user' as const, content: [{ type: 'text' as const, text: 'after compaction' }] }],
-        compacted: true,
-      }
-    })
-
-    const { taskId, options } = createBaseInput({
-      aiProvider: aiProvider as unknown as IAIProvider,
-      registry: new ToolRegistry([readTool]),
-      taskLogger,
-    })
-    taskStore.create(createTask(taskId, options.conversationId))
-
-    await runAgentLoop({
-      task: taskStore.get(taskId)!,
-      finishTask: () => taskStore.finish(taskId),
-      options,
-      config: { eventEmitter: emitter, logger, taskLogger },
-      onBeforeTurn,
-      beforeToolExecute: async () => ({ outcome: 'allow' }),
-    })
-
-    const requestPayloads = taskLogger.write.mock.calls
-      .filter(([event]) => event === 'model_request_started')
-      .map(([, payload]) => payload as Record<string, any>)
-
-    expect(requestPayloads).toHaveLength(2)
-    expect(requestPayloads[1]).toEqual(expect.objectContaining({
-      messagesPreviewKind: 'full',
-      messagesPreviewStartIndex: 0,
-      messagesPreviewCount: 1,
-      contextResetReason: 'compaction',
-    }))
-    expect(requestPayloads[1].messagesPreview).toEqual([
-      expect.objectContaining({
-        role: 'user',
-        content: [{ type: 'text', text: 'after compaction' }],
-      }),
-    ])
-  })
-
-  it('执行工具调用并继续对话', async () => {
-    const readTool = createReadTool()
-    const aiProvider = createMockAIProvider([
-      // First turn: request tool
-      [makeToolCallChunk('read_file', { path: 'test.txt' })],
-      // Second turn: final answer after tool result
-      [makeTextChunk('File contents: file contents here')],
-    ])
-
-    const { taskId, options } = createBaseInput({
-      aiProvider: aiProvider as unknown as IAIProvider,
-      registry: new ToolRegistry([readTool]),
-    })
-    const task = createTask(taskId, options.conversationId)
-    taskStore.create(task)
-    const phases: Array<string | undefined> = []
-    vi.mocked(emitter.emitTaskUpdated).mockImplementation((snapshot) => {
-      phases.push(snapshot.executionPhase)
-    })
-
-    await runAgentLoop({
-      task: taskStore.get(taskId)!,
-      finishTask: () => taskStore.finish(taskId),
-      options,
-      config: { eventEmitter: emitter, logger },
-      beforeToolExecute: async () => ({ outcome: 'allow' }),
-    })
-
-    // Task should be finished (completed)
-    expect(taskStore.get(taskId)).toBeUndefined()
-
-    // Should have emitted tool calls
-    expect(emitter.emitTurnToolCalls).toHaveBeenCalled()
-
-    expect(phases).toEqual(expect.arrayContaining([
-      'preparing_tool',
-      'using_tool',
-      'waiting_model',
-      'generating_response',
-    ]))
-    expect(phases.indexOf('preparing_tool')).toBeLessThan(phases.indexOf('using_tool'))
-    expect(phases.indexOf('using_tool')).toBeLessThan(phases.indexOf('waiting_model'))
-    expect(phases.indexOf('waiting_model')).toBeLessThan(phases.indexOf('generating_response'))
-
-    // Should have finished successfully
-    expect(emitter.emitTurnFinished).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'success', durationMs: expect.any(Number) }),
-    )
-  })
-
-  it('模型流从推理切换到正文时依次发送执行阶段', async () => {
-    const aiProvider = createMockAIProvider([[
-      { reasoningContent: '正在思考' },
-      makeTextChunk('最终回复'),
-    ]])
-    const { taskId, options } = createBaseInput({ aiProvider: aiProvider as unknown as IAIProvider })
-    taskStore.create(createTask(taskId, options.conversationId))
-    const phases: Array<string | undefined> = []
-    vi.mocked(emitter.emitTaskUpdated).mockImplementation((snapshot) => {
-      phases.push(snapshot.executionPhase)
-    })
-
-    await runAgentLoop({
-      task: taskStore.get(taskId)!,
-      finishTask: () => taskStore.finish(taskId),
-      options,
-      config: { eventEmitter: emitter, logger },
-      beforeToolExecute: async () => ({ outcome: 'allow' }),
-    })
-
-    expect(phases.slice(0, 2)).toEqual(['thinking', 'generating_response'])
-  })
-
-  it('保留同一次模型响应中的重复工具调用', async () => {
-    const execute = vi.fn(async (input: Record<string, unknown>) => ({ ok: true, result: `contents:${input.path}`, diagnostics: { exitCode: 0 } }))
-    const readTool = createReadTool({ execute })
-    const modelRequests: RuntimeStartInput['messages'][] = []
-    const aiProvider: IAIProvider = {
-      async* streamModel(opts) {
-        modelRequests.push(opts.messages)
-        if (modelRequests.length === 1) {
-          yield {
-            functionCalls: [
-              { id: 'call-a', toolName: 'read_file', args: { path: 'a.txt' } },
-              { id: 'call-b', toolName: 'read_file', args: { path: 'b.txt' } },
-            ],
-          }
-          return
-        }
-        yield makeTextChunk('Done')
-      },
-      complete: vi.fn().mockResolvedValue({ text: 'mock complete' }),
-    }
-
-    const { taskId, options } = createBaseInput({
-      aiProvider,
-      registry: new ToolRegistry([readTool]),
-    })
-    const task = createTask(taskId, options.conversationId)
-    taskStore.create(task)
-
-    await runAgentLoop({
-      task: taskStore.get(taskId)!,
-      finishTask: () => taskStore.finish(taskId),
-      options,
-      config: { eventEmitter: emitter, logger },
-      beforeToolExecute: async () => ({ outcome: 'allow' }),
-    })
-
-    expect(execute).toHaveBeenCalledTimes(2)
-    expect(execute).toHaveBeenNthCalledWith(1, { path: 'a.txt' })
-    expect(execute).toHaveBeenNthCalledWith(2, { path: 'b.txt' })
-
-    const secondRequestMessages = modelRequests[1]
-    const assistantMessage = secondRequestMessages.find(message => message.role === 'assistant')
-    const toolMessages = secondRequestMessages.filter(message => message.role === 'tool')
-    expect(assistantMessage?.content.filter(item => item.type === 'tool-call')).toEqual([
-      expect.objectContaining({ toolCallId: 'call-a', toolName: 'read_file', args: { path: 'a.txt' } }),
-      expect.objectContaining({ toolCallId: 'call-b', toolName: 'read_file', args: { path: 'b.txt' } }),
-    ])
-    expect(toolMessages).toHaveLength(2)
-    expect(toolMessages[0]?.content).toEqual([
-      expect.objectContaining({ toolCallId: 'call-a', toolName: 'read_file', isError: false }),
-    ])
-    expect(toolMessages[1]?.content).toEqual([
-      expect.objectContaining({ toolCallId: 'call-b', toolName: 'read_file', isError: false }),
-    ])
-  })
-
-  it('工具执行期间收到 abortController 信号时中止任务', async () => {
-    const { taskId, options } = createBaseInput()
-    const task = createTask(taskId, options.conversationId)
-    taskStore.create(task)
-
-    // Tool that can be aborted during execution
-    const slowTool = createReadTool({
-      execute: async () => {
-        // Abort fires while tool is "executing"
-        task.abortController.abort()
-        // Then return success (the abort check in agentLoop happens after tool execution)
-        return { ok: true, result: 'result', diagnostics: { exitCode: 0 } }
-      },
-    })
-
-    const aiProvider = createMockAIProvider([
-      // First turn: request tool call
-      [makeToolCallChunk('read_file', { path: 'test.txt' })],
-      // Second turn (won't be reached due to abort check)
-    ])
-    options.aiProvider = aiProvider as unknown as IAIProvider
-    options.registry = new ToolRegistry([slowTool])
-
-    await runAgentLoop({
-      task: taskStore.get(taskId)!,
-      finishTask: () => taskStore.finish(taskId),
-      options,
-      config: { eventEmitter: emitter, logger },
-      beforeToolExecute: async () => ({ outcome: 'allow' }),
-    })
-
-    const updated = taskStore.get(taskId)
-    expect(updated).toBeUndefined()
-
-    expect(emitter.emitTurnFinished).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'cancel', durationMs: expect.any(Number) }),
-    )
-  })
-
-  it('每次调用模型前执行 onBeforeTurn hook', async () => {
-    const aiProvider = createMockAIProvider([
-      [makeTextChunk('Answer')],
-    ])
-
-    const { taskId, options } = createBaseInput({
-      aiProvider: aiProvider as unknown as IAIProvider,
-    })
-    const task = createTask(taskId, options.conversationId)
-    taskStore.create(task)
-
-    const onBeforeTurn = vi.fn().mockResolvedValue({ messages: options.messages })
-
-    await runAgentLoop({
-      task: taskStore.get(taskId)!,
-      finishTask: () => taskStore.finish(taskId),
-      options,
-      config: { eventEmitter: emitter, logger },
-      onBeforeTurn,
-      beforeToolExecute: async () => ({ outcome: 'allow' }),
-    })
-
-    expect(onBeforeTurn).toHaveBeenCalledTimes(1)
-    expect(onBeforeTurn).toHaveBeenCalledWith(
-      expect.objectContaining({
-        step: 1,
-        messages: expect.any(Array),
-      }),
-    )
-  })
-  it('模型调用使用 onBeforeTurn 返回的 system prompt', async () => {
-    const prompts: string[] = []
-    const aiProvider: IAIProvider = {
-      async* streamModel(opts) {
-        prompts.push(opts.modelSettings.systemPrompt)
-        yield makeTextChunk('Answer')
-      },
-      complete: vi.fn().mockResolvedValue({ text: 'mock complete' }),
-    }
-
-    const { taskId, options } = createBaseInput({
-      aiProvider,
-      systemPrompt: 'Initial prompt.',
-    })
-    const task = createTask(taskId, options.conversationId)
-    taskStore.create(task)
-
-    await runAgentLoop({
-      task: taskStore.get(taskId)!,
-      finishTask: () => taskStore.finish(taskId),
-      options,
-      config: { eventEmitter: emitter, logger },
-      onBeforeTurn: async () => ({ messages: options.messages, systemPrompt: 'Refreshed prompt.' }),
-      beforeToolExecute: async () => ({ outcome: 'allow' }),
-    })
-
-    expect(prompts).toEqual(['Refreshed prompt.'])
-  })
-
   it('aiProvider 为 null 时抛错', async () => {
     const { taskId, options } = createBaseInput({ aiProvider: null })
     const task = createTask(taskId, options.conversationId)
@@ -569,6 +284,7 @@ describe('runAgentLoop 行为', () => {
     await runAgentLoop({
       task: taskStore.get(taskId)!,
       finishTask: () => taskStore.finish(taskId),
+      dequeueSteeringInputs: () => taskStore.dequeueSteeringInputs(taskId),
       options,
       config: { eventEmitter: emitter, logger },
       beforeToolExecute: async () => ({ outcome: 'allow' }),
@@ -577,17 +293,6 @@ describe('runAgentLoop 行为', () => {
     expect(emitter.emitTurnFinished).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'error', durationMs: expect.any(Number) }),
     )
-  })
-
-  it('任务不存在时抛错', async () => {
-    await expect(
-      runAgentLoop({
-        taskId: 'nonexistent',
-        options: createBaseInput().options,
-        config: { eventEmitter: emitter, logger },
-        beforeToolExecute: async () => ({ outcome: 'allow' }),
-      }),
-    ).rejects.toThrow('Task not found')
   })
 
   it('通过 createInvalidToolArgsResult 处理无效工具参数', async () => {
@@ -619,6 +324,7 @@ describe('runAgentLoop 行为', () => {
     await runAgentLoop({
       task: taskStore.get(taskId)!,
       finishTask: () => taskStore.finish(taskId),
+      dequeueSteeringInputs: () => taskStore.dequeueSteeringInputs(taskId),
       options,
       config: { eventEmitter: emitter, logger },
       beforeToolExecute: async () => ({ outcome: 'allow' }),

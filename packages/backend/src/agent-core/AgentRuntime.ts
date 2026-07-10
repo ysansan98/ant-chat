@@ -1,5 +1,5 @@
-import type { AgentRuntimeConfig, AgentRuntimeOptions, AgentRuntimeStartTaskOptions, AgentRuntimeStartTaskResult, AgentTaskSnapshot, ApprovePendingActionOptions, CancelTaskOptions, IMessage, LoopMessage, RejectPendingActionOptions } from '@ant-chat/shared'
-import type { BeforeTurnResult, RuntimeStartInput, RuntimeStartResult } from './session/types'
+import type { AgentRuntimeConfig, AgentRuntimeOptions, AgentRuntimeStartTaskOptions, AgentRuntimeStartTaskResult, AgentTaskSnapshot, ApprovePendingActionOptions, CancelTaskOptions, IMessage, RejectPendingActionOptions } from '@ant-chat/shared'
+import type { RuntimeStartInput, RuntimeStartResult } from './session/types'
 import type { ToolAuthorization } from './tools/types'
 import { randomUUID } from 'node:crypto'
 import { AgentError } from './AgentError'
@@ -17,7 +17,7 @@ export class AgentRuntime {
   constructor(config: AgentRuntimeConfig) {
     this.config = config
     this.beforeToolExecuteHook = createToolAuthorization(
-      this.taskStore.waitForApproval.bind(this.taskStore),
+      this.taskStore,
       config.getToolApprovalWhitelistEntries,
     )
     this.sessionRuntime = new SessionRuntime(config, this.taskStore)
@@ -25,7 +25,7 @@ export class AgentRuntime {
 
   async startSessionTask(options: AgentRuntimeStartTaskOptions): Promise<AgentRuntimeStartTaskResult> {
     const prepared = await this.sessionRuntime.prepareTask(options)
-    const task = await this.startPreparedTask(prepared.input, { eventEmitter: prepared.eventEmitter })
+    const task = await this.startPreparedTask(prepared.input, { eventEmitterFactory: prepared.createEventEmitter })
     return { ...task, conversationId: options.conversationId, userMessageId: options.userMessageId, conversation: prepared.conversation! }
   }
 
@@ -33,7 +33,7 @@ export class AgentRuntime {
     options: RuntimeStartInput,
     runtime?: {
       eventEmitter?: AgentRuntimeConfig['eventEmitter']
-      onBeforeTurn?: (ctx: { messages: LoopMessage[], step: number }) => Promise<BeforeTurnResult>
+      eventEmitterFactory?: (taskId: string) => AgentRuntimeConfig['eventEmitter']
     },
   ): Promise<RuntimeStartResult> {
     const missing: string[] = []
@@ -51,11 +51,12 @@ export class AgentRuntime {
     const taskId = randomUUID()
 
     // 合并 runtime 提供的 eventEmitter 和 contextTraceCapture，以及 options 透传的 taskLogger
-    const needMerge = runtime?.eventEmitter || options.taskLogger || options.contextTraceCapture
+    const eventEmitter = runtime?.eventEmitterFactory?.(taskId) ?? runtime?.eventEmitter
+    const needMerge = eventEmitter || options.taskLogger || options.contextTraceCapture
     const config = needMerge
       ? {
           ...this.config,
-          ...(runtime?.eventEmitter ? { eventEmitter: runtime.eventEmitter } : {}),
+          ...(eventEmitter ? { eventEmitter } : {}),
           ...(options.taskLogger ? { taskLogger: options.taskLogger } : {}),
           ...(options.contextTraceCapture ? { contextTraceCapture: options.contextTraceCapture } : {}),
         }
@@ -78,7 +79,7 @@ export class AgentRuntime {
       turnSource: options.turnSource,
     }
 
-    const task = { snapshot, abortController: new AbortController(), steeringQueue: [], pendingSteeringMessages: [] }
+    const task = { snapshot, abortController: new AbortController() }
     this.taskStore.create(task)
     await config.eventEmitter.emitTaskUpdated(snapshot)
     void runAgentLoop({
@@ -87,7 +88,6 @@ export class AgentRuntime {
       finishTask: () => this.taskStore.finish(taskId),
       options,
       config,
-      onBeforeTurn: runtime?.onBeforeTurn,
       beforeToolExecute: this.beforeToolExecuteHook,
     }).catch(() => {})
 
