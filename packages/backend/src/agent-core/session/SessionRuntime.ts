@@ -3,7 +3,6 @@ import type {
   AgentRuntimeStartTaskOptions,
   AgentRuntimeStartTaskResult,
   CompactionSettingsSchema,
-  CompactionStrategy,
   IAgentEventEmitter,
   IAIProvider,
   ILogger,
@@ -18,12 +17,10 @@ import type { BeforeTurnResult, RuntimeStartInput, RuntimeStartResult } from './
 import { randomUUID } from 'node:crypto'
 import { createProvider } from '../ai-providers/factory'
 import {
-  calculateContextTokens,
-  compactMessages,
   DEFAULT_COMPACTION_SETTINGS,
-  planCompaction,
 } from '../compaction/compaction'
 import { createCompactionStrategy } from '../compaction/compactionStrategy'
+import { runCompactionTransaction } from '../compaction/compactionTransaction'
 import { getAgentLogger } from '../logger'
 import {
   buildConversationContextEntries,
@@ -247,7 +244,7 @@ async function compactPersistedHistoryBeforeTurn(params: {
   aiProvider: IAIProvider | null
   modelName: string
   contextLength: number
-  summarize?: CompactionStrategy['summarize']
+  summarize: NonNullable<AgentRuntimeConfig['compactionStrategy']>['summarize']
   logger: ILogger
   conversationId: string
   modelInfo: ModelInfo
@@ -255,93 +252,28 @@ async function compactPersistedHistoryBeforeTurn(params: {
 }): Promise<{ compacted: boolean, messages: LoopMessage[] }> {
   const { contextEntries, pendingUserMessage, settings, aiProvider, modelName, contextLength, summarize, logger, conversationId, modelInfo, store } = params
   const contextMessages = contextEntries.map(entry => entry.message)
-  if (!aiProvider || !summarize) {
+  if (!aiProvider) {
     return { compacted: false, messages: contextMessages }
   }
-
-  const contextTokens = calculateContextTokens(contextEntries, pendingUserMessage)
-  const plan = planCompaction({
-    messages: contextMessages,
-    settings,
+  const result = await runCompactionTransaction({
     trigger: 'automatic',
-    contextTokens,
-    contextLength,
-  })
-  if (!plan.eligible) {
-    return { compacted: false, messages: contextMessages }
-  }
-
-  const loadingEvent = await store.createEventMessage({
-    convId: conversationId,
-    role: 'event',
-    status: 'loading',
-    content: [{ type: 'text', text: '正在压缩上下文...' }],
-    eventType: 'compaction',
-  })
-
-  let result: Awaited<ReturnType<typeof compactMessages>>
-  try {
-    result = await compactMessages({
-      messages: contextMessages,
-      settings,
-      aiProvider,
-      model: modelName,
-      logger,
-      summarize,
-      trigger: 'automatic',
-      contextTokens,
-      contextLength,
-      plan,
-    })
-  }
-  catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    await store.updateEventMessage(loadingEvent.id, {
-      role: 'event',
-      status: 'error',
-      content: [{ type: 'text', text: errorMessage }],
-      eventType: 'compaction',
-      modelInfo,
-    })
-    return { compacted: false, messages: contextMessages }
-  }
-
-  if (!result.compacted) {
-    await store.updateEventMessage(loadingEvent.id, {
-      role: 'event',
-      status: 'error',
-      content: [{ type: 'text', text: result.summaryError || '上下文压缩未生成结果。' }],
-      eventType: 'compaction',
-      modelInfo,
-      usage: result.usage,
-    })
-    return { compacted: false, messages: contextMessages }
-  }
-
-  const compactedThroughMessageId = contextEntries[plan.toSummarizeCount - 1]?.sourceMessageId
-  if (!compactedThroughMessageId) {
-    await store.updateEventMessage(loadingEvent.id, {
-      role: 'event',
-      status: 'error',
-      content: [{ type: 'text', text: 'Compaction did not produce a persisted message boundary.' }],
-      eventType: 'compaction',
-      modelInfo,
-      usage: result.usage,
-    })
-    return { compacted: false, messages: contextMessages }
-  }
-
-  await store.updateEventMessage(loadingEvent.id, {
-    role: 'event',
-    status: 'success',
-    content: [{ type: 'text', text: result.summaryText || '' }],
-    eventType: 'compaction',
-    compactedThroughMessageId,
+    conversationId,
+    contextEntries,
+    pendingUserMessage,
+    settings,
+    aiProvider,
+    modelName,
     modelInfo,
-    usage: result.usage,
+    summarize,
+    contextLength,
+    logger,
+    persistence: {
+      createLoading: async convId => await store.createEventMessage({ convId, role: 'event', status: 'loading', content: [{ type: 'text', text: '正在压缩上下文...' }], eventType: 'compaction' }),
+      update: async (eventId, patch) => { await store.updateEventMessage(eventId, { role: 'event', eventType: 'compaction', status: patch.status, content: [{ type: 'text', text: patch.text }], modelInfo: patch.modelInfo, usage: patch.usage, compactedThroughMessageId: patch.compactedThroughMessageId }) },
+      delete: async () => {},
+    },
   })
-
-  return { compacted: true, messages: result.messages }
+  return { compacted: result.status === 'compacted', messages: result.messages }
 }
 
 async function readPromptMemory(config: AgentRuntimeConfig): Promise<{ memory?: string, soul?: string, user?: string } | undefined> {
