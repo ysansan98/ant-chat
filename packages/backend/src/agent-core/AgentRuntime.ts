@@ -1,25 +1,25 @@
 import type { AgentRuntimeConfig, AgentRuntimeOptions, AgentRuntimeStartTaskOptions, AgentRuntimeStartTaskResult, AgentTaskSnapshot, ApprovePendingActionOptions, CancelTaskOptions, IMessage, LoopMessage, RejectPendingActionOptions } from '@ant-chat/shared'
 import type { BeforeTurnResult, RuntimeStartInput, RuntimeStartResult } from './session/types'
-import type { BeforeToolExecuteHook } from './tools/types'
+import type { ToolAuthorization } from './tools/types'
 import { randomUUID } from 'node:crypto'
 import { AgentError } from './AgentError'
 import { runAgentLoop } from './loop/agentLoop'
 import { createApprovalController } from './policy/approvalController'
-import { createBeforeToolExecuteHook } from './policy/beforeToolExecute'
+import { createToolAuthorization } from './policy/toolAuthorization'
 import { SessionRuntime } from './session/SessionRuntime'
 import { TaskStore } from './taskStore'
 
 export class AgentRuntime {
   private config: AgentRuntimeConfig
   private approvalController: ReturnType<typeof createApprovalController>
-  private beforeToolExecuteHook: BeforeToolExecuteHook
+  private beforeToolExecuteHook: ToolAuthorization
   private sessionRuntime: SessionRuntime
   private readonly taskStore = new TaskStore()
 
   constructor(config: AgentRuntimeConfig) {
     this.config = config
     this.approvalController = createApprovalController(config.eventEmitter, this.taskStore)
-    this.beforeToolExecuteHook = createBeforeToolExecuteHook(
+    this.beforeToolExecuteHook = createToolAuthorization(
       this.approvalController.waitForApproval,
       config.getToolApprovalWhitelistEntries,
     )

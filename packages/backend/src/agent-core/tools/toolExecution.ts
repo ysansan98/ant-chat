@@ -1,7 +1,7 @@
 import type { AgentRuntimeConfig, AgentToolResult, McpToolCall, SecretRef, ToolCallContent } from '@ant-chat/shared'
 import type { RuntimeTask } from '../taskStore'
 import type { PreparedToolCall, ToolRegistry } from './toolRegistry'
-import type { BeforeToolExecuteHook, ToolCallContext } from './types'
+import type { ToolAuthorization, ToolCallContext } from './types'
 import { randomUUID } from 'node:crypto'
 import { AGENT_TOOL_EXEC_FAILED } from '@ant-chat/shared'
 import { createAgentTraceLogger } from '../agentTraceLogger'
@@ -20,7 +20,7 @@ export interface ExecuteToolStepOptions {
   currentToolMessages: McpToolCall[]
   step: number
   config: AgentRuntimeConfig
-  beforeToolExecute: BeforeToolExecuteHook
+  beforeToolExecute: ToolAuthorization
   onToolCallContext?: (context: ToolCallContext) => void
   abortSignal?: AbortSignal
 }
@@ -119,7 +119,7 @@ interface PrepareToolStepInput {
   currentToolCall: McpToolCall
   step: number
   config: AgentRuntimeConfig
-  beforeToolExecute: BeforeToolExecuteHook
+  beforeToolExecute: ToolAuthorization
   onToolCallContext?: (context: ToolCallContext) => void
   toolStartedAt: number
 }

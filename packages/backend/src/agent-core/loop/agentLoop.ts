@@ -1,7 +1,7 @@
 import type { AgentExecutionPhase, AgentRuntimeConfig, AgentTaskSnapshot, LoopMessage, McpToolCall, RuntimeToolDefinition, ToolResultContent } from '@ant-chat/shared'
 import type { BeforeTurnResult, RuntimeStartInput } from '../session/types'
 import type { RuntimeTask } from '../taskStore'
-import type { BeforeToolExecuteHook, ToolCallContext } from '../tools/types'
+import type { ToolAuthorization, ToolCallContext } from '../tools/types'
 import { AgentError } from '../AgentError'
 import { createAgentTraceLogger } from '../agentTraceLogger'
 import { createInvalidToolArgsResult, executeToolStep } from '../tools/toolExecution'
@@ -19,7 +19,7 @@ export async function runAgentLoop(input: {
     messages: LoopMessage[]
     step: number
   }) => Promise<BeforeTurnResult>
-  beforeToolExecute: BeforeToolExecuteHook
+  beforeToolExecute: ToolAuthorization
 }) {
   const { task, options, config, onBeforeTurn, beforeToolExecute } = input
   if (!task)

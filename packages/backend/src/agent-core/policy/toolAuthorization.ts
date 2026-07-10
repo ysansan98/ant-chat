@@ -1,16 +1,16 @@
 import type { AgentPendingAction, ToolApprovalWhitelistEntry } from '@ant-chat/shared'
 import type { RuntimeTask } from '../taskStore'
-import type { BeforeToolExecuteHook } from '../tools/types'
+import type { ToolAuthorization } from '../tools/types'
 import { randomUUID } from 'node:crypto'
 import { AgentError } from '../AgentError'
 import { createAgentTraceLogger } from '../agentTraceLogger'
 import { decidePolicy } from './policyEngine'
 import { extractInputKey, generatePattern, isWhitelisted } from './toolApprovalWhitelist'
 
-export function createBeforeToolExecuteHook(
+export function createToolAuthorization(
   waitForApproval: (task: RuntimeTask) => Promise<{ approved: boolean, reason?: string }>,
   getWhitelistEntries?: () => ToolApprovalWhitelistEntry[],
-): BeforeToolExecuteHook {
+): ToolAuthorization {
   return async (input) => {
     const { task, prepared, config, onToolCallContext } = input
     const traceLogger = createAgentTraceLogger(config)

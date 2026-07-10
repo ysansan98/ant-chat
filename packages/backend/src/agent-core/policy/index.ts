@@ -1,5 +1,5 @@
 export { createApprovalController } from './approvalController'
 export type { ApprovalDecision } from './approvalController'
-export { createBeforeToolExecuteHook } from './beforeToolExecute'
 export { decidePolicy } from './policyEngine'
 export type { PolicyDecision } from './policyEngine'
+export { createToolAuthorization } from './toolAuthorization'

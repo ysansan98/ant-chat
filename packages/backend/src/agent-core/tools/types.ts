@@ -23,6 +23,6 @@ export type BeforeToolExecuteResult
   = | { outcome: 'allow' }
     | { outcome: 'block', errorCode: string, reason: string }
 
-export type BeforeToolExecuteHook = (
+export type ToolAuthorization = (
   input: BeforeToolExecuteInput,
 ) => Promise<BeforeToolExecuteResult>
