@@ -248,7 +248,7 @@ export interface AgentBrowserRuntimeConfig {
 }
 
 // ============================================================
-// Compaction (纯策略回调，外层 onBeforeTurn 中使用)
+// Compaction（由 turn 准备阶段的事务协调器调用）
 // ============================================================
 
 export interface CompactionStrategy {

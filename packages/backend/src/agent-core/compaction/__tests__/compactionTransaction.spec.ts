@@ -21,9 +21,7 @@ describe('compaction transaction 行为', () => {
       contextEntries: entries,
       pendingUserMessage: { role: 'user', content: [{ type: 'text', text: 'next' }] },
       settings: DEFAULT_COMPACTION_SETTINGS,
-      aiProvider: provider,
-      modelName: 'model-1',
-      modelInfo,
+      prepare: async () => ({ aiProvider: provider, modelName: 'model-1', modelInfo }),
       contextLength: 128_000,
       summarize: vi.fn(),
       persistence,
@@ -42,9 +40,7 @@ describe('compaction transaction 行为', () => {
       conversationId: 'conv-1',
       contextEntries: entries,
       settings: { ...DEFAULT_COMPACTION_SETTINGS, keepRecentTokens: 1 },
-      aiProvider: provider,
-      modelName: 'model-1',
-      modelInfo,
+      prepare: async () => ({ aiProvider: provider, modelName: 'model-1', modelInfo }),
       summarize: vi.fn(async () => ({ text: 'summary', usage: { totalTokens: 8 } })),
       persistence,
     })
@@ -63,9 +59,7 @@ describe('compaction transaction 行为', () => {
       conversationId: 'conv-1',
       contextEntries: entries,
       settings: { ...DEFAULT_COMPACTION_SETTINGS, keepRecentTokens: 1 },
-      aiProvider: provider,
-      modelName: 'model-1',
-      modelInfo,
+      prepare: async () => ({ aiProvider: provider, modelName: 'model-1', modelInfo }),
       abortSignal: controller.signal,
       summarize: vi.fn(async () => {
         controller.abort()
