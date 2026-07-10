@@ -8,7 +8,7 @@ import { createAgentRuntime } from '../../../agent-core'
 import {
   ContextTraceWriter,
   ConversationTaskLoggerManager,
-  createAgentRuntimeController,
+  createAgentTurnService,
   createAppDataSessionStore,
   createContextTraceReader,
   createConversationTitleGenerator,
@@ -27,7 +27,7 @@ export interface AgentModuleDependencies {
 @Module('agent')
 export class AgentModule implements RuntimeModuleMethods<'agent'> {
   readonly runtime: ReturnType<typeof createAgentRuntime>
-  readonly controller: ReturnType<typeof createAgentRuntimeController>
+  readonly turnService: ReturnType<typeof createAgentTurnService>
   readonly eventEmitter: IAgentEventEmitter
   readonly titleGenerator: ReturnType<typeof createConversationTitleGenerator>
   private readonly secretRequester: RuntimeSecretRequestController
@@ -36,7 +36,7 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
   private readonly conversationLoggerManager: ConversationTaskLoggerManager | null
   private contextDiagnosticsEnabled: boolean
 
-  constructor(core: RuntimeCore, dependencies: AgentModuleDependencies) {
+  constructor(private readonly core: RuntimeCore, dependencies: AgentModuleDependencies) {
     this.eventEmitter = createAgentEventEmitter(core)
     this.secretRequester = new RuntimeSecretRequestController(core.secretStore, {
       emitSecretRequested(request) {
@@ -94,7 +94,9 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
       conversationRepository: core.data.conversationRepository,
       aiProviderFactory: dependencies.aiProviderFactory,
     })
-    this.controller = createAgentRuntimeController(this.runtime, core.data, {
+    this.turnService = createAgentTurnService({
+      runtime: this.runtime,
+      appDataContext: core.data,
       aiProviderFactory: dependencies.aiProviderFactory,
       titleGenerator: this.titleGenerator,
       emitConversationUpdated: conversation => core.events.emit('conversation:updated', { conversation }),
@@ -112,22 +114,31 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
 
   @Method()
   startTurn(input: AppRpcInput<'agent.startTurn'>) {
-    return this.controller.startTurn(input.options)
+    return this.turnService.startTurn(input.options)
   }
 
   @Method()
   approvePendingAction(input: AppRpcInput<'agent.approvePendingAction'>) {
-    return this.controller.approvePendingAction(input.options)
+    this.runtime.approvePendingAction(input.options)
+    return null
   }
 
   @Method()
   rejectPendingAction(input: AppRpcInput<'agent.rejectPendingAction'>) {
-    return this.controller.rejectPendingAction(input.options)
+    this.runtime.rejectPendingAction(input.options)
+    return null
   }
 
   @Method()
   approvePendingActionWithWhitelist(input: AppRpcInput<'agent.approvePendingActionWithWhitelist'>) {
-    return this.controller.approvePendingActionWithWhitelist(input.options)
+    if (input.options.remember) {
+      const pending = this.runtime.getTask(input.options.taskId).pendingAction
+      if (pending?.whitelistPattern) {
+        this.core.data.toolApprovalWhitelistRepository.add({ toolName: pending.toolName, toolScope: pending.scope, pattern: pending.whitelistPattern, workspacePath: input.options.workspacePath })
+      }
+    }
+    this.runtime.approvePendingAction(input.options)
+    return null
   }
 
   @Method()
@@ -144,17 +155,18 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
 
   @Method()
   cancelTask(input: AppRpcInput<'agent.cancelTask'>) {
-    return this.controller.cancelTask({ taskId: input.taskId })
+    this.runtime.cancelTask({ taskId: input.taskId })
+    return null
   }
 
   @Method()
   injectSteering(input: AppRpcInput<'agent.injectSteering'>) {
-    return this.controller.injectSteering(input)
+    return this.runtime.injectSteering(input.conversationId, input.text)
   }
 
   @Method()
   listActiveTasks(input: AppRpcInput<'agent.listActiveTasks'>) {
-    return this.controller.listActiveTasks(input?.conversationId)
+    return this.runtime.listActiveTasks(input?.conversationId)
   }
 
   @Method()

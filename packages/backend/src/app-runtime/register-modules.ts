@@ -35,8 +35,8 @@ export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModu
   const settings = new SettingsModule(core)
   const workspace = new WorkspaceModule(core)
   const automation = new AutomationModule(core, {
-    agentController: agent.controller,
-    agentRuntime: agent.runtime,
+    startTurn: agent.turnService.startTurn,
+    cancelTask: taskId => agent.runtime.cancelTask({ taskId }),
   })
   const commands = new CommandsModule(core, {
     agentRuntime: agent.runtime,

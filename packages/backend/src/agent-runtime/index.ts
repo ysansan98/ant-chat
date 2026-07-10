@@ -1,5 +1,3 @@
-export { createAgentRuntimeController } from './agentRuntimeController'
-export type { AgentRuntimeController } from './agentRuntimeController'
 export { createAgentTurnService } from './agentTurnService'
 export type { AgentTurnService, AgentTurnServiceDeps } from './agentTurnService'
 export { createCommandController } from './commandController'

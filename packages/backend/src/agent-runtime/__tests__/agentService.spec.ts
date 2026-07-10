@@ -1,7 +1,7 @@
 import type { AgentRuntime } from '../../agent-core'
 import type { AppDataContext } from '../../data'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createAgentRuntimeController } from '../agentRuntimeController'
+import { createAgentTurnService } from '../agentTurnService'
 
 const startTask = vi.fn()
 
@@ -85,7 +85,11 @@ const appDataContext = {
   },
 } as unknown as AppDataContext
 
-describe('createAgentRuntimeController 行为', () => {
+function createService(deps: Omit<Parameters<typeof createAgentTurnService>[0], 'runtime' | 'appDataContext'> = {}) {
+  return createAgentTurnService({ runtime, appDataContext, ...deps })
+}
+
+describe('createAgentTurnService 行为', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     startTask.mockResolvedValue({
@@ -97,7 +101,7 @@ describe('createAgentRuntimeController 行为', () => {
   })
 
   it('新会话先完成验证，再创建 conversation 和 user message 后启动 runtime', async () => {
-    const service = createAgentRuntimeController(runtime, appDataContext, { aiProviderFactory })
+    const service = createService({ aiProviderFactory })
 
     await service.startTurn({
       prompt: 'inspect project',
@@ -154,7 +158,7 @@ describe('createAgentRuntimeController 行为', () => {
   })
 
   it('保留显式传入的 turn 上下文字段', async () => {
-    const service = createAgentRuntimeController(runtime, appDataContext, { aiProviderFactory })
+    const service = createService({ aiProviderFactory })
 
     await service.startTurn({
       conversationId: 'c1',
@@ -197,7 +201,7 @@ describe('createAgentRuntimeController 行为', () => {
 
   it('aPI Key 验证失败时不创建 conversation 或 user message', async () => {
     aiProviderFactory.mockRejectedValueOnce(new Error('missing api key'))
-    const service = createAgentRuntimeController(runtime, appDataContext, { aiProviderFactory })
+    const service = createService({ aiProviderFactory })
 
     await expect(service.startTurn({
       prompt: 'inspect project',
@@ -225,7 +229,7 @@ describe('createAgentRuntimeController 行为', () => {
       updateTitle: vi.fn(async () => titledConversation),
     }
     const emitConversationUpdated = vi.fn()
-    const service = createAgentRuntimeController(runtime, appDataContext, {
+    const service = createService({
       aiProviderFactory,
       titleGenerator,
       emitConversationUpdated,
@@ -264,7 +268,7 @@ describe('createAgentRuntimeController 行为', () => {
       updateTitle: vi.fn(async () => titledConversation),
     }
     const emitConversationUpdated = vi.fn()
-    const service = createAgentRuntimeController(runtime, appDataContext, {
+    const service = createService({
       aiProviderFactory,
       titleGenerator,
       emitConversationUpdated,
@@ -297,7 +301,7 @@ describe('createAgentRuntimeController 行为', () => {
       updateTitle: vi.fn(async () => titledConversation),
     }
     const emitConversationUpdated = vi.fn()
-    const service = createAgentRuntimeController(runtime, appDataContext, {
+    const service = createService({
       aiProviderFactory,
       titleGenerator,
       emitConversationUpdated,
@@ -324,7 +328,7 @@ describe('createAgentRuntimeController 行为', () => {
   })
 
   it('startTurn 未传 workspacePath 时抛错,不再兜底 getCurrentWorkspacePath() 或 process.cwd()', async () => {
-    const service = createAgentRuntimeController(runtime, appDataContext, { aiProviderFactory })
+    const service = createService({ aiProviderFactory })
 
     await expect(service.startTurn({
       prompt: 'inspect',
@@ -337,51 +341,5 @@ describe('createAgentRuntimeController 行为', () => {
         features: { enableMCP: false },
       },
     } as any)).rejects.toThrow('workspacePath is required')
-  })
-
-  it('记住审批时写入工具白名单后再批准 pending action', () => {
-    vi.mocked(runtime.getTask).mockReturnValue({
-      taskId: 't1',
-      conversationId: 'c1',
-      userMessageId: 'm1',
-      workspacePath: '/workspace',
-      mode: 'strict',
-      status: 'awaiting_approval',
-      createdAt: 1,
-      updatedAt: 1,
-      logPath: '',
-      prompt: 'inspect',
-      pendingAction: {
-        actionId: 'a1',
-        toolName: 'write_file',
-        operationType: 'write',
-        scope: 'workspace',
-        inputPreview: '{"path":"src/index.ts"}',
-        createdAt: 1,
-        whitelistPattern: './src/**',
-      },
-    })
-
-    const service = createAgentRuntimeController(runtime, appDataContext)
-    const result = service.approvePendingActionWithWhitelist({
-      taskId: 't1',
-      actionId: 'a1',
-      remember: true,
-      workspacePath: '/workspace',
-    })
-
-    expect(result).toBeNull()
-    expect(appDataContext.toolApprovalWhitelistRepository.add).toHaveBeenCalledWith({
-      toolName: 'write_file',
-      toolScope: 'workspace',
-      pattern: './src/**',
-      workspacePath: '/workspace',
-    })
-    expect(runtime.approvePendingAction).toHaveBeenCalledWith({
-      taskId: 't1',
-      actionId: 'a1',
-      remember: true,
-      workspacePath: '/workspace',
-    })
   })
 })

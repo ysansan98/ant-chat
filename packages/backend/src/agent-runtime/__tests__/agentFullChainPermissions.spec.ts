@@ -6,7 +6,7 @@ import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { createAgentRuntimeController } from '../agentRuntimeController'
+import { createAgentTurnService } from '../agentTurnService'
 import { createAppDataSessionStore } from '../sessionStore'
 
 const TEST_MODEL_ID = 'mock-model'
@@ -158,7 +158,7 @@ describe('agent 真实链路权限行为', () => {
       }),
     }))
 
-    harness.controller.approvePendingAction({
+    harness.runtime.approvePendingAction({
       taskId: approval.taskId,
       actionId: approval.pendingAction.actionId,
     })
@@ -183,7 +183,7 @@ describe('agent 真实链路权限行为', () => {
 
 interface BetterSqliteDatabase { close: () => void }
 type BetterSqliteConstructor = new (filename: string) => BetterSqliteDatabase
-type StartTurnResult = Awaited<ReturnType<ReturnType<typeof createAgentRuntimeController>['startTurn']>>
+type StartTurnResult = Awaited<ReturnType<ReturnType<typeof createAgentTurnService>['startTurn']>>
 
 interface CapturedApproval {
   taskId: string
@@ -194,7 +194,7 @@ interface CapturedApproval {
 interface AgentRuntimeHarness {
   workspacePath: string
   approvals: CapturedApproval[]
-  controller: ReturnType<typeof createAgentRuntimeController>
+  runtime: ReturnType<typeof createAgentRuntime>
   provider: ScriptedProvider
   startTurn: (prompt: string, mode: AgentMode) => Promise<StartTurnResult>
   waitForApproval: () => Promise<CapturedApproval>
@@ -305,15 +305,15 @@ function createHarness(): AgentRuntimeHarness {
       aiProviderFactory: async () => provider,
     },
   })
-  const controller = createAgentRuntimeController(runtime, appDataContext)
+  const turnService = createAgentTurnService({ runtime, appDataContext })
 
   return {
     workspacePath,
     approvals,
-    controller,
+    runtime,
     provider,
     async startTurn(prompt, mode) {
-      return await controller.startTurn({
+      return await turnService.startTurn({
         prompt,
         workspacePath,
         mode,
@@ -331,7 +331,7 @@ function createHarness(): AgentRuntimeHarness {
       return await waitFor(() => approvals[0], '等待审批事件超时')
     },
     async waitForFinish(conversationId) {
-      await waitFor(() => controller.listActiveTasks(conversationId).length === 0, '等待 agent 任务结束超时')
+      await waitFor(() => runtime.listActiveTasks(conversationId).length === 0, '等待 agent 任务结束超时')
     },
     workspaceFile(relativePath) {
       return path.join(workspacePath, relativePath)
