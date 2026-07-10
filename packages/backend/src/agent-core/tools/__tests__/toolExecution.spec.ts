@@ -82,6 +82,24 @@ describe('executeToolStep 行为', () => {
     expect(emitter.emitTaskUpdated).not.toHaveBeenCalled()
   })
 
+  it('每次工具调用只 prepare 一次', async () => {
+    const registry = new ToolRegistry([createReadTool()])
+    const prepare = vi.spyOn(registry, 'prepare')
+
+    await executeToolStep({
+      task: createTask(),
+      registry,
+      requestedToolCall: { toolName: 'read_file', input: { path: 'test.txt' } },
+      currentModelText: '',
+      currentToolMessages: [],
+      step: 1,
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
+    })
+
+    expect(prepare).toHaveBeenCalledTimes(1)
+  })
+
   it('保留模型提供的 tool call id', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()

@@ -54,7 +54,8 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   const traceLogger = createAgentTraceLogger(config)
   const toolStartedAt = Date.now()
 
-  const currentToolCall = registerPendingToolCall(requestedToolCall, registry, currentToolMessages)
+  const prepared = registry.prepare(requestedToolCall.toolName, requestedToolCall.input)
+  const currentToolCall = registerPendingToolCall(requestedToolCall, prepared, currentToolMessages)
   const logContext = createToolLogContext(task, step, currentToolCall.id)
   traceLogger.write('tool_call_received', { ...logContext, toolName: requestedToolCall.toolName, input: requestedToolCall.input })
   await emitTurnToolCalls(config, task.snapshot.conversationId, currentModelText, currentToolMessages)
@@ -62,7 +63,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   // Phase 1: Prepare — validate args and check policy
   const preparation = await prepareToolStep({
     task,
-    registry,
+    prepared,
     requestedToolCall,
     currentToolCall,
     step,
@@ -113,7 +114,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
 
 interface PrepareToolStepInput {
   task: RuntimeTask
-  registry: ToolRegistry
+  prepared: ReturnType<ToolRegistry['prepare']>
   requestedToolCall: RequestedToolCall
   currentToolCall: McpToolCall
   step: number
@@ -124,10 +125,8 @@ interface PrepareToolStepInput {
 }
 
 async function prepareToolStep(input: PrepareToolStepInput): Promise<ToolPreparation> {
-  const { task, registry, requestedToolCall, currentToolCall, step, config, beforeToolExecute, onToolCallContext, toolStartedAt } = input
+  const { task, prepared, requestedToolCall, currentToolCall, step, config, beforeToolExecute, onToolCallContext, toolStartedAt } = input
   const traceLogger = createAgentTraceLogger(config)
-
-  const prepared = registry.prepare(requestedToolCall.toolName, requestedToolCall.input)
 
   let lastToolCallContext: ToolCallContext = {
     toolName: requestedToolCall.toolName,
@@ -341,10 +340,9 @@ function createToolLogContext(task: RuntimeTask, step: number, toolCallId: strin
 
 function registerPendingToolCall(
   requestedToolCall: RequestedToolCall,
-  registry: ToolRegistry,
+  prepared: ReturnType<ToolRegistry['prepare']>,
   currentToolMessages: McpToolCall[],
 ): McpToolCall {
-  const prepared = registry.prepare(requestedToolCall.toolName, requestedToolCall.input)
   const call: McpToolCall = {
     id: requestedToolCall.id ?? randomUUID(),
     serverName: prepared.serverName,
