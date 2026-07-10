@@ -1,4 +1,4 @@
-import type { AIProviderFactory, IAgentEventEmitter, ILogger, RunBuiltinCommandResult } from '@ant-chat/shared'
+import type { AIProviderFactory, IAgentEventEmitter, ILogger, ReasoningEffortLevel, RunBuiltinCommandResult } from '@ant-chat/shared'
 import type { AppDataContext } from '../../data'
 import { buildConversationContextEntries, createCompactionStrategy, createProvider, DEFAULT_COMPACTION_SETTINGS, runCompactionTransaction } from '../../agent-core'
 
@@ -7,7 +7,7 @@ export async function runCompact(params: {
   eventEmitter: IAgentEventEmitter
   conversationId: string
   instruction: string | undefined
-  modelConfig: { modelId: string, systemPrompt: string, temperature: number, maxTokens: number }
+  modelConfig: { modelId: string, systemPrompt: string, temperature: number, maxTokens: number, reasoningEffort?: ReasoningEffortLevel }
   logger?: ILogger
   aiProviderFactory?: AIProviderFactory
   abortSignal?: AbortSignal
@@ -42,7 +42,7 @@ export async function runCompact(params: {
     return { status: 'success', summaryText: '当前上下文不足，无需压缩。' }
   }
 
-  const compactionStrategy = createCompactionStrategy()
+  const compactionStrategy = createCompactionStrategy(modelConfig.reasoningEffort)
   const transaction = await runCompactionTransaction({
     trigger: 'manual',
     conversationId,

@@ -281,11 +281,12 @@ export class MultiProvider {
       model: string
       systemPrompt: string
       maxTokens?: number
+      reasoningEffort?: ReasoningEffortLevel
     }
     abortSignal?: AbortSignal
   }): Promise<{ text: string, usage?: ReturnType<MultiProvider['normalizeUsage']> }> {
     const { messages, modelSettings, abortSignal } = options
-    const { model, systemPrompt, maxTokens } = modelSettings
+    const { model, systemPrompt, maxTokens, reasoningEffort } = modelSettings
 
     const aiSdkMessages: ModelMessage[] = messages.map(msg => ({
       // v7 默认拒绝 messages 里的 system 角色；systemPrompt 已通过 instructions 传入，这里兜底转 user
@@ -298,6 +299,8 @@ export class MultiProvider {
       instructions: systemPrompt || undefined,
       messages: aiSdkMessages,
       maxOutputTokens: maxTokens,
+      // v7：统一推理强度参数；未设置时不传，走厂商默认
+      ...(reasoningEffort ? { reasoning: reasoningEffort } : {}),
       abortSignal,
     })
 

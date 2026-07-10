@@ -1,3 +1,4 @@
+import type { ReasoningEffortLevel } from '../schemas/providerConfigModels'
 import type { IConversations } from './db-types'
 
 export interface BuiltinCommand {
@@ -57,6 +58,7 @@ export interface RunBuiltinCommandParams {
     systemPrompt: string
     temperature: number
     maxTokens: number
+    reasoningEffort?: ReasoningEffortLevel
   }
   workspacePath: string
 }

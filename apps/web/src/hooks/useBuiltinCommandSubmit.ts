@@ -1,3 +1,4 @@
+import type { ReasoningEffortLevel } from '@ant-chat/shared'
 import { useCallback, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import chatApi from '@/api/chatApi'
@@ -13,6 +14,7 @@ interface UseBuiltinCommandSubmitOptions {
     systemPrompt?: string
     temperature?: number
     maxTokens?: number
+    reasoningEffort?: ReasoningEffortLevel
   }
   currentWorkspacePath?: string
 }
@@ -50,6 +52,7 @@ export function useBuiltinCommandSubmit(options: UseBuiltinCommandSubmitOptions)
           systemPrompt: options.settings.systemPrompt || '',
           temperature: options.settings.temperature || 0.7,
           maxTokens: options.settings.maxTokens || 4096,
+          reasoningEffort: options.settings.reasoningEffort,
         },
         workspacePath: options.currentWorkspacePath || '',
       })
