@@ -1,11 +1,10 @@
-import type { AgentPendingAction, ToolApprovalWhitelistEntry } from '@ant-chat/shared'
+import type { AgentErrorCode, AgentMode, AgentPendingAction, ToolApprovalWhitelistEntry, ToolOperationType, ToolScope } from '@ant-chat/shared'
 import type { RuntimeTask } from '../taskStore'
 import type { ToolAuthorization } from '../tools/types'
 import { randomUUID } from 'node:crypto'
+import path from 'node:path'
 import { AgentError } from '../AgentError'
 import { createAgentTraceLogger } from '../agentTraceLogger'
-import { decidePolicy } from './policyEngine'
-import { extractInputKey, generatePattern, isWhitelisted } from './toolApprovalWhitelist'
 
 export function createToolAuthorization(
   waitForApproval: (task: RuntimeTask) => Promise<{ approved: boolean, reason?: string }>,
@@ -184,4 +183,173 @@ function decideAutomationPolicy(
   }
   // 未知 operationType — 安全默认拒绝。不在自动化策略中显式支持的操作一律不允许。
   return { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: `自动化任务不支持该操作类型: ${operationType}` }
+}
+
+type PolicyDecision
+  = | { type: 'allow' }
+    | { type: 'require_approval' }
+    | { type: 'block', errorCode: AgentErrorCode, reason: string }
+
+function decidePolicy(mode: AgentMode, operationType: ToolOperationType, scope: ToolScope): PolicyDecision {
+  if (mode === 'full_managed') {
+    return { type: 'allow' }
+  }
+
+  if (scope === 'blocked') {
+    return { type: 'block', errorCode: 'AGENT_POLICY_BLOCKED', reason: '策略阻断，禁止执行' }
+  }
+
+  if (scope === 'outside') {
+    return { type: 'require_approval' }
+  }
+
+  // scope === 'workspace'
+  if (operationType === 'read' || operationType === 'browser' || operationType === 'skill' || operationType === 'mcp') {
+    return { type: 'allow' }
+  }
+
+  if (mode === 'hybrid' && operationType === 'write') {
+    return { type: 'allow' }
+  }
+
+  return { type: 'require_approval' }
+}
+
+const FILE_TOOLS = new Set([
+  'read_file',
+  'write_file',
+  'edit_file',
+  'list_dir',
+  'glob_files',
+  'grep_files',
+])
+
+function extractInputKey(toolName: string, input: Record<string, unknown>): string {
+  if (toolName === 'bash') {
+    return String(input.command ?? '')
+  }
+  if (FILE_TOOLS.has(toolName)) {
+    return String(input.path ?? '')
+  }
+  if (toolName === 'use_skill' || toolName === 'install_skill_from_github') {
+    return String(input.name ?? '')
+  }
+  return ''
+}
+
+function generatePattern(
+  toolName: string,
+  input: Record<string, unknown>,
+  toolScope: ToolScope,
+  workspacePath?: string,
+): string {
+  if (toolName === 'bash') {
+    const cmd = String(input.command ?? '')
+    const firstWord = cmd.split(/\s+/)[0] ?? ''
+    return firstWord ? `${firstWord} **` : cmd
+  }
+
+  if (FILE_TOOLS.has(toolName)) {
+    const filePath = String(input.path ?? '')
+    if (!filePath) {
+      return '*'
+    }
+
+    if (toolScope === 'workspace' && workspacePath) {
+      try {
+        const relative = path.relative(workspacePath, filePath)
+        if (!relative.startsWith('..') && !path.isAbsolute(relative)) {
+          const dir = path.dirname(relative)
+          return dir === '.' ? './**' : `.${path.sep}${dir}${path.sep}**`
+        }
+      }
+      catch {
+        // fall through to absolute path
+      }
+    }
+
+    // outside workspace or no workspacePath: use absolute path directory
+    const dir = path.dirname(filePath)
+    return `${dir}${path.sep}**`
+  }
+
+  if (toolName === 'use_skill' || toolName === 'install_skill_from_github') {
+    return extractInputKey(toolName, input)
+  }
+  // MCP and other unknown tools: whitelist by tool name only, always suggest "*"
+  return '*'
+}
+
+function normalizeInputKey(
+  toolName: string,
+  inputKey: string,
+  workspacePath?: string,
+): string {
+  if (!workspacePath)
+    return inputKey
+  if (!FILE_TOOLS.has(toolName))
+    return inputKey
+
+  try {
+    const relative = path.relative(workspacePath, inputKey)
+    if (!relative.startsWith('..') && !path.isAbsolute(relative)) {
+      return relative === '.' ? '.' : `.${path.sep}${relative}`
+    }
+  }
+  catch {
+    // path.relative may throw on different drives (Windows)
+  }
+
+  return inputKey
+}
+
+function globToRegex(pattern: string): RegExp {
+  let regexStr = ''
+  let i = 0
+  while (i < pattern.length) {
+    if (pattern[i] === '*' && pattern[i + 1] === '*') {
+      regexStr += '.*'
+      i += 2
+    }
+    else if (pattern[i] === '*') {
+      regexStr += '[^/]*'
+      i += 1
+    }
+    else {
+      regexStr += escapeRegex(pattern[i]!)
+      i += 1
+    }
+  }
+  return new RegExp(`^${regexStr}$`, 's')
+}
+
+function escapeRegex(char: string): string {
+  const specials = '.+?^${}()|[]\\'
+  return specials.includes(char) ? `\\${char}` : char
+}
+
+function matchPattern(pattern: string, inputKey: string): boolean {
+  return globToRegex(pattern).test(inputKey)
+}
+
+function isWhitelisted(
+  entries: ToolApprovalWhitelistEntry[],
+  toolName: string,
+  toolScope: ToolScope,
+  inputKey: string,
+  currentWorkspace?: string,
+): ToolApprovalWhitelistEntry | undefined {
+  const normalizedKey = normalizeInputKey(toolName, inputKey, currentWorkspace)
+
+  return entries.find((entry) => {
+    if (entry.toolName !== toolName || entry.toolScope !== toolScope)
+      return false
+
+    if (entry.workspacePath !== undefined) {
+      if (entry.workspacePath !== currentWorkspace)
+        return false
+    }
+
+    return matchPattern(entry.pattern, normalizedKey)
+  })
 }

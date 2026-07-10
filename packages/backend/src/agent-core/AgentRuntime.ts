@@ -4,23 +4,20 @@ import type { ToolAuthorization } from './tools/types'
 import { randomUUID } from 'node:crypto'
 import { AgentError } from './AgentError'
 import { runAgentLoop } from './loop/agentLoop'
-import { createApprovalController } from './policy/approvalController'
 import { createToolAuthorization } from './policy/toolAuthorization'
 import { SessionRuntime } from './session/SessionRuntime'
 import { TaskStore } from './taskStore'
 
 export class AgentRuntime {
   private config: AgentRuntimeConfig
-  private approvalController: ReturnType<typeof createApprovalController>
   private beforeToolExecuteHook: ToolAuthorization
   private sessionRuntime: SessionRuntime
   private readonly taskStore = new TaskStore()
 
   constructor(config: AgentRuntimeConfig) {
     this.config = config
-    this.approvalController = createApprovalController(config.eventEmitter, this.taskStore)
     this.beforeToolExecuteHook = createToolAuthorization(
-      this.approvalController.waitForApproval,
+      this.taskStore.waitForApproval.bind(this.taskStore),
       config.getToolApprovalWhitelistEntries,
     )
     this.sessionRuntime = new SessionRuntime(config, this.taskStore, async (input, runtime) => {
@@ -115,15 +112,18 @@ export class AgentRuntime {
   }
 
   approvePendingAction(options: ApprovePendingActionOptions): void {
-    this.approvalController.approvePendingAction(options)
+    const task = this.taskStore.approve(options.taskId, options.actionId)
+    void this.config.eventEmitter.emitTaskUpdated(task.snapshot)
   }
 
   rejectPendingAction(options: RejectPendingActionOptions): void {
-    this.approvalController.rejectPendingAction(options)
+    const task = this.taskStore.reject(options.taskId, options.actionId, options.reason)
+    void this.config.eventEmitter.emitTaskUpdated(task.snapshot)
   }
 
   cancelTask(options: CancelTaskOptions): void {
-    this.approvalController.cancelTask(options)
+    const task = this.taskStore.cancel(options.taskId)
+    void this.config.eventEmitter.emitTaskUpdated(task.snapshot)
   }
 
   async injectSteering(conversationId: string, text: string): Promise<IMessage> {
