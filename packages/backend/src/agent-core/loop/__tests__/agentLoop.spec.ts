@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { runAgentLoop } from '../agentLoop'
-import { taskStore } from '../../taskStore'
+import { TaskStore } from '../../taskStore'
 import { ToolRegistry } from '../../tools/toolRegistry'
 import type { AgentTool, IAgentEventEmitter, IAIProvider, IAIStreamChunk, ILogger } from '@ant-chat/shared'
 import type { RuntimeStartInput } from '../../session/types'
@@ -121,24 +121,15 @@ function makeToolCallChunk(toolName: string, args: Record<string, unknown>, id?:
 describe('runAgentLoop 行为', () => {
   let emitter: IAgentEventEmitter
   let logger: ILogger
+  let taskStore: TaskStore
 
   beforeEach(() => {
     emitter = createMockEmitter()
     logger = createMockLogger()
+    taskStore = new TaskStore()
   })
 
   afterEach(() => {
-    // Clean up taskStore
-    for (const t of taskStore.listActive()) {
-      try {
-        taskStore.finish(t.taskId)
-      }
-      catch {}
-      try {
-        taskStore.delete(t.taskId)
-      }
-      catch {}
-    }
     vi.restoreAllMocks()
   })
 
@@ -154,7 +145,8 @@ describe('runAgentLoop 行为', () => {
     taskStore.create(task)
 
     await runAgentLoop({
-      taskId,
+      task: taskStore.get(taskId)!,
+      finishTask: () => taskStore.finish(taskId),
       options,
       config: { eventEmitter: emitter, logger },
       beforeToolExecute: async () => ({ outcome: 'allow' }),
@@ -197,7 +189,8 @@ describe('runAgentLoop 行为', () => {
     taskStore.create(task)
 
     await runAgentLoop({
-      taskId,
+      task: taskStore.get(taskId)!,
+      finishTask: () => taskStore.finish(taskId),
       options,
       config: { eventEmitter: emitter, logger, taskLogger },
       beforeToolExecute: async () => ({ outcome: 'allow' }),
@@ -253,7 +246,8 @@ describe('runAgentLoop 行为', () => {
     taskStore.create(createTask(taskId, options.conversationId))
 
     await runAgentLoop({
-      taskId,
+      task: taskStore.get(taskId)!,
+      finishTask: () => taskStore.finish(taskId),
       options,
       config: { eventEmitter: emitter, logger, taskLogger },
       beforeToolExecute: async () => ({ outcome: 'allow' }),
@@ -313,7 +307,8 @@ describe('runAgentLoop 行为', () => {
     taskStore.create(createTask(taskId, options.conversationId))
 
     await runAgentLoop({
-      taskId,
+      task: taskStore.get(taskId)!,
+      finishTask: () => taskStore.finish(taskId),
       options,
       config: { eventEmitter: emitter, logger, taskLogger },
       onBeforeTurn,
@@ -360,7 +355,8 @@ describe('runAgentLoop 行为', () => {
     })
 
     await runAgentLoop({
-      taskId,
+      task: taskStore.get(taskId)!,
+      finishTask: () => taskStore.finish(taskId),
       options,
       config: { eventEmitter: emitter, logger },
       beforeToolExecute: async () => ({ outcome: 'allow' }),
@@ -401,7 +397,8 @@ describe('runAgentLoop 行为', () => {
     })
 
     await runAgentLoop({
-      taskId,
+      task: taskStore.get(taskId)!,
+      finishTask: () => taskStore.finish(taskId),
       options,
       config: { eventEmitter: emitter, logger },
       beforeToolExecute: async () => ({ outcome: 'allow' }),
@@ -439,7 +436,8 @@ describe('runAgentLoop 行为', () => {
     taskStore.create(task)
 
     await runAgentLoop({
-      taskId,
+      task: taskStore.get(taskId)!,
+      finishTask: () => taskStore.finish(taskId),
       options,
       config: { eventEmitter: emitter, logger },
       beforeToolExecute: async () => ({ outcome: 'allow' }),
@@ -489,7 +487,8 @@ describe('runAgentLoop 行为', () => {
     options.registry = new ToolRegistry([slowTool])
 
     await runAgentLoop({
-      taskId,
+      task: taskStore.get(taskId)!,
+      finishTask: () => taskStore.finish(taskId),
       options,
       config: { eventEmitter: emitter, logger },
       beforeToolExecute: async () => ({ outcome: 'allow' }),
@@ -517,7 +516,8 @@ describe('runAgentLoop 行为', () => {
     const onBeforeTurn = vi.fn().mockResolvedValue({ messages: options.messages })
 
     await runAgentLoop({
-      taskId,
+      task: taskStore.get(taskId)!,
+      finishTask: () => taskStore.finish(taskId),
       options,
       config: { eventEmitter: emitter, logger },
       onBeforeTurn,
@@ -550,7 +550,8 @@ describe('runAgentLoop 行为', () => {
     taskStore.create(task)
 
     await runAgentLoop({
-      taskId,
+      task: taskStore.get(taskId)!,
+      finishTask: () => taskStore.finish(taskId),
       options,
       config: { eventEmitter: emitter, logger },
       onBeforeTurn: async () => ({ messages: options.messages, systemPrompt: 'Refreshed prompt.' }),
@@ -566,7 +567,8 @@ describe('runAgentLoop 行为', () => {
     taskStore.create(task)
 
     await runAgentLoop({
-      taskId,
+      task: taskStore.get(taskId)!,
+      finishTask: () => taskStore.finish(taskId),
       options,
       config: { eventEmitter: emitter, logger },
       beforeToolExecute: async () => ({ outcome: 'allow' }),
@@ -615,7 +617,8 @@ describe('runAgentLoop 行为', () => {
     taskStore.create(task)
 
     await runAgentLoop({
-      taskId,
+      task: taskStore.get(taskId)!,
+      finishTask: () => taskStore.finish(taskId),
       options,
       config: { eventEmitter: emitter, logger },
       beforeToolExecute: async () => ({ outcome: 'allow' }),

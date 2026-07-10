@@ -1,15 +1,18 @@
 import type { AgentExecutionPhase, AgentRuntimeConfig, AgentTaskSnapshot, LoopMessage, McpToolCall, RuntimeToolDefinition, ToolResultContent } from '@ant-chat/shared'
 import type { BeforeTurnResult, RuntimeStartInput } from '../session/types'
+import type { RuntimeTask } from '../taskStore'
 import type { BeforeToolExecuteHook, ToolCallContext } from '../tools/types'
 import { AgentError } from '../AgentError'
 import { createAgentTraceLogger } from '../agentTraceLogger'
-import { taskStore } from '../taskStore'
 import { createInvalidToolArgsResult, executeToolStep } from '../tools/toolExecution'
 import { transformErrorMessage } from '../utils/errorMessages'
 import { normalizeToolArgs } from './loopContext'
 
 export async function runAgentLoop(input: {
-  taskId: string
+  task?: RuntimeTask
+  taskId?: string
+  dequeueSteeringInputs?: () => import('../taskStore').SteeringInput[]
+  finishTask?: () => void
   options: RuntimeStartInput
   config: AgentRuntimeConfig
   onBeforeTurn?: (ctx: {
@@ -18,11 +21,11 @@ export async function runAgentLoop(input: {
   }) => Promise<BeforeTurnResult>
   beforeToolExecute: BeforeToolExecuteHook
 }) {
-  const { taskId, options, config, onBeforeTurn, beforeToolExecute } = input
-  const traceLogger = createAgentTraceLogger(config)
-  const task = taskStore.get(taskId)
+  const { task, options, config, onBeforeTurn, beforeToolExecute } = input
   if (!task)
     throw new AgentError('AGENT_TASK_NOT_FOUND', 'Task not found')
+  const { taskId } = task.snapshot
+  const traceLogger = createAgentTraceLogger(config)
 
   const {
     messages: initialMessages,
@@ -70,7 +73,7 @@ export async function runAgentLoop(input: {
       }
 
       // === Steering: 检查是否有运行中追加的用户输入 ===
-      const steeringInputs = taskStore.dequeueSteeringInputs(taskId)
+      const steeringInputs = input.dequeueSteeringInputs?.() ?? []
       for (const input of steeringInputs) {
         loopMessages.push({ role: 'user', content: [{ type: 'text', text: input.text }] })
       }
@@ -354,7 +357,7 @@ export async function runAgentLoop(input: {
     await config.secretStore?.clearTurnSecrets(taskId)
     task.snapshot.updatedAt = Date.now()
     if (['success', 'failed', 'cancelled'].includes(task.snapshot.status)) {
-      taskStore.finish(task.snapshot.taskId)
+      input.finishTask?.()
     }
     traceLogger.close()
   }
@@ -362,7 +365,7 @@ export async function runAgentLoop(input: {
 
 async function emitExecutionPhase(
   config: AgentRuntimeConfig,
-  task: NonNullable<ReturnType<typeof taskStore.get>>,
+  task: RuntimeTask,
   phase: AgentExecutionPhase,
 ) {
   if (task.snapshot.executionPhase === phase)
@@ -374,7 +377,7 @@ async function emitExecutionPhase(
 
 async function handleLoopFailure(options: {
   config: AgentRuntimeConfig
-  task: NonNullable<ReturnType<typeof taskStore.get>>
+  task: RuntimeTask
   error: Error
   lastToolCallContext: ToolCallContext | null
   durationMs: number

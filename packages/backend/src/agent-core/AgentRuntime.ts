@@ -7,22 +7,23 @@ import { runAgentLoop } from './loop/agentLoop'
 import { createApprovalController } from './policy/approvalController'
 import { createBeforeToolExecuteHook } from './policy/beforeToolExecute'
 import { SessionRuntime } from './session/SessionRuntime'
-import { taskStore } from './taskStore'
+import { TaskStore } from './taskStore'
 
 export class AgentRuntime {
   private config: AgentRuntimeConfig
   private approvalController: ReturnType<typeof createApprovalController>
   private beforeToolExecuteHook: BeforeToolExecuteHook
   private sessionRuntime: SessionRuntime
+  private readonly taskStore = new TaskStore()
 
   constructor(config: AgentRuntimeConfig) {
     this.config = config
-    this.approvalController = createApprovalController(config.eventEmitter)
+    this.approvalController = createApprovalController(config.eventEmitter, this.taskStore)
     this.beforeToolExecuteHook = createBeforeToolExecuteHook(
       this.approvalController.waitForApproval,
       config.getToolApprovalWhitelistEntries,
     )
-    this.sessionRuntime = new SessionRuntime(config, this.listActiveTasks.bind(this), async (input, runtime) => {
+    this.sessionRuntime = new SessionRuntime(config, this.taskStore, async (input, runtime) => {
       return this.startLoopTask(input, runtime)
     })
   }
@@ -66,10 +67,6 @@ export class AgentRuntime {
       throw new Error(`invalid start task options: missing ${missing.join(', ')}`)
     }
 
-    if (this.listActiveTasks(options.conversationId).length > 0) {
-      throw new Error('AGENT_TASK_ALREADY_RUNNING')
-    }
-
     const now = Date.now()
     const taskId = randomUUID()
 
@@ -101,10 +98,13 @@ export class AgentRuntime {
       turnSource: options.turnSource,
     }
 
-    taskStore.create({ snapshot, abortController: new AbortController(), steeringQueue: [], pendingSteeringMessages: [] })
+    const task = { snapshot, abortController: new AbortController(), steeringQueue: [], pendingSteeringMessages: [] }
+    this.taskStore.create(task)
     await config.eventEmitter.emitTaskUpdated(snapshot)
     void runAgentLoop({
-      taskId,
+      task,
+      dequeueSteeringInputs: () => this.taskStore.dequeueSteeringInputs(taskId),
+      finishTask: () => this.taskStore.finish(taskId),
       options,
       config,
       onBeforeTurn: runtime?.onBeforeTurn,
@@ -131,14 +131,14 @@ export class AgentRuntime {
   }
 
   getTask(taskId: string) {
-    const task = taskStore.get(taskId)
+    const task = this.taskStore.get(taskId)
     if (!task)
       throw new AgentError('AGENT_TASK_NOT_FOUND', 'Task not found')
     return task.snapshot
   }
 
   listActiveTasks(conversationId?: string) {
-    return taskStore.listActive(conversationId)
+    return this.taskStore.listActive(conversationId)
   }
 
   listConversations() {

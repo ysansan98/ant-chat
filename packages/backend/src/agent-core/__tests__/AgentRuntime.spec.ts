@@ -1,7 +1,6 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { AgentRuntime } from '../AgentRuntime'
 import { runAgentLoop } from '../loop/agentLoop'
-import { taskStore } from '../taskStore'
 import { ToolRegistry } from '../tools/toolRegistry'
 import type { AgentRuntimeConfig, AgentRuntimeStartTaskOptions, IAgentEventEmitter, ILogger, ISessionStore } from '@ant-chat/shared'
 import type { RuntimeStartInput } from '../session/types'
@@ -229,26 +228,23 @@ function createPersistedUserMessage(text: string, id = 'user-msg-1') {
   }
 }
 
-// Clean up taskStore between tests
-function cleanupTasks(ids: string[]) {
-  for (const id of ids) {
-    try {
-      taskStore.finish(id)
-    }
-    catch {}
-    try {
-      taskStore.delete(id)
-    }
-    catch {}
-  }
-}
-
 describe('agentRuntime 行为', () => {
-  afterEach(() => {
-    taskStore.clear()
-  })
-
   describe('startTask 行为', () => {
+    it('不同 runtime 实例的 task 状态互不影响', async () => {
+      const firstRuntime = new AgentRuntime(createConfig())
+      const secondRuntime = new AgentRuntime(createConfig())
+
+      const first = await firstRuntime.startTask(createValidStartInput())
+      const second = await secondRuntime.startTask(createValidStartInput())
+
+      expect(firstRuntime.listActiveTasks()).toEqual([
+        expect.objectContaining({ taskId: first.taskId }),
+      ])
+      expect(secondRuntime.listActiveTasks()).toEqual([
+        expect.objectContaining({ taskId: second.taskId }),
+      ])
+    })
+
     it('返回 taskId 并在 store 中创建任务', async () => {
       const config = createConfig()
       const runtime = new AgentRuntime(config)
@@ -260,13 +256,10 @@ describe('agentRuntime 行为', () => {
       expect(typeof result.taskId).toBe('string')
       expect(result.taskId.length).toBeGreaterThan(0)
 
-      const task = taskStore.get(result.taskId)
-      expect(task).toBeDefined()
-      expect(task?.snapshot.status).toBe('running')
-      expect(task?.snapshot.conversationId).toBe('conv-1')
-      expect(task?.snapshot.prompt).toBe('test prompt')
-
-      cleanupTasks([result.taskId])
+      const task = runtime.getTask(result.taskId)
+      expect(task.status).toBe('running')
+      expect(task.conversationId).toBe('conv-1')
+      expect(task.prompt).toBe('test prompt')
     })
 
     it('校验缺失的 conversationId', async () => {
@@ -311,19 +304,15 @@ describe('agentRuntime 行为', () => {
           conversationId: 'conv-1',
         }),
       )
-
-      cleanupTasks([result.taskId])
     })
 
     it('阻止同一会话重复启动任务', async () => {
       const runtime = new AgentRuntime(createConfig())
-      const result1 = await runtime.startTask(createValidStartInput())
+      const _result1 = await runtime.startTask(createValidStartInput())
 
       await expect(
         runtime.startTask(createValidStartInput()),
       ).rejects.toThrow('AGENT_TASK_ALREADY_RUNNING')
-
-      cleanupTasks([result1.taskId])
     })
 
     it('通过高层 task 参数读取 session 状态并启动 loop', async () => {
@@ -347,15 +336,13 @@ describe('agentRuntime 行为', () => {
         conversationId: 'conv-session',
         userMessageId: 'user-msg-1',
       }))
-
-      cleanupTasks([result.taskId])
     })
 
     it('失败结束时保留已经写入的 assistant 文本内容', async () => {
       const store = createSessionStore()
       const runtime = new AgentRuntime(createSessionConfig({ sessionStore: store }))
 
-      const result = await runtime.startTask({
+      const _result = await runtime.startTask({
         prompt: 'inspect project',
         conversationId: 'conv-session',
         userMessageId: 'user-msg-1',
@@ -392,8 +379,6 @@ describe('agentRuntime 行为', () => {
           { type: 'error', error: '模型请求失败' },
         ],
       }))
-
-      cleanupTasks([result.taskId])
     })
 
     it('高层 task 参数缺少 model 时拒绝启动', async () => {
@@ -456,7 +441,7 @@ describe('agentRuntime 行为', () => {
       })
       const runtime = new AgentRuntime(config)
 
-      const result = await runtime.startTask(createValidSessionStartInput())
+      const _result = await runtime.startTask(createValidSessionStartInput())
 
       expect(runAgentLoop).toHaveBeenCalledWith(expect.objectContaining({
         options: expect.objectContaining({
@@ -509,11 +494,12 @@ describe('agentRuntime 行为', () => {
         }),
       }))
 
-      cleanupTasks([result.taskId])
+      const firstLoopCall = vi.mocked(runAgentLoop).mock.calls[vi.mocked(runAgentLoop).mock.calls.length - 1]
+      firstLoopCall?.[0].finishTask?.()
 
       userMarkdown = '§Prefer verbose English.'
       memoryMarkdown = '§Use npm test.'
-      const secondResult = await runtime.startTask(createValidSessionStartInput({
+      const _secondResult = await runtime.startTask(createValidSessionStartInput({
         prompt: 'inspect project again',
       }))
 
@@ -523,7 +509,6 @@ describe('agentRuntime 行为', () => {
       expect(secondCall?.[0].options.systemPrompt).toContain('Use pnpm check.')
       expect(secondCall?.[0].options.systemPrompt).not.toContain('Prefer verbose English.')
       expect(secondCall?.[0].options.systemPrompt).not.toContain('Use npm test.')
-      cleanupTasks([secondResult.taskId])
     })
 
     it('启动 loop 前压缩持久化历史并刷新 memory', async () => {
@@ -577,11 +562,12 @@ describe('agentRuntime 行为', () => {
       })
       const runtime = new AgentRuntime(config)
 
-      const firstResult = await runtime.startTask(createValidSessionStartInput({
+      const _firstResult = await runtime.startTask(createValidSessionStartInput({
         prompt: 'inspect project first',
         model: { id: 'model-1', model: 'gpt-4', name: 'GPT-4', providerId: 'provider-1', contextLength: 20_000 },
       }))
-      cleanupTasks([firstResult.taskId])
+      const firstLoopCall = vi.mocked(runAgentLoop).mock.calls[vi.mocked(runAgentLoop).mock.calls.length - 1]
+      firstLoopCall?.[0].finishTask?.()
 
       memoryMarkdown = '§Updated memory after compaction.'
       historyMessages = [
@@ -592,7 +578,7 @@ describe('agentRuntime 行为', () => {
         createPersistedUserMessage('inspect project again'),
       ]
 
-      const secondResult = await runtime.startTask(createValidSessionStartInput({
+      const _secondResult = await runtime.startTask(createValidSessionStartInput({
         prompt: 'inspect project again',
         model: { id: 'model-1', model: 'gpt-4', name: 'GPT-4', providerId: 'provider-1', contextLength: 20_000 },
       }))
@@ -647,7 +633,6 @@ describe('agentRuntime 行为', () => {
       })
       expect(readMemory).toHaveBeenCalledTimes(2)
       expect(readUserMemory).toHaveBeenCalledTimes(2)
-      cleanupTasks([secondResult.taskId])
     })
 
     it('基于最近 assistant usage 和待发送用户消息触发自动压缩', async () => {
@@ -698,7 +683,7 @@ describe('agentRuntime 行为', () => {
       })
 
       const runtime = new AgentRuntime(config)
-      const result = await runtime.startTask(createValidSessionStartInput({
+      const _result = await runtime.startTask(createValidSessionStartInput({
         prompt: 'x'.repeat(400),
         model: { id: 'model-1', model: 'gpt-4', name: 'GPT-4', providerId: 'provider-1', contextLength: 10_000 },
       }))
@@ -708,7 +693,6 @@ describe('agentRuntime 行为', () => {
         status: 'success',
         compactedThroughMessageId: 'a1',
       }))
-      cleanupTasks([result.taskId])
     })
 
     it('摘要失败且没有 usage 时将自动压缩 event 更新为 error', async () => {
@@ -753,7 +737,7 @@ describe('agentRuntime 行为', () => {
       })
 
       const runtime = new AgentRuntime(config)
-      const result = await runtime.startTask(createValidSessionStartInput({
+      const _result = await runtime.startTask(createValidSessionStartInput({
         model: { id: 'model-1', model: 'gpt-4', name: 'GPT-4', providerId: 'provider-1', contextLength: 20_000 },
       }))
 
@@ -776,7 +760,6 @@ describe('agentRuntime 行为', () => {
         },
         usage: undefined,
       })
-      cleanupTasks([result.taskId])
     })
 
     it('忽略最近压缩检查点之前的 assistant usage', async () => {
@@ -837,27 +820,25 @@ describe('agentRuntime 行为', () => {
       })
 
       const runtime = new AgentRuntime(config)
-      const result = await runtime.startTask(createValidSessionStartInput({
+      const _result = await runtime.startTask(createValidSessionStartInput({
         model: { id: 'model-1', model: 'gpt-4', name: 'GPT-4', providerId: 'provider-1', contextLength: 10_000 },
       }))
 
       expect(store.createEventMessage).not.toHaveBeenCalled()
       expect(store.updateEventMessage).not.toHaveBeenCalled()
-      cleanupTasks([result.taskId])
     })
 
     it('会话已有活跃任务时不创建用户消息', async () => {
       const store = createSessionStore()
       const config = createSessionConfig({ sessionStore: store })
       const runtime = new AgentRuntime(config)
-      const running = await runtime.startTask(createValidStartInput({ conversationId: 'conv-session' }))
+      const _running = await runtime.startTask(createValidStartInput({ conversationId: 'conv-session' }))
 
       await expect(runtime.startTask(createValidSessionStartInput({
         prompt: 'run it',
       }))).rejects.toThrow('AGENT_TASK_ALREADY_RUNNING')
 
       expect(store.createUserMessage).not.toHaveBeenCalled()
-      cleanupTasks([running.taskId])
     })
   })
 
@@ -866,7 +847,7 @@ describe('agentRuntime 行为', () => {
       const store = createSessionStore()
       const eventEmitter = createMockEmitter()
       const runtime = new AgentRuntime(createSessionConfig({ eventEmitter, sessionStore: store }))
-      const running = await runtime.startTask(createValidSessionStartInput())
+      const _running = await runtime.startTask(createValidSessionStartInput())
 
       // Record calls from startTask so we can ignore them
       const callsBefore = (store.createUserMessage as ReturnType<typeof vi.fn>).mock.calls.length
@@ -883,17 +864,6 @@ describe('agentRuntime 行为', () => {
         turnId: 'user-msg-1',
       })
       expect(message.id).toMatch(/^msg-/)
-
-      // Should store in pending list on the task
-      const task = taskStore.get(running.taskId)
-      expect(task?.pendingSteeringMessages).toEqual([
-        { id: message.id, text: 'fix types first', turnId: 'user-msg-1' },
-      ])
-
-      // Should still enqueue for the agent loop
-      expect(taskStore.dequeueSteeringInputs(running.taskId)).toEqual([
-        { text: 'fix types first', turnId: 'user-msg-1' },
-      ])
 
       const loopCalls = vi.mocked(runAgentLoop).mock.calls
       const loopCall = loopCalls[loopCalls.length - 1]
@@ -913,7 +883,6 @@ describe('agentRuntime 行为', () => {
       expect(eventEmitter.emitMessageUpdated).toHaveBeenLastCalledWith(
         expect.objectContaining({ id: message.id }),
       )
-      cleanupTasks([running.taskId])
     })
   })
 
@@ -924,7 +893,6 @@ describe('agentRuntime 行为', () => {
       const snapshot = runtime.getTask(result.taskId)
       expect(snapshot.taskId).toBe(result.taskId)
       expect(snapshot.status).toBe('running')
-      cleanupTasks([result.taskId])
     })
 
     it('taskId 不存在时抛错', () => {
@@ -944,24 +912,21 @@ describe('agentRuntime 行为', () => {
       expect(tasks).toHaveLength(1)
       expect(tasks[0].taskId).toBe(result.taskId)
 
-      cleanupTasks([result.taskId])
-      expect(runtime.listActiveTasks('conv-list')).toHaveLength(0)
+      expect(runtime.listActiveTasks('other-conversation')).toHaveLength(0)
     })
 
     it('不传 conversationId 时列出全部活跃任务', async () => {
       const config = createConfig()
       const runtime = new AgentRuntime(config)
-      const r1 = await runtime.startTask(
+      const _r1 = await runtime.startTask(
         createValidStartInput({ conversationId: 'conv-a' }),
       )
-      const r2 = await runtime.startTask(
+      const _r2 = await runtime.startTask(
         createValidStartInput({ conversationId: 'conv-b' }),
       )
 
       const all = runtime.listActiveTasks()
       expect(all).toHaveLength(2)
-
-      cleanupTasks([r1.taskId, r2.taskId])
     })
   })
 
@@ -995,9 +960,7 @@ describe('agentRuntime 行为', () => {
       const runtime = new AgentRuntime(createConfig())
       const result = await runtime.startTask(createValidStartInput())
       runtime.cancelTask({ taskId: result.taskId })
-      const task = taskStore.get(result.taskId)
-      expect(task?.snapshot.status).toBe('cancelled')
-      cleanupTasks([result.taskId])
+      expect(runtime.getTask(result.taskId).status).toBe('cancelled')
     })
   })
 })

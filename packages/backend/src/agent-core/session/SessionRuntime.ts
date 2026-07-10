@@ -14,6 +14,7 @@ import type {
   ModelInfo,
 } from '@ant-chat/shared'
 import type { ConversationContextEntry } from '../loop/loopContext'
+import type { TaskStore } from '../taskStore'
 import type { BeforeTurnResult, RuntimeStartInput, RuntimeStartResult } from './types'
 import { randomUUID } from 'node:crypto'
 import { createProvider } from '../ai-providers/factory'
@@ -30,7 +31,6 @@ import {
   createLoopSystemPrompt,
 } from '../loop/loopContext'
 import { BrowserSessionManager } from '../native-tools/tools/browserSessionManager'
-import { taskStore } from '../taskStore'
 import { ToolRegistry } from '../tools/toolRegistry'
 import { contentBlocksToLoopMessageContent } from '../utils/attachmentUtils'
 import { buildPromptWithTurnContext } from './turnContext'
@@ -43,7 +43,7 @@ export class SessionRuntime {
 
   constructor(
     private readonly config: AgentRuntimeConfig,
-    private readonly listActiveTasks: (conversationId?: string) => unknown[],
+    private readonly taskStore: TaskStore,
     private readonly startLoopTask: (
       input: RuntimeStartInput,
       runtime?: {
@@ -185,16 +185,12 @@ export class SessionRuntime {
       compaction: compactionSettings,
     }
 
-    const eventEmitter = createStoreBackedEventEmitter(store, this.config.eventEmitter, turnId)
+    const eventEmitter = createStoreBackedEventEmitter(store, this.config.eventEmitter, turnId, this.taskStore)
 
     const task = await this.startLoopTask(
       taskSnapshot,
       { eventEmitter },
     )
-
-    // Now that task exists, bind taskId to the event emitter so it can
-    // persist pending steering messages after tool results
-    eventEmitter.setTaskId(task.taskId)
 
     return {
       ...task,
@@ -205,7 +201,7 @@ export class SessionRuntime {
   }
 
   async injectSteering(conversationId: string, text: string): Promise<IMessage> {
-    const activeTasks = this.listActiveTasks(conversationId) as Array<{ taskId: string, userMessageId: string }>
+    const activeTasks = this.taskStore.listActive(conversationId)
     if (activeTasks.length === 0)
       throw new Error('AGENT_TASK_NOT_RUNNING')
 
@@ -222,14 +218,8 @@ export class SessionRuntime {
       turnId,
     }
 
-    // Store in pending list; will be persisted to DB after tool results are persisted
-    const runtimeTask = taskStore.get(task.taskId)
-    if (runtimeTask) {
-      runtimeTask.pendingSteeringMessages.push({ id: messageId, text, turnId })
-    }
-
-    // Enqueue for the agent loop
-    taskStore.enqueueSteeringInput(task.taskId, { text, turnId })
+    this.taskStore.enqueueSteeringMessage(task.taskId, { id: messageId, text, turnId })
+    this.taskStore.enqueueSteeringInput(task.taskId, { text, turnId })
 
     return message
   }
@@ -415,9 +405,8 @@ interface TurnMeta {
   persistedToolCallIds: Set<string>
 }
 
-function createStoreBackedEventEmitter(store: ISessionStore, delegate: IAgentEventEmitter, turnId: string): IAgentEventEmitter & { setTaskId: (id: string) => void } {
+function createStoreBackedEventEmitter(store: ISessionStore, delegate: IAgentEventEmitter, turnId: string, taskStore: TaskStore): IAgentEventEmitter {
   const turns = new Map<string, TurnMeta>()
-  let taskId: string | undefined
 
   function newTurnMeta(msgId: string): TurnMeta {
     return {
@@ -442,17 +431,14 @@ function createStoreBackedEventEmitter(store: ISessionStore, delegate: IAgentEve
   }
 
   async function persistPendingSteeringMessages() {
-    if (!taskId)
+    const activeTask = taskStore.listActive().find(task => task.userMessageId === turnId)
+    if (!activeTask)
       return
-    const task = taskStore.get(taskId)
-    if (!task || task.pendingSteeringMessages.length === 0)
-      return
-    const pending = [...task.pendingSteeringMessages]
-    task.pendingSteeringMessages = []
+    const pending = taskStore.takePendingSteeringMessages(activeTask.taskId)
     for (const input of pending) {
       const msg = await store.createUserMessage({
         id: input.id,
-        convId: task.snapshot.conversationId,
+        convId: activeTask.conversationId,
         role: 'user',
         status: 'success',
         content: [{ type: 'text', text: input.text }],
@@ -462,10 +448,7 @@ function createStoreBackedEventEmitter(store: ISessionStore, delegate: IAgentEve
     }
   }
 
-  const emitter: IAgentEventEmitter & { setTaskId: (id: string) => void } = {
-    setTaskId(id: string) {
-      taskId = id
-    },
+  const emitter: IAgentEventEmitter = {
     async emitTaskUpdated(task) {
       await delegate.emitTaskUpdated(task)
     },
