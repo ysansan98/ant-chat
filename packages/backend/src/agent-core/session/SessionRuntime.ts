@@ -169,6 +169,7 @@ export class SessionRuntime {
       taskLogger,
       temperature: options.modelSettings?.temperature,
       maxTokens: options.modelSettings?.maxTokens,
+      reasoningEffort: options.modelSettings?.reasoningEffort,
       compaction: compactionSettings,
     }
 

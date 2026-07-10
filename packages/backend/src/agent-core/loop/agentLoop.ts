@@ -30,6 +30,7 @@ export async function runAgentLoop(input: {
     providerId,
     temperature,
     maxTokens,
+    reasoningEffort,
   } = options
 
   const toolDefs = registry.listTools()
@@ -66,6 +67,7 @@ export async function runAgentLoop(input: {
         temperature,
         maxTokens,
         systemPrompt,
+        reasoningEffort,
       }
 
       await emitExecutionPhase(config, task, 'waiting_model')

@@ -2,7 +2,7 @@ import type { AnthropicProvider } from '@ai-sdk/anthropic'
 import type { DeepSeekProvider } from '@ai-sdk/deepseek'
 import type { GoogleProvider } from '@ai-sdk/google'
 import type { OpenAIProvider } from '@ai-sdk/openai'
-import type { IAIStreamChunk, ILogger, ProviderConfigSchema } from '@ant-chat/shared'
+import type { IAIStreamChunk, ILogger, ProviderConfigSchema, ReasoningEffortLevel } from '@ant-chat/shared'
 import type { LanguageModel, LanguageModelUsage, ModelMessage } from 'ai'
 import type { ProviderFormat } from './types'
 import process from 'node:process'
@@ -189,6 +189,7 @@ export class MultiProvider {
       temperature?: number
       maxTokens?: number
       systemPrompt: string
+      reasoningEffort?: ReasoningEffortLevel
     }
     tools?: Array<{
       name: string
@@ -199,7 +200,7 @@ export class MultiProvider {
     abortSignal?: AbortSignal
   }): AsyncGenerator<IAIStreamChunk> {
     const { messages, modelSettings, abortSignal, tools } = options
-    const { model, temperature, maxTokens, systemPrompt } = modelSettings
+    const { model, temperature, maxTokens, systemPrompt, reasoningEffort } = modelSettings
 
     // 构建 AI SDK 格式的消息（系统提示已通过 instructions 传入，不在此构造）
     const aiSdkMessages = this.transformToAISdkMessages(messages)
@@ -221,6 +222,8 @@ export class MultiProvider {
       messages: aiSdkMessages,
       temperature,
       maxOutputTokens: maxTokens,
+      // v7：统一推理强度参数；未设置时不传，走厂商默认
+      ...(reasoningEffort ? { reasoning: reasoningEffort } : {}),
       tools: aiTools,
       abortSignal,
     })

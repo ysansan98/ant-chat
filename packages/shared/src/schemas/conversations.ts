@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { ReasoningEffortSchema } from './providerConfigModels'
 
 export const ModelConfigSchema = z.object({
   id: z.string(),
@@ -35,6 +36,8 @@ export const ConversationsSettingsSchema = z.object({
   systemPrompt: z.string(),
   temperature: z.number(),
   maxTokens: z.number(),
+  /** 推理强度档位（ai-sdk v7 统一参数）。未设置时走厂商默认。 */
+  reasoningEffort: ReasoningEffortSchema.optional(),
   compaction: CompactionSettingsSchema.optional(),
 })
 

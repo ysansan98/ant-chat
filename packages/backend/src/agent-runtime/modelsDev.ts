@@ -1,4 +1,5 @@
 import type { ModelsDevModel, ModelsDevProvider, ProviderFormat } from '@ant-chat/shared'
+import { mapModelsDevEffortToV7 } from '@ant-chat/shared'
 
 export type { ModelsDevModel, ModelsDevProvider }
 
@@ -9,6 +10,8 @@ interface ModelsDevModelEntry {
   name?: string
   tool_call?: boolean
   reasoning?: boolean
+  /** models.dev 的推理可配置项，如 { type: 'effort', values: [...] } */
+  reasoning_options?: Array<{ type?: string, values?: string[] }>
   modalities?: { input?: string[], output?: string[] }
   limit?: { context?: number, output?: number }
   cost?: { input: number, output: number, cache_read?: number, cache_write?: number }
@@ -62,6 +65,10 @@ function createModel(model: Record<string, any>, providerId: string): ModelsDevM
   const modalities = model.modalities || {}
   const modalitiesInput = Array.isArray(modalities.input) ? modalities.input : []
   const modalitiesOutput = Array.isArray(modalities.output) ? modalities.output : []
+  // 从 reasoning_options 中提取 effort 档位并映射为 ai-sdk v7 档位
+  const reasoningOptions = Array.isArray(model.reasoning_options) ? model.reasoning_options : []
+  const effortOption = reasoningOptions.find(option => option && option.type === 'effort')
+  const reasoningLevels = mapModelsDevEffortToV7(effortOption?.values)
   const rawCost = model.cost || {}
   const cost = typeof rawCost.input === 'number' && typeof rawCost.output === 'number'
     ? {
@@ -81,6 +88,7 @@ function createModel(model: Record<string, any>, providerId: string): ModelsDevM
     maxTokens,
     toolCall,
     reasoning,
+    reasoningLevels,
     supportsTemperature,
     structuredOutput,
     modalities: {
