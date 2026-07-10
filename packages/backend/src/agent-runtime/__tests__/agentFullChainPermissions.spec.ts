@@ -291,7 +291,6 @@ function createHarness(): AgentRuntimeHarness {
     host: {
       eventEmitter,
       sessionStore: createAppDataSessionStore(appDataContext),
-      modelCatalog: appDataContext.modelCatalog,
       memoryReader: appDataContext.memoryManager,
       loadFileData: appDataContext.loadAttachmentData,
       getToolApprovalWhitelistEntries: () => appDataContext.toolApprovalWhitelistRepository.getAll(),
@@ -302,10 +301,9 @@ function createHarness(): AgentRuntimeHarness {
         warn() {},
         error() {},
       },
-      aiProviderFactory: async () => provider,
     },
   })
-  const turnService = createAgentTurnService({ runtime, appDataContext })
+  const turnService = createAgentTurnService({ runtime, appDataContext, aiProviderFactory: async () => provider })
 
   return {
     workspacePath,

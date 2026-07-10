@@ -66,7 +66,6 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
       host: {
         eventEmitter: this.eventEmitter,
         sessionStore: createAppDataSessionStore(core.data),
-        modelCatalog: core.data.modelCatalog,
         memoryReader: core.data.memoryManager,
         skillReader: dependencies.skills,
         mcpClientHub: dependencies.mcpClientHub,
@@ -79,7 +78,6 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
       },
       overrides: {
         logger: core.logger,
-        aiProviderFactory: dependencies.aiProviderFactory,
         contextTraceCapture: contextTraceWriter
           ? (payload) => { contextTraceWriter.capture(payload as never) }
           : undefined,

@@ -6,7 +6,7 @@ import { createAgentTurnService } from '../agentTurnService'
 const startTask = vi.fn()
 
 const runtime = {
-  startTask,
+  startSessionTask: startTask,
   approvePendingAction: vi.fn(),
   rejectPendingAction: vi.fn(),
   cancelTask: vi.fn(),

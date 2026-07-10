@@ -183,7 +183,7 @@ describe('agentLoop 与 aimock 集成', () => {
     const runtime = new AgentRuntime({ eventEmitter: emitter, logger })
     const aiProvider = createAimockAIProvider(aimock().url)
 
-    const { taskId } = await runtime.startTask({
+    const { taskId } = await runtime.startPreparedTask({
       conversationId: 'conv-e2e-1',
       userMessageId: 'msg-e2e-1',
       workspacePath,

@@ -9,6 +9,7 @@ import type {
 import type { AgentRuntime } from '../agent-core'
 import type { AppDataContext } from '../data'
 import type { ConversationTitleGenerator } from './conversationTitleGenerator'
+import { createProvider } from '../agent-core/ai-providers/factory'
 
 const DEFAULT_TITLE = 'Untitled'
 const MAX_TITLE_LENGTH = 30
@@ -54,7 +55,7 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
 
       const aiProvider = aiProviderFactory
         ? await aiProviderFactory({ model, provider })
-        : undefined
+        : await createProvider(provider)
 
       const conversationState = options.conversationId
         ? {
@@ -97,7 +98,7 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
       emitMessageUpdated?.(userMessage)
 
       try {
-        const result = await runtime.startTask({
+        const result = await runtime.startSessionTask({
           prompt,
           conversationId: conversation.id,
           userMessageId: userMessage.id,

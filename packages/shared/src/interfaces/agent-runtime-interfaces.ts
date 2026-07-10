@@ -262,7 +262,6 @@ export interface AgentRuntimeHost {
   /** 创建按任务的结构化日志写入器（每次新任务调用，返回独立的 ITaskLogger 实例） */
   createTaskLogger?: (conversationId: string, userMessageId: string) => ITaskLogger
   sessionStore: ISessionStore
-  modelCatalog: IModelCatalog
   memoryReader?: AgentMemoryReader
   skillReader?: SkillReader
   mcpClientHub?: RuntimeMcpClientHub
@@ -276,7 +275,6 @@ export interface AgentRuntimeHost {
 
 export interface AgentRuntimeOverrides {
   logger?: ILogger
-  aiProviderFactory?: AIProviderFactory
   compactionStrategy?: CompactionStrategy
   /** 上下文诊断捕获回调（开发环境使用） */
   contextTraceCapture?: (payload: Record<string, unknown>) => void
@@ -300,7 +298,6 @@ export interface AgentRuntimeConfig extends AgentRuntimeOverrides {
   /** 当前任务的日志写入器（由 runtime 在启动 task 时设置，loop 层直接消费） */
   taskLogger?: ITaskLogger
   sessionStore?: ISessionStore
-  modelCatalog?: IModelCatalog
   memoryReader?: AgentMemoryReader
   getToolApprovalWhitelistEntries?: () => ToolApprovalWhitelistEntry[]
   skillReader?: SkillReader

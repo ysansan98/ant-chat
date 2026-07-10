@@ -1,7 +1,6 @@
 import type {
   AgentRuntimeConfig,
   AgentRuntimeStartTaskOptions,
-  AgentRuntimeStartTaskResult,
   CompactionSettingsSchema,
   IAgentEventEmitter,
   IAIProvider,
@@ -13,9 +12,8 @@ import type {
 } from '@ant-chat/shared'
 import type { ConversationContextEntry } from '../loop/loopContext'
 import type { TaskStore } from '../taskStore'
-import type { BeforeTurnResult, RuntimeStartInput, RuntimeStartResult } from './types'
+import type { RuntimeStartInput } from './types'
 import { randomUUID } from 'node:crypto'
-import { createProvider } from '../ai-providers/factory'
 import {
   DEFAULT_COMPACTION_SETTINGS,
 } from '../compaction/compaction'
@@ -39,18 +37,11 @@ export class SessionRuntime {
   constructor(
     private readonly config: AgentRuntimeConfig,
     private readonly taskStore: TaskStore,
-    private readonly startLoopTask: (
-      input: RuntimeStartInput,
-      runtime?: {
-        eventEmitter?: IAgentEventEmitter
-        onBeforeTurn?: (ctx: { messages: LoopMessage[], step: number }) => Promise<BeforeTurnResult>
-      },
-    ) => Promise<RuntimeStartResult>,
   ) {
     this.browserSessions = config.browser ? new BrowserSessionManager(config.browser) : null
   }
 
-  async startTask(options: AgentRuntimeStartTaskOptions): Promise<AgentRuntimeStartTaskResult> {
+  async prepareTask(options: AgentRuntimeStartTaskOptions): Promise<{ input: RuntimeStartInput, eventEmitter: IAgentEventEmitter, conversation: Awaited<ReturnType<ISessionStore['getConversation']>> }> {
     const store = requireSessionStore(this.config)
     const prompt = options.prompt.trim()
     if (!prompt) {
@@ -77,9 +68,10 @@ export class SessionRuntime {
 
     const conversation = await getExistingConversation(store, options.conversationId)
 
-    const aiProvider = options.aiProvider ?? (this.config.aiProviderFactory
-      ? await this.config.aiProviderFactory({ model, provider })
-      : await createProvider(provider))
+    const aiProvider = options.aiProvider
+    if (!aiProvider) {
+      throw new Error('AgentRuntime requires a prepared AI provider')
+    }
     const currentConversation = await store.getConversation(conversation.id)
     const allMessages = await store.getMessages(conversation.id)
     const userMessage = allMessages.find(message => message.id === options.userMessageId && message.role === 'user')
@@ -182,15 +174,9 @@ export class SessionRuntime {
 
     const eventEmitter = createPersistedTurnEmitter(store, this.config.eventEmitter, turnId, this.taskStore)
 
-    const task = await this.startLoopTask(
-      taskSnapshot,
-      { eventEmitter },
-    )
-
     return {
-      ...task,
-      conversationId: conversation.id,
-      userMessageId: userMessage.id,
+      input: taskSnapshot,
+      eventEmitter,
       conversation,
     }
   }

@@ -20,33 +20,16 @@ export class AgentRuntime {
       this.taskStore.waitForApproval.bind(this.taskStore),
       config.getToolApprovalWhitelistEntries,
     )
-    this.sessionRuntime = new SessionRuntime(config, this.taskStore, async (input, runtime) => {
-      return this.startLoopTask(input, runtime)
-    })
+    this.sessionRuntime = new SessionRuntime(config, this.taskStore)
   }
 
-  async startTask(options: AgentRuntimeStartTaskOptions): Promise<AgentRuntimeStartTaskResult>
-  async startTask(
-    options: RuntimeStartInput,
-    runtime?: {
-      eventEmitter?: AgentRuntimeConfig['eventEmitter']
-      onBeforeTurn?: (ctx: { messages: LoopMessage[], step: number }) => Promise<BeforeTurnResult>
-    },
-  ): Promise<RuntimeStartResult>
-  async startTask(
-    options: RuntimeStartInput | AgentRuntimeStartTaskOptions,
-    runtime?: {
-      eventEmitter?: AgentRuntimeConfig['eventEmitter']
-      onBeforeTurn?: (ctx: { messages: LoopMessage[], step: number }) => Promise<BeforeTurnResult>
-    },
-  ): Promise<RuntimeStartResult | AgentRuntimeStartTaskResult> {
-    if (isSessionStartOptions(options)) {
-      return this.sessionRuntime.startTask(options)
-    }
-    return this.startLoopTask(options, runtime)
+  async startSessionTask(options: AgentRuntimeStartTaskOptions): Promise<AgentRuntimeStartTaskResult> {
+    const prepared = await this.sessionRuntime.prepareTask(options)
+    const task = await this.startPreparedTask(prepared.input, { eventEmitter: prepared.eventEmitter })
+    return { ...task, conversationId: options.conversationId, userMessageId: options.userMessageId, conversation: prepared.conversation! }
   }
 
-  private async startLoopTask(
+  async startPreparedTask(
     options: RuntimeStartInput,
     runtime?: {
       eventEmitter?: AgentRuntimeConfig['eventEmitter']
@@ -167,12 +150,6 @@ export function createAgentRuntime(options: AgentRuntimeOptions): AgentRuntime {
     ...options.host,
     ...options.overrides,
   })
-}
-
-function isSessionStartOptions(
-  options: RuntimeStartInput | AgentRuntimeStartTaskOptions,
-): options is AgentRuntimeStartTaskOptions {
-  return 'model' in options
 }
 
 function requireSessionStore(config: AgentRuntimeConfig) {
