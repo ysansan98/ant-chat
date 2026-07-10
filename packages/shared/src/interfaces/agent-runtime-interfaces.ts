@@ -162,7 +162,6 @@ export interface IModelCatalog {
 // ============================================================
 
 export interface IAgentEventEmitter {
-  setTaskId?: (taskId: string) => void
   emitMessageUpdated?: (message: IMessage) => void | Promise<void>
   emitTaskUpdated: (task: AgentTaskSnapshot) => void | Promise<void>
   emitApprovalRequired: (taskId: string, conversationId: string, pendingAction: AgentPendingAction) => void | Promise<void>
