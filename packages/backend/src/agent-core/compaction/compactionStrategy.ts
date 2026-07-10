@@ -1,4 +1,4 @@
-import type { CompactionStrategy, IAIProvider } from '@ant-chat/shared'
+import type { CompactionStrategy, IAIProvider, ReasoningEffortLevel } from '@ant-chat/shared'
 
 const SUMMARIZATION_SYSTEM_PROMPT = `You compress prior agent conversation history so the task can continue accurately.
 
@@ -33,7 +33,7 @@ Rules:
 
 const MAX_SUMMARY_TOKENS = 3200
 
-export function createCompactionStrategy(): CompactionStrategy {
+export function createCompactionStrategy(reasoningEffort?: ReasoningEffortLevel): CompactionStrategy {
   return {
     async summarize(serialized: string, aiProvider: IAIProvider, model: string, abortSignal?: AbortSignal, instruction?: string) {
       const instructionBlock = instruction
@@ -61,6 +61,7 @@ export function createCompactionStrategy(): CompactionStrategy {
           model,
           systemPrompt: SUMMARIZATION_SYSTEM_PROMPT,
           maxTokens: MAX_SUMMARY_TOKENS,
+          ...(reasoningEffort ? { reasoningEffort } : {}),
         },
         abortSignal,
       })

@@ -47,6 +47,7 @@ export default function Chat() {
       systemPrompt: settings.systemPrompt,
       temperature: settings.temperature,
       maxTokens: settings.maxTokens,
+      reasoningEffort: settings.reasoningEffort,
     },
     currentWorkspacePath,
   })
