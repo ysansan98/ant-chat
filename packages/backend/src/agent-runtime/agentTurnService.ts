@@ -83,10 +83,6 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
       if (conversation.archived) {
         throw new Error('会话已归档，请先取消归档')
       }
-      if (runtime.listActiveTasks(conversation.id).length > 0) {
-        throw new Error('AGENT_TASK_ALREADY_RUNNING')
-      }
-
       const userMessage = await appDataContext.messageRepository.create({
         convId: conversation.id,
         role: 'user',
@@ -94,8 +90,6 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
         content: resolveUserMessageContent(options.content, prompt),
         turnId: undefined,
       })
-
-      emitMessageUpdated?.(userMessage)
 
       try {
         const result = await runtime.startSessionTask({
@@ -117,6 +111,8 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
             reasoningEffort: options.modelConfig.reasoningEffort,
           },
         })
+
+        emitMessageUpdated?.(userMessage)
 
         scheduleTitleInitialization({
           conversationId: result.conversationId,

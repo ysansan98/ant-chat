@@ -1,6 +1,6 @@
 import type { AgentExecutionPhase, AgentRuntimeConfig, AgentTaskSnapshot, LoopMessage, McpToolCall, RuntimeToolDefinition, ToolResultContent } from '@ant-chat/shared'
 import type { RuntimeStartInput } from '../session/types'
-import type { RuntimeTask } from '../taskStore'
+import type { RuntimeTask, TaskExecution } from '../taskStore'
 import type { ToolAuthorization, ToolCallContext } from '../tools/types'
 import { AgentError } from '../AgentError'
 import { createAgentTraceLogger } from '../agentTraceLogger'
@@ -9,14 +9,13 @@ import { transformErrorMessage } from '../utils/errorMessages'
 import { normalizeToolArgs } from './loopContext'
 
 export async function runAgentLoop(input: {
-  task: RuntimeTask
-  dequeueSteeringInputs: () => import('../taskStore').SteeringInput[]
-  finishTask: () => void
+  execution: TaskExecution
   options: RuntimeStartInput
   config: AgentRuntimeConfig
   beforeToolExecute: ToolAuthorization
 }) {
-  const { task, options, config, beforeToolExecute } = input
+  const { execution, options, config, beforeToolExecute } = input
+  const { task } = execution
   const { taskId } = task.snapshot
   const traceLogger = createAgentTraceLogger(config)
 
@@ -57,7 +56,7 @@ export async function runAgentLoop(input: {
         throw new AgentError('AGENT_TOOL_EXEC_FAILED', 'AI provider not ready')
 
       // === Steering: 检查是否有运行中追加的用户输入 ===
-      const steeringInputs = input.dequeueSteeringInputs()
+      const steeringInputs = execution.dequeueSteeringInputs()
       for (const input of steeringInputs) {
         loopMessages.push({ role: 'user', content: [{ type: 'text', text: input.text }] })
       }
@@ -339,12 +338,16 @@ export async function runAgentLoop(input: {
     })
   }
   finally {
-    await config.secretStore?.clearTurnSecrets(taskId)
-    task.snapshot.updatedAt = Date.now()
-    if (['success', 'failed', 'cancelled'].includes(task.snapshot.status)) {
-      input.finishTask()
+    try {
+      await config.secretStore?.clearTurnSecrets(taskId)
     }
-    traceLogger.close()
+    finally {
+      task.snapshot.updatedAt = Date.now()
+      if (['success', 'failed', 'cancelled'].includes(task.snapshot.status)) {
+        execution.finish()
+      }
+      traceLogger.close()
+    }
   }
 }
 

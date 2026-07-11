@@ -1,4 +1,4 @@
-import type { IAgentEventEmitter, ISessionStore, MessageContent } from '@ant-chat/shared'
+import type { IAgentEventEmitter, ISessionStore, MessageContent, ToolCallContent } from '@ant-chat/shared'
 
 const STREAM_UPDATE_INTERVAL_MS = 80
 
@@ -101,7 +101,7 @@ export function createPersistedTurnEmitter(store: ISessionStore, delegate: IAgen
 
       meta.modelText = params.text
 
-      const contentBlocks: Array<Record<string, unknown>> = []
+      const contentBlocks: MessageContent = []
       if (params.text) {
         contentBlocks.push({ type: 'text', text: params.text })
       }
@@ -110,13 +110,13 @@ export function createPersistedTurnEmitter(store: ISessionStore, delegate: IAgen
         if (!meta.persistedToolCallIds.has(tc.toolCallId)) {
           meta.persistedToolCallIds.add(tc.toolCallId)
         }
-        contentBlocks.push(tc)
+        contentBlocks.push(tc satisfies ToolCallContent)
       }
 
       const message = await store.updateAssistantMessage(meta.msgId, {
         role: 'assistant',
         status: 'success',
-        content: contentBlocks as any,
+        content: contentBlocks,
       })
       await delegate.emitMessageUpdated?.(message)
       await delegate.emitTurnToolCalls(params)
@@ -133,30 +133,33 @@ export function createPersistedTurnEmitter(store: ISessionStore, delegate: IAgen
         await delegate.emitMessageUpdated?.(msg)
       }
 
-      // Persist steering messages AFTER tool results to maintain correct message order
+      // steering 必须在工具结果之后持久化，才能保持消息顺序。
       await persistPendingSteeringMessages()
 
       await delegate.emitTurnToolResults?.(params)
     },
     async emitTurnFinished(params) {
       const meta = turns.get(params.conversationId)
-      if (meta) {
-        await flushTurn(meta)
-        const content: MessageContent = params.status === 'error'
-          ? withErrorContent(meta.modelText, params.text)
-          : [{ type: 'text', text: params.text }]
-        const message = await store.updateAssistantMessage(meta.msgId, {
-          role: 'assistant',
-          status: params.status,
-          content,
-          durationMs: params.durationMs,
-        })
-        await delegate.emitMessageUpdated?.(message)
+      try {
+        if (meta) {
+          await flushTurn(meta)
+          const content: MessageContent = params.status === 'error'
+            ? withErrorContent(meta.modelText, params.text)
+            : [{ type: 'text', text: params.text }]
+          const message = await store.updateAssistantMessage(meta.msgId, {
+            role: 'assistant',
+            status: params.status,
+            content,
+            durationMs: params.durationMs,
+          })
+          await delegate.emitMessageUpdated?.(message)
+        }
+      }
+      finally {
         turns.delete(params.conversationId)
       }
 
-      // Also flush here: model may finish without further tool calls,
-      // so emitTurnToolResults would never run.
+      // 模型可能不再发起工具调用就结束，因此此处也要刷新 steering。
       await persistPendingSteeringMessages()
 
       await delegate.emitTurnFinished(params)

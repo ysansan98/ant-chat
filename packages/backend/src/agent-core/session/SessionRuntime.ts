@@ -41,7 +41,7 @@ export class SessionRuntime {
     this.browserSessions = config.browser ? new BrowserSessionManager(config.browser) : null
   }
 
-  async prepareTask(options: AgentRuntimeStartTaskOptions): Promise<{ input: RuntimeStartInput, createEventEmitter: (taskId: string) => IAgentEventEmitter, conversation: Awaited<ReturnType<ISessionStore['getConversation']>> }> {
+  async prepareTask(options: AgentRuntimeStartTaskOptions): Promise<{ input: RuntimeStartInput, createEventEmitter: (taskId: string) => IAgentEventEmitter, dispose: () => void, conversation: Awaited<ReturnType<ISessionStore['getConversation']>> }> {
     const store = requireSessionStore(this.config)
     const prompt = options.prompt.trim()
     if (!prompt) {
@@ -176,6 +176,7 @@ export class SessionRuntime {
     return {
       input: taskSnapshot,
       createEventEmitter: taskId => createPersistedTurnEmitter(store, this.config.eventEmitter, turnId, conversation.id, () => this.taskStore.takePendingSteeringMessages(taskId)),
+      dispose: () => taskLogger?.close(),
       conversation,
     }
   }

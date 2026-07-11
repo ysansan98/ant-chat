@@ -17,6 +17,12 @@ export interface RuntimeTask {
   abortController: AbortController
 }
 
+export interface TaskExecution {
+  task: RuntimeTask
+  dequeueSteeringInputs: () => SteeringInput[]
+  finish: () => void
+}
+
 interface StoredTask extends RuntimeTask {
   pendingResolver?: (value: { approved: boolean, reason?: string }) => void
   steeringQueue: SteeringInput[]
@@ -34,7 +40,7 @@ export class TaskStore {
   private readonly tasks = new Map<string, StoredTask>()
   private readonly activeByConversation = new Map<string, string>()
 
-  create(task: RuntimeTask) {
+  reserve(task: RuntimeTask): TaskExecution {
     if (this.activeByConversation.has(task.snapshot.conversationId)) {
       throw new Error('AGENT_TASK_ALREADY_RUNNING')
     }
@@ -44,15 +50,21 @@ export class TaskStore {
       pendingSteeringMessages: [],
     })
     this.activeByConversation.set(task.snapshot.conversationId, task.snapshot.taskId)
+    return {
+      task,
+      dequeueSteeringInputs: () => this.dequeueSteeringInputs(task.snapshot.taskId),
+      finish: () => this.finish(task.snapshot.taskId),
+    }
   }
 
-  get(taskId: string): RuntimeTask | undefined {
-    return this.tasks.get(taskId)
+  getSnapshot(taskId: string): AgentTaskSnapshot | undefined {
+    const task = this.tasks.get(taskId)
+    return task ? { ...task.snapshot } : undefined
   }
 
   listActive(conversationId?: string): AgentTaskSnapshot[] {
     return [...this.tasks.values()]
-      .map(item => item.snapshot)
+      .map(item => ({ ...item.snapshot }))
       .filter(item => ['running', 'awaiting_approval'].includes(item.status))
       .filter(item => !conversationId || item.conversationId === conversationId)
   }
@@ -155,20 +167,6 @@ export class TaskStore {
       return
     this.activeByConversation.delete(task.snapshot.conversationId)
     this.tasks.delete(taskId)
-  }
-
-  delete(taskId: string) {
-    const task = this.tasks.get(taskId)
-    if (!task)
-      return
-    this.activeByConversation.delete(task.snapshot.conversationId)
-    this.tasks.delete(taskId)
-  }
-
-  /** Clear all tasks. Used in tests for isolation. */
-  clear(): void {
-    this.tasks.clear()
-    this.activeByConversation.clear()
   }
 
   private getApprovableTask(taskId: string, actionId: string): StoredTask {

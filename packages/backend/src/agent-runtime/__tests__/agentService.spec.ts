@@ -157,6 +157,30 @@ describe('createAgentTurnService 行为', () => {
     })
   })
 
+  it('运行时拒绝重复任务时回滚刚创建的用户消息', async () => {
+    startTask.mockRejectedValueOnce(new Error('AGENT_TASK_ALREADY_RUNNING'))
+    const emitMessageUpdated = vi.fn()
+    const service = createService({ aiProviderFactory, emitMessageUpdated })
+
+    await expect(service.startTurn({
+      conversationId: 'c1',
+      prompt: 'inspect project',
+      workspacePath: '/workspace',
+      modelConfig: {
+        modelId: 'model-1',
+        providerId: 'provider-1',
+        systemPrompt: 'custom',
+        temperature: 0.2,
+        maxTokens: 2048,
+        features: { enableMCP: false },
+      },
+    })).rejects.toThrow('AGENT_TASK_ALREADY_RUNNING')
+
+    expect(runtime.listActiveTasks).not.toHaveBeenCalled()
+    expect(appDataContext.messageRepository.delete).toHaveBeenCalledWith('m1')
+    expect(emitMessageUpdated).not.toHaveBeenCalled()
+  })
+
   it('保留显式传入的 turn 上下文字段', async () => {
     const service = createService({ aiProviderFactory })
 

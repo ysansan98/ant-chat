@@ -194,7 +194,7 @@ function decidePolicy(mode: AgentMode, operationType: ToolOperationType, scope: 
     return { type: 'require_approval' }
   }
 
-  // scope === 'workspace'
+  // 其余情况仅会是 workspace scope。
   if (operationType === 'read' || operationType === 'browser' || operationType === 'skill' || operationType === 'mcp') {
     return { type: 'allow' }
   }
@@ -255,11 +255,11 @@ function generatePattern(
         }
       }
       catch {
-        // fall through to absolute path
+        // 无法生成相对路径时，回退到绝对路径。
       }
     }
 
-    // outside workspace or no workspacePath: use absolute path directory
+    // 工作区外或未提供工作区时，按绝对路径目录匹配。
     const dir = path.dirname(filePath)
     return `${dir}${path.sep}**`
   }
@@ -267,7 +267,7 @@ function generatePattern(
   if (toolName === 'use_skill' || toolName === 'install_skill_from_github') {
     return extractInputKey(toolName, input)
   }
-  // MCP and other unknown tools: whitelist by tool name only, always suggest "*"
+  // MCP 和未知工具只能按工具名加入白名单，统一建议匹配所有输入。
   return '*'
 }
 
@@ -288,7 +288,7 @@ function normalizeInputKey(
     }
   }
   catch {
-    // path.relative may throw on different drives (Windows)
+    // Windows 跨盘符时 path.relative 可能抛错，保留原始输入。
   }
 
   return inputKey

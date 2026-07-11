@@ -264,6 +264,31 @@ describe('agentRuntime 行为', () => {
       )
     })
 
+    it('首次 task 状态通知失败时释放会话占用', async () => {
+      const emitter = createMockEmitter()
+      vi.mocked(emitter.emitTaskUpdated).mockRejectedValueOnce(new Error('event unavailable'))
+      const runtime = new AgentRuntime({ eventEmitter: emitter, logger: createMockLogger() })
+
+      await expect(runtime.startPreparedTask(createValidStartInput())).rejects.toThrow('event unavailable')
+      expect(runtime.listActiveTasks('conv-1')).toEqual([])
+
+      await expect(runtime.startPreparedTask(createValidStartInput())).resolves.toEqual({ taskId: expect.any(String) })
+    })
+
+    it('会话准备完成后启动失败时关闭 task logger', async () => {
+      const emitter = createMockEmitter()
+      const taskLogger = { filePath: '/tmp/task.jsonl', write: vi.fn(), close: vi.fn() }
+      vi.mocked(emitter.emitTaskUpdated).mockRejectedValueOnce(new Error('event unavailable'))
+      const runtime = new AgentRuntime(createSessionConfig({
+        eventEmitter: emitter,
+        createTaskLogger: vi.fn(() => taskLogger),
+      }))
+
+      await expect(runtime.startSessionTask(createValidSessionStartInput())).rejects.toThrow('event unavailable')
+
+      expect(taskLogger.close).toHaveBeenCalledTimes(1)
+    })
+
     it('阻止同一会话重复启动任务', async () => {
       const runtime = new AgentRuntime(createConfig())
       const _result1 = await runtime.startPreparedTask(createValidStartInput())
@@ -454,7 +479,7 @@ describe('agentRuntime 行为', () => {
       }))
 
       const firstLoopCall = vi.mocked(runAgentLoop).mock.calls[vi.mocked(runAgentLoop).mock.calls.length - 1]
-      firstLoopCall?.[0].finishTask?.()
+      firstLoopCall?.[0].execution.finish()
 
       userMarkdown = '§Prefer verbose English.'
       memoryMarkdown = '§Use npm test.'
@@ -521,7 +546,7 @@ describe('agentRuntime 行为', () => {
         model: { id: 'model-1', model: 'gpt-4', name: 'GPT-4', providerId: 'provider-1', contextLength: 20_000 },
       }))
       const firstLoopCall = vi.mocked(runAgentLoop).mock.calls[vi.mocked(runAgentLoop).mock.calls.length - 1]
-      firstLoopCall?.[0].finishTask?.()
+      firstLoopCall?.[0].execution.finish()
 
       memoryMarkdown = '§Updated memory after compaction.'
       historyMessages = [

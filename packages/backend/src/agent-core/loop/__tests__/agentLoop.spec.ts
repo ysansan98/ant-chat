@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { runAgentLoop } from '../agentLoop'
-import { TaskStore } from '../../taskStore'
 import { ToolRegistry } from '../../tools/toolRegistry'
-import type { AgentTool, IAgentEventEmitter, IAIProvider, IAIStreamChunk, ILogger } from '@ant-chat/shared'
+import type { AgentRuntimeConfig, AgentTool, IAgentEventEmitter, IAIProvider, IAIStreamChunk, ILogger } from '@ant-chat/shared'
 import type { RuntimeStartInput } from '../../session/types'
+import type { RuntimeTask, TaskExecution } from '../../taskStore'
 
 // ============================================================
 // Mock AI Provider — deterministic stream control via queueMicrotask
@@ -78,6 +78,18 @@ function createTask(taskId = 'task-loop-1', conversationId = 'conv-loop-1') {
   }
 }
 
+function createExecution(task: RuntimeTask): { execution: TaskExecution, finish: ReturnType<typeof vi.fn> } {
+  const finish = vi.fn()
+  return {
+    execution: {
+      task,
+      dequeueSteeringInputs: () => [],
+      finish,
+    },
+    finish,
+  }
+}
+
 function createBaseInput(overrides: Partial<RuntimeStartInput> & { taskId?: string, convId?: string } = {}): { taskId: string, options: RuntimeStartInput } {
   const taskId = overrides.taskId ?? 'task-loop-1'
   const { taskId: _tid, convId: _cid, ...rest } = overrides
@@ -118,12 +130,9 @@ function makeToolCallChunk(toolName: string, args: Record<string, unknown>, id?:
 describe('runAgentLoop 行为', () => {
   let emitter: IAgentEventEmitter
   let logger: ILogger
-  let taskStore: TaskStore
-
   beforeEach(() => {
     emitter = createMockEmitter()
     logger = createMockLogger()
-    taskStore = new TaskStore()
   })
 
   afterEach(() => {
@@ -139,20 +148,16 @@ describe('runAgentLoop 行为', () => {
       aiProvider: aiProvider as unknown as IAIProvider,
     })
     const task = createTask(taskId, options.conversationId)
-    taskStore.create(task)
+    const { execution, finish } = createExecution(task)
 
     await runAgentLoop({
-      task: taskStore.get(taskId)!,
-      finishTask: () => taskStore.finish(taskId),
-      dequeueSteeringInputs: () => taskStore.dequeueSteeringInputs(taskId),
+      execution,
       options,
       config: { eventEmitter: emitter, logger },
       beforeToolExecute: async () => ({ outcome: 'allow' }),
     })
 
-    const updated = taskStore.get(taskId)
-    // task is finished (removed from store) on success
-    expect(updated).toBeUndefined()
+    expect(finish).toHaveBeenCalledTimes(1)
 
     expect(emitter.emitTurnFinished).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -161,6 +166,33 @@ describe('runAgentLoop 行为', () => {
         durationMs: expect.any(Number),
       }),
     )
+  })
+
+  it('清理 turn secrets 失败时仍释放 task', async () => {
+    const aiProvider = createMockAIProvider([[makeTextChunk('Done')]])
+    const { taskId, options } = createBaseInput({ aiProvider: aiProvider as IAIProvider })
+    const { execution, finish } = createExecution(createTask(taskId, options.conversationId))
+    const secretStore: NonNullable<AgentRuntimeConfig['secretStore']> = {
+      saveProviderApiKey: vi.fn(async () => { throw new Error('unused') }),
+      getProviderApiKey: vi.fn(async () => null),
+      deleteProviderApiKey: vi.fn(async () => {}),
+      createTurnSecret: vi.fn(async () => { throw new Error('unused') }),
+      resolve: vi.fn(async () => null),
+      clearTurnSecrets: vi.fn().mockRejectedValue(new Error('secret cleanup failed')),
+    }
+
+    await expect(runAgentLoop({
+      execution,
+      options,
+      config: {
+        eventEmitter: emitter,
+        logger,
+        secretStore,
+      },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
+    })).rejects.toThrow('secret cleanup failed')
+
+    expect(finish).toHaveBeenCalledTimes(1)
   })
 
   it('向 task log 写入模型请求诊断信息', async () => {
@@ -184,12 +216,10 @@ describe('runAgentLoop 行为', () => {
       taskLogger,
     })
     const task = createTask(taskId, options.conversationId)
-    taskStore.create(task)
+    const { execution } = createExecution(task)
 
     await runAgentLoop({
-      task: taskStore.get(taskId)!,
-      finishTask: () => taskStore.finish(taskId),
-      dequeueSteeringInputs: () => taskStore.dequeueSteeringInputs(taskId),
+      execution,
       options,
       config: { eventEmitter: emitter, logger, taskLogger },
       beforeToolExecute: async () => ({ outcome: 'allow' }),
@@ -242,12 +272,10 @@ describe('runAgentLoop 行为', () => {
       registry: new ToolRegistry([readTool]),
       taskLogger,
     })
-    taskStore.create(createTask(taskId, options.conversationId))
+    const { execution } = createExecution(createTask(taskId, options.conversationId))
 
     await runAgentLoop({
-      task: taskStore.get(taskId)!,
-      finishTask: () => taskStore.finish(taskId),
-      dequeueSteeringInputs: () => taskStore.dequeueSteeringInputs(taskId),
+      execution,
       options,
       config: { eventEmitter: emitter, logger, taskLogger },
       beforeToolExecute: async () => ({ outcome: 'allow' }),
@@ -279,12 +307,10 @@ describe('runAgentLoop 行为', () => {
   it('aiProvider 为 null 时抛错', async () => {
     const { taskId, options } = createBaseInput({ aiProvider: null })
     const task = createTask(taskId, options.conversationId)
-    taskStore.create(task)
+    const { execution } = createExecution(task)
 
     await runAgentLoop({
-      task: taskStore.get(taskId)!,
-      finishTask: () => taskStore.finish(taskId),
-      dequeueSteeringInputs: () => taskStore.dequeueSteeringInputs(taskId),
+      execution,
       options,
       config: { eventEmitter: emitter, logger },
       beforeToolExecute: async () => ({ outcome: 'allow' }),
@@ -319,12 +345,10 @@ describe('runAgentLoop 行为', () => {
       registry: new ToolRegistry([readTool]),
     })
     const task = createTask(taskId, options.conversationId)
-    taskStore.create(task)
+    const { execution } = createExecution(task)
 
     await runAgentLoop({
-      task: taskStore.get(taskId)!,
-      finishTask: () => taskStore.finish(taskId),
-      dequeueSteeringInputs: () => taskStore.dequeueSteeringInputs(taskId),
+      execution,
       options,
       config: { eventEmitter: emitter, logger },
       beforeToolExecute: async () => ({ outcome: 'allow' }),

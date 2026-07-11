@@ -25,8 +25,14 @@ export class AgentRuntime {
 
   async startSessionTask(options: AgentRuntimeStartTaskOptions): Promise<AgentRuntimeStartTaskResult> {
     const prepared = await this.sessionRuntime.prepareTask(options)
-    const task = await this.startPreparedTask(prepared.input, { eventEmitterFactory: prepared.createEventEmitter })
-    return { ...task, conversationId: options.conversationId, userMessageId: options.userMessageId, conversation: prepared.conversation! }
+    try {
+      const task = await this.startPreparedTask(prepared.input, { eventEmitterFactory: prepared.createEventEmitter })
+      return { ...task, conversationId: options.conversationId, userMessageId: options.userMessageId, conversation: prepared.conversation! }
+    }
+    catch (error) {
+      prepared.dispose()
+      throw error
+    }
   }
 
   async startPreparedTask(
@@ -80,12 +86,16 @@ export class AgentRuntime {
     }
 
     const task = { snapshot, abortController: new AbortController() }
-    this.taskStore.create(task)
-    await config.eventEmitter.emitTaskUpdated(snapshot)
+    const execution = this.taskStore.reserve(task)
+    try {
+      await config.eventEmitter.emitTaskUpdated(snapshot)
+    }
+    catch (error) {
+      execution.finish()
+      throw error
+    }
     void runAgentLoop({
-      task,
-      dequeueSteeringInputs: () => this.taskStore.dequeueSteeringInputs(taskId),
-      finishTask: () => this.taskStore.finish(taskId),
+      execution,
       options,
       config,
       beforeToolExecute: this.beforeToolExecuteHook,
@@ -113,11 +123,11 @@ export class AgentRuntime {
     return await this.sessionRuntime.injectSteering(conversationId, text)
   }
 
-  getTask(taskId: string) {
-    const task = this.taskStore.get(taskId)
-    if (!task)
+  getTask(taskId: string): AgentTaskSnapshot {
+    const snapshot = this.taskStore.getSnapshot(taskId)
+    if (!snapshot)
       throw new AgentError('AGENT_TASK_NOT_FOUND', 'Task not found')
-    return task.snapshot
+    return snapshot
   }
 
   listActiveTasks(conversationId?: string) {
