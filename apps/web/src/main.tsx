@@ -13,16 +13,6 @@ applyInitialTheme()
 
 enableMapSet()
 
-if (import.meta.env.DEV) {
-  import('react-scan').then((module) => {
-    module.scan(
-      {
-        enabled: true,
-      },
-    )
-  })
-}
-
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <RouterProvider router={router} />
