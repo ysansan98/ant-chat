@@ -10,6 +10,7 @@ import type { AgentRuntime } from '../agent-core'
 import type { AppDataContext } from '../data'
 import type { ConversationTitleGenerator } from './conversationTitleGenerator'
 import { createProvider } from '../agent-core/ai-providers/factory'
+import { truncateText } from '../agent-core/utils'
 
 const DEFAULT_TITLE = 'Untitled'
 const MAX_TITLE_LENGTH = 30
@@ -209,17 +210,6 @@ function scheduleTitleInitialization(params: {
       logger?.warn('初始化会话标题失败', error)
     }
   })()
-}
-
-/**
- * 截取文本前 N 个字符作为标题，超出则添加省略号。
- */
-function truncateText(text: string, maxLength: number): string {
-  const trimmed = text.trim()
-  if (trimmed.length <= maxLength) {
-    return trimmed
-  }
-  return `${trimmed.slice(0, maxLength)}…`
 }
 
 async function rollbackStartedTurn(params: {
