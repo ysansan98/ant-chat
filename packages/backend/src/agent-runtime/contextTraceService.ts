@@ -114,13 +114,20 @@ export function snapshotModelSettings(
   settings: { model: string, temperature?: number, maxTokens?: number, systemPrompt?: string },
   ordinal: number,
 ): ContextItemSnapshot {
+  // system prompt 由独立的 system-prompt 项追踪，不计入 model-settings
+  const modelOnly: Record<string, unknown> = { model: settings.model }
+  if (settings.temperature !== undefined)
+    modelOnly.temperature = settings.temperature
+  if (settings.maxTokens !== undefined)
+    modelOnly.maxTokens = settings.maxTokens
+
   return {
     identity: { id: 'model-settings' },
     status: 'full',
     kind: 'model-settings',
     ordinal,
-    settings: settings as unknown as Record<string, unknown>,
-    size: Object.keys(settings).length,
+    settings: modelOnly,
+    size: Object.keys(modelOnly).length,
   }
 }
 

@@ -24,6 +24,7 @@ import Sender from '../Sender'
 import { ModelControlPanel } from '../Sender/PickerModel'
 import { buildTurnInput } from './buildTurnInput'
 import { ContextDiagnosticsPanel } from './ContextDiagnostics'
+import { ContextFloatingButton } from './ContextDiagnostics/ContextFloatingButton'
 import { ConversationTitleBar } from './ConversationTitleBar'
 
 const BubbleList = lazy(() => import('./BubbleList'))
@@ -53,6 +54,7 @@ export default function Chat() {
   })
 
   const senderRef = useRef<HTMLDivElement>(null)
+  const chatContainerRef = useRef<HTMLDivElement>(null)
 
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
   const [diagnosticsWidth, setDiagnosticsWidth] = useState(420)
@@ -141,7 +143,7 @@ export default function Chat() {
   const hasMessages = messages.length > 0
 
   return (
-    <div className="relative flex size-full min-w-0">
+    <div ref={chatContainerRef} className="relative flex size-full min-w-0">
       <div className="flex min-w-0 flex-1 flex-col">
         {currentConversations && (
           <ConversationTitleBar conversation={currentConversations} />
@@ -191,20 +193,6 @@ export default function Chat() {
               disabled={commandRunning}
               actions={(
                 <div className="flex items-center gap-1">
-                  {import.meta.env.DEV && (
-                    <button
-                      type="button"
-                      onClick={() => setDiagnosticsOpen(prev => !prev)}
-                      className={`flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] transition-colors ${
-                        diagnosticsOpen
-                          ? 'border-border bg-surface text-foreground'
-                          : 'border-transparent text-muted-foreground hover:border-border/60 hover:text-foreground'
-                      }`}
-                    >
-                      <span className={`size-1.5 rounded-full ${diagnosticsOpen ? 'bg-emerald-500 shadow-[0_0_0_2px_rgba(34,197,94,0.15)]' : 'bg-muted-foreground/30'}`} />
-                      上下文
-                    </button>
-                  )}
                   <ModelControlPanel
                     value={{ modelId: settings.modelId, providerId: settings.providerId }}
                     onChange={({ modelId, providerId, maxTokens, temperature }) => {
@@ -230,7 +218,14 @@ export default function Chat() {
         </div>
       </div>
 
-      {diagnosticsOpen && (
+      {import.meta.env.DEV && !diagnosticsOpen && (
+        <ContextFloatingButton
+          containerRef={chatContainerRef}
+          onOpen={() => setDiagnosticsOpen(true)}
+        />
+      )}
+
+      {import.meta.env.DEV && diagnosticsOpen && (
         <ContextDiagnosticsPanel
           conversationId={activeConversationsId}
           isOpen={diagnosticsOpen}
