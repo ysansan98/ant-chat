@@ -33,9 +33,8 @@ export const DEFAULT_COMPACTION_SETTINGS: Readonly<CompactionSettingsSchema> = O
 export const ConversationsSettingsSchema = z.object({
   modelId: z.string(),
   providerId: z.string(),
-  systemPrompt: z.string(),
   temperature: z.number(),
-  maxTokens: z.number(),
+  maxOutputTokens: z.number(),
   /** 推理强度档位（ai-sdk v7 统一参数）。未设置时走厂商默认。 */
   reasoningEffort: ReasoningEffortSchema.optional(),
   compaction: CompactionSettingsSchema.optional(),
@@ -47,6 +46,7 @@ export const ConversationsSchema = z.object({
   id: z.string(),
   workspacePath: z.string().nullable().optional(),
   title: z.string(),
+  conversationInstructions: z.string(),
   createdAt: z.number(),
   updatedAt: z.number(),
   archived: z.boolean().default(false).optional(),

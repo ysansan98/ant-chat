@@ -46,7 +46,7 @@ export interface CaptureContextInput {
   /** 每条 message 对应的身份 ID（长度应与 messages 一致） */
   messageIdentities: string[]
   toolDefs: RuntimeToolDefinition[]
-  modelSettings: { model: string, temperature?: number, maxTokens?: number, systemPrompt?: string }
+  modelSettings: { model: string, temperature?: number, maxOutputTokens?: number, systemPrompt?: string }
   /** compaction 后首次请求 true */
   isCompactionBaseline?: boolean
   /** history-rewritten 后首次请求 true */
@@ -262,7 +262,7 @@ function buildCurrentItemList(
   messages: LoopMessage[],
   messageIdentities: string[],
   toolDefs: RuntimeToolDefinition[],
-  modelSettings: { model: string, temperature?: number, maxTokens?: number, systemPrompt?: string },
+  modelSettings: { model: string, temperature?: number, maxOutputTokens?: number, systemPrompt?: string },
 ): ContextItemSnapshot[] {
   const items: ContextItemSnapshot[] = []
   let ordinal = 0

@@ -268,7 +268,7 @@ function createHarness(): AgentRuntimeHarness {
     providerId: 'mock-provider',
     model: TEST_MODEL_ID,
     name: 'Mock Model',
-    maxTokens: 4096,
+    maxOutputTokens: 4096,
     contextLength: 128000,
     temperature: 0,
     capabilities: { functionCall: true },
@@ -312,16 +312,14 @@ function createHarness(): AgentRuntimeHarness {
     provider,
     async startTurn(prompt, mode) {
       return await turnService.startTurn({
-        prompt,
+        messageContent: [{ type: 'text', text: prompt }],
         workspacePath,
         mode,
         modelConfig: {
           modelId: TEST_MODEL_ID,
           providerId: 'mock-provider',
-          systemPrompt: '',
           temperature: 0,
-          maxTokens: 4096,
-          features: { enableMCP: false },
+          maxOutputTokens: 4096,
         },
       })
     },

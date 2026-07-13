@@ -20,6 +20,7 @@ export async function runFork(params: {
   const forkConversation = await appDataContext.conversationRepository.create({
     workspacePath,
     title: forkTitle,
+    conversationInstructions: sourceConversation.conversationInstructions ?? '',
     settings: { ...sourceConversation.settings },
     createdAt: Date.now(),
     updatedAt: Date.now(),

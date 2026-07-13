@@ -11,11 +11,11 @@ interface UseBuiltinCommandSubmitOptions {
   settings: {
     modelId: string
     providerId?: string
-    systemPrompt?: string
     temperature?: number
-    maxTokens?: number
+    maxOutputTokens?: number
     reasoningEffort?: ReasoningEffortLevel
   }
+  conversationInstructions?: string
   currentWorkspacePath?: string
 }
 
@@ -27,12 +27,8 @@ export function useBuiltinCommandSubmit(options: UseBuiltinCommandSubmitOptions)
   const [commandRunning, setCommandRunning] = useState(false)
   const runningRef = useRef(false)
 
-  const submitCommand = useCallback(async (
-    draftText: string,
-    referencedFiles: string[],
-    selectedSkill: string | undefined,
-  ): Promise<boolean> => {
-    const command = parseBuiltinCommand(draftText, referencedFiles, selectedSkill)
+  const submitCommand = useCallback(async (draftText: string, knownSkillNames?: ReadonlySet<string>): Promise<boolean> => {
+    const command = parseBuiltinCommand(draftText, knownSkillNames)
     if (!command) {
       return false
     }
@@ -46,12 +42,14 @@ export function useBuiltinCommandSubmit(options: UseBuiltinCommandSubmitOptions)
         id: command.id,
         conversationId: activeConversationsId || undefined,
         argument: command.argument,
+        ...(command.id === 'new'
+          ? { conversationInstructions: options.conversationInstructions }
+          : {}),
         modelConfig: {
           modelId: options.settings.modelId,
           providerId: options.settings.providerId || '',
-          systemPrompt: options.settings.systemPrompt || '',
-          temperature: options.settings.temperature || 0.7,
-          maxTokens: options.settings.maxTokens || 4096,
+          temperature: options.settings.temperature ?? 0.7,
+          maxOutputTokens: options.settings.maxOutputTokens ?? 4096,
           reasoningEffort: options.settings.reasoningEffort,
         },
         workspacePath: options.currentWorkspacePath || '',
@@ -88,7 +86,7 @@ export function useBuiltinCommandSubmit(options: UseBuiltinCommandSubmitOptions)
       runningRef.current = false
       setCommandRunning(false)
     }
-  }, [activeConversationsId, options.settings, options.currentWorkspacePath])
+  }, [activeConversationsId, options.conversationInstructions, options.settings, options.currentWorkspacePath])
 
   const cancelCommand = useCallback(async () => {
     if (activeConversationsId) {

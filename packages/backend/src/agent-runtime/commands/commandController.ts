@@ -83,7 +83,12 @@ export function createCommandController(deps: CommandControllerDeps): CommandCon
         }
 
         case 'new': {
-          return runNew({ appDataContext, workspacePath: params.workspacePath, modelConfig: params.modelConfig })
+          return runNew({
+            appDataContext,
+            workspacePath: params.workspacePath,
+            modelConfig: params.modelConfig,
+            conversationInstructions: params.conversationInstructions,
+          })
         }
 
         case 'fork': {

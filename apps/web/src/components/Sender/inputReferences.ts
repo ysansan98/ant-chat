@@ -59,7 +59,7 @@ export function insertReferenceToken(
 /**
  * 把当前 @ 触发区段改写为 `@<nextQuery>`（不带尾空格），光标落在末尾。
  *
- * 用于目录补全与返回上级：不产生已确认 token、不入 referencedFiles、
+ * 用于目录补全与返回上级：不产生已确认 token、不进入已确认文件引用、
  * 不关闭面板，由新的 trigger.query 触发下一轮搜索。
  *
  * 与 {@link insertReferenceToken} 的区别：后者补尾空格、用于确认最终 token。
@@ -93,14 +93,14 @@ export function parentReferenceQuery(query: string): string | null {
   return idx < 0 ? '' : trimmed.slice(0, idx + 1)
 }
 
-export function syncReferencedFiles(text: string, selected: string[]): string[] {
+export function syncConfirmedFileReferences(text: string, selected: string[]): string[] {
   const ranges = getReferenceTokenRanges(text, selected)
   return selected.filter(file =>
     ranges.some(range => range.type === 'file' && range.text === `@${file}`),
   )
 }
 
-export function syncSelectedSkill(text: string, selected?: string): string | undefined {
+export function syncConfirmedSkillReference(text: string, selected?: string): string | undefined {
   if (!selected) {
     return undefined
   }
@@ -113,28 +113,28 @@ export function syncSelectedSkill(text: string, selected?: string): string | und
 
 export function isCompletedReferenceTrigger(
   trigger: ActiveReferenceTrigger | null,
-  referencedFiles: string[],
-  selectedSkill?: string,
+  confirmedFileReferences: string[],
+  confirmedSkillReference?: string,
 ): boolean {
   if (!trigger) {
     return false
   }
 
   if (trigger.type === 'file') {
-    return referencedFiles.includes(trigger.query)
+    return confirmedFileReferences.includes(trigger.query)
   }
 
-  return selectedSkill === trigger.query
+  return confirmedSkillReference === trigger.query
 }
 
 export function removeReferenceTokenAtCursor(
   text: string,
   cursor: number,
   key: 'Backspace' | 'Delete',
-  referencedFiles: string[],
-  selectedSkill?: string,
+  confirmedFileReferences: string[],
+  confirmedSkillReference?: string,
 ): { text: string, cursor: number } | null {
-  const ranges = getReferenceTokenRanges(text, referencedFiles, selectedSkill)
+  const ranges = getReferenceTokenRanges(text, confirmedFileReferences, confirmedSkillReference)
 
   for (const range of ranges) {
     const shouldRemove = key === 'Backspace'
@@ -158,10 +158,10 @@ export function moveCursorAcrossReferenceToken(
   text: string,
   cursor: number,
   key: 'ArrowLeft' | 'ArrowRight',
-  referencedFiles: string[],
-  selectedSkill?: string,
+  confirmedFileReferences: string[],
+  confirmedSkillReference?: string,
 ): number | null {
-  const ranges = getReferenceTokenRanges(text, referencedFiles, selectedSkill)
+  const ranges = getReferenceTokenRanges(text, confirmedFileReferences, confirmedSkillReference)
 
   for (const range of ranges) {
     if (key === 'ArrowLeft' && cursor > range.start && cursor <= range.end) {
@@ -178,10 +178,10 @@ export function moveCursorAcrossReferenceToken(
 export function snapCursorToReferenceTokenBoundary(
   text: string,
   cursor: number,
-  referencedFiles: string[],
-  selectedSkill?: string,
+  confirmedFileReferences: string[],
+  confirmedSkillReference?: string,
 ): number {
-  const ranges = getReferenceTokenRanges(text, referencedFiles, selectedSkill)
+  const ranges = getReferenceTokenRanges(text, confirmedFileReferences, confirmedSkillReference)
 
   for (const range of ranges) {
     if (cursor > range.start && cursor < range.end) {
@@ -196,11 +196,11 @@ export function snapCursorToReferenceTokenBoundary(
 
 export function buildReferenceInputParts(
   text: string,
-  referencedFiles: string[],
-  selectedSkill?: string,
+  confirmedFileReferences: string[],
+  confirmedSkillReference?: string,
 ): ReferenceInputPart[] {
   const parts: ReferenceInputPart[] = []
-  const ranges = getReferenceTokenRanges(text, referencedFiles, selectedSkill)
+  const ranges = getReferenceTokenRanges(text, confirmedFileReferences, confirmedSkillReference)
   let cursor = 0
 
   for (const range of ranges) {
@@ -225,12 +225,12 @@ export function buildReferenceInputParts(
 
 function getReferenceTokenRanges(
   text: string,
-  referencedFiles: string[],
-  selectedSkill?: string,
+  confirmedFileReferences: string[],
+  confirmedSkillReference?: string,
 ): ReferenceTokenRange[] {
   const tokens = [
-    ...referencedFiles.map(file => `@${file}`),
-    ...(selectedSkill ? [`/${selectedSkill}`] : []),
+    ...confirmedFileReferences.map(file => `@${file}`),
+    ...(confirmedSkillReference ? [`/${confirmedSkillReference}`] : []),
   ]
   const ranges: ReferenceTokenRange[] = []
 

@@ -18,6 +18,7 @@ export interface ConversationRow {
   id: string
   workspace_path: string | null
   title: string
+  conversation_instructions: string
   created_at: number
   updated_at: number
   archived?: number
@@ -45,6 +46,7 @@ export function mapConversationRow(row: ConversationRow): IConversations {
     id: row.id,
     workspacePath: row.workspace_path,
     title: row.title,
+    conversationInstructions: row.conversation_instructions,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     archived: row.archived === 1,

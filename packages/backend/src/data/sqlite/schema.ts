@@ -8,6 +8,7 @@ export function initializeAppDataSchema(db: AppDataDatabase): void {
       id text PRIMARY KEY NOT NULL,
       workspace_path text,
       title text NOT NULL,
+      conversation_instructions text NOT NULL DEFAULT '',
       created_at integer NOT NULL,
       updated_at integer NOT NULL,
       archived integer NOT NULL DEFAULT 0,

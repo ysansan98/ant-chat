@@ -13,8 +13,6 @@ export { buildConversationContextEntries, buildConversationContextMessages, crea
 export type { ConversationContextEntry } from './loop/loopContext'
 export { NativeToolService } from './native-tools/nativeToolService'
 export { SessionRuntime } from './session/SessionRuntime'
-export { buildPromptWithTurnContext } from './session/turnContext'
-export type { TurnContextOptions } from './session/turnContext'
 export type { RuntimeStartInput } from './session/types'
 export { ToolRegistry } from './tools/toolRegistry'
 export type { CreateRegistryOptions, PreparedToolCall } from './tools/toolRegistry'

@@ -55,11 +55,12 @@ export interface RunBuiltinCommandParams {
   modelConfig: {
     modelId: string
     providerId: string
-    systemPrompt: string
     temperature: number
-    maxTokens: number
+    maxOutputTokens: number
     reasoningEffort?: ReasoningEffortLevel
   }
+  /** 仅 /new 时消费 */
+  conversationInstructions?: string
   workspacePath: string
 }
 

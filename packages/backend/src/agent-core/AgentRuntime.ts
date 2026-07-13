@@ -47,8 +47,8 @@ export class AgentRuntime {
       missing.push('conversationId')
     if (!options.userMessageId?.trim())
       missing.push('userMessageId')
-    if (!options.prompt?.trim())
-      missing.push('prompt')
+    if (!options.userText?.trim())
+      missing.push('userText')
     if (missing.length > 0) {
       throw new Error(`invalid start task options: missing ${missing.join(', ')}`)
     }
@@ -81,7 +81,7 @@ export class AgentRuntime {
       createdAt: now,
       updatedAt: now,
       logPath,
-      prompt: options.prompt,
+      prompt: options.userText,
       turnSource: options.turnSource,
     }
 

@@ -67,8 +67,9 @@ describe('commandController 任务守卫', () => {
       cc.runBuiltinCommand({
         id: 'compact',
         conversationId: 'conv-1',
-        modelConfig: { modelId: '', providerId: '', systemPrompt: '', temperature: 0, maxTokens: 0 },
         workspacePath: '',
+        modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+        conversationInstructions: '',
       }),
     ).rejects.toThrow('Agent task is running')
   })
@@ -81,8 +82,9 @@ describe('commandController 任务守卫', () => {
       cc.runBuiltinCommand({
         id: 'fork',
         conversationId: 'conv-1',
-        modelConfig: { modelId: '', providerId: '', systemPrompt: '', temperature: 0, maxTokens: 0 },
         workspacePath: '',
+        modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+        conversationInstructions: '',
       }),
     ).rejects.toThrow('Agent task is running')
   })
@@ -94,14 +96,21 @@ describe('commandController 任务守卫', () => {
 
     const result = await cc.runBuiltinCommand({
       id: 'new',
-      modelConfig: { modelId: 'm1', providerId: 'test-provider', systemPrompt: '', temperature: 0.7, maxTokens: 4096 },
       workspacePath: '/ws',
+      modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096, reasoningEffort: 'high' },
+      conversationInstructions: '请使用中文回答',
     })
     expect(result.status).toBe('success')
     if (result.status !== 'success') {
       throw new Error('Expected /new to succeed')
     }
     expect(result.conversationId).toBe('new-conv')
+    expect(deps.appDataContext.conversationRepository.create).toHaveBeenCalledWith(expect.objectContaining({
+      conversationInstructions: '请使用中文回答',
+      settings: expect.objectContaining({
+        reasoningEffort: 'high',
+      }),
+    }))
   })
 
   it('/compact 忽略 compaction.enabled 配置并执行手动压缩', async () => {
@@ -119,8 +128,9 @@ describe('commandController 任务守卫', () => {
     const result = await cc.runBuiltinCommand({
       id: 'compact',
       conversationId: 'conv-1',
-      modelConfig: { modelId: 'm1', providerId: 'test-provider', systemPrompt: '', temperature: 0, maxTokens: 0 },
       workspacePath: '',
+      modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+      conversationInstructions: '',
     })
 
     expect(result.status).toBe('error')
@@ -136,8 +146,9 @@ describe('commandController 任务守卫', () => {
     await expect(
       cc.runBuiltinCommand({
         id: 'unknown-cmd',
-        modelConfig: { modelId: '', providerId: '', systemPrompt: '', temperature: 0, maxTokens: 0 },
         workspacePath: '',
+        modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+        conversationInstructions: '',
       }),
     ).rejects.toThrow('Unknown built-in command')
   })
@@ -162,8 +173,9 @@ describe('commandController 命令并发', () => {
     const firstPromise = cc.runBuiltinCommand({
       id: 'compact',
       conversationId: 'conv-1',
-      modelConfig: { modelId: 'm1', providerId: 'test-provider', systemPrompt: '', temperature: 0, maxTokens: 0 },
       workspacePath: '',
+      modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+      conversationInstructions: '',
     })
 
     await new Promise(resolve => setTimeout(resolve, 10))
@@ -172,8 +184,9 @@ describe('commandController 命令并发', () => {
       cc.runBuiltinCommand({
         id: 'compact',
         conversationId: 'conv-1',
-        modelConfig: { modelId: 'm1', providerId: 'test-provider', systemPrompt: '', temperature: 0, maxTokens: 0 },
         workspacePath: '',
+        modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+        conversationInstructions: '',
       }),
     ).rejects.toThrow('already running')
 
@@ -196,14 +209,16 @@ describe('commandController 命令并发', () => {
       cc.runBuiltinCommand({
         id: 'compact',
         conversationId: 'conv-1',
-        modelConfig: { modelId: 'm1', providerId: 'test-provider', systemPrompt: '', temperature: 0, maxTokens: 0 },
         workspacePath: '',
+        modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+        conversationInstructions: '',
       }),
       cc.runBuiltinCommand({
         id: 'compact',
         conversationId: 'conv-2',
-        modelConfig: { modelId: 'm1', providerId: 'test-provider', systemPrompt: '', temperature: 0, maxTokens: 0 },
         workspacePath: '',
+        modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+        conversationInstructions: '',
       }),
     ])
 
@@ -260,8 +275,9 @@ describe('compact 命令错误和取消', () => {
     const result = await cc.runBuiltinCommand({
       id: 'compact',
       conversationId: 'conv-1',
-      modelConfig: { modelId: 'm1', providerId: 'test-provider', systemPrompt: '', temperature: 0, maxTokens: 0 },
       workspacePath: '',
+      modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+      conversationInstructions: '',
     })
 
     expect(result.status).toBe('success')
@@ -284,8 +300,9 @@ describe('compact 命令错误和取消', () => {
     const result = await cc.runBuiltinCommand({
       id: 'compact',
       conversationId: 'conv-1',
-      modelConfig: { modelId: 'm1', providerId: 'test-provider', systemPrompt: '', temperature: 0, maxTokens: 0 },
       workspacePath: '',
+      modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+      conversationInstructions: '',
     })
 
     expect(result.status).toBe('error')
@@ -309,8 +326,9 @@ describe('compact 命令错误和取消', () => {
     const result = await cc.runBuiltinCommand({
       id: 'compact',
       conversationId: 'conv-1',
-      modelConfig: { modelId: 'm1', providerId: 'test-provider', systemPrompt: '', temperature: 0, maxTokens: 0 },
       workspacePath: '',
+      modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+      conversationInstructions: '',
     })
 
     expect(result.status).toBe('success')
@@ -337,8 +355,9 @@ describe('compact 命令错误和取消', () => {
     const result = await cc.runBuiltinCommand({
       id: 'compact',
       conversationId: 'conv-1',
-      modelConfig: { modelId: 'm1', providerId: 'test-provider', systemPrompt: '', temperature: 0, maxTokens: 0 },
       workspacePath: '',
+      modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+      conversationInstructions: '',
     })
 
     expect(result).toEqual({
@@ -394,8 +413,9 @@ describe('compact 命令错误和取消', () => {
     const result = await cc.runBuiltinCommand({
       id: 'compact',
       conversationId: 'conv-1',
-      modelConfig: { modelId: 'm1', providerId: 'test-provider', systemPrompt: '', temperature: 0, maxTokens: 0 },
       workspacePath: '',
+      modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+      conversationInstructions: '',
     })
 
     expect(result.status).toBe('success')
@@ -438,8 +458,9 @@ describe('compact 命令错误和取消', () => {
     const runPromise = cc.runBuiltinCommand({
       id: 'compact',
       conversationId: 'conv-1',
-      modelConfig: { modelId: 'm1', providerId: 'test-provider', systemPrompt: '', temperature: 0, maxTokens: 0 },
       workspacePath: '',
+      modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+      conversationInstructions: '',
     })
 
     await new Promise(resolve => setTimeout(resolve, 10))
@@ -515,8 +536,9 @@ describe('compact 命令错误和取消', () => {
     const runPromise = cc.runBuiltinCommand({
       id: 'compact',
       conversationId: 'conv-1',
-      modelConfig: { modelId: 'm1', providerId: 'test-provider', systemPrompt: '', temperature: 0, maxTokens: 0 },
       workspacePath: '',
+      modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+      conversationInstructions: '',
     })
 
     while (deps.appDataContext.messageRepository.create.mock.calls.length === 0) {
@@ -570,8 +592,9 @@ describe('fork 命令', () => {
     const result = await cc.runBuiltinCommand({
       id: 'fork',
       conversationId: 'conv-1',
-      modelConfig: { modelId: 'm1', providerId: 'test-provider', systemPrompt: '', temperature: 0, maxTokens: 0 },
       workspacePath: '/ws',
+      modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+      conversationInstructions: '',
     })
 
     expect(result.status).toBe('success')
@@ -636,8 +659,9 @@ describe('fork 命令', () => {
     const result = await cc.runBuiltinCommand({
       id: 'fork',
       conversationId: 'conv-1',
-      modelConfig: { modelId: 'm1', providerId: 'test-provider', systemPrompt: '', temperature: 0, maxTokens: 0 },
       workspacePath: '/ws',
+      modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+      conversationInstructions: '',
     })
 
     expect(result.status).toBe('success')
@@ -677,8 +701,9 @@ describe('fork 命令', () => {
     const firstPromise = cc.runBuiltinCommand({
       id: 'fork',
       conversationId: 'conv-1',
-      modelConfig: { modelId: 'm1', providerId: 'test-provider', systemPrompt: '', temperature: 0, maxTokens: 0 },
       workspacePath: '/ws',
+      modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+      conversationInstructions: '',
     })
 
     await new Promise(resolve => setTimeout(resolve, 10))
@@ -687,8 +712,9 @@ describe('fork 命令', () => {
       cc.runBuiltinCommand({
         id: 'fork',
         conversationId: 'conv-1',
-        modelConfig: { modelId: 'm1', providerId: 'test-provider', systemPrompt: '', temperature: 0, maxTokens: 0 },
         workspacePath: '/ws',
+        modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+        conversationInstructions: '',
       }),
     ).rejects.toThrow('already running')
 

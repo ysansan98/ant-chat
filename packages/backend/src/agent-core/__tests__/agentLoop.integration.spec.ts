@@ -56,7 +56,7 @@ function createAimockAIProvider(baseUrl: string): IAIProvider {
         }) as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         tools: openaiTools?.length ? openaiTools : undefined,
         temperature: opts.modelSettings.temperature ?? 0,
-        max_tokens: opts.modelSettings.maxTokens ?? 1024,
+        max_tokens: opts.modelSettings.maxOutputTokens ?? 1024,
       })
 
       const choice = completion.choices?.[0]
@@ -188,12 +188,12 @@ describe('agentLoop 与 aimock 集成', () => {
       userMessageId: 'msg-e2e-1',
       workspacePath,
       mode: 'hybrid',
-      prompt: 'inspect workspace',
+      userText: 'inspect workspace',
       messages: [
         { role: 'user', content: [{ type: 'text', text: 'inspect workspace' }] },
       ],
-      systemPrompt: 'You are a helpful coding assistant. Use tools to inspect the workspace.',
       registry: new ToolRegistry([createListDirTool()]),
+      systemPrompt: '',
       aiProvider,
       modelName: 'gpt-4o-mini',
       providerName: 'aimock',

@@ -28,7 +28,7 @@ export async function runAgentLoop(input: {
     providerName,
     providerId,
     temperature,
-    maxTokens,
+    maxOutputTokens,
     reasoningEffort,
   } = options
 
@@ -64,7 +64,7 @@ export async function runAgentLoop(input: {
       const modelSettings = {
         model: modelName,
         temperature,
-        maxTokens,
+        maxOutputTokens,
         systemPrompt,
         reasoningEffort,
       }
@@ -134,7 +134,7 @@ export async function runAgentLoop(input: {
         providerId,
         apiMode: options.apiMode,
         temperature,
-        maxTokens,
+        maxOutputTokens,
         ...requestDiagnostics,
       }
       traceLogger.write('model_request_started', requestPayload)

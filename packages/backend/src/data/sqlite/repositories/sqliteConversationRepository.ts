@@ -14,6 +14,7 @@ const CONVERSATION_COLUMNS = `
   id,
   workspace_path,
   title,
+  conversation_instructions,
   created_at,
   updated_at,
   archived,
@@ -103,13 +104,14 @@ export class SqliteConversationRepository implements ConversationRepository {
     const parsed = AddConversationInput.parse(conversation)
     const id = `conv-${nanoid()}`
     const result = this.db.prepare<unknown[], ConversationRow>(`
-      INSERT INTO conversations (id, workspace_path, title, created_at, updated_at, archived, settings)
-      VALUES (?, ?, ?, ?, ?, 0, ?)
+      INSERT INTO conversations (id, workspace_path, title, conversation_instructions, created_at, updated_at, archived, settings)
+      VALUES (?, ?, ?, ?, ?, ?, 0, ?)
       RETURNING ${CONVERSATION_COLUMNS}
     `).get(
       id,
       parsed.workspacePath ?? null,
       parsed.title,
+      parsed.conversationInstructions,
       parsed.createdAt,
       parsed.updatedAt,
       stringifyJson(parsed.settings),
@@ -134,6 +136,10 @@ export class SqliteConversationRepository implements ConversationRepository {
     if (data.title !== undefined) {
       fields.push('title = ?')
       params.push(data.title)
+    }
+    if (data.conversationInstructions !== undefined) {
+      fields.push('conversation_instructions = ?')
+      params.push(data.conversationInstructions)
     }
     if (data.createdAt !== undefined) {
       fields.push('created_at = ?')

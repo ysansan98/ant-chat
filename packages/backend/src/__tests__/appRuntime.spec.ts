@@ -37,7 +37,6 @@ describe('app runtime', () => {
         title: 'no workspace',
         createdAt: 1,
         updatedAt: 1,
-        settings: { modelId: 'model-1', providerId: 'provider-1', systemPrompt: '', temperature: 0.7, maxTokens: 1024 },
       } as any,
     })).rejects.toThrow('workspacePath is required')
   })
@@ -49,8 +48,9 @@ describe('app runtime', () => {
         title: 'explicit workspace',
         createdAt: 1,
         updatedAt: 1,
+        settings: { modelId: '', providerId: '', temperature: 0, maxOutputTokens: 0 },
+        conversationInstructions: '',
         workspacePath,
-        settings: { modelId: 'model-1', providerId: 'provider-1', systemPrompt: '', temperature: 0.7, maxTokens: 1024 },
       },
     })
 
@@ -66,8 +66,9 @@ describe('app runtime', () => {
         title: 'in default',
         createdAt: 1,
         updatedAt: 1,
+        settings: { modelId: '', providerId: '', temperature: 0, maxOutputTokens: 0 },
+        conversationInstructions: '',
         workspacePath: defaultPath,
-        settings: { modelId: 'm', providerId: 'p', systemPrompt: '', temperature: 0.7, maxTokens: 1024 },
       },
     })
 
@@ -84,8 +85,9 @@ describe('app runtime', () => {
         title: '待归档',
         createdAt: 10,
         updatedAt: 20,
+        settings: { modelId: '', providerId: '', temperature: 0, maxOutputTokens: 0 },
+        conversationInstructions: '',
         workspacePath,
-        settings: { modelId: 'm', providerId: 'p', systemPrompt: '', temperature: 0.7, maxTokens: 1024 },
       },
     })
     const otherConversation = await runtime.invoke('chat.addConversation', {
@@ -93,8 +95,9 @@ describe('app runtime', () => {
         title: '其他归档',
         createdAt: 5,
         updatedAt: 10,
+        settings: { modelId: '', providerId: '', temperature: 0, maxOutputTokens: 0 },
+        conversationInstructions: '',
         workspacePath,
-        settings: { modelId: 'm', providerId: 'p', systemPrompt: '', temperature: 0.7, maxTokens: 1024 },
       },
     })
 
@@ -132,8 +135,9 @@ describe('app runtime', () => {
         title: '恢复工作区',
         createdAt: 1,
         updatedAt: 1,
+        settings: { modelId: '', providerId: '', temperature: 0, maxOutputTokens: 0 },
+        conversationInstructions: '',
         workspacePath,
-        settings: { modelId: 'm', providerId: 'p', systemPrompt: '', temperature: 0.7, maxTokens: 1024 },
       },
     })
     await runtime.invoke('chat.archiveConversation', { id: conversation.id })
@@ -162,8 +166,9 @@ describe('app runtime', () => {
         title: 'to clear',
         createdAt: 1,
         updatedAt: 1,
+        settings: { modelId: '', providerId: '', temperature: 0, maxOutputTokens: 0 },
+        conversationInstructions: '',
         workspacePath: defaultPath,
-        settings: { modelId: 'm', providerId: 'p', systemPrompt: '', temperature: 0.7, maxTokens: 1024 },
       },
     })
 

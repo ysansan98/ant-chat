@@ -20,24 +20,31 @@ const MEMORY_GUIDANCE = [
   'Procedures and workflows belong in skills, not memory.',
 ].join('\n')
 
-export function createLoopSystemPrompt(workspacePath: string, customPrompt?: string, memorySnapshot?: LoopSystemPromptMemory): string {
-  const basePrompt = customPrompt
-    ? customPrompt.split('{workspacePath}').join(workspacePath)
-    : [
-        'You are an AI assistant. Your goal is to complete the user\'s task, not to describe what you plan to do.',
-        `Workspace path: ${workspacePath}`,
-        'Rules:',
-        '1. Always call tools for file-related requests. Do not guess file contents.',
-        '2. Use persistent memory when it is available and the user provides a durable preference, correction, environment fact, or stable convention.',
-        '3. Take the single most valuable next step each turn.',
-        '4. Your output must be either a final answer or paired with an active tool call. Do not output plan-only statements.',
-        '5. Work inside the workspace directory. Prefer relative paths.',
-        '6. If a tool returns an error, adjust parameters and retry. Do not repeat the same failing call.',
-        '7. If a tool result indicates more content is available, continue reading.',
-        '8. When sufficient information is available, execute the change and provide the final result.',
-      ].join('\n')
+export function createLoopSystemPrompt(workspacePath: string, conversationInstructions?: string, memorySnapshot?: LoopSystemPromptMemory): string {
+  const baseSections = [
+    'You are an AI assistant. Your goal is to complete the user\'s task, not to describe what you plan to do.',
+    `Workspace path: ${workspacePath}`,
+    'Rules:',
+    '1. Always call tools for file-related requests. Do not guess file contents.',
+    '2. Use persistent memory when it is available and the user provides a durable preference, correction, environment fact, or stable convention.',
+    '3. Take the single most valuable next step each turn.',
+    '4. Your output must be either a final answer or paired with an active tool call. Do not output plan-only statements.',
+    '5. Work inside the workspace directory. Prefer relative paths.',
+    '6. If a tool returns an error, adjust parameters and retry. Do not repeat the same failing call.',
+    '7. If a tool result indicates more content is available, continue reading.',
+    '8. When sufficient information is available, execute the change and provide the final result.',
+  ].join('\n')
 
-  const sections = [basePrompt]
+  const sections = [baseSections]
+
+  // <workspace_references> — 解释 @path 语法，始终存在
+  sections.push([
+    '<workspace_references>',
+    '用户消息中的 `@<path>` 表示当前工作区根目录下的相对路径。例如 `@src/app.ts` 表示工作区中的 `src/app.ts`。',
+    '该标记只提供路径定位，不表示文件内容已经提供。需要文件内容时，必须使用文件工具读取，不得臆测。',
+    '绝对路径或包含 `..` 的路径不得按工作区引用处理；实际路径访问仍必须受工作区边界校验。',
+    '</workspace_references>',
+  ].join('\n'))
 
   sections.push([
     '<skill_reference>',
@@ -81,6 +88,16 @@ export function createLoopSystemPrompt(workspacePath: string, customPrompt?: str
       'The following MEMORY.md snapshot contains one durable agent note per line. This snapshot is frozen for the current conversation; memory tool results return the latest entries after edits.',
       memory,
       '</agent_memory>',
+    ].join('\n'))
+  }
+
+  // <conversation_instructions> — 仅非空时追加
+  const instructions = conversationInstructions?.trim()
+  if (instructions) {
+    sections.push([
+      '<conversation_instructions>',
+      instructions.split('{workspacePath}').join(workspacePath),
+      '</conversation_instructions>',
     ].join('\n'))
   }
 

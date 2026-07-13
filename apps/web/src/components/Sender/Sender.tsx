@@ -1,4 +1,4 @@
-import type { AgentMode, BuiltinCommand, ChatFeatures, IMessageContent, LanguageModelUsage, ProviderConfigModelSchema, SkillManifest, WorkspaceFileSearchResult } from '@ant-chat/shared'
+import type { AgentMode, BuiltinCommand, IMessageContent, LanguageModelUsage, ProviderConfigModelSchema, SkillManifest, WorkspaceFileSearchResult } from '@ant-chat/shared'
 import type { FileUIPart } from 'ai'
 import { BUILTIN_COMMANDS, calculateContextTokens, classifyFile } from '@ant-chat/shared'
 import {
@@ -34,7 +34,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@workspace/ui/components/popover'
-import { Cable, ChevronDownIcon, FolderOpenIcon, HandIcon, PaperclipIcon, ShieldAlertIcon, ShieldCheckIcon, SquareIcon } from 'lucide-react'
+import { ChevronDownIcon, FolderOpenIcon, HandIcon, PaperclipIcon, ShieldAlertIcon, ShieldCheckIcon, SquareIcon } from 'lucide-react'
 import { nanoid } from 'nanoid'
 import {
   useEffect,
@@ -70,10 +70,9 @@ import {
   removeReferenceTokenAtCursor,
   rewriteReferenceTrigger,
   snapCursorToReferenceTokenBoundary,
-  syncReferencedFiles,
-  syncSelectedSkill,
+  syncConfirmedFileReferences,
+  syncConfirmedSkillReference,
 } from './inputReferences'
-import MCPManagementPanel from './MCPManagementPanel'
 import { PendingMessageQueue } from './PendingMessageQueue'
 import { ReferenceSuggestionPanel } from './ReferenceSuggestionPanel'
 import { calculateSessionUsage } from './sessionUsage'
@@ -82,10 +81,7 @@ interface SenderProps {
   disabled?: boolean
   actions?: React.ReactNode
   onSubmit?: (
-    content: IMessageContent,
-    referencedFiles: string[],
-    selectedSkill: string | undefined,
-    features: ChatFeatures,
+    messageContent: IMessageContent,
     agentMode: AgentMode,
   ) => Promise<boolean | void> | boolean | void
   onCancel?: () => void
@@ -192,7 +188,7 @@ function SenderContextUsageButton({
 
   return (
     <ContextUsage
-      maxTokens={contextLength}
+      contextLength={contextLength}
       usage={sessionUsage}
       usedTokens={Math.max(0, usedTokens)}
     >
@@ -224,18 +220,18 @@ function SenderContextUsageButton({
 
 function ReferenceInputOverlay({
   text,
-  referencedFiles,
-  selectedSkill,
+  confirmedFileReferences,
+  confirmedSkillReference,
   scrollTop,
 }: {
   text: string
-  referencedFiles: string[]
-  selectedSkill?: string
+  confirmedFileReferences: string[]
+  confirmedSkillReference?: string
   scrollTop: number
 }) {
   const parts = useMemo(
-    () => buildReferenceInputParts(text, referencedFiles, selectedSkill),
-    [text, referencedFiles, selectedSkill],
+    () => buildReferenceInputParts(text, confirmedFileReferences, confirmedSkillReference),
+    [text, confirmedFileReferences, confirmedSkillReference],
   )
 
   return (
@@ -327,8 +323,8 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
   const [notice, setNotice] = useState('')
   const [draft, setDraft] = useState('')
   const [cursor, setCursor] = useState(0)
-  const [referencedFiles, setReferencedFiles] = useState<string[]>([])
-  const [selectedSkill, setSelectedSkill] = useState<string>()
+  const [confirmedFileReferences, setConfirmedFileReferences] = useState<string[]>([])
+  const [confirmedSkillReference, setConfirmedSkillReference] = useState<string>()
   const [textareaScrollTop, setTextareaScrollTop] = useState(0)
   const [currentModelInfo, setCurrentModelInfo] = useState<ProviderConfigModelSchema | null>(null)
 
@@ -352,7 +348,6 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
     state => state.conversationStates[state.activeConversationsId] === 'running',
   )
 
-  const mcpEnabled = useChatSttingsStore(state => state.enableMCP)
   const agentMode = useChatSttingsStore(state => state.agentMode)
 
   const { settings } = useChatSettingsContext()
@@ -376,10 +371,10 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
   const currentAgentModeOption = agentModeOptions.find(item => item.value === agentMode) || agentModeOptions[1]
   const activeReferenceTrigger = useMemo(() => {
     const trigger = getActiveReferenceTrigger(draft, cursor)
-    return isCompletedReferenceTrigger(trigger, referencedFiles, selectedSkill)
+    return isCompletedReferenceTrigger(trigger, confirmedFileReferences, confirmedSkillReference)
       ? null
       : trigger
-  }, [draft, cursor, referencedFiles, selectedSkill])
+  }, [draft, cursor, confirmedFileReferences, confirmedSkillReference])
   const enabledSkills = useMemo(
     () => senderData.skills.filter(skill => skill.enabled),
     [senderData.skills],
@@ -537,8 +532,8 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
 
   function updateDraft(nextText: string, nextCursor?: number) {
     setDraft(nextText)
-    setReferencedFiles(prev => syncReferencedFiles(nextText, prev))
-    setSelectedSkill(prev => syncSelectedSkill(nextText, prev))
+    setConfirmedFileReferences(prev => syncConfirmedFileReferences(nextText, prev))
+    setConfirmedSkillReference(prev => syncConfirmedSkillReference(nextText, prev))
     if (typeof nextCursor === 'number') {
       setCursor(nextCursor)
     }
@@ -552,7 +547,7 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
     const token = `@${file.path}`
     const next = insertReferenceToken(draft, activeReferenceTrigger, token)
     updateDraft(next.text, next.cursor)
-    setReferencedFiles(prev => Array.from(new Set([...prev, file.path])))
+    setConfirmedFileReferences(prev => Array.from(new Set([...prev, file.path])))
     requestAnimationFrame(() => {
       textareaRef.current?.focus()
       textareaRef.current?.setSelectionRange(next.cursor, next.cursor)
@@ -565,7 +560,7 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
     }
 
     // 把目录路径补到 @ 之后（带尾斜杠），改写 query 触发下一轮搜索
-    // 不入 referencedFiles、不关闭面板，由新 query 自然续搜
+    // 目录不是已确认引用，不关闭面板，由新 query 自然续搜
     const nextQuery = `${dir.path}/`
     const next = rewriteReferenceTrigger(draft, activeReferenceTrigger, nextQuery)
     updateDraft(next.text, next.cursor)
@@ -600,7 +595,7 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
     const token = `/${skill.name}`
     const next = insertReferenceToken(draft, activeReferenceTrigger, token)
     updateDraft(next.text, next.cursor)
-    setSelectedSkill(skill.name)
+    setConfirmedSkillReference(skill.name)
     requestAnimationFrame(() => {
       textareaRef.current?.focus()
       textareaRef.current?.setSelectionRange(next.cursor, next.cursor)
@@ -615,7 +610,7 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
     const token = `/${command.id}`
     const next = insertReferenceToken(draft, activeReferenceTrigger, token)
     updateDraft(next.text, next.cursor)
-    // Do NOT set selectedSkill for built-in commands — they go through the command channel
+    // 内置指令走 command channel，不能标记成已确认 Skill 引用。
     requestAnimationFrame(() => {
       textareaRef.current?.focus()
       textareaRef.current?.setSelectionRange(next.cursor, next.cursor)
@@ -670,8 +665,8 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
         draft,
         event.currentTarget.selectionStart,
         event.key,
-        referencedFiles,
-        selectedSkill,
+        confirmedFileReferences,
+        confirmedSkillReference,
       )
       if (nextCursor !== null) {
         event.preventDefault()
@@ -691,8 +686,8 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
         draft,
         event.currentTarget.selectionStart,
         event.key,
-        referencedFiles,
-        selectedSkill,
+        confirmedFileReferences,
+        confirmedSkillReference,
       )
       if (next) {
         event.preventDefault()
@@ -742,8 +737,8 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
     const nextCursor = snapCursorToReferenceTokenBoundary(
       draft,
       element.selectionStart,
-      referencedFiles,
-      selectedSkill,
+      confirmedFileReferences,
+      confirmedSkillReference,
     )
     setCursor(nextCursor)
     if (nextCursor !== element.selectionStart) {
@@ -762,9 +757,6 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
   }
 
   async function handleSubmit(message: { text: string, files: FileUIPart[] }) {
-    const nextReferencedFiles = syncReferencedFiles(message.text, referencedFiles)
-    const nextSelectedSkill = syncSelectedSkill(message.text, selectedSkill)
-
     const files = await Promise.all(
       message.files.map((part, index) => filePartToAttachment(part, index)),
     )
@@ -824,15 +816,13 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
       }
     })
 
-    const submitted = await props.onSubmit?.(content, nextReferencedFiles, nextSelectedSkill, {
-      enableMCP: mcpEnabled,
-    }, agentMode)
+    const submitted = await props.onSubmit?.(content, agentMode)
     if (submitted === false)
       return
     setDraft('')
     setCursor(0)
-    setReferencedFiles([])
-    setSelectedSkill(undefined)
+    setConfirmedFileReferences([])
+    setConfirmedSkillReference(undefined)
     setTextareaScrollTop(0)
     // 恢复 textarea 焦点，防止因外部状态变化导致其失焦
     requestAnimationFrame(() => {
@@ -877,8 +867,8 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
             <div className="relative min-h-20 w-full md:min-h-24">
               <ReferenceInputOverlay
                 text={draft}
-                referencedFiles={referencedFiles}
-                selectedSkill={selectedSkill}
+                confirmedFileReferences={confirmedFileReferences}
+                confirmedSkillReference={confirmedSkillReference}
                 scrollTop={textareaScrollTop}
               />
               <PromptInputTextarea
@@ -1020,24 +1010,6 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
                       {item.value === agentMode ? <span>✓</span> : null}
                     </button>
                   ))}
-                </PopoverContent>
-              </Popover>
-
-              <Popover>
-                <PopoverTrigger render={(
-                  <PromptInputButton
-                    size="sm"
-                    type="button"
-                    variant={mcpEnabled ? 'secondary' : 'ghost'}
-                    aria-label="MCP 管理"
-                  >
-                    <Cable className="size-3" />
-                    <span className="max-sm:hidden">MCP</span>
-                  </PromptInputButton>
-                )}
-                />
-                <PopoverContent align="start" className="w-[calc(100vw-1rem)] max-w-85 p-0">
-                  <MCPManagementPanel />
                 </PopoverContent>
               </Popover>
 

@@ -38,14 +38,14 @@ describe('sqlite row mapping', () => {
     const conversation = mapConversationRow({
       id: 'conv-1',
       workspace_path: '/workspace',
+      conversation_instructions: '',
       title: 'Legacy compaction settings',
       created_at: 1,
       updated_at: 1,
       settings: JSON.stringify({
         modelId: 'model-1',
-        systemPrompt: '',
         temperature: 0.7,
-        maxTokens: 4096,
+        maxOutputTokens: 4096,
         compaction: {
           enabled: true,
           thresholdPercent: 70,
@@ -87,12 +87,12 @@ describe('sqlite repositories', () => {
       workspacePath: '/workspace',
       createdAt: 1,
       updatedAt: 1,
+      conversationInstructions: '',
       settings: {
         modelId: 'model-1',
         providerId: '',
-        systemPrompt: '',
         temperature: 0.7,
-        maxTokens: 1024,
+        maxOutputTokens: 1024,
       },
     })
     const message = await messageRepository.create({
@@ -111,9 +111,9 @@ describe('sqlite repositories', () => {
 
   it('归档后从普通列表隐藏，并可按工作区搜索和恢复', async () => {
     const repository = new SqliteConversationRepository(sqlite)
-    const older = await repository.create({ title: '旧的设计讨论', workspacePath: '/ws-a', createdAt: 1, updatedAt: 1, settings: { modelId: 'm', providerId: '', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
-    const newer = await repository.create({ title: '归档设计讨论', workspacePath: '/ws-a', createdAt: 2, updatedAt: 2, settings: { modelId: 'm', providerId: '', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
-    await repository.create({ title: '其他工作区', workspacePath: '/ws-b', createdAt: 3, updatedAt: 3, settings: { modelId: 'm', providerId: '', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
+    const older = await repository.create({ title: '旧的设计讨论', workspacePath: '/ws-a', createdAt: 1, updatedAt: 1, conversationInstructions: '', settings: { modelId: 'm', providerId: '', temperature: 0.7, maxOutputTokens: 1024 } })
+    const newer = await repository.create({ title: '归档设计讨论', workspacePath: '/ws-a', createdAt: 2, updatedAt: 2, conversationInstructions: '', settings: { modelId: 'm', providerId: '', temperature: 0.7, maxOutputTokens: 1024 } })
+    await repository.create({ title: '其他工作区', workspacePath: '/ws-b', createdAt: 3, updatedAt: 3, conversationInstructions: '', settings: { modelId: 'm', providerId: '', temperature: 0.7, maxOutputTokens: 1024 } })
 
     await repository.setArchived(older.id, true)
     await repository.setArchived(newer.id, true)
@@ -130,8 +130,8 @@ describe('sqlite repositories', () => {
 
   it('永久删除已归档会话时不会删除未归档会话', async () => {
     const repository = new SqliteConversationRepository(sqlite)
-    const archived = await repository.create({ title: '归档', workspacePath: '/ws-a', createdAt: 1, updatedAt: 1, settings: { modelId: 'm', providerId: '', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
-    const visible = await repository.create({ title: '保留', workspacePath: '/ws-a', createdAt: 2, updatedAt: 2, settings: { modelId: 'm', providerId: '', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
+    const archived = await repository.create({ title: '归档', workspacePath: '/ws-a', createdAt: 1, updatedAt: 1, conversationInstructions: '', settings: { modelId: 'm', providerId: '', temperature: 0.7, maxOutputTokens: 1024 } })
+    const visible = await repository.create({ title: '保留', workspacePath: '/ws-a', createdAt: 2, updatedAt: 2, conversationInstructions: '', settings: { modelId: 'm', providerId: '', temperature: 0.7, maxOutputTokens: 1024 } })
     await repository.setArchived(archived.id, true)
 
     await expect(repository.deleteArchivedByWorkspace('/ws-a')).resolves.toEqual([archived.id])
@@ -140,7 +140,7 @@ describe('sqlite repositories', () => {
 
   it('将无工作区的归档会话纳入汇总、查询和分组删除', async () => {
     const repository = new SqliteConversationRepository(sqlite)
-    const unassigned = await repository.create({ title: '未关联归档', workspacePath: null, createdAt: 1, updatedAt: 1, settings: { modelId: 'm', providerId: '', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
+    const unassigned = await repository.create({ title: '未关联归档', workspacePath: null, createdAt: 1, updatedAt: 1, conversationInstructions: '', settings: { modelId: 'm', providerId: '', temperature: 0.7, maxOutputTokens: 1024 } })
     await repository.setArchived(unassigned.id, true)
 
     await expect(repository.listArchivedWorkspaces()).resolves.toEqual([{ workspacePath: null, total: 1 }])
@@ -160,12 +160,12 @@ describe('sqlite repositories', () => {
       workspacePath: '/workspace',
       createdAt: 1,
       updatedAt: 1,
+      conversationInstructions: '',
       settings: {
         modelId: 'model-1',
         providerId: '',
-        systemPrompt: '',
         temperature: 0.7,
-        maxTokens: 1024,
+        maxOutputTokens: 1024,
       },
     })
 
@@ -188,12 +188,12 @@ describe('sqlite repositories', () => {
       workspacePath: '/workspace',
       createdAt: 1,
       updatedAt: 1,
+      conversationInstructions: '',
       settings: {
         modelId: 'model-1',
         providerId: '',
-        systemPrompt: '',
         temperature: 0.7,
-        maxTokens: 1024,
+        maxOutputTokens: 1024,
       },
     })
 
@@ -241,12 +241,12 @@ describe('sqlite repositories', () => {
       workspacePath: '/workspace',
       createdAt: 1,
       updatedAt: 1,
+      conversationInstructions: '',
       settings: {
         modelId: 'model-1',
         providerId: '',
-        systemPrompt: '',
         temperature: 0.7,
-        maxTokens: 1024,
+        maxOutputTokens: 1024,
       },
     })
     const newerConversation = await conversationRepository.create({
@@ -254,12 +254,12 @@ describe('sqlite repositories', () => {
       workspacePath: '/workspace',
       createdAt: 2,
       updatedAt: 2,
+      conversationInstructions: '',
       settings: {
         modelId: 'model-1',
         providerId: '',
-        systemPrompt: '',
         temperature: 0.7,
-        maxTokens: 1024,
+        maxOutputTokens: 1024,
       },
     })
 
@@ -324,12 +324,12 @@ describe('sqlite repositories', () => {
       workspacePath: '/workspace',
       createdAt: 1,
       updatedAt: 1,
+      conversationInstructions: '',
       settings: {
         modelId: 'model-1',
         providerId: '',
-        systemPrompt: '',
         temperature: 0.7,
-        maxTokens: 1024,
+        maxOutputTokens: 1024,
       },
     })
 
@@ -376,12 +376,12 @@ describe('sqlite repositories', () => {
       workspacePath: '/workspace',
       createdAt: 1,
       updatedAt: 1,
+      conversationInstructions: '',
       settings: {
         modelId: 'model-1',
         providerId: '',
-        systemPrompt: '',
         temperature: 0.7,
-        maxTokens: 1024,
+        maxOutputTokens: 1024,
       },
     })
 
@@ -432,9 +432,9 @@ describe('sqlite repositories', () => {
   it('deletes all conversations in target workspace via deleteByWorkspace', async () => {
     const conversationRepository = new SqliteConversationRepository(sqlite)
 
-    await conversationRepository.create({ title: 'Target 1', workspacePath: '/ws-a', createdAt: 1, updatedAt: 1, settings: { modelId: 'm', providerId: '', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
-    await conversationRepository.create({ title: 'Target 2', workspacePath: '/ws-a', createdAt: 2, updatedAt: 2, settings: { modelId: 'm', providerId: '', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
-    await conversationRepository.create({ title: 'Other', workspacePath: '/ws-b', createdAt: 3, updatedAt: 3, settings: { modelId: 'm', providerId: '', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
+    await conversationRepository.create({ title: 'Target 1', workspacePath: '/ws-a', createdAt: 1, updatedAt: 1, conversationInstructions: '', settings: { modelId: 'm', providerId: '', temperature: 0.7, maxOutputTokens: 1024 } })
+    await conversationRepository.create({ title: 'Target 2', workspacePath: '/ws-a', createdAt: 2, updatedAt: 2, conversationInstructions: '', settings: { modelId: 'm', providerId: '', temperature: 0.7, maxOutputTokens: 1024 } })
+    await conversationRepository.create({ title: 'Other', workspacePath: '/ws-b', createdAt: 3, updatedAt: 3, conversationInstructions: '', settings: { modelId: 'm', providerId: '', temperature: 0.7, maxOutputTokens: 1024 } })
 
     const deletedIds = await conversationRepository.deleteByWorkspace('/ws-a')
 
@@ -447,9 +447,9 @@ describe('sqlite repositories', () => {
   it('includes null workspace conversations when includeNullWorkspace is true', async () => {
     const conversationRepository = new SqliteConversationRepository(sqlite)
 
-    await conversationRepository.create({ title: 'Named', workspacePath: '/ws-a', createdAt: 1, updatedAt: 1, settings: { modelId: 'm', providerId: '', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
-    await conversationRepository.create({ title: 'Default', workspacePath: undefined, createdAt: 2, updatedAt: 2, settings: { modelId: 'm', providerId: '', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
-    await conversationRepository.create({ title: 'Other', workspacePath: '/ws-b', createdAt: 3, updatedAt: 3, settings: { modelId: 'm', providerId: '', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
+    await conversationRepository.create({ title: 'Named', workspacePath: '/ws-a', createdAt: 1, updatedAt: 1, conversationInstructions: '', settings: { modelId: 'm', providerId: '', temperature: 0.7, maxOutputTokens: 1024 } })
+    await conversationRepository.create({ title: 'Default', workspacePath: undefined, createdAt: 2, updatedAt: 2, conversationInstructions: '', settings: { modelId: 'm', providerId: '', temperature: 0.7, maxOutputTokens: 1024 } })
+    await conversationRepository.create({ title: 'Other', workspacePath: '/ws-b', createdAt: 3, updatedAt: 3, conversationInstructions: '', settings: { modelId: 'm', providerId: '', temperature: 0.7, maxOutputTokens: 1024 } })
 
     const deletedIds = await conversationRepository.deleteByWorkspace('/ws-a', true)
 
@@ -462,8 +462,8 @@ describe('sqlite repositories', () => {
   it('preserves conversations in other workspaces', async () => {
     const conversationRepository = new SqliteConversationRepository(sqlite)
 
-    await conversationRepository.create({ title: 'A', workspacePath: '/ws-a', createdAt: 1, updatedAt: 1, settings: { modelId: 'm', providerId: '', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
-    await conversationRepository.create({ title: 'B', workspacePath: '/ws-b', createdAt: 2, updatedAt: 2, settings: { modelId: 'm', providerId: '', systemPrompt: '', temperature: 0.7, maxTokens: 1024 } })
+    await conversationRepository.create({ title: 'A', workspacePath: '/ws-a', createdAt: 1, updatedAt: 1, conversationInstructions: '', settings: { modelId: 'm', providerId: '', temperature: 0.7, maxOutputTokens: 1024 } })
+    await conversationRepository.create({ title: 'B', workspacePath: '/ws-b', createdAt: 2, updatedAt: 2, conversationInstructions: '', settings: { modelId: 'm', providerId: '', temperature: 0.7, maxOutputTokens: 1024 } })
 
     await conversationRepository.deleteByWorkspace('/ws-a')
 
@@ -507,7 +507,8 @@ describe('sqlite repositories', () => {
       workspacePath: '/workspace',
       createdAt: 1,
       updatedAt: 1,
-      settings: { modelId: 'model-1', providerId: '', systemPrompt: '', temperature: 0.7, maxTokens: 1024 },
+      conversationInstructions: '',
+      settings: { modelId: 'model-1', providerId: '', temperature: 0.7, maxOutputTokens: 1024 },
     })
 
     await messageRepository.create({
@@ -562,7 +563,8 @@ describe('sqlite repositories', () => {
       workspacePath: '/workspace',
       createdAt: 1,
       updatedAt: 1,
-      settings: { modelId: 'model-1', providerId: '', systemPrompt: '', temperature: 0.7, maxTokens: 1024 },
+      conversationInstructions: '',
+      settings: { modelId: 'model-1', providerId: '', temperature: 0.7, maxOutputTokens: 1024 },
     })
 
     const message = await messageRepository.create({
@@ -601,7 +603,8 @@ describe('sqlite repositories', () => {
       workspacePath: '/workspace',
       createdAt: 1,
       updatedAt: 1,
-      settings: { modelId: 'model-1', providerId: '', systemPrompt: '', temperature: 0.7, maxTokens: 1024 },
+      conversationInstructions: '',
+      settings: { modelId: 'model-1', providerId: '', temperature: 0.7, maxOutputTokens: 1024 },
     })
 
     const message = await messageRepository.create({

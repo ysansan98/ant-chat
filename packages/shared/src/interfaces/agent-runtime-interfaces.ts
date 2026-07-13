@@ -64,7 +64,7 @@ export interface IAIProvider {
     modelSettings: {
       model: string
       temperature?: number
-      maxTokens?: number
+      maxOutputTokens?: number
       systemPrompt: string
       /** 推理强度档位（ai-sdk v7 统一参数）。未设置时由厂商默认决定。 */
       reasoningEffort?: ReasoningEffortLevel
@@ -78,7 +78,7 @@ export interface IAIProvider {
     modelSettings: {
       model: string
       systemPrompt: string
-      maxTokens?: number
+      maxOutputTokens?: number
       /** 推理强度档位（ai-sdk v7 统一参数）。未设置时由厂商默认决定。 */
       reasoningEffort?: ReasoningEffortLevel
     }
@@ -314,7 +314,7 @@ export interface AgentRuntimeConfig extends AgentRuntimeOverrides {
 }
 
 export interface AgentRuntimeStartTaskOptions {
-  prompt: string
+  messageContent: IMessageContent
   conversationId: string
   userMessageId: string
   model: AgentModel
@@ -322,13 +322,10 @@ export interface AgentRuntimeStartTaskOptions {
   workspacePath: string
   aiProvider?: IAIProvider
   mode?: AgentMode
-  content?: IMessageContent
-  referencedFiles?: string[]
   turnSource?: AgentTurnSource
   modelSettings?: {
-    systemPrompt?: string
     temperature?: number
-    maxTokens?: number
+    maxOutputTokens?: number
     /** 推理强度档位（ai-sdk v7 统一参数）。未设置时由厂商默认决定。 */
     reasoningEffort?: ReasoningEffortLevel
   }

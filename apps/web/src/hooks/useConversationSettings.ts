@@ -1,17 +1,16 @@
 import type { ConversationsSettingsSchema } from '@ant-chat/shared'
 import { DEFAULT_COMPACTION_SETTINGS } from '@ant-chat/shared'
 import { has } from 'lodash-es'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useImmer } from 'use-immer'
-import { getConversationByIdAction, updateConversationsSettingsAction } from '@/store/conversation'
+import { getConversationByIdAction, updateConversationInstructionsAction, updateConversationsSettingsAction } from '@/store/conversation'
 import { useMessagesStore } from '@/store/messages'
 
 const DEFAULT_SETTINGS: ConversationsSettingsSchema = {
   modelId: '',
   providerId: '',
-  systemPrompt: '',
   temperature: 0.7,
-  maxTokens: 1000,
+  maxOutputTokens: 1000,
   reasoningEffort: undefined,
   compaction: DEFAULT_COMPACTION_SETTINGS,
 }
@@ -21,6 +20,12 @@ export function useConversationSettings() {
   const conversations = getConversationByIdAction(currentConversationsId)
 
   const [settings, _updateSettings] = useImmer(conversations?.settings || { ...DEFAULT_SETTINGS })
+  const [conversationInstructions, _updateConversationInstructions] = useImmer(conversations?.conversationInstructions ?? '')
+  const persistedInstructionsRef = useRef({
+    conversationId: currentConversationsId,
+    value: conversations?.conversationInstructions ?? '',
+  })
+  const instructionSaveQueueRef = useRef<Promise<void>>(Promise.resolve())
 
   async function updateSettings(options: Partial<ConversationsSettingsSchema>) {
     const updatedSettings: Partial<ConversationsSettingsSchema> = {}
@@ -31,14 +36,11 @@ export function useConversationSettings() {
     if (has(options, 'providerId')) {
       updatedSettings.providerId = options.providerId || ''
     }
-    if (has(options, 'systemPrompt')) {
-      updatedSettings.systemPrompt = options.systemPrompt
-    }
     if (has(options, 'temperature')) {
       updatedSettings.temperature = options.temperature
     }
-    if (has(options, 'maxTokens')) {
-      updatedSettings.maxTokens = options.maxTokens
+    if (has(options, 'maxOutputTokens')) {
+      updatedSettings.maxOutputTokens = options.maxOutputTokens
     }
     if (has(options, 'reasoningEffort')) {
       updatedSettings.reasoningEffort = options.reasoningEffort
@@ -52,12 +54,32 @@ export function useConversationSettings() {
     }
 
     _updateSettings((draft) => {
-      for (const key in updatedSettings) {
-        if (Object.prototype.hasOwnProperty.call(updatedSettings, key)) {
-          ;(draft as any)[key] = (updatedSettings as any)[key]
-        }
-      }
+      Object.assign(draft, updatedSettings)
     })
+  }
+
+  function setConversationInstructions(value: string) {
+    _updateConversationInstructions(value)
+  }
+
+  async function updateConversationInstructions(value: string) {
+    _updateConversationInstructions(value)
+    const conversationId = currentConversationsId
+    if (!conversationId) {
+      return
+    }
+
+    const persist = async () => {
+      const persisted = persistedInstructionsRef.current
+      if (persisted.conversationId === conversationId && persisted.value === value) {
+        return
+      }
+      await updateConversationInstructionsAction(conversationId, value)
+      persistedInstructionsRef.current = { conversationId, value }
+    }
+    const queued = instructionSaveQueueRef.current.then(persist, persist)
+    instructionSaveQueueRef.current = queued
+    await queued
   }
 
   useEffect(() => {
@@ -65,26 +87,33 @@ export function useConversationSettings() {
       if (conversations?.settings) {
         draft.modelId = conversations.settings.modelId || ''
         draft.providerId = conversations.settings.providerId || ''
-        draft.systemPrompt = conversations.settings.systemPrompt || ''
-        draft.temperature = conversations.settings.temperature || 0.7
-        draft.maxTokens = conversations.settings.maxTokens || 1000
+        draft.temperature = conversations.settings.temperature ?? 0.7
+        draft.maxOutputTokens = conversations.settings.maxOutputTokens ?? 1000
         draft.reasoningEffort = conversations.settings.reasoningEffort
         draft.compaction = conversations.settings.compaction || DEFAULT_COMPACTION_SETTINGS
       }
       else {
         draft.modelId = ''
         draft.providerId = ''
-        draft.systemPrompt = ''
         draft.temperature = 0.7
-        draft.maxTokens = 1000
+        draft.maxOutputTokens = 1000
         draft.reasoningEffort = undefined
         draft.compaction = DEFAULT_COMPACTION_SETTINGS
       }
     })
-  }, [currentConversationsId, _updateSettings, conversations?.settings])
+    const nextInstructions = conversations?.conversationInstructions ?? ''
+    _updateConversationInstructions(nextInstructions)
+    persistedInstructionsRef.current = {
+      conversationId: currentConversationsId,
+      value: nextInstructions,
+    }
+  }, [currentConversationsId, _updateConversationInstructions, _updateSettings, conversations?.conversationInstructions, conversations?.settings])
 
   return {
     settings,
+    conversationInstructions,
+    setConversationInstructions,
     updateSettings,
+    updateConversationInstructions,
   }
 }

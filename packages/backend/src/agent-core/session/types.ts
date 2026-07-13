@@ -16,7 +16,8 @@ export interface RuntimeStartInput {
   userMessageId: string
   workspacePath: string
   mode: AgentMode
-  prompt: string
+  /** 用户文本内容的规范形式（所有 text block 拼接 trim） */
+  userText: string
 
   // ===== 数据（外部预构建，纯数据传入）=====
   messages: LoopMessage[]
@@ -37,7 +38,7 @@ export interface RuntimeStartInput {
 
   // ===== 可选配置 =====
   temperature?: number
-  maxTokens?: number
+  maxOutputTokens?: number
   /** 推理强度档位（ai-sdk v7 统一参数）。未设置时由厂商默认决定。 */
   reasoningEffort?: ReasoningEffortLevel
   compaction?: CompactionSettingsSchema

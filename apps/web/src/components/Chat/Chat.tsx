@@ -1,7 +1,8 @@
-import type { AgentMode, ChatFeatures, IMessageContent } from '@ant-chat/shared'
+import type { AgentMode, IMessageContent } from '@ant-chat/shared'
 import { Skeleton } from '@workspace/ui/components/skeleton'
 import { lazy, Suspense, useRef, useState } from 'react'
 import { toast } from 'sonner'
+import { skillApi } from '@/api/skillApi'
 import { AgentApprovalCard, AgentSecretRequestCard } from '@/components/Agent'
 import { useChatSettingsContext } from '@/contexts/chatSettings'
 import { useBuiltinCommandSubmit } from '@/hooks/useBuiltinCommandSubmit'
@@ -21,6 +22,7 @@ import {
 import { useWorkspaceStore } from '@/store/workspace'
 import Sender from '../Sender'
 
+import { hasSkillReference, hasWorkspacePathReference } from '../Sender/builtinCommandParser'
 import { ModelControlPanel } from '../Sender/PickerModel'
 import { buildTurnInput } from './buildTurnInput'
 import { ContextDiagnosticsPanel } from './ContextDiagnostics'
@@ -29,13 +31,26 @@ import { ConversationTitleBar } from './ConversationTitleBar'
 
 const BubbleList = lazy(() => import('./BubbleList'))
 
+async function resolveKnownSkillNames(text: string): Promise<ReadonlySet<string>> {
+  if (!text.trimStart().startsWith('/')) {
+    return new Set()
+  }
+  try {
+    const { skills } = await skillApi.listSkills()
+    return new Set(skills.filter(skill => skill.enabled).map(skill => skill.name))
+  }
+  catch {
+    return new Set()
+  }
+}
+
 export default function Chat() {
   const messages = useMessagesStore(state => state.messages)
   const activeConversationsId = useMessagesStore(state => state.activeConversationsId)
   const currentConversations = useConversationsStore(state => state.conversations.find(item => item.id === activeConversationsId))
   const currentWorkspacePath = useWorkspaceStore(state => state.currentWorkspacePath)
 
-  const { settings, updateSettings } = useChatSettingsContext()
+  const { settings, conversationInstructions, updateSettings, updateConversationInstructions } = useChatSettingsContext()
   const agentTask = useAgentRuntimeStore(state => state.getActiveTaskByConversation(activeConversationsId))
   const agentTaskId = agentTask?.taskId
   const pending = useAgentRuntimeStore(state => (agentTaskId ? state.pendingByTask[agentTaskId] : undefined))
@@ -45,11 +60,11 @@ export default function Chat() {
     settings: {
       modelId: settings.modelId || '',
       providerId: settings.providerId || '',
-      systemPrompt: settings.systemPrompt,
       temperature: settings.temperature,
-      maxTokens: settings.maxTokens,
+      maxOutputTokens: settings.maxOutputTokens,
       reasoningEffort: settings.reasoningEffort,
     },
+    conversationInstructions,
     currentWorkspacePath,
   })
 
@@ -61,17 +76,15 @@ export default function Chat() {
 
   async function onSubmit(
     content: IMessageContent,
-    referencedFiles: string[],
-    selectedSkill: string | undefined,
-    features: ChatFeatures,
     agentMode: AgentMode,
   ): Promise<boolean> {
     const textBlocks = content.filter(block => block.type === 'text')
     const draftText = textBlocks.map(block => block.text).join('\n')
+    const knownSkillNames = await resolveKnownSkillNames(draftText)
 
     if (agentTask) {
-      const hasStructuredInput = content.some(block => block.type !== 'text') || referencedFiles.length > 0 || Boolean(selectedSkill)
-      if (hasStructuredInput) {
+      const hasAttachment = content.some(block => block.type !== 'text')
+      if (hasAttachment || hasWorkspacePathReference(draftText) || hasSkillReference(draftText, knownSkillNames)) {
         toast.error('任务进行中，待处理消息暂不支持附件或引用')
         return false
       }
@@ -84,8 +97,10 @@ export default function Chat() {
       return false
     }
 
+    await updateConversationInstructions(conversationInstructions)
+
     // Try built-in command first
-    const handled = await submitCommand(draftText, referencedFiles, selectedSkill)
+    const handled = await submitCommand(draftText, knownSkillNames)
     if (handled)
       return true
 
@@ -94,18 +109,14 @@ export default function Chat() {
     const oldRect = messages.length === 0 && el ? el.getBoundingClientRect() : undefined
 
     // Regular agent turn
-    const prompt = draftText
     try {
       const result = await startAgentTurn(buildTurnInput({
         conversationId: activeConversationsId || undefined,
-        text: prompt,
-        content,
-        referencedFiles,
-        selectedSkill,
+        messageContent: content,
         mode: agentMode,
         workspacePath: currentWorkspacePath,
         settings,
-        features,
+        conversationInstructions,
       }))
       upsertConversationAction(result.conversation)
       await setActiveConversationsId(result.conversationId)
@@ -195,8 +206,8 @@ export default function Chat() {
                 <div className="flex items-center gap-1">
                   <ModelControlPanel
                     value={{ modelId: settings.modelId, providerId: settings.providerId }}
-                    onChange={({ modelId, providerId, maxTokens, temperature }) => {
-                      updateSettings({ modelId, providerId, maxTokens, temperature })
+                    onChange={({ modelId, providerId, maxOutputTokens, temperature }) => {
+                      updateSettings({ modelId, providerId, maxOutputTokens, temperature })
                     }}
                   />
                 </div>

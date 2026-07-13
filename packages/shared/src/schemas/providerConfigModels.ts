@@ -70,7 +70,7 @@ export const ProviderConfigModelSchema = z.object({
   name: z.string(),
   isBuiltin: z.union([z.boolean(), z.number()]).transform(val => Boolean(val)),
   isEnabled: z.union([z.boolean(), z.number()]).transform(val => Boolean(val)),
-  maxTokens: z.number(),
+  maxOutputTokens: z.number(),
   contextLength: z.number(),
   temperature: z.number().min(0).max(2),
   capabilities: ModelCapabilitiesSchema.optional().nullable(),
@@ -80,7 +80,7 @@ export const ProviderConfigModelSchema = z.object({
 })
 
 export const AllAvailableModels = ProviderConfigSchema.omit({ isEnabled: true, createdAt: true, updatedAt: true }).extend({
-  models: z.array(ProviderConfigModelSchema.pick({ id: true, name: true, model: true, capabilities: true, providerId: true, maxTokens: true, contextLength: true, temperature: true, cost: true })),
+  models: z.array(ProviderConfigModelSchema.pick({ id: true, name: true, model: true, capabilities: true, providerId: true, maxOutputTokens: true, contextLength: true, temperature: true, cost: true })),
 })
 
 export const CreateProviderConfigModelSchema = ProviderConfigModelSchema.omit({

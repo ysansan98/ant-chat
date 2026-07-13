@@ -39,12 +39,12 @@ const conversation = {
   workspacePath: '/workspace',
   createdAt: 1,
   updatedAt: 1,
+  conversationInstructions: '',
   settings: {
     modelId: 'model-1',
     providerId: 'provider-1',
-    systemPrompt: 'custom',
     temperature: 0.2,
-    maxTokens: 2048,
+    maxOutputTokens: 2048,
   },
 }
 const userMessage = {
@@ -104,17 +104,13 @@ describe('createAgentTurnService 行为', () => {
     const service = createService({ aiProviderFactory })
 
     await service.startTurn({
-      prompt: 'inspect project',
+      messageContent: [{ type: 'text', text: 'inspect project' }],
       workspacePath: '/workspace',
       modelConfig: {
         modelId: 'model-1',
         providerId: 'provider-1',
-        systemPrompt: 'custom',
         temperature: 0.2,
-        maxTokens: 2048,
-        features: {
-          enableMCP: false,
-        },
+        maxOutputTokens: 2048,
       },
     })
 
@@ -126,9 +122,8 @@ describe('createAgentTurnService 行为', () => {
       settings: {
         modelId: 'model-1',
         providerId: 'provider-1',
-        systemPrompt: 'custom',
         temperature: 0.2,
-        maxTokens: 2048,
+        maxOutputTokens: 2048,
       },
     }))
     expect(appDataContext.messageRepository.create).toHaveBeenCalledWith({
@@ -139,7 +134,7 @@ describe('createAgentTurnService 行为', () => {
       turnId: undefined,
     })
     expect(startTask).toHaveBeenCalledWith({
-      prompt: 'inspect project',
+      messageContent: [{ type: 'text', text: 'inspect project' }],
       conversationId: 'c1',
       userMessageId: 'm1',
       model,
@@ -147,12 +142,9 @@ describe('createAgentTurnService 行为', () => {
       workspacePath: '/workspace',
       aiProvider,
       mode: 'hybrid',
-      content: undefined,
-      referencedFiles: undefined,
       modelSettings: {
-        systemPrompt: 'custom',
         temperature: 0.2,
-        maxTokens: 2048,
+        maxOutputTokens: 2048,
       },
     })
   })
@@ -164,15 +156,13 @@ describe('createAgentTurnService 行为', () => {
 
     await expect(service.startTurn({
       conversationId: 'c1',
-      prompt: 'inspect project',
+      messageContent: [{ type: 'text', text: 'inspect project' }],
       workspacePath: '/workspace',
       modelConfig: {
         modelId: 'model-1',
         providerId: 'provider-1',
-        systemPrompt: 'custom',
         temperature: 0.2,
-        maxTokens: 2048,
-        features: { enableMCP: false },
+        maxOutputTokens: 2048,
       },
     })).rejects.toThrow('AGENT_TASK_ALREADY_RUNNING')
 
@@ -186,24 +176,18 @@ describe('createAgentTurnService 行为', () => {
 
     await service.startTurn({
       conversationId: 'c1',
-      prompt: 'run it',
-      workspacePath: '/explicit-workspace',
-      mode: 'strict',
-      referencedFiles: ['src/main.ts'],
-      content: [
+      messageContent: [
         { type: 'text', text: 'run it' },
         { type: 'image-block', source: { type: 'file_id', file_id: 'img-1' }, name: 'a.png', media_type: 'image/png', size: 1 },
         { type: 'document', source: { type: 'file_id', file_id: 'file-1' }, name: 'a.txt', media_type: 'text/plain', size: 1 },
       ],
+      workspacePath: '/explicit-workspace',
+      mode: 'strict',
       modelConfig: {
         modelId: 'model-1',
         providerId: 'provider-1',
-        systemPrompt: 'custom',
         temperature: 0.2,
-        maxTokens: 2048,
-        features: {
-          enableMCP: false,
-        },
+        maxOutputTokens: 2048,
       },
     })
 
@@ -212,8 +196,7 @@ describe('createAgentTurnService 行为', () => {
       userMessageId: 'm1',
       workspacePath: '/explicit-workspace',
       mode: 'strict',
-      referencedFiles: ['src/main.ts'],
-      content: [
+      messageContent: [
         { type: 'text', text: 'run it' },
         { type: 'image-block', source: { type: 'file_id', file_id: 'img-1' }, name: 'a.png', media_type: 'image/png', size: 1 },
         { type: 'document', source: { type: 'file_id', file_id: 'file-1' }, name: 'a.txt', media_type: 'text/plain', size: 1 },
@@ -228,17 +211,13 @@ describe('createAgentTurnService 行为', () => {
     const service = createService({ aiProviderFactory })
 
     await expect(service.startTurn({
-      prompt: 'inspect project',
+      messageContent: [{ type: 'text', text: 'inspect project' }],
       workspacePath: '/workspace',
       modelConfig: {
         modelId: 'model-1',
         providerId: 'provider-1',
-        systemPrompt: 'custom',
         temperature: 0.2,
-        maxTokens: 2048,
-        features: {
-          enableMCP: false,
-        },
+        maxOutputTokens: 2048,
       },
     })).rejects.toThrow('missing api key')
 
@@ -260,17 +239,13 @@ describe('createAgentTurnService 行为', () => {
     })
 
     await service.startTurn({
-      prompt: 'inspect project',
+      messageContent: [{ type: 'text', text: 'inspect project' }],
       workspacePath: '/workspace',
       modelConfig: {
         modelId: 'model-1',
         providerId: 'provider-1',
-        systemPrompt: 'custom',
         temperature: 0.2,
-        maxTokens: 2048,
-        features: {
-          enableMCP: false,
-        },
+        maxOutputTokens: 2048,
       },
     })
     await new Promise(resolve => setTimeout(resolve, 0))
@@ -299,17 +274,13 @@ describe('createAgentTurnService 行为', () => {
     })
 
     await service.startTurn({
-      prompt: 'inspect project',
+      messageContent: [{ type: 'text', text: 'inspect project' }],
       workspacePath: '/workspace',
       modelConfig: {
         modelId: 'model-1',
         providerId: 'provider-1',
-        systemPrompt: 'custom',
         temperature: 0.2,
-        maxTokens: 2048,
-        features: {
-          enableMCP: false,
-        },
+        maxOutputTokens: 2048,
       },
     })
     await new Promise(resolve => setTimeout(resolve, 0))
@@ -332,17 +303,13 @@ describe('createAgentTurnService 行为', () => {
     })
 
     await service.startTurn({
-      prompt: 'inspect project',
+      messageContent: [{ type: 'text', text: 'inspect project' }],
       workspacePath: '/workspace',
       modelConfig: {
         modelId: 'model-1',
         providerId: 'provider-1',
-        systemPrompt: 'custom',
         temperature: 0.2,
-        maxTokens: 2048,
-        features: {
-          enableMCP: false,
-        },
+        maxOutputTokens: 2048,
       },
     })
     await new Promise(resolve => setTimeout(resolve, 0))
@@ -355,15 +322,205 @@ describe('createAgentTurnService 行为', () => {
     const service = createService({ aiProviderFactory })
 
     await expect(service.startTurn({
-      prompt: 'inspect',
+      messageContent: [{ type: 'text', text: 'inspect' }],
       modelConfig: {
         modelId: 'model-1',
         providerId: 'provider-1',
-        systemPrompt: 'custom',
         temperature: 0.2,
-        maxTokens: 2048,
-        features: { enableMCP: false },
+        maxOutputTokens: 2048,
       },
     } as any)).rejects.toThrow('workspacePath is required')
+  })
+
+  it('新 conversation 创建后 conversationInstructions 等于启动时的指令', async () => {
+    const service = createService({ aiProviderFactory })
+
+    await service.startTurn({
+      messageContent: [{ type: 'text', text: 'inspect project' }],
+      workspacePath: '/workspace',
+      conversationInstructions: '请用中文回答，保持简洁',
+      modelConfig: {
+        modelId: 'model-1',
+        providerId: 'provider-1',
+        temperature: 0.2,
+        maxOutputTokens: 2048,
+      },
+    })
+
+    expect(appDataContext.conversationRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationInstructions: '请用中文回答，保持简洁',
+      }),
+    )
+  })
+
+  it('settings 不再包含 systemPrompt', async () => {
+    const service = createService({ aiProviderFactory })
+
+    await service.startTurn({
+      messageContent: [{ type: 'text', text: 'inspect project' }],
+      workspacePath: '/workspace',
+      modelConfig: {
+        modelId: 'model-1',
+        providerId: 'provider-1',
+        temperature: 0.2,
+        maxOutputTokens: 2048,
+      },
+    })
+
+    expect(appDataContext.conversationRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        settings: expect.not.objectContaining({ systemPrompt: expect.anything() }),
+      }),
+    )
+  })
+
+  it('reasoningEffort 被持久化并传入 runtime', async () => {
+    const service = createService({ aiProviderFactory })
+
+    await service.startTurn({
+      messageContent: [{ type: 'text', text: 'inspect project' }],
+      workspacePath: '/workspace',
+      modelConfig: {
+        modelId: 'model-1',
+        providerId: 'provider-1',
+        temperature: 0.2,
+        maxOutputTokens: 2048,
+        reasoningEffort: 'high',
+      },
+    })
+
+    expect(appDataContext.conversationRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        settings: expect.objectContaining({
+          reasoningEffort: 'high',
+        }),
+      }),
+    )
+    expect(startTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        modelSettings: expect.objectContaining({
+          reasoningEffort: 'high',
+        }),
+      }),
+    )
+  })
+
+  it('后续 turn 使用持久化 reasoningEffort，不接受请求值覆盖', async () => {
+    vi.mocked(appDataContext.conversationRepository.getById).mockResolvedValueOnce({
+      ...conversation,
+      settings: {
+        ...conversation.settings,
+        reasoningEffort: 'high',
+      },
+    })
+    const service = createService({ aiProviderFactory })
+
+    await service.startTurn({
+      conversationId: 'c1',
+      messageContent: [{ type: 'text', text: 'inspect project again' }],
+      workspacePath: '/workspace',
+      modelConfig: {
+        modelId: 'model-1',
+        providerId: 'provider-1',
+        temperature: 0.2,
+        maxOutputTokens: 2048,
+        reasoningEffort: 'low',
+      },
+    })
+
+    expect(startTask).toHaveBeenCalledWith(expect.objectContaining({
+      modelSettings: expect.objectContaining({ reasoningEffort: 'high' }),
+    }))
+  })
+
+  it('未传 reasoningEffort 时保持 undefined 不注入默认档位', async () => {
+    const service = createService({ aiProviderFactory })
+
+    await service.startTurn({
+      messageContent: [{ type: 'text', text: 'inspect project' }],
+      workspacePath: '/workspace',
+      modelConfig: {
+        modelId: 'model-1',
+        providerId: 'provider-1',
+        temperature: 0.2,
+        maxOutputTokens: 2048,
+      },
+    })
+
+    expect(startTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        modelSettings: expect.not.objectContaining({
+          reasoningEffort: expect.anything(),
+        }),
+      }),
+    )
+  })
+
+  it('未传 compaction 时不要求该字段', async () => {
+    const service = createService({ aiProviderFactory })
+
+    await service.startTurn({
+      messageContent: [{ type: 'text', text: 'inspect project' }],
+      workspacePath: '/workspace',
+      modelConfig: {
+        modelId: 'model-1',
+        providerId: 'provider-1',
+        temperature: 0.2,
+        maxOutputTokens: 2048,
+      },
+    })
+
+    expect(appDataContext.conversationRepository.create).toHaveBeenCalled()
+    // settings 中不出现 compaction（不在 start-turn 时补默认值）
+    const createCall = vi.mocked(appDataContext.conversationRepository.create).mock.calls[0][0]
+    const settings = (createCall as any).settings
+    expect(settings).not.toHaveProperty('compaction')
+  })
+
+  it('多 text block 时持久化内容与传给 runtime 的规范化内容一致，无第二份 prompt 覆盖', async () => {
+    const service = createService({ aiProviderFactory })
+
+    await service.startTurn({
+      conversationId: 'c1',
+      messageContent: [
+        { type: 'text', text: 'first block' },
+        { type: 'text', text: 'second block' },
+        { type: 'image-block', source: { type: 'file_id', file_id: 'img-1' }, name: 'a.png', media_type: 'image/png', size: 1 },
+      ],
+      workspacePath: '/workspace',
+      modelConfig: {
+        modelId: 'model-1',
+        providerId: 'provider-1',
+        temperature: 0.2,
+        maxOutputTokens: 2048,
+      },
+    })
+
+    // 持久化内容 = messageContent（原样保存）
+    expect(appDataContext.messageRepository.create).toHaveBeenCalledWith({
+      convId: 'c1',
+      role: 'user',
+      status: 'success',
+      content: [
+        { type: 'text', text: 'first block' },
+        { type: 'text', text: 'second block' },
+        { type: 'image-block', source: { type: 'file_id', file_id: 'img-1' }, name: 'a.png', media_type: 'image/png', size: 1 },
+      ],
+      turnId: undefined,
+    })
+    // canonical text = 所有 text block 拼接的 trim
+    expect(startTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messageContent: [
+          { type: 'text', text: 'first block' },
+          { type: 'text', text: 'second block' },
+          { type: 'image-block', source: { type: 'file_id', file_id: 'img-1' }, name: 'a.png', media_type: 'image/png', size: 1 },
+        ],
+      }),
+    )
+    // userText 仅从 messageContent 提取并用于标题和校验，不进入 startTask payload。
+    const callArg = startTask.mock.calls[0]?.[0] as { workspacePath: string }
+    expect(callArg.workspacePath).toBe('/workspace')
   })
 })

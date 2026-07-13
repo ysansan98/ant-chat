@@ -118,7 +118,7 @@ describe('multiProvider 行为', () => {
       messages: [{ role: 'user', content: 'compact this' }],
       modelSettings: {
         model: 'test-model',
-        systemPrompt: 'summarize',
+        systemPrompt: '',
       },
     })).resolves.toEqual({
       text: 'summary',

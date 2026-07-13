@@ -1,29 +1,33 @@
 import type { ParsedCommand } from './inputReferences'
 import { BUILTIN_COMMANDS } from '@ant-chat/shared'
 
+const EMPTY_SKILL_NAMES: ReadonlySet<string> = new Set()
+
 /**
- * Parse draft text to detect a built-in command.
- * Returns the command and its argument if the draft is a valid command invocation,
- * or null if the draft is a regular message or an invalid command mix.
+ * 从草稿文本识别内置指令。
  *
- * Rules:
- * - `/compact [instruction]` — multi-line argument allowed
- * - `/new` — no argument, no attachments, no other text
- * - `/fork` — no argument, no attachments, no other text
- * - Rejects if the command is mixed with @file references, other skill refs, or attachments
+ * `/compact` 允许多行参数；`/new`、`/fork` 不允许参数。内置指令不能与
+ * `@workspace/path` 或另一个 Skill token 混用。
  */
-export function parseBuiltinCommand(
-  text: string,
-  referencedFiles: string[],
-  selectedSkill?: string,
-): ParsedCommand | null {
+export function hasWorkspacePathReference(text: string): boolean {
+  return /(?:^|\s)@\S+/u.test(text)
+}
+
+function findLeadingSkillReference(text: string): string | undefined {
+  return /^\/([\w.-]+)(?=\s|$)/u.exec(text.trim())?.[1]
+}
+
+export function hasSkillReference(text: string, knownSkillNames: ReadonlySet<string> = EMPTY_SKILL_NAMES): boolean {
+  const skillReference = findLeadingSkillReference(text)
+  return Boolean(skillReference && knownSkillNames.has(skillReference))
+}
+
+export function parseBuiltinCommand(text: string, knownSkillNames: ReadonlySet<string> = EMPTY_SKILL_NAMES): ParsedCommand | null {
   const trimmed = text.trim()
   if (!trimmed.startsWith('/')) {
     return null
   }
 
-  // Check for mixed references: reject if there are @file refs or a selected skill
-  // alongside what looks like a built-in command
   const commandMatch = /^\/(\w+)(?:\s|$)/.exec(trimmed)
   if (!commandMatch) {
     return null
@@ -35,24 +39,21 @@ export function parseBuiltinCommand(
     return null
   }
 
-  // Reject if mixed with attachments or file references
-  if (referencedFiles.length > 0) {
+  if (hasWorkspacePathReference(trimmed)) {
     throw new Error(`/${command.id} cannot be combined with @file references`)
   }
 
-  // Reject if a different skill is selected
-  if (selectedSkill && selectedSkill !== command.id) {
-    throw new Error(`/${command.id} cannot be combined with skill /${selectedSkill}`)
+  const remainder = trimmed.slice(commandMatch[0].length).trim()
+  const skillReference = findLeadingSkillReference(remainder)
+  if (skillReference && knownSkillNames.has(skillReference)) {
+    throw new Error(`/${command.id} cannot be combined with skill /${skillReference}`)
   }
 
   if (command.allowArgument) {
-    // /compact: everything after "/compact " is the argument (multi-line allowed)
-    const afterCommand = trimmed.slice(commandMatch[0].length).trim()
-    return { id: command.id, argument: afterCommand || undefined }
+    // 保留指令之后的完整多行参数。
+    return { id: command.id, argument: remainder || undefined }
   }
 
-  // /new, /fork: no argument allowed beyond the command itself
-  const remainder = trimmed.slice(commandMatch[0].length).trim()
   if (remainder.length > 0) {
     throw new Error(`/${command.id} does not accept arguments`)
   }
@@ -60,10 +61,7 @@ export function parseBuiltinCommand(
   return { id: command.id }
 }
 
-/**
- * Check if a draft text triggers built-in command suggestions.
- * Returns the query string for filtering commands, or null.
- */
+/** 返回用于筛选内置指令建议的 query；未触发时返回 null。 */
 export function getCommandTriggerQuery(text: string, cursor: number): string | null {
   const beforeCursor = text.slice(0, cursor)
   const match = /(?:^|\s)\/(\S*)$/.exec(beforeCursor)

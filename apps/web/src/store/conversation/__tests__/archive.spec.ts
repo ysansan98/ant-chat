@@ -19,10 +19,16 @@ function conversation(id: string, updatedAt: number, archived = false): IConvers
     id,
     title: id,
     workspacePath: '/workspace',
+    conversationInstructions: '',
     createdAt: updatedAt,
     updatedAt,
     archived,
-    settings: { modelId: 'm', providerId: 'p', systemPrompt: '', temperature: 0.7, maxTokens: 1024 },
+    settings: {
+      modelId: '',
+      providerId: '',
+      temperature: 0.7,
+      maxOutputTokens: 1000,
+    },
   }
 }
 

@@ -1,22 +1,24 @@
+import type { ReasoningEffortLevel } from '../schemas/providerConfigModels'
 import type { AgentMode, AgentTurnSource } from './agent-runtime'
-import type { ChatFeatures, IConversations, IMessageContent } from './db-types'
-import type { ModelSettings } from './model-service'
+import type { IConversations, IMessageContent } from './db-types'
 
 /**
  * App transport input for starting an agent turn.
  */
 export interface StartAgentTurnOptions {
   conversationId?: string
-  prompt: string
-  content?: IMessageContent
-  referencedFiles?: string[]
+  messageContent: IMessageContent
   turnSource?: AgentTurnSource
   workspacePath: string
   mode?: AgentMode
-  modelConfig: Omit<ModelSettings, 'model' | 'features'> & {
+  /** 仅新建 conversation 时消费 */
+  conversationInstructions?: string
+  modelConfig: {
     modelId: string
     providerId: string
-    features: ChatFeatures
+    temperature?: number
+    maxOutputTokens?: number
+    reasoningEffort?: ReasoningEffortLevel
   }
 }
 

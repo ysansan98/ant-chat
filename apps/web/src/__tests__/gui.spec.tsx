@@ -1,4 +1,4 @@
-import type { AgentTaskSnapshot, ConversationsId, IConversations, IMessage } from '@ant-chat/shared'
+import type { AgentTaskSnapshot, ConversationsId, IConversations, IMessage, SkillIndex } from '@ant-chat/shared'
 
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -85,7 +85,7 @@ const mocks = vi.hoisted(() => ({
     })),
   },
   skill: {
-    listSkills: vi.fn(async () => ({ skills: [] })),
+    listSkills: vi.fn<() => Promise<SkillIndex>>(async () => ({ rootPath: '/tmp/skills', skills: [] })),
   },
   workspace: {
     chooseWorkspace: vi.fn(async () => null),
@@ -156,7 +156,7 @@ describe('gui ui flow', () => {
     usePendingMessagesStore.setState({ itemsByConversation: {} })
 
     mocks.provider.getAllAbvailableModels.mockResolvedValue([])
-    mocks.skill.listSkills.mockResolvedValue({ skills: [] })
+    mocks.skill.listSkills.mockResolvedValue({ rootPath: '/tmp/skills', skills: [] })
     mocks.workspace.listWorkspaces.mockResolvedValue({
       workspaces: [{
         path: guiWorkspacePath,
@@ -307,7 +307,7 @@ describe('gui ui flow', () => {
         model: 'mock-model',
         name: 'Mock Model',
         providerId: 'provider-1',
-        maxTokens: 1024,
+        maxOutputTokens: 1024,
         temperature: 0,
       }],
     }])
@@ -337,7 +337,7 @@ describe('gui ui flow', () => {
     await waitFor(() => {
       expect(mocks.agent.startTurn).toHaveBeenCalledWith(expect.objectContaining({
         modelConfig: expect.objectContaining({ modelId: 'model-1' }),
-        prompt: '检查当前目录',
+        messageContent: [{ type: 'text', text: '检查当前目录' }],
       }))
     })
     expect(await screen.findByText('目录检查完成。')).toBeInTheDocument()
@@ -352,7 +352,7 @@ describe('gui ui flow', () => {
         model: 'mock-model',
         name: 'Mock Model',
         providerId: 'provider-1',
-        maxTokens: 1024,
+        maxOutputTokens: 1024,
         temperature: 0,
       }],
     }])
@@ -500,6 +500,70 @@ describe('gui ui flow', () => {
       }),
     ])
   })
+
+  it('运行中的任务拒绝包含工作区路径引用的待处理消息', async () => {
+    seedActiveConversation('conv-reference')
+    const task = createTask({
+      conversationId: 'conv-reference',
+      status: 'running',
+      taskId: 'task-reference',
+    })
+    mocks.agent.listActiveTasks.mockResolvedValue([task])
+
+    await setActiveConversationsId('conv-reference' as ConversationsId)
+    mocks.workspace.listWorkspaces.mockResolvedValue({ workspaces: [] })
+
+    renderGui('/chat')
+
+    const input = await screen.findByTestId('chat-input')
+    fireEvent.change(input, {
+      target: { value: '检查 @src/main.ts' },
+    })
+    fireEvent.click(screen.getByTestId('chat-submit'))
+
+    expect(await screen.findByText('任务进行中，待处理消息暂不支持附件或引用')).toBeInTheDocument()
+    expect(input).toHaveValue('检查 @src/main.ts')
+    expect(mocks.agent.injectSteering).not.toHaveBeenCalled()
+    expect(mocks.agent.startTurn).not.toHaveBeenCalled()
+  })
+
+  it('运行中的任务拒绝包含 Skill 引用的待处理消息', async () => {
+    seedActiveConversation('conv-skill-reference')
+    const task = createTask({
+      conversationId: 'conv-skill-reference',
+      status: 'running',
+      taskId: 'task-skill-reference',
+    })
+    mocks.agent.listActiveTasks.mockResolvedValue([task])
+    mocks.skill.listSkills.mockResolvedValue({
+      rootPath: '/tmp/skills',
+      skills: [{
+        name: 'review',
+        description: '审查当前修改',
+        enabled: true,
+        builtin: false,
+        source: 'zip',
+        installedAt: 1,
+        updatedAt: 1,
+      }],
+    })
+
+    await setActiveConversationsId('conv-skill-reference' as ConversationsId)
+    mocks.workspace.listWorkspaces.mockResolvedValue({ workspaces: [] })
+
+    renderGui('/chat')
+
+    const input = await screen.findByTestId('chat-input')
+    fireEvent.change(input, {
+      target: { value: '/review 检查当前修改' },
+    })
+    fireEvent.click(screen.getByTestId('chat-submit'))
+
+    expect(await screen.findByText('任务进行中，待处理消息暂不支持附件或引用')).toBeInTheDocument()
+    expect(input).toHaveValue('/review 检查当前修改')
+    expect(mocks.agent.injectSteering).not.toHaveBeenCalled()
+    expect(mocks.agent.startTurn).not.toHaveBeenCalled()
+  })
 })
 
 function renderGui(initialPath: string) {
@@ -580,15 +644,16 @@ function createConversation(id: string): IConversations {
   return {
     createdAt: Date.now(),
     id,
+    conversationInstructions: '',
     settings: {
       compaction: {
         enabled: true,
         keepRecentTokens: 20_000,
         thresholdPercent: 70,
       },
-      maxTokens: 1000,
+      maxOutputTokens: 1000,
       modelId: '',
-      systemPrompt: '',
+      providerId: '',
       temperature: 0.7,
     },
     title: 'GUI Conversation',

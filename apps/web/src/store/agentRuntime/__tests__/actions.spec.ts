@@ -127,17 +127,13 @@ describe('agentRuntime 事件对账', () => {
 describe('agentRuntime RPC 转发与远程对账', () => {
   it('调用 agent api', async () => {
     const created = await startAgentTurn({
-      prompt: 'p',
+      messageContent: [{ type: 'text', text: 'p' }],
       workspacePath: '/workspace',
       modelConfig: {
         modelId: 'model-1',
         providerId: 'provider-1',
-        systemPrompt: '',
         temperature: 0.7,
-        maxTokens: 1024,
-        features: {
-          enableMCP: false,
-        },
+        maxOutputTokens: 1024,
       },
     })
     expect(created.taskId).toBe('t1')

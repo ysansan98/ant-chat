@@ -22,7 +22,6 @@ function makeConversation(id: string, workspacePath: string): IConversations {
     title: id,
     createdAt: 1,
     updatedAt: 1,
-    settings: { modelId: 'm', providerId: 'p', systemPrompt: '', temperature: 0.7, maxTokens: 1024 },
   } as IConversations
 }
 

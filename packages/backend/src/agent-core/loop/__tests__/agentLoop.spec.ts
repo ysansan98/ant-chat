@@ -100,12 +100,12 @@ function createBaseInput(overrides: Partial<RuntimeStartInput> & { taskId?: stri
       userMessageId: 'msg-1',
       workspacePath: '/workspace',
       mode: 'hybrid',
-      prompt: 'test',
+      userText: 'test',
       messages: [
         { role: 'user', content: [{ type: 'text', text: 'Hello' }] },
       ],
-      systemPrompt: 'You are helpful.',
       registry: new ToolRegistry([]),
+      systemPrompt: '',
       aiProvider: null,
       modelName: 'test-model',
       providerName: 'test-provider',
@@ -235,7 +235,6 @@ describe('runAgentLoop 行为', () => {
       model: options.modelName,
       provider: options.providerName,
       toolNames: ['read_file'],
-      systemPromptPreview: expect.stringContaining('durable user preferences'),
       messagesPreview: [
         expect.objectContaining({
           role: 'user',

@@ -11,7 +11,13 @@ import { providerApi } from '@/api/providerApi'
 import { useChatSettingsContext } from '@/contexts/chatSettings'
 
 export function ModelParameterSettingsPanel() {
-  const { settings, updateSettings } = useChatSettingsContext()
+  const {
+    settings,
+    conversationInstructions,
+    setConversationInstructions,
+    updateSettings,
+    updateConversationInstructions,
+  } = useChatSettingsContext()
   const compaction = settings.compaction || DEFAULT_COMPACTION_SETTINGS
 
   const [modelInfo, setModelInfo] = useState<ProviderConfigModelSchema | null>(null)
@@ -57,18 +63,22 @@ export function ModelParameterSettingsPanel() {
 
   return (
     <div className="w-80 p-2 px-4">
-      <h4 className="mb-3 text-sm font-medium text-muted-foreground">模型设置</h4>
+      <h4 className="mb-3 text-sm font-medium text-muted-foreground">会话指令</h4>
+
+      <Textarea
+        aria-label="会话指令"
+        id="conversation-instructions"
+        placeholder="例如：使用中文回答，优先给出可执行结论"
+        value={conversationInstructions}
+        onChange={event => setConversationInstructions(event.target.value)}
+        onBlur={event => void updateConversationInstructions(event.currentTarget.value)}
+      />
+
+      <Separator className="my-4" />
+
+      <h4 className="mb-3 text-sm font-medium text-muted-foreground">模型参数</h4>
 
       <div className="space-y-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="system-prompt">系统提示词</Label>
-          <Textarea
-            id="system-prompt"
-            value={settings.systemPrompt}
-            onChange={e => updateSettings({ systemPrompt: e.target.value })}
-          />
-        </div>
-
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <Label htmlFor="temperature">Temperature</Label>
@@ -86,18 +96,18 @@ export function ModelParameterSettingsPanel() {
 
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <Label htmlFor="max-tokens">Max Tokens</Label>
+            <Label htmlFor="max-output-tokens">最大输出 Token</Label>
             <span className="text-xs text-muted-foreground tabular-nums">
-              {`${Math.floor((settings.maxTokens ?? 0) / 1000)}k`}
+              {`${Math.floor((settings.maxOutputTokens ?? 0) / 1000)}k`}
             </span>
           </div>
           <Slider
-            id="max-tokens"
+            id="max-output-tokens"
             min={1000}
-            max={modelInfo?.maxTokens ?? 8000}
+            max={modelInfo?.maxOutputTokens ?? 8000}
             step={1000}
-            value={[settings.maxTokens]}
-            onValueChange={value => updateSettings({ maxTokens: getSliderValue(value) })}
+            value={[settings.maxOutputTokens]}
+            onValueChange={value => updateSettings({ maxOutputTokens: getSliderValue(value) })}
           />
         </div>
 
@@ -127,11 +137,15 @@ export function ModelParameterSettingsPanel() {
 
       <Separator className="my-4" />
 
-      <h4 className="mb-3 text-sm font-medium text-muted-foreground">Context compaction</h4>
+      <h4 className="mb-3 text-sm font-medium text-muted-foreground">上下文压缩</h4>
+
+      <p className="mb-3 text-xs/relaxed text-muted-foreground">
+        未单独设置时使用默认自动压缩策略。
+      </p>
 
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <Label htmlFor="compaction-enabled">Enable compaction</Label>
+          <Label htmlFor="compaction-enabled">启用自动压缩</Label>
           <Switch
             id="compaction-enabled"
             size="sm"
@@ -142,7 +156,7 @@ export function ModelParameterSettingsPanel() {
 
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <Label htmlFor="compaction-threshold">Trigger threshold</Label>
+            <Label htmlFor="compaction-threshold">触发阈值</Label>
             <span className="text-xs text-muted-foreground tabular-nums">
               {compaction.thresholdPercent}
               %
@@ -160,9 +174,9 @@ export function ModelParameterSettingsPanel() {
 
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <Label htmlFor="compaction-retained-tokens">Retention target</Label>
+            <Label htmlFor="compaction-retained-tokens">保留目标</Label>
             <span className="text-xs text-muted-foreground tabular-nums">
-              {`${Math.round(compaction.keepRecentTokens / 1000)}k tokens`}
+              {`${Math.round(compaction.keepRecentTokens / 1000)}k Token`}
             </span>
           </div>
           <Slider
@@ -174,7 +188,7 @@ export function ModelParameterSettingsPanel() {
             onValueChange={value => updateCompaction({ keepRecentTokens: getSliderValue(value) })}
           />
           <p className="text-xs/relaxed text-muted-foreground">
-            This is a target. The actual retained context may be slightly larger to keep complete messages and tool calls intact.
+            这是目标值。为保持消息和工具调用完整，实际保留的上下文可能略多。
           </p>
         </div>
       </div>

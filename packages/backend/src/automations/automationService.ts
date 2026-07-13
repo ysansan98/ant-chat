@@ -48,7 +48,7 @@ export function createAutomationService(options: {
     options.events.emit('automation:run-changed', { run })
     try {
       const result = await options.startTurn({
-        prompt: automation.prompt,
+        messageContent: [{ type: 'text', text: automation.prompt }],
         workspacePath: automation.workspacePath,
         turnSource: {
           type: 'automation',
@@ -62,10 +62,8 @@ export function createAutomationService(options: {
         modelConfig: {
           providerId: automation.providerId,
           modelId: automation.modelId,
-          features: { enableMCP: automation.allowedMcpServers.length > 0 },
-          systemPrompt: '',
           temperature: 0.7,
-          maxTokens: 4096,
+          maxOutputTokens: 4096,
         },
       })
       run = await options.repository.updateRun(runId, { taskId: result.taskId, conversationId: result.conversationId })

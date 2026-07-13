@@ -3,13 +3,45 @@ import { AppSettingsSchema } from '@ant-chat/shared'
 import { JsonFileMigrationError, UnsupportedJsonSchemaVersionError, VersionedJsonFileStore } from '../file'
 import { DEFAULT_APP_SETTINGS } from './defaultAppSettings'
 
-const APP_SETTINGS_SCHEMA_VERSION = 1
+const APP_SETTINGS_SCHEMA_VERSION = 2
 const APP_SETTINGS_MIGRATIONS = [
   {
     version: 1,
     migrate: (value: unknown) => value,
   },
+  {
+    version: 2,
+    migrate: migrateProviderModelOutputTokens,
+  },
 ] as const
+
+/** 旧版 provider model 使用 maxTokens；文件迁移后只保留语义明确的输出上限字段。 */
+function migrateProviderModelOutputTokens(value: unknown): unknown {
+  if (!isRecord(value) || !Array.isArray(value.providers)) {
+    return value
+  }
+
+  for (const provider of value.providers) {
+    if (!isRecord(provider) || !isRecord(provider.models)) {
+      continue
+    }
+    for (const model of Object.values(provider.models)) {
+      if (!isRecord(model)) {
+        continue
+      }
+      if (model.maxOutputTokens === undefined && model.maxTokens !== undefined) {
+        model.maxOutputTokens = model.maxTokens
+      }
+      delete model.maxTokens
+    }
+  }
+
+  return value
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
 
 export interface AppSettingsStoreOptions {
   filePath: string

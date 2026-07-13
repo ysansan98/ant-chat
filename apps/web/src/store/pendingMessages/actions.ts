@@ -165,10 +165,9 @@ async function drainOnce(conversationId: string) {
   try {
     await startAgentTurn(buildTurnInput({
       conversationId,
-      text: item.text,
+      messageContent: [{ type: 'text', text: item.text }],
       workspacePath: useWorkspaceStore.getState().currentWorkspacePath,
       settings: conversation.settings,
-      features: { enableMCP: useChatSttingsStore.getState().enableMCP },
       mode: useChatSttingsStore.getState().agentMode,
     }))
     removePendingMessage(conversationId, item.id)

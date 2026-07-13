@@ -21,7 +21,7 @@ export interface ModelsDevModel {
   providerId: string
   model: string
   contextLength?: number
-  maxTokens?: number
+  maxOutputTokens?: number
   toolCall?: boolean
   reasoning?: boolean
   /** 模型支持的推理强度档位（已映射为 ai-sdk v7 档位）。存在该字段即表示可配置推理强度。 */

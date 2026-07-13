@@ -53,7 +53,7 @@ describe('automationService', () => {
     await service.execute(automation, 'run-1')
 
     expect(startTurn).toHaveBeenCalledWith(expect.objectContaining({
-      prompt: '检查代码',
+      messageContent: [{ type: 'text', text: '检查代码' }],
       turnSource: {
         type: 'automation',
         automationId: automation.id,
@@ -63,9 +63,10 @@ describe('automationService', () => {
         permissionPolicy: automation.permissionPolicy,
       },
     }))
-    const startInput = startTurn.mock.calls[0]?.[0] as { prompt: string }
-    expect(startInput.prompt).not.toContain('review')
-    expect(startInput.prompt).not.toContain('github')
+    const startInput = startTurn.mock.calls[0]?.[0] as { messageContent: Array<{ text: string }> }
+    const promptText = startInput.messageContent.map(b => b.text).join('')
+    expect(promptText).not.toContain('review')
+    expect(promptText).not.toContain('github')
   })
 
   it('强制删除前取消活跃运行并广播最终状态', async () => {

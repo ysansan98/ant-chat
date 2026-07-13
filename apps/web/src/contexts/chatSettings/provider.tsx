@@ -3,10 +3,24 @@ import { useConversationSettings } from '@/hooks/useConversationSettings'
 import { ChatSettingsContext } from './context'
 
 export function ChatSettingsProvider({ children }: { children: React.ReactNode }) {
-  const { settings, updateSettings } = useConversationSettings()
+  const {
+    settings,
+    conversationInstructions,
+    setConversationInstructions,
+    updateSettings,
+    updateConversationInstructions,
+  } = useConversationSettings()
 
   return (
-    <ChatSettingsContext value={{ settings, updateSettings }}>
+    <ChatSettingsContext
+      value={{
+        settings,
+        conversationInstructions,
+        setConversationInstructions,
+        updateSettings,
+        updateConversationInstructions,
+      }}
+    >
       {children}
     </ChatSettingsContext>
   )

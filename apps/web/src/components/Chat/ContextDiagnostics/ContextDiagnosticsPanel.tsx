@@ -678,7 +678,7 @@ function buildSummary(item: ContextItemSnapshot): string {
 
   if (item.kind === 'model-settings' && item.settings) {
     const s = item.settings
-    return `${s.model || ''} · temperature ${s.temperature ?? '?'} · maxTokens ${s.maxTokens ?? '?'}`
+    return `${s.model || ''} · temperature ${s.temperature ?? '?'} · maxOutputTokens ${s.maxOutputTokens ?? '?'}`
   }
 
   return ''

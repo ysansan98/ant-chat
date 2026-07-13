@@ -60,7 +60,7 @@ export function createCompactionStrategy(reasoningEffort?: ReasoningEffortLevel)
         modelSettings: {
           model,
           systemPrompt: SUMMARIZATION_SYSTEM_PROMPT,
-          maxTokens: MAX_SUMMARY_TOKENS,
+          maxOutputTokens: MAX_SUMMARY_TOKENS,
           ...(reasoningEffort ? { reasoningEffort } : {}),
         },
         abortSignal,

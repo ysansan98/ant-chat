@@ -28,7 +28,7 @@ export function AddModelFormModal({ open, title, onCancel, onSave }: AddModelFor
   const [model, setModel] = React.useState('')
   const [name, setName] = React.useState('')
   const [temperature, setTemperature] = React.useState(0.7)
-  const [maxTokens, setMaxTokens] = React.useState<number | undefined>()
+  const [maxOutputTokens, setMaxOutputTokens] = React.useState<number | undefined>()
   const [contextLength, setContextLength] = React.useState<number | undefined>()
   const [functionCall, setFunctionCall] = React.useState(false)
   const [reasoning, setReasoning] = React.useState(false)
@@ -42,7 +42,7 @@ export function AddModelFormModal({ open, title, onCancel, onSave }: AddModelFor
     setModel('')
     setName('')
     setTemperature(0.7)
-    setMaxTokens(undefined)
+    setMaxOutputTokens(undefined)
     setContextLength(undefined)
     setFunctionCall(false)
     setReasoning(false)
@@ -70,7 +70,7 @@ export function AddModelFormModal({ open, title, onCancel, onSave }: AddModelFor
       model,
       name,
       temperature,
-      maxTokens: maxTokens || 4000,
+      maxOutputTokens: maxOutputTokens ?? 4000,
       contextLength: contextLength || 4000,
       capabilities: hasFeatures
         ? {
@@ -111,14 +111,14 @@ export function AddModelFormModal({ open, title, onCancel, onSave }: AddModelFor
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label htmlFor="model-max-tokens" className="text-sm font-medium">最大tokens</label>
+            <label htmlFor="model-max-output-tokens" className="text-sm font-medium">最大输出 Token</label>
             <InputNumber
-              id="model-max-tokens"
+              id="model-max-output-tokens"
               min={1000}
               step={1000}
               className="w-full"
-              value={maxTokens ?? ''}
-              onChange={e => setMaxTokens(Number(e.target.value) || undefined)}
+              value={maxOutputTokens ?? ''}
+              onChange={e => setMaxOutputTokens(Number(e.target.value) || undefined)}
             />
           </div>
           <div className="flex flex-col gap-1">

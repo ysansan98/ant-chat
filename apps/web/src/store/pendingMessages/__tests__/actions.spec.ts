@@ -27,17 +27,25 @@ vi.mock('@/api/chatApi', () => ({
 const conversation = {
   id: 'conv-1',
   title: '测试会话',
-  settings: { modelId: 'model', providerId: 'provider', systemPrompt: '', temperature: 0.7, maxTokens: 1000 },
+  conversationInstructions: '',
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
+  settings: {
+    modelId: 'test-model',
+    providerId: 'test-provider',
+    temperature: 0.7,
+    maxOutputTokens: 8192,
+  },
 }
 
 describe('pending message actions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     usePendingMessagesStore.setState({ itemsByConversation: {} })
-    useConversationsStore.setState({ conversations: [conversation] as any })
-    useMessagesStore.setState({ activeConversationsId: 'conv-1' as any, messages: [], pendingSteeringByConversation: {} })
+    useConversationsStore.setState({ conversations: [conversation] })
+    useMessagesStore.setState({ activeConversationsId: 'conv-1', messages: [], pendingSteeringByConversation: {} })
     useWorkspaceStore.setState({ currentWorkspacePath: '/workspace' })
-    useChatSttingsStore.setState({ enableMCP: true, agentMode: 'hybrid' })
+    useChatSttingsStore.setState({ agentMode: 'hybrid' })
     mocks.listActiveTasks.mockResolvedValue([])
     mocks.clearWorkspaceConversations.mockResolvedValue(['conv-1'])
     mocks.deleteConversation.mockResolvedValue(null)
@@ -53,7 +61,7 @@ describe('pending message actions', () => {
     expect(one).toBe(two)
     await Promise.all([one, two])
     expect(mocks.startTurn).toHaveBeenCalledTimes(1)
-    expect(mocks.startTurn).toHaveBeenCalledWith(expect.objectContaining({ prompt: '第一条', workspacePath: '/workspace' }))
+    expect(mocks.startTurn).toHaveBeenCalledWith(expect.objectContaining({ messageContent: [{ type: 'text', text: '第一条' }], workspacePath: '/workspace' }))
     expect(usePendingMessagesStore.getState().itemsByConversation['conv-1']).toHaveLength(1)
   })
 
@@ -87,8 +95,8 @@ describe('pending message actions', () => {
     // inject 因无 active task 回退为 drainOnce，处理队尾
     // 两者通过 runConversationOperation 串行化
     expect(mocks.startTurn).toHaveBeenCalledTimes(2)
-    expect(mocks.startTurn).toHaveBeenNthCalledWith(1, expect.objectContaining({ prompt: '队首' }))
-    expect(mocks.startTurn).toHaveBeenNthCalledWith(2, expect.objectContaining({ prompt: '队尾' }))
+    expect(mocks.startTurn).toHaveBeenNthCalledWith(1, expect.objectContaining({ messageContent: [{ type: 'text', text: '队首' }] }))
+    expect(mocks.startTurn).toHaveBeenNthCalledWith(2, expect.objectContaining({ messageContent: [{ type: 'text', text: '队尾' }] }))
     expect(mocks.injectSteering).not.toHaveBeenCalled()
     expect(usePendingMessagesStore.getState().itemsByConversation['conv-1']).toHaveLength(0)
   })
@@ -109,7 +117,7 @@ describe('pending message actions', () => {
 
     const draining = drainPendingMessages('conv-1')
     await vi.waitFor(() => expect(mocks.startTurn).toHaveBeenCalledTimes(1))
-    const deleting = deleteConversationsAction('conv-1' as any)
+    const deleting = deleteConversationsAction('conv-1')
     expect(mocks.deleteConversation).not.toHaveBeenCalled()
     resolveStart({ conversation, conversationId: 'conv-1', taskId: 'task', userMessageId: 'user' })
     await draining
@@ -150,7 +158,7 @@ describe('pending message actions', () => {
 
     const draining = drainPendingMessages('conv-1')
     await vi.waitFor(() => expect(mocks.startTurn).toHaveBeenCalledTimes(1))
-    const deleting = deleteConversationsAction('conv-1' as any)
+    const deleting = deleteConversationsAction('conv-1')
     resolveStart({ conversation, conversationId: 'conv-1', taskId: 'task', userMessageId: 'user' })
     await draining
     await expect(deleting).rejects.toThrow('删除失败')
@@ -171,7 +179,7 @@ describe('pending message actions', () => {
 
     const injecting = injectPendingMessage('conv-1', queued.id)
     await vi.waitFor(() => expect(mocks.injectSteering).toHaveBeenCalledTimes(1))
-    const deleting = deleteConversationsAction('conv-1' as any)
+    const deleting = deleteConversationsAction('conv-1')
     resolveInject({ id: 'steering', convId: 'conv-1', role: 'user', status: 'success', content: [{ type: 'text', text: '已成功注入' }] })
     await injecting
     await expect(deleting).rejects.toThrow('删除失败')
@@ -233,7 +241,7 @@ describe('pending message actions', () => {
       resolveClear = resolve
     }))
 
-    const deleting = deleteConversationsAction('conv-1' as any)
+    const deleting = deleteConversationsAction('conv-1')
     const clearing = clearConversationsAction()
     await vi.waitFor(() => {
       expect(mocks.deleteConversation).toHaveBeenCalledTimes(1)

@@ -42,7 +42,7 @@ vi.mock('@/api/providerApi', () => ({
       providerId: 'test-provider',
       isBuiltin: false,
       isEnabled: true,
-      maxTokens: 4096,
+      maxOutputTokens: 4096,
       contextLength: 128_000,
       temperature: 0.7,
       capabilities: {
@@ -61,6 +61,9 @@ function renderSender(onSubmit = vi.fn()) {
       <ChatSettingsContext
         value={{
           settings: { ...DEFAULT_SETTINGS, modelId: 'test-model', providerId: 'test-provider' },
+          conversationInstructions: '',
+          setConversationInstructions: vi.fn(),
+          updateConversationInstructions: vi.fn(),
           updateSettings: vi.fn(),
         }}
       >
@@ -111,7 +114,6 @@ describe('sender reference token overlay', () => {
     })
     useWorkspaceStore.setState({ currentWorkspacePath: '/tmp/workspace', workspaceData: null, loading: false })
     useChatSttingsStore.setState({
-      enableMCP: false,
       agentMode: 'hybrid',
     })
   })
@@ -168,9 +170,6 @@ describe('sender reference token overlay', () => {
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledWith(
         [{ type: 'text', text: '看 @resume.md ' }],
-        ['resume.md'],
-        undefined,
-        { enableMCP: false },
         'hybrid',
       )
     })
@@ -328,5 +327,105 @@ describe('sender reference token overlay', () => {
       expect(bTsItem.closest('[data-highlighted="true"]')).not.toBeNull()
       expect(aTsItem.closest('[data-highlighted="true"]')).toBeNull()
     })
+  })
+})
+
+// ===== Sender 提交签名和 MCP UI 回归测试 =====
+describe('【契约】Sender 提交签名', () => {
+  beforeEach(() => {
+    vi.stubGlobal('ResizeObserver', ResizeObserverMock)
+    Element.prototype.scrollIntoView = vi.fn()
+    mocks.searchWorkspaceFiles.mockResolvedValue([
+      { path: 'resume.md', name: 'resume.md', type: 'file' },
+    ])
+    mocks.listWorkspaces.mockResolvedValue({
+      workspaces: [
+        { path: '/tmp/workspace', displayName: 'workspace' },
+      ],
+    })
+    useMessagesStore.setState({
+      activeConversationsId: '',
+      messages: [],
+    })
+    useConversationsStore.setState({
+      activeConversationsId: '',
+      conversations: [],
+      abortCallbacks: [],
+      pageIndex: 0,
+      pageSize: 20,
+      conversationsTotal: 1,
+      conversationStates: {},
+      loadVersion: 0,
+      workspaceConversations: {},
+    })
+    useWorkspaceStore.setState({ currentWorkspacePath: '/tmp/workspace', workspaceData: null, loading: false })
+    useChatSttingsStore.setState({
+      agentMode: 'hybrid',
+    })
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  it('onSubmit 只接受 messageContent 和 agentMode，不再接收 features/referencedFiles/selectedSkill', async () => {
+    const onSubmit = vi.fn()
+    renderSender(onSubmit)
+    await screen.findByText('workspace')
+    const textarea = screen.getByTestId('chat-input') as HTMLTextAreaElement
+
+    setTextareaValue(textarea, 'test message')
+    fireEvent.click(screen.getByTestId('chat-submit'))
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalled()
+    })
+    // onSubmit 只允许 messageContent 和 agentMode 两个参数。
+    const callArgs = onSubmit.mock.calls[0]
+    // 第一个参数是 IMessageContent
+    expect(Array.isArray(callArgs[0])).toBe(true)
+    expect(callArgs[0][0]).toMatchObject({ type: 'text' })
+    // 第二个参数是 AgentMode
+    expect(callArgs[1]).toBe('hybrid')
+    // 不应再有 3-5 个参数（referencedFiles, selectedSkill, features）
+    expect(callArgs.length).toBeLessThanOrEqual(2)
+  })
+
+  it('提交文件引用后不再发送 referencedFiles 数组', async () => {
+    const onSubmit = vi.fn()
+    renderSender(onSubmit)
+    await screen.findByText('workspace')
+    const textarea = screen.getByTestId('chat-input') as HTMLTextAreaElement
+
+    setTextareaValue(textarea, '看 @res')
+    await waitFor(() => {
+      expect(mocks.searchWorkspaceFiles).toHaveBeenCalled()
+    })
+    fireEvent.mouseDown(await screen.findByText('resume.md'))
+    await waitFor(() => {
+      expect(textarea.value).toBe('看 @resume.md ')
+    })
+
+    fireEvent.click(screen.getByTestId('chat-submit'))
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalled()
+    })
+
+    const callArgs = onSubmit.mock.calls[0]
+    // 消息内容应包含 @resume.md 文本，但不附带 referencedFiles 元数据
+    const contentText = callArgs[0].map((b: { text: string }) => b.text).join('')
+    expect(contentText).toContain('@resume.md')
+    // 第三个参数不应是数组（referencedFiles）
+    expect(callArgs.length).toBeLessThanOrEqual(2)
+  })
+
+  it('工具栏不渲染 MCP 管理按钮', async () => {
+    renderSender()
+    await screen.findByText('workspace')
+
+    // MCP 管理按钮有 aria-label="MCP 管理"
+    const mcpButton = screen.queryByRole('button', { name: /MCP 管理/i })
+    expect(mcpButton).toBeNull()
   })
 })

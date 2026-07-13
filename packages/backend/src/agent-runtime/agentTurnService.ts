@@ -3,7 +3,6 @@ import type {
   AIProviderFactory,
   ILogger,
   IMessage,
-  IMessageContent,
   StartAgentTurnOptions,
 } from '@ant-chat/shared'
 import type { AgentRuntime } from '../agent-core'
@@ -11,6 +10,7 @@ import type { AppDataContext } from '../data'
 import type { ConversationTitleGenerator } from './conversationTitleGenerator'
 import { createProvider } from '../agent-core/ai-providers/factory'
 import { truncateText } from '../agent-core/utils'
+import { extractMessageText } from '../agent-core/utils/messageContent'
 
 const DEFAULT_TITLE = 'Untitled'
 const MAX_TITLE_LENGTH = 30
@@ -34,9 +34,9 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
 
   return {
     async startTurn(options) {
-      const prompt = options.prompt.trim()
-      if (!prompt) {
-        throw new Error('invalid start turn options: missing prompt')
+      const userText = extractMessageText(options.messageContent)
+      if (!userText) {
+        throw new Error('invalid start turn options: missing message text')
       }
 
       const workspacePath = options.workspacePath
@@ -66,15 +66,16 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
         : {
             conversation: await appDataContext.conversationRepository.create({
               title: DEFAULT_TITLE,
+              conversationInstructions: options.conversationInstructions ?? '',
               createdAt: Date.now(),
               updatedAt: Date.now(),
               workspacePath,
               settings: {
                 modelId: options.modelConfig.modelId,
                 providerId: options.modelConfig.providerId,
-                systemPrompt: options.modelConfig.systemPrompt ?? '',
                 temperature: options.modelConfig.temperature ?? 0.7,
-                maxTokens: options.modelConfig.maxTokens ?? 4096,
+                maxOutputTokens: options.modelConfig.maxOutputTokens ?? 4096,
+                reasoningEffort: options.modelConfig.reasoningEffort,
               },
             }),
             created: true,
@@ -84,17 +85,20 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
       if (conversation.archived) {
         throw new Error('会话已归档，请先取消归档')
       }
+      const reasoningEffort = conversationState.created
+        ? options.modelConfig.reasoningEffort
+        : conversation.settings.reasoningEffort
       const userMessage = await appDataContext.messageRepository.create({
         convId: conversation.id,
         role: 'user',
         status: 'success',
-        content: resolveUserMessageContent(options.content, prompt),
+        content: options.messageContent,
         turnId: undefined,
       })
 
       try {
         const result = await runtime.startSessionTask({
-          prompt,
+          messageContent: options.messageContent,
           conversationId: conversation.id,
           userMessageId: userMessage.id,
           model,
@@ -102,14 +106,11 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
           workspacePath,
           aiProvider,
           mode: options.mode ?? 'hybrid',
-          content: options.content,
-          referencedFiles: options.referencedFiles,
           turnSource: options.turnSource,
           modelSettings: {
-            systemPrompt: options.modelConfig.systemPrompt,
             temperature: options.modelConfig.temperature,
-            maxTokens: options.modelConfig.maxTokens,
-            reasoningEffort: options.modelConfig.reasoningEffort,
+            maxOutputTokens: options.modelConfig.maxOutputTokens,
+            reasoningEffort,
           },
         })
 
@@ -122,7 +123,7 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
           appDataContext,
           shouldInitializeTitle: conversationState.created || conversation.title === DEFAULT_TITLE,
           titleGenerator,
-          userPrompt: prompt,
+          userPrompt: userText,
           emitConversationUpdated,
           logger,
         })
@@ -141,12 +142,6 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
       }
     },
   }
-}
-
-function resolveUserMessageContent(content: IMessageContent | undefined, prompt: string): IMessageContent {
-  return content && content.length > 0
-    ? content
-    : [{ type: 'text', text: prompt }]
 }
 
 function scheduleTitleInitialization(params: {

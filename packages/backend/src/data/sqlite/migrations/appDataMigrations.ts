@@ -52,5 +52,39 @@ export function createAppDataMigrations(
         }
       },
     },
+    {
+      version: 4,
+      name: '分离会话指令并迁移输出 token 字段',
+      migrate(db) {
+        // 1. 新增 conversation_instructions 列
+        const columns = db.prepare('PRAGMA table_info(conversations)').all() as Array<{ name: string }>
+        if (!columns.some(col => col.name === 'conversation_instructions')) {
+          db.exec('ALTER TABLE conversations ADD COLUMN conversation_instructions text NOT NULL DEFAULT \'\'')
+        }
+
+        // 2. 逐行迁移已有的 settings JSON
+        const rows = db.prepare('SELECT id, settings FROM conversations').all() as Array<{ id: string, settings: string }>
+        const updateStmt = db.prepare('UPDATE conversations SET conversation_instructions = ?, settings = ? WHERE id = ?')
+
+        for (const row of rows) {
+          try {
+            const settings = JSON.parse(row.settings) as Record<string, unknown>
+            const systemPrompt = typeof settings.systemPrompt === 'string' ? settings.systemPrompt : ''
+            delete settings.systemPrompt
+
+            // maxTokens → maxOutputTokens
+            if (settings.maxTokens !== undefined && settings.maxOutputTokens === undefined) {
+              settings.maxOutputTokens = settings.maxTokens
+            }
+            delete settings.maxTokens
+
+            updateStmt.run(systemPrompt, JSON.stringify(settings), row.id)
+          }
+          catch (error) {
+            throw new Error(`Migration v4: failed to parse settings for conversation ${row.id}: ${error}`)
+          }
+        }
+      },
+    },
   ]
 }

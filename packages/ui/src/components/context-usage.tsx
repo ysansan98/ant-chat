@@ -20,7 +20,7 @@ const ICON_STROKE_WIDTH = 2
 
 interface ContextUsageState {
   usedTokens: number
-  maxTokens: number
+  contextLength: number
   usage?: LanguageModelUsage
 }
 
@@ -38,13 +38,13 @@ export type ContextUsageProps = ComponentProps<typeof HoverCard> & ContextUsageS
 
 export function ContextUsage({
   usedTokens,
-  maxTokens,
+  contextLength,
   usage,
   ...props
 }: ContextUsageProps) {
   const value = useMemo(
-    () => ({ maxTokens, usage, usedTokens }),
-    [maxTokens, usage, usedTokens],
+    () => ({ contextLength, usage, usedTokens }),
+    [contextLength, usage, usedTokens],
   )
 
   return (
@@ -55,9 +55,9 @@ export function ContextUsage({
 }
 
 function CircleIcon() {
-  const { usedTokens, maxTokens } = useCtx()
+  const { usedTokens, contextLength } = useCtx()
   const circumference = 2 * Math.PI * ICON_RADIUS
-  const usedPercent = maxTokens > 0 ? usedTokens / maxTokens : 0
+  const usedPercent = contextLength > 0 ? usedTokens / contextLength : 0
   const dashOffset = circumference * (1 - Math.min(usedPercent, 1))
 
   return (
@@ -100,8 +100,8 @@ export type ContextUsageTriggerProps = Omit<ComponentProps<typeof Button>, 'chil
 }
 
 export function ContextUsageTrigger({ children, ...props }: ContextUsageTriggerProps) {
-  const { usedTokens, maxTokens } = useCtx()
-  const usedPercent = maxTokens > 0 ? usedTokens / maxTokens : 0
+  const { usedTokens, contextLength } = useCtx()
+  const usedPercent = contextLength > 0 ? usedTokens / contextLength : 0
   const renderedPercent = new Intl.NumberFormat('en-US', {
     maximumFractionDigits: 1,
     style: 'percent',
@@ -145,8 +145,8 @@ export function ContextUsageHeader({
   className,
   ...props
 }: ContextUsageHeaderProps) {
-  const { usedTokens, maxTokens } = useCtx()
-  const usedPercent = maxTokens > 0 ? usedTokens / maxTokens : 0
+  const { usedTokens, contextLength } = useCtx()
+  const usedPercent = contextLength > 0 ? usedTokens / contextLength : 0
   const displayPct = new Intl.NumberFormat('en-US', {
     maximumFractionDigits: 1,
     style: 'percent',
@@ -161,7 +161,7 @@ export function ContextUsageHeader({
             <p className="font-mono text-muted-foreground">
               {fmtCompact(usedTokens)}
               {' / '}
-              {fmtCompact(maxTokens)}
+              {fmtCompact(contextLength)}
             </p>
           </div>
           <div className="space-y-2">

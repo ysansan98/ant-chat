@@ -111,15 +111,15 @@ export function snapshotToolDefinitions(
 }
 
 export function snapshotModelSettings(
-  settings: { model: string, temperature?: number, maxTokens?: number, systemPrompt?: string },
+  settings: { model: string, temperature?: number, maxOutputTokens?: number, systemPrompt?: string },
   ordinal: number,
 ): ContextItemSnapshot {
   // system prompt 由独立的 system-prompt 项追踪，不计入 model-settings
   const modelOnly: Record<string, unknown> = { model: settings.model }
   if (settings.temperature !== undefined)
     modelOnly.temperature = settings.temperature
-  if (settings.maxTokens !== undefined)
-    modelOnly.maxTokens = settings.maxTokens
+  if (settings.maxOutputTokens !== undefined)
+    modelOnly.maxOutputTokens = settings.maxOutputTokens
 
   return {
     identity: { id: 'model-settings' },
@@ -152,7 +152,7 @@ export function buildBaselineSnapshot(
   messages: LoopMessage[],
   messageIds: string[],
   toolDefs: RuntimeToolDefinition[],
-  modelSettings: { model: string, temperature?: number, maxTokens?: number, systemPrompt?: string },
+  modelSettings: { model: string, temperature?: number, maxOutputTokens?: number, systemPrompt?: string },
   reason: 'initial' | 'compaction' | 'history-rewritten' = 'initial',
 ): {
   storage: BaselineStorage

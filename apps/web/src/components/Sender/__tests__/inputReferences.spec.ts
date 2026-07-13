@@ -7,8 +7,8 @@ import {
   moveCursorAcrossReferenceToken,
   removeReferenceTokenAtCursor,
   snapCursorToReferenceTokenBoundary,
-  syncReferencedFiles,
-  syncSelectedSkill,
+  syncConfirmedFileReferences,
+  syncConfirmedSkillReference,
 } from '../inputReferences'
 
 describe('inputReferences', () => {
@@ -36,11 +36,11 @@ describe('inputReferences', () => {
   })
 
   it('根据输入文本同步已选上下文', () => {
-    expect(syncReferencedFiles('看 @src/a.ts', ['src/a.ts', 'src/b.ts'])).toEqual(['src/a.ts'])
-    expect(syncSelectedSkill('用 /writer 写', 'writer')).toBe('writer')
-    expect(syncSelectedSkill('用 writer 写', 'writer')).toBeUndefined()
-    expect(syncReferencedFiles('看 @src/a.tsx', ['src/a.ts'])).toEqual([])
-    expect(syncSelectedSkill('用 /writer-pro 写', 'writer')).toBeUndefined()
+    expect(syncConfirmedFileReferences('看 @src/a.ts', ['src/a.ts', 'src/b.ts'])).toEqual(['src/a.ts'])
+    expect(syncConfirmedSkillReference('用 /writer 写', 'writer')).toBe('writer')
+    expect(syncConfirmedSkillReference('用 writer 写', 'writer')).toBeUndefined()
+    expect(syncConfirmedFileReferences('看 @src/a.tsx', ['src/a.ts'])).toEqual([])
+    expect(syncConfirmedSkillReference('用 /writer-pro 写', 'writer')).toBeUndefined()
   })
 
   it('已选引用 token 不再作为 active trigger', () => {

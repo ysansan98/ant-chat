@@ -350,6 +350,12 @@ export async function updateConversationsSettingsAction(id: ConversationsId, con
   saveCurrentSlice()
 }
 
+export async function updateConversationInstructionsAction(id: ConversationsId, conversationInstructions: string) {
+  const conversation = await chatApi.updateConversation({ id, conversationInstructions })
+  upsertConversationAction(conversation)
+  return conversation
+}
+
 /**
  * 设置会话状态。一个会话不可能同时处于 streaming 和 completed。
  * 无状态条目 = idle（空闲）。

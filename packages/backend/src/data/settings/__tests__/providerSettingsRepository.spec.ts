@@ -31,7 +31,7 @@ describe('provider settings repository', () => {
             isEnabled: true,
             temperature: 0.7,
             name: 'Test Model',
-            maxTokens: 4096,
+            maxOutputTokens: 4096,
             contextLength: 8192,
             capabilities: { functionCall: true },
           },
@@ -72,7 +72,7 @@ describe('provider settings repository', () => {
       providerId: 'provider-1',
       model: 'new-model',
       name: 'New Model',
-      maxTokens: 1024,
+      maxOutputTokens: 1024,
       contextLength: 2048,
       temperature: 0.5,
     })
@@ -86,7 +86,7 @@ describe('provider settings repository', () => {
       providerId: 'provider-1',
       model: 'new-model',
       name: 'New Model',
-      maxTokens: 1024,
+      maxOutputTokens: 1024,
       contextLength: 2048,
       temperature: 0.5,
     })).toThrow('new-model 已存在，不可重复添加')
@@ -121,7 +121,7 @@ describe('provider settings repository', () => {
           isOfficial: false,
           isEnabled: true,
           models: {
-            'gpt-4': { isEnabled: true, temperature: 0.7, name: 'GPT-4', maxTokens: 8192, contextLength: 32768, cost: { input: 0, output: 0 } },
+            'gpt-4': { isEnabled: true, temperature: 0.7, name: 'GPT-4', maxOutputTokens: 8192, contextLength: 32768, cost: { input: 0, output: 0 } },
           },
         },
       ],
@@ -158,8 +158,8 @@ describe('provider settings repository', () => {
           isOfficial: false,
           isEnabled: true,
           models: {
-            'shared-model': { isEnabled: true, temperature: 0.7, name: 'Shared', maxTokens: 4096, contextLength: 8192, cost: { input: 0, output: 0 } },
-            'a-only-model': { isEnabled: true, temperature: 0.7, name: 'A Only', maxTokens: 4096, contextLength: 8192, cost: { input: 0, output: 0 } },
+            'shared-model': { isEnabled: true, temperature: 0.7, name: 'Shared', maxOutputTokens: 4096, contextLength: 8192, cost: { input: 0, output: 0 } },
+            'a-only-model': { isEnabled: true, temperature: 0.7, name: 'A Only', maxOutputTokens: 4096, contextLength: 8192, cost: { input: 0, output: 0 } },
           },
         },
         {
@@ -171,7 +171,7 @@ describe('provider settings repository', () => {
           isOfficial: false,
           isEnabled: true,
           models: {
-            'shared-model': { isEnabled: true, temperature: 0.7, name: 'Shared', maxTokens: 4096, contextLength: 8192, cost: { input: 0, output: 0 } },
+            'shared-model': { isEnabled: true, temperature: 0.7, name: 'Shared', maxOutputTokens: 4096, contextLength: 8192, cost: { input: 0, output: 0 } },
           },
         },
       ],

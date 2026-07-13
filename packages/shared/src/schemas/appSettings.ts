@@ -14,7 +14,7 @@ export const ProviderModelSettingsSchema = z.object({
   isEnabled: z.boolean(),
   temperature: z.number().min(0).max(2).optional(),
   name: z.string().optional(),
-  maxTokens: z.number().optional(),
+  maxOutputTokens: z.number().optional(),
   contextLength: z.number().optional(),
   capabilities: ModelCapabilitiesSchema.optional().nullable(),
   cost: ModelCostSchema,

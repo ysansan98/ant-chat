@@ -19,12 +19,55 @@ describe('appSettingsStore', () => {
 
   it('自动重置开启时也拒绝覆盖更高版本的设置文件', () => {
     const filePath = path.join(dir, 'future-settings.json')
-    const original = JSON.stringify({ schemaVersion: 2, data: DEFAULT_APP_SETTINGS })
+    const original = JSON.stringify({ schemaVersion: 3, data: DEFAULT_APP_SETTINGS })
     writeFileSync(filePath, original, 'utf8')
 
     expect(() => new AppSettingsStore({ filePath, resetInvalidFile: true }))
-      .toThrow('文件 schema 版本 2 高于当前支持的 1')
+      .toThrow('文件 schema 版本 3 高于当前支持的 2')
     expect(readFileSync(filePath, 'utf8')).toBe(original)
+  })
+
+  it('将版本 1 provider model 的 maxTokens 一次性迁移为 maxOutputTokens', () => {
+    const filePath = path.join(dir, 'legacy-settings.json')
+    const provider = DEFAULT_APP_SETTINGS.providers[0]
+    const legacySettings = {
+      ...DEFAULT_APP_SETTINGS,
+      providers: [
+        {
+          ...provider,
+          models: {
+            'legacy-model': {
+              isEnabled: true,
+              maxTokens: 8192,
+              contextLength: 32768,
+              cost: { input: 0, output: 0 },
+            },
+            'already-migrated-model': {
+              isEnabled: true,
+              maxTokens: 1024,
+              maxOutputTokens: 16384,
+              contextLength: 32768,
+              cost: { input: 0, output: 0 },
+            },
+          },
+        },
+      ],
+    }
+    writeFileSync(filePath, JSON.stringify({ schemaVersion: 1, data: legacySettings }), 'utf8')
+
+    const store = new AppSettingsStore({ filePath })
+    const models = store.read().providers[0].models
+
+    expect(models['legacy-model'].maxOutputTokens).toBe(8192)
+    expect(models['already-migrated-model'].maxOutputTokens).toBe(16384)
+
+    const persisted = JSON.parse(readFileSync(filePath, 'utf8')) as {
+      schemaVersion: number
+      data: { providers: Array<{ models: Record<string, Record<string, unknown>> }> }
+    }
+    expect(persisted.schemaVersion).toBe(2)
+    expect(persisted.data.providers[0].models['legacy-model']).not.toHaveProperty('maxTokens')
+    expect(persisted.data.providers[0].models['already-migrated-model']).not.toHaveProperty('maxTokens')
   })
 
   describe('mergeBuiltinProviders', () => {

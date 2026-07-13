@@ -1,4 +1,5 @@
-import type { AgentRuntimeConfig, IAgentEventEmitter, SkillManifest, SkillReader } from '@ant-chat/shared'
+import type { AgentRuntimeConfig, IAgentEventEmitter, RuntimeMcpClientHub, SkillManifest, SkillReader } from '@ant-chat/shared'
+import { DEFAULT_MCP_TOOL_NAME_SEPARATOR } from '@ant-chat/shared'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -190,5 +191,34 @@ describe('toolRegistry Skill 白名单', () => {
     })
 
     expect(registry.listTools().some(tool => tool.name === 'ant_chat')).toBe(false)
+  })
+
+  it('普通交互 Turn 始终注册已连接的 MCP 工具', async () => {
+    const mcpClientHub: RuntimeMcpClientHub = {
+      connections: [{
+        server: {
+          name: 'github',
+          status: 'connected',
+          tools: [{
+            name: 'list_issues',
+            description: '列出 issue',
+            inputSchema: { type: 'object', properties: {}, required: [] },
+          }],
+        },
+      }],
+      callTool: vi.fn(),
+    }
+    const registry = await ToolRegistry.create({
+      config: { ...createConfig(), mcpClientHub },
+      mode: 'hybrid',
+      turnSource: { type: 'interactive' },
+      workspacePath,
+    })
+
+    expect(registry.listTools()).toContainEqual(expect.objectContaining({
+      name: `github${DEFAULT_MCP_TOOL_NAME_SEPARATOR}list_issues`,
+      serverName: 'github',
+      source: 'mcp',
+    }))
   })
 })

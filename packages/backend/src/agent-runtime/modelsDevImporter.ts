@@ -48,7 +48,7 @@ export function createModelsDevImporter(appDataContext: AppDataContext): ModelsD
             model: model.model,
             name: model.name,
             temperature: 0.7,
-            maxTokens: model.maxTokens ?? 4096,
+            maxOutputTokens: model.maxOutputTokens ?? 4096,
             contextLength: model.contextLength ?? 4096,
             capabilities: toModelCapabilities(model),
             cost: model.cost,

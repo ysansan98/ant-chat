@@ -1,28 +1,28 @@
-import type { AgentMode, ChatFeatures, ConversationsSettingsSchema, IMessageContent, StartAgentTurnOptions } from '@ant-chat/shared'
+import type { AgentMode, ConversationsSettingsSchema, IMessageContent, StartAgentTurnOptions } from '@ant-chat/shared'
 
 interface BuildTurnInputOptions {
   conversationId?: string
-  text: string
-  content?: IMessageContent
-  referencedFiles?: string[]
-  selectedSkill?: string
+  messageContent: IMessageContent
   workspacePath: string
   settings: ConversationsSettingsSchema
-  features: ChatFeatures
   mode: AgentMode
+  /** 仅新建 conversation 时消费 */
+  conversationInstructions?: string
 }
 
 export function buildTurnInput(options: BuildTurnInputOptions): StartAgentTurnOptions {
   return {
     conversationId: options.conversationId,
-    prompt: options.text,
-    content: options.content ?? [{ type: 'text', text: options.text }],
-    referencedFiles: options.referencedFiles ?? [],
+    messageContent: options.messageContent,
     mode: options.mode,
     workspacePath: options.workspacePath,
+    conversationInstructions: options.conversationInstructions,
     modelConfig: {
-      ...options.settings,
-      features: options.features,
+      modelId: options.settings.modelId,
+      providerId: options.settings.providerId,
+      temperature: options.settings.temperature,
+      maxOutputTokens: options.settings.maxOutputTokens,
+      reasoningEffort: options.settings.reasoningEffort,
     },
   }
 }

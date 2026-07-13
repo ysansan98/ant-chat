@@ -27,8 +27,8 @@ import {
 import { BrowserSessionManager } from '../native-tools/tools/browserSessionManager'
 import { ToolRegistry } from '../tools/toolRegistry'
 import { contentBlocksToLoopMessageContent } from '../utils/attachmentUtils'
+import { extractMessageText } from '../utils/messageContent'
 import { createPersistedTurnEmitter } from './persistedTurn'
-import { buildPromptWithTurnContext } from './turnContext'
 
 export class SessionRuntime {
   private readonly promptMemorySnapshots = new Map<string, { memory?: string, soul?: string, user?: string } | undefined>()
@@ -43,9 +43,9 @@ export class SessionRuntime {
 
   async prepareTask(options: AgentRuntimeStartTaskOptions): Promise<{ input: RuntimeStartInput, createEventEmitter: (taskId: string) => IAgentEventEmitter, dispose: () => void, conversation: Awaited<ReturnType<ISessionStore['getConversation']>> }> {
     const store = requireSessionStore(this.config)
-    const prompt = options.prompt.trim()
-    if (!prompt) {
-      throw new Error('invalid start task options: missing prompt')
+    const userText = extractMessageText(options.messageContent)
+    if (!userText) {
+      throw new Error('invalid start task options: missing user text')
     }
     if (!options.model?.id.trim()) {
       throw new Error('invalid start task options: missing model')
@@ -79,25 +79,13 @@ export class SessionRuntime {
       throw new Error(`User message not found: ${options.userMessageId}`)
     }
 
-    const enrichedPrompt = buildPromptWithTurnContext({
-      prompt,
-      referencedFiles: options.referencedFiles,
-    })
-
-    // Build user content.
+    // 保留消息原始内容（referencedFiles 已被删除，@ 引用已包含在文本中）
     let userContent: LoopMessage['content']
     if (userMessage.content.length > 0) {
-      // 保留附件块，同时让 agent 上下文使用带引用信息的提示词。
-      const contentWithEnrichedPrompt = userMessage.content.map((block) => {
-        if (block.type === 'text') {
-          return { ...block, text: enrichedPrompt }
-        }
-        return block
-      })
-      userContent = await contentBlocksToLoopMessageContent(contentWithEnrichedPrompt, loadFileData)
+      userContent = await contentBlocksToLoopMessageContent(userMessage.content, loadFileData)
     }
     else {
-      userContent = [{ type: 'text', text: enrichedPrompt }]
+      userContent = [{ type: 'text', text: userText }]
     }
 
     const historyMessages = allMessages.filter(message => message.id !== userMessage.id)
@@ -144,7 +132,11 @@ export class SessionRuntime {
       turnSource: options.turnSource,
     })
     const memory = await this.getPromptMemorySnapshot(conversation.id)
-    const systemPrompt = createLoopSystemPrompt(options.workspacePath, options.modelSettings?.systemPrompt, memory)
+    const systemPrompt = createLoopSystemPrompt(
+      options.workspacePath,
+      currentConversation?.conversationInstructions,
+      memory,
+    )
 
     const turnId = userMessage.id
 
@@ -154,7 +146,7 @@ export class SessionRuntime {
     const taskSnapshot = {
       conversationId: conversation.id,
       userMessageId: userMessage.id,
-      prompt: enrichedPrompt,
+      userText,
       workspacePath: options.workspacePath,
       mode,
       turnSource: options.turnSource,
@@ -168,7 +160,7 @@ export class SessionRuntime {
       apiMode,
       taskLogger,
       temperature: options.modelSettings?.temperature,
-      maxTokens: options.modelSettings?.maxTokens,
+      maxOutputTokens: options.modelSettings?.maxOutputTokens,
       reasoningEffort: options.modelSettings?.reasoningEffort,
       compaction: compactionSettings,
     }

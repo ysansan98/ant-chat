@@ -57,7 +57,7 @@ function createModel(model: Record<string, any>, providerId: string): ModelsDevM
   const name = typeof model.name === 'string' && model.name.length > 0 ? model.name : rawId
   const limit = model.limit || {}
   const contextLength = typeof limit.context === 'number' ? limit.context : undefined
-  const maxTokens = typeof limit.output === 'number' ? limit.output : undefined
+  const maxOutputTokens = typeof limit.output === 'number' ? limit.output : undefined
   const toolCall = Boolean(model.tool_call)
   const reasoning = Boolean(model.reasoning)
   const supportsTemperature = Boolean(model.temperature)
@@ -85,7 +85,7 @@ function createModel(model: Record<string, any>, providerId: string): ModelsDevM
     providerId,
     model: rawId,
     contextLength,
-    maxTokens,
+    maxOutputTokens,
     toolCall,
     reasoning,
     reasoningLevels,

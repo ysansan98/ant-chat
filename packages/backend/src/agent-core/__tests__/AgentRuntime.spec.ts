@@ -44,12 +44,12 @@ function createSessionStore(overrides: Partial<ISessionStore> = {}): ISessionSto
     workspacePath: '/workspace',
     createdAt: 1,
     updatedAt: 1,
+    conversationInstructions: '',
     settings: {
       modelId: 'model-1',
       providerId: 'provider-1',
-      systemPrompt: '',
       temperature: 0.7,
-      maxTokens: 1024,
+      maxOutputTokens: 1024,
     },
   }
   const userMessage = {
@@ -147,9 +147,9 @@ function createValidStartInput(overrides: Partial<RuntimeStartInput> = {}): Runt
     userMessageId: 'msg-1',
     workspacePath: '/workspace',
     mode: 'hybrid',
-    prompt: 'test prompt',
+    userText: 'test prompt',
     messages: [],
-    systemPrompt: 'You are helpful.',
+    systemPrompt: '',
     registry: new ToolRegistry([]),
     aiProvider: null,
     modelName: 'test-model',
@@ -164,7 +164,7 @@ function createValidSessionStartInput(overrides: Partial<AgentRuntimeStartTaskOp
   return {
     conversationId: 'conv-session',
     userMessageId: 'user-msg-1',
-    prompt: 'inspect project',
+    messageContent: [{ type: 'text', text: 'inspect project' }],
     model: { id: 'model-1', model: 'gpt-4', name: 'GPT-4', providerId: 'provider-1', contextLength: 128_000 },
     provider: { id: 'provider-1', name: 'Provider 1', apiMode: 'openai', baseUrl: 'https://api.example.com', isOfficial: true, isEnabled: true, hasApiKey: true, createdAt: 0, updatedAt: 0 },
     workspacePath: '/workspace',
@@ -234,11 +234,11 @@ describe('agentRuntime 行为', () => {
       ).rejects.toThrow('missing userMessageId')
     })
 
-    it('校验缺失的 prompt', async () => {
+    it('校验缺失的 userText', async () => {
       const runtime = new AgentRuntime(createConfig())
       await expect(
-        runtime.startPreparedTask(createValidStartInput({ prompt: '' })),
-      ).rejects.toThrow('missing prompt')
+        runtime.startPreparedTask(createValidStartInput({ userText: '' })),
+      ).rejects.toThrow('missing userText')
     })
 
     it('一次性校验多个缺失字段', async () => {
@@ -304,11 +304,10 @@ describe('agentRuntime 行为', () => {
       const runtime = new AgentRuntime(config)
 
       const result = await runtime.startSessionTask(createValidSessionStartInput({
-        prompt: ' inspect project ',
+        messageContent: [{ type: 'text', text: ' inspect project ' }],
         modelSettings: {
-          systemPrompt: '',
           temperature: 0.7,
-          maxTokens: 1024,
+          maxOutputTokens: 1024,
         },
       }))
 
@@ -326,7 +325,7 @@ describe('agentRuntime 行为', () => {
       const runtime = new AgentRuntime(createSessionConfig({ sessionStore: store }))
 
       const _result = await runtime.startSessionTask({
-        prompt: 'inspect project',
+        messageContent: [{ type: 'text', text: 'inspect project' }],
         conversationId: 'conv-session',
         userMessageId: 'user-msg-1',
         model: { id: 'model-1', model: 'gpt-4', name: 'GPT-4', providerId: 'provider-1', contextLength: 128_000 },
@@ -427,33 +426,13 @@ describe('agentRuntime 行为', () => {
 
       const _result = await runtime.startSessionTask(createValidSessionStartInput())
 
-      expect(runAgentLoop).toHaveBeenCalledWith(expect.objectContaining({
-        options: expect.objectContaining({
-          systemPrompt: expect.stringContaining('<agent_behavior>'),
-        }),
-      }))
-      expect(runAgentLoop).toHaveBeenCalledWith(expect.objectContaining({
-        options: expect.objectContaining({
-          systemPrompt: expect.stringContaining('Prefer concise Chinese.'),
-        }),
-      }))
-      expect(runAgentLoop).toHaveBeenCalledWith(expect.objectContaining({
-        options: expect.objectContaining({
-          systemPrompt: expect.stringContaining('<memory_guidance>'),
-        }),
-      }))
-      expect(runAgentLoop).toHaveBeenCalledWith(expect.objectContaining({
-        options: expect.objectContaining({
-          systemPrompt: expect.stringContaining('Use pnpm check.'),
-        }),
-      }))
-      expect(runAgentLoop).toHaveBeenCalledWith(expect.objectContaining({
-        options: expect.objectContaining({
-          systemPrompt: expect.not.stringContaining('visible in later tasks'),
-        }),
-      }))
       const calls = vi.mocked(runAgentLoop).mock.calls
       const lastCall = calls[calls.length - 1]
+      expect(lastCall?.[0].options.systemPrompt).toContain('<agent_behavior>')
+      expect(lastCall?.[0].options.systemPrompt).toContain('Prefer concise Chinese.')
+      expect(lastCall?.[0].options.systemPrompt).toContain('<memory_guidance>')
+      expect(lastCall?.[0].options.systemPrompt).toContain('Use pnpm check.')
+      expect(lastCall?.[0].options.systemPrompt).not.toContain('visible in later tasks')
       const registry = lastCall?.[0].options.registry
       expect(registry?.listTools()).toEqual(expect.arrayContaining([
         expect.objectContaining({
@@ -484,7 +463,7 @@ describe('agentRuntime 行为', () => {
       userMarkdown = '§Prefer verbose English.'
       memoryMarkdown = '§Use npm test.'
       const _secondResult = await runtime.startSessionTask(createValidSessionStartInput({
-        prompt: 'inspect project again',
+        messageContent: [{ type: 'text', text: 'inspect project again' }],
       }))
 
       const secondCalls = vi.mocked(runAgentLoop).mock.calls
@@ -502,12 +481,12 @@ describe('agentRuntime 行为', () => {
         workspacePath: '/workspace',
         createdAt: 1,
         updatedAt: 1,
+        conversationInstructions: '',
         settings: {
           modelId: 'model-1',
           providerId: 'provider-1',
-          systemPrompt: '',
           temperature: 0.7,
-          maxTokens: 1024,
+          maxOutputTokens: 1024,
           compaction: { enabled: true, thresholdPercent: 70, keepRecentTokens: 16 },
         },
       }
@@ -542,7 +521,7 @@ describe('agentRuntime 行为', () => {
       const runtime = new AgentRuntime(config)
 
       const _firstResult = await runtime.startSessionTask(createValidSessionStartInput({
-        prompt: 'inspect project first',
+        messageContent: [{ type: 'text', text: 'inspect project first' }],
         model: { id: 'model-1', model: 'gpt-4', name: 'GPT-4', providerId: 'provider-1', contextLength: 20_000 },
       }))
       const firstLoopCall = vi.mocked(runAgentLoop).mock.calls[vi.mocked(runAgentLoop).mock.calls.length - 1]
@@ -558,7 +537,7 @@ describe('agentRuntime 行为', () => {
       ]
 
       const _secondResult = await runtime.startSessionTask(createValidSessionStartInput({
-        prompt: 'inspect project again',
+        messageContent: [{ type: 'text', text: 'inspect project again' }],
         model: { id: 'model-1', model: 'gpt-4', name: 'GPT-4', providerId: 'provider-1', contextLength: 20_000 },
       }))
 
@@ -621,12 +600,12 @@ describe('agentRuntime 行为', () => {
         workspacePath: '/workspace',
         createdAt: 1,
         updatedAt: 1,
+        conversationInstructions: '',
         settings: {
           modelId: 'model-1',
           providerId: 'provider-1',
-          systemPrompt: '',
           temperature: 0.7,
-          maxTokens: 1024,
+          maxOutputTokens: 1024,
           compaction: { enabled: true, thresholdPercent: 70, keepRecentTokens: 8 },
         },
       }
@@ -658,7 +637,7 @@ describe('agentRuntime 行为', () => {
 
       const runtime = new AgentRuntime(config)
       const _result = await runtime.startSessionTask(createValidSessionStartInput({
-        prompt: 'x'.repeat(400),
+        messageContent: [{ type: 'text', text: 'x'.repeat(400) }],
         model: { id: 'model-1', model: 'gpt-4', name: 'GPT-4', providerId: 'provider-1', contextLength: 10_000 },
       }))
 
@@ -676,12 +655,12 @@ describe('agentRuntime 行为', () => {
         workspacePath: '/workspace',
         createdAt: 1,
         updatedAt: 1,
+        conversationInstructions: '',
         settings: {
           modelId: 'model-1',
           providerId: 'provider-1',
-          systemPrompt: '',
           temperature: 0.7,
-          maxTokens: 1024,
+          maxOutputTokens: 1024,
           compaction: { enabled: true, thresholdPercent: 70, keepRecentTokens: 8 },
         },
       }
@@ -738,12 +717,12 @@ describe('agentRuntime 行为', () => {
         workspacePath: '/workspace',
         createdAt: 1,
         updatedAt: 1,
+        conversationInstructions: '',
         settings: {
           modelId: 'model-1',
           providerId: 'provider-1',
-          systemPrompt: '',
           temperature: 0.7,
-          maxTokens: 1024,
+          maxOutputTokens: 1024,
           compaction: { enabled: true, thresholdPercent: 70, keepRecentTokens: 8 },
         },
       }
@@ -799,7 +778,7 @@ describe('agentRuntime 行为', () => {
       const _running = await runtime.startPreparedTask(createValidStartInput({ conversationId: 'conv-session' }))
 
       await expect(runtime.startSessionTask(createValidSessionStartInput({
-        prompt: 'run it',
+        messageContent: [{ type: 'text', text: 'run it' }],
       }))).rejects.toThrow('AGENT_TASK_ALREADY_RUNNING')
 
       expect(store.createUserMessage).not.toHaveBeenCalled()
@@ -925,6 +904,57 @@ describe('agentRuntime 行为', () => {
       const result = await runtime.startPreparedTask(createValidStartInput())
       runtime.cancelTask({ taskId: result.taskId })
       expect(runtime.getTask(result.taskId).status).toBe('cancelled')
+    })
+  })
+
+  describe('prompt 合成行为', () => {
+    it('最终 prompt 包含工作区路径、文件工具规则和工作区引用协议', async () => {
+      const runtime = new AgentRuntime(createSessionConfig())
+
+      await runtime.startSessionTask(createValidSessionStartInput())
+
+      const calls = vi.mocked(runAgentLoop).mock.calls
+      const systemPrompt = calls[calls.length - 1]?.[0].options.systemPrompt
+      expect(systemPrompt).toContain('Workspace path: /workspace')
+      expect(systemPrompt).toContain('Always call tools for file-related requests')
+      expect(systemPrompt).toContain('<workspace_references>')
+      expect(systemPrompt).toContain('`@<path>`')
+    })
+
+    it('持久化会话指令追加到基础规则之后，不替换基础规则', async () => {
+      const baseConversation = await createSessionStore().getConversation('conv-session')
+      const conversation = {
+        ...baseConversation!,
+        conversationInstructions: '请用中文回答，并检查 {workspacePath}。',
+      }
+      const store = createSessionStore({
+        getConversation: vi.fn(async () => conversation),
+      })
+      const runtime = new AgentRuntime(createSessionConfig({ sessionStore: store }))
+
+      await runtime.startSessionTask(createValidSessionStartInput())
+
+      const calls = vi.mocked(runAgentLoop).mock.calls
+      const systemPrompt = calls[calls.length - 1]?.[0].options.systemPrompt
+      expect(systemPrompt).toContain('Workspace path: /workspace')
+      expect(systemPrompt).toContain('<workspace_references>')
+      expect(systemPrompt).toContain('<conversation_instructions>')
+      expect(systemPrompt).toContain('请用中文回答，并检查 /workspace。')
+    })
+
+    it('空指令不生成 conversation instructions section', async () => {
+      const runtime = new AgentRuntime(createSessionConfig())
+      const input = {
+        ...createValidSessionStartInput(),
+        conversationInstructions: '请求中的过时指令',
+      } as AgentRuntimeStartTaskOptions & { conversationInstructions: string }
+
+      await runtime.startSessionTask(input)
+
+      const calls = vi.mocked(runAgentLoop).mock.calls
+      const systemPrompt = calls[calls.length - 1]?.[0].options.systemPrompt
+      expect(systemPrompt).not.toContain('<conversation_instructions>')
+      expect(systemPrompt).not.toContain('请求中的过时指令')
     })
   })
 })
