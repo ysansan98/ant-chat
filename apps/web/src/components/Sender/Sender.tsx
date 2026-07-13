@@ -993,7 +993,7 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
                     variant="ghost"
                     aria-label={`权限模式：${currentAgentModeOption.label}`}
                     className={`
-                    ${agentMode === 'full_managed' ? 'text-orange-600' : ''}
+                    ${agentMode === 'full_managed' ? 'text-destructive' : ''}
                   `}
                   >
                     {currentAgentModeOption.icon}
@@ -1013,7 +1013,7 @@ function Sender({ disabled = false, actions, ...props }: SenderProps) {
                     `}
                       onClick={() => setAgentMode(item.value)}
                     >
-                      <span className="flex items-center gap-2">
+                      <span className={`flex items-center gap-2 ${item.value === 'full_managed' ? 'text-destructive' : ''}`}>
                         {item.icon}
                         {item.label}
                       </span>
