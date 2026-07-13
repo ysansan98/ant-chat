@@ -7,6 +7,7 @@ export const GeneralSettingsSchema = AppSettingsSchema.pick({
   assistantModelId: true,
   assistantProviderId: true,
   autoGenerateTitle: true,
+  reasoningEffort: true,
   proxySettings: true,
   appearance: true,
 })

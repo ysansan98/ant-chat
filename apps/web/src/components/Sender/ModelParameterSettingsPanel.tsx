@@ -1,7 +1,6 @@
-import type { CompactionSettingsSchema, ProviderConfigModelSchema, ReasoningEffortLevel } from '@ant-chat/shared'
+import type { CompactionSettingsSchema, ProviderConfigModelSchema } from '@ant-chat/shared'
 import { DEFAULT_COMPACTION_SETTINGS } from '@ant-chat/shared'
 import { Label } from '@workspace/ui/components/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/components/select'
 import { Separator } from '@workspace/ui/components/separator'
 import { Slider } from '@workspace/ui/components/slider'
 import { Switch } from '@workspace/ui/components/switch'
@@ -41,25 +40,6 @@ export function ModelParameterSettingsPanel() {
   function getSliderValue(value: number | readonly number[]) {
     return typeof value === 'number' ? value : value[0]
   }
-
-  // 推理强度档位的中文展示；模型能力未声明时为空（不渲染控件）
-  const REASONING_EFFORT_LABELS: Record<ReasoningEffortLevel, string> = {
-    'provider-default': '厂商默认',
-    'none': '关闭',
-    'minimal': '极简',
-    'low': '低',
-    'medium': '中',
-    'high': '高',
-    'xhigh': '极高',
-  }
-  const reasoningLevels = modelInfo?.capabilities?.reasoningLevels
-  const reasoningOptions = (reasoningLevels && reasoningLevels.length > 0)
-    ? (['provider-default', ...reasoningLevels] as ReasoningEffortLevel[])
-    : null
-  // 当前选择需在可选范围内，否则回退到「厂商默认」
-  const currentEffort = (reasoningOptions && settings.reasoningEffort && reasoningOptions.includes(settings.reasoningEffort))
-    ? settings.reasoningEffort
-    : 'provider-default'
 
   return (
     <div className="w-80 p-2 px-4">
@@ -110,29 +90,6 @@ export function ModelParameterSettingsPanel() {
             onValueChange={value => updateSettings({ maxOutputTokens: getSliderValue(value) })}
           />
         </div>
-
-        {reasoningOptions && (
-          <div className="space-y-1.5">
-            <Label htmlFor="reasoning-effort">推理强度</Label>
-            <Select
-              value={currentEffort}
-              onValueChange={value => updateSettings({ reasoningEffort: value as ReasoningEffortLevel })}
-            >
-              <SelectTrigger id="reasoning-effort" size="sm" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="provider-default">{REASONING_EFFORT_LABELS['provider-default']}</SelectItem>
-                {reasoningOptions.slice(1).map(level => (
-                  <SelectItem key={level} value={level}>{REASONING_EFFORT_LABELS[level]}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs/relaxed text-muted-foreground">
-              仅当前模型支持配置推理强度时可用。
-            </p>
-          </div>
-        )}
       </div>
 
       <Separator className="my-4" />

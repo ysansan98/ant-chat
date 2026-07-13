@@ -1,4 +1,4 @@
-import type { AppearanceSettingsState, ProxySettings } from '@ant-chat/shared'
+import type { AppearanceSettingsState, ProxySettings, ReasoningEffortLevel } from '@ant-chat/shared'
 import { produce } from 'immer'
 import { toast } from 'sonner'
 import { generalSettingsApi } from '@/api/generalSettingsApi'
@@ -66,6 +66,22 @@ export async function setAssistantModel(modelId: string, providerId: string) {
   }))
   try {
     const updates = { assistantModelId: modelId, assistantProviderId: providerId }
+    const newSettings = await generalSettingsApi.updateSettings(updates)
+    useGeneralSettingsStore.setState(newSettings)
+  }
+  finally {
+    useGeneralSettingsStore.setState(produce((state) => {
+      state.isLoading = false
+    }))
+  }
+}
+
+export async function setAssistantReasoningEffort(reasoningEffort: ReasoningEffortLevel | undefined) {
+  useGeneralSettingsStore.setState(produce((state) => {
+    state.isLoading = true
+  }))
+  try {
+    const updates = { reasoningEffort }
     const newSettings = await generalSettingsApi.updateSettings(updates)
     useGeneralSettingsStore.setState(newSettings)
   }

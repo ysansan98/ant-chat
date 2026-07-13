@@ -11,6 +11,7 @@ import Sender from '../Sender'
 const mocks = vi.hoisted(() => ({
   searchWorkspaceFiles: vi.fn(),
   listWorkspaces: vi.fn(),
+  getAllAbvailableModels: vi.fn(),
 }))
 
 class ResizeObserverMock {
@@ -35,6 +36,7 @@ vi.mock('@/api/skillApi', () => ({
 
 vi.mock('@/api/providerApi', () => ({
   providerApi: {
+    getAllAbvailableModels: mocks.getAllAbvailableModels,
     getModelInfoById: vi.fn(async () => ({
       id: 'test-model',
       model: 'test-model',
@@ -97,6 +99,20 @@ describe('sender reference token overlay', () => {
         { path: '/tmp/workspace', displayName: 'workspace' },
       ],
     })
+    mocks.getAllAbvailableModels.mockResolvedValue([
+      {
+        id: 'test-provider',
+        name: 'Test Provider',
+        models: [{
+          id: 'test-model',
+          name: 'Test Model',
+          providerId: 'test-provider',
+          maxOutputTokens: 4096,
+          temperature: 0.7,
+          capabilities: { reasoningLevels: [] },
+        }],
+      },
+    ])
     useMessagesStore.setState({
       activeConversationsId: '',
       messages: [],
@@ -145,6 +161,22 @@ describe('sender reference token overlay', () => {
     fireEvent.mouseEnter(trigger as HTMLButtonElement)
 
     expect(await screen.findByText('0 / 128K')).toBeInTheDocument()
+  })
+
+  it('模型控制器由 Sender 工具栏渲染', async () => {
+    renderSender()
+
+    expect(await screen.findByText('Test Model')).toBeInTheDocument()
+  })
+
+  it('已有会话不渲染工作区选择器', async () => {
+    useMessagesStore.setState({
+      activeConversationsId: 'conversation-1',
+    })
+
+    renderSender()
+
+    expect(screen.queryByTestId('workspace-switcher')).toBeNull()
   })
 
   it('选择文件引用后渲染 overlay token，提交后清空', async () => {

@@ -2,13 +2,14 @@ import type { ModelSelectValue } from '@/components/Common/ModelSelect'
 import { ChevronDown } from 'lucide-react'
 import { ModelSelect } from '@/components/Common/ModelSelect'
 import { useAllAvailableModels } from '@/hooks/useAllAvailableModels'
-import { setAssistantModel, useGeneralSettingsStore } from '@/store/generalSettings'
+import { setAssistantModel, setAssistantReasoningEffort, useGeneralSettingsStore } from '@/store/generalSettings'
 
 export function SelectModel() {
   const { data: providers } = useAllAvailableModels()
 
   const assistantModelId = useGeneralSettingsStore(state => state.assistantModelId)
   const assistantProviderId = useGeneralSettingsStore(state => state.assistantProviderId)
+  const reasoningEffort = useGeneralSettingsStore(state => state.reasoningEffort)
 
   const value: ModelSelectValue = { modelId: assistantModelId, providerId: assistantProviderId }
   const hasSelection = Boolean(assistantModelId && assistantProviderId)
@@ -30,6 +31,8 @@ export function SelectModel() {
       options={providers}
       allowUnset={true}
       unsetLabel="使用默认模型"
+      reasoningEffort={reasoningEffort}
+      onReasoningEffortChange={value => setAssistantReasoningEffort(value)}
       className={`
         flex h-8 w-52 cursor-default items-center justify-between gap-2 rounded-md
         border border-input bg-transparent px-3 py-1 text-sm shadow-sm

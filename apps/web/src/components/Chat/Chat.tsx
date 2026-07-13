@@ -23,7 +23,6 @@ import { useWorkspaceStore } from '@/store/workspace'
 import Sender from '../Sender'
 
 import { hasSkillReference, hasWorkspacePathReference } from '../Sender/builtinCommandParser'
-import { ModelControlPanel } from '../Sender/PickerModel'
 import { buildTurnInput } from './buildTurnInput'
 import { ContextDiagnosticsPanel } from './ContextDiagnostics'
 import { ContextFloatingButton } from './ContextDiagnostics/ContextFloatingButton'
@@ -50,7 +49,7 @@ export default function Chat() {
   const currentConversations = useConversationsStore(state => state.conversations.find(item => item.id === activeConversationsId))
   const currentWorkspacePath = useWorkspaceStore(state => state.currentWorkspacePath)
 
-  const { settings, conversationInstructions, updateSettings, updateConversationInstructions } = useChatSettingsContext()
+  const { settings, conversationInstructions, updateConversationInstructions } = useChatSettingsContext()
   const agentTask = useAgentRuntimeStore(state => state.getActiveTaskByConversation(activeConversationsId))
   const agentTaskId = agentTask?.taskId
   const pending = useAgentRuntimeStore(state => (agentTaskId ? state.pendingByTask[agentTaskId] : undefined))
@@ -202,16 +201,6 @@ export default function Chat() {
               : null}
             <Sender
               disabled={commandRunning}
-              actions={(
-                <div className="flex items-center gap-1">
-                  <ModelControlPanel
-                    value={{ modelId: settings.modelId, providerId: settings.providerId }}
-                    onChange={({ modelId, providerId, maxOutputTokens, temperature }) => {
-                      updateSettings({ modelId, providerId, maxOutputTokens, temperature })
-                    }}
-                  />
-                </div>
-              )}
               onSubmit={onSubmit}
               canInjectPendingMessage={true}
               onInjectPendingMessage={id => void injectPendingMessage(activeConversationsId, id)}

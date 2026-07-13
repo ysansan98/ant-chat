@@ -7,6 +7,7 @@ export const DEFAULT_GENERAL_SETTINGS: GeneralSettingsState = {
   assistantModelId: '',
   assistantProviderId: '',
   autoGenerateTitle: false,
+  reasoningEffort: undefined,
   proxySettings: {
     mode: 'none',
     customProxyUrl: '',

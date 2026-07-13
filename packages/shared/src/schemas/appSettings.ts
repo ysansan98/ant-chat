@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { ProviderConfigSchema } from './providerConfig'
-import { ModelCapabilitiesSchema, ModelCostSchema } from './providerConfigModels'
+import { ModelCapabilitiesSchema, ModelCostSchema, ReasoningEffortSchema } from './providerConfigModels'
 
 export const AppearanceSettingsSchema = z.object({
   mode: z.enum(['system', 'light', 'dark']),
@@ -40,6 +40,8 @@ export const AppSettingsSchema = z.object({
   assistantModelId: z.string(),
   assistantProviderId: z.string().default(''),
   autoGenerateTitle: z.boolean().default(false),
+  /** 全局默认推理强度档位，创建新会话时使用。未设置时走厂商默认。 */
+  reasoningEffort: ReasoningEffortSchema.optional(),
   proxySettings: z.object({
     mode: z.enum(['none', 'system', 'custom']),
     customProxyUrl: z.string().optional(),

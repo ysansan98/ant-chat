@@ -1,25 +1,20 @@
-import type { AllAvailableModelsSchema } from '@ant-chat/shared'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@workspace/ui/components/popover'
+import type { AllAvailableModelsSchema, ReasoningEffortLevel } from '@ant-chat/shared'
+
 import { useRequest } from 'ahooks'
-import { Settings } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import React from 'react'
 import { providerApi } from '@/api/providerApi'
 import { ModelSelect } from '@/components/Common/ModelSelect'
 import { PROVIDER_CHANGED_EVENT } from '@/constants/providerEvents'
-import { ModelParameterSettingsPanel } from './ModelParameterSettingsPanel'
-import { ProviderLogoDisplay } from './renderProviderLogo'
 
 interface ModelControlPanelProps {
   value: { modelId: string, providerId: string }
   onChange?: (info: { modelId: string, providerId: string, maxOutputTokens: number, temperature: number }) => void
+  reasoningEffort?: ReasoningEffortLevel
+  onReasoningEffortChange?: (value: ReasoningEffortLevel | undefined) => void
 }
 
-export function ModelControlPanel({ value, onChange }: ModelControlPanelProps) {
-  const [openPopover, setOpenPopover] = React.useState(false)
+export function ModelControlPanel({ value, onChange, reasoningEffort, onReasoningEffortChange }: ModelControlPanelProps) {
   const { data, refresh } = useRequest<AllAvailableModelsSchema[], []>(providerApi.getAllAbvailableModels)
 
   React.useEffect(() => {
@@ -45,8 +40,7 @@ export function ModelControlPanel({ value, onChange }: ModelControlPanelProps) {
   return (
     <div
       className={`
-      model-control-trigger flex h-8 items-center overflow-hidden rounded-md border border-solid
-      border-(--border-color)
+      model-control-trigger flex h-8 items-center overflow-hidden rounded-md
     `}
     >
       {/* Model selector - 2-level cascading submenu */}
@@ -54,6 +48,8 @@ export function ModelControlPanel({ value, onChange }: ModelControlPanelProps) {
         value={value}
         onChange={nextInfo => onChange?.(nextInfo)}
         options={data}
+        reasoningEffort={reasoningEffort}
+        onReasoningEffortChange={onReasoningEffortChange}
         className={`
           flex h-full cursor-default items-center gap-1 pl-2
           outline-hidden
@@ -61,28 +57,11 @@ export function ModelControlPanel({ value, onChange }: ModelControlPanelProps) {
           max-sm:pl-0
         `}
       >
-        <ProviderLogoDisplay providerId={activeProviderServiceInfo?.id || ''} />
         <div className="flex max-w-30 items-center truncate text-xs font-medium max-sm:hidden">
           <span className="truncate">{currentModelInfo?.name}</span>
-          <span className="px-2">›</span>
+          <ChevronDown className="size-3.5" />
         </div>
       </ModelSelect>
-
-      {/* Settings gear - separate Popover */}
-      <Popover open={openPopover} onOpenChange={setOpenPopover}>
-        <PopoverTrigger
-          className={`
-          model-control-settings flex h-full cursor-pointer items-center
-          justify-center px-1
-          outline-hidden hover:bg-(--hover-bg-color)
-        `}
-        >
-          <Settings size={16} />
-        </PopoverTrigger>
-        <PopoverContent align="start" className="w-80 p-0">
-          <ModelParameterSettingsPanel />
-        </PopoverContent>
-      </Popover>
     </div>
   )
 }

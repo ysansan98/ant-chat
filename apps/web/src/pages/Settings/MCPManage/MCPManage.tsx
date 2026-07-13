@@ -35,7 +35,7 @@ export default function MCPManage() {
             setOpen(true)
           }}
         >
-          <Plus />
+          <Plus className="size-3.5" />
           添加服务器
         </Button>
       </div>
