@@ -1,5 +1,5 @@
 provider: github
-owner: whitexie
+owner: ysansan98
 repo: ant-chat
 private: false
 releaseType: release

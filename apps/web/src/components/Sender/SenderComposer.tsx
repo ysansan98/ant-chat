@@ -115,7 +115,7 @@ export function SenderComposer({
           />
         </PromptInputBody>
 
-        <PromptInputFooter className="min-w-0">
+        <PromptInputFooter className="flex min-w-0 items-center gap-2">
           <SenderToolbar fileAccept={fileAccept} contextLength={contextLength} />
           <SenderSubmitButton
             loading={loading}

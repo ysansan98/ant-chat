@@ -1,5 +1,5 @@
 /* eslint-disable no-template-curly-in-string */
-import type { Configuration } from 'electron-builder'
+import type { AfterPackContext, Configuration } from 'electron-builder'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
@@ -109,7 +109,7 @@ const config: Configuration = {
   publish: [
     {
       provider: 'github',
-      owner: 'whitexie',
+      owner: 'ysansan98',
       repo: 'ant-chat',
       private: false,
       releaseType: 'release',
@@ -176,7 +176,7 @@ const config: Configuration = {
   generateUpdatesFilesForAllChannels: true,
 }
 
-async function writeCliLaunchers(context: Parameters<NonNullable<Configuration['afterPack']>>[0]): Promise<void> {
+async function writeCliLaunchers(context: AfterPackContext): Promise<void> {
   const resourcesPath = ['darwin', 'mas'].includes(context.electronPlatformName)
     ? path.join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`, 'Contents/Resources')
     : path.join(context.appOutDir, 'resources')

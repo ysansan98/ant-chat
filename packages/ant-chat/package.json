@@ -39,16 +39,17 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "better-sqlite3": "^12.6.2",
-    "keytar": "^7.9.0"
+    "better-sqlite3": "catalog:",
+    "keytar": "catalog:"
   },
   "devDependencies": {
     "@ant-chat/backend": "workspace:^",
     "@ant-chat/control-client": "workspace:^",
     "@ant-chat/shared": "workspace:^",
+    "@types/node": "catalog:",
     "tsdown": "catalog:",
-    "tsx": "^4.19.3",
-    "vite": "^8.0.0",
+    "tsx": "catalog:",
+    "vite": "catalog:",
     "vitest": "catalog:"
   }
 }

@@ -21,7 +21,7 @@ export default defineConfig(({ command, mode }) => {
         minify: !isDev,
         sourcemap: !!isDev,
         rollupOptions: {
-          external: ['better-sqlite3'],
+          external: ['better-sqlite3', 'keytar'],
           output: {
             format: 'cjs',
             entryFileNames: '[name].cjs',

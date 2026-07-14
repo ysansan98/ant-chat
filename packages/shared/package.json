@@ -28,6 +28,8 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "tsdown": "catalog:"
+    "@types/node": "catalog:",
+    "tsdown": "catalog:",
+    "vitest": "catalog:"
   }
 }

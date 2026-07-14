@@ -12,6 +12,7 @@ export default defineConfig({
     '@ant-chat/shared',
     'better-sqlite3',
     'electron',
+    'keytar',
     'undici',
   ],
 })

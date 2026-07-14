@@ -77,7 +77,7 @@ export function ModelSelect({
       <DropdownMenuTrigger className={className} disabled={disabled}>
         {children}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
+      <DropdownMenuContent align="start" className="w-40">
         {options?.map(provider => (
           <DropdownMenuSub key={provider.id}>
             <DropdownMenuSubTrigger className="[&_svg]:size-3.5">

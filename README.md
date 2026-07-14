@@ -141,6 +141,8 @@ ant-chat/
 
 欢迎提交 Issue 和 Pull Request。请保持变更范围小、行为明确，并在涉及功能变化时同步更新文档。
 
+版本与发布流程见 [版本与发布指南](docs/release-guide.md)。
+
 提交建议：
 
 - 使用 Conventional Commits 风格，例如 `feat: add workspace search`。

@@ -25,6 +25,15 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
+  "peerDependencies": {
+    "electron": "catalog:",
+    "keytar": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "electron": {
+      "optional": true
+    }
+  },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.10",
     "@ai-sdk/deepseek": "^3.0.6",
@@ -32,21 +41,23 @@
     "@ai-sdk/openai": "^4.0.9",
     "@ant-chat/shared": "workspace:^",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "ai": "^7.0.18",
+    "ai": "catalog:",
     "better-sqlite3": "catalog:",
     "croner": "^10.0.1",
     "fast-deep-equal": "^3.1.3",
     "fflate": "^0.8.2",
     "js-yaml": "^4.1.0",
-    "keytar": "^7.9.0",
-    "nanoid": "^5.0.9",
+    "nanoid": "catalog:",
     "undici": "^7.15.0",
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@copilotkit/aimock": "^1.16.4",
+    "@copilotkit/aimock": "catalog:",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/js-yaml": "^4.0.9",
-    "openai": "^5.23.2",
+    "@types/node": "catalog:",
+    "keytar": "catalog:",
+    "openai": "catalog:",
     "tsdown": "catalog:",
     "vitest": "catalog:"
   }
