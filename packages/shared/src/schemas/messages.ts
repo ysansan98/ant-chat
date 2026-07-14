@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { UnsupportedVisualizationBlockSchema, VisualizationBlockSchema, VisualizationOutputBlocksSchema } from './visualization'
+
 // 文本内容
 export const TextContentSchema = z.object({
   type: z.literal('text'),
@@ -34,6 +36,8 @@ export const ToolCallContentSchema = z.object({
   args: z.record(z.string(), z.unknown()),
   serverName: z.string().optional(),
   executeState: z.enum(['executing', 'completed']).optional(),
+  /** 仅限 agent loop 内部 transport，持久化前由 session emitter 剥离。 */
+  outputBlocks: VisualizationOutputBlocksSchema.shape.outputBlocks.optional(),
 })
 
 export type ToolCallContent = z.infer<typeof ToolCallContentSchema>
@@ -129,6 +133,8 @@ export const MessageContentSchema = z.array(z.union([
   ImageBlockSchema,
   DocumentBlockSchema,
   FileBlockSchema,
+  VisualizationBlockSchema,
+  UnsupportedVisualizationBlockSchema,
 ]))
 
 export type MessageContent = z.infer<typeof MessageContentSchema>
@@ -185,6 +191,7 @@ export const McpToolCallSchema = z.object({
   args: z.record(z.string(), z.unknown()),
   executeState: z.enum(['await', 'executing', 'completed']),
   result: McpToolResultSchema.optional(),
+  outputBlocks: VisualizationOutputBlocksSchema.shape.outputBlocks.optional(),
 })
 
 export type McpToolCall = z.infer<typeof McpToolCallSchema>

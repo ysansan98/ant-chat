@@ -210,7 +210,7 @@ export async function runAgentLoop(input: {
         toolCalls: requestedToolCalls.map(call => ({
           id: call.id,
           toolName: call.toolName,
-          input: call.input,
+          input: registry.getPublicInput(call.toolName, call.input),
           invalidArgsError: call.invalidArgsError,
         })),
       }
@@ -248,7 +248,10 @@ export async function runAgentLoop(input: {
           const res = await createInvalidToolArgsResult({
             config,
             conversationId: options.conversationId,
-            requestedToolCall: rc,
+            requestedToolCall: {
+              ...rc,
+              input: registry.getPublicInput(rc.toolName, rc.input),
+            },
             currentModelText,
             currentToolMessages,
           })
@@ -296,7 +299,7 @@ export async function runAgentLoop(input: {
           type: 'tool-call',
           toolCallId: outcomes[i].toolCallId,
           toolName: requestedToolCalls[i].toolName,
-          args: requestedToolCalls[i].input,
+          args: registry.getPublicInput(requestedToolCalls[i].toolName, requestedToolCalls[i].input),
         })
       }
       loopMessages.push({ role: 'assistant', content: assistantContent })

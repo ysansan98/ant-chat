@@ -6,6 +6,8 @@ export interface PendingMessage {
   conversationId: string
   text: string
   createdAt: number
+  delivery: 'steering' | 'next-turn'
+  source: 'sender' | 'visualization'
 }
 
 interface PendingMessagesState {
@@ -22,11 +24,14 @@ const pendingMessagesStorage = {
       const stored = JSON.parse(raw) as { state?: unknown, version?: number }
       if (!isPersistedState(stored?.state))
         throw new Error('待处理消息持久化结构无效')
-      return stored as { state: { itemsByConversation: Record<string, PendingMessage[]> }, version: number }
+      return {
+        ...stored,
+        version: stored.version ?? 1,
+      } as { state: { itemsByConversation: Record<string, PendingMessage[]> }, version: number }
     }
     catch (error) {
       console.warn('恢复待处理消息失败，已回退为空队列', error)
-      return { state: { itemsByConversation: {} }, version: 1 }
+      return { state: { itemsByConversation: {} }, version: 2 }
     }
   },
   setItem: (name: string, value: unknown) => localStorage.setItem(name, JSON.stringify(value)),
@@ -40,8 +45,21 @@ export const usePendingMessagesStore = create<PendingMessagesState>()(
     }),
     {
       name: 'ant-chat:pending-messages:v1',
-      version: 1,
+      version: 2,
       storage: pendingMessagesStorage,
+      migrate: (persistedState, version) => {
+        if (version < 2) {
+          const state = persistedState as { itemsByConversation: Record<string, PendingMessage[]> }
+          return {
+            ...state,
+            itemsByConversation: Object.fromEntries(Object.entries(state.itemsByConversation).map(([conversationId, items]) => [
+              conversationId,
+              items.map(item => ({ ...item, delivery: 'steering' as const, source: 'sender' as const })),
+            ])),
+          }
+        }
+        return persistedState as PendingMessagesState
+      },
       partialize: state => ({ itemsByConversation: state.itemsByConversation }),
     },
   ),
@@ -68,6 +86,8 @@ function isPendingMessage(value: unknown): value is PendingMessage {
     && typeof item.conversationId === 'string'
     && typeof item.text === 'string'
     && typeof item.createdAt === 'number'
+    && (item.delivery === 'steering' || item.delivery === 'next-turn' || item.delivery === undefined)
+    && (item.source === 'sender' || item.source === 'visualization' || item.source === undefined)
 }
 
 export function sortPendingMessages(items: PendingMessage[]): PendingMessage[] {

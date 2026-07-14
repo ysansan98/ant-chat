@@ -1,4 +1,5 @@
 import type { IMessage, ToolCallContent, ToolResultContent } from '@ant-chat/shared'
+import type { UnsupportedVisualizationBlockLike, VisualizationBlockLike } from '../Visualization/types'
 import { CodeBlock } from '@workspace/ui/components/ai-elements/code-block'
 import { MessageResponse } from '@workspace/ui/components/ai-elements/message'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
@@ -18,6 +19,8 @@ import {
 } from 'lucide-react'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { isNetworkError } from '@/utils/networkError'
+import { isUnsupportedVisualizationBlock, isVisualizationBlock } from '../Visualization/types'
+import { VisualizationFrame } from '../Visualization/VisualizationFrame'
 
 // ---- step types ----
 
@@ -33,6 +36,8 @@ type ContentStep
     | { type: 'tool', id: string, toolCall: ToolCallContent, toolResult?: ToolResultContent, isExecuting: boolean }
     | { type: 'tool-group', id: string, tools: ToolStepData[], isExecuting: boolean }
     | { type: 'text', id: string, text: string }
+    | { type: 'visualization', id: string, block: VisualizationBlockLike }
+    | { type: 'unsupported-visualization', id: string, block: UnsupportedVisualizationBlockLike }
     | { type: 'error-block', id: string, error: string }
 
 type TraceStep = Extract<ContentStep, { type: 'reasoning' | 'tool' | 'tool-group' }>
@@ -62,6 +67,7 @@ function buildContentSteps(
   // Content blocks in original order; consecutive tool-calls grouped
   if (Array.isArray(message.content)) {
     let textIndex = 0
+    let visualizationIndex = 0
     let errorIndex = 0
     const pendingTools: ToolStepData[] = []
 
@@ -99,7 +105,21 @@ function buildContentSteps(
       }
       else {
         flushToolGroup()
-        if (block.type === 'text') {
+        if (isVisualizationBlock(block)) {
+          steps.push({
+            type: 'visualization',
+            id: `${message.id}:visualization:${visualizationIndex++}`,
+            block,
+          })
+        }
+        else if (isUnsupportedVisualizationBlock(block)) {
+          steps.push({
+            type: 'unsupported-visualization',
+            id: `${message.id}:unsupported-visualization:${visualizationIndex++}`,
+            block,
+          })
+        }
+        else if (block.type === 'text') {
           steps.push({
             type: 'text',
             id: `${message.id}:text:${textIndex++}`,
@@ -503,6 +523,22 @@ export function AssistantTrace({ message, toolResultMap, showReasoning = true }:
               <MessageResponse key={step.id} isAnimating={isStreaming}>
                 {step.text}
               </MessageResponse>
+            )
+          }
+          if (step.type === 'visualization') {
+            return <VisualizationFrame key={step.id} block={step.block} conversationId={message.convId} messageId={message.id} />
+          }
+          if (step.type === 'unsupported-visualization') {
+            return (
+              <Alert key={step.id} variant="default">
+                <AlertTitle>不支持的可视化版本</AlertTitle>
+                <AlertDescription>
+                  {step.block.title}
+                  （
+                  {step.block.format}
+                  ）需要升级客户端后查看。
+                </AlertDescription>
+              </Alert>
             )
           }
           if (step.type === 'error-block') {

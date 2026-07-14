@@ -1,4 +1,5 @@
-import type { IAgentEventEmitter, ISessionStore, MessageContent, ToolCallContent } from '@ant-chat/shared'
+import type { IAgentEventEmitter, ISessionStore, MessageContent, ToolCallContent, VisualizationBlock } from '@ant-chat/shared'
+import { VisualizationBlockSchema, VisualizationOutputBlocksSchema } from '@ant-chat/shared'
 
 const STREAM_UPDATE_INTERVAL_MS = 80
 
@@ -9,6 +10,7 @@ interface TurnMeta {
   latestUsage: Record<string, number> | undefined
   lastUpdateAt: number
   persistedToolCallIds: Set<string>
+  visualizationBlocks: VisualizationBlock[]
 }
 
 export function createPersistedTurnEmitter(store: ISessionStore, delegate: IAgentEventEmitter, turnId: string, conversationId: string, takePendingSteeringMessages: () => Array<{ id: string, text: string, turnId: string }>): IAgentEventEmitter {
@@ -22,6 +24,7 @@ export function createPersistedTurnEmitter(store: ISessionStore, delegate: IAgen
       latestUsage: undefined,
       lastUpdateAt: 0,
       persistedToolCallIds: new Set(),
+      visualizationBlocks: [],
     }
   }
 
@@ -29,10 +32,11 @@ export function createPersistedTurnEmitter(store: ISessionStore, delegate: IAgen
     const message = await store.updateAssistantMessage(meta.msgId, {
       role: 'assistant',
       status: 'loading',
-      content: [{ type: 'text', text: meta.modelText.trim() || '...' }],
+      content: createAssistantContent(meta.modelText.trim() || '...', meta.visualizationBlocks),
       reasoningContent: meta.reasoningText,
       usage: meta.latestUsage,
     })
+    replacePersistedVisualizationBlocks(meta, message)
     await delegate.emitMessageUpdated?.(message)
   }
 
@@ -101,25 +105,25 @@ export function createPersistedTurnEmitter(store: ISessionStore, delegate: IAgen
 
       meta.modelText = params.text
 
-      const contentBlocks: MessageContent = []
-      if (params.text) {
-        contentBlocks.push({ type: 'text', text: params.text })
-      }
+      const contentBlocks: ToolCallContent[] = []
 
+      const safeToolCalls = params.toolCalls.map(stripVisualizationTransport)
       for (const tc of params.toolCalls) {
         if (!meta.persistedToolCallIds.has(tc.toolCallId)) {
           meta.persistedToolCallIds.add(tc.toolCallId)
         }
-        contentBlocks.push(tc satisfies ToolCallContent)
+        contentBlocks.push(stripVisualizationTransport(tc))
+        appendVisualizationBlocks(meta.visualizationBlocks, extractVisualizationBlocks(tc))
       }
 
       const message = await store.updateAssistantMessage(meta.msgId, {
         role: 'assistant',
         status: 'success',
-        content: contentBlocks,
+        content: createAssistantContent(params.text, meta.visualizationBlocks, contentBlocks),
       })
+      replacePersistedVisualizationBlocks(meta, message)
       await delegate.emitMessageUpdated?.(message)
-      await delegate.emitTurnToolCalls(params)
+      await delegate.emitTurnToolCalls({ ...params, toolCalls: safeToolCalls })
     },
     async emitTurnToolResults(params) {
       for (const result of params.results) {
@@ -144,14 +148,15 @@ export function createPersistedTurnEmitter(store: ISessionStore, delegate: IAgen
         if (meta) {
           await flushTurn(meta)
           const content: MessageContent = params.status === 'error'
-            ? withErrorContent(meta.modelText, params.text)
-            : [{ type: 'text', text: params.text }]
+            ? withErrorContent(meta.modelText, params.text, meta.visualizationBlocks)
+            : createAssistantContent(params.text, meta.visualizationBlocks)
           const message = await store.updateAssistantMessage(meta.msgId, {
             role: 'assistant',
             status: params.status,
             content,
             durationMs: params.durationMs,
           })
+          replacePersistedVisualizationBlocks(meta, message)
           await delegate.emitMessageUpdated?.(message)
         }
       }
@@ -169,10 +174,59 @@ export function createPersistedTurnEmitter(store: ISessionStore, delegate: IAgen
   return emitter
 }
 
-function withErrorContent(modelText: string, errorText: string): MessageContent {
+function stripVisualizationTransport(toolCall: ToolCallContent): ToolCallContent {
+  const { outputBlocks: _outputBlocks, ...safeToolCall } = toolCall
+  return safeToolCall
+}
+
+function withErrorContent(modelText: string, errorText: string, visualizationBlocks: VisualizationBlock[] = []): MessageContent {
   const content: MessageContent = modelText.trim()
     ? [{ type: 'text', text: modelText }]
     : []
+  content.push(...visualizationBlocks)
   content.push({ type: 'error', error: errorText })
   return content
+}
+
+function createAssistantContent(
+  text: string,
+  visualizationBlocks: VisualizationBlock[],
+  toolCalls: ToolCallContent[] = [],
+): MessageContent {
+  const content: MessageContent = text.trim()
+    ? [{ type: 'text', text }]
+    : []
+  content.push(...visualizationBlocks)
+  content.push(...toolCalls)
+  return content
+}
+
+function extractVisualizationBlocks(value: unknown): VisualizationBlock[] {
+  const outputBlocks = value && typeof value === 'object' && !Array.isArray(value)
+    && 'outputBlocks' in value
+    ? value.outputBlocks
+    : undefined
+  const parsed = VisualizationOutputBlocksSchema.safeParse({ outputBlocks })
+  return parsed.success ? parsed.data.outputBlocks : []
+}
+
+function appendVisualizationBlocks(target: VisualizationBlock[], next: VisualizationBlock[]): void {
+  const existing = new Set(target.map(block => block.source.file_id))
+  for (const block of next) {
+    if (!existing.has(block.source.file_id)) {
+      target.push(block)
+      existing.add(block.source.file_id)
+    }
+  }
+}
+
+function replacePersistedVisualizationBlocks(meta: TurnMeta, message: unknown): void {
+  if (!message || typeof message !== 'object' || !Array.isArray((message as { content?: unknown }).content)) {
+    return
+  }
+  const blocks = ((message as { content: unknown[] }).content).flatMap((block) => {
+    const parsed = VisualizationBlockSchema.safeParse(block)
+    return parsed.success ? [parsed.data] : []
+  })
+  meta.visualizationBlocks = blocks
 }

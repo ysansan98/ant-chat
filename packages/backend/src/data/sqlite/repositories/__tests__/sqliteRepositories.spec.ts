@@ -1,5 +1,6 @@
 import type { Database } from 'better-sqlite3'
 import { Buffer } from 'node:buffer'
+import { createHash } from 'node:crypto'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
@@ -11,6 +12,7 @@ import { SqliteMessageSearchQuery } from '../../queries'
 import { mapConversationRow } from '../../rows'
 import { SqliteConversationRepository } from '../sqliteConversationRepository'
 import { SqliteMessageRepository } from '../sqliteMessageRepository'
+import { runFork } from '../../../../agent-runtime/commands/messageFork'
 
 describe('sqlite message repository', () => {
   it('lists conversation messages by creation time and insertion order', async () => {
@@ -651,6 +653,67 @@ describe('sqlite repositories', () => {
     expect(updatedDoc).toBeDefined()
     expect((updatedDoc as any).data).toBeUndefined()
     await expect(messageRepository.loadAttachmentData('doc-updated')).resolves.toBe(newBytes.toString('base64'))
+  })
+
+  it('授权读取 visualization，并在更新移除 block 后清理 artifact', async () => {
+    const messageRepository = new SqliteMessageRepository(sqlite, { attachmentsRoot })
+    const conversationRepository = new SqliteConversationRepository(sqlite)
+    const conversation = await conversationRepository.create({ title: 'Visualization', workspacePath: '/workspace', createdAt: 1, updatedAt: 1, conversationInstructions: '', settings: { modelId: 'm', providerId: '', temperature: 0.7, maxOutputTokens: 1024 } })
+    const bytes = Buffer.from('{"version":1}', 'utf8')
+    const block = {
+      type: 'visualization' as const,
+      source: { type: 'file_id' as const, file_id: 'viz-auth-1' },
+      format: 'ant-chat.visualization.v1' as const,
+      title: '趋势',
+      summary: '摘要',
+      size: bytes.length,
+      sha256: createHash('sha256').update(bytes).digest('hex'),
+      data: bytes.toString('base64'),
+    }
+    const message = await messageRepository.create({ convId: conversation.id, role: 'user', status: 'success', content: [block] })
+
+    await expect(messageRepository.loadVisualizationData({ conversationId: conversation.id, messageId: message.id, fileId: 'viz-auth-1' })).resolves.toBe(bytes.toString('base64'))
+    await expect(messageRepository.loadVisualizationData({ conversationId: 'other-conversation', messageId: message.id, fileId: 'viz-auth-1' })).resolves.toBeNull()
+
+    await messageRepository.update({ id: message.id, content: [{ type: 'text', text: 'removed' }] })
+    await expect(messageRepository.loadAttachmentData('viz-auth-1')).resolves.toBeNull()
+  })
+
+  it('fork visualization 时生成新 file id，删除源会话不影响 fork artifact', async () => {
+    const messageRepository = new SqliteMessageRepository(sqlite, { attachmentsRoot })
+    const conversationRepository = new SqliteConversationRepository(sqlite, {
+      prepareConversationAttachmentCleanup: messageRepository.prepareConversationAttachmentCleanup.bind(messageRepository),
+    })
+    const sourceConversation = await conversationRepository.create({ title: 'Source', workspacePath: '/workspace', createdAt: 1, updatedAt: 1, conversationInstructions: '', settings: { modelId: 'm', providerId: '', temperature: 0.7, maxOutputTokens: 1024 } })
+    const bytes = Buffer.from('{"version":1}', 'utf8')
+    const block = {
+      type: 'visualization' as const,
+      source: { type: 'file_id' as const, file_id: 'viz-source-1' },
+      format: 'ant-chat.visualization.v1' as const,
+      title: '趋势',
+      summary: '摘要',
+      size: bytes.length,
+      sha256: createHash('sha256').update(bytes).digest('hex'),
+      data: bytes.toString('base64'),
+    }
+    await messageRepository.create({ convId: sourceConversation.id, role: 'user', status: 'success', content: [block] })
+
+    const appDataContext = {
+      conversationRepository,
+      messageRepository,
+      loadAttachmentData: messageRepository.loadAttachmentData.bind(messageRepository),
+    } as never
+    const result = await runFork({ appDataContext, sourceConversationId: sourceConversation.id, workspacePath: '/workspace' })
+    if (result.status !== 'success' || !result.conversationId) {
+      throw new Error('fork failed')
+    }
+    const forkMessages = await messageRepository.listByConversation(result.conversationId)
+    const forkMessage = forkMessages.find(message => message.content.some(content => content.type === 'visualization'))!
+    const forkBlock = forkMessage.content.find(content => content.type === 'visualization') as { source: { file_id: string } }
+
+    expect(forkBlock.source.file_id).not.toBe('viz-source-1')
+    await conversationRepository.delete(sourceConversation.id)
+    await expect(messageRepository.loadVisualizationData({ conversationId: result.conversationId, messageId: forkMessage.id, fileId: forkBlock.source.file_id })).resolves.toBe(bytes.toString('base64'))
   })
 })
 

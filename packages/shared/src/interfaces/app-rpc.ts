@@ -163,6 +163,7 @@ export interface AppRpcContract {
   'commands.cancelCommand': RpcEndpoint<{ conversationId: string }, null>
 
   'files.getAttachmentData': RpcEndpoint<{ fileId: string }, string | null>
+  'visualizations.get': RpcEndpoint<{ conversationId: string, messageId: string, fileId: string }, string | null>
 }
 
 export type AppRpcMethod = keyof AppRpcContract & string

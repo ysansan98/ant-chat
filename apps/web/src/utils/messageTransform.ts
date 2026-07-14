@@ -35,6 +35,9 @@ export function transformMessageContent(message: IMessage): string {
     else if (block.type === 'file') {
       return `${acc}${prefix}[File: ${block.filename || block.name || 'file'}]`
     }
+    else if (block.type === 'visualization') {
+      return `${acc}${prefix}[可视化：${block.title}]`
+    }
     else {
       return `${acc}${prefix}${block.text}`
     }

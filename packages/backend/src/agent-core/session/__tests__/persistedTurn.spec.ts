@@ -114,4 +114,56 @@ describe('persistedTurn 行为', () => {
       status: 'error',
     })).resolves.toBeUndefined()
   })
+
+  it('工具发布的 visualization 在最终成功和失败状态都保留，且持久化结果不含 data', async () => {
+    const visualization = {
+      type: 'visualization' as const,
+      source: { type: 'file_id' as const, file_id: 'viz-1' },
+      format: 'ant-chat.visualization.v1' as const,
+      title: '趋势',
+      summary: '摘要',
+      size: 3,
+      sha256: 'a'.repeat(64),
+      data: 'eHl6',
+    }
+    const store = {
+      createAssistantMessage: vi.fn(async () => ({ id: 'assistant-1' })),
+      updateAssistantMessage: vi.fn(async (_id: string, patch: { content: Array<Record<string, unknown>> }) => ({
+        id: 'assistant-1',
+        content: patch.content.map((block) => {
+          if (block.type !== 'visualization')
+            return block
+          const { data: _data, ...persisted } = block
+          return persisted
+        }),
+      })),
+    } as unknown as ISessionStore
+    const emitter = createPersistedTurnEmitter(store, createDelegate(), 'turn-1', 'conv-1', () => [])
+
+    await emitter.emitTurnStarted({
+      conversationId: 'conv-1',
+      model: { provider: 'provider', providerId: 'provider-1', name: 'model' },
+    })
+    await emitter.emitTurnToolCalls!({
+      conversationId: 'conv-1',
+      text: '已生成',
+      toolCalls: [{
+        type: 'tool-call',
+        toolCallId: 'call-1',
+        toolName: 'publish_visualization',
+        args: { title: '趋势', format: 'ant-chat.visualization.v1', size: 3, sha256: 'a'.repeat(64) },
+        outputBlocks: [visualization],
+      } as never],
+    })
+    await emitter.emitTurnFinished!({ conversationId: 'conv-1', turnId: 'turn-1', text: '失败', status: 'error' })
+
+    const updateCalls = (store.updateAssistantMessage as ReturnType<typeof vi.fn>).mock.calls
+    const finalPatch = updateCalls[updateCalls.length - 1]?.[1]
+    expect(finalPatch.content).toEqual([
+      { type: 'text', text: '已生成' },
+      expect.objectContaining({ type: 'visualization', source: visualization.source }),
+      { type: 'error', error: '失败' },
+    ])
+    expect(finalPatch.content.find((block: { type: string }) => block.type === 'visualization')).not.toHaveProperty('data')
+  })
 })

@@ -22,6 +22,9 @@ export function useMessageActions() {
       else if (b.type === 'file') {
         data.text += `[File: ${b.filename || b.name || 'file'}]`
       }
+      else if (b.type === 'visualization') {
+        data.text += `[可视化：${b.title}]`
+      }
       else if (b.type === 'error') {
         data.text += `${b.error}`
       }

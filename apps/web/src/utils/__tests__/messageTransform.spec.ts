@@ -29,4 +29,17 @@ describe('messageTransform', () => {
       { text: '第二段', type: 'text' },
     ]))).toBe('第一段\n第二段')
   })
+
+  it('可视化内容转换为只读摘要，不暴露 artifact bytes', () => {
+    expect(transformMessageContent(createMessage([{
+      type: 'visualization',
+      source: { type: 'file_id', file_id: 'viz-1' },
+      format: 'ant-chat.visualization.v1',
+      title: '阶段延迟',
+      summary: '比较阶段延迟',
+      size: 32,
+      sha256: '0'.repeat(64),
+      data: '不应进入文本',
+    }]))).toBe('[可视化：阶段延迟]')
+  })
 })

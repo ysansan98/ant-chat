@@ -45,15 +45,22 @@
     "@electron-toolkit/preload": "catalog:",
     "@electron-toolkit/tsconfig": "^1.0.1",
     "@electron/rebuild": "^4.0.1",
+    "@tailwindcss/vite": "catalog:",
     "@types/node": "catalog:",
     "@types/wicg-file-system-access": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "babel-plugin-react-compiler": "^1.0.0",
+    "code-inspector-plugin": "catalog:",
     "cross-env": "^7.0.3",
     "electron": "catalog:",
     "electron-builder": "^26.9.0",
     "electron-devtools-installer": "^4.0.0",
     "electron-vite": "6.0.0-beta.1",
+    "tailwindcss": "catalog:",
     "tsx": "catalog:",
     "vite": "catalog:",
+    "vite-bundle-analyzer": "catalog:",
+    "vite-plugin-svgr": "catalog:",
     "vitest": "catalog:"
   }
 }

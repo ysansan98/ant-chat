@@ -2,12 +2,14 @@ import type { AddMessage, AIMessage, IMessage, MessageContent, UpdateMessageSche
 import type { MessageRepository } from '../../repositories'
 import type { MessageRow } from '../rows'
 import type { AppDataDatabase } from '../types'
+import { Buffer } from 'node:buffer'
+import { createHash } from 'node:crypto'
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { nanoid } from 'nanoid'
 import { getAttachmentFileCandidates, getAttachmentFilePath } from '../attachmentFiles'
 import { decodeAttachmentData } from '../migrations/migrateAttachments'
-import { mapMessageRow, parseMessageContent, stringifyJson } from '../rows'
+import { mapMessageRow, stringifyJson } from '../rows'
 import { SqliteConversationRepository } from './sqliteConversationRepository'
 
 interface StagedAttachment {
@@ -18,6 +20,20 @@ interface StagedAttachment {
   mediaType: string
   size: number
 }
+
+/** 临时承接 shared visualization schema 合入前的持久化形状。 */
+interface VisualizationBlock {
+  type: 'visualization'
+  source: { type: 'file_id', file_id: string }
+  format: 'ant-chat.visualization.v1'
+  title: string
+  summary: string
+  size: number
+  sha256: string
+  data?: string
+}
+
+type PersistedMessageContent = Array<MessageContent[number] | VisualizationBlock>
 
 interface SqliteMessageRepositoryOptions {
   attachmentsRoot?: string
@@ -57,7 +73,7 @@ export class SqliteMessageRepository implements MessageRepository {
       ORDER BY created_at ASC, rowid ASC
     `).all(conversationId)
 
-    return data.map(mapMessageRow)
+    return data.map(mapPersistedMessageRow)
   }
 
   async getById(id: string): Promise<IMessage> {
@@ -70,7 +86,7 @@ export class SqliteMessageRepository implements MessageRepository {
       throw new Error('消息未找到')
     }
 
-    return mapMessageRow(result)
+    return mapPersistedMessageRow(result)
   }
 
   async create(message: AddMessage, options?: { id?: string }): Promise<IMessage> {
@@ -127,7 +143,7 @@ export class SqliteMessageRepository implements MessageRepository {
         throw new Error('创建消息失败')
       }
 
-      return mapMessageRow(result)
+      return mapPersistedMessageRow(result)
     }
     catch (error) {
       this.cleanupStagedFiles(stagedFiles, committedFiles)
@@ -149,6 +165,9 @@ export class SqliteMessageRepository implements MessageRepository {
 
   async update(message: UpdateMessageSchema): Promise<IMessage> {
     const existing = await this.getById(message.id)
+    const previousFileIds = message.content === undefined
+      ? []
+      : getAttachmentIdsFromContent(existing.content)
 
     const fields: string[] = []
     const params: unknown[] = []
@@ -163,6 +182,7 @@ export class SqliteMessageRepository implements MessageRepository {
     }
     const stagedFiles: StagedAttachment[] = []
     const committedFiles = new Set<string>()
+    let removedFileIds: string[] = []
     if (message.content !== undefined)
       fields.push('content = ?')
     if (message.status !== undefined) {
@@ -203,7 +223,7 @@ export class SqliteMessageRepository implements MessageRepository {
     }
 
     try {
-      let content: MessageContent | undefined
+      let content: PersistedMessageContent | undefined
       if (message.content !== undefined) {
         content = this.stageAttachmentData(message.content, stagedFiles)
       }
@@ -230,6 +250,14 @@ export class SqliteMessageRepository implements MessageRepository {
           throw new Error('消息未找到')
         }
 
+        if (content !== undefined) {
+          const nextFileIds = getAttachmentIdsFromContent(content)
+          removedFileIds = previousFileIds.filter(fileId => !nextFileIds.includes(fileId))
+          const unreferencedFileIds = this.findUnreferencedAttachmentFileIds(removedFileIds, [message.id])
+          this.deleteAttachmentRows(unreferencedFileIds)
+          removedFileIds = unreferencedFileIds
+        }
+
         this.db.prepare(`
           UPDATE conversations
           SET updated_at = ?
@@ -239,7 +267,12 @@ export class SqliteMessageRepository implements MessageRepository {
         return result
       })
 
-      return mapMessageRow(updateMessage())
+      const updated = updateMessage()
+      if (!updated) {
+        throw new Error('消息未找到')
+      }
+      this.removeAttachmentFiles(removedFileIds)
+      return mapPersistedMessageRow(updated)
     }
     catch (error) {
       this.cleanupStagedFiles(stagedFiles, committedFiles)
@@ -249,28 +282,32 @@ export class SqliteMessageRepository implements MessageRepository {
 
   async delete(id: string): Promise<boolean> {
     const fileIds = this.getMessageAttachmentFileIds([id])
+    let filesToRemove: string[] = []
     const deleteMessage = this.db.transaction(() => {
       this.db.prepare('DELETE FROM messages WHERE id = ?').run(id)
-      this.deleteAttachmentRows(fileIds)
+      filesToRemove = this.findUnreferencedAttachmentFileIds(fileIds, [id])
+      this.deleteAttachmentRows(filesToRemove)
     })
 
     deleteMessage()
-    this.removeAttachmentFiles(fileIds)
+    this.removeAttachmentFiles(filesToRemove)
     return true
   }
 
   async batchDelete(ids: string[]): Promise<boolean> {
     const fileIds = this.getMessageAttachmentFileIds(ids)
+    let filesToRemove: string[] = []
     const deleteMessages = this.db.transaction((messageIds: string[]) => {
       const statement = this.db.prepare('DELETE FROM messages WHERE id = ?')
       for (const id of messageIds) {
         statement.run(id)
       }
-      this.deleteAttachmentRows(fileIds)
+      filesToRemove = this.findUnreferencedAttachmentFileIds(fileIds, ids)
+      this.deleteAttachmentRows(filesToRemove)
     })
 
     deleteMessages(ids)
-    this.removeAttachmentFiles(fileIds)
+    this.removeAttachmentFiles(filesToRemove)
     return true
   }
 
@@ -289,18 +326,75 @@ export class SqliteMessageRepository implements MessageRepository {
     return null
   }
 
+  async loadVisualizationData(input: { conversationId: string, messageId: string, fileId: string }): Promise<string | null> {
+    let message: IMessage
+    try {
+      message = await this.getById(input.messageId)
+    }
+    catch {
+      return null
+    }
+    if (message.convId !== input.conversationId) {
+      return null
+    }
+
+    const block = getVisualizationBlocks(message.content).find(item => item.source.file_id === input.fileId)
+    if (!block) {
+      return null
+    }
+
+    let data: string | null
+    try {
+      data = await this.loadAttachmentData(input.fileId)
+    }
+    catch {
+      return null
+    }
+    if (!data) {
+      return null
+    }
+    const digest = createHash('sha256').update(Buffer.from(data, 'base64')).digest('hex')
+    return digest === block.sha256 ? data : null
+  }
+
   prepareConversationAttachmentCleanup(conversationId: string): () => void {
     const ids = this.db.prepare<unknown[], { id: string }>(`
       SELECT id FROM messages WHERE conv_id = ?
     `).all(conversationId).map(row => row.id)
     const fileIds = this.getMessageAttachmentFileIds(ids)
 
-    this.deleteAttachmentRows(fileIds)
-    return () => this.removeAttachmentFiles(fileIds)
+    const filesToRemove = this.findUnreferencedAttachmentFileIds(fileIds, ids)
+    this.deleteAttachmentRows(filesToRemove)
+    return () => this.removeAttachmentFiles(filesToRemove)
   }
 
-  private stageAttachmentData(content: MessageContent, stagedFiles: StagedAttachment[]): MessageContent {
-    return content.map((block) => {
+  private stageAttachmentData(content: MessageContent, stagedFiles: StagedAttachment[]): PersistedMessageContent {
+    return (content as unknown as PersistedMessageContent).map((block) => {
+      if (block.type === 'tool-call' && block.outputBlocks) {
+        const { outputBlocks: _outputBlocks, ...safeToolCall } = block
+        return safeToolCall
+      }
+      if (block.type === 'visualization') {
+        if (!block.data) {
+          return block
+        }
+        const attachmentsRoot = this.requireAttachmentsRoot()
+        const finalPath = getAttachmentFilePath(attachmentsRoot, block.source.file_id)
+        const tempPath = `${finalPath}.staging-${nanoid()}`
+        mkdirSync(path.dirname(finalPath), { recursive: true })
+        const bytes = decodeAttachmentData(block.data)
+        writeFileSync(tempPath, bytes)
+        stagedFiles.push({
+          fileId: block.source.file_id,
+          tempPath,
+          finalPath,
+          name: block.title,
+          mediaType: 'application/json',
+          size: bytes.byteLength,
+        })
+        const { data: _data, ...persistedBlock } = block
+        return persistedBlock
+      }
       if (
         block.type !== 'image-block'
         && block.type !== 'document'
@@ -393,13 +487,8 @@ export class SqliteMessageRepository implements MessageRepository {
     `).all(...messageIds)
     const ids = new Set<string>()
     for (const row of rows) {
-      for (const block of parseMessageContent(row.content)) {
-        if (
-          (block.type === 'image-block' || block.type === 'document' || block.type === 'file')
-          && block.source.type === 'file_id'
-        ) {
-          ids.add(block.source.file_id)
-        }
+      for (const fileId of getAttachmentIdsFromContent(parsePersistedContent(row.content))) {
+        ids.add(fileId)
       }
     }
 
@@ -411,6 +500,24 @@ export class SqliteMessageRepository implements MessageRepository {
     for (const fileId of fileIds) {
       statement.run(fileId)
     }
+  }
+
+  private findUnreferencedAttachmentFileIds(fileIds: string[], excludedMessageIds: string[] = []): string[] {
+    if (fileIds.length === 0) {
+      return []
+    }
+    const excluded = new Set(excludedMessageIds)
+    const referenced = new Set<string>()
+    const rows = this.db.prepare<unknown[], { id: string, content: string }>('SELECT id, content FROM messages').all()
+    for (const row of rows) {
+      if (excluded.has(row.id)) {
+        continue
+      }
+      for (const fileId of getAttachmentIdsFromContent(parsePersistedContent(row.content))) {
+        referenced.add(fileId)
+      }
+    }
+    return fileIds.filter(fileId => !referenced.has(fileId))
   }
 
   private removeAttachmentFiles(fileIds: string[]): void {
@@ -435,4 +542,67 @@ export class SqliteMessageRepository implements MessageRepository {
 
 function stringifyNullableJson(value: unknown): string | null {
   return value === null || value === undefined ? null : stringifyJson(value)
+}
+
+function mapPersistedMessageRow(row: MessageRow): IMessage {
+  const content = parsePersistedContent(row.content)
+  if (!content.some(block => block.type === 'visualization')) {
+    return mapMessageRow(row)
+  }
+  const compatibleRow = {
+    ...row,
+    content: stringifyJson(content.filter(block => block.type !== 'visualization')),
+  }
+  return {
+    ...mapMessageRow(compatibleRow),
+    content: content as unknown as IMessage['content'],
+  }
+}
+
+function parsePersistedContent(value: string): PersistedMessageContent {
+  const content = JSON.parse(value)
+  if (!Array.isArray(content)) {
+    throw new TypeError('消息内容格式无效')
+  }
+  return content as PersistedMessageContent
+}
+
+function getAttachmentIdsFromContent(content: unknown): string[] {
+  if (!Array.isArray(content)) {
+    return []
+  }
+  const ids = new Set<string>()
+  for (const block of content) {
+    if (!block || typeof block !== 'object' || Array.isArray(block)) {
+      continue
+    }
+    const candidate = block as {
+      type?: unknown
+      source?: { type?: unknown, file_id?: unknown }
+    }
+    if (
+      (candidate.type === 'image-block' || candidate.type === 'document' || candidate.type === 'file' || candidate.type === 'visualization')
+      && candidate.source?.type === 'file_id'
+      && typeof candidate.source.file_id === 'string'
+    ) {
+      ids.add(candidate.source.file_id)
+    }
+  }
+  return [...ids]
+}
+
+function getVisualizationBlocks(content: unknown): VisualizationBlock[] {
+  if (!Array.isArray(content)) {
+    return []
+  }
+  return content.filter((block): block is VisualizationBlock => {
+    if (!block || typeof block !== 'object' || Array.isArray(block)) {
+      return false
+    }
+    const candidate = block as Partial<VisualizationBlock>
+    return candidate.type === 'visualization'
+      && candidate.format === 'ant-chat.visualization.v1'
+      && Boolean(candidate.source && candidate.source.type === 'file_id')
+      && typeof candidate.sha256 === 'string'
+  })
 }

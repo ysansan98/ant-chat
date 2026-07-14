@@ -342,7 +342,7 @@ function messageHasTextContent(msg: IMessage): boolean {
 
 function messageHasVisibleResponse(msg: IMessage): boolean {
   return Array.isArray(msg.content) && msg.content.some(block =>
-    (block.type === 'text' && block.text.length > 0) || block.type === 'error',
+    (block.type === 'text' && block.text.length > 0) || block.type === 'error' || block.type === 'visualization',
   )
 }
 

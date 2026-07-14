@@ -2,6 +2,9 @@ import type { SecretRef } from '../schemas'
 
 export type ToolOperationType = 'read' | 'write' | 'bash' | 'browser' | 'skill' | 'mcp'
 export type ToolScope = 'workspace' | 'outside' | 'blocked'
+export type AgentToolInput = Record<string, unknown>
+export type AgentToolPublicInput = Record<string, unknown>
+export type AgentToolPublicInputMapper = (rawInput: AgentToolInput) => AgentToolPublicInput
 
 export interface ToolDiagnostics {
   stdout?: string
@@ -30,6 +33,7 @@ export interface AgentTool {
   operationType: ToolOperationType
   inferScope: (input: Record<string, unknown>) => ToolScope
   validateInput?: (input: Record<string, unknown>) => string | null
+  toPublicInput?: AgentToolPublicInputMapper
   execute: (input: Record<string, unknown>) => Promise<AgentToolResult>
   truncateResult?: boolean
 }

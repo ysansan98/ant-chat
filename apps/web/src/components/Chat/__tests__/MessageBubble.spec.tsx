@@ -37,6 +37,21 @@ describe('messageBubble', () => {
     expect(screen.queryByText(/执行过程/)).not.toBeInTheDocument()
   })
 
+  it('只有可视化内容时直接展示 artifact frame，不被误收进执行过程', () => {
+    renderBubble([createAssistantMessage('visualization', [{
+      type: 'visualization',
+      source: { type: 'file_id', file_id: 'viz-1' },
+      format: 'ant-chat.visualization.v1',
+      title: '阶段延迟',
+      summary: '比较阶段延迟',
+      size: 32,
+      sha256: '0'.repeat(64),
+    }], 'success')])
+
+    expect(screen.queryByText(/执行过程/)).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('正在加载可视化')
+  })
+
   it('仅有错误内容时直接展示错误，不放入可折叠的执行过程', () => {
     renderBubble([
       createAssistantMessage('failed-answer', [

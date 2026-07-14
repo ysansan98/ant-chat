@@ -5,7 +5,7 @@ export async function runFork(params: {
   appDataContext: AppDataContext
   sourceConversationId: string
   workspacePath: string
-}): Promise<RunBuiltinCommandResult> {
+}): Promise<Extract<RunBuiltinCommandResult, { status: 'success' }>> {
   const { appDataContext, sourceConversationId, workspacePath } = params
 
   const sourceConversation = await appDataContext.conversationRepository.getById(sourceConversationId)
@@ -45,7 +45,7 @@ export async function runFork(params: {
 
   for (const msg of sourceMessages) {
     // Build the appropriate AddMessage shape per role, remapping IDs
-    const addMsg = messageToAddMessage(msg, forkConversation.id, idMap, toolCallIdMap)
+    const addMsg = await messageToAddMessage(msg, forkConversation.id, idMap, toolCallIdMap, appDataContext)
     const created = await appDataContext.messageRepository.create(addMsg)
     idMap.set(msg.id, created.id)
   }
@@ -58,21 +58,34 @@ export async function runFork(params: {
  * Remaps tool-call / tool-result IDs via a stable map so pairs stay linked,
  * and remaps turnId via the provided idMap (sourceId to forkId).
  */
-function messageToAddMessage(
+async function messageToAddMessage(
   msg: IMessage,
   forkConvId: string,
   idMap: Map<string, string>,
   toolCallIdMap: Map<string, string>,
-): AddMessage {
-  const remappedContent = msg.content.map((block) => {
-    if (block.type === 'tool-call') {
-      return { ...block, toolCallId: remapToolRef(block.toolCallId, toolCallIdMap) }
+  appDataContext: AppDataContext,
+): Promise<AddMessage> {
+  const remappedContent = await Promise.all((msg.content as unknown as unknown[]).map(async (block) => {
+    if (isVisualizationBlock(block)) {
+      const data = await appDataContext.loadAttachmentData(block.source.file_id)
+      if (!data) {
+        throw new Error(`Visualization artifact not found: ${block.source.file_id}`)
+      }
+      return {
+        ...block,
+        source: { type: 'file_id' as const, file_id: `viz-${requireCryptoUUID()}` },
+        data,
+      }
     }
-    if (block.type === 'tool-result') {
-      return { ...block, toolCallId: remapToolRef(block.toolCallId, toolCallIdMap) }
+    const candidate = block as { type?: unknown, toolCallId?: unknown }
+    if (candidate.type === 'tool-call' && typeof candidate.toolCallId === 'string') {
+      return { ...(block as Record<string, unknown>), toolCallId: remapToolRef(candidate.toolCallId, toolCallIdMap) }
+    }
+    if (candidate.type === 'tool-result' && typeof candidate.toolCallId === 'string') {
+      return { ...(block as Record<string, unknown>), toolCallId: remapToolRef(candidate.toolCallId, toolCallIdMap) }
     }
     return block
-  })
+  }))
 
   const remappedTurnId = msg.turnId ? (idMap.get(msg.turnId) || msg.turnId) : undefined
 
@@ -88,7 +101,7 @@ function messageToAddMessage(
         ...base,
         role: 'user' as const,
         status: 'success' as const,
-      }
+      } as unknown as AddMessage
 
     case 'assistant':
       return {
@@ -99,14 +112,14 @@ function messageToAddMessage(
         reasoningContent: msg.reasoningContent,
         usage: msg.usage,
         durationMs: msg.durationMs,
-      }
+      } as unknown as AddMessage
 
     case 'tool':
       return {
         ...base,
         role: 'tool' as const,
         status: (msg.status === 'error' ? 'error' : 'success') as 'success' | 'error',
-      }
+      } as unknown as AddMessage
 
     case 'event':
       if (msg.status !== 'success' && msg.status !== 'loading' && msg.status !== 'error') {
@@ -122,11 +135,32 @@ function messageToAddMessage(
         compactedThroughMessageId: msg.compactedThroughMessageId
           ? idMap.get(msg.compactedThroughMessageId)
           : undefined,
-      }
+      } as unknown as AddMessage
 
     default:
       throw new Error(`Unknown message role: ${(msg as IMessage).role}`)
   }
+}
+
+interface ForkVisualizationBlock {
+  type: 'visualization'
+  source: { type: 'file_id', file_id: string }
+  format: 'ant-chat.visualization.v1'
+  title: string
+  summary: string
+  size: number
+  sha256: string
+  data?: string
+}
+
+function isVisualizationBlock(value: unknown): value is ForkVisualizationBlock {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false
+  }
+  const block = value as Partial<ForkVisualizationBlock>
+  return block.type === 'visualization'
+    && block.format === 'ant-chat.visualization.v1'
+    && Boolean(block.source && block.source.type === 'file_id' && typeof block.source.file_id === 'string')
 }
 
 /**

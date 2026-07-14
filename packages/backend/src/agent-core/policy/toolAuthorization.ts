@@ -28,7 +28,7 @@ export function createToolAuthorization(
         ? task.snapshot.turnSource.permissionPolicy
         : undefined,
       prepared.toolName,
-      prepared.input,
+      prepared.publicInput,
       prepared.operationType,
       prepared.scope,
       task.snapshot.workspacePath,
@@ -42,7 +42,7 @@ export function createToolAuthorization(
 
     const context = {
       toolName: prepared.toolName,
-      input: prepared.input,
+      input: prepared.publicInput,
       operationType: prepared.operationType,
       scope: prepared.scope,
       policy: effectiveDecision.type,
@@ -52,7 +52,7 @@ export function createToolAuthorization(
     traceLogger.write('tool_decision', {
       ...logContext,
       toolName: prepared.toolName,
-      input: prepared.input,
+      input: prepared.publicInput,
       operationType: prepared.operationType,
       scope: prepared.scope,
       policy: effectiveDecision.type,
@@ -73,7 +73,7 @@ export function createToolAuthorization(
 
     // require_approval — check whitelist before showing dialog
     if (getWhitelistEntries) {
-      const matchKey = extractInputKey(prepared.toolName, prepared.input)
+      const matchKey = extractInputKey(prepared.toolName, prepared.publicInput)
       const entries = getWhitelistEntries()
       const matched = isWhitelisted(
         entries,
@@ -98,7 +98,7 @@ export function createToolAuthorization(
     // require_approval
     const whitelistPattern = generatePattern(
       prepared.toolName,
-      prepared.input,
+      prepared.publicInput,
       prepared.scope,
       task.snapshot.workspacePath,
     )
@@ -107,7 +107,7 @@ export function createToolAuthorization(
       toolName: prepared.toolName,
       operationType: prepared.operationType,
       scope: prepared.scope,
-      inputPreview: JSON.stringify(prepared.input).slice(0, 200),
+      inputPreview: JSON.stringify(prepared.publicInput).slice(0, 200),
       whitelistPattern,
       createdAt: Date.now(),
     }

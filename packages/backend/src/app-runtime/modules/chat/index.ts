@@ -215,11 +215,16 @@ export class ChatModule implements RuntimeModuleMethods<'chat'> {
 
   @Method()
   addMessage(input: AppRpcInput<'chat.addMessage'>) {
+    rejectClientVisualization(input.message.content)
     return this.core.data.messageRepository.create(AddMessage.parse(input.message))
   }
 
   @Method()
-  updateMessage(input: AppRpcInput<'chat.updateMessage'>) {
+  async updateMessage(input: AppRpcInput<'chat.updateMessage'>) {
+    const existing = await this.core.data.messageRepository.getById(input.message.id)
+    if (input.message.content !== undefined) {
+      assertClientVisualizationUpdate(existing.content, input.message.content)
+    }
     return this.core.data.messageRepository.update(UpdateMessageSchema.parse(input.message))
   }
 
@@ -240,4 +245,46 @@ function requireValue<T>(value: T, message: string): NonNullable<T> {
   if (value === undefined || value === null)
     throw new Error(message)
   return value as NonNullable<T>
+}
+
+function rejectClientVisualization(content: unknown): void {
+  if (extractVisualizationBlocks(content).length > 0) {
+    throw new Error('visualization 只能由 publish_visualization 工具创建')
+  }
+}
+
+function assertClientVisualizationUpdate(existingContent: unknown, nextContent: unknown): void {
+  const existing = extractVisualizationBlocks(existingContent)
+  const next = extractVisualizationBlocks(nextContent)
+  if (existing.length === 0 && next.length === 0) {
+    return
+  }
+  if (existing.length === 0) {
+    throw new Error('visualization 只能由 publish_visualization 工具创建')
+  }
+  if (next.length !== existing.length || next.some(block => 'data' in block && block.data !== undefined)) {
+    throw new Error('visualization 快照不可通过客户端替换或删除')
+  }
+  const normalizedExisting = existing.map(normalizeVisualizationBlock)
+  const normalizedNext = next.map(normalizeVisualizationBlock)
+  if (JSON.stringify(normalizedExisting) !== JSON.stringify(normalizedNext)) {
+    throw new Error('visualization 快照不可通过客户端替换或删除')
+  }
+}
+
+function extractVisualizationBlocks(content: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(content)) {
+    return []
+  }
+  return content.filter((block): block is Record<string, unknown> => {
+    return Boolean(block)
+      && typeof block === 'object'
+      && !Array.isArray(block)
+      && (block as { type?: unknown }).type === 'visualization'
+  })
+}
+
+function normalizeVisualizationBlock(block: Record<string, unknown>): Record<string, unknown> {
+  const { data: _data, ...withoutData } = block
+  return withoutData
 }

@@ -3,7 +3,7 @@ import { useChatSttingsStore } from '@/store/chatSettings'
 import { clearConversationsAction, deleteConversationsAction, useConversationsStore } from '@/store/conversation'
 import { useMessagesStore } from '@/store/messages'
 import { useWorkspaceStore } from '@/store/workspace'
-import { cancelPendingMessageDeletion, clearAllPendingMessages, completePendingMessageDeletion, drainPendingMessages, enqueuePendingMessage, getPendingMessageOperationStateForTests, injectPendingMessage, preparePendingMessageDeletion } from '../actions'
+import { cancelPendingMessageDeletion, clearAllPendingMessages, completePendingMessageDeletion, drainPendingMessages, enqueuePendingMessage, enqueueVisualizationNextTurn, getPendingMessageOperationStateForTests, injectPendingMessage, preparePendingMessageDeletion, submitVisualizationFollowUp } from '../actions'
 import { usePendingMessagesStore } from '../store'
 
 const mocks = vi.hoisted(() => ({
@@ -72,6 +72,36 @@ describe('pending message actions', () => {
     await injectPendingMessage('conv-1', queued.id)
     expect(mocks.injectSteering).toHaveBeenCalledWith('conv-1', '追加内容')
     expect(usePendingMessagesStore.getState().itemsByConversation['conv-1']).toEqual([])
+  })
+
+  it('可视化 next-turn 在运行中只入队且不会调用 steering', async () => {
+    mocks.listActiveTasks.mockResolvedValue([{ conversationId: 'conv-1', taskId: 'task-1', status: 'running' }])
+    await submitVisualizationFollowUp('conv-1', '请分析表单结果')
+
+    expect(mocks.injectSteering).not.toHaveBeenCalled()
+    expect(mocks.startTurn).not.toHaveBeenCalled()
+    expect(usePendingMessagesStore.getState().itemsByConversation['conv-1']).toEqual([
+      expect.objectContaining({ text: '请分析表单结果', delivery: 'next-turn', source: 'visualization' }),
+    ])
+  })
+
+  it('可视化 next-turn 在空闲时直接创建独立 user turn', async () => {
+    await submitVisualizationFollowUp('conv-1', '姓名：张三')
+
+    expect(mocks.injectSteering).not.toHaveBeenCalled()
+    expect(mocks.startTurn).toHaveBeenCalledWith(expect.objectContaining({
+      messageContent: [{ type: 'text', text: '姓名：张三' }],
+    }))
+    expect(usePendingMessagesStore.getState().itemsByConversation['conv-1']).toBeUndefined()
+  })
+
+  it('next-turn 队列项被手动点击时也不会注入当前任务', async () => {
+    const queued = enqueueVisualizationNextTurn('conv-1', '排队消息')
+    mocks.listActiveTasks.mockResolvedValue([{ conversationId: 'conv-1', taskId: 'task-1', status: 'running' }])
+    await injectPendingMessage('conv-1', queued.id)
+
+    expect(mocks.injectSteering).not.toHaveBeenCalled()
+    expect(usePendingMessagesStore.getState().itemsByConversation['conv-1']).toHaveLength(1)
   })
 
   it('任务已结束时注入回退为普通 turn，失败时保留消息', async () => {

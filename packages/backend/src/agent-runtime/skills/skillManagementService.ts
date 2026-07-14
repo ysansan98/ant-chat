@@ -11,6 +11,7 @@ const INDEX_FILE = '.index.json'
 const SKILL_NAME_PATTERN = /^[\w.-]+$/
 const BUILTIN_SKILL_INSTALLER = 'skill-installer'
 const BUILTIN_SKILL_MANAGER = 'ant-chat-manager'
+const BUILTIN_SKILL_VISUALIZE = 'visualize'
 
 const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---/
 
@@ -53,6 +54,7 @@ export class SkillManagementService {
     await this.migrateFromManifestJson()
     await this.ensureBuiltinSkillInstaller()
     await this.ensureBuiltinAntChatManager()
+    await this.ensureBuiltinVisualize()
   }
 
   async listSkills(): Promise<SkillIndex> {
@@ -399,6 +401,27 @@ export class SkillManagementService {
     if (!appState[BUILTIN_SKILL_MANAGER]) {
       const now = Date.now()
       appState[BUILTIN_SKILL_MANAGER] = {
+        enabled: true,
+        builtin: true,
+        source: 'builtin',
+        installedAt: now,
+        updatedAt: now,
+      }
+      await this.writeAppState(appState)
+    }
+  }
+
+  /** 确保可视化 Skill 的协议文件存在，并保持用户启用状态不被初始化覆盖。 */
+  private async ensureBuiltinVisualize(): Promise<void> {
+    const skillPath = path.join(this.skillsRoot, BUILTIN_SKILL_VISUALIZE)
+    await fs.promises.mkdir(skillPath, { recursive: true })
+    const sourcePath = path.join(this.builtinSkillsSourceRoot, BUILTIN_SKILL_VISUALIZE)
+    await fs.promises.cp(sourcePath, skillPath, { recursive: true, force: true })
+
+    const appState = await this.readAppState()
+    if (!appState[BUILTIN_SKILL_VISUALIZE]) {
+      const now = Date.now()
+      appState[BUILTIN_SKILL_VISUALIZE] = {
         enabled: true,
         builtin: true,
         source: 'builtin',
