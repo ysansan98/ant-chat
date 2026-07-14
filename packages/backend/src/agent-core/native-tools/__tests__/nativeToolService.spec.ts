@@ -126,6 +126,23 @@ describe('native tool service 行为', () => {
     await expect(bash.execute({ command: 'pwd && ls -la' })).resolves.toMatchObject({ ok: true })
   })
 
+  it('将 Desktop 注入的 launcher PATH 传给 bash 子进程', async () => {
+    const launcherPath = fs.mkdtempSync(path.join(os.tmpdir(), 'ant-chat-launcher-'))
+    const launcher = path.join(launcherPath, 'ant-chat')
+    fs.writeFileSync(launcher, '#!/bin/sh\nprintf launcher-ok\n')
+    fs.chmodSync(launcher, 0o755)
+
+    const service = new NativeToolService(workspacePath, true, {
+      bashEnvironment: { PATH: launcherPath },
+    })
+    const bash = service.getTools().find(tool => tool.name === 'bash')!
+    const result = await bash.execute({ command: 'ant-chat' })
+
+    expect(result.ok).toBe(true)
+    expect(result.diagnostics?.stdout).toContain('launcher-ok')
+    fs.rmSync(launcherPath, { force: true, recursive: true })
+  })
+
   it('bash 自己定义失败结果写入模型上下文的格式', async () => {
     const service = new NativeToolService(workspacePath)
     const bash = service.getTools().find(tool => tool.name === 'bash')!

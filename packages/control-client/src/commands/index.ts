@@ -22,8 +22,8 @@ export async function executeCommand(
     const response = await client.send(command)
 
     if (!response.ok) {
-      const errorMsg = response.error?.message ?? 'Unknown error'
-      return { exitCode: 1, output: options.json ? JSON.stringify({ code: 'EXECUTION_ERROR', message: errorMsg }) : `Error: ${errorMsg}` }
+      const errorMsg = response.error?.message ?? '未知错误'
+      return { exitCode: 1, output: options.json ? JSON.stringify({ code: 'EXECUTION_ERROR', message: errorMsg }) : `错误：${errorMsg}` }
     }
 
     if (response.result === undefined) {
@@ -43,7 +43,7 @@ export async function executeCommand(
 
 function parseArgv(argv: string[]): AppControlCommand {
   if (argv.length === 0) {
-    throw new Error('Usage: ant-chat <command> [options]\n\nCommands:\n  settings  Manage settings\n  provider  Manage AI providers\n  mcp       Manage MCP servers\n  automation Manage automations')
+    throw new Error('用法：ant-chat <命令> [选项]\n\n命令：\n  settings    管理设置\n  provider    管理 AI Provider\n  mcp         管理 MCP 服务\n  automation  管理自动化任务')
   }
 
   const [type, ...rest] = argv
@@ -58,13 +58,13 @@ function parseArgv(argv: string[]): AppControlCommand {
     case 'automation':
       return parseAutomation(rest)
     default:
-      throw new Error(`Unknown command: ${type}. Use: settings, provider, mcp, automation`)
+      throw new Error(`未知命令：${type}。可用命令：settings、provider、mcp、automation`)
   }
 }
 
 function parseSettings(args: string[]): AppControlCommand {
   if (args.length === 0)
-    throw new Error('Usage: ant-chat settings <show|theme|assistant|proxy> [...]')
+    throw new Error('用法：ant-chat settings <show|theme|assistant|proxy> [...]')
 
   const [sub, ...rest] = args
   switch (sub) {
@@ -74,12 +74,12 @@ function parseSettings(args: string[]): AppControlCommand {
     case 'theme': {
       const [action, ...opts] = rest
       if (action !== 'set') {
-        throw new Error('Usage: ant-chat settings theme set [--mode <system|light|dark>] [--theme <id>]')
+        throw new Error('用法：ant-chat settings theme set [--mode <system|light|dark>] [--theme <id>]')
       }
       const parsed = parseNamedArgs(opts)
       const mode = parsed.mode as 'system' | 'light' | 'dark' | undefined
       if (mode && !['system', 'light', 'dark'].includes(mode)) {
-        throw new Error('--mode must be system, light, or dark')
+        throw new Error('--mode 必须是 system、light 或 dark')
       }
       const themeId = parsed.theme
       const lightThemeId = parsed.lightTheme ?? themeId
@@ -93,13 +93,13 @@ function parseSettings(args: string[]): AppControlCommand {
     case 'assistant': {
       const [action, ...opts] = rest
       if (action !== 'set')
-        throw new Error('Usage: ant-chat settings assistant set --provider <id> --model <id>')
+        throw new Error('用法：ant-chat settings assistant set --provider <id> --model <id>')
       const parsed = parseNamedArgs(opts)
       if (!parsed.provider) {
-        throw new Error('--provider is required')
+        throw new Error('--provider 为必填项')
       }
       if (!parsed.model) {
-        throw new Error('--model is required')
+        throw new Error('--model 为必填项')
       }
       return { type: 'settings', action: 'assistant:set', providerId: parsed.provider as string, modelId: parsed.model as string }
     }
@@ -117,11 +117,11 @@ function parseSettings(args: string[]): AppControlCommand {
         }
         return { type: 'settings', action: 'proxy:set', mode: parsed.mode as 'none' | 'system' | 'manual', url: parsed.url }
       }
-      throw new Error('Usage: ant-chat settings proxy <set|test> [options]')
+      throw new Error('用法：ant-chat settings proxy <set|test> [选项]')
     }
 
     default:
-      throw new Error(`Unknown settings subcommand: ${sub}`)
+      throw new Error(`未知 settings 子命令：${sub}`)
   }
 }
 

@@ -14,6 +14,7 @@ const READ_ONLY_COMMANDS = new Set(['pwd', 'ls', 'cat', 'rg', 'find'])
 const BLOCKED_TOKENS = ['>', '<', '|', ';', '||', '`', '$(', '\n']
 
 interface BashRunnerOptions {
+  bashEnvironment?: Record<string, string>
   blockAgentBrowser?: boolean
   trustedPaths?: string[]
 }
@@ -59,7 +60,7 @@ export async function runBashTool(
   let stderr = ''
   let exitCode = 0
   for (const item of commands) {
-    const result = await runSingleCommand(item, cwd, perCommandTimeoutMs, input.env as Record<string, string> | undefined, startedAt)
+    const result = await runSingleCommand(item, cwd, perCommandTimeoutMs, input.env as Record<string, string> | undefined, startedAt, options.bashEnvironment)
     stdout = appendTruncated(stdout, result.diagnostics?.stdout || '')
     stderr = appendTruncated(stderr, result.diagnostics?.stderr || '')
     exitCode = result.diagnostics?.exitCode ?? (result.ok ? 0 : 1)
@@ -95,12 +96,15 @@ function runSingleCommand(
   timeoutMs: number,
   env: Record<string, string> | undefined,
   startedAt: number,
+  bashEnvironment: Record<string, string> | undefined,
 ): Promise<AgentToolResult> {
   return new Promise((resolve) => {
-    const child = spawn(parsed.command, parsed.args, {
+    const childEnv = sanitizeEnv(env, bashEnvironment)
+    const spawnSpec = resolveSpawnSpec(parsed, childEnv)
+    const child = spawn(spawnSpec.command, spawnSpec.args, {
       cwd,
       shell: false,
-      env: sanitizeEnv(env),
+      env: childEnv,
     })
 
     let stdout = ''
@@ -299,9 +303,9 @@ function appendTruncated(current: string, next: string): string {
   return `${value.slice(0, MAX_OUTPUT_CHARS)}\n[output truncated]`
 }
 
-function sanitizeEnv(env: Record<string, string> | undefined): NodeJS.ProcessEnv {
+function sanitizeEnv(env: Record<string, string> | undefined, bashEnvironment?: Record<string, string>): NodeJS.ProcessEnv {
   const nextEnv: NodeJS.ProcessEnv = {
-    PATH: process.env.PATH,
+    PATH: bashEnvironment?.PATH ?? process.env.PATH ?? process.env.Path,
     HOME: process.env.HOME,
     USER: process.env.USER,
     TMPDIR: process.env.TMPDIR,
@@ -313,7 +317,33 @@ function sanitizeEnv(env: Record<string, string> | undefined): NodeJS.ProcessEnv
     }
   }
 
+  // 用户输入不能覆盖 Desktop 注入的受控 PATH，否则内置 CLI 会重新依赖全局环境。
+  if (bashEnvironment?.PATH)
+    nextEnv.PATH = bashEnvironment.PATH
+
   return nextEnv
+}
+
+function resolveSpawnSpec(parsed: { command: string, args: string[] }, env: NodeJS.ProcessEnv): { command: string, args: string[] } {
+  if (process.platform !== 'win32' || parsed.command !== 'ant-chat')
+    return parsed
+
+  const launcher = env.PATH
+    ?.split(path.delimiter)
+    .map(directory => path.join(directory, 'ant-chat.cmd'))
+    .find(candidate => fs.existsSync(candidate))
+  if (!launcher)
+    return parsed
+
+  const commandLine = [launcher, ...parsed.args].map(quoteWindowsArg).join(' ')
+  return {
+    command: process.env.ComSpec || 'cmd.exe',
+    args: ['/d', '/s', '/c', commandLine],
+  }
+}
+
+function quoteWindowsArg(value: string): string {
+  return /[\s"]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
 }
 
 export function preValidateBashScope(

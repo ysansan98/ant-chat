@@ -1,0 +1,114 @@
+name: Release npm Product
+
+on:
+  push:
+    tags:
+      - ant-chat-v*.*.*
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prepare npm Trusted Publishing
+        run: npm install --global npm@11
+
+      - name: Validate npm tag
+        shell: bash
+        run: |
+          version=$(node -p "require('./packages/ant-chat/package.json').version")
+          test "$GITHUB_REF_NAME" = "ant-chat-v$version"
+
+      - name: Build and pack product
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/ant-chat-package"
+          cd packages/ant-chat
+          npm pack --pack-destination "$RUNNER_TEMP/ant-chat-package"
+
+      - name: Verify tarball contents
+        shell: bash
+        run: |
+          tarball=$(find "$RUNNER_TEMP/ant-chat-package" -name 'ant-chat-*.tgz' -print -quit)
+          test -n "$tarball"
+          tar -tzf "$tarball" | grep -Fx 'package/dist/cli.mjs'
+          tar -tzf "$tarball" | grep -Fx 'package/dist/web/index.html'
+          tar -tzf "$tarball" | grep -Fx 'package/package.json'
+          echo "TARBALL=$tarball" >> "$GITHUB_ENV"
+
+      - name: Smoke test tarball
+        shell: bash
+        run: |
+          smoke_dir=$(mktemp -d)
+          data_dir=$(mktemp -d)
+          mkdir "$smoke_dir/app"
+          cd "$smoke_dir/app"
+          npm init -y >/dev/null
+          npm install --no-audit --no-fund "$TARBALL"
+          npx --no-install ant-chat --version
+          npx --no-install ant-chat --help >/dev/null
+          if npx --no-install ant-chat settings show --data-dir "$data_dir" >/dev/null 2>&1; then
+            echo '控制命令不应在 Runtime 未启动时自动启动服务'
+            exit 1
+          fi
+          npx --no-install ant-chat start --data-dir "$data_dir" --port 34567 > "$smoke_dir/server.log" 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            curl --fail --silent http://127.0.0.1:34567/ >/dev/null && break
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:34567/ | grep -q '<!doctype html\|<html'
+          curl --fail --silent -X POST http://127.0.0.1:34567/api/rpc \
+            -H 'content-type: application/json' \
+            -d '{"method":"settings.getSettings"}' | grep -q 'success'
+          set +e
+          curl --max-time 3 --silent http://127.0.0.1:34567/api/events > "$smoke_dir/sse.log"
+          sse_code=$?
+          set -e
+          test "$sse_code" -eq 28
+          grep -q 'connected' "$smoke_dir/sse.log"
+
+      - name: Publish verified tarball with OIDC
+        shell: bash
+        run: |
+          version=$(node -p "require('./packages/ant-chat/package.json').version")
+          if npm view "ant-chat@$version" version >/dev/null 2>&1; then
+            echo "ant-chat@$version 已发布，跳过重复发布"
+            exit 0
+          fi
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            publish_args=(--access public --tag next --provenance)
+          else
+            publish_args=(--access public --tag latest --provenance)
+          fi
+          for attempt in 1 2 3; do
+            if npm publish "$TARBALL" "${publish_args[@]}"; then
+              break
+            fi
+            if npm view "ant-chat@$version" version >/dev/null 2>&1; then
+              echo "ant-chat@$version 已发布，结束重试"
+              break
+            fi
+            test "$attempt" -lt 3 || exit 1
+            sleep $((attempt * 5))
+          done

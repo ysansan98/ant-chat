@@ -27,7 +27,7 @@ let baseUrl: URL
 beforeEach(async () => {
   vi.clearAllMocks()
   eventEmitter.removeAllListeners()
-  webRoot = mkdtempSync(path.join(tmpdir(), 'ant-chat-local-server-'))
+  webRoot = mkdtempSync(path.join(tmpdir(), 'ant-chat-product-'))
   writeFileSync(path.join(webRoot, 'index.html'), '<html>Ant Chat</html>')
   writeFileSync(path.join(webRoot, 'app.js'), 'console.log("Ant Chat")')
   invoke.mockResolvedValue({ data: [], total: 0 })

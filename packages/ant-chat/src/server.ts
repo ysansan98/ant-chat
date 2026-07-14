@@ -22,8 +22,8 @@ export async function startLocalServer(options: StartLocalServerOptions): Promis
   const runtime = createAppRuntime({
     appDataRoot: options.appDataRoot,
     loggerOptions: {
-      fileName: 'local-server.log',
-      source: 'local-server',
+      fileName: 'ant-chat.log',
+      source: 'ant-chat',
     },
   })
 

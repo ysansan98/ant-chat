@@ -64,7 +64,7 @@ describe('createSystemLogger 行为', () => {
 
   it('日志文件达到最大大小时轮转', () => {
     const dir = createTempDir()
-    const filePath = join(dir, 'local-server.log')
+    const filePath = join(dir, 'ant-chat.log')
     const mockConsole = createMockConsole()
     writeFileSync(filePath, 'x'.repeat(12), 'utf8')
 

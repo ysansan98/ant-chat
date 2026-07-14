@@ -21,8 +21,8 @@ async function main() {
     appDataRoot,
     contextDiagnosticsEnabled: true,
     loggerOptions: {
-      fileName: 'local-server.log',
-      source: 'local-server',
+      fileName: 'ant-chat.log',
+      source: 'ant-chat',
     },
   })
   await runtime.initialize()

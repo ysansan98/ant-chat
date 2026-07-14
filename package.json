@@ -1,5 +1,5 @@
 {
-  "name": "ant-chat",
+  "name": "ant-chat-workspace",
   "version": "1.0.0-alpha.1",
   "private": true,
   "packageManager": "pnpm@11.2.2",
@@ -9,9 +9,9 @@
     "name": "幺叁叁"
   },
   "scripts": {
-    "build:packages": "pnpm -F @ant-chat/shared build && pnpm -F @ant-chat/backend build && pnpm -F @ant-chat/cli build && pnpm -F @ant-chat/local-server build",
+    "build:packages": "pnpm -F @ant-chat/shared build && pnpm -F @ant-chat/control-client build && pnpm -F @ant-chat/backend build && pnpm -F ant-chat build",
     "dev": "pnpm -F @ant-chat/desktop dev",
-    "dev:web": "pnpm -F @ant-chat/local-server dev:web",
+    "dev:web": "pnpm -F ant-chat dev:web",
     "build": "pnpm build:packages && pnpm -F @ant-chat/desktop build",
     "build:win": "pnpm build:packages && pnpm -F @ant-chat/desktop build:win",
     "build:mac": "pnpm build:packages && pnpm -F @ant-chat/desktop build:mac",

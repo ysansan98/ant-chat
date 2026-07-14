@@ -1,5 +1,5 @@
 {
-  "name": "@ant-chat/cli",
+  "name": "@ant-chat/control-client",
   "type": "module",
   "version": "1.0.0-alpha.1",
   "license": "MIT",
@@ -15,9 +15,6 @@
   },
   "main": "./dist/index.mjs",
   "types": "./dist/index.d.mts",
-  "bin": {
-    "ant-chat": "./dist/index.mjs"
-  },
   "files": [
     "dist"
   ],

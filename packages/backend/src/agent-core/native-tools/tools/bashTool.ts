@@ -5,7 +5,7 @@ import { createNativeTool } from './toolFactory'
 export function createBashTool(
   workspacePath: string,
   unrestricted: boolean,
-  options: { blockAgentBrowser?: boolean, trustedPaths?: string[] } = {},
+  options: { bashEnvironment?: Record<string, string>, blockAgentBrowser?: boolean, trustedPaths?: string[] } = {},
 ) {
   return createNativeTool({
     name: 'bash',

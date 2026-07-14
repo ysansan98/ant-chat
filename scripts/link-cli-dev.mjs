@@ -16,7 +16,7 @@ const wrapper = [
   '',
   'const __dirname = p.dirname(fileURLToPath(import.meta.url))',
   'const cwd = p.resolve(__dirname, "../..")',
-  'const entry = p.resolve(__dirname, "../../packages/cli/src/index.ts")',
+  'const entry = p.resolve(__dirname, "../../packages/ant-chat/src/cli.ts")',
   'const result = spawnSync(',
   '  process.execPath,',
   '  ["--conditions=development", "--import", "tsx", entry, ...process.argv.slice(2)],',

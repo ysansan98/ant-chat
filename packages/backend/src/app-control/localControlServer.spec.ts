@@ -51,6 +51,17 @@ describe('localControlServer', () => {
 
     expect(fs.existsSync(path.join(root, '.control-endpoint.json'))).toBe(false)
   })
+
+  it('同一数据目录拒绝第二个 Runtime', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'ant-chat-control-'))
+    roots.push(root)
+    const first = new LocalControlServer({ execute: vi.fn() } as never, { appDataRoot: root })
+    const second = new LocalControlServer({ execute: vi.fn() } as never, { appDataRoot: root })
+    servers.push(first)
+    await first.start()
+
+    await expect(second.start()).rejects.toMatchObject({ code: 'EADDRINUSE' })
+  })
 })
 
 function sendRequest(endpoint: string, request: object): Promise<unknown> {

@@ -26,6 +26,7 @@ export interface RuntimeCore {
   paths: AppRuntimePaths
   secretStore: KeychainSecretStore
   contextDiagnosticsEnabled: boolean
+  bashEnvironment?: Record<string, string>
 }
 
 export function createRuntimeCore(options: CreateAppRuntimeOptions): RuntimeCore {
@@ -50,5 +51,6 @@ export function createRuntimeCore(options: CreateAppRuntimeOptions): RuntimeCore
     paths,
     secretStore: new KeychainSecretStoreImpl(),
     contextDiagnosticsEnabled: options.contextDiagnosticsEnabled ?? false,
+    bashEnvironment: options.bashEnvironment,
   }
 }

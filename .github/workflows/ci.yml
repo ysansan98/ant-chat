@@ -7,23 +7,32 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   quality:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [20, 22, 24]
     env:
       TZ: Asia/Shanghai
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
 
-      - name: Setup node
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ matrix.node-version }}
           cache: pnpm
 
       - name: Install dependencies
@@ -31,6 +40,10 @@ jobs:
 
       - name: Install ripgrep
         run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: Validate changeset coverage
+        if: github.event_name == 'pull_request' && matrix.node-version == 22
+        run: node scripts/validate-changeset.mjs "origin/${{ github.base_ref }}"
 
       - name: Check (type-check + lint + test:unit)
         run: pnpm check

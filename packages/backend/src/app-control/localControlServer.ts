@@ -3,7 +3,7 @@ import type { Socket } from 'node:net'
 import type { AppControl } from './appControl'
 import { Buffer } from 'node:buffer'
 import { randomBytes } from 'node:crypto'
-import { chmodSync, existsSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import * as os from 'node:os'
 import * as path from 'node:path'
@@ -12,6 +12,7 @@ import process from 'node:process'
 const CONTROL_PROTOCOL_VERSION = 1
 const MAX_MESSAGE_BYTES = 1024 * 1024 // 1 MiB
 const MESSAGE_TIMEOUT_MS = 30_000
+const RUNTIME_LOCK_FILE = '.runtime.lock'
 
 export interface ControlEndpointMeta {
   protocolVersion: number
@@ -37,6 +38,7 @@ export class LocalControlServer {
   private server?: ReturnType<typeof createServer>
   private authToken?: string
   private socketPath?: string
+  private lockPath?: string
 
   constructor(
     private readonly appControl: AppControl,
@@ -53,6 +55,7 @@ export class LocalControlServer {
       })
 
       this.server.on('error', (err) => {
+        this.cleanupEndpoint()
         reject(err)
       })
 
@@ -101,6 +104,8 @@ export class LocalControlServer {
       mkdirSync(appDataRoot, { recursive: true })
     }
 
+    this.acquireRuntimeLock(appDataRoot)
+
     const socketName = `ant-chat-control-${process.pid}.sock`
     const isWindows = os.platform() === 'win32'
     const socketPath = isWindows
@@ -119,6 +124,49 @@ export class LocalControlServer {
 
     const authToken = randomBytes(32).toString('hex')
     return { socketPath, authToken }
+  }
+
+  private acquireRuntimeLock(appDataRoot: string): void {
+    const metaPath = path.join(appDataRoot, '.control-endpoint.json')
+    const lockPath = path.join(appDataRoot, RUNTIME_LOCK_FILE)
+
+    // 先读取旧 endpoint，给用户返回已有实例的端点；原子 lock 负责解决并发启动竞态。
+    const existing = readEndpointMeta(metaPath)
+    if (existing && typeof existing.pid === 'number' && isProcessAlive(existing.pid))
+      throw duplicateRuntimeError(existing.pid, existing.endpoint)
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const fd = openSync(lockPath, 'wx', 0o600)
+        try {
+          writeFileSync(fd, JSON.stringify({ pid: process.pid }), 'utf8')
+        }
+        finally {
+          closeSync(fd)
+        }
+        this.lockPath = lockPath
+        return
+      }
+      catch (error) {
+        const nodeError = error as NodeJS.ErrnoException
+        if (nodeError.code !== 'EEXIST')
+          throw error
+
+        const lock = readEndpointMeta(lockPath)
+        if (lock && typeof lock.pid === 'number' && isProcessAlive(lock.pid))
+          throw duplicateRuntimeError(lock.pid)
+
+        // 崩溃遗留或损坏的锁只清理一次，随后重新走 open('wx') 的原子竞争。
+        try {
+          unlinkSync(lockPath)
+        }
+        catch {
+          throw duplicateRuntimeError(undefined)
+        }
+      }
+    }
+
+    throw duplicateRuntimeError(undefined)
   }
 
   private writeEndpointMeta(socketPath: string, authToken: string): void {
@@ -149,6 +197,14 @@ export class LocalControlServer {
     if (this.socketPath && os.platform() !== 'win32' && existsSync(this.socketPath)) {
       try {
         unlinkSync(this.socketPath)
+      }
+      catch {
+        // 忽略
+      }
+    }
+    if (this.lockPath && existsSync(this.lockPath)) {
+      try {
+        unlinkSync(this.lockPath)
       }
       catch {
         // 忽略
@@ -253,6 +309,36 @@ export class LocalControlServer {
 
   private sendError(socket: Socket, code: string, message: string): void {
     this.sendResponse(socket, { ok: false, error: { code, message } })
+  }
+}
+
+function readEndpointMeta(filePath: string): Partial<ControlEndpointMeta> | undefined {
+  if (!existsSync(filePath))
+    return undefined
+  try {
+    return JSON.parse(readFileSync(filePath, 'utf8')) as Partial<ControlEndpointMeta>
+  }
+  catch {
+    return undefined
+  }
+}
+
+function duplicateRuntimeError(pid: number | undefined, endpoint?: string): NodeJS.ErrnoException {
+  const location = endpoint ? `，控制端点 ${endpoint}` : ''
+  const error = new Error(pid
+    ? `Ant Chat 已在运行（PID ${pid}${location}），同一数据目录不允许启动第二个 Runtime`
+    : 'Ant Chat 的 Runtime 锁已被占用，同一数据目录不允许启动第二个 Runtime') as NodeJS.ErrnoException
+  error.code = 'EADDRINUSE'
+  return error
+}
+
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  }
+  catch (error) {
+    return (error as NodeJS.ErrnoException).code !== 'ESRCH'
   }
 }
 

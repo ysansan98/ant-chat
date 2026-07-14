@@ -25,16 +25,16 @@ describe('getAppRuntimeLogger 行为', () => {
       fileName: 'main.log',
       source: 'desktop-main',
     })
-    const localServerLogger = getAppRuntimeLogger(appDataRoot, {
-      fileName: 'local-server.log',
-      source: 'local-server',
+    const productLogger = getAppRuntimeLogger(appDataRoot, {
+      fileName: 'ant-chat.log',
+      source: 'ant-chat',
     })
 
     desktopLogger.info('desktop started')
-    localServerLogger.info('local server started')
+    productLogger.info('product started')
 
     const logsRoot = path.join(appDataRoot, 'logs')
     expect(readFileSync(path.join(logsRoot, 'main.log'), 'utf8')).toContain('[info] desktop-main desktop started')
-    expect(readFileSync(path.join(logsRoot, 'local-server.log'), 'utf8')).toContain('[info] local-server local server started')
+    expect(readFileSync(path.join(logsRoot, 'ant-chat.log'), 'utf8')).toContain('[info] ant-chat product started')
   })
 })

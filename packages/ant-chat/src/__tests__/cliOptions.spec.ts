@@ -27,11 +27,27 @@ describe('parseCliArgs', () => {
   })
 
   it('拒绝未知参数', () => {
-    expect(() => parseCliArgs(['--unknown'])).toThrow('Unknown option')
+    expect(() => parseCliArgs(['--unknown'])).toThrow('未知命令')
   })
 
   it('返回帮助和版本操作', () => {
     expect(parseCliArgs(['--help'])).toEqual({ type: 'help' })
     expect(parseCliArgs(['--version'])).toEqual({ type: 'version' })
+  })
+
+  it('将数据目录传给启动和控制命令', () => {
+    expect(parseCliArgs(['start', '--data-dir=/tmp/ant-chat'])).toEqual({
+      type: 'start',
+      options: {
+        dataDir: '/tmp/ant-chat',
+        host: '127.0.0.1',
+        port: 3456,
+      },
+    })
+    expect(parseCliArgs(['settings', 'show', '--data-dir', '/tmp/ant-chat'])).toEqual({
+      type: 'control',
+      argv: ['settings', 'show'],
+      options: { dataDir: '/tmp/ant-chat' },
+    })
   })
 })

@@ -39,6 +39,7 @@
   },
   "devDependencies": {
     "@ant-chat/backend": "workspace:*",
+    "@ant-chat/control-client": "workspace:*",
     "@ant-chat/shared": "workspace:*",
     "@copilotkit/aimock": "^1.16.4",
     "@electron-toolkit/preload": "^3.0.1",

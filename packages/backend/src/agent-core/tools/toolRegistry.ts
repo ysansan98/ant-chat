@@ -38,6 +38,7 @@ export class ToolRegistry {
     const nativeTools = getNativeToolService(workspacePath, unrestricted, {
       readableRoots,
       browser: config.browser,
+      bashEnvironment: config.bashEnvironment,
       browserSession,
     }).getTools()
     const relaxedNativeTools = unrestricted
@@ -45,6 +46,7 @@ export class ToolRegistry {
       : getNativeToolService(workspacePath, true, {
           readableRoots,
           browser: config.browser,
+          bashEnvironment: config.bashEnvironment,
           browserSession,
         }).getTools()
     const skillTools = skillReader

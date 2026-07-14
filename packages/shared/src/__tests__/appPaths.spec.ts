@@ -16,7 +16,7 @@ afterEach(() => {
 describe('resolveAppDataRoot', () => {
   it('uses workspace root .ant-chat in non-production', async () => {
     const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ant-chat-workspace-'))
-    const subdir = path.join(workspaceRoot, 'packages', 'local-server')
+    const subdir = path.join(workspaceRoot, 'packages', 'ant-chat')
     fs.mkdirSync(subdir, { recursive: true })
     fs.writeFileSync(path.join(workspaceRoot, 'pnpm-workspace.yaml'), 'packages:\n  - packages/*\n')
     process.chdir(subdir)

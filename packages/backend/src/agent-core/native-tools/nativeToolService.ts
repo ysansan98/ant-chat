@@ -29,6 +29,7 @@ interface NativeToolServiceOptions {
     proxyUrl?: string
   }
   browserSession?: BrowserSessionState
+  bashEnvironment?: Record<string, string>
 }
 
 export class NativeToolService {
@@ -58,6 +59,7 @@ export class NativeToolService {
       createEditFileTool(policy, this.workspacePath, this.unrestricted),
       createBashTool(this.workspacePath, this.unrestricted, {
         blockAgentBrowser: Boolean(this.options.browser),
+        bashEnvironment: this.options.bashEnvironment,
         trustedPaths: this.options.readableRoots ?? [],
       }),
       ...(this.options.browser

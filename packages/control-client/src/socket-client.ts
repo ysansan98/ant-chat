@@ -29,14 +29,14 @@ export class SocketClient {
       const raw = readFileSync(metaPath, 'utf-8')
       const meta = JSON.parse(raw) as ControlEndpointMeta
       if (meta.protocolVersion !== 1) {
-        throw new Error(`Unsupported protocol version: ${meta.protocolVersion}`)
+        throw new Error(`不支持的控制协议版本：${meta.protocolVersion}`)
       }
       this.meta = meta
       return meta
     }
     catch (err) {
       throw new Error(
-        `Cannot connect to ant-chat AppRuntime. Is it running? (${metaPath}: ${err instanceof Error ? err.message : String(err)})`,
+        `无法连接到 ant-chat Runtime。请确认服务已启动（${metaPath}：${err instanceof Error ? err.message : String(err)}）`,
       )
     }
   }
@@ -65,7 +65,7 @@ export class SocketClient {
 
       connectTimer = setTimeout(() => {
         cleanup()
-        reject(new Error('Connection timed out'))
+        reject(new Error('连接超时'))
       }, CONNECT_TIMEOUT_MS)
 
       socket.on('connect', () => {
@@ -77,7 +77,7 @@ export class SocketClient {
 
         responseTimer = setTimeout(() => {
           cleanup()
-          reject(new Error('Response timed out'))
+          reject(new Error('等待响应超时'))
         }, RESPONSE_TIMEOUT_MS)
       })
 
@@ -105,7 +105,7 @@ export class SocketClient {
         // 连接错误可能是 socket 文件不存在或 AppRuntime 未启动
         const nodeErr = err as NodeJS.ErrnoException
         if (nodeErr.code === 'ENOENT' || nodeErr.code === 'ECONNREFUSED') {
-          reject(new Error(`Cannot connect to ant-chat AppRuntime. Is it running?\n  Endpoint: ${endpoint}`))
+          reject(new Error(`无法连接到 ant-chat Runtime。请确认服务已启动\n  控制端点：${endpoint}`))
         }
         else {
           reject(err)
@@ -116,7 +116,7 @@ export class SocketClient {
         const receivedResponse = buffer.includes(10)
         cleanup()
         if (!hadError && !receivedResponse) {
-          reject(new Error('Connection closed before a complete response was received'))
+          reject(new Error('连接在收到完整响应前已关闭'))
         }
       })
     })

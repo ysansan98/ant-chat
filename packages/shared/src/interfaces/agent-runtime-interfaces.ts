@@ -270,6 +270,8 @@ export interface AgentRuntimeHost {
   skillReader?: SkillReader
   mcpClientHub?: RuntimeMcpClientHub
   browser?: AgentBrowserRuntimeConfig
+  /** 受控 shell 环境，例如 Desktop 内置 ant-chat launcher 的 PATH。 */
+  bashEnvironment?: Record<string, string>
   secretStore?: SecretStore
   secretRequester?: SecretRequestController
   /** 加载附件文件数据（用于将 file_id 转换为 base64 数据） */
@@ -307,6 +309,8 @@ export interface AgentRuntimeConfig extends AgentRuntimeOverrides {
   skillReader?: SkillReader
   mcpClientHub?: RuntimeMcpClientHub
   browser?: AgentBrowserRuntimeConfig
+  /** 受控 shell 环境，例如 Desktop 内置 ant-chat launcher 的 PATH。 */
+  bashEnvironment?: Record<string, string>
   secretStore?: SecretStore
   secretRequester?: SecretRequestController
   /** 加载附件文件数据（用于将 file_id 转换为 base64 数据） */

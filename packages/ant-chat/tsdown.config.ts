@@ -6,6 +6,7 @@ const workspacePackage = (name: string) => fileURLToPath(new URL(`../${name}/src
 export default defineConfig({
   alias: {
     '@ant-chat/backend': workspacePackage('backend'),
+    '@ant-chat/control-client': workspacePackage('control-client'),
     '@ant-chat/shared': workspacePackage('shared'),
   },
   entry: {

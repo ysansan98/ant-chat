@@ -1,8 +1,8 @@
 {
-  "name": "@ant-chat/local-server",
+  "name": "ant-chat",
   "type": "module",
   "version": "1.0.0-alpha.1",
-  "description": "Ant Chat 本地 Web 服务",
+  "description": "Ant Chat 本地 Agent 产品运行时",
   "license": "MIT",
   "exports": {
     ".": {
@@ -16,20 +16,21 @@
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.cts",
   "bin": {
-    "ant-chat-local-server": "./dist/cli.mjs"
+    "ant-chat": "./dist/cli.mjs"
   },
   "files": [
+    "CHANGELOG.md",
     "dist"
   ],
   "engines": {
-    "node": "20.x || 22.x || 23.x || 24.x || 25.x"
+    "node": ">=20.0.0"
   },
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
   },
   "scripts": {
-    "build": "tsdown && pnpm -F @ant-chat/web build --outDir ../../packages/local-server/dist/web --emptyOutDir false",
+    "build": "tsdown && node ../../scripts/copy-product-builtin-skills.mjs && pnpm -F @ant-chat/web build --outDir ../../packages/ant-chat/dist/web --emptyOutDir false",
     "clean": "rm -rf dist node_modules",
     "dev": "node ../../scripts/link-cli-dev.mjs && tsx watch --conditions=development --exclude '../../apps/web/node_modules' --exclude '../../apps/web/dist' --exclude '../../apps/desktop/out' --exclude '../../apps/desktop/release' src/dev.ts",
     "dev:web": "node ../../scripts/link-cli-dev.mjs && PATH=\"$PWD/../../node_modules/.bin:$PATH\" tsx watch --conditions=development --exclude '../../apps/web/node_modules' --exclude '../../apps/web/dist' --exclude '../../apps/desktop/out' --exclude '../../apps/desktop/release' src/dev.ts --web",
@@ -43,6 +44,7 @@
   },
   "devDependencies": {
     "@ant-chat/backend": "workspace:^",
+    "@ant-chat/control-client": "workspace:^",
     "@ant-chat/shared": "workspace:^",
     "tsdown": "catalog:",
     "tsx": "^4.19.3",

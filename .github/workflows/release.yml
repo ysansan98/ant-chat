@@ -1,4 +1,4 @@
-name: Release Electron app
+name: Release Desktop
 
 on:
   push:
@@ -9,31 +9,35 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  build:
+    name: Build ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-
     strategy:
+      fail-fast: false
       matrix:
         os: [macos-latest, windows-latest]
 
     steps:
-      - name: Check out Git repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
 
-      - name: Setup Node.js
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
 
-      - name: Install Dependencies
+      - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Validate release tag
-        run: node -e "const fs = require('node:fs'); const tag = process.env.GITHUB_REF_NAME; const version = JSON.parse(fs.readFileSync('apps/desktop/package.json', 'utf8')).version; const expected = 'v' + version; if (tag !== expected) { console.error('Release tag ' + tag + ' does not match desktop package version ' + version); process.exit(1); } console.log('Release tag ' + tag + ' matches desktop package version ' + version);"
+      - name: Validate Desktop tag
+        shell: bash
+        run: |
+          version=$(node -p "require('./apps/desktop/package.json').version")
+          test "$GITHUB_REF_NAME" = "v$version"
 
       - name: Prepare bundled rg binaries
         run: pnpm -F @ant-chat/desktop rg:prepare
@@ -43,89 +47,140 @@ jobs:
         run: |
           test -f apps/desktop/resources/rg/darwin-arm64/rg
           test -f apps/desktop/resources/rg/win32-x64/rg.exe
-          echo "bundled rg binaries are ready"
 
       - name: Build workspace packages
         run: pnpm build:packages
 
-      - name: install electron
+      - name: Install Electron native dependencies
         run: pnpm -F @ant-chat/desktop install-electron
 
-      - name: Build app (Windows)
+      - name: Build Windows package
         if: matrix.os == 'windows-latest'
         run: pnpm -F @ant-chat/desktop build:win -- --publish never
 
-      - name: Build app (macOS)
+      - name: Build macOS package
         if: matrix.os == 'macos-latest'
         run: pnpm -F @ant-chat/desktop build:mac -- --publish never
 
-      # 清理敏感文件
-      - name: Cleanup sensitive files
-        if: always()
-        run: |
-          if [ -f "certificate.p12" ]; then
-            rm certificate.p12
-          fi
+      - name: Verify and checksum artifacts
         shell: bash
-
-      # 验证构建产物
-      - name: Verify build artifacts (Windows)
-        if: matrix.os == 'windows-latest'
         run: |
-          echo "验证 Windows 构建产物..."
-          ls -la apps/desktop/release/*/
+          test -d apps/desktop/release
+          find apps/desktop/release -type f -print
+          find apps/desktop/release -type f -not -name 'latest*.yml' -print0 | xargs -0 sha256sum > "apps/desktop/release/SHA256SUMS-${{ matrix.os }}.txt"
 
-          # 检查必要的文件是否存在
-          if [ ! -f apps/desktop/release/*/latest.yml ]; then
-            echo "错误: 缺少 latest.yml 文件"
-            exit 1
-          fi
-
-          # 验证签名（如果有签名工具）
-          echo "Windows 构建产物验证完成"
+      - name: Smoke test packaged launcher
         shell: bash
-
-      - name: Verify build artifacts (macOS)
-        if: matrix.os == 'macos-latest'
         run: |
-          echo "验证 macOS 构建产物..."
-          ls -la apps/desktop/release/*/
-
-          # 检查必要的文件是否存在
-          if [ ! -f apps/desktop/release/*/latest-mac.yml ]; then
-            echo "错误: 缺少 latest-mac.yml 文件"
-            exit 1
+          if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            launcher=$(find apps/desktop/release -path '*/Contents/Resources/ant-chat/ant-chat' -type f -print -quit)
+            test -n "$launcher"
+            test -x "$launcher"
+          else
+            launcher=$(find apps/desktop/release -path '*/resources/ant-chat/ant-chat.cmd' -type f -print -quit)
+            test -n "$launcher"
           fi
+          set +e
+          if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            "$launcher" settings show --data-dir "$RUNNER_TEMP/ant-chat-no-runtime" >/tmp/ant-chat-launcher.log 2>&1
+          else
+            cmd.exe /d /s /c "\"$launcher\" settings show --data-dir \"$RUNNER_TEMP/ant-chat-no-runtime\"" >/tmp/ant-chat-launcher.log 2>&1
+          fi
+          launcher_code=$?
+          set -e
+          test "$launcher_code" -ne 0
+          grep -Eqi 'running|connect|运行|连接' /tmp/ant-chat-launcher.log
 
-          # 验证代码签名
-          for dmg in apps/desktop/release/*/*.dmg; do
-            if [ -f "$dmg" ]; then
-              echo "验证 $dmg 的签名..."
-              codesign -v "$dmg" || echo "警告: $dmg 签名验证失败"
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.os }}
+          path: apps/desktop/release
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Desktop artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Verify release assets
+        shell: bash
+        run: |
+          find release-assets -type f -print
+          test "$(find release-assets -type f -name '*.dmg' | wc -l)" -ge 1
+          test "$(find release-assets -type f -name '*.exe' | wc -l)" -ge 1
+          test "$(find release-assets -type f -name '*.zip' | wc -l)" -ge 2
+          test "$(find release-assets -type f -name 'SHA256SUMS-*.txt' | wc -l)" -eq 2
+          test -n "$(find release-assets -type f -name 'latest*.yml' -print -quit)"
+
+      - name: Write release notes
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          changelog=$(awk -v version="$version" '
+            $0 == "## " version { found=1; print; next }
+            found && /^## / { exit }
+            found { print }
+          ' apps/desktop/CHANGELOG.md)
+          test -n "$changelog"
+          {
+            echo "# Ant Chat Desktop $version"
+            echo
+            printf '%s\n' "$changelog"
+            echo
+            echo "## 下载"
+            echo
+            echo "请从本 GitHub Release 下载对应平台安装包。当前安装包未签名或公证：macOS 可能需要在隐私与安全性设置中手动允许，Windows SmartScreen 可能显示未知发布者。"
+            echo
+            echo "## 网络安全"
+            echo
+            echo "产品的 HTTP Web UI、RPC 和 SSE 当前没有鉴权；使用 --host 只允许可信局域网或受控网络，禁止直接暴露到公网。"
+          } > release-notes.md
+
+      - name: Create release if missing
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="$GITHUB_REF_NAME"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "release already exists: $tag"
+            exit 0
+          fi
+          args=("$tag" --title "Ant Chat Desktop ${tag#v}" --notes-file release-notes.md)
+          if [[ "$tag" == *-* ]]; then
+            args+=(--prerelease)
+          fi
+          for attempt in 1 2 3; do
+            if gh release create "${args[@]}"; then
+              break
             fi
+            if gh release view "$tag" >/dev/null 2>&1; then
+              break
+            fi
+            test "$attempt" -lt 3 || exit 1
+            sleep $((attempt * 5))
           done
 
-          echo "macOS 构建产物验证完成"
-
-      # 上传构建产物到 GitHub Releases
-      - name: Upload release assets
-        uses: softprops/action-gh-release@v2
-        with:
-          draft: true
-          generate_release_notes: true
-          files: |
-            apps/desktop/release/*/*.exe
-            apps/desktop/release/*/*.zip
-            apps/desktop/release/*/*.dmg
-            apps/desktop/release/*/*.AppImage
-            apps/desktop/release/*/*.snap
-            apps/desktop/release/*/*.deb
-            apps/desktop/release/*/*.rpm
-            apps/desktop/release/*/*.tar.gz
-            apps/desktop/release/*/*.yml
-            apps/desktop/release/*/*.blockmap
-            !apps/desktop/release/*/elevate.exe
-            !apps/desktop/release/*/*-debug.yml
-            !apps/desktop/release/*/*debug.yml
+      - name: Upload verified assets
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mapfile -d '' files < <(find release-assets -type f -print0)
+          for attempt in 1 2 3; do
+            if gh release upload "$GITHUB_REF_NAME" "${files[@]}" --clobber; then
+              break
+            fi
+            test "$attempt" -lt 3 || exit 1
+            sleep $((attempt * 5))
+          done

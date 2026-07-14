@@ -33,7 +33,7 @@ Ant Chat 不是只调用模型的聊天壳。它把对话、工作区、文件�
 - MCP 扩展：支持配置、连接、断开 MCP Server，并暴露可用工具给 Agent 使用。
 - 技能系统：支持安装、启用、禁用、删除技能，并可重建技能索引。
 - 记忆系统：管理 SOUL、USER、MEMORY 等记忆文件，支持回滚身份记忆。
-- 本地 Web 服务：`@ant-chat/local-server` 同时提供 Web UI、RPC API 和实时事件流。
+- npm 产品包：`ant-chat` 同时提供 Agent Runtime、Web UI、RPC API、SSE 和控制 CLI。
 
 ## 运行方式
 
@@ -41,23 +41,27 @@ Ant Chat 不是只调用模型的聊天壳。它把对话、工作区、文件�
 | --- | --- | --- |
 | 桌面端 | `pnpm dev` / Releases 安装包 | 日常使用、本机项目协作、需要 Electron 能力 |
 | Web 开发 | `pnpm dev:web` | 调试浏览器端 UI 和本地服务集成 |
-| 本地 Web 服务 | `npx @ant-chat/local-server` | 使用已构建 Web UI，或在局域网内自托管访问 |
+| npm 产品包 | `npx ant-chat` | 启动本地 Agent Runtime、Web UI、RPC、SSE 和控制 CLI |
 
 Web 端必须搭配本地服务运行。服务默认监听 `http://127.0.0.1:3456`，数据保存在 `~/.ant-chat`。
 
 ```bash
-npx @ant-chat/local-server
-npx @ant-chat/local-server --port 8080
-npx @ant-chat/local-server --host --port 8080
+npx ant-chat
+ant-chat start --port 8080
+ant-chat --host --port 8080
+ant-chat settings show --json
 ```
 
-`--host` 会监听 `0.0.0.0`。服务当前不提供鉴权，只应在可信网络中使用。
+`ant-chat settings`、`provider`、`mcp` 和 `automation` 只连接已有 Runtime，不会隐式启动第二个服务。
+`--data-dir` 可以覆盖默认的 `~/.ant-chat`，也可以使用 `ANT_CHAT_DATA_ROOT`。同一数据目录只允许一个 Runtime 实例。
+
+`--host` 会监听 `0.0.0.0`。当前 HTTP Web UI、RPC 和 SSE 没有鉴权，只能用于可信局域网或受控网络，禁止直接暴露到公网。
 
 ## 快速开始
 
 环境要求：
 
-- Node.js 22+
+- Node.js 20+
 - pnpm 11+
 - Python 3.x，用于编译 `better-sqlite3` 等原生依赖
 
@@ -118,7 +122,8 @@ ant-chat/
 │   └── website/            # 项目官网
 ├── packages/
 │   ├── backend/            # 后端运行时、Agent、数据、MCP 和 RPC handlers
-│   ├── local-server/       # Web 本地服务、RPC API、事件流
+│   ├── ant-chat/            # npm 产品包、Web 本地服务、RPC API、事件流和 CLI
+│   ├── control-client/      # Desktop 与 npm 产品共用的控制面客户端
 │   ├── shared/             # 共享类型、schema、常量
 │   └── ui/                 # shadcn/ui 组件和 Kami 主题
 └── docs/                   # 设计、计划和项目文档

@@ -18,6 +18,10 @@ const config: Configuration = {
   ],
   extraResources: [
     {
+      from: 'resources/ant-chat',
+      to: 'ant-chat',
+    },
+    {
       from: 'node_modules/better-sqlite3/build/Release/',
       to: 'better-sqlite3',
       filter: ['*.node'], // 只复制原生模块
@@ -28,6 +32,8 @@ const config: Configuration = {
     },
   ],
   afterPack: async (context) => {
+    await writeCliLaunchers(context)
+
     if (!['darwin', 'mas'].includes(context.electronPlatformName))
       return
 
@@ -115,13 +121,11 @@ const config: Configuration = {
     target: [
       {
         target: 'dmg',
-        // arch: ['x64', 'arm64'],
-        arch: ['arm64'],
+        arch: ['x64', 'arm64'],
       },
       {
         target: 'zip',
-        // arch: ['x64', 'arm64'],
-        arch: ['arm64'],
+        arch: ['x64', 'arm64'],
       },
     ],
     hardenedRuntime: true,
@@ -170,6 +174,24 @@ const config: Configuration = {
     installerLanguages: ['zh_CN', 'en_US'],
   },
   generateUpdatesFilesForAllChannels: true,
+}
+
+async function writeCliLaunchers(context: Parameters<NonNullable<Configuration['afterPack']>>[0]): Promise<void> {
+  const resourcesPath = ['darwin', 'mas'].includes(context.electronPlatformName)
+    ? path.join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`, 'Contents/Resources')
+    : path.join(context.appOutDir, 'resources')
+  const launcherDir = path.join(resourcesPath, 'ant-chat')
+  await fs.mkdir(launcherDir, { recursive: true })
+
+  if (['darwin', 'mas'].includes(context.electronPlatformName)) {
+    const executable = path.join('..', '..', 'MacOS', context.packager.appInfo.productFilename)
+    await fs.writeFile(path.join(launcherDir, 'ant-chat'), `#!/bin/sh\nexec "$(dirname "$0")/${executable}" --ant-chat-cli "$@"\n`, { mode: 0o755 })
+    await fs.chmod(path.join(launcherDir, 'ant-chat'), 0o755)
+    return
+  }
+
+  const executable = `%~dp0..\\..\\${context.packager.appInfo.productFilename}.exe`
+  await fs.writeFile(path.join(launcherDir, 'ant-chat.cmd'), `@echo off\n"${executable}" --ant-chat-cli %*\n`)
 }
 
 export default config

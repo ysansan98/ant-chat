@@ -70,6 +70,7 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
         skillReader: dependencies.skills,
         mcpClientHub: dependencies.mcpClientHub,
         browser: core.browserPaths,
+        bashEnvironment: core.bashEnvironment,
         loadFileData: core.data.loadAttachmentData,
         createTaskLogger: createTaskLoggerFactory(core.paths.taskLogsRoot),
         getToolApprovalWhitelistEntries: () => core.data.toolApprovalWhitelistRepository.getAll(),
