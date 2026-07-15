@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { runAgentLoop } from '../agentLoop'
 import { ToolRegistry } from '../../tools/toolRegistry'
-import type { AgentRuntimeConfig, AgentTool, IAgentEventEmitter, IAIProvider, IAIStreamChunk, ILogger } from '@ant-chat/shared'
+import { createPublishVisualizationTool } from '../../tools/publishVisualizationTool'
+import type { AgentRuntimeConfig, AgentTool, IAgentEventEmitter, IAIProvider, IAIStreamChunk, ILogger, LoopMessage } from '@ant-chat/shared'
 import type { RuntimeStartInput } from '../../session/types'
 import type { RuntimeTask, TaskExecution } from '../../taskStore'
 
@@ -301,6 +302,50 @@ describe('runAgentLoop 行为', () => {
       expect.objectContaining({ role: 'assistant' }),
       expect.objectContaining({ role: 'tool' }),
     ])
+  })
+
+  it('publish_visualization 在 task log 和后续模型上下文保留原始 HTML', async () => {
+    const html = '<section class="card"><button type="button">更新趋势</button></section>'
+    const input = { title: '趋势', summary: '展示趋势', html }
+    const modelRequests: LoopMessage[][] = []
+    let requestIndex = 0
+    const aiProvider: IAIProvider = {
+      async* streamModel(options) {
+        modelRequests.push(options.messages)
+        const chunks = requestIndex++ === 0
+          ? [makeToolCallChunk('publish_visualization', input, 'visualization-1')]
+          : [makeTextChunk('已生成趋势图')]
+        yield* chunks
+      },
+      complete: vi.fn().mockResolvedValue({ text: 'mock complete' }),
+    }
+    const taskLogger = {
+      filePath: '/tmp/task.jsonl',
+      write: vi.fn(),
+      close: vi.fn(),
+    }
+    const { taskId, options } = createBaseInput({
+      aiProvider,
+      registry: new ToolRegistry([createPublishVisualizationTool()]),
+      taskLogger,
+    })
+    const { execution } = createExecution(createTask(taskId, options.conversationId))
+
+    await runAgentLoop({
+      execution,
+      options,
+      config: { eventEmitter: emitter, logger, taskLogger },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
+    })
+
+    expect(taskLogger.write).toHaveBeenCalledWith('model_response_finished', expect.objectContaining({
+      hasToolCall: true,
+      toolCalls: [expect.objectContaining({ toolName: 'publish_visualization', input })],
+    }))
+    expect(modelRequests[1]).toContainEqual(expect.objectContaining({
+      role: 'assistant',
+      content: [expect.objectContaining({ type: 'tool-call', toolName: 'publish_visualization', args: input })],
+    }))
   })
 
   it('aiProvider 为 null 时抛错', async () => {

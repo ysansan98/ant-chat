@@ -5,7 +5,7 @@ import type { ToolAuthorization, ToolCallContext } from './types'
 import { randomUUID } from 'node:crypto'
 import { AGENT_TOOL_EXEC_FAILED, VisualizationOutputBlocksSchema } from '@ant-chat/shared'
 import { createAgentTraceLogger } from '../agentTraceLogger'
-import { createVisualizationToolFailureResult, getVisualizationToolInputDescriptor } from './publishVisualizationTool'
+import { createVisualizationToolFailureResult } from './publishVisualizationTool'
 
 export interface RequestedToolCall {
   id?: string
@@ -58,7 +58,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   const prepared = registry.prepare(requestedToolCall.toolName, requestedToolCall.input)
   const currentToolCall = registerPendingToolCall(requestedToolCall, prepared, currentToolMessages)
   const logContext = createToolLogContext(task, step, currentToolCall.id)
-  traceLogger.write('tool_call_received', { ...logContext, toolName: requestedToolCall.toolName, input: getToolInputForPersistence(requestedToolCall.toolName, prepared.input) })
+  traceLogger.write('tool_call_received', { ...logContext, toolName: requestedToolCall.toolName, input: prepared.input })
   await emitTurnToolCalls(config, task.snapshot.conversationId, currentModelText, currentToolMessages)
 
   // Phase 1: Prepare — validate args and check policy
@@ -97,7 +97,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   const durationMs = Date.now() - toolStartedAt
   if (execution.failureReason) {
     const toolReportedDurationMs = execution.result.diagnostics?.durationMs
-    traceLogger.write('tool_failed', { ...logContext, toolName: preparation.prepared.toolName, input: getToolInputForPersistence(preparation.prepared.toolName, preparation.prepared.input), error: execution.failureReason, workspacePath: task.snapshot.workspacePath, stdout: execution.result.diagnostics?.stdout, stderr: execution.result.diagnostics?.stderr, exitCode: execution.result.diagnostics?.exitCode, durationMs, toolReportedDurationMs })
+    traceLogger.write('tool_failed', { ...logContext, toolName: preparation.prepared.toolName, input: preparation.prepared.input, error: execution.failureReason, workspacePath: task.snapshot.workspacePath, stdout: execution.result.diagnostics?.stdout, stderr: execution.result.diagnostics?.stderr, exitCode: execution.result.diagnostics?.exitCode, durationMs, toolReportedDurationMs })
     return finalizeToolStep(currentToolCall, {
       kind: 'error',
       error: execution.failureReason,
@@ -131,7 +131,7 @@ async function prepareToolStep(input: PrepareToolStepInput): Promise<ToolPrepara
 
   let lastToolCallContext: ToolCallContext = {
     toolName: requestedToolCall.toolName,
-    input: getToolInputForPersistence(prepared.toolName, prepared.input),
+    input: prepared.input,
     operationType: prepared.operationType,
     scope: prepared.scope,
     policy: 'unknown',
@@ -140,7 +140,7 @@ async function prepareToolStep(input: PrepareToolStepInput): Promise<ToolPrepara
   if (prepared.validationError) {
     const logContext = createToolLogContext(task, step, currentToolCall.id)
     const durationMs = Date.now() - toolStartedAt
-    traceLogger.write('tool_failed', { ...logContext, toolName: prepared.toolName, input: getToolInputForPersistence(prepared.toolName, prepared.input), error: prepared.validationError, workspacePath: task.snapshot.workspacePath, durationMs })
+    traceLogger.write('tool_failed', { ...logContext, toolName: prepared.toolName, input: prepared.input, error: prepared.validationError, workspacePath: task.snapshot.workspacePath, durationMs })
     return {
       kind: 'error',
       error: prepared.validationError,
@@ -164,7 +164,7 @@ async function prepareToolStep(input: PrepareToolStepInput): Promise<ToolPrepara
   if (beforeResult.outcome === 'block') {
     const logContext = createToolLogContext(task, step, currentToolCall.id)
     const durationMs = Date.now() - toolStartedAt
-    traceLogger.write('tool_blocked', { ...logContext, toolName: requestedToolCall.toolName, input: getToolInputForPersistence(requestedToolCall.toolName, prepared.input), operationType: prepared.operationType, scope: prepared.scope, policy: 'block', reason: beforeResult.reason, errorCode: beforeResult.errorCode, workspacePath: task.snapshot.workspacePath, durationMs })
+    traceLogger.write('tool_blocked', { ...logContext, toolName: requestedToolCall.toolName, input: prepared.input, operationType: prepared.operationType, scope: prepared.scope, policy: 'block', reason: beforeResult.reason, errorCode: beforeResult.errorCode, workspacePath: task.snapshot.workspacePath, durationMs })
     return {
       kind: 'error',
       error: beforeResult.errorCode,
@@ -360,17 +360,11 @@ function registerPendingToolCall(
     id: requestedToolCall.id ?? randomUUID(),
     serverName: prepared.serverName,
     toolName: requestedToolCall.toolName,
-    args: getToolInputForPersistence(prepared.toolName, prepared.input),
+    args: prepared.input,
     executeState: 'executing',
   }
   currentToolMessages.push(call)
   return call
-}
-
-export function getToolInputForPersistence(toolName: string, input: Record<string, unknown>): Record<string, unknown> {
-  if (toolName === 'publish_visualization')
-    return getVisualizationToolInputDescriptor(input)
-  return input
 }
 
 function toToolCallContent(tool: McpToolCall): ToolCallContent {
@@ -423,7 +417,7 @@ export async function createInvalidToolArgsResult(options: {
     id: toolCallId,
     serverName: 'native',
     toolName: requestedToolCall.toolName,
-    args: getToolInputForPersistence(requestedToolCall.toolName, requestedToolCall.input),
+    args: requestedToolCall.input,
     executeState: 'completed',
     result: {
       success: false,
@@ -438,7 +432,7 @@ export async function createInvalidToolArgsResult(options: {
   return {
     lastToolCallContext: {
       toolName: requestedToolCall.toolName,
-      input: getToolInputForPersistence(requestedToolCall.toolName, requestedToolCall.input),
+      input: requestedToolCall.input,
       operationType: 'unknown',
       scope: 'unknown',
       policy: 'error',

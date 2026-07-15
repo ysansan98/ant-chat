@@ -133,12 +133,3 @@ export function createVisualizationDescriptor(
     sha256,
   }
 }
-
-/** trace、tool-call args 和模型上下文只能看到 descriptor，不能复制 HTML 正文。 */
-export function getVisualizationToolInputDescriptor(input: Record<string, unknown>): Record<string, unknown> {
-  const title = typeof input.title === 'string' ? input.title.slice(0, VISUALIZATION_LIMITS.maxTitleLength) : ''
-  const summary = typeof input.summary === 'string' ? input.summary.slice(0, VISUALIZATION_LIMITS.maxSummaryLength) : ''
-  const html = typeof input.html === 'string' ? input.html : ''
-  const bytes = Buffer.from(html, 'utf8')
-  return createVisualizationDescriptor(title, summary, bytes, createHash('sha256').update(bytes).digest('hex'))
-}

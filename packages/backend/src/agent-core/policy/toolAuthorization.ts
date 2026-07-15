@@ -5,7 +5,6 @@ import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import { AgentError } from '../AgentError'
 import { createAgentTraceLogger } from '../agentTraceLogger'
-import { getVisualizationToolInputDescriptor } from '../tools/publishVisualizationTool'
 
 export function createToolAuthorization(
   taskStore: TaskStore,
@@ -43,7 +42,7 @@ export function createToolAuthorization(
 
     const context = {
       toolName: prepared.toolName,
-      input: getToolInputForPersistence(prepared.toolName, prepared.input),
+      input: prepared.input,
       operationType: prepared.operationType,
       scope: prepared.scope,
       policy: effectiveDecision.type,
@@ -53,7 +52,7 @@ export function createToolAuthorization(
     traceLogger.write('tool_decision', {
       ...logContext,
       toolName: prepared.toolName,
-      input: getToolInputForPersistence(prepared.toolName, prepared.input),
+      input: prepared.input,
       operationType: prepared.operationType,
       scope: prepared.scope,
       policy: effectiveDecision.type,
@@ -108,7 +107,7 @@ export function createToolAuthorization(
       toolName: prepared.toolName,
       operationType: prepared.operationType,
       scope: prepared.scope,
-      inputPreview: JSON.stringify(getToolInputForPersistence(prepared.toolName, prepared.input)).slice(0, 200),
+      inputPreview: JSON.stringify(prepared.input).slice(0, 200),
       whitelistPattern,
       createdAt: Date.now(),
     }
@@ -130,10 +129,6 @@ export function createToolAuthorization(
 
     return { outcome: 'allow' }
   }
-}
-
-function getToolInputForPersistence(toolName: string, input: Record<string, unknown>): Record<string, unknown> {
-  return toolName === 'publish_visualization' ? getVisualizationToolInputDescriptor(input) : input
 }
 
 function decideAutomationPolicy(
