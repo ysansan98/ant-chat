@@ -15,7 +15,7 @@ import { cn } from '@workspace/ui/lib/utils'
 import { Loader2Icon, ShieldAlertIcon } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { submitVisualizationFollowUp } from '@/store/pendingMessages'
-import { clampFrameHeight, getVisualizationTheme, loadVisualizationArtifact, validateFollowUpRequest } from './bridge'
+import { clampFrameHeight, getInitialFrameHeight, getVisualizationTheme, loadVisualizationArtifact, validateFollowUpRequest } from './bridge'
 import { createVisualizationSandboxDocument } from './sandboxDocument'
 import { getVisualizationArtifactId } from './types'
 
@@ -42,7 +42,7 @@ export function VisualizationFrame({ block, conversationId, messageId, onFollowU
   const transferPortRef = useRef<MessagePort | null>(null)
   const callbackRef = useRef(onFollowUpRequest)
   const [state, setState] = useState<FrameState>({ status: 'loading' })
-  const [height, setHeight] = useState(240)
+  const [height, setHeight] = useState(getInitialFrameHeight)
   const [confirmation, setConfirmation] = useState<Extract<FrameToHost, { type: 'follow-up-request' }> | null>(null)
 
   useEffect(() => {
@@ -85,7 +85,7 @@ export function VisualizationFrame({ block, conversationId, messageId, onFollowU
     let disposed = false
     let resizeFrame: number | undefined
     let resizeTimeout: number | undefined
-    let pendingHeight = 240
+    let pendingHeight = getInitialFrameHeight()
     const channel = typeof MessageChannel === 'undefined' ? null : new MessageChannel()
     const artifactId = getVisualizationArtifactId(block)
     portRef.current = channel?.port1 ?? null

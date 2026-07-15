@@ -1,7 +1,7 @@
 import type { VisualizationBlockLike } from '../types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getAppRpcClient } from '@/api/transports/appRpc'
-import { clampFrameHeight, loadVisualizationArtifact } from '../bridge'
+import { clampFrameHeight, getInitialFrameHeight, loadVisualizationArtifact } from '../bridge'
 import { createVisualizationSandboxDocument } from '../sandboxDocument'
 
 vi.mock('@/api/transports/appRpc', () => ({ getAppRpcClient: vi.fn() }))
@@ -49,6 +49,9 @@ describe('visualization bridge', () => {
   })
 
   it('限制 iframe 高度并包装 fragment sandbox', async () => {
+    expect(getInitialFrameHeight(320)).toBe(360)
+    expect(getInitialFrameHeight(900)).toBe(612)
+    expect(getInitialFrameHeight(2_000)).toBe(720)
     expect(clampFrameHeight(2)).toBe(96)
     expect(clampFrameHeight(5000)).toBe(1200)
     const document = createVisualizationSandboxDocument(html)

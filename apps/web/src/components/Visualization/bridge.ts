@@ -38,9 +38,25 @@ export interface LoadedVisualizationArtifact {
   html: string
 }
 
+const INITIAL_FRAME_MIN_HEIGHT = 360
+const INITIAL_FRAME_MAX_HEIGHT = 720
+const INITIAL_FRAME_VIEWPORT_RATIO = 0.68
+
+/**
+ * 在 sandbox 回报真实内容高度前，给 iframe 一个能承载常见表单和图表的首屏高度。
+ * 这只是占位高度；真实内容仍由 runtime 的 resize 消息决定。
+ */
+export function getInitialFrameHeight(viewportHeight = typeof window === 'undefined' ? 800 : window.innerHeight): number {
+  const safeViewportHeight = Number.isFinite(viewportHeight) && viewportHeight > 0 ? viewportHeight : 800
+  return Math.min(
+    INITIAL_FRAME_MAX_HEIGHT,
+    Math.max(INITIAL_FRAME_MIN_HEIGHT, Math.round(safeViewportHeight * INITIAL_FRAME_VIEWPORT_RATIO)),
+  )
+}
+
 export function clampFrameHeight(height: number): number {
   if (!Number.isFinite(height))
-    return 240
+    return getInitialFrameHeight()
   return Math.min(VISUALIZATION_LIMITS.maxFrameHeight, Math.max(96, Math.round(height)))
 }
 
