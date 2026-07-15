@@ -43,7 +43,6 @@ function createPrepared() {
     source: 'native' as const,
     serverName: 'native',
     input: { path: 'test.txt' },
-    publicInput: { path: 'test.txt' },
     operationType: 'read' as const,
     scope: 'workspace' as const,
     execute: async () => ({ ok: true, result: 'content', diagnostics: { exitCode: 0 } }),
@@ -117,7 +116,7 @@ describe('createToolAuthorization 行为', () => {
 
     await expect(hook({
       task,
-      prepared: { ...createPrepared(), toolName: 'use_skill', operationType: 'skill', scope: 'workspace', input: { name: 'review' }, publicInput: { name: 'review' } },
+      prepared: { ...createPrepared(), toolName: 'use_skill', operationType: 'skill', scope: 'workspace', input: { name: 'review' } },
       config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
     })).resolves.toEqual({ outcome: 'allow' })
 
@@ -293,7 +292,7 @@ describe('createToolAuthorization 行为', () => {
 
     const result = await hook({
       task,
-      prepared: { ...createPrepared(), toolName: 'write_file', operationType: 'write', scope: 'workspace', input: { path: '/workspace/src/index.ts' }, publicInput: { path: '/workspace/src/index.ts' } },
+      prepared: { ...createPrepared(), toolName: 'write_file', operationType: 'write', scope: 'workspace', input: { path: '/workspace/src/index.ts' } },
       config: { eventEmitter: emitter, logger },
     })
 
@@ -324,7 +323,7 @@ describe('createToolAuthorization 行为', () => {
 
     const resultPromise = hook({
       task,
-      prepared: { ...createPrepared(), toolName: 'write_file', operationType: 'write', scope: 'workspace', input: { path: '/workspace/src/index.ts' }, publicInput: { path: '/workspace/src/index.ts' } },
+      prepared: { ...createPrepared(), toolName: 'write_file', operationType: 'write', scope: 'workspace', input: { path: '/workspace/src/index.ts' } },
       config: { eventEmitter: emitter, logger },
     })
 
@@ -350,7 +349,7 @@ describe('createToolAuthorization 行为', () => {
 
     const resultPromise = hook({
       task,
-      prepared: { ...createPrepared(), toolName: 'bash', operationType: 'bash', scope: 'workspace', input: { command: 'git log' }, publicInput: { command: 'git log' } },
+      prepared: { ...createPrepared(), toolName: 'bash', operationType: 'bash', scope: 'workspace', input: { command: 'git log' } },
       config: { eventEmitter: emitter, logger },
     })
 

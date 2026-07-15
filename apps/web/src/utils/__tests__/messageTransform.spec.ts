@@ -34,7 +34,7 @@ describe('messageTransform', () => {
     expect(transformMessageContent(createMessage([{
       type: 'visualization',
       source: { type: 'file_id', file_id: 'viz-1' },
-      format: 'ant-chat.visualization.v1',
+      format: 'ant-chat.visualization.html.v1',
       title: '阶段延迟',
       summary: '比较阶段延迟',
       size: 32,

@@ -1,0 +1,139 @@
+:root {
+  color-scheme: var(--viz-mode, light);
+  background: var(--viz-background, transparent);
+  color: var(--viz-foreground, currentColor);
+  font:
+    14px/1.5 ui-sans-serif,
+    system-ui,
+    sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  padding: 16px;
+  background: var(--viz-background, transparent);
+  color: var(--viz-foreground, currentColor);
+}
+.viz-root {
+  max-width: 704px;
+  margin: 0 auto;
+}
+.viz-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+}
+.viz-row,
+.viz-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.card {
+  padding: 16px;
+  border: 1px solid var(--viz-border);
+  border-radius: 12px;
+  background: var(--viz-card);
+  color: var(--viz-card-foreground);
+}
+.text-muted {
+  color: var(--viz-muted-foreground);
+}
+.form-control,
+.form-select,
+textarea {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--viz-input);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--viz-card);
+  color: var(--viz-foreground);
+  font: inherit;
+}
+.form-check,
+.form-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.form-check input,
+.form-switch input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--viz-primary);
+}
+.form-range {
+  width: 100%;
+  accent-color: var(--viz-primary);
+}
+.btn,
+button {
+  min-height: 40px;
+  border: 1px solid var(--viz-border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: var(--viz-primary);
+  color: var(--viz-primary-foreground);
+  cursor: pointer;
+  font: inherit;
+}
+.btn-secondary {
+  background: var(--viz-secondary);
+  color: var(--viz-secondary-foreground);
+}
+.btn:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--viz-ring);
+  outline-offset: 2px;
+}
+input,
+select,
+textarea,
+button {
+  max-width: 100%;
+}
+form {
+  display: grid;
+  gap: 12px;
+}
+form label {
+  display: grid;
+  gap: 6px;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+th,
+td {
+  padding: 8px;
+  border-bottom: 1px solid var(--viz-border);
+  text-align: left;
+}
+.viz-error {
+  min-height: 1.5em;
+  color: var(--viz-destructive);
+}
+@media (max-width: 420px) {
+  body {
+    padding: 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+    animation-duration: 0.001ms !important;
+  }
+}

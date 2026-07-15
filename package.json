@@ -15,6 +15,7 @@
     "build": "pnpm build:packages && pnpm -F @ant-chat/desktop build",
     "build:win": "pnpm build:packages && pnpm -F @ant-chat/desktop build:win",
     "build:mac": "pnpm build:packages && pnpm -F @ant-chat/desktop build:mac",
+    "visualize:render": "node scripts/render-visualization.mjs",
     "type-check": "tsc -b",
     "test:unit": "pnpm -r test",
     "rebuild:node": "pnpm -r rebuild better-sqlite3 keytar",

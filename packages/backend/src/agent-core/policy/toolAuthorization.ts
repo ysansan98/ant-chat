@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import { AgentError } from '../AgentError'
 import { createAgentTraceLogger } from '../agentTraceLogger'
+import { getVisualizationToolInputDescriptor } from '../tools/publishVisualizationTool'
 
 export function createToolAuthorization(
   taskStore: TaskStore,
@@ -28,7 +29,7 @@ export function createToolAuthorization(
         ? task.snapshot.turnSource.permissionPolicy
         : undefined,
       prepared.toolName,
-      prepared.publicInput,
+      prepared.input,
       prepared.operationType,
       prepared.scope,
       task.snapshot.workspacePath,
@@ -42,7 +43,7 @@ export function createToolAuthorization(
 
     const context = {
       toolName: prepared.toolName,
-      input: prepared.publicInput,
+      input: getToolInputForPersistence(prepared.toolName, prepared.input),
       operationType: prepared.operationType,
       scope: prepared.scope,
       policy: effectiveDecision.type,
@@ -52,7 +53,7 @@ export function createToolAuthorization(
     traceLogger.write('tool_decision', {
       ...logContext,
       toolName: prepared.toolName,
-      input: prepared.publicInput,
+      input: getToolInputForPersistence(prepared.toolName, prepared.input),
       operationType: prepared.operationType,
       scope: prepared.scope,
       policy: effectiveDecision.type,
@@ -73,7 +74,7 @@ export function createToolAuthorization(
 
     // require_approval — check whitelist before showing dialog
     if (getWhitelistEntries) {
-      const matchKey = extractInputKey(prepared.toolName, prepared.publicInput)
+      const matchKey = extractInputKey(prepared.toolName, prepared.input)
       const entries = getWhitelistEntries()
       const matched = isWhitelisted(
         entries,
@@ -98,7 +99,7 @@ export function createToolAuthorization(
     // require_approval
     const whitelistPattern = generatePattern(
       prepared.toolName,
-      prepared.publicInput,
+      prepared.input,
       prepared.scope,
       task.snapshot.workspacePath,
     )
@@ -107,7 +108,7 @@ export function createToolAuthorization(
       toolName: prepared.toolName,
       operationType: prepared.operationType,
       scope: prepared.scope,
-      inputPreview: JSON.stringify(prepared.publicInput).slice(0, 200),
+      inputPreview: JSON.stringify(getToolInputForPersistence(prepared.toolName, prepared.input)).slice(0, 200),
       whitelistPattern,
       createdAt: Date.now(),
     }
@@ -129,6 +130,10 @@ export function createToolAuthorization(
 
     return { outcome: 'allow' }
   }
+}
+
+function getToolInputForPersistence(toolName: string, input: Record<string, unknown>): Record<string, unknown> {
+  return toolName === 'publish_visualization' ? getVisualizationToolInputDescriptor(input) : input
 }
 
 function decideAutomationPolicy(

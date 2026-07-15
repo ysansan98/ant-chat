@@ -119,7 +119,7 @@ describe('persistedTurn 行为', () => {
     const visualization = {
       type: 'visualization' as const,
       source: { type: 'file_id' as const, file_id: 'viz-1' },
-      format: 'ant-chat.visualization.v1' as const,
+      format: 'ant-chat.visualization.html.v1' as const,
       title: '趋势',
       summary: '摘要',
       size: 3,
@@ -151,7 +151,7 @@ describe('persistedTurn 行为', () => {
         type: 'tool-call',
         toolCallId: 'call-1',
         toolName: 'publish_visualization',
-        args: { title: '趋势', format: 'ant-chat.visualization.v1', size: 3, sha256: 'a'.repeat(64) },
+        args: { title: '趋势', summary: '展示趋势', format: 'ant-chat.visualization.html.v1', size: 3, sha256: 'a'.repeat(64) },
         outputBlocks: [visualization],
       } as never],
     })

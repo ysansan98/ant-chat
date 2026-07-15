@@ -1,19 +1,10 @@
-import type {
-  FrameToHost,
-  VisualizationAction,
-  VisualizationBlockLike,
-  VisualizationField,
-  VisualizationPrimitive,
-  VisualizationSpec,
-  VisualizationTheme,
-} from './types'
+import type { FrameToHost, VisualizationBlockLike, VisualizationTheme } from './types'
 import {
-  VisualizationSpecV1Schema,
+  VISUALIZATION_LIMITS,
+  VisualizationThemeSchema,
 } from '@ant-chat/shared'
 import { getAppRpcClient } from '@/api/transports/appRpc'
-
-const MAX_ARTIFACT_BYTES = 512 * 1024
-const MAX_STRING_LENGTH = 4_000
+import { validateVisualizationHtmlFragment } from './fragmentPolicy'
 
 const FALLBACK_THEME: VisualizationTheme = {
   mode: 'light',
@@ -21,8 +12,20 @@ const FALLBACK_THEME: VisualizationTheme = {
     background: 'hsl(0 0% 100%)',
     foreground: 'hsl(222 47% 11%)',
     card: 'hsl(0 0% 100%)',
-    border: 'hsl(214 32% 91%)',
+    cardForeground: 'hsl(222 47% 11%)',
+    primary: 'hsl(221 83% 53%)',
+    primaryForeground: 'hsl(210 40% 98%)',
+    secondary: 'hsl(210 40% 96%)',
+    secondaryForeground: 'hsl(222 47% 11%)',
+    muted: 'hsl(210 40% 96%)',
     mutedForeground: 'hsl(215 16% 47%)',
+    accent: 'hsl(210 40% 96%)',
+    accentForeground: 'hsl(222 47% 11%)',
+    destructive: 'hsl(0 84% 60%)',
+    destructiveForeground: 'hsl(210 40% 98%)',
+    border: 'hsl(214 32% 91%)',
+    input: 'hsl(214 32% 91%)',
+    ring: 'hsl(221 83% 53%)',
     chart1: 'hsl(221 83% 53%)',
     chart2: 'hsl(160 84% 39%)',
     chart3: 'hsl(38 92% 50%)',
@@ -32,14 +35,13 @@ const FALLBACK_THEME: VisualizationTheme = {
 }
 
 export interface LoadedVisualizationArtifact {
-  rawData: string
-  spec: VisualizationSpec
+  html: string
 }
 
 export function clampFrameHeight(height: number): number {
   if (!Number.isFinite(height))
     return 240
-  return Math.min(1200, Math.max(96, Math.round(height)))
+  return Math.min(VISUALIZATION_LIMITS.maxFrameHeight, Math.max(96, Math.round(height)))
 }
 
 function getCssToken(name: string, fallback: string): string {
@@ -51,18 +53,30 @@ function getCssToken(name: string, fallback: string): string {
 
 export function getVisualizationTheme(): VisualizationTheme {
   const isDark = typeof document !== 'undefined'
-    && document.documentElement.classList.contains('dark')
+    && (document.documentElement.classList.contains('dark')
+      || document.documentElement.getAttribute('data-theme')?.endsWith('-dark') === true)
   const token = (name: string, fallback: string) => getCssToken(name, fallback)
   const fallbacks = FALLBACK_THEME.tokens
-
-  return {
-    mode: isDark ? 'dark' : 'light',
+  const theme = {
+    mode: isDark ? 'dark' as const : 'light' as const,
     tokens: {
       background: token('--background', fallbacks.background),
       foreground: token('--foreground', fallbacks.foreground),
       card: token('--card', fallbacks.card),
-      border: token('--border', fallbacks.border),
+      cardForeground: token('--card-foreground', fallbacks.cardForeground),
+      primary: token('--primary', fallbacks.primary),
+      primaryForeground: token('--primary-foreground', fallbacks.primaryForeground),
+      secondary: token('--secondary', fallbacks.secondary),
+      secondaryForeground: token('--secondary-foreground', fallbacks.secondaryForeground),
+      muted: token('--muted', fallbacks.muted),
       mutedForeground: token('--muted-foreground', fallbacks.mutedForeground),
+      accent: token('--accent', fallbacks.accent),
+      accentForeground: token('--accent-foreground', fallbacks.accentForeground),
+      destructive: token('--destructive', fallbacks.destructive),
+      destructiveForeground: token('--destructive-foreground', fallbacks.destructiveForeground),
+      border: token('--border', fallbacks.border),
+      input: token('--input', fallbacks.input),
+      ring: token('--ring', fallbacks.ring),
       chart1: token('--chart-1', fallbacks.chart1),
       chart2: token('--chart-2', fallbacks.chart2),
       chart3: token('--chart-3', fallbacks.chart3),
@@ -70,44 +84,24 @@ export function getVisualizationTheme(): VisualizationTheme {
       chart5: token('--chart-5', fallbacks.chart5),
     },
   }
+  const parsed = VisualizationThemeSchema.safeParse(theme)
+  return parsed.success ? parsed.data : FALLBACK_THEME
 }
 
 function decodeArtifactData(data: string): Uint8Array {
-  const trimmed = data.trim()
-  if (trimmed.startsWith('{') || trimmed.startsWith('['))
-    return new TextEncoder().encode(data)
   try {
-    const binary = atob(trimmed)
+    const binary = atob(data.trim())
     return Uint8Array.from(binary, character => character.charCodeAt(0))
   }
   catch {
-    throw new Error('可视化 artifact 不是有效 JSON 或 Base64')
+    throw new Error('可视化 artifact 不是有效 Base64')
   }
 }
 
-export function parseVisualizationSpec(rawData: string): VisualizationSpec {
-  if (new TextEncoder().encode(rawData).byteLength > MAX_ARTIFACT_BYTES)
-    throw new Error('可视化 artifact 超出大小限制')
-
-  let value: unknown
-  try {
-    value = JSON.parse(rawData)
-  }
-  catch {
-    throw new Error('可视化 artifact 不是有效 JSON')
-  }
-  const parsed = VisualizationSpecV1Schema.safeParse(value)
-  if (!parsed.success)
-    throw new Error(parsed.error.issues[0]?.message || '可视化 spec 校验失败')
-  return parsed.data
-}
-
-export async function sha256Hex(value: string | Uint8Array): Promise<string> {
-  const subtle = globalThis.crypto?.subtle
-  if (!subtle)
+export async function sha256Hex(value: Uint8Array): Promise<string> {
+  if (!globalThis.crypto?.subtle)
     throw new Error('当前环境不支持 artifact hash 校验')
-  const bytes = typeof value === 'string' ? new TextEncoder().encode(value) : value
-  const digest = await subtle.digest('SHA-256', bytes as unknown as BufferSource)
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', value as BufferSource)
   return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')
 }
 
@@ -115,67 +109,36 @@ export async function loadVisualizationArtifact(
   block: VisualizationBlockLike,
   ownership?: { conversationId: string, messageId: string },
 ): Promise<LoadedVisualizationArtifact> {
-  const encodedData = block.data ?? (ownership?.conversationId && ownership.messageId
-    ? await getAppRpcClient().call('visualizations.get', {
-        ...ownership,
-        fileId: block.source.file_id,
-      })
-    : null)
+  if (!ownership?.conversationId || !ownership.messageId)
+    throw new Error('可视化 artifact 所有权上下文缺失')
+
+  const encodedData = await getAppRpcClient().call('visualizations.get', {
+    ...ownership,
+    fileId: block.source.file_id,
+  })
   if (!encodedData)
     throw new Error('可视化 artifact 尚未加载')
   const bytes = decodeArtifactData(encodedData)
-  if (bytes.byteLength > MAX_ARTIFACT_BYTES)
+  if (bytes.byteLength > VISUALIZATION_LIMITS.maxBytes)
     throw new Error('可视化 artifact 超出大小限制')
+  if (bytes.byteLength !== block.size)
+    throw new Error('可视化 artifact 大小校验失败')
   const actualHash = await sha256Hex(bytes)
   if (actualHash !== block.sha256)
     throw new Error('可视化 artifact 校验失败')
-  const rawData = new TextDecoder().decode(bytes)
-  return { rawData, spec: parseVisualizationSpec(rawData) }
-}
-
-function getFormFields(spec: VisualizationSpec): VisualizationField[] {
-  return spec.views.flatMap(view => (view.type === 'form' ? view.fields : []))
-}
-
-function getAction(spec: VisualizationSpec, actionId: string): VisualizationAction | undefined {
-  return spec.actions?.find(action => action.id === actionId)
-}
-
-function validatePrimitive(value: unknown): value is VisualizationPrimitive {
-  return value === null
-    || typeof value === 'string'
-    || (typeof value === 'number' && Number.isFinite(value))
-    || typeof value === 'boolean'
-}
-
-function isValueAllowed(field: VisualizationField, value: unknown): value is VisualizationPrimitive {
-  if (!validatePrimitive(value))
-    return false
-  if (typeof value === 'string' && value.length > MAX_STRING_LENGTH)
-    return false
-  if (field.type === 'range') {
-    return typeof value === 'number' && value >= field.min && value <= field.max
-  }
-  if (field.type === 'checkbox' || field.type === 'toggle')
-    return typeof value === 'boolean'
-  if (field.type === 'select' || field.type === 'radio')
-    return typeof value === 'string' && field.options.some(option => option.value === value)
-  return typeof value === 'string'
+  const html = new TextDecoder().decode(bytes)
+  const policyError = validateVisualizationHtmlFragment(html)
+  if (policyError)
+    throw new Error(`可视化 HTML 校验失败：${policyError}`)
+  return { html }
 }
 
 export function validateFollowUpRequest(
-  spec: VisualizationSpec,
   request: Extract<FrameToHost, { type: 'follow-up-request' }>,
   artifactId: string,
 ): boolean {
-  if (request.artifactId !== artifactId || !request.actionId || !getAction(spec, request.actionId))
-    return false
-  const fields = getFormFields(spec)
-  const fieldsById = new Map(fields.map(field => [field.id, field]))
-  for (const [key, value] of Object.entries(request.values)) {
-    const field = fieldsById.get(key)
-    if (!field || !isValueAllowed(field, value))
-      return false
-  }
-  return fields.every(field => !field.required || isValueAllowed(field, request.values[field.id]))
+  return request.artifactId === artifactId
+    && request.prompt.trim().length > 0
+    && request.prompt.length <= VISUALIZATION_LIMITS.maxPromptLength
+    && (request.title === undefined || request.title.length <= VISUALIZATION_LIMITS.maxFollowUpTitleLength)
 }

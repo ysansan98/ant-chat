@@ -1,27 +1,43 @@
-# Visualization V1 Schema
+# Visualization HTML Fragment Schema
 
-`publish_visualization({ spec })` 接受版本为 `1` 的对象。完整字段以共享 Zod schema 为准；未知字段、递归节点、原始 markup、外部 URL、超限字符串和超限数据都会被拒绝。
+`publish_visualization({ title, summary, html })` 的共享合同定义在 `@ant-chat/shared`。
 
-## 最小结构
+## 最小示例
 
-```json
-{
-  "version": 1,
-  "title": "请求延迟",
-  "summary": "比较不同阶段的平均延迟",
-  "data": {
-    "latency": [
-      { "stage": "排队", "value": 12 },
-      { "stage": "执行", "value": 38 }
-    ]
-  },
-  "layout": { "type": "single" },
-  "views": [
-    { "type": "bar", "title": "阶段延迟", "data": "latency", "category": "stage", "value": "value" }
-  ]
-}
+```html
+<section class="card" aria-labelledby="latency-title">
+  <h2 id="latency-title">请求延迟</h2>
+  <p class="text-muted">比较不同阶段的平均延迟</p>
+  <div class="viz-grid">
+    <label
+      >阶段<select class="form-select" id="stage">
+        <option>排队</option>
+        <option>执行</option>
+      </select></label
+    >
+    <output class="card" id="result">38 ms</output>
+  </div>
+</section>
 ```
 
-V1 支持 line、bar、area、scatter、stacked-bar、table、grid、timeline、swimlane、flow、state-machine、player 和 form 视图，以及 range、checkbox、select、radio、toggle、text、textarea 控件。表达式只能使用 schema 声明的比较、布尔、聚合和 state 引用节点，禁止可执行字符串。
+## 安全限制
 
-地图、远程资源、任意 HTML/CSS/JS、`eval` 和自定义 SVG path 不支持。
+- 只允许 fragment，不允许完整 document、iframe、object、embed、base、meta refresh；
+- 禁止 `javascript:`、`vbscript:`、inline `on*` 事件属性、`fetch`、XHR、WebSocket、EventSource、sendBeacon；
+- 禁止访问父窗口、Electron、进程、数据库、文件系统、RPC 和宿主 DOM；
+- 外部 script/link 只能使用固定 HTTPS CDN URL、精确版本、sha384 SRI 和 anonymous CORS；
+- CSP 使用 `connect-src 'none'`、`img-src data:`、`font-src 'none'`；
+- UTF-8 HTML 上限为 2 MiB，artifact 由后端计算 sha256 并生成新的 file id。
+
+## 交互边界
+
+fragment 可以使用原生 HTML/CSS/JS 和内联数据。只有真实用户 click/submit 后的短时 gesture token 才能调用 `window.antChatVisualization.sendFollowUpMessage`。该调用只传 `prompt` 和可选 `title`，宿主确认后创建下一轮 user message。
+
+本地预览：
+
+```bash
+pnpm visualize:render fragment.html preview.html
+pnpm visualize:render --serve fragment.html
+```
+
+该命令只依赖 Node.js，不依赖 Python。

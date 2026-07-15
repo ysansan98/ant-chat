@@ -7,6 +7,7 @@
 | Plan | Title                                            | Priority | Effort | Depends on | Status |
 | ---- | ------------------------------------------------ | -------- | ------ | ---------- | ------ |
 | 001  | 收口 Sender 到 agent loop 的 turn 输入与会话配置 | P1       | L      | —          | DONE   |
+| 002  | 将可视化重构为 HTML fragment 主协议             | P1       | L      | 001        | DONE   |
 
 状态值：`TODO`、`IN PROGRESS`、`DONE`、`BLOCKED（附一行原因）`、`REJECTED（附一行原因）`。
 
@@ -20,3 +21,4 @@
 - 把 `compaction` 改为必填会话字段：拒绝。它是可选的自动压缩策略覆盖；缺失时 runtime 使用默认策略，手动 `/compact` 仍独立触发。
 - 合并自动压缩与手动 `/compact`：拒绝。两条链路触发语义不同，只复用底层 compaction transaction。
 - 删除 MCP runtime：拒绝。本计划只删除无效的 `features.enableMCP` 和 Sender 内 MCP 控制面；已连接 MCP server、设置页和 automation 的 `allowedMcpServers` 继续存在。
+- 继续扩展 JSON visualization DSL：拒绝。当前未发布，JSON 的布局和控件表达能力已成为根本限制；Plan 002 直接切换 HTML fragment，不增加第二套兼容协议。

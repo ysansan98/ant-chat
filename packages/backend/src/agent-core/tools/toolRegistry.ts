@@ -12,8 +12,6 @@ export interface PreparedToolCall {
   source: AgentTool['source']
   serverName: string
   input: Record<string, unknown>
-  /** 允许进入消息、授权、trace 和后续上下文的脱敏输入。 */
-  publicInput: Record<string, unknown>
   operationType: ToolOperationType
   scope: ToolScope
   validationError?: string
@@ -101,7 +99,6 @@ export class ToolRegistry {
         source: 'native',
         serverName: 'native',
         input,
-        publicInput: input,
         operationType: 'read',
         scope: 'blocked',
         execute: async () => ({ ok: false, result: `未找到工具：${toolName}` }),
@@ -111,7 +108,6 @@ export class ToolRegistry {
     const validationError = tool.validateInput?.(input) ?? undefined
     const scope = safeInferScope(tool, input)
     const operationType = tool.operationType
-    const publicInput = toPublicInput(tool, input)
 
     const resolvedTool = scope === 'outside' ? (this.relaxedTools.get(toolName) ?? tool) : tool
 
@@ -120,18 +116,12 @@ export class ToolRegistry {
       source: tool.source,
       serverName: tool.serverName || tool.source,
       input,
-      publicInput,
       operationType,
       scope,
       validationError,
       execute: async () => resolvedTool.execute(await resolveToolInputSecrets(input, this.secretStore)),
       truncateResult: tool.truncateResult,
     }
-  }
-
-  getPublicInput(toolName: string, input: Record<string, unknown>): Record<string, unknown> {
-    const tool = this.tools.get(toolName)
-    return tool ? toPublicInput(tool, input) : input
   }
 
   listTools(): RuntimeToolDefinition[] {
@@ -385,15 +375,6 @@ async function makeSkillTools(reader: SkillReader, turnSource?: AgentTurnSource)
     tools.push(createPublishVisualizationTool())
   }
   return tools
-}
-
-type ToolWithPublicInput = AgentTool & {
-  toPublicInput?: (input: Record<string, unknown>) => Record<string, unknown>
-}
-
-function toPublicInput(tool: AgentTool, input: Record<string, unknown>): Record<string, unknown> {
-  const publicInput = (tool as ToolWithPublicInput).toPublicInput
-  return publicInput ? publicInput(input) : input
 }
 
 function createResolvedUseSkillTool(capabilities: ResolvedSkillCapability[]): AgentTool {

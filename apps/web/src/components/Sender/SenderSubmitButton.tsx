@@ -22,9 +22,9 @@ export function SenderSubmitButton({ loading, disabled, hasDraft, onCancel }: Se
               </PromptInputSubmit>
             )
           : (
-              <PromptInputButton className="sender-primary-action" size="sm" type="button" variant="outline" data-testid="chat-cancel" onClick={onCancel}>
+              <PromptInputButton className="sender-primary-action" size="icon-sm" type="button" variant="outline" data-testid="chat-cancel" onClick={onCancel}>
                 <SquareIcon className="size-3" />
-                停止
+                <span className="sr-only">停止</span>
               </PromptInputButton>
             )}
       </div>

@@ -4,7 +4,7 @@ import type { RuntimeTask, TaskExecution } from '../taskStore'
 import type { ToolAuthorization, ToolCallContext } from '../tools/types'
 import { AgentError } from '../AgentError'
 import { createAgentTraceLogger } from '../agentTraceLogger'
-import { createInvalidToolArgsResult, executeToolStep } from '../tools/toolExecution'
+import { createInvalidToolArgsResult, executeToolStep, getToolInputForPersistence } from '../tools/toolExecution'
 import { transformErrorMessage } from '../utils/errorMessages'
 import { normalizeToolArgs } from './loopContext'
 
@@ -210,7 +210,7 @@ export async function runAgentLoop(input: {
         toolCalls: requestedToolCalls.map(call => ({
           id: call.id,
           toolName: call.toolName,
-          input: registry.getPublicInput(call.toolName, call.input),
+          input: getToolInputForPersistence(call.toolName, call.input),
           invalidArgsError: call.invalidArgsError,
         })),
       }
@@ -250,7 +250,7 @@ export async function runAgentLoop(input: {
             conversationId: options.conversationId,
             requestedToolCall: {
               ...rc,
-              input: registry.getPublicInput(rc.toolName, rc.input),
+              input: rc.input,
             },
             currentModelText,
             currentToolMessages,
@@ -299,7 +299,7 @@ export async function runAgentLoop(input: {
           type: 'tool-call',
           toolCallId: outcomes[i].toolCallId,
           toolName: requestedToolCalls[i].toolName,
-          args: registry.getPublicInput(requestedToolCalls[i].toolName, requestedToolCalls[i].input),
+          args: getToolInputForPersistence(requestedToolCalls[i].toolName, requestedToolCalls[i].input),
         })
       }
       loopMessages.push({ role: 'assistant', content: assistantContent })

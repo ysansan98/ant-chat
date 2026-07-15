@@ -1,4 +1,4 @@
-import type { AddMessage, IMessage, RunBuiltinCommandResult } from '@ant-chat/shared'
+import type { AddMessage, IMessage, RunBuiltinCommandResult, VisualizationBlock } from '@ant-chat/shared'
 import type { AppDataContext } from '../../data'
 
 export async function runFork(params: {
@@ -142,24 +142,13 @@ async function messageToAddMessage(
   }
 }
 
-interface ForkVisualizationBlock {
-  type: 'visualization'
-  source: { type: 'file_id', file_id: string }
-  format: 'ant-chat.visualization.v1'
-  title: string
-  summary: string
-  size: number
-  sha256: string
-  data?: string
-}
-
-function isVisualizationBlock(value: unknown): value is ForkVisualizationBlock {
+function isVisualizationBlock(value: unknown): value is VisualizationBlock {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return false
   }
-  const block = value as Partial<ForkVisualizationBlock>
+  const block = value as Partial<VisualizationBlock>
   return block.type === 'visualization'
-    && block.format === 'ant-chat.visualization.v1'
+    && block.format === 'ant-chat.visualization.html.v1'
     && Boolean(block.source && block.source.type === 'file_id' && typeof block.source.file_id === 'string')
 }
 

@@ -3,6 +3,8 @@ export * from './interfaces'
 export * from './ipc-events'
 export * from './schemas'
 export * from './utils'
+export * from './visualization/runtimeSource'
+export * from './visualization/sandbox'
 
 /**
  * 默认的MCP工具名称分隔符

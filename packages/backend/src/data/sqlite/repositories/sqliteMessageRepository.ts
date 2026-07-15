@@ -1,4 +1,4 @@
-import type { AddMessage, AIMessage, IMessage, MessageContent, UpdateMessageSchema } from '@ant-chat/shared'
+import type { AddMessage, AIMessage, IMessage, MessageContent, UpdateMessageSchema, VisualizationBlock } from '@ant-chat/shared'
 import type { MessageRepository } from '../../repositories'
 import type { MessageRow } from '../rows'
 import type { AppDataDatabase } from '../types'
@@ -19,18 +19,6 @@ interface StagedAttachment {
   name: string
   mediaType: string
   size: number
-}
-
-/** 临时承接 shared visualization schema 合入前的持久化形状。 */
-interface VisualizationBlock {
-  type: 'visualization'
-  source: { type: 'file_id', file_id: string }
-  format: 'ant-chat.visualization.v1'
-  title: string
-  summary: string
-  size: number
-  sha256: string
-  data?: string
 }
 
 type PersistedMessageContent = Array<MessageContent[number] | VisualizationBlock>
@@ -389,7 +377,7 @@ export class SqliteMessageRepository implements MessageRepository {
           tempPath,
           finalPath,
           name: block.title,
-          mediaType: 'application/json',
+          mediaType: 'text/html',
           size: bytes.byteLength,
         })
         const { data: _data, ...persistedBlock } = block
@@ -601,7 +589,7 @@ function getVisualizationBlocks(content: unknown): VisualizationBlock[] {
     }
     const candidate = block as Partial<VisualizationBlock>
     return candidate.type === 'visualization'
-      && candidate.format === 'ant-chat.visualization.v1'
+      && candidate.format === 'ant-chat.visualization.html.v1'
       && Boolean(candidate.source && candidate.source.type === 'file_id')
       && typeof candidate.sha256 === 'string'
   })

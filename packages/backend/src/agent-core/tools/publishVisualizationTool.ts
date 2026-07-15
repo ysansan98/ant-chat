@@ -1,129 +1,123 @@
-import type { AgentTool, AgentToolResult, VisualizationBlockTransport, VisualizationOutputBlocks, VisualizationSpecV1 } from '@ant-chat/shared'
+import type { AgentTool, AgentToolResult, VisualizationBlockTransport, VisualizationOutputBlocks } from '@ant-chat/shared'
 import { Buffer } from 'node:buffer'
 import { createHash, randomUUID } from 'node:crypto'
-import { canonicalizeVisualizationSpec, serializeVisualizationSpec, VISUALIZATION_FORMAT, VisualizationSpecV1Schema } from '@ant-chat/shared'
+import {
+  validateVisualizationHtmlFragment,
+  VISUALIZATION_FORMAT,
+  VISUALIZATION_LIMITS,
+} from '@ant-chat/shared'
 
-export interface VisualizationTool extends AgentTool {
-  toPublicInput: (input: Record<string, unknown>) => Record<string, unknown>
-}
-
-export function createPublishVisualizationTool(): VisualizationTool {
+export function createPublishVisualizationTool(): AgentTool {
   return {
     name: 'publish_visualization',
     source: 'skill',
     serverName: 'agent-loop',
-    description: '发布一个经过共享 schema 校验的 ant-chat.visualization.v1 JSON 可视化快照。不要传 HTML、CSS、JavaScript、URL 或文件路径。',
+    description: '发布一个运行在安全 sandbox iframe 中的 HTML 可视化 fragment。输入必须是 { title, summary, html }；html 可包含语义化 HTML、内联 style/script 和固定版本 CDN 图表库，但不能包含完整 document、宿主 API 或网络请求。',
     inputSchema: {
       type: 'object',
       properties: {
-        spec: {
-          type: 'object',
-          description: 'VisualizationSpecV1。必须是受限 JSON DSL，不是 HTML 或可执行代码。',
-        },
+        title: { type: 'string', description: `可视化标题，最多 ${VISUALIZATION_LIMITS.maxTitleLength} 个字符。` },
+        summary: { type: 'string', description: `可视化摘要，最多 ${VISUALIZATION_LIMITS.maxSummaryLength} 个字符。` },
+        html: { type: 'string', description: `HTML fragment，最多 ${VISUALIZATION_LIMITS.maxBytes} 字节；不要传完整 HTML document。` },
       },
-      required: ['spec'],
+      required: ['title', 'summary', 'html'],
     },
     operationType: 'skill',
     inferScope: () => 'workspace',
-    validateInput: input => parseSpec(input).error,
-    toPublicInput,
+    validateInput: input => parseVisualizationInput(input).error,
     execute: async (input): Promise<AgentToolResult> => {
-      const parsed = parseSpec(input)
-      if (parsed.error) {
+      const parsed = parseVisualizationInput(input)
+      if (parsed.error)
         return { ok: false, result: parsed.error }
-      }
-      const spec = parsed.spec
-      const bytes = parsed.bytes
-      const sha256 = parsed.sha256
-      if (!spec || !bytes || !sha256) {
-        return { ok: false, result: '可视化 spec 无效。' }
-      }
+      const valid = parsed as ParsedVisualizationInput
 
       const fileId = `viz-${randomUUID()}`
       const block: VisualizationBlockTransport = {
         type: 'visualization',
         source: { type: 'file_id', file_id: fileId },
         format: VISUALIZATION_FORMAT,
-        title: spec.title,
-        summary: spec.summary,
-        size: bytes.byteLength,
-        sha256,
-        data: bytes.toString('base64'),
+        title: valid.title,
+        summary: valid.summary,
+        size: valid.bytes.byteLength,
+        sha256: valid.sha256,
+        data: valid.bytes.toString('base64'),
       }
 
+      const descriptor = createVisualizationDescriptor(valid.title, valid.summary, valid.bytes, valid.sha256)
       return {
         ok: true,
-        result: JSON.stringify({
-          title: spec.title,
-          format: VISUALIZATION_FORMAT,
-          size: bytes.byteLength,
-          sha256,
-        }),
+        result: JSON.stringify(descriptor),
         diagnostics: { data: { outputBlocks: [block] } satisfies VisualizationOutputBlocks },
       }
     },
   }
 }
 
-function parseSpec(input: Record<string, unknown>): {
-  spec: VisualizationSpecV1
-  serialized: string
+interface ParsedVisualizationInput {
+  title: string
+  summary: string
+  html: string
   bytes: Buffer
   sha256: string
   error: null
-} | {
-  spec: undefined
-  serialized: undefined
+}
+
+interface InvalidVisualizationInput {
+  title: undefined
+  summary: undefined
+  html: undefined
   bytes: undefined
   sha256: undefined
   error: string
-} {
-  const parsed = VisualizationSpecV1Schema.safeParse(input.spec)
-  if (!parsed.success) {
-    return {
-      spec: undefined,
-      serialized: undefined,
-      bytes: undefined,
-      sha256: undefined,
-      error: '可视化 spec 无效。',
-    }
-  }
-  const serialized = serializeVisualizationSpec(parsed.data)
-  const bytes = Buffer.from(serialized, 'utf8')
+}
+
+function parseVisualizationInput(input: Record<string, unknown>): ParsedVisualizationInput | InvalidVisualizationInput {
+  const unknownKeys = Object.keys(input).filter(key => !['title', 'summary', 'html'].includes(key))
+  if (unknownKeys.length > 0)
+    return invalidInput(`publish_visualization 不允许未知字段：${unknownKeys.join('、')}`)
+  const title = input.title
+  const summary = input.summary
+  const html = input.html
+  if (typeof title !== 'string' || title.length > VISUALIZATION_LIMITS.maxTitleLength)
+    return invalidInput('title 必须是字符串且不能超过 120 个字符')
+  if (typeof summary !== 'string' || summary.length > VISUALIZATION_LIMITS.maxSummaryLength)
+    return invalidInput('summary 必须是字符串且不能超过 500 个字符')
+  if (typeof html !== 'string')
+    return invalidInput('html 必须是字符串')
+
+  const policyError = validateVisualizationHtmlFragment(html)
+  if (policyError)
+    return invalidInput(`可视化 HTML 校验失败：${policyError}`)
+
+  const bytes = Buffer.from(html, 'utf8')
+  const sha256 = createHash('sha256').update(bytes).digest('hex')
+  return { title, summary, html, bytes, sha256, error: null }
+}
+
+function invalidInput(error: string): InvalidVisualizationInput {
+  return { title: undefined, summary: undefined, html: undefined, bytes: undefined, sha256: undefined, error }
+}
+
+export function createVisualizationDescriptor(
+  title: string,
+  summary: string,
+  bytes: Uint8Array,
+  sha256: string,
+): Record<string, unknown> {
   return {
-    spec: canonicalizeVisualizationSpec(parsed.data),
-    serialized,
-    bytes,
-    sha256: createHash('sha256').update(bytes).digest('hex'),
-    error: null,
+    title,
+    summary,
+    format: VISUALIZATION_FORMAT,
+    size: bytes.byteLength,
+    sha256,
   }
 }
 
-function toPublicInput(input: Record<string, unknown>): Record<string, unknown> {
-  const parsed = parseSpec(input)
-  if (!parsed.error) {
-    const spec = parsed.spec
-    const bytes = parsed.bytes
-    const sha256 = parsed.sha256
-    if (!spec || !bytes || !sha256) {
-      return { title: '', format: VISUALIZATION_FORMAT, size: 0, sha256: '' }
-    }
-    return {
-      title: spec.title,
-      format: VISUALIZATION_FORMAT,
-      size: bytes.byteLength,
-      sha256,
-    }
-  }
-
-  const fallback = JSON.stringify(input.spec ?? null)
-  const bytes = Buffer.from(fallback, 'utf8')
-  return {
-    title: typeof (input.spec as { title?: unknown } | undefined)?.title === 'string'
-      ? String((input.spec as { title: string }).title).slice(0, 120)
-      : '',
-    format: VISUALIZATION_FORMAT,
-    size: bytes.byteLength,
-    sha256: createHash('sha256').update(bytes).digest('hex'),
-  }
+/** trace、tool-call args 和模型上下文只能看到 descriptor，不能复制 HTML 正文。 */
+export function getVisualizationToolInputDescriptor(input: Record<string, unknown>): Record<string, unknown> {
+  const title = typeof input.title === 'string' ? input.title.slice(0, VISUALIZATION_LIMITS.maxTitleLength) : ''
+  const summary = typeof input.summary === 'string' ? input.summary.slice(0, VISUALIZATION_LIMITS.maxSummaryLength) : ''
+  const html = typeof input.html === 'string' ? input.html : ''
+  const bytes = Buffer.from(html, 'utf8')
+  return createVisualizationDescriptor(title, summary, bytes, createHash('sha256').update(bytes).digest('hex'))
 }

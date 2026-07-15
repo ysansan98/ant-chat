@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { UnsupportedVisualizationBlockSchema, VisualizationBlockSchema, VisualizationOutputBlocksSchema } from './visualization'
+import { VisualizationBlockSchema, VisualizationOutputBlocksSchema } from './visualization'
 
 // 文本内容
 export const TextContentSchema = z.object({
@@ -134,7 +134,6 @@ export const MessageContentSchema = z.array(z.union([
   DocumentBlockSchema,
   FileBlockSchema,
   VisualizationBlockSchema,
-  UnsupportedVisualizationBlockSchema,
 ]))
 
 export type MessageContent = z.infer<typeof MessageContentSchema>

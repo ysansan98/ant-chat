@@ -659,11 +659,11 @@ describe('sqlite repositories', () => {
     const messageRepository = new SqliteMessageRepository(sqlite, { attachmentsRoot })
     const conversationRepository = new SqliteConversationRepository(sqlite)
     const conversation = await conversationRepository.create({ title: 'Visualization', workspacePath: '/workspace', createdAt: 1, updatedAt: 1, conversationInstructions: '', settings: { modelId: 'm', providerId: '', temperature: 0.7, maxOutputTokens: 1024 } })
-    const bytes = Buffer.from('{"version":1}', 'utf8')
+    const bytes = Buffer.from('<section><h2>趋势</h2></section>', 'utf8')
     const block = {
       type: 'visualization' as const,
       source: { type: 'file_id' as const, file_id: 'viz-auth-1' },
-      format: 'ant-chat.visualization.v1' as const,
+      format: 'ant-chat.visualization.html.v1' as const,
       title: '趋势',
       summary: '摘要',
       size: bytes.length,
@@ -685,11 +685,11 @@ describe('sqlite repositories', () => {
       prepareConversationAttachmentCleanup: messageRepository.prepareConversationAttachmentCleanup.bind(messageRepository),
     })
     const sourceConversation = await conversationRepository.create({ title: 'Source', workspacePath: '/workspace', createdAt: 1, updatedAt: 1, conversationInstructions: '', settings: { modelId: 'm', providerId: '', temperature: 0.7, maxOutputTokens: 1024 } })
-    const bytes = Buffer.from('{"version":1}', 'utf8')
+    const bytes = Buffer.from('<section><h2>趋势</h2></section>', 'utf8')
     const block = {
       type: 'visualization' as const,
       source: { type: 'file_id' as const, file_id: 'viz-source-1' },
-      format: 'ant-chat.visualization.v1' as const,
+      format: 'ant-chat.visualization.html.v1' as const,
       title: '趋势',
       summary: '摘要',
       size: bytes.length,
