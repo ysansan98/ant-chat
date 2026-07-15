@@ -52,6 +52,34 @@ describe('messageBubble', () => {
     expect(screen.getByRole('status')).toHaveTextContent('正在加载可视化')
   })
 
+  it('执行过程存在时，最终 assistant message 的可视化仍展示在结果区', () => {
+    renderBubble([
+      createAssistantMessage('tool-step', [{
+        type: 'tool-call',
+        toolCallId: 'publish-1',
+        toolName: 'publish_visualization',
+        args: { title: '轨道模拟' },
+        executeState: 'completed',
+      }]),
+      createAssistantMessage('final-answer', [
+        { type: 'text', text: '已完成' },
+        {
+          type: 'visualization',
+          source: { type: 'file_id', file_id: 'viz-final' },
+          format: 'ant-chat.visualization.html.v1',
+          title: '轨道模拟',
+          summary: '模拟轨道变化',
+          size: 3,
+          sha256: '0'.repeat(64),
+        },
+      ]),
+    ])
+
+    expect(screen.getByText('执行过程(1)')).toBeInTheDocument()
+    expect(screen.getByText('已完成')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('正在加载可视化')
+  })
+
   it('仅有错误内容时直接展示错误，不放入可折叠的执行过程', () => {
     renderBubble([
       createAssistantMessage('failed-answer', [

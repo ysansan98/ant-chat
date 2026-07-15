@@ -437,7 +437,6 @@ describe('gui ui flow', () => {
     renderGui('/chat')
 
     const cancelButton = await screen.findByTestId('chat-cancel')
-    expect(cancelButton).toHaveTextContent('停止')
     fireEvent.click(cancelButton)
 
     await waitFor(() => {
@@ -482,7 +481,7 @@ describe('gui ui flow', () => {
     expect(mocks.agent.injectSteering).not.toHaveBeenCalled()
     expect(mocks.agent.startTurn).not.toHaveBeenCalled()
     expect(input).toHaveValue('')
-    expect(screen.getByTestId('chat-cancel')).toHaveTextContent('停止')
+    expect(screen.getByTestId('chat-cancel')).toBeEnabled()
 
     fireEvent.click(screen.getByRole('button', { name: '引导' }))
 

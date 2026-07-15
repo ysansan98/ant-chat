@@ -14,20 +14,17 @@ interface SenderSubmitButtonProps {
 export function SenderSubmitButton({ loading, disabled, hasDraft, onCancel }: SenderSubmitButtonProps) {
   if (loading) {
     return (
-      <div className="min-w-17">
-        {hasDraft
-          ? (
-              <PromptInputSubmit className="sender-primary-action" size="sm" data-testid="chat-submit" status="ready">
-                <Send className="size-4" />
-              </PromptInputSubmit>
-            )
-          : (
-              <PromptInputButton className="sender-primary-action" size="icon-sm" type="button" variant="outline" data-testid="chat-cancel" onClick={onCancel}>
-                <SquareIcon className="size-3" />
-                <span className="sr-only">停止</span>
-              </PromptInputButton>
-            )}
-      </div>
+      hasDraft
+        ? (
+            <PromptInputSubmit className="sender-primary-action" size="sm" data-testid="chat-submit" status="ready">
+              <Send className="size-4" />
+            </PromptInputSubmit>
+          )
+        : (
+            <PromptInputButton className="sender-primary-action" size="icon-sm" type="button" variant="outline" data-testid="chat-cancel" onClick={onCancel}>
+              <SquareIcon className="size-4" />
+            </PromptInputButton>
+          )
     )
   }
 
