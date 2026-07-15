@@ -83,12 +83,10 @@ export function VisualizationFrame({ block, conversationId, messageId, onFollowU
 
     // MessagePort 是 iframe 的唯一宿主通道；这里同时绑定 artifact id、主题和 resize 生命周期，避免 fragment 获得 app RPC 或绕过确认直接发消息。
     let disposed = false
-    let connectSent = false
     let resizeFrame: number | undefined
     let resizeTimeout: number | undefined
     let pendingHeight = 240
     const channel = typeof MessageChannel === 'undefined' ? null : new MessageChannel()
-    const frame = iframeRef.current
     const artifactId = getVisualizationArtifactId(block)
     portRef.current = channel?.port1 ?? null
     transferPortRef.current = channel?.port2 ?? null
@@ -138,18 +136,8 @@ export function VisualizationFrame({ block, conversationId, messageId, onFollowU
       }
     }
 
-    const connect = () => {
-      if (disposed || connectSent || !channel || !transferPortRef.current || !frame?.contentWindow)
-        return
-      connectSent = true
-      const transferPort = transferPortRef.current
-      transferPortRef.current = null
-      frame.contentWindow.postMessage({ type: 'visualization-connect' }, '*', [transferPort])
-    }
-
     channel?.port1.addEventListener('message', portMessageHandler)
     channel?.port1.start()
-    const connectTimer = window.setTimeout(connect, 0)
     const observer = typeof MutationObserver === 'undefined'
       ? null
       : new MutationObserver(() => channel?.port1.postMessage({ type: 'theme', theme: getVisualizationTheme() }))
@@ -157,7 +145,6 @@ export function VisualizationFrame({ block, conversationId, messageId, onFollowU
 
     return () => {
       disposed = true
-      window.clearTimeout(connectTimer)
       if (resizeTimeout != null)
         window.clearTimeout(resizeTimeout)
       observer?.disconnect()

@@ -1,4 +1,27 @@
 :root {
+  --viz-mode: light;
+  --viz-background: hsl(0 0% 100%);
+  --viz-foreground: hsl(222 47% 11%);
+  --viz-card: hsl(0 0% 100%);
+  --viz-card-foreground: hsl(222 47% 11%);
+  --viz-primary: hsl(221 83% 53%);
+  --viz-primary-foreground: hsl(210 40% 98%);
+  --viz-secondary: hsl(210 40% 96%);
+  --viz-secondary-foreground: hsl(222 47% 11%);
+  --viz-muted: hsl(210 40% 96%);
+  --viz-muted-foreground: hsl(215 16% 47%);
+  --viz-accent: hsl(210 40% 96%);
+  --viz-accent-foreground: hsl(222 47% 11%);
+  --viz-destructive: hsl(0 84% 60%);
+  --viz-destructive-foreground: hsl(210 40% 98%);
+  --viz-border: hsl(214 32% 91%);
+  --viz-input: hsl(214 32% 91%);
+  --viz-ring: hsl(221 83% 53%);
+  --viz-chart-1: hsl(221 83% 53%);
+  --viz-chart-2: hsl(160 84% 39%);
+  --viz-chart-3: hsl(38 92% 50%);
+  --viz-chart-4: hsl(262 83% 58%);
+  --viz-chart-5: hsl(346 77% 50%);
   color-scheme: var(--viz-mode, light);
   background: var(--viz-background, transparent);
   color: var(--viz-foreground, currentColor);
