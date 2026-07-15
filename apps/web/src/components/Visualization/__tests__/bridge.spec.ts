@@ -1,14 +1,14 @@
 import type { VisualizationBlockLike } from '../types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getAppRpcClient } from '@/api/transports/appRpc'
-import { clampFrameHeight, loadVisualizationArtifact, sha256Hex } from '../bridge'
+import { clampFrameHeight, loadVisualizationArtifact } from '../bridge'
 import { createVisualizationSandboxDocument } from '../sandboxDocument'
 
 vi.mock('@/api/transports/appRpc', () => ({ getAppRpcClient: vi.fn() }))
 
 const html = '<section class="card"><h2>阶段延迟</h2></section>'
 
-async function createBlock(): Promise<VisualizationBlockLike> {
+function createBlock(): VisualizationBlockLike {
   const bytes = new TextEncoder().encode(html)
   return {
     type: 'visualization',
@@ -17,7 +17,7 @@ async function createBlock(): Promise<VisualizationBlockLike> {
     title: '阶段延迟',
     summary: '比较不同阶段的延迟',
     size: bytes.byteLength,
-    sha256: await sha256Hex(bytes),
+    sha256: 'a'.repeat(64),
   }
 }
 
@@ -36,16 +36,14 @@ describe('visualization bridge', () => {
   })
   afterEach(() => vi.clearAllMocks())
 
-  it('通过 backend 回源加载 HTML artifact，并校验 hash/归属', async () => {
-    const block = await createBlock()
+  it('通过 backend 回源加载 HTML artifact，hash 完整性由 backend 负责', async () => {
+    const block = createBlock()
     await expect(loadVisualizationArtifact(block, { conversationId: 'conv-1', messageId: 'msg-1' })).resolves.toEqual({ html })
     expect(rpcCall).toHaveBeenCalledWith('visualizations.get', { conversationId: 'conv-1', messageId: 'msg-1', fileId: 'viz-1' })
-    await expect(loadVisualizationArtifact({ ...block, sha256: '0'.repeat(64) }, { conversationId: 'conv-1', messageId: 'msg-1' })).rejects.toThrow('校验失败')
-    await expect(loadVisualizationArtifact({ ...block, size: block.size + 1 }, { conversationId: 'conv-1', messageId: 'msg-1' })).rejects.toThrow('大小校验失败')
   })
 
   it('没有所有权上下文时不接受 inline bytes', async () => {
-    const block = await createBlock()
+    const block = createBlock()
     await expect(loadVisualizationArtifact({ ...block, data: encodeBase64(html) })).rejects.toThrow('所有权上下文缺失')
     expect(rpcCall).not.toHaveBeenCalled()
   })

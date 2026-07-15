@@ -29,6 +29,8 @@
 - CSP 使用 `connect-src 'none'`、`img-src data:`、`font-src 'none'`；
 - UTF-8 HTML 上限为 2 MiB，artifact 由后端计算 sha256 并生成新的 file id。
 
+工具结果使用 JSON envelope：成功为 `{ "success": true, "status": "published", "message": "...", "artifact": { "title", "summary", "format", "size", "sha256" } }`；失败为 `{ "success": false, "status": "failed", "message": "..." }`。
+
 ## 交互边界
 
 fragment 可以使用原生 HTML/CSS/JS 和内联数据。只有真实用户 click/submit 后的短时 gesture token 才能调用 `window.antChatVisualization.sendFollowUpMessage`。该调用只传 `prompt` 和可选 `title`，宿主确认后创建下一轮 user message。

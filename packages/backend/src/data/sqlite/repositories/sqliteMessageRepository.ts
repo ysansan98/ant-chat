@@ -6,6 +6,7 @@ import { Buffer } from 'node:buffer'
 import { createHash } from 'node:crypto'
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
+import { validateVisualizationHtmlFragment, VISUALIZATION_LIMITS } from '@ant-chat/shared'
 import { nanoid } from 'nanoid'
 import { getAttachmentFileCandidates, getAttachmentFilePath } from '../attachmentFiles'
 import { decodeAttachmentData } from '../migrations/migrateAttachments'
@@ -341,7 +342,12 @@ export class SqliteMessageRepository implements MessageRepository {
     if (!data) {
       return null
     }
-    const digest = createHash('sha256').update(Buffer.from(data, 'base64')).digest('hex')
+    const bytes = Buffer.from(data, 'base64')
+    if (bytes.byteLength !== block.size || bytes.byteLength > VISUALIZATION_LIMITS.maxBytes)
+      return null
+    if (validateVisualizationHtmlFragment(bytes.toString('utf8')))
+      return null
+    const digest = createHash('sha256').update(bytes).digest('hex')
     return digest === block.sha256 ? data : null
   }
 

@@ -28,7 +28,7 @@ export function createPublishVisualizationTool(): AgentTool {
     execute: async (input): Promise<AgentToolResult> => {
       const parsed = parseVisualizationInput(input)
       if (parsed.error)
-        return { ok: false, result: parsed.error }
+        return { ok: false, result: createVisualizationToolFailureResult(parsed.error) }
       const valid = parsed as ParsedVisualizationInput
 
       const fileId = `viz-${randomUUID()}`
@@ -46,7 +46,12 @@ export function createPublishVisualizationTool(): AgentTool {
       const descriptor = createVisualizationDescriptor(valid.title, valid.summary, valid.bytes, valid.sha256)
       return {
         ok: true,
-        result: JSON.stringify(descriptor),
+        result: JSON.stringify({
+          success: true,
+          status: 'published',
+          message: '可视化已成功发布，用户可以查看该产物。',
+          artifact: descriptor,
+        }),
         diagnostics: { data: { outputBlocks: [block] } satisfies VisualizationOutputBlocks },
       }
     },
@@ -96,6 +101,22 @@ function parseVisualizationInput(input: Record<string, unknown>): ParsedVisualiz
 
 function invalidInput(error: string): InvalidVisualizationInput {
   return { title: undefined, summary: undefined, html: undefined, bytes: undefined, sha256: undefined, error }
+}
+
+export function createVisualizationToolFailureResult(message: string): string {
+  try {
+    const parsed = JSON.parse(message) as { success?: unknown, status?: unknown, message?: unknown }
+    if (parsed.success === false && parsed.status === 'failed' && typeof parsed.message === 'string')
+      return message
+  }
+  catch {
+    // 普通错误文本继续包装为结构化失败结果。
+  }
+  return JSON.stringify({
+    success: false,
+    status: 'failed',
+    message,
+  })
 }
 
 export function createVisualizationDescriptor(

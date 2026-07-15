@@ -98,13 +98,6 @@ function decodeArtifactData(data: string): Uint8Array {
   }
 }
 
-export async function sha256Hex(value: Uint8Array): Promise<string> {
-  if (!globalThis.crypto?.subtle)
-    throw new Error('当前环境不支持 artifact hash 校验')
-  const digest = await globalThis.crypto.subtle.digest('SHA-256', value as BufferSource)
-  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')
-}
-
 export async function loadVisualizationArtifact(
   block: VisualizationBlockLike,
   ownership?: { conversationId: string, messageId: string },
@@ -121,11 +114,6 @@ export async function loadVisualizationArtifact(
   const bytes = decodeArtifactData(encodedData)
   if (bytes.byteLength > VISUALIZATION_LIMITS.maxBytes)
     throw new Error('可视化 artifact 超出大小限制')
-  if (bytes.byteLength !== block.size)
-    throw new Error('可视化 artifact 大小校验失败')
-  const actualHash = await sha256Hex(bytes)
-  if (actualHash !== block.sha256)
-    throw new Error('可视化 artifact 校验失败')
   const html = new TextDecoder().decode(bytes)
   const policyError = validateVisualizationHtmlFragment(html)
   if (policyError)

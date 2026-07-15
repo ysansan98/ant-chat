@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { createPublishVisualizationTool } from '../publishVisualizationTool'
 import { createInvalidToolArgsResult, executeToolStep } from '../toolExecution'
 import { ToolRegistry } from '../toolRegistry'
 import type { AgentTaskSnapshot, AgentTool, IAgentEventEmitter, ILogger, McpToolCall } from '@ant-chat/shared'
@@ -242,6 +243,42 @@ describe('executeToolStep 行为', () => {
 
     expect(result.isError).toBe(true)
     expect(result.toolResultContent).toBe('permission denied')
+  })
+
+  it('publish_visualization 执行失败时返回结构化失败 envelope', async () => {
+    const tool = createReadTool({
+      name: 'publish_visualization',
+      execute: async () => ({ ok: false, result: 'artifact 写入失败' }),
+    })
+    const result = await executeToolStep({
+      task: createTask(),
+      registry: new ToolRegistry([tool]),
+      requestedToolCall: { toolName: 'publish_visualization', input: {} },
+      currentModelText: '',
+      currentToolMessages: [],
+      step: 1,
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
+    })
+
+    expect(result.isError).toBe(true)
+    expect(JSON.parse(result.toolResultContent)).toEqual({ success: false, status: 'failed', message: 'artifact 写入失败' })
+  })
+
+  it('publish_visualization 校验失败时返回结构化失败 envelope', async () => {
+    const result = await executeToolStep({
+      task: createTask(),
+      registry: new ToolRegistry([createPublishVisualizationTool()]),
+      requestedToolCall: { toolName: 'publish_visualization', input: { title: 'bad', summary: '', html: '<iframe></iframe>' } },
+      currentModelText: '',
+      currentToolMessages: [],
+      step: 1,
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
+    })
+
+    expect(result.isError).toBe(true)
+    expect(JSON.parse(result.toolResultContent)).toEqual(expect.objectContaining({ success: false, status: 'failed', message: expect.stringContaining('iframe') }))
   })
 
   it('工具执行抛异常时返回工具失败并保留异常细节', async () => {
@@ -521,6 +558,22 @@ describe('executeToolStep 行为', () => {
 })
 
 describe('createInvalidToolArgsResult 行为', () => {
+  it('publish_visualization 参数错误时返回结构化失败 envelope', async () => {
+    const result = await createInvalidToolArgsResult({
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+      conversationId: 'conv-1',
+      requestedToolCall: {
+        toolName: 'publish_visualization',
+        input: {},
+        invalidArgsError: 'html is required',
+      },
+      currentModelText: '',
+      currentToolMessages: [],
+    })
+
+    expect(JSON.parse(result.toolResultContent)).toEqual(expect.objectContaining({ success: false, status: 'failed', message: expect.stringContaining('html is required') }))
+  })
+
   it('为无效工具参数创建错误结果', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()

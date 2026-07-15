@@ -1,7 +1,7 @@
 import type { Database } from 'better-sqlite3'
 import { Buffer } from 'node:buffer'
 import { createHash } from 'node:crypto'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -674,6 +674,9 @@ describe('sqlite repositories', () => {
 
     await expect(messageRepository.loadVisualizationData({ conversationId: conversation.id, messageId: message.id, fileId: 'viz-auth-1' })).resolves.toBe(bytes.toString('base64'))
     await expect(messageRepository.loadVisualizationData({ conversationId: 'other-conversation', messageId: message.id, fileId: 'viz-auth-1' })).resolves.toBeNull()
+
+    writeFileSync(getAttachmentFilePath(attachmentsRoot, 'viz-auth-1'), Buffer.from('<section><h2>错误</h2></section>', 'utf8'))
+    await expect(messageRepository.loadVisualizationData({ conversationId: conversation.id, messageId: message.id, fileId: 'viz-auth-1' })).resolves.toBeNull()
 
     await messageRepository.update({ id: message.id, content: [{ type: 'text', text: 'removed' }] })
     await expect(messageRepository.loadAttachmentData('viz-auth-1')).resolves.toBeNull()

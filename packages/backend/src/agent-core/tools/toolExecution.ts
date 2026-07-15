@@ -5,7 +5,7 @@ import type { ToolAuthorization, ToolCallContext } from './types'
 import { randomUUID } from 'node:crypto'
 import { AGENT_TOOL_EXEC_FAILED, VisualizationOutputBlocksSchema } from '@ant-chat/shared'
 import { createAgentTraceLogger } from '../agentTraceLogger'
-import { getVisualizationToolInputDescriptor } from './publishVisualizationTool'
+import { createVisualizationToolFailureResult, getVisualizationToolInputDescriptor } from './publishVisualizationTool'
 
 export interface RequestedToolCall {
   id?: string
@@ -144,7 +144,7 @@ async function prepareToolStep(input: PrepareToolStepInput): Promise<ToolPrepara
     return {
       kind: 'error',
       error: prepared.validationError,
-      toolResultText: prepared.validationError,
+      toolResultText: formatToolFailureResult(prepared.toolName, prepared.validationError),
       lastToolCallContext,
     }
   }
@@ -168,7 +168,7 @@ async function prepareToolStep(input: PrepareToolStepInput): Promise<ToolPrepara
     return {
       kind: 'error',
       error: beforeResult.errorCode,
-      toolResultText: beforeResult.reason,
+      toolResultText: formatToolFailureResult(prepared.toolName, beforeResult.reason),
       lastToolCallContext,
     }
   }
@@ -189,10 +189,16 @@ async function executePreparedTool(prepared: PreparedToolCall, task: RuntimeTask
   }
   catch (error) {
     const message = error instanceof Error ? error.message : String(error || '工具执行失败。')
-    return { result: { ok: false, result: message, diagnostics: { stderr: message } }, failureReason: AGENT_TOOL_EXEC_FAILED }
+    return {
+      result: { ok: false, result: formatToolFailureResult(prepared.toolName, message), diagnostics: { stderr: message } },
+      failureReason: AGENT_TOOL_EXEC_FAILED,
+    }
   }
   if (!result.ok) {
-    return { result, failureReason: result.result || AGENT_TOOL_EXEC_FAILED }
+    return {
+      result: { ...result, result: formatToolFailureResult(prepared.toolName, result.result) },
+      failureReason: result.result || AGENT_TOOL_EXEC_FAILED,
+    }
   }
   return { result }
 }
@@ -438,7 +444,11 @@ export async function createInvalidToolArgsResult(options: {
       policy: 'error',
     },
     toolCallId,
-    toolResultContent: error,
+    toolResultContent: formatToolFailureResult(requestedToolCall.toolName, error),
     isError: true,
   }
+}
+
+function formatToolFailureResult(toolName: string, message: string): string {
+  return toolName === 'publish_visualization' ? createVisualizationToolFailureResult(message) : message
 }

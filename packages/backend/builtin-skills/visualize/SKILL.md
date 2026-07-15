@@ -20,6 +20,8 @@ version: 2.0.0
 }
 ```
 
+工具成功时会返回包含 `success: true`、`status: "published"` 和 `artifact` descriptor 的 JSON；失败时返回 `success: false`、`status: "failed"` 和 `message`。根据该结果向用户说明发布状态，不要把 artifact 原文复述出来。
+
 `html` 必须是 HTML fragment，不能包含 `doctype`、`html`、`head`、`body`、iframe、宿主 API、inline `on*` 事件属性或网络请求。不要传文件路径、file id、hash 或完整 HTML document。
 
 fragment 只在 `iframe sandbox="allow-scripts"` 中运行。应用提供 `.viz-grid`、`.card`、`.form-control`、`.form-select`、`.form-check`、`.form-switch`、`.form-range`、`.btn`、`.text-muted` 等基础样式；颜色使用 `--viz-*` 主题变量。

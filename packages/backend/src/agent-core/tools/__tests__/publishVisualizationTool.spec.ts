@@ -11,15 +11,22 @@ describe('publish_visualization 工具', () => {
     const output = JSON.parse(result.result) as Record<string, unknown>
     const block = (result.diagnostics?.data as { outputBlocks: Array<Record<string, unknown>> }).outputBlocks[0]
 
-    expect(output).toEqual(expect.objectContaining({ title: '趋势', summary: '展示趋势', format: VISUALIZATION_FORMAT, size: new TextEncoder().encode(validHtml).byteLength }))
-    expect(output).not.toHaveProperty('html')
+    expect(output).toEqual(expect.objectContaining({
+      success: true,
+      status: 'published',
+      message: '可视化已成功发布，用户可以查看该产物。',
+      artifact: expect.objectContaining({ title: '趋势', summary: '展示趋势', format: VISUALIZATION_FORMAT, size: new TextEncoder().encode(validHtml).byteLength }),
+    }))
+    expect((output.artifact as Record<string, unknown>)).not.toHaveProperty('html')
     expect(block).toEqual(expect.objectContaining({ type: 'visualization', format: VISUALIZATION_FORMAT, data: expect.any(String) }))
     expect(result.result).not.toContain(validHtml)
   })
 
   it('拒绝路径、file id、hash 和其他未知输入字段', async () => {
     const tool = createPublishVisualizationTool()
-    await expect(tool.execute({ title: '趋势', summary: '', html: validHtml, fileId: 'model-file' })).resolves.toMatchObject({ ok: false })
+    const result = await tool.execute({ title: '趋势', summary: '', html: validHtml, fileId: 'model-file' })
+    expect(result.ok).toBe(false)
+    expect(JSON.parse(result.result)).toEqual(expect.objectContaining({ success: false, status: 'failed', message: expect.stringContaining('未知字段') }))
   })
 
   it.each([
