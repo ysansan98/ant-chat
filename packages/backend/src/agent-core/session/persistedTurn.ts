@@ -10,7 +10,7 @@ interface TurnMeta {
   latestUsage: Record<string, number> | undefined
   lastUpdateAt: number
   persistedToolCallIds: Set<string>
-  visualizationBlocks: VisualizationBlock[]
+  visualizationBlock?: VisualizationBlock
 }
 
 export function createPersistedTurnEmitter(store: ISessionStore, delegate: IAgentEventEmitter, turnId: string, conversationId: string, takePendingSteeringMessages: () => Array<{ id: string, text: string, turnId: string }>): IAgentEventEmitter {
@@ -24,7 +24,7 @@ export function createPersistedTurnEmitter(store: ISessionStore, delegate: IAgen
       latestUsage: undefined,
       lastUpdateAt: 0,
       persistedToolCallIds: new Set(),
-      visualizationBlocks: [],
+      visualizationBlock: undefined,
     }
   }
 
@@ -32,7 +32,7 @@ export function createPersistedTurnEmitter(store: ISessionStore, delegate: IAgen
     const message = await store.updateAssistantMessage(meta.msgId, {
       role: 'assistant',
       status: 'loading',
-      content: createAssistantContent(meta.modelText.trim() || '...', meta.visualizationBlocks),
+      content: createAssistantContent(meta.modelText.trim() || '...'),
       reasoningContent: meta.reasoningText,
       usage: meta.latestUsage,
     })
@@ -63,6 +63,7 @@ export function createPersistedTurnEmitter(store: ISessionStore, delegate: IAgen
       await delegate.emitApprovalRequired(taskId, conversationId, pendingAction)
     },
     async emitTurnStarted(params) {
+      const previousVisualizationBlock = turns.get(params.conversationId)?.visualizationBlock
       const msg = await store.createAssistantMessage({
         conversationId: params.conversationId,
         modelInfo: {
@@ -73,7 +74,10 @@ export function createPersistedTurnEmitter(store: ISessionStore, delegate: IAgen
         turnId,
       })
       await delegate.emitMessageUpdated?.(msg)
-      turns.set(params.conversationId, newTurnMeta(msg.id))
+      turns.set(params.conversationId, {
+        ...newTurnMeta(msg.id),
+        visualizationBlock: previousVisualizationBlock,
+      })
       await delegate.emitTurnStarted(params)
     },
     async emitTurnChunk(params) {
@@ -113,13 +117,13 @@ export function createPersistedTurnEmitter(store: ISessionStore, delegate: IAgen
           meta.persistedToolCallIds.add(tc.toolCallId)
         }
         contentBlocks.push(stripVisualizationTransport(tc))
-        appendVisualizationBlocks(meta.visualizationBlocks, extractVisualizationBlocks(tc))
+        replaceVisualizationBlock(meta, extractVisualizationBlocks(tc))
       }
 
       const message = await store.updateAssistantMessage(meta.msgId, {
         role: 'assistant',
         status: 'success',
-        content: createAssistantContent(params.text, meta.visualizationBlocks, contentBlocks),
+        content: createAssistantContent(params.text, undefined, contentBlocks),
       })
       replacePersistedVisualizationBlocks(meta, message)
       await delegate.emitMessageUpdated?.(message)
@@ -148,8 +152,8 @@ export function createPersistedTurnEmitter(store: ISessionStore, delegate: IAgen
         if (meta) {
           await flushTurn(meta)
           const content: MessageContent = params.status === 'error'
-            ? withErrorContent(meta.modelText, params.text, meta.visualizationBlocks)
-            : createAssistantContent(params.text, meta.visualizationBlocks)
+            ? withErrorContent(meta.modelText, params.text, meta.visualizationBlock)
+            : createAssistantContent(params.text, meta.visualizationBlock)
           const message = await store.updateAssistantMessage(meta.msgId, {
             role: 'assistant',
             status: params.status,
@@ -179,24 +183,26 @@ function stripVisualizationTransport(toolCall: ToolCallContent): ToolCallContent
   return safeToolCall
 }
 
-function withErrorContent(modelText: string, errorText: string, visualizationBlocks: VisualizationBlock[] = []): MessageContent {
+function withErrorContent(modelText: string, errorText: string, visualizationBlock?: VisualizationBlock): MessageContent {
   const content: MessageContent = modelText.trim()
     ? [{ type: 'text', text: modelText }]
     : []
-  content.push(...visualizationBlocks)
+  if (visualizationBlock)
+    content.push(visualizationBlock)
   content.push({ type: 'error', error: errorText })
   return content
 }
 
 function createAssistantContent(
   text: string,
-  visualizationBlocks: VisualizationBlock[],
+  visualizationBlock?: VisualizationBlock,
   toolCalls: ToolCallContent[] = [],
 ): MessageContent {
   const content: MessageContent = text.trim()
     ? [{ type: 'text', text }]
     : []
-  content.push(...visualizationBlocks)
+  if (visualizationBlock)
+    content.push(visualizationBlock)
   content.push(...toolCalls)
   return content
 }
@@ -210,14 +216,10 @@ function extractVisualizationBlocks(value: unknown): VisualizationBlock[] {
   return parsed.success ? parsed.data.outputBlocks : []
 }
 
-function appendVisualizationBlocks(target: VisualizationBlock[], next: VisualizationBlock[]): void {
-  const existing = new Set(target.map(block => block.source.file_id))
-  for (const block of next) {
-    if (!existing.has(block.source.file_id)) {
-      target.push(block)
-      existing.add(block.source.file_id)
-    }
-  }
+function replaceVisualizationBlock(meta: TurnMeta, blocks: VisualizationBlock[]): void {
+  const latest = blocks[blocks.length - 1]
+  if (latest)
+    meta.visualizationBlock = latest
 }
 
 function replacePersistedVisualizationBlocks(meta: TurnMeta, message: unknown): void {
@@ -228,5 +230,6 @@ function replacePersistedVisualizationBlocks(meta: TurnMeta, message: unknown): 
     const parsed = VisualizationBlockSchema.safeParse(block)
     return parsed.success ? [parsed.data] : []
   })
-  meta.visualizationBlocks = blocks
+  if (blocks.length > 0)
+    meta.visualizationBlock = blocks[blocks.length - 1]
 }

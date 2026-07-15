@@ -26,7 +26,8 @@ describe('persistedTurn 行为', () => {
       createAssistantMessage: vi.fn(async () => ({ id: 'assistant-1' })),
       updateAssistantMessage: vi.fn(async () => ({ id: 'assistant-1' })),
     } as unknown as ISessionStore
-    const emitter = createPersistedTurnEmitter(store, createDelegate(), 'turn-1', 'conv-1', () => [])
+    const delegate = createDelegate()
+    const emitter = createPersistedTurnEmitter(store, delegate, 'turn-1', 'conv-1', () => [])
 
     await emitter.emitTurnStarted({
       conversationId: 'conv-1',
@@ -94,7 +95,8 @@ describe('persistedTurn 行为', () => {
       createAssistantMessage: vi.fn(async () => ({ id: 'assistant-1' })),
       updateAssistantMessage: vi.fn().mockRejectedValue(new Error('store unavailable')),
     } as unknown as ISessionStore
-    const emitter = createPersistedTurnEmitter(store, createDelegate(), 'turn-1', 'conv-1', () => [])
+    const delegate = createDelegate()
+    const emitter = createPersistedTurnEmitter(store, delegate, 'turn-1', 'conv-1', () => [])
 
     await emitter.emitTurnStarted({
       conversationId: 'conv-1',
@@ -115,10 +117,88 @@ describe('persistedTurn 行为', () => {
     })).resolves.toBeUndefined()
   })
 
-  it('工具发布的 visualization 在最终成功和失败状态都保留，且持久化结果不含 data', async () => {
+  it('同一 turn 多次发布可视化时，最终回答只保留最新产物', async () => {
+    const firstVisualization = {
+      type: 'visualization' as const,
+      source: { type: 'file_id' as const, file_id: 'viz-first' },
+      format: 'ant-chat.visualization.html.v1' as const,
+      title: '初稿趋势',
+      summary: '初稿摘要',
+      size: 3,
+      sha256: 'a'.repeat(64),
+      data: 'eHl6',
+    }
+    const latestVisualization = {
+      ...firstVisualization,
+      source: { type: 'file_id' as const, file_id: 'viz-latest' },
+      title: '修订趋势',
+      summary: '修订摘要',
+      sha256: 'b'.repeat(64),
+    }
+    const store = {
+      createAssistantMessage: vi.fn(async () => ({ id: 'assistant-1' })),
+      updateAssistantMessage: vi.fn(async (_id: string, patch: { content: Array<Record<string, unknown>> }) => ({
+        id: 'assistant-1',
+        content: patch.content.map((block) => {
+          if (block.type !== 'visualization')
+            return block
+          const { data: _data, ...persisted } = block
+          return persisted
+        }),
+      })),
+    } as unknown as ISessionStore
+    const delegate = createDelegate()
+    const emitter = createPersistedTurnEmitter(store, delegate, 'turn-1', 'conv-1', () => [])
+
+    await emitter.emitTurnStarted({
+      conversationId: 'conv-1',
+      model: { provider: 'provider', providerId: 'provider-1', name: 'model' },
+    })
+    await emitter.emitTurnToolCalls!({
+      conversationId: 'conv-1',
+      text: '已生成',
+      toolCalls: [{
+        type: 'tool-call',
+        toolCallId: 'call-1',
+        toolName: 'publish_visualization',
+        args: { title: '初稿趋势', summary: '初稿摘要', format: 'ant-chat.visualization.html.v1', size: 3, sha256: 'a'.repeat(64) },
+        outputBlocks: [firstVisualization],
+      } as never],
+    })
+    await emitter.emitTurnToolCalls!({
+      conversationId: 'conv-1',
+      text: '已修订',
+      toolCalls: [{
+        type: 'tool-call',
+        toolCallId: 'call-1',
+        toolName: 'publish_visualization',
+        args: { title: '初稿趋势', summary: '初稿摘要', format: 'ant-chat.visualization.html.v1', size: 3, sha256: 'a'.repeat(64) },
+        outputBlocks: [firstVisualization],
+      }, {
+        type: 'tool-call',
+        toolCallId: 'call-2',
+        toolName: 'publish_visualization',
+        args: { title: '修订趋势', summary: '修订摘要', format: 'ant-chat.visualization.html.v1', size: 3, sha256: 'b'.repeat(64) },
+        outputBlocks: [latestVisualization],
+      } as never],
+    })
+    await emitter.emitTurnFinished!({ conversationId: 'conv-1', turnId: 'turn-1', text: '完成', status: 'success' })
+
+    const updateCalls = (store.updateAssistantMessage as ReturnType<typeof vi.fn>).mock.calls
+    const finalPatch = updateCalls[updateCalls.length - 1]?.[1]
+    expect(finalPatch.content).toEqual([
+      { type: 'text', text: '完成' },
+      expect.objectContaining({ type: 'visualization', source: latestVisualization.source }),
+    ])
+    const messageUpdates = (delegate.emitMessageUpdated as ReturnType<typeof vi.fn>).mock.calls
+    const persistedFinalMessage = messageUpdates[messageUpdates.length - 1]?.[0]
+    expect(persistedFinalMessage.content.find((block: { type: string }) => block.type === 'visualization')).not.toHaveProperty('data')
+  })
+
+  it('turn 失败时仍保留最近一次成功发布的可视化', async () => {
     const visualization = {
       type: 'visualization' as const,
-      source: { type: 'file_id' as const, file_id: 'viz-1' },
+      source: { type: 'file_id' as const, file_id: 'viz-latest' },
       format: 'ant-chat.visualization.html.v1' as const,
       title: '趋势',
       summary: '摘要',
@@ -151,19 +231,76 @@ describe('persistedTurn 行为', () => {
         type: 'tool-call',
         toolCallId: 'call-1',
         toolName: 'publish_visualization',
-        args: { title: '趋势', summary: '展示趋势', format: 'ant-chat.visualization.html.v1', size: 3, sha256: 'a'.repeat(64) },
+        args: { title: '趋势', summary: '摘要', format: 'ant-chat.visualization.html.v1', size: 3, sha256: 'a'.repeat(64) },
         outputBlocks: [visualization],
       } as never],
     })
-    await emitter.emitTurnFinished!({ conversationId: 'conv-1', turnId: 'turn-1', text: '失败', status: 'error' })
+    await emitter.emitTurnFinished!({ conversationId: 'conv-1', turnId: 'turn-1', text: '请求失败', status: 'error' })
 
     const updateCalls = (store.updateAssistantMessage as ReturnType<typeof vi.fn>).mock.calls
-    const finalPatch = updateCalls[updateCalls.length - 1]?.[1]
-    expect(finalPatch.content).toEqual([
+    expect(updateCalls[updateCalls.length - 1]?.[1].content).toEqual([
       { type: 'text', text: '已生成' },
       expect.objectContaining({ type: 'visualization', source: visualization.source }),
-      { type: 'error', error: '失败' },
+      { type: 'error', error: '请求失败' },
     ])
-    expect(finalPatch.content.find((block: { type: string }) => block.type === 'visualization')).not.toHaveProperty('data')
+  })
+
+  it('跨模型步骤发布的可视化只出现在最终 assistant message', async () => {
+    const visualization = {
+      type: 'visualization' as const,
+      source: { type: 'file_id' as const, file_id: 'viz-step' },
+      format: 'ant-chat.visualization.html.v1' as const,
+      title: '轨道模拟',
+      summary: '模拟轨道变化',
+      size: 3,
+      sha256: 'a'.repeat(64),
+      data: 'eHl6',
+    }
+    const store = {
+      createAssistantMessage: vi.fn()
+        .mockResolvedValueOnce({ id: 'assistant-tool' })
+        .mockResolvedValueOnce({ id: 'assistant-final' }),
+      updateAssistantMessage: vi.fn(async (_id: string, patch: { content: Array<Record<string, unknown>> }) => ({
+        id: _id,
+        content: patch.content.map((block) => {
+          if (block.type !== 'visualization')
+            return block
+          const { data: _data, ...persisted } = block
+          return persisted
+        }),
+      })),
+    } as unknown as ISessionStore
+    const emitter = createPersistedTurnEmitter(store, createDelegate(), 'turn-1', 'conv-1', () => [])
+
+    await emitter.emitTurnStarted({
+      conversationId: 'conv-1',
+      model: { provider: 'provider', providerId: 'provider-1', name: 'model' },
+    })
+    await emitter.emitTurnToolCalls!({
+      conversationId: 'conv-1',
+      text: '正在生成',
+      toolCalls: [{
+        type: 'tool-call',
+        toolCallId: 'call-1',
+        toolName: 'publish_visualization',
+        args: { title: '轨道模拟', summary: '模拟轨道变化' },
+        outputBlocks: [visualization],
+      } as never],
+    })
+    await emitter.emitTurnStarted({
+      conversationId: 'conv-1',
+      model: { provider: 'provider', providerId: 'provider-1', name: 'model' },
+    })
+    await emitter.emitTurnFinished!({ conversationId: 'conv-1', turnId: 'turn-1', text: '已完成', status: 'success' })
+
+    const updates = (store.updateAssistantMessage as ReturnType<typeof vi.fn>).mock.calls
+    const toolStepContents = updates.filter(([id]) => id === 'assistant-tool').map(([, patch]) => patch.content)
+    const finalUpdates = updates.filter(([id]) => id === 'assistant-final')
+    const finalContent = finalUpdates[finalUpdates.length - 1]?.[1].content
+    expect(toolStepContents.flat().some((block: { type: string }) => block.type === 'visualization')).toBe(false)
+    expect(finalContent).toEqual([
+      { type: 'text', text: '已完成' },
+      expect.objectContaining({ type: 'visualization', source: visualization.source }),
+    ])
   })
 })

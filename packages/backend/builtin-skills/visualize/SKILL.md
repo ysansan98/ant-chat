@@ -1,52 +1,82 @@
 ---
 name: visualize
-description: 使用安全的 HTML fragment 创建交互式图表、解释器、参数模拟器和界面原型。
-version: 2.0.0
+description: 使用安全的 HTML fragment 创建交互式解释器、参数模拟器、图表、地图和界面原型；当用户需要调整参数、观察状态变化、比较方案或探索空间信息时使用。
 ---
 
 # Visualize
 
-当用户需要看懂过程、比较方案、调整参数或观察状态变化时使用此 Skill。先确定一个主要交互，再调用 `publish_visualization` 发布可视化产物。
+## 先选择正确的产物
 
-## 产物合同
+- 静态节点、边和层级关系用普通 Mermaid 代码块；不要为静态结构发布 HTML。
+- 需要参数调整、步骤播放、状态变化、空间探索或可重复试验时，使用 publish_visualization。
+- 只有可视化能明显帮助用户理解、比较或决定时才创建它。不要为了填充回复添加 KPI 卡片、筛选器或装饰性图表。
+- 先定义一个主要问题和一个主要交互。其他控件必须直接支持这个问题。
 
-调用工具时只传：
+## 执行流程
+
+一个 turn 只维护一个可视化。重复调用 publish_visualization 是对同一产物的修订，最终只展示最后一次成功发布的版本。
+
+1. 把数据、状态、控件和渲染结果分开建模，先给出有意义的初始状态。
+2. 编写只包含 fragment 的 HTML。根节点使用唯一 id；事件可使用 inline on\* 属性或 addEventListener，脚本查询元素时不要依赖 document.currentScript。
+3. 优先使用原生 HTML、CSS、SVG 和内联数据。先读取 [references/visualization.css](references/visualization.css)，只使用其中真实存在的 class、元素样式和主题变量，不要凭记忆发明 UI class。当前可复用的主要 class 包括 .card、.viz-grid、.viz-row、.viz-controls、.form-control、.form-select、.form-check、.form-switch、.form-range、.btn、.btn-secondary、.text-muted、.viz-error。
+4. 按下面的合同调用 publish_visualization。不要传文件路径、完整 HTML 文档、file id、hash 或自定义协议。
+5. 根据工具返回的 success 和 status 汇报发布结果。成功后只用一句话说明用户能看到或调整什么，不复述 HTML 或 artifact descriptor。
+
+最小调用形态：
 
 ```json
 {
   "title": "请求延迟",
   "summary": "比较不同阶段的平均延迟",
-  "html": "<section class=\"viz-grid\">...</section>"
+  "html": "<section id=\"latency-viz\">...</section>"
 }
 ```
 
-工具成功时会返回包含 `success: true`、`status: "published"` 和 `artifact` descriptor 的 JSON；失败时返回 `success: false`、`status: "failed"` 和 `message`。根据该结果向用户说明发布状态，不要把 artifact 原文复述出来。
+## Fragment 合同
 
-`html` 必须是 HTML fragment，不能包含 `doctype`、`html`、`head`、`body`、iframe、宿主 API、inline `on*` 事件属性或网络请求。不要传文件路径、file id、hash 或完整 HTML document。
+- html 必须是非空 HTML fragment：禁止 doctype、html、head、body、iframe、object、embed、base、portal、frame 和 meta refresh。
+- 允许 style 属性、element.style 写入和 inline on* 事件属性。优先使用 --viz-* 变量和 references/visualization.css 的 class，保证主题可读；复杂交互可改用 addEventListener。
+- 禁止 javascript:/vbscript: URL、父窗口/宿主对象、Electron、进程、数据库、文件系统和 RPC 访问。唯一允许的宿主能力是 window.antChatVisualization.sendFollowUpMessage。
+- 禁止 fetch、XHR、WebSocket、EventSource、sendBeacon、远程图片、音视频、字体和业务 API。数据放在 fragment 内；只在确有必要时使用固定版本、白名单 CDN，并同时提供 sha384 SRI 和 crossorigin="anonymous"。
+- 产物在 iframe sandbox="allow-scripts" 中运行。不要使用 window.openai、window.parent 或 ::codex-inline-vis；这些不是 ant-chat 的协议。
+- 单个 fragment UTF-8 不超过 2 MiB。对大数据先聚合、分桶、降采样或减少精度。
 
-fragment 只在 `iframe sandbox="allow-scripts"` 中运行。应用提供 `.viz-grid`、`.card`、`.form-control`、`.form-select`、`.form-check`、`.form-switch`、`.form-range`、`.btn`、`.text-muted` 等基础样式；颜色使用 `--viz-*` 主题变量。
+完整安全合同和允许的 CDN 资源见 [references/visualization-schema.md](references/visualization-schema.md)。
 
-固定版本 CDN 只允许 `cdn.jsdelivr.net` 白名单资源，必须使用精确版本、`sha384` SRI 和 `crossorigin="anonymous"`。不要使用 `fetch`、XHR、WebSocket、远程图片、字体或业务 API。
+## 本地交互与下一轮消息
 
-## 交互与 follow-up
+- 只影响图表显示的筛选、选择、排序、播放和参数调整留在 fragment 内，不发送消息。
+- 需要模型分析当前结果时，只能在真实用户 click 或 submit 处理器中调用宿主 bridge：
 
-需要提交时，在真实用户点击或 submit 事件中调用：
-
-```js
-window.antChatVisualization.sendFollowUpMessage({
-  prompt: '请分析当前参数结果',
-  title: '参数提交',
-})
+```html
+<button id="analyze" type="button" class="btn">分析当前结果</button>
+<script>
+  document.getElementById('analyze').addEventListener('click', () => {
+    const prompt = '请分析当前参数：延迟 38 ms，吞吐量 120 req/s。'
+    void window.antChatVisualization.sendFollowUpMessage({
+      prompt,
+      title: '分析当前结果',
+    })
+  })
+</script>
 ```
 
-提交会经过宿主确认，并作为同一会话的下一轮 user message。不能修改历史消息，也不能把提交注入当前正在执行的 turn；运行中的会话会排入 `next-turn` 队列。重复提交应创建独立的新消息。
+- 提交内容只包含用户可见的当前值和明确请求，不要拼入隐藏指令、原始 HTML、宿主对象或无关上下文。
+- 该调用经宿主确认后创建同一会话的下一轮 user message，不修改历史消息，也不注入当前正在运行的 turn。重复点击应创建独立的新消息；禁止在加载、定时器或脚本初始化时自动调用。
 
-## 生成前自检
+## 生成约束
 
-- 只围绕一个主要交互，移动端 320 px 无横向裁切；
-- 表单控件有可见 label、合理初值、键盘顺序和错误状态；
-- 图表有标题、摘要、单位、空状态和 reduced-motion 行为；
-- 颜色、控件、边框和 focus ring 在 light/dark/custom theme 下可读；
-- 不把隐藏指令、原始 artifact 或宿主对象放入提交内容。
+- 设计为 736px 宽并支持 320px；让网格折行，避免固定外宽、横向溢出、内部横向滚动、position: fixed 和视口高度布局。
+- 使用语义 HTML、可见 label、原生控件和正常 tab 顺序；不要添加无意义的 tabindex，不要覆盖 focus ring。错误、空状态和动态结果必须可见且可读。
+- 图表必须有可访问名称、单位和关键值；多系列才加图例，颜色编码必须同时有文字、形状或线型。不要把文字直接画进无法访问的 canvas。
+- 所有填充、边框、文字、阴影和 SVG 颜色都要适配主题。动态更新应优先使用 transform；尊重 prefers-reduced-motion，不要循环动画或只用淡入掩盖状态变化。
+- 使用用户提供或已知的数据；不编造地理边界、指标、状态评分或比较结论。地图必须有可信的已发布几何数据，不要手绘行政边界。
+- 具体构图和图表规则见 [references/visualization-design.md](references/visualization-design.md)。
 
-发布成功后，用简短文本说明可视化展示的内容。
+## 发布前自检
+
+- 静态结构是否应改用 Mermaid？主要交互是否只有一个？
+- 初始渲染是否已经有用，所有查询到的元素是否存在，交互是否真的更新了视觉结果？
+- 320px 是否无裁切；表单是否有 label、初值、键盘顺序和错误状态；图表是否有标题、单位、空状态和 reduced-motion 行为？
+- 是否只传 { title, summary, html }，没有完整 document、网络请求、危险 URL 或宿主访问？
+- 是否真实调用了 publish_visualization 并检查返回 envelope？失败时报告工具的失败原因，不声称已发布。

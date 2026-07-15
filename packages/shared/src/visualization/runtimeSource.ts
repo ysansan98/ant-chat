@@ -5,20 +5,34 @@ export const visualizationRuntimeSource = String.raw`
   var artifactId = '';
   var gestureExpiresAt = 0;
   var gestureWindowMs = 1500;
+  var themeStyle = null;
 
   function clampHeight(value) {
     return Math.min(1200, Math.max(96, Math.round(Number.isFinite(value) ? value : 240)));
+  }
+
+  function getThemeStyle() {
+    if (themeStyle && themeStyle.isConnected) return themeStyle;
+    themeStyle = document.getElementById('ant-chat-viz-theme');
+    return themeStyle;
+  }
+
+  function sanitizeCssValue(value) {
+    return String(value).replace(/[{};]/g, '');
   }
 
   function setTheme(theme) {
     if (!theme || !theme.tokens) return;
     var root = document.documentElement;
     root.dataset.theme = theme.mode;
-    Object.keys(theme.tokens).forEach(function (key) {
+    var themeElement = getThemeStyle();
+    if (!themeElement) return;
+    var declarations = Object.keys(theme.tokens).map(function (key) {
       var cssName = '--viz-' + key.replace(/[A-Z]/g, function (letter) { return '-' + letter.toLowerCase(); });
-      root.style.setProperty(cssName, String(theme.tokens[key]));
+      return cssName + ':' + sanitizeCssValue(theme.tokens[key]);
     });
-    root.style.setProperty('color-scheme', theme.mode);
+    declarations.push('--viz-mode:' + theme.mode, 'color-scheme:' + theme.mode);
+    themeElement.textContent = ':root{' + declarations.join(';') + ';}';
     reportResize();
   }
 

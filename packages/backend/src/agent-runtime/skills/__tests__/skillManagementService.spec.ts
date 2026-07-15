@@ -36,6 +36,13 @@ describe('skillManagementService', () => {
     ]))
   })
 
+  it('并发读取 skill 列表时只执行一次初始化复制', async () => {
+    const results = await Promise.all(Array.from({ length: 12 }, () => reader.listSkills()))
+
+    expect(results).toHaveLength(12)
+    expect(await fs.promises.readFile(path.join(skillsRoot, 'visualize', 'SKILL.md'), 'utf8')).toContain('name: visualize')
+  })
+
   it('内置 skill-installer 的 SKILL.md 包含正确的 YAML frontmatter', async () => {
     await reader.ensureInitialized()
 

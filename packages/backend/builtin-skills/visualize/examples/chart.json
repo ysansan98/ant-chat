@@ -1,8 +1,0 @@
-{
-  "version": 1,
-  "title": "请求延迟",
-  "summary": "比较两个阶段的平均延迟",
-  "data": { "latency": [{ "stage": "排队", "value": 12 }, { "stage": "执行", "value": 38 }] },
-  "layout": { "type": "stack" },
-  "views": [{ "id": "latency-chart", "type": "bar", "title": "阶段延迟", "dataset": "latency", "x": "stage", "y": ["value"], "unit": "毫秒" }]
-}

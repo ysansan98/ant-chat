@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "title": "需求澄清",
-  "summary": "填写信息后创建下一轮分析请求",
-  "data": {},
-  "layout": { "type": "stack" },
-  "views": [{ "id": "request-form", "type": "form", "fields": [{ "id": "request", "type": "textarea", "label": "需求", "required": true }] }],
-  "actions": [{ "id": "submit", "type": "submit-follow-up", "label": "发送", "prompt": [{ "type": "text", "text": "请分析：" }, { "type": "field", "fieldId": "request" }] }]
-}

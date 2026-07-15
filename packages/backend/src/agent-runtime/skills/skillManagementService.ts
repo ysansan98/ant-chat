@@ -39,6 +39,7 @@ export interface SkillManagementServiceOptions {
 export class SkillManagementService {
   private readonly skillsRoot: string
   private readonly builtinSkillsSourceRoot: string
+  private initializationPromise: Promise<void> | undefined
 
   constructor(options: SkillManagementServiceOptions) {
     this.skillsRoot = options.skillsRoot
@@ -49,7 +50,23 @@ export class SkillManagementService {
     return this.skillsRoot
   }
 
-  async ensureInitialized(): Promise<void> {
+  ensureInitialized(): Promise<void> {
+    if (this.initializationPromise) {
+      return this.initializationPromise
+    }
+
+    const initialization = this.initialize()
+    this.initializationPromise = initialization
+    void initialization.catch(() => {
+      // 失败后允许下一次 RPC 重试初始化；成功则复用已完成的 Promise。
+      if (this.initializationPromise === initialization) {
+        this.initializationPromise = undefined
+      }
+    })
+    return initialization
+  }
+
+  private async initialize(): Promise<void> {
     await fs.promises.mkdir(this.skillsRoot, { recursive: true })
     await this.migrateFromManifestJson()
     await this.ensureBuiltinSkillInstaller()

@@ -178,7 +178,7 @@ export function VisualizationFrame({ block, conversationId, messageId, onFollowU
 
   return (
     <>
-      <div className={cn('w-full overflow-hidden rounded-xl bg-card/40 ring-1 ring-border/60', className)} data-visualization-state="ready">
+      <div className={cn('w-full overflow-hidden', className)} data-visualization-state="ready">
         <iframe
           ref={iframeRef}
           title={block.title}

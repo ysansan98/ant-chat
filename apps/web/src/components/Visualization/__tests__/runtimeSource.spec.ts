@@ -9,12 +9,14 @@ describe('visualization sandbox runtime', () => {
     expect(visualizationRuntimeSource).toContain('type: \'follow-up-request\'')
     expect(visualizationRuntimeSource).toContain('message?.type === \'theme\'')
     expect(visualizationRuntimeSource).toContain('type: \'resize\'')
+    expect(visualizationRuntimeSource).toContain('ant-chat-viz-theme')
+    expect(visualizationRuntimeSource).not.toContain('root.style.setProperty')
     expect(visualizationRuntimeSource).not.toContain('window.parent')
     expect(visualizationRuntimeSource).not.toContain('window.electron')
   })
 
   it('连接后应用主题，并通过 MessagePort 回报 ready/resize', () => {
-    const dom = new JSDOM('<!doctype html><html><body><section>内容</section></body></html>', {
+    const dom = new JSDOM('<!doctype html><html><head><style id="ant-chat-viz-theme"></style></head><body><section>内容</section></body></html>', {
       runScripts: 'dangerously',
       url: 'http://localhost',
     })
@@ -32,7 +34,8 @@ describe('visualization sandbox runtime', () => {
     port.onmessage?.({ data: { type: 'init', artifactId: 'viz-1', theme: { mode: 'dark', tokens: { background: '#111' } } } } as MessageEvent)
 
     expect(dom.window.document.documentElement.dataset.theme).toBe('dark')
-    expect(dom.window.document.documentElement.style.getPropertyValue('--viz-background')).toBe('#111')
+    expect(dom.window.document.documentElement.style.getPropertyValue('--viz-background')).toBe('')
+    expect(dom.window.document.getElementById('ant-chat-viz-theme')?.textContent).toContain('--viz-background:#111')
     expect(sent).toEqual(expect.arrayContaining([{ type: 'ready' }, expect.objectContaining({ type: 'resize' })]))
     dom.window.close()
   })

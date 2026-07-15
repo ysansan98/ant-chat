@@ -23,6 +23,7 @@
   --viz-chart-4: hsl(262 83% 58%);
   --viz-chart-5: hsl(346 77% 50%);
   color-scheme: var(--viz-mode, light);
+  background: var(--viz-background, transparent);
   color: var(--viz-foreground, currentColor);
   font:
     14px/1.5 ui-sans-serif,
@@ -36,6 +37,7 @@
 body {
   margin: 0;
   padding: 16px;
+  background: var(--viz-background, transparent);
   color: var(--viz-foreground, currentColor);
 }
 .viz-root {

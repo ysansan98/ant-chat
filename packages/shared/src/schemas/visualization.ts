@@ -129,8 +129,6 @@ export function validateVisualizationHtmlFragment(html: string): string | null {
     return 'html 不允许 iframe、object、embed、base、portal 或 frame'
   if (/<meta\s[^>]*http-equiv\s*=\s*["']?refresh(?:["'\s>]|$)/i.test(html))
     return 'html 不允许 meta refresh'
-  if (/\s+on[a-z][\w:-]*\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/i.test(html))
-    return 'html 不允许 inline on* 事件属性，请使用 script addEventListener'
   if (/javascript:|vbscript:|data:text\/html/i.test(html))
     return 'html 不允许 javascript、vbscript 或 data:text/html URL'
   const imageError = validateImageSources(html)

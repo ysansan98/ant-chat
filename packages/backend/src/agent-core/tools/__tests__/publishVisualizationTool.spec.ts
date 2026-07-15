@@ -2,10 +2,10 @@ import { VISUALIZATION_FORMAT } from '@ant-chat/shared'
 import { describe, expect, it } from 'vitest'
 import { createPublishVisualizationTool } from '../publishVisualizationTool'
 
-const validHtml = '<section class="card"><h2>趋势</h2><button id="submit">提交</button><script>document.querySelector("#submit").addEventListener("click", function () { window.antChatVisualization.sendFollowUpMessage({ prompt: "继续分析", title: "交互提交" }) })</script></section>'
+const validHtml = '<section class="card" style="color: var(--viz-foreground)"><h2>趋势</h2><button onclick="window.antChatVisualization.sendFollowUpMessage({ prompt: \'继续分析\', title: \'交互提交\' })">提交</button></section>'
 
 describe('publish_visualization 工具', () => {
-  it('只接受 title、summary、html，并返回 descriptor 与 transport artifact', async () => {
+  it('接受内联样式和事件属性，并返回 descriptor 与 transport artifact', async () => {
     const tool = createPublishVisualizationTool()
     const result = await tool.execute({ title: '趋势', summary: '展示趋势', html: validHtml })
     const output = JSON.parse(result.result) as Record<string, unknown>

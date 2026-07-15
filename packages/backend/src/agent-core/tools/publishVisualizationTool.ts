@@ -12,7 +12,7 @@ export function createPublishVisualizationTool(): AgentTool {
     name: 'publish_visualization',
     source: 'skill',
     serverName: 'agent-loop',
-    description: '发布一个运行在安全 sandbox iframe 中的 HTML 可视化 fragment。输入必须是 { title, summary, html }；html 可包含语义化 HTML、内联 style/script 和固定版本 CDN 图表库，但不能包含完整 document、宿主 API 或网络请求。',
+    description: '发布一个运行在安全 sandbox iframe 中的 HTML 可视化 fragment。输入必须是 { title, summary, html }；html 可包含语义化 HTML、style 属性、inline on* 事件属性、style/script 和固定版本 CDN 图表库。禁止完整 document、网络请求，以及 window.parent、window.top、window.opener、Electron 或进程访问；仅可调用 window.antChatVisualization 发送用户确认后的 follow-up。',
     inputSchema: {
       type: 'object',
       properties: {

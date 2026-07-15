@@ -5,12 +5,11 @@ import visualizationCss from './visualization.css?inline'
 
 export { VISUALIZATION_CSP }
 
-export function createVisualizationSandboxDocument(fragment: string, options: { nonce?: string } = {}): string {
+export function createVisualizationSandboxDocument(fragment: string): string {
   return createVisualizationSandboxShell({
     fragment,
     css: visualizationCss,
     runtime: visualizationRuntimeSource,
     cdnOrigins: getAllowedVisualizationCdnOrigins(),
-    nonce: options.nonce,
   })
 }

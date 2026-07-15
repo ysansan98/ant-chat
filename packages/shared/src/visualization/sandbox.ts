@@ -7,27 +7,13 @@ export function createVisualizationSandboxShell(options: {
   css: string
   runtime: string
   cdnOrigins: readonly string[]
-  nonce?: string
 }): string {
   const policyError = validateVisualizationHtmlFragment(options.fragment)
   if (policyError)
     throw new Error(`可视化 HTML 校验失败：${policyError}`)
-  const nonce = options.nonce ?? createNonce()
-  const csp = `${VISUALIZATION_CSP}; script-src 'nonce-${nonce}' ${options.cdnOrigins.join(' ')}; style-src 'nonce-${nonce}' ${options.cdnOrigins.join(' ')}`
-  let fragment = addNonce(options.fragment, 'script', nonce)
-  fragment = addNonce(fragment, 'style', nonce)
+  // fragment 运行在 opaque-origin iframe 中，只能经受控 MessagePort 请求 follow-up。
+  // 因此允许内联样式和事件属性，避免模型为等价写法产生失败重试。
+  const csp = `${VISUALIZATION_CSP}; script-src 'unsafe-inline' ${options.cdnOrigins.join(' ')}; style-src 'unsafe-inline' ${options.cdnOrigins.join(' ')}`
   const runtime = options.runtime.replace(/<\/script/gi, '<\\/script')
-  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><style nonce="${nonce}">${options.css}</style></head><body><main class="viz-root">${fragment}</main><script nonce="${nonce}">${runtime}</script></body></html>`
-}
-
-function createNonce(): string {
-  const bytes = new Uint8Array(16)
-  if (globalThis.crypto?.getRandomValues)
-    globalThis.crypto.getRandomValues(bytes)
-  return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('') || 'ant-chat-visualization'
-}
-
-function addNonce(fragment: string, tag: 'script' | 'style', nonce: string): string {
-  const pattern = new RegExp(`<${tag}\\b(?![^>]*\\bnonce=)([^>]*)>`, 'gi')
-  return fragment.replace(pattern, `<${tag} nonce="${nonce}"$1>`)
+  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><style>${options.css}</style><style id="ant-chat-viz-theme"></style></head><body><main class="viz-root">${options.fragment}</main><script>${runtime}</script></body></html>`
 }
