@@ -4,7 +4,7 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
-import { createVisualizationSandboxShell, getAllowedVisualizationCdnOrigins, visualizationRuntimeSource } from '../packages/shared/dist/index.mjs'
+import { createVisualizationSandboxShell, getAllowedVisualizationCdnOrigins, VISUALIZATION_PREVIEW_THEME_CSS, visualizationRuntimeSource } from '../packages/shared/dist/index.mjs'
 
 const args = process.argv.slice(2)
 const serve = args[0] === '--serve'
@@ -23,6 +23,7 @@ const css = await readFile(cssPath, 'utf8')
 const document = createVisualizationSandboxShell({
   fragment,
   css,
+  themeCss: VISUALIZATION_PREVIEW_THEME_CSS,
   runtime: visualizationRuntimeSource,
   cdnOrigins: getAllowedVisualizationCdnOrigins(),
 })

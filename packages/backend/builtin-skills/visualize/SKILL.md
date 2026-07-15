@@ -18,7 +18,7 @@ description: 使用安全的 HTML fragment 创建交互式解释器、参数模�
 
 1. 把数据、状态、控件和渲染结果分开建模，先给出有意义的初始状态。
 2. 编写只包含 fragment 的 HTML。根节点使用唯一 id；事件可使用 inline on\* 属性或 addEventListener，脚本查询元素时不要依赖 document.currentScript。
-3. 优先使用原生 HTML、CSS、SVG 和内联数据。先读取 [references/visualization.css](references/visualization.css)，只使用其中真实存在的 class、元素样式和主题变量，不要凭记忆发明 UI class。当前可复用的主要 class 包括 .card、.viz-grid、.viz-row、.viz-controls、.form-control、.form-select、.form-check、.form-switch、.form-range、.btn、.btn-secondary、.text-muted、.viz-error。
+3. 优先使用原生 HTML、CSS、SVG 和内联数据。先读取 [references/visualization-contract.md](references/visualization-contract.md)，只使用其中声明的 primitive 和主题 token，不要凭记忆发明 UI class 或硬编码设计系统颜色、字体、圆角。
 4. 按下面的合同调用 publish_visualization。不要传文件路径、完整 HTML 文档、file id、hash 或自定义协议。
 5. 根据工具返回的 success 和 status 汇报发布结果。成功后只用一句话说明用户能看到或调整什么，不复述 HTML 或 artifact descriptor。
 
@@ -35,7 +35,8 @@ description: 使用安全的 HTML fragment 创建交互式解释器、参数模�
 ## Fragment 合同
 
 - html 必须是非空 HTML fragment：禁止 doctype、html、head、body、iframe、object、embed、base、portal、frame 和 meta refresh。
-- 允许 style 属性、element.style 写入和 inline on* 事件属性。优先使用 --viz-* 变量和 references/visualization.css 的 class，保证主题可读；复杂交互可改用 addEventListener。
+- 允许 `<style>`、style 属性、element.style 写入和 inline on* 事件属性。优先使用 --viz-* 变量和 `references/visualization-contract.md` 声明的 primitive，保证主题可读；复杂交互可改用 addEventListener。
+- `<form>` 可用于组织输入；sandbox 会取消原生和程序化提交。提交处理器调用 `window.antChatVisualization.sendFollowUpMessage(...)`，不要使用 action、`form.submit()`、`form.requestSubmit()` 或依赖页面导航。
 - 禁止 javascript:/vbscript: URL、父窗口/宿主对象、Electron、进程、数据库、文件系统和 RPC 访问。唯一允许的宿主能力是 window.antChatVisualization.sendFollowUpMessage。
 - 禁止 fetch、XHR、WebSocket、EventSource、sendBeacon、远程图片、音视频、字体和业务 API。数据放在 fragment 内；只在确有必要时使用固定版本、白名单 CDN，并同时提供 sha384 SRI 和 crossorigin="anonymous"。
 - 产物在 iframe sandbox="allow-scripts" 中运行。不要使用 window.openai、window.parent 或 ::codex-inline-vis；这些不是 ant-chat 的协议。

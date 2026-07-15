@@ -59,19 +59,55 @@ export const visualizationRuntimeSource = String.raw`
     return Promise.resolve();
   }
 
+  function dispatchFormSubmit(form, submitter) {
+    var event;
+    if (typeof window.SubmitEvent === 'function') event = new SubmitEvent('submit', { bubbles: true, cancelable: true, submitter: submitter || null });
+    else event = new Event('submit', { bubbles: true, cancelable: true });
+    form.dispatchEvent(event);
+  }
+
+  function blockProgrammaticFormSubmit() {
+    var Form = window.HTMLFormElement;
+    if (!Form || !Form.prototype) return;
+    Form.prototype.submit = function () { dispatchFormSubmit(this); };
+  }
+
+  function getSubmitter(target) {
+    var element = target instanceof Element ? target.closest('button, input') : null;
+    if (!element || !element.form) return null;
+    var type = String(element.type || '').toLowerCase();
+    if (element.tagName === 'BUTTON' && (!type || type === 'submit')) return element;
+    if (element.tagName === 'INPUT' && (type === 'submit' || type === 'image')) return element;
+    return null;
+  }
+
+  function blockNativeSubmitClick(event) {
+    var submitter = getSubmitter(event.target);
+    if (!submitter) return;
+    event.preventDefault();
+    dispatchFormSubmit(submitter.form, submitter);
+  }
+
   window.antChatVisualization = Object.freeze({ sendFollowUpMessage: sendFollowUpMessage });
+  blockProgrammaticFormSubmit();
   document.addEventListener('click', function (event) { if (event.isTrusted) gestureExpiresAt = Date.now() + gestureWindowMs; }, true);
-  document.addEventListener('submit', function (event) { if (event.isTrusted) gestureExpiresAt = Date.now() + gestureWindowMs; }, true);
+  document.addEventListener('click', blockNativeSubmitClick);
+  document.addEventListener('submit', function (event) {
+    // 表单只作为 fragment 内的交互语义；原生提交会触发 sandbox 导航，且绕过宿主的 follow-up 确认。
+    event.preventDefault();
+    if (event.isTrusted) gestureExpiresAt = Date.now() + gestureWindowMs;
+  }, true);
 
   function connect(event) {
-    if (event.source !== window || event.data?.type !== 'visualization-connect' || !event.ports?.[0]) return;
+    if (event.source !== window.parent || event.data?.type !== 'visualization-connect' || !event.ports?.[0]) return;
     port = event.ports[0];
     port.onmessage = function (messageEvent) {
       var message = messageEvent.data;
-      if (message?.type === 'init') { artifactId = message.artifactId; setTheme(message.theme); port.postMessage({ type: 'ready' }); reportResize(); }
+      if (message?.type === 'init') { artifactId = message.artifactId; setTheme(message.theme); }
       else if (message?.type === 'theme') setTheme(message.theme);
     };
     port.start();
+    port.postMessage({ type: 'ready' });
   }
 
   window.addEventListener('message', connect);

@@ -53,7 +53,7 @@
 fragment 可以包含语义 HTML、style 属性、inline on\* 事件属性、内联 style/script、SVG 和内联数据，但必须满足：
 
 - 禁止 doctype、html、head、body、iframe、object、embed、base、portal、frame 和 meta refresh。
-- 允许 style 属性和脚本对 element.style 的写入，也允许 inline on\* 事件属性。优先使用 --viz-\* 变量和 references/visualization.css 中的 class，保证主题可读；复杂交互可使用 addEventListener。
+- 允许 `<style>`、style 属性和脚本对 element.style 的写入，也允许 inline on\* 事件属性。优先使用 `--viz-*` 变量和 [visualization-contract.md](visualization-contract.md) 声明的 primitive，保证主题可读；复杂交互可使用 addEventListener。
 - 禁止 javascript:、vbscript:、data:text/html、父窗口、Electron、进程、数据库、文件系统、RPC 和宿主 DOM 访问。
 - 禁止 fetch、XMLHttpRequest、WebSocket、EventSource、sendBeacon 及其他网络请求。img、audio、video 只允许 data: URL。
 - 外部 script/link 只能使用以下精确 URL，并必须有 sha384-\* 的 integrity 和 crossorigin="anonymous"：
@@ -84,10 +84,6 @@ declare const sendFollowUpMessage: (input: FollowUpInput) => Promise<void>
 - 不修改历史消息，不注入当前 turn；每次真实重复提交都是独立消息。
 - 不要调用 window.openai、window.parent、window.electron 或任何未列出的对象。
 
-## 可用主题变量和基础 class
+## 样式与主题
 
-宿主通过 MessagePort 把主题变量注入 fragment 根文档：
-
---viz-background、--viz-foreground、--viz-card、--viz-card-foreground、--viz-primary、--viz-primary-foreground、--viz-secondary、--viz-secondary-foreground、--viz-muted、--viz-muted-foreground、--viz-accent、--viz-accent-foreground、--viz-destructive、--viz-destructive-foreground、--viz-border、--viz-input、--viz-ring、--viz-chart-1 至 --viz-chart-5。
-
-基础 class 包括：.card、.viz-grid、.viz-row、.viz-controls、.form-control、.form-select、.form-check、.form-switch、.form-range、.btn、.btn-secondary、.text-muted 和 .viz-error。不要假设其他 class 或第三方组件已经存在。
+先读取 [visualization-contract.md](visualization-contract.md)。它是 fragment 可使用的主题 token 和基础 primitive 的唯一契约；不要假设 Tailwind、shadcn 或其他组件库存在。

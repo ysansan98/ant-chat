@@ -29,6 +29,8 @@ const theme = {
     border: '#333',
     input: '#333',
     ring: '#0af',
+    fontSans: 'Nunito Sans Variable, sans-serif',
+    radius: '0.625rem',
     chart1: '#f00',
     chart2: '#0f0',
     chart3: '#00f',
@@ -46,7 +48,7 @@ describe('visualization HTML v1 共享合同', () => {
     expect(validateVisualizationHtmlFragment('<script>fetch("/api")</script>')).toContain('网络请求')
   })
 
-  it('校验固定格式、artifact hash、大小和完整主题 token', () => {
+  it('校验固定格式、artifact hash、大小和完整设计 token', () => {
     const block = {
       type: 'visualization' as const,
       source: { type: 'file_id' as const, file_id: 'artifact-1' },
@@ -60,6 +62,8 @@ describe('visualization HTML v1 共享合同', () => {
     expect(() => VisualizationBlockSchema.parse({ ...block, format: 'legacy.visualization.v1' })).toThrow()
     expect(() => VisualizationBlockSchema.parse({ ...block, size: VISUALIZATION_LIMITS.maxBytes + 1 })).toThrow()
     expect(VisualizationThemeSchema.parse(theme)).toEqual(theme)
+    expect(() => VisualizationThemeSchema.parse({ ...theme, tokens: { ...theme.tokens, fontSans: undefined } })).toThrow()
+    expect(() => HostToFrameMessageSchema.parse({ type: 'init', artifactId: 'artifact-1', theme: { ...theme, tokens: { ...theme.tokens, radius: undefined } } })).toThrow()
   })
 
   it('init 不携带 HTML，follow-up 只携带 prompt/title', () => {

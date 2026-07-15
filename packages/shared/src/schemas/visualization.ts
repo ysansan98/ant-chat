@@ -40,6 +40,8 @@ export const VisualizationThemeSchema = z.object({
     border: themeToken,
     input: themeToken,
     ring: themeToken,
+    fontSans: themeToken,
+    radius: themeToken,
     chart1: themeToken,
     chart2: themeToken,
     chart3: themeToken,

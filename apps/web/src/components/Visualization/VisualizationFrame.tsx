@@ -73,7 +73,7 @@ export function VisualizationFrame({ block, conversationId, messageId, onFollowU
   }, [block, conversationId, messageId])
 
   const sandboxDocument = useMemo(
-    () => state.status === 'ready' ? createVisualizationSandboxDocument(state.html) : '',
+    () => state.status === 'ready' ? createVisualizationSandboxDocument(state.html, getVisualizationTheme()) : '',
     [state],
   )
 
