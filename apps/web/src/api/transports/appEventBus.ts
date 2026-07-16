@@ -140,7 +140,10 @@ export function getAppEventBus(): AppEventBus {
   if (getElectronIpcRenderer()) {
     cached = createElectronEventBus()
   }
-  else if (typeof EventSource !== 'undefined') {
+  // 仅在浏览器原生 EventSource 存在时使用 SSE 适配器。jsdom 测试环境未实现
+  // EventSource，却会暴露 Node 全局的 undici EventSource，它和 jsdom 的 Event
+  // 体系处于不同 realm，一旦真正发起连接会在重连时抛出未捕获异常。此类环境走 noop。
+  else if (typeof window !== 'undefined' && typeof window.EventSource === 'function') {
     cached = createSseEventBus()
   }
   else {
