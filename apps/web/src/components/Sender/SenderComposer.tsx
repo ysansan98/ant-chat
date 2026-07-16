@@ -44,6 +44,7 @@ export function SenderComposer({
   onSubmit,
   onCancel,
 }: SenderComposerProps) {
+  const { textareaRef, draft, onChange, onClick, onKeyDown, onKeyUp, onScroll } = referenceInput
   return (
     <div className="overflow-hidden rounded-4xl bg-secondary shadow-2xl">
       <PendingMessageQueue
@@ -73,7 +74,7 @@ export function SenderComposer({
               scrollTop={referenceInput.scrollTop}
             />
             <PromptInputTextarea
-              ref={referenceInput.textareaRef}
+              ref={textareaRef}
               className="
                 relative z-10 max-h-48 min-h-20 border-0 bg-transparent p-1 text-sm
                 text-transparent caret-foreground
@@ -83,12 +84,12 @@ export function SenderComposer({
               "
               data-testid="chat-input"
               disabled={disabled}
-              value={referenceInput.draft}
-              onChange={referenceInput.onChange}
-              onClick={referenceInput.onClick}
-              onKeyDown={referenceInput.onKeyDown}
-              onKeyUp={referenceInput.onKeyUp}
-              onScroll={referenceInput.onScroll}
+              value={draft}
+              onChange={onChange}
+              onClick={onClick}
+              onKeyDown={onKeyDown}
+              onKeyUp={onKeyUp}
+              onScroll={onScroll}
               placeholder={disabled
                 ? '指令执行中...'
                 : loading

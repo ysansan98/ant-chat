@@ -38,7 +38,6 @@ export function SenderToolbar({ fileAccept, contextLength }: SenderToolbarProps)
     <PromptInputTools className="scroll-hidden w-full justify-between overflow-visible">
       <div className="flex items-center gap-1">
         <SenderAddAttachmentButton accept={fileAccept} />
-        <SenderContextUsageButton contextLength={contextLength} />
 
         <Popover>
           <PopoverTrigger render={(
@@ -75,6 +74,8 @@ export function SenderToolbar({ fileAccept, contextLength }: SenderToolbarProps)
             ))}
           </PopoverContent>
         </Popover>
+        <SenderContextUsageButton contextLength={contextLength} />
+
       </div>
 
       <div className="flex items-center gap-1">
