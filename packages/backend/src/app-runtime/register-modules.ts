@@ -45,10 +45,7 @@ export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModu
     conversationLifecycle: agent.conversationLifecycle,
   })
 
-  const appControl = new AppControl(
-    { settings, provider, mcp, automation },
-    core.secretStore,
-  )
+  const appControl = new AppControl({ settings, provider, mcp, automation })
 
   return {
     routes: [chat, settings, provider, mcp, skills, workspace, agent, automation, commands],

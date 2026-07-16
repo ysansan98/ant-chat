@@ -17,6 +17,7 @@ export interface AutomationRuntime {
   initialize: () => Promise<void>
   dispose: () => Promise<void>
   list: () => Promise<AutomationDefinition[]>
+  get: (id: string) => Promise<AutomationDefinition>
   listRuns: (automationId?: string, limit?: number) => Promise<AutomationRun[]>
   create: (input: AutomationInput) => Promise<AutomationDefinition>
   update: (input: UpdateAutomationInput) => Promise<AutomationDefinition>
@@ -331,6 +332,7 @@ export function createAutomationRuntime(options: {
       await options.repository.cancelRunning(clock.now())
     },
     list: () => options.repository.list(),
+    get: id => options.repository.getById(id),
     listRuns: (automationId, limit) => options.repository.listRuns(automationId, limit),
     async create(input) {
       const automation = await options.repository.create(input, input.enabled ? validateSchedule(input.schedule) : undefined)

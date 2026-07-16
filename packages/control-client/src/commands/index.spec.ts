@@ -111,9 +111,8 @@ describe('ant-chat CLI 命令', () => {
     })
   })
 
-  it('允许 Skill 通过 bash.env 给 MCP env 和 headers 注入敏感值', async () => {
+  it('允许 Skill 通过 bash.env 给 SSE MCP headers 注入敏感值', async () => {
     process.env.ANT_CHAT_TEST_MCP_AUTHORIZATION = 'Bearer secret'
-    process.env.ANT_CHAT_TEST_MCP_API_KEY = 'mcp-secret'
     const client = createClient({ mcpServer: { name: 'remote', status: 'connected' } })
 
     const result = await executeCommand(client as never, [
@@ -123,13 +122,11 @@ describe('ant-chat CLI 命令', () => {
       '--transport-type=sse',
       '--url=https://example.com/mcp',
       '--headers-from-env=Authorization=ANT_CHAT_TEST_MCP_AUTHORIZATION',
-      '--env-from-env=API_KEY=ANT_CHAT_TEST_MCP_API_KEY',
     ], { json: true })
 
     expect(result.exitCode).toBe(0)
     expect(client.send).toHaveBeenCalledWith(expect.objectContaining({
       action: 'install',
-      env: { API_KEY: 'mcp-secret' },
       headers: { Authorization: 'Bearer secret' },
       serverName: 'remote',
       type: 'mcp',

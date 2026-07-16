@@ -38,6 +38,10 @@ export class AutomationModule implements RuntimeModuleMethods<'automation'> {
     return this.runtime.list()
   }
 
+  async get(id: string) {
+    return this.runtime.get(id)
+  }
+
   @Method()
   create(input: AppRpcInput<'automation.create'>) {
     return this.runtime.create(input.input)

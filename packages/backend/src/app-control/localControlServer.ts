@@ -1,6 +1,5 @@
 import type { AppControlCommand, AppControlResult } from '@ant-chat/shared'
 import type { Socket } from 'node:net'
-import type { AppControl } from './appControl'
 import { Buffer } from 'node:buffer'
 import { randomBytes } from 'node:crypto'
 import { chmodSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
@@ -8,6 +7,8 @@ import { createServer } from 'node:net'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import process from 'node:process'
+import { AppControlCommandSchema } from '@ant-chat/shared'
+import { z } from 'zod'
 
 const CONTROL_PROTOCOL_VERSION = 1
 const MAX_MESSAGE_BYTES = 1024 * 1024 // 1 MiB
@@ -23,6 +24,11 @@ export interface ControlEndpointMeta {
 
 export interface LocalControlServerOptions {
   appDataRoot: string
+}
+
+/** LocalControlServer 只需要执行命令，不应依赖控制层的具体类。 */
+export interface AppControlExecutor {
+  execute: (command: AppControlCommand) => Promise<AppControlResult>
 }
 
 /**
@@ -42,12 +48,12 @@ export class LocalControlServer {
   private ownsEndpoint = false
 
   constructor(
-    private appControl: AppControl | null,
+    private appControl: AppControlExecutor | null,
     private readonly options: LocalControlServerOptions,
   ) {}
 
   /** 锁可以先于数据层获取；模块注册完成后再绑定控制面。 */
-  attachAppControl(appControl: AppControl): void {
+  attachAppControl(appControl: AppControlExecutor): void {
     this.appControl = appControl
   }
 
@@ -304,17 +310,15 @@ export class LocalControlServer {
   private async handleRequest(socket: Socket, raw: string): Promise<void> {
     let parsed: { auth: string, command: AppControlCommand }
     try {
-      parsed = JSON.parse(raw)
-
-      if (!parsed.auth || typeof parsed.auth !== 'string') {
-        this.sendError(socket, 'AUTH_MISSING', 'Missing auth token')
+      const payload = z.object({
+        auth: z.string().min(1),
+        command: AppControlCommandSchema,
+      }).safeParse(JSON.parse(raw))
+      if (!payload.success) {
+        this.sendError(socket, 'INVALID_COMMAND', payload.error.issues[0]?.message ?? 'Invalid command')
         return
       }
-
-      if (!parsed.command || typeof parsed.command !== 'object') {
-        this.sendError(socket, 'INVALID_COMMAND', 'Missing or invalid command')
-        return
-      }
+      parsed = payload.data
     }
     catch {
       this.sendError(socket, 'INVALID_JSON', 'Invalid JSON')
