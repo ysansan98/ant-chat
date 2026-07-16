@@ -6,6 +6,7 @@ import type {
   StartAgentTurnOptions,
 } from '@ant-chat/shared'
 import type { AgentRuntime } from '../agent-core'
+import type { ConversationCreation, ConversationLifecycle } from '../conversations/conversationLifecycle'
 import type { AppDataContext } from '../data'
 import type { ConversationTitleGenerator } from './conversationTitleGenerator'
 import { createProvider } from '../agent-core/ai-providers/factory'
@@ -18,9 +19,9 @@ const MAX_TITLE_LENGTH = 30
 export interface AgentTurnServiceDeps {
   runtime: AgentRuntime
   appDataContext: AppDataContext
+  conversationLifecycle: ConversationLifecycle
   aiProviderFactory?: AIProviderFactory
   titleGenerator?: ConversationTitleGenerator
-  emitConversationUpdated?: (conversation: AgentRuntimeStartTaskResult['conversation']) => void
   emitMessageUpdated?: (message: IMessage) => void
   logger?: ILogger
 }
@@ -30,7 +31,7 @@ export interface AgentTurnService {
 }
 
 export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnService {
-  const { runtime, appDataContext, aiProviderFactory, titleGenerator, emitConversationUpdated, emitMessageUpdated, logger } = deps
+  const { runtime, appDataContext, conversationLifecycle, aiProviderFactory, titleGenerator, emitMessageUpdated, logger } = deps
 
   return {
     async startTurn(options) {
@@ -58,45 +59,46 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
         ? await aiProviderFactory({ model, provider })
         : await createProvider(provider)
 
-      const conversationState = options.conversationId
-        ? {
-            conversation: await appDataContext.conversationRepository.getById(options.conversationId),
-            created: false,
-          }
-        : {
-            conversation: await appDataContext.conversationRepository.create({
-              title: DEFAULT_TITLE,
-              conversationInstructions: options.conversationInstructions ?? '',
-              createdAt: Date.now(),
-              updatedAt: Date.now(),
-              workspacePath,
-              settings: {
-                modelId: options.modelConfig.modelId,
-                providerId: options.modelConfig.providerId,
-                temperature: options.modelConfig.temperature ?? 0.7,
-                maxOutputTokens: options.modelConfig.maxOutputTokens ?? 4096,
-                reasoningEffort: options.modelConfig.reasoningEffort,
-              },
-            }),
-            created: true,
-          }
-
-      const { conversation } = conversationState
+      let creation: ConversationCreation | undefined
+      let conversation: AgentRuntimeStartTaskResult['conversation']
+      let created: boolean
+      if (options.conversationId) {
+        conversation = await conversationLifecycle.get(options.conversationId)
+        created = false
+      }
+      else {
+        creation = await conversationLifecycle.beginCreate({
+          title: DEFAULT_TITLE,
+          conversationInstructions: options.conversationInstructions ?? '',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          workspacePath,
+          settings: {
+            modelId: options.modelConfig.modelId,
+            providerId: options.modelConfig.providerId,
+            temperature: options.modelConfig.temperature ?? 0.7,
+            maxOutputTokens: options.modelConfig.maxOutputTokens ?? 4096,
+            reasoningEffort: options.modelConfig.reasoningEffort,
+          },
+        })
+        conversation = creation.conversation
+        created = true
+      }
       if (conversation.archived) {
         throw new Error('会话已归档，请先取消归档')
       }
-      const reasoningEffort = conversationState.created
+      const reasoningEffort = created
         ? options.modelConfig.reasoningEffort
         : conversation.settings.reasoningEffort
-      const userMessage = await appDataContext.messageRepository.create({
-        convId: conversation.id,
-        role: 'user',
-        status: 'success',
-        content: options.messageContent,
-        turnId: undefined,
-      })
-
+      let userMessage: IMessage | undefined
       try {
+        userMessage = await appDataContext.messageRepository.create({
+          convId: conversation.id,
+          role: 'user',
+          status: 'success',
+          content: options.messageContent,
+          turnId: undefined,
+        })
         const result = await runtime.startSessionTask({
           messageContent: options.messageContent,
           conversationId: conversation.id,
@@ -114,6 +116,7 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
           },
         })
 
+        creation?.commit()
         emitMessageUpdated?.(userMessage)
 
         scheduleTitleInitialization({
@@ -121,10 +124,10 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
           fallbackModelId: options.modelConfig.modelId,
           fallbackProviderId: options.modelConfig.providerId,
           appDataContext,
-          shouldInitializeTitle: conversationState.created || conversation.title === DEFAULT_TITLE,
+          conversationLifecycle,
+          shouldInitializeTitle: created || conversation.title === DEFAULT_TITLE,
           titleGenerator,
           userPrompt: userText,
-          emitConversationUpdated,
           logger,
         })
 
@@ -133,9 +136,8 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
       catch (error) {
         await rollbackStartedTurn({
           appDataContext,
-          conversationId: conversation.id,
-          userMessageId: userMessage.id,
-          createdConversation: conversationState.created,
+          creation,
+          userMessageId: userMessage?.id,
           logger,
         })
         throw error
@@ -149,10 +151,10 @@ function scheduleTitleInitialization(params: {
   fallbackModelId: string
   fallbackProviderId: string
   appDataContext: AppDataContext
+  conversationLifecycle: ConversationLifecycle
   shouldInitializeTitle: boolean
   titleGenerator?: ConversationTitleGenerator
   userPrompt: string
-  emitConversationUpdated?: AgentTurnServiceDeps['emitConversationUpdated']
   logger?: ILogger
 }) {
   const {
@@ -160,10 +162,10 @@ function scheduleTitleInitialization(params: {
     fallbackModelId,
     fallbackProviderId,
     appDataContext,
+    conversationLifecycle,
     shouldInitializeTitle,
     titleGenerator,
     userPrompt,
-    emitConversationUpdated,
     logger,
   } = params
   if (!shouldInitializeTitle) {
@@ -191,14 +193,12 @@ function scheduleTitleInitialization(params: {
         const modelRef = (assistantModelId && assistantProviderId)
           ? { providerId: assistantProviderId, modelId: assistantModelId }
           : { providerId: fallbackProviderId, modelId: fallbackModelId }
-        const conversation = await titleGenerator.updateTitle(conversationId, modelRef)
-        emitConversationUpdated?.(conversation)
+        await titleGenerator.updateTitle(conversationId, modelRef)
       }
       else if (userPrompt) {
         // 截取用户首条消息作为标题
         const truncated = truncateText(userPrompt, MAX_TITLE_LENGTH)
-        const conversation = await appDataContext.conversationRepository.update({ id: conversationId, title: truncated })
-        emitConversationUpdated?.(conversation)
+        await conversationLifecycle.update({ id: conversationId, title: truncated })
       }
     }
     catch (error) {
@@ -209,19 +209,20 @@ function scheduleTitleInitialization(params: {
 
 async function rollbackStartedTurn(params: {
   appDataContext: AppDataContext
-  conversationId: string
-  userMessageId: string
-  createdConversation: boolean
+  creation?: ConversationCreation
+  userMessageId?: string
   logger?: ILogger
 }) {
-  const { appDataContext, conversationId, userMessageId, createdConversation, logger } = params
+  const { appDataContext, creation, userMessageId, logger } = params
   try {
-    if (createdConversation) {
-      await appDataContext.conversationRepository.delete(conversationId)
+    if (creation) {
+      await creation.rollback()
       return
     }
 
-    await appDataContext.messageRepository.delete(userMessageId)
+    if (userMessageId) {
+      await appDataContext.messageRepository.delete(userMessageId)
+    }
   }
   catch (rollbackError) {
     logger?.warn('回滚发送会话失败', rollbackError)

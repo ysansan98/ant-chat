@@ -10,10 +10,9 @@ import { EmptyState } from '@workspace/ui/components/empty-state'
 import { Input } from '@workspace/ui/components/input'
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from '@workspace/ui/components/sheet'
 import { ChevronRight, Search } from 'lucide-react'
-import React from 'react'
+import { useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
-import { useImmer } from 'use-immer'
-import { connectMcpServer, fetchMcpServerTools } from '@/api/mcpApi'
+import { testMcpServer } from '@/api/mcpApi'
 import { KeyValueList } from '@/components/Common/KeyValueList'
 import { EmojiPickerHoc } from '@/components/EmojiPiker'
 import { QuickImport } from './QuickImport'
@@ -24,7 +23,7 @@ interface McpConfigDrawerProps {
   mode: 'add' | 'edit'
   defaultValues?: McpConfigSchema
   onClose?: () => void
-  onSave?: (config: AddMcpConfigSchema | UpdateMcpConfigSchema) => void
+  onSave?: (config: AddMcpConfigSchema | UpdateMcpConfigSchema) => Promise<void> | void
 }
 
 interface McpConfigForm {
@@ -71,18 +70,18 @@ export default function McpConfigDrawer({ open, mode, defaultValues, onClose, on
     defaultValues: _defaultValues,
   })
 
-  const [mcpConfig, updateMcpConfig] = useImmer<McpConfigSchema | null>(null)
-  const [mcpTools, updateMcpTools] = useImmer<McpTool[]>([])
-
-  const [connectState, setConnectState] = React.useState<'connecting' | 'error' | 'success' | ''>('')
-  const [connectError, setConnectError] = React.useState('')
+  const [previewConfig, setPreviewConfig] = useState<McpConfigSchema | null>(null)
+  const [previewTools, setPreviewTools] = useState<McpTool[]>([])
+  const [connectState, setConnectState] = useState<'connecting' | 'error' | 'success' | ''>('')
+  const [connectError, setConnectError] = useState('')
 
   const transportType = useWatch({ control, name: 'transportType' })
 
   function resetAll() {
-    updateMcpConfig(null)
-    updateMcpTools([])
+    setPreviewConfig(null)
+    setPreviewTools([])
     setConnectState('')
+    setConnectError('')
     reset()
   }
 
@@ -90,28 +89,7 @@ export default function McpConfigDrawer({ open, mode, defaultValues, onClose, on
     let finalConfig: AddMcpConfigSchema | UpdateMcpConfigSchema
 
     if (mode === 'add') {
-      const addConfig = config.transportType === 'stdio'
-        ? {
-            serverName: config.serverName,
-            icon: config.icon,
-            transportType: 'stdio' as const,
-            command: config.command || '',
-            args: config.args ? config.args.split(',').filter(Boolean) : [],
-            env: config.env ? envArrayToObject(config.env) : undefined,
-            description: config.description,
-            timeout: config.timeout,
-          }
-        : {
-            serverName: config.serverName,
-            icon: config.icon,
-            transportType: 'sse' as const,
-            url: config.url || '',
-            headers: config.headers ? envArrayToObject(config.headers) : undefined,
-            description: config.description,
-            timeout: config.timeout,
-          }
-
-      finalConfig = AddMcpConfigSchema.parse(addConfig)
+      finalConfig = toAddMcpConfig(config)
     }
     else {
       const updateConfig = config.transportType === 'stdio'
@@ -138,7 +116,7 @@ export default function McpConfigDrawer({ open, mode, defaultValues, onClose, on
       finalConfig = UpdateMcpConfigSchema.parse(updateConfig)
     }
 
-    onSave?.(finalConfig)
+    await onSave?.(finalConfig)
   }
 
   return (
@@ -256,59 +234,36 @@ export default function McpConfigDrawer({ open, mode, defaultValues, onClose, on
                     )
                   : null}
 
-                <div className="flex items-center justify-between">
-                  <span>测试连接成功后 MCP Server才可以被正常使用</span>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-sm text-muted-foreground">使用隔离连接验证当前配置，不会保存或影响正在运行的服务</span>
                   <Button
                     type="button"
+                    variant="outline"
                     disabled={connectState === 'connecting'}
                     onClick={async () => {
                       setConnectError('')
-                      updateMcpTools([])
-
-                      const config = watch()
-                      if (!config.transportType || !config.serverName)
+                      setPreviewTools([])
+                      const form = watch()
+                      if (!form.transportType || !form.serverName)
                         return
 
                       setConnectState('connecting')
-                      let result = false
                       try {
-                        const mcpCfg = {
-                          serverName: config.serverName,
-                          icon: config.icon,
-                          transportType: config.transportType,
-                          ...(config.transportType === 'stdio'
-                            ? {
-                                command: config.command || '',
-                                args: config.args ? config.args.split(',').filter(Boolean) : [],
-                                env: envArrayToObject(config.env),
-                              }
-                            : {
-                                url: config.url || '',
-                                headers: envArrayToObject(config.headers),
-                              }),
-                        } as McpConfigSchema
-
-                        const [ok, msg] = await connectMcpServer(mcpCfg)
-                        result = ok
-
-                        if (!ok) {
-                          throw new Error(msg)
-                        }
+                        const config = toAddMcpConfig(form)
+                        const result = await testMcpServer(config)
+                        if (result.error)
+                          throw new Error(result.error)
+                        setPreviewConfig(config as McpConfigSchema)
+                        setPreviewTools(result.tools)
+                        setConnectState('success')
                       }
-                      catch (e) {
-                        const message = (e as Error).message
-                        setConnectError(message)
+                      catch (error) {
+                        setConnectError(error instanceof Error ? error.message : String(error))
                         setConnectState('error')
-                        return
                       }
-                      updateMcpConfig(config as unknown as McpConfigSchema)
-                      setConnectState(result ? 'success' : 'error')
-
-                      const tools = await fetchMcpServerTools(config.serverName)
-                      updateMcpTools(tools)
                     }}
                   >
-                    测试连接
+                    {connectState === 'connecting' ? '连接中…' : '测试连接'}
                   </Button>
                 </div>
 
@@ -336,39 +291,29 @@ export default function McpConfigDrawer({ open, mode, defaultValues, onClose, on
               </form>
             </div>
           </div>
-          <div className="
-            flex-1 overflow-y-auto bg-muted/50
-          "
-          >
-            {mcpTools.length
+          <div className="flex-1 overflow-y-auto bg-muted/50">
+            {connectState === 'success'
               ? (
                   <div className="p-3">
-                    <div className="
-                      flex items-center gap-3 rounded-md bg-card p-3 text-card-foreground
-                    "
-                    >
+                    <div className="flex items-center gap-3 rounded-md bg-card p-3 text-card-foreground">
+                      <Avatar className="size-9 rounded-full">
+                        <span>{previewConfig?.icon || previewConfig?.serverName?.[0]}</span>
+                      </Avatar>
                       <div>
-                        <Avatar className="size-9 rounded-full">
-                          <span>{mcpConfig?.serverName?.[0]}</span>
-                        </Avatar>
-                      </div>
-                      <div>
-                        <div className="text-xl">{mcpConfig?.serverName}</div>
+                        <div className="text-xl">{previewConfig?.serverName}</div>
                         <div className="text-xs text-muted-foreground">
-                          {mcpConfig?.serverName}
+                          共发现
                           {' '}
-                          MCP server 共有
-                          {mcpTools.length}
+                          {previewTools.length}
+                          {' '}
                           个工具
                         </div>
                       </div>
                     </div>
-                    <PreviewMcpToolsList items={mcpTools} />
+                    <PreviewMcpToolsList items={previewTools} />
                   </div>
                 )
-              : (
-                  <EmptyMcpConfig />
-                )}
+              : <EmptyMcpConfig />}
           </div>
         </div>
       </SheetContent>
@@ -388,79 +333,54 @@ function FormItemLabel({ name, tag }: { name: string, tag: string }) {
 function EmptyMcpConfig() {
   return (
     <div className="flex size-full items-center justify-center">
-      <EmptyState title="配置MCP后开始预览">
-        <p className="text-muted-foreground">
-          完成配置后，将能够在此处预览MCP Server支持的工具能力
-        </p>
+      <EmptyState title="测试连接后开始预览">
+        <p className="text-muted-foreground">验证配置后，可在此查看 MCP Server 提供的工具。</p>
       </EmptyState>
     </div>
   )
 }
 
-interface PreviewMcpToolsListProps {
-  items: McpTool[]
-}
-
-function PreviewMcpToolsList({ items }: PreviewMcpToolsListProps) {
-  const [keyword, setKeyword] = React.useState('')
-  const showMcpTools = keyword.length ? items.filter(item => item.name.includes(keyword)) : items
+function PreviewMcpToolsList({ items }: { items: McpTool[] }) {
+  const [keyword, setKeyword] = useState('')
+  const visibleTools = keyword ? items.filter(item => item.name.includes(keyword)) : items
 
   return (
     <div className="mt-4">
       <div className="relative">
-        <Input
-          value={keyword}
-          placeholder="搜索工具"
-          onChange={e => setKeyword(e.target.value)}
-          className="pl-8"
-        />
+        <Input value={keyword} placeholder="搜索工具" onChange={event => setKeyword(event.target.value)} className="pl-8" />
         <Search className="absolute top-1/2 left-2 size-4 -translate-y-1/2 text-muted-foreground" />
       </div>
       <div className="mt-2 flex flex-col gap-3">
-        {showMcpTools.map(tool => (
-          <PreviewMcpToolItem key={tool.name} item={tool} />
-        ))}
+        {visibleTools.map(tool => <PreviewMcpToolItem key={tool.name} item={tool} />)}
       </div>
     </div>
   )
 }
 
 function PreviewMcpToolItem({ item }: { item: McpTool }) {
-  const [isExpand, setIsExpand] = React.useState(false)
-
+  const [expanded, setExpanded] = useState(false)
+  const toggle = () => setExpanded(value => !value)
   return (
-    <div className="
-      rounded-sm bg-muted p-2
-    "
-    >
+    <div className="rounded-sm bg-muted p-2">
       <div
         role="button"
         tabIndex={0}
         className="flex cursor-pointer items-center justify-between gap-2"
-        onClick={() => setIsExpand(!isExpand)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault()
-            setIsExpand(!isExpand)
+        onClick={toggle}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            toggle()
           }
         }}
       >
-        <div className="">
+        <div>
           <div>{item.name}</div>
           <div className="mt-1 text-xs text-muted-foreground">{item.description}</div>
         </div>
-        <ChevronRight className={`
-          shrink-0 transition-transform
-          ${isExpand ? 'rotate-90' : ''}
-        `}
-        />
+        <ChevronRight className={`shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`} />
       </div>
-      <div className={`
-        grid
-        ${isExpand ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}
-        transition-all
-      `}
-      >
+      <div className={`grid transition-all ${expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
         <div className="overflow-hidden">
           <PreviewMcpToolParams item={item} />
         </div>
@@ -471,37 +391,51 @@ function PreviewMcpToolItem({ item }: { item: McpTool }) {
 
 function PreviewMcpToolParams({ item }: { item: McpTool }) {
   const params = Object.entries(item.inputSchema.properties)
-  if (params.length === 0) {
-    return (
-      <div className="py-2 text-xs text-muted-foreground">
-        该工具没有参数
-      </div>
-    )
-  }
+  if (params.length === 0)
+    return <div className="py-2 text-xs text-muted-foreground">该工具没有参数</div>
+
   return (
-    <div className="
-      mt-2 rounded-sm bg-background p-2
-    "
-    >
+    <div className="mt-2 rounded-sm bg-background p-2">
       <div className="mb-1 text-xs font-medium">工具参数</div>
       <div className="flex flex-col gap-2">
-        {params.map(([key, val]) => (
+        {params.map(([key, value]) => (
           <div key={key}>
             <span>
               {key}
-              <span className="text-red-500">
-                {item.inputSchema.required?.includes(key) ? '*' : ''}
-              </span>
+              <span className="text-red-500">{item.inputSchema.required?.includes(key) ? '*' : ''}</span>
             </span>
             <div className="flex items-center gap-2">
-              <Badge variant="outline">{(val as Record<string, unknown>).type as string}</Badge>
-              <span className="text-xs">{(val as Record<string, unknown>)?.description as string}</span>
+              <Badge variant="outline">{String(value.type ?? '')}</Badge>
+              <span className="text-xs">{String(value.description ?? '')}</span>
             </div>
           </div>
         ))}
       </div>
     </div>
   )
+}
+
+function toAddMcpConfig(config: McpConfigForm): AddMcpConfigSchema {
+  return AddMcpConfigSchema.parse(config.transportType === 'stdio'
+    ? {
+        serverName: config.serverName,
+        icon: config.icon,
+        transportType: 'stdio',
+        command: config.command || '',
+        args: config.args ? config.args.split(',').filter(Boolean) : [],
+        env: envArrayToObject(config.env),
+        description: config.description,
+        timeout: config.timeout,
+      }
+    : {
+        serverName: config.serverName,
+        icon: config.icon,
+        transportType: 'sse',
+        url: config.url || '',
+        headers: envArrayToObject(config.headers),
+        description: config.description,
+        timeout: config.timeout,
+      })
 }
 
 function envArrayToObject(envArr: KeyValueItem[] = []): Record<string, string> {

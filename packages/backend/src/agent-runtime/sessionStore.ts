@@ -1,4 +1,4 @@
-import type { CreateAssistantMessageInput, CreateConversationInput, CreateEventMessageInput, CreateToolMessageInput, CreateUserMessageInput, ISessionStore, UpdateAssistantMessageInput, UpdateConversationInput, UpdateEventMessageInput } from '@ant-chat/shared'
+import type { CreateAssistantMessageInput, CreateEventMessageInput, CreateToolMessageInput, CreateUserMessageInput, ISessionStore, UpdateAssistantMessageInput, UpdateEventMessageInput } from '@ant-chat/shared'
 import type { AppDataContext } from '../data'
 
 export function createAppDataSessionStore(appDataContext: AppDataContext): ISessionStore {
@@ -10,12 +10,6 @@ export function createAppDataSessionStore(appDataContext: AppDataContext): ISess
     },
     async getConversationById(id) {
       return await getNullableConversation(conversationRepository, id)
-    },
-    async createConversation(data: CreateConversationInput) {
-      return await conversationRepository.create(data)
-    },
-    async updateConversation(id: string, patch: UpdateConversationInput) {
-      return await conversationRepository.update({ id, ...patch })
     },
     async listConversations() {
       return (await conversationRepository.list(0, 1000)).data

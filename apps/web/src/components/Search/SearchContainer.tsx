@@ -1,5 +1,5 @@
 import React from 'react'
-import { setActiveConversationsId } from '@/store/messages'
+import { activatePersistedConversationSession } from '@/store/workspaceSession'
 import { SearchBar } from './SearchBar'
 
 export function SearchContainer() {
@@ -73,7 +73,7 @@ export function SearchContainer() {
         onClose={handleClose}
         onItemClick={(item, _) => {
           handleClose()
-          setActiveConversationsId(item.conversationId)
+          void activatePersistedConversationSession(item.conversationId)
         }}
       />
     </div>

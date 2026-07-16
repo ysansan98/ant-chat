@@ -31,7 +31,7 @@ export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModu
     skills: skills.service,
     contextDiagnosticsEnabled: core.contextDiagnosticsEnabled,
   })
-  const chat = new ChatModule(core, agent.runtime, agent.titleGenerator)
+  const chat = new ChatModule(core, agent.conversationLifecycle, agent.titleGenerator)
   const settings = new SettingsModule(core)
   const workspace = new WorkspaceModule(core)
   const automation = new AutomationModule(core, {
@@ -42,6 +42,7 @@ export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModu
     agentRuntime: agent.runtime,
     aiProviderFactory: provider.aiProviderFactory,
     eventEmitter: agent.eventEmitter,
+    conversationLifecycle: agent.conversationLifecycle,
   })
 
   const appControl = new AppControl(

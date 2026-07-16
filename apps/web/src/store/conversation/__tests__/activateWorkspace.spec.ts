@@ -1,9 +1,8 @@
 import type { IConversations } from '@ant-chat/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useMessagesStore } from '@/store/messages'
 import { useWorkspaceStore } from '@/store/workspace'
-import { activateWorkspace, clearConversationsAction } from '../actions'
+import { clearConversationsAction } from '../actions'
 import { useConversationsStore } from '../conversationsStore'
 
 const chatMocks = vi.hoisted(() => ({
@@ -24,68 +23,6 @@ function makeConversation(id: string, workspacePath: string): IConversations {
     updatedAt: 1,
   } as IConversations
 }
-
-describe('activateWorkspace', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    useWorkspaceStore.setState({ currentWorkspacePath: '', workspaceData: null, loading: false })
-    useConversationsStore.setState({
-      conversations: [],
-      abortCallbacks: [],
-      pageIndex: 0,
-      pageSize: 20,
-      conversationsTotal: 1,
-      activeConversationsId: 'stale-id',
-      activeWorkspacePath: '',
-      conversationStates: {},
-      loadVersion: 0,
-      workspaceConversations: {},
-    })
-    useMessagesStore.setState({ activeConversationsId: 'stale-id', messages: [] })
-  })
-
-  it('空路径时不触发任何操作', async () => {
-    await activateWorkspace('')
-
-    expect(useMessagesStore.getState().activeConversationsId).toBe('stale-id')
-    expect(chatMocks.getWorkspaceConversations).not.toHaveBeenCalled()
-  })
-
-  it('非空路径时加载该工作区分片并切换顶层 slice', async () => {
-    useWorkspaceStore.setState({ currentWorkspacePath: '/other' })
-    chatMocks.getWorkspaceConversations.mockResolvedValue({
-      data: [makeConversation('c1', '/target')],
-      total: 1,
-    })
-
-    await activateWorkspace('/target')
-
-    expect(chatMocks.getWorkspaceConversations).toHaveBeenCalledWith('/target', 0, 20)
-    expect(useConversationsStore.getState().conversations).toHaveLength(1)
-    expect(useConversationsStore.getState().conversations[0].id).toBe('c1')
-  })
-
-  it('分片已加载时复用缓存,不重复请求', async () => {
-    useWorkspaceStore.setState({ currentWorkspacePath: '/other' })
-    // 预置已加载的分片
-    useConversationsStore.setState({
-      workspaceConversations: {
-        '/target': {
-          conversations: [makeConversation('cached', '/target')],
-          pageIndex: 0,
-          conversationsTotal: 1,
-          loadVersion: 0,
-          loaded: true,
-        },
-      },
-    })
-
-    await activateWorkspace('/target')
-
-    expect(chatMocks.getWorkspaceConversations).not.toHaveBeenCalled()
-    expect(useConversationsStore.getState().conversations[0].id).toBe('cached')
-  })
-})
 
 describe('clearConversationsAction 跨 store 取路径', () => {
   beforeEach(() => {

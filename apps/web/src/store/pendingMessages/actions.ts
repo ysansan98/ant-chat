@@ -1,36 +1,21 @@
-import type { PendingMessage } from './store'
-import { nanoid } from 'nanoid'
 import { toast } from 'sonner'
-import agentApi from '@/api/agentApi'
-import { buildTurnInput } from '@/components/Chat/buildTurnInput'
-import { isTaskActive, startAgentTurn } from '@/store/agentRuntime'
 import { useChatSttingsStore } from '@/store/chatSettings'
 import { getConversationByIdAction } from '@/store/conversation'
-import { addPendingSteeringMessage } from '@/store/messages'
+import { submitTurnIntake } from '@/store/turnIntake'
 import { useWorkspaceStore } from '@/store/workspace'
+import {
+  clearAllPendingMessages,
+  clearConversationPendingMessages,
+  editPendingMessage,
+  enqueuePendingMessage,
+  enqueueVisualizationNextTurn,
+  removePendingMessage,
+} from './queue'
 import { sortPendingMessages, usePendingMessagesStore } from './store'
 
 const drainPromises = new Map<string, Promise<void>>()
 const operationPromises = new Map<string, Promise<void>>()
 const deletionBarriers = new Map<string, Set<symbol>>()
-let lastCreatedAt = 0
-
-function updateConversationItems(conversationId: string, update: (items: PendingMessage[]) => PendingMessage[]) {
-  usePendingMessagesStore.setState(state => ({
-    itemsByConversation: {
-      ...state.itemsByConversation,
-      [conversationId]: sortPendingMessages(update(state.itemsByConversation[conversationId] ?? [])),
-    },
-  }))
-}
-
-export function enqueuePendingMessage(conversationId: string, text: string) {
-  return enqueuePendingMessageWithDelivery(conversationId, text, 'steering', 'sender')
-}
-
-export function enqueueVisualizationNextTurn(conversationId: string, text: string) {
-  return enqueuePendingMessageWithDelivery(conversationId, text, 'next-turn', 'visualization')
-}
 
 /**
  * 可视化表单只能创建 next turn。运行中的会话进入队列，空闲会话直接启动新轮次。
@@ -44,56 +29,18 @@ export async function submitVisualizationFollowUp(conversationId: string, text: 
     throw new Error('当前会话正在删除')
 
   await runConversationOperation(conversationId, async () => {
-    const task = await listActiveTask(conversationId)
-    if (task) {
-      enqueueVisualizationNextTurn(conversationId, trimmed)
-      return
-    }
-    await startNextTurn(conversationId, trimmed)
+    const settings = getConversationByIdAction(conversationId)?.settings
+    if (!settings)
+      throw new Error('当前会话已不存在')
+    await submitTurnIntake({
+      origin: 'visualization',
+      conversationId,
+      messageContent: [{ type: 'text', text: trimmed }],
+      workspacePath: useWorkspaceStore.getState().currentWorkspacePath,
+      settings,
+      mode: useChatSttingsStore.getState().agentMode,
+    })
   })
-}
-
-function enqueuePendingMessageWithDelivery(
-  conversationId: string,
-  text: string,
-  delivery: PendingMessage['delivery'],
-  source: PendingMessage['source'],
-) {
-  const latestPersistedCreatedAt = Math.max(
-    0,
-    ...(usePendingMessagesStore.getState().itemsByConversation[conversationId] ?? []).map(item => item.createdAt),
-  )
-  const now = Math.max(Date.now(), lastCreatedAt + 1, latestPersistedCreatedAt + 1)
-  lastCreatedAt = now
-  const item: PendingMessage = { id: nanoid(), conversationId, text: text.trim(), createdAt: now, delivery, source }
-  updateConversationItems(conversationId, items => [...items, item])
-  return item
-}
-
-export function editPendingMessage(conversationId: string, id: string, text: string) {
-  const trimmed = text.trim()
-  if (!trimmed) {
-    removePendingMessage(conversationId, id)
-    toast.info('空消息已移除')
-    return
-  }
-  updateConversationItems(conversationId, items => items.map(item => item.id === id ? { ...item, text: trimmed } : item))
-}
-
-export function removePendingMessage(conversationId: string, id: string) {
-  updateConversationItems(conversationId, items => items.filter(item => item.id !== id))
-}
-
-export function clearConversationPendingMessages(conversationId: string) {
-  usePendingMessagesStore.setState((state) => {
-    const itemsByConversation = { ...state.itemsByConversation }
-    delete itemsByConversation[conversationId]
-    return { itemsByConversation }
-  })
-}
-
-export function clearAllPendingMessages() {
-  usePendingMessagesStore.setState({ itemsByConversation: {} })
 }
 
 export interface PendingMessageDeletionToken {
@@ -131,11 +78,6 @@ export function getPendingMessageOperationStateForTests() {
   }
 }
 
-async function listActiveTask(conversationId: string) {
-  const tasks = await agentApi.listActiveTasks(conversationId)
-  return tasks.find(isTaskActive)
-}
-
 export async function injectPendingMessage(conversationId: string, id: string) {
   if (isConversationDeleting(conversationId))
     return
@@ -149,21 +91,13 @@ async function injectPendingMessageOnce(conversationId: string, id: string) {
   if (!item)
     return
 
-  const task = await listActiveTask(conversationId)
-  if (!task) {
-    await drainOnce(conversationId)
-    return
-  }
-
-  if (item.delivery === 'next-turn') {
-    toast.info('该消息会在当前任务结束后作为新一轮发送')
-    return
-  }
-
   try {
-    const message = await agentApi.injectSteering(conversationId, item.text)
+    const result = await submitPendingItem(conversationId, item.text, item.delivery)
+    if (result.kind === 'next-turn') {
+      toast.info('该消息会在当前任务结束后作为新一轮发送')
+      return
+    }
     removePendingMessage(conversationId, id)
-    addPendingSteeringMessage(message)
   }
   catch (error) {
     toast.error(error instanceof Error ? error.message : '追加消息失败')
@@ -202,7 +136,9 @@ async function drainOnce(conversationId: string) {
   }
 
   try {
-    await startNextTurn(conversationId, item.text, conversation.settings)
+    const result = await submitPendingItem(conversationId, item.text, item.delivery, conversation.settings)
+    if (result.kind === 'next-turn')
+      return
     removePendingMessage(conversationId, item.id)
     // Runtime 侧已通过 turnService 发出 message:updated 事件，
     // web UI 会自动收到用户消息，无需手动 upsert 会话
@@ -213,20 +149,32 @@ async function drainOnce(conversationId: string) {
   }
 }
 
-async function startNextTurn(
+async function submitPendingItem(
   conversationId: string,
   text: string,
+  delivery: 'steering' | 'next-turn',
   settings = getConversationByIdAction(conversationId)?.settings,
 ) {
   if (!settings)
     throw new Error('当前会话已不存在')
-  await startAgentTurn(buildTurnInput({
+  return submitTurnIntake({
+    origin: 'pending',
+    delivery,
     conversationId,
     messageContent: [{ type: 'text', text }],
     workspacePath: useWorkspaceStore.getState().currentWorkspacePath,
     settings,
     mode: useChatSttingsStore.getState().agentMode,
-  }))
+  })
+}
+
+export {
+  clearAllPendingMessages,
+  clearConversationPendingMessages,
+  editPendingMessage,
+  enqueuePendingMessage,
+  enqueueVisualizationNextTurn,
+  removePendingMessage,
 }
 
 function isConversationDeleting(conversationId: string) {

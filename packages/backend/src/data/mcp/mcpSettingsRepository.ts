@@ -1,6 +1,6 @@
-import type { AddMcpConfigSchema, McpConfigSchema, UpdateMcpConfigSchema } from '@ant-chat/shared'
+import type { AddMcpConfigSchema, McpConfigSchema } from '@ant-chat/shared'
 import type { McpSettingsStore } from './mcpSettingsStore'
-import { AddMcpConfigSchema as AddMcpConfigValidator, UpdateMcpConfigSchema as UpdateMcpConfigValidator } from '@ant-chat/shared'
+import { AddMcpConfigSchema as AddMcpConfigValidator } from '@ant-chat/shared'
 
 export class McpSettingsRepository {
   constructor(private readonly store: McpSettingsStore) {}
@@ -17,7 +17,7 @@ export class McpSettingsRepository {
     const data = AddMcpConfigValidator.parse(config)
     this.store.update((settings) => {
       if (settings.servers[data.serverName]) {
-        throw new Error(`MCP server already exists: ${data.serverName}`)
+        throw new Error(`MCP server 已存在：${data.serverName}`)
       }
       return {
         ...settings,
@@ -30,30 +30,21 @@ export class McpSettingsRepository {
     return data
   }
 
-  updateMcpConfig(config: UpdateMcpConfigSchema): McpConfigSchema {
-    const data = UpdateMcpConfigValidator.parse(config)
-    let updatedConfig: McpConfigSchema | null = null
+  replaceMcpConfig(serverName: string, config: AddMcpConfigSchema): McpConfigSchema {
+    const data = AddMcpConfigValidator.parse(config)
     this.store.update((settings) => {
-      const currentConfig = settings.servers[data.serverName]
-      if (!currentConfig) {
-        throw new Error(`MCP server not found: ${data.serverName}`)
-      }
-      updatedConfig = {
-        ...currentConfig,
-        ...data,
-      } as McpConfigSchema
+      if (!settings.servers[serverName])
+        throw new Error(`MCP server 不存在：${serverName}`)
+      if (serverName !== data.serverName && settings.servers[data.serverName])
+        throw new Error(`MCP server 已存在：${data.serverName}`)
+
+      const { [serverName]: _oldConfig, ...servers } = settings.servers
       return {
         ...settings,
-        servers: {
-          ...settings.servers,
-          [data.serverName]: updatedConfig,
-        },
+        servers: { ...servers, [data.serverName]: data },
       }
     })
-    if (!updatedConfig) {
-      throw new Error(`MCP server not found: ${data.serverName}`)
-    }
-    return updatedConfig
+    return data
   }
 
   deleteMcpConfig(serverName: string): boolean {

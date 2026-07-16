@@ -6,10 +6,10 @@ import type {
   CreateProviderConfigModelSchema,
   CreateProviderConfigSchema,
   McpConfigSchema,
+  McpServerEditPatch,
   ProviderConfigModelSchema,
   ProviderConfigSchema,
   UpdateConversationsSchema,
-  UpdateMcpConfigSchema,
   UpdateProviderConfigSchema,
 } from '../schemas'
 import type { ContextTraceItemDetail, ContextTraceListItem } from '../schemas/contextTrace'
@@ -27,7 +27,7 @@ import type { handleInitConversationTitleOptions } from './conversation-title'
 import type { IConversations, IMessage } from './db-types'
 import type { GeneralSettingsState } from './generalSettings'
 import type { SearchResult } from './global-search'
-import type { McpConnection, McpTool, McpToolCallResponse } from './mcp'
+import type { McpConnection, McpServerLifecycleResult, McpServerTestResult, McpTool, McpToolCallResponse } from './mcp'
 import type { ModelsDevImportResult, ModelsDevModel, ModelsDevProvider } from './modelsDev'
 import type { ImportSkillFromGithubOptions, SetSkillEnabledOptions, SkillIndex, SkillManifest } from './skill'
 import type { UpdateConfig, UpdateInfo, UpdateStatus } from './update'
@@ -99,16 +99,15 @@ export interface AppRpcContract {
 
   'mcp.getConfigs': RpcEndpoint<undefined, McpConfigSchema[]>
   'mcp.getConfigByServerName': RpcEndpoint<{ serverName: string }, McpConfigSchema>
-  'mcp.addConfig': RpcEndpoint<{ config: AddMcpConfigSchema }, McpConfigSchema>
-  'mcp.updateConfig': RpcEndpoint<{ config: UpdateMcpConfigSchema }, McpConfigSchema>
-  'mcp.deleteConfig': RpcEndpoint<{ serverName: string }, null>
+  'mcp.installServer': RpcEndpoint<{ config: AddMcpConfigSchema }, McpServerLifecycleResult>
+  'mcp.editServer': RpcEndpoint<{ serverName: string, updates: McpServerEditPatch }, McpServerLifecycleResult>
+  'mcp.deleteServer': RpcEndpoint<{ serverName: string }, McpServerLifecycleResult>
+  'mcp.startServer': RpcEndpoint<{ serverName: string }, McpServerLifecycleResult>
+  'mcp.stopServer': RpcEndpoint<{ serverName: string }, McpServerLifecycleResult>
+  'mcp.testServer': RpcEndpoint<{ config: AddMcpConfigSchema }, McpServerTestResult>
   'mcp.getConnections': RpcEndpoint<undefined, McpConnection[]>
   'mcp.getAllAvailableToolsList': RpcEndpoint<undefined, McpTool[]>
   'mcp.callTool': RpcEndpoint<{ serverName: string, toolName: string, toolArguments?: Record<string, unknown> }, McpToolCallResponse>
-  'mcp.connectMcpServer': RpcEndpoint<{ name: string, config: McpConfigSchema }, null>
-  'mcp.disconnectMcpServer': RpcEndpoint<{ name: string }, null>
-  'mcp.reconnectMcpServer': RpcEndpoint<{ name: string, config: McpConfigSchema }, null>
-  'mcp.fetchMcpServerTools': RpcEndpoint<{ name: string }, McpTool[]>
 
   'search.searchByKeyword': RpcEndpoint<{ query: string }, SearchResult[]>
 

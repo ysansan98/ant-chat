@@ -12,7 +12,7 @@ import { SqliteMessageSearchQuery } from '../../queries'
 import { mapConversationRow } from '../../rows'
 import { SqliteConversationRepository } from '../sqliteConversationRepository'
 import { SqliteMessageRepository } from '../sqliteMessageRepository'
-import { runFork } from '../../../../agent-runtime/commands/messageFork'
+import { createConversationLifecycle } from '../../../../conversations/conversationLifecycle'
 
 describe('sqlite message repository', () => {
   it('lists conversation messages by creation time and insertion order', async () => {
@@ -706,17 +706,19 @@ describe('sqlite repositories', () => {
       messageRepository,
       loadAttachmentData: messageRepository.loadAttachmentData.bind(messageRepository),
     } as never
-    const result = await runFork({ appDataContext, sourceConversationId: sourceConversation.id, workspacePath: '/workspace' })
-    if (result.status !== 'success' || !result.conversationId) {
-      throw new Error('fork failed')
-    }
-    const forkMessages = await messageRepository.listByConversation(result.conversationId)
+    const lifecycle = createConversationLifecycle({
+      data: appDataContext,
+      events: { emit: vi.fn() },
+      runtime: { closeConversation: vi.fn(), listActiveTasks: vi.fn(() => []) },
+    })
+    const forkConversation = await lifecycle.fork({ sourceConversationId: sourceConversation.id, workspacePath: '/workspace' })
+    const forkMessages = await messageRepository.listByConversation(forkConversation.id)
     const forkMessage = forkMessages.find(message => message.content.some(content => content.type === 'visualization'))!
     const forkBlock = forkMessage.content.find(content => content.type === 'visualization') as { source: { file_id: string } }
 
     expect(forkBlock.source.file_id).not.toBe('viz-source-1')
     await conversationRepository.delete(sourceConversation.id)
-    await expect(messageRepository.loadVisualizationData({ conversationId: result.conversationId, messageId: forkMessage.id, fileId: forkBlock.source.file_id })).resolves.toBe(bytes.toString('base64'))
+    await expect(messageRepository.loadVisualizationData({ conversationId: forkConversation.id, messageId: forkMessage.id, fileId: forkBlock.source.file_id })).resolves.toBe(bytes.toString('base64'))
   })
 })
 

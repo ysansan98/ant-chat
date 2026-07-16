@@ -6,7 +6,6 @@ import { useWorkspaceStore } from '../store'
 const mocks = vi.hoisted(() => ({
   listWorkspaces: vi.fn(),
   addWorkspace: vi.fn(),
-  openWorkspace: vi.fn(),
   removeWorkspace: vi.fn(),
   reorderWorkspaces: vi.fn(),
 }))
@@ -74,14 +73,6 @@ describe('workspaceStore currentWorkspacePath SSOT', () => {
     await useWorkspaceStore.getState().addWorkspace('/new')
 
     expect(useWorkspaceStore.getState().currentWorkspacePath).toBe('/new')
-  })
-
-  it('openWorkspace 后 currentWorkspacePath 显式设置为目标路径', async () => {
-    mocks.openWorkspace.mockResolvedValue(makeWorkspaces([{ path: '/opened', lastOpenedAt: 10 }]))
-
-    await useWorkspaceStore.getState().openWorkspace('/opened')
-
-    expect(useWorkspaceStore.getState().currentWorkspacePath).toBe('/opened')
   })
 
   it('removeWorkspace 删除当前工作区后回退到 lastOpenedAt 最大者', async () => {

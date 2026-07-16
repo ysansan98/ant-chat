@@ -64,8 +64,6 @@ function createSessionStore(overrides: Partial<ISessionStore> = {}): ISessionSto
   return {
     getConversation: vi.fn(async () => conversation),
     getConversationById: vi.fn(async () => conversation),
-    createConversation: vi.fn(async () => conversation),
-    updateConversation: vi.fn(async () => conversation),
     listConversations: vi.fn(async () => [conversation]),
     getMessages: vi.fn(async () => [userMessage]),
     getMessagesByConvId: vi.fn(async () => []),
@@ -312,7 +310,6 @@ describe('agentRuntime 行为', () => {
       }))
 
       expect(store.getConversation).toHaveBeenCalledWith('conv-session')
-      expect(store.createConversation).not.toHaveBeenCalled()
       expect(store.createUserMessage).not.toHaveBeenCalled()
       expect(result).toEqual(expect.objectContaining({
         conversationId: 'conv-session',
@@ -496,7 +493,6 @@ describe('agentRuntime 行为', () => {
       const store = createSessionStore({
         getConversation: vi.fn(async () => conversation),
         getConversationById: vi.fn(async () => conversation),
-        createConversation: vi.fn(async () => conversation),
         getMessages: vi.fn(async () => historyMessages),
       })
       let memoryMarkdown = '§Initial memory.'

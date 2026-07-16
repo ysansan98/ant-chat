@@ -28,9 +28,10 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
-import { activateWorkspace, archiveConversationAction, deleteConversationsAction, ensureWorkspaceConversationsAction, loadAllWorkspaceConversationsAction, renameConversationsAction, restoreConversationAction, useConversationsStore } from '@/store/conversation'
-import { setActiveConversationsId, useMessagesStore } from '@/store/messages'
+import { archiveConversationAction, deleteConversationsAction, ensureWorkspaceConversationsAction, loadAllWorkspaceConversationsAction, renameConversationsAction, restoreConversationAction, useConversationsStore } from '@/store/conversation'
+import { useMessagesStore } from '@/store/messages'
 import { useWorkspaceStore } from '@/store/workspace'
+import { activateWorkspaceSession } from '@/store/workspaceSession'
 import { formatRelativeTime } from '@/utils'
 import { WorkspaceDirectoryPickerDialog } from './WorkspaceDirectoryPickerDialog'
 
@@ -60,7 +61,6 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
   const workspaceData = useWorkspaceStore(state => state.workspaceData)
   const currentWorkspacePath = useWorkspaceStore(state => state.currentWorkspacePath)
   const refreshWorkspace = useWorkspaceStore(state => state.refresh)
-  const openWorkspace = useWorkspaceStore(state => state.openWorkspace)
   const addWorkspace = useWorkspaceStore(state => state.addWorkspace)
   const removeWorkspace = useWorkspaceStore(state => state.removeWorkspace)
   const reorderWorkspaces = useWorkspaceStore(state => state.reorderWorkspaces)
@@ -93,7 +93,7 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
     if (data) {
       const currentPath = useWorkspaceStore.getState().currentWorkspacePath
       setExpandedPaths(new Set([currentPath]))
-      await activateWorkspace(currentPath)
+      await activateWorkspaceSession({ workspacePath: currentPath })
     }
   }, [refreshWorkspace])
 
@@ -106,10 +106,8 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
     setPanelError('')
     try {
       await addWorkspace(path)
-      // addWorkspace 内部已 set currentWorkspacePath=path(SSOT 更新),
-      // 用入参 path 调 activateWorkspace,不依赖闭包渲染期变量
       setExpandedPaths(paths => new Set([...paths, path]))
-      await activateWorkspace(path)
+      await activateWorkspaceSession({ workspacePath: path })
     }
     catch (error) {
       setPanelError((error as Error).message)
@@ -119,9 +117,7 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
   const handleDeleteWorkspace = useCallback(async (path: string) => {
     try {
       await removeWorkspace(path)
-      // removeWorkspace 内部已按 lastOpenedAt 回退 currentWorkspacePath,
-      // 从 workspaceStore 取回退后的当前路径再 activate
-      await activateWorkspace(useWorkspaceStore.getState().currentWorkspacePath)
+      await activateWorkspaceSession({ workspacePath: useWorkspaceStore.getState().currentWorkspacePath })
       setExpandedPaths((paths) => {
         const next = new Set(paths)
         next.delete(path)
@@ -177,26 +173,18 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
   ) {
     navigate('/chat')
 
-    if (workspacePath !== currentWorkspacePath) {
-      await openWorkspace(workspacePath)
+    if (workspacePath !== currentWorkspacePath)
       setExpandedPaths(paths => new Set([...paths, workspacePath]))
-      await activateWorkspace(workspacePath)
-    }
-
-    await setActiveConversationsId(conversationId)
+    await activateWorkspaceSession({ workspacePath, conversationId })
     onNavigate?.()
   }
 
   async function createConversation(workspacePath: string) {
     navigate('/chat')
 
-    if (workspacePath !== currentWorkspacePath) {
-      await openWorkspace(workspacePath)
+    if (workspacePath !== currentWorkspacePath)
       setExpandedPaths(paths => new Set([...paths, workspacePath]))
-      await activateWorkspace(workspacePath)
-    }
-
-    await setActiveConversationsId('')
+    await activateWorkspaceSession({ workspacePath })
     onNavigate?.()
   }
 

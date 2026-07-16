@@ -7,7 +7,7 @@ import { MenuIcon, PencilIcon, Search } from 'lucide-react'
 import { useState } from 'react'
 import { Outlet, useNavigate } from 'react-router'
 import { SidebarProvider } from '@/contexts/sidebar'
-import { setActiveConversationsId } from '@/store/messages'
+import { clearConversationSession } from '@/store/workspaceSession'
 import { isElectronMacOS } from '@/utils/ipc-bus'
 import { SliderMenu } from './SiliderMenu/SiliderMenu'
 
@@ -25,7 +25,7 @@ export function ChatLayout() {
 
   function createNewConversation() {
     navigate('/chat')
-    void setActiveConversationsId('')
+    void clearConversationSession()
     setMobileMenuOpen(false)
   }
 

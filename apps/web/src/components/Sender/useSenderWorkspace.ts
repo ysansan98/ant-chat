@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { activateWorkspace, useConversationsStore } from '@/store/conversation'
+import { useConversationsStore } from '@/store/conversation'
 import { useMessagesStore } from '@/store/messages'
 import { useWorkspaceStore } from '@/store/workspace'
+import { activateWorkspaceSession } from '@/store/workspaceSession'
 
 export interface SenderWorkspaceController {
   currentPath: string
@@ -23,7 +24,6 @@ export function useSenderWorkspace(): SenderWorkspaceController {
   const workspaceData = useWorkspaceStore(state => state.workspaceData)
   const currentPath = useWorkspaceStore(state => state.currentWorkspacePath)
   const refreshWorkspace = useWorkspaceStore(state => state.refresh)
-  const openWorkspace = useWorkspaceStore(state => state.openWorkspace)
   const activeConversationId = useMessagesStore(state => state.activeConversationsId)
   const hasMessage = useMessagesStore(state => !!state.messages.length)
   const isRunning = useConversationsStore(
@@ -52,9 +52,8 @@ export function useSenderWorkspace(): SenderWorkspaceController {
     setLoading(true)
     setError('')
     try {
-      await openWorkspace(nextPath)
+      await activateWorkspaceSession({ workspacePath: nextPath })
       setPickerOpen(false)
-      await activateWorkspace(nextPath)
     }
     catch (cause) {
       setError((cause as Error).message)

@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { createAppRuntime as createAppRuntimeFn } from '../appRuntime'
+import type { activateAppRuntime as activateAppRuntimeFn } from '../appRuntime'
 
 vi.mock('keytar', () => ({
   default: {
@@ -14,15 +14,14 @@ vi.mock('keytar', () => ({
 
 describe('app runtime', () => {
   let appDataRoot: string
-  let runtime: ReturnType<typeof createAppRuntimeFn>
+  let runtime: Awaited<ReturnType<typeof activateAppRuntimeFn>>
 
   beforeEach(async () => {
-    const { createAppRuntime } = await import('../appRuntime')
+    const { activateAppRuntime } = await import('../appRuntime')
     appDataRoot = mkdtempSync(path.join(tmpdir(), 'ant-chat-app-runtime-'))
-    runtime = createAppRuntime({
+    runtime = await activateAppRuntime({
       appDataRoot,
     })
-    await runtime.initialize()
   })
 
   afterEach(async () => {
@@ -38,7 +37,7 @@ describe('app runtime', () => {
         createdAt: 1,
         updatedAt: 1,
       } as any,
-    })).rejects.toThrow('workspacePath is required')
+    })).rejects.toThrow('缺少工作区路径')
   })
 
   it('createConversation 传入 workspacePath 时归属该工作区', async () => {
@@ -172,7 +171,7 @@ describe('app runtime', () => {
       },
     })
 
-    await expect(runtime.invoke('chat.clearWorkspaceConversations', { workspacePath: undefined as any })).rejects.toThrow('workspacePath is required')
+    await expect(runtime.invoke('chat.clearWorkspaceConversations', { workspacePath: undefined as any })).rejects.toThrow('缺少工作区路径')
 
     const deletedIds = await runtime.invoke('chat.clearWorkspaceConversations', { workspacePath: defaultPath })
     expect(deletedIds.length).toBe(1)
@@ -209,12 +208,21 @@ describe('app runtime', () => {
     })
 
     await runtime.dispose()
-    const { createAppRuntime } = await import('../appRuntime')
-    runtime = createAppRuntime({ appDataRoot })
-    await runtime.initialize()
+    const { activateAppRuntime } = await import('../appRuntime')
+    runtime = await activateAppRuntime({ appDataRoot })
 
     await expect(runtime.invoke('automation.list', undefined)).resolves.toEqual([
       expect.objectContaining({ id: created.id, name: '明日检查' }),
     ])
+  })
+
+  it('同一数据目录的第二次激活失败且不破坏活跃 Runtime', async () => {
+    const { activateAppRuntime } = await import('../appRuntime')
+
+    await expect(activateAppRuntime({ appDataRoot })).rejects.toMatchObject({ code: 'EADDRINUSE' })
+    await expect(runtime.invoke('workspace.listWorkspaces', undefined)).resolves.toEqual(expect.objectContaining({
+      workspaces: expect.any(Array),
+    }))
+    await expect(activateAppRuntime({ appDataRoot })).rejects.toMatchObject({ code: 'EADDRINUSE' })
   })
 })

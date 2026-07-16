@@ -9,7 +9,7 @@ import {
   preparePendingMessageDeletion,
 } from '@/store/pendingMessages'
 import { useWorkspaceStore } from '@/store/workspace'
-import { clearActiveConversations, setActiveConversationsId } from '../messages/actions'
+import { clearConversationSession } from '../workspaceSession/conversationSession'
 import { useConversationsStore } from './conversationsStore'
 
 const loadingConversationPages = new Set<string>()
@@ -105,28 +105,6 @@ export async function loadAllWorkspaceConversationsAction(workspacePath: string)
   saveCurrentSlice()
 }
 
-/**
- * 统一的工作区激活入口:在 workspaceStore 已更新当前路径后,
- * 同步会话分片缓存到该路径。所有切换/新增/删除场景调用此入口,
- * 避免手动拼装 ensure+switch 导致的遗漏与闭包陷阱。
- *
- * 入参为目标工作区路径,由调用方传入(与紧邻的 workspaceStore action 的 path 入参一致),
- * 不依赖任何闭包渲染期变量。activateWorkspace 不写 workspaceStore(SSOT 由 workspaceStore action 负责)。
- */
-export async function activateWorkspace(workspacePath: string): Promise<void> {
-  if (!workspacePath) {
-    return
-  }
-  await setActiveConversationsId('')
-  await ensureWorkspaceConversationsAction(workspacePath)
-  useConversationsStore.getState().switchWorkspaceSlice(workspacePath)
-
-  const nextState = useConversationsStore.getState()
-  if (nextState.conversations.length === 0 && nextState.conversationsTotal > 0) {
-    await nextPageConversationsAction()
-  }
-}
-
 export async function addConversationsAction(conversation: AddConversationsSchema) {
   const data = await chatApi.addConversation(conversation)
 
@@ -155,7 +133,7 @@ export async function archiveConversationAction(id: ConversationsId) {
   upsertConversationAction(conversation)
   removeConversationState(id)
   if (wasActive) {
-    await clearActiveConversations()
+    clearConversationSession()
   }
   if (conversation.workspacePath) {
     await backfillWorkspacePreview(conversation.workspacePath)
@@ -193,7 +171,7 @@ export async function deleteConversationsAction(id: ConversationsId) {
   }
 
   if (useConversationsStore.getState().activeConversationsId === id) {
-    await clearActiveConversations()
+    clearConversationSession()
   }
 
   useConversationsStore.setState(state => produce(state, (draft) => {
@@ -242,7 +220,7 @@ export async function clearConversationsAction() {
     throw error
   }
 
-  await clearActiveConversations()
+  clearConversationSession()
 
   useConversationsStore.setState(state => produce(state, (draft) => {
     draft.conversations = []

@@ -39,15 +39,32 @@ export class LocalControlServer {
   private authToken?: string
   private socketPath?: string
   private lockPath?: string
+  private ownsEndpoint = false
 
   constructor(
-    private readonly appControl: AppControl,
+    private appControl: AppControl | null,
     private readonly options: LocalControlServerOptions,
   ) {}
 
-  /** 启动监听 */
-  async start(): Promise<void> {
+  /** 锁可以先于数据层获取；模块注册完成后再绑定控制面。 */
+  attachAppControl(appControl: AppControl): void {
+    this.appControl = appControl
+  }
+
+  /** 在业务模块激活前占用单实例锁，此时尚未开放控制端点。 */
+  reserve(): void {
+    if (this.lockPath)
+      return
     const { socketPath, authToken } = this.prepareEndpoint()
+    this.socketPath = socketPath
+    this.authToken = authToken
+  }
+
+  /** 启动监听。独立使用时仍支持一步完成 reserve + listen。 */
+  async start(): Promise<void> {
+    this.reserve()
+    const socketPath = this.socketPath!
+    const authToken = this.authToken!
 
     return new Promise<void>((resolve, reject) => {
       this.server = createServer((socket) => {
@@ -60,9 +77,14 @@ export class LocalControlServer {
       })
 
       this.server.listen(socketPath, () => {
-        this.authToken = authToken
-        this.socketPath = socketPath
-        this.writeEndpointMeta(socketPath, authToken)
+        this.ownsEndpoint = true
+        try {
+          this.writeEndpointMeta(socketPath, authToken)
+        }
+        catch (error) {
+          void this.stopListening().finally(() => reject(error))
+          return
+        }
         // 确保 socket 文件权限为 600（仅当前用户可读写）
         try {
           chmodSync(socketPath, 0o600)
@@ -77,6 +99,12 @@ export class LocalControlServer {
 
   /** 关闭监听 */
   async stop(): Promise<void> {
+    await this.stopListening()
+    this.releaseReservation()
+  }
+
+  /** 关闭控制端点，但保留 runtime lock。 */
+  async stopListening(): Promise<void> {
     const server = this.server
     this.server = undefined
     if (!server) {
@@ -89,6 +117,22 @@ export class LocalControlServer {
         resolve()
       })
     })
+  }
+
+  /** 在业务模块全部释放后，最后释放单实例锁。 */
+  releaseReservation(): void {
+    this.cleanupEndpoint()
+    if (this.lockPath && existsSync(this.lockPath)) {
+      try {
+        unlinkSync(this.lockPath)
+      }
+      catch {
+        // 清理失败不阻断宿主退出
+      }
+    }
+    this.lockPath = undefined
+    this.socketPath = undefined
+    this.authToken = undefined
   }
 
   /** Socket 路径（macOS/Linux）或 pipe 路径（Windows） */
@@ -185,6 +229,8 @@ export class LocalControlServer {
   }
 
   private cleanupEndpoint(): void {
+    if (!this.ownsEndpoint)
+      return
     try {
       const metaPath = path.join(this.options.appDataRoot, '.control-endpoint.json')
       if (existsSync(metaPath)) {
@@ -202,14 +248,7 @@ export class LocalControlServer {
         // 忽略
       }
     }
-    if (this.lockPath && existsSync(this.lockPath)) {
-      try {
-        unlinkSync(this.lockPath)
-      }
-      catch {
-        // 忽略
-      }
-    }
+    this.ownsEndpoint = false
   }
 
   private handleConnection(socket: Socket): void {
@@ -289,6 +328,8 @@ export class LocalControlServer {
     }
 
     try {
+      if (!this.appControl)
+        throw new Error('AppControl 尚未完成激活')
       const result = await this.appControl.execute(parsed.command)
       this.sendResponse(socket, { ok: true, result } as ControlResponse)
     }
