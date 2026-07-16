@@ -43,9 +43,12 @@ describe('visualization HTML v1 共享合同', () => {
   it('允许内联样式和事件属性，并拒绝完整 document、宿主 API 和网络请求', () => {
     expect(validateVisualizationHtmlFragment('<section class="card"><h2>趋势</h2><script>button.addEventListener("click", () => window.antChatVisualization.sendFollowUpMessage({ prompt: "继续" }))</script></section>')).toBeNull()
     expect(validateVisualizationHtmlFragment('<section style="color: var(--viz-foreground)"><button onclick="window.antChatVisualization.sendFollowUpMessage({ prompt: \'继续\' })">继续</button></section>')).toBeNull()
+    expect(validateVisualizationHtmlFragment('<script src="https://cdn.jsdelivr.net/npm/lucide@1.23.0/dist/umd/lucide.min.js" integrity="sha384-ouAVEJVCMsf8Svzn+BwqbaBhxBEA0xgeVBhHnxmWd+Wqyv18yhWCQwGegFD/OHLq" crossorigin="anonymous"></script>')).toBeNull()
     expect(validateVisualizationHtmlFragment('<!doctype html><html><body>bad</body></html>')).toContain('fragment')
     expect(validateVisualizationHtmlFragment('<iframe src="https://example.com"></iframe>')).toContain('不允许 iframe')
     expect(validateVisualizationHtmlFragment('<script>fetch("/api")</script>')).toContain('网络请求')
+    expect(validateVisualizationHtmlFragment('<script src="https://cdn.jsdelivr.net/npm/lucide/dist/umd/lucide.min.js" integrity="sha384-abc" crossorigin="anonymous"></script>')).toContain('白名单')
+    expect(validateVisualizationHtmlFragment('<script src="https://cdn.jsdelivr.net/npm/lucide@1.23.0/dist/umd/lucide.min.js" crossorigin="anonymous"></script>')).toContain('sha384')
   })
 
   it('校验固定格式、artifact hash、大小和完整设计 token', () => {

@@ -59,6 +59,8 @@ fragment 可以包含语义 HTML、style 属性、inline on\* 事件属性、内
 - 外部 script/link 只能使用以下精确 URL，并必须有 sha384-\* 的 integrity 和 crossorigin="anonymous"：
   - https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js
   - https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js
+  - https://cdn.jsdelivr.net/npm/lucide@1.23.0/dist/umd/lucide.min.js
+- Lucide CDN 只提供自包含的 SVG 渲染脚本；不要使用 Iconify 等运行时还会请求第三方图标 API 的组件，也不要加载图标字体。
 - sandbox 的 CSP 禁止连接、远程图片、媒体、字体、frame 和 object；外部资源只按宿主白名单放行。
 
 inline 样式和事件处理器在 opaque-origin iframe 内执行；它们无法访问宿主窗口、Electron 或进程，且仍受 CSP 的网络与资源限制。

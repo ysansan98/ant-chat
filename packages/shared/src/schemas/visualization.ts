@@ -150,6 +150,7 @@ export function validateVisualizationHtmlFragment(html: string): string | null {
 const ALLOWED_CDN_RESOURCES = new Set([
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js',
   'https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js',
+  'https://cdn.jsdelivr.net/npm/lucide@1.23.0/dist/umd/lucide.min.js',
 ])
 
 export function isAllowedVisualizationCdnUrl(value: string): boolean {

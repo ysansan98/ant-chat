@@ -44,6 +44,30 @@ description: 使用安全的 HTML fragment 创建交互式解释器、参数模�
 
 完整安全合同和允许的 CDN 资源见 [references/visualization-schema.md](references/visualization-schema.md)。
 
+## 图标
+
+- 优先使用内联 SVG；只有需要批量使用标准 UI 图标时才加载白名单中的 Lucide。
+- 仅允许下面这个固定版本和完整 SRI 属性，不得改用 `@latest`、无版本 URL 或其他图标 CDN：
+
+```html
+<script
+  src="https://cdn.jsdelivr.net/npm/lucide@1.23.0/dist/umd/lucide.min.js"
+  integrity="sha384-ouAVEJVCMsf8Svzn+BwqbaBhxBEA0xgeVBhHnxmWd+Wqyv18yhWCQwGegFD/OHLq"
+  crossorigin="anonymous"
+></script>
+```
+
+- 使用 `data-lucide` 声明图标，并在脚本加载后调用 `lucide.createIcons()`；图标必须标记为装饰性 `aria-hidden="true"`，或放在带可见文本/`aria-label` 的操作控件中。
+
+```html
+<button type="button" aria-label="搜索">
+  <i data-lucide="search" aria-hidden="true"></i>
+</button>
+<script>
+  lucide.createIcons()
+</script>
+```
+
 ## 本地交互与下一轮消息
 
 - 只影响图表显示的筛选、选择、排序、播放和参数调整留在 fragment 内，不发送消息。

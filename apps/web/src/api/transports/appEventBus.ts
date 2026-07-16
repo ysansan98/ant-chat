@@ -42,7 +42,12 @@ function createSseEventBus(): AppEventBus {
     if (eventSource)
       return
 
-    eventSource = new EventSource('/api/events')
+    // 浏览器中相对路径可正常解析；在 jsdom/Node 测试环境里相对路径缺少基准地址，
+    // 会触发 EventSource 抛出 Invalid URL。用 location.origin 拼成绝对地址规避。
+    const baseUrl = typeof window !== 'undefined' && window.location?.origin
+      ? `${window.location.origin}/api/events`
+      : '/api/events'
+    eventSource = new EventSource(baseUrl)
 
     eventSource.onmessage = () => {
       // fallback for messages without event type
