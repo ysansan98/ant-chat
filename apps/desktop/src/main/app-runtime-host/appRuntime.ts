@@ -1,27 +1,35 @@
 import type { AppRuntime } from '@ant-chat/backend'
 import path from 'node:path'
 import process from 'node:process'
-import { createAppRuntime } from '@ant-chat/backend'
+import { activateAppRuntime } from '@ant-chat/backend'
 import { resolveAppDataRoot } from '@ant-chat/shared'
 import { attachAppRuntimeEvents } from '@main/app-runtime-host/electronAppRuntimeEvents'
 import { isDev } from '@main/utils/env'
 import { app } from 'electron'
+import { createRuntimeHost } from './runtimeHost'
 
-let runtime: AppRuntime | null = null
+const runtimeHost = createRuntimeHost(createDesktopAppRuntime, attachAppRuntimeEvents)
 
 export function getAppRuntime(): AppRuntime {
-  if (!runtime) {
-    runtime = createAppRuntime({
-      appDataRoot: resolveAppDataRoot(),
-      contextDiagnosticsEnabled: isDev,
-      bashEnvironment: {
-        PATH: [resolveBundledCliDirectory(), process.env.PATH].filter(Boolean).join(path.delimiter),
-      },
-    })
-    attachAppRuntimeEvents(runtime)
-  }
+  return runtimeHost.get()
+}
 
-  return runtime
+export function activateDesktopAppRuntime(): Promise<AppRuntime> {
+  return runtimeHost.activate()
+}
+
+export function disposeDesktopAppRuntime(): Promise<void> {
+  return runtimeHost.dispose()
+}
+
+function createDesktopAppRuntime(): Promise<AppRuntime> {
+  return activateAppRuntime({
+    appDataRoot: resolveAppDataRoot(),
+    contextDiagnosticsEnabled: isDev,
+    bashEnvironment: {
+      PATH: [resolveBundledCliDirectory(), process.env.PATH].filter(Boolean).join(path.delimiter),
+    },
+  })
 }
 
 function resolveBundledCliDirectory(): string {

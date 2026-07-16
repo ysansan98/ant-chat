@@ -36,6 +36,21 @@ export interface McpResourceTemplate {
 
 export type McpConnection = Pick<McpServer, 'name' | 'config' | 'status' | 'tools' | 'disabled'>
 
+export interface McpServerLifecycleResult {
+  serverName: string
+  status: McpServer['status']
+  transportType: 'stdio' | 'sse'
+  error?: string
+  /** 失败发生时，新配置是否已经持久化。 */
+  configSaved?: boolean
+}
+
+export interface McpServerTestResult {
+  serverName: string
+  tools: McpTool[]
+  error?: string
+}
+
 export interface TextResult {
   type: 'text'
   text: string

@@ -2,7 +2,7 @@ import process from 'node:process'
 import { runControlCli } from '@ant-chat/control-client'
 import { resolveAppDataRoot } from '@ant-chat/shared'
 import { app } from 'electron'
-import { getAppRuntime } from './app-runtime-host/appRuntime'
+import { activateDesktopAppRuntime, disposeDesktopAppRuntime } from './app-runtime-host/appRuntime'
 import { UpdateService } from './domains/update/updateService'
 import { installDevTools } from './plugins/devtools'
 import { isDev } from './utils/env'
@@ -29,13 +29,13 @@ if (cliMarkerIndex !== -1) {
   })
 }
 else {
-  app.whenReady().then(async () => {
+  void app.whenReady().then(async () => {
     // 安装开发工具扩展
     if (isDev) {
       installDevTools()
     }
 
-    await getAppRuntime().initialize()
+    await activateDesktopAppRuntime()
 
     const mainWindow = new MainWindow()
     await mainWindow.createWindow()
@@ -54,6 +54,9 @@ else {
       if (process.platform !== 'darwin')
         app.quit()
     })
+  }).catch((error) => {
+    logger.error('AppRuntime 激活失败', error)
+    app.exit(1)
   })
 
   let isRuntimeDisposed = false
@@ -63,6 +66,6 @@ else {
 
     event.preventDefault()
     isRuntimeDisposed = true
-    void getAppRuntime().dispose().finally(() => app.quit())
+    void disposeDesktopAppRuntime().finally(() => app.quit())
   })
 }

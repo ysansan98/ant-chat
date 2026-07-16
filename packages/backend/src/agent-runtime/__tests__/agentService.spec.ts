@@ -1,6 +1,7 @@
 import type { AgentRuntime } from '../../agent-core'
 import type { AppDataContext } from '../../data'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createConversationLifecycle } from '../../conversations/conversationLifecycle'
 import { createAgentTurnService } from '../agentTurnService'
 
 const startTask = vi.fn()
@@ -13,6 +14,7 @@ const runtime = {
   injectSteering: vi.fn(),
   listActiveTasks: vi.fn(() => []),
   getTask: vi.fn(),
+  closeConversation: vi.fn(),
 } as unknown as AgentRuntime
 
 const model = {
@@ -72,6 +74,7 @@ const appDataContext = {
     create: vi.fn(async () => conversation),
     getById: vi.fn(async () => conversation),
     delete: vi.fn(async () => true),
+    update: vi.fn(async input => ({ ...conversation, ...input })),
   },
   messageRepository: {
     create: vi.fn(async () => userMessage),
@@ -85,8 +88,24 @@ const appDataContext = {
   },
 } as unknown as AppDataContext
 
-function createService(deps: Omit<Parameters<typeof createAgentTurnService>[0], 'runtime' | 'appDataContext'> = {}) {
-  return createAgentTurnService({ runtime, appDataContext, ...deps })
+function createService(
+  deps: Omit<Parameters<typeof createAgentTurnService>[0], 'runtime' | 'appDataContext' | 'conversationLifecycle'> & {
+    onConversationUpdated?: (value: typeof conversation) => void
+  } = {},
+) {
+  const { onConversationUpdated, ...serviceDeps } = deps
+  const conversationLifecycle = createConversationLifecycle({
+    data: appDataContext,
+    events: {
+      emit(name, event) {
+        if (name === 'conversation:updated' && 'conversation' in event) {
+          onConversationUpdated?.(event.conversation as typeof conversation)
+        }
+      },
+    },
+    runtime,
+  })
+  return createAgentTurnService({ runtime, appDataContext, conversationLifecycle, ...serviceDeps })
 }
 
 describe('createAgentTurnService 行为', () => {
@@ -171,6 +190,26 @@ describe('createAgentTurnService 行为', () => {
     expect(emitMessageUpdated).not.toHaveBeenCalled()
   })
 
+  it('新会话启动失败时回滚 conversation 且不发布 ghost event', async () => {
+    startTask.mockRejectedValueOnce(new Error('runtime start failed'))
+    const emitConversationUpdated = vi.fn()
+    const service = createService({ aiProviderFactory, onConversationUpdated: emitConversationUpdated })
+
+    await expect(service.startTurn({
+      messageContent: [{ type: 'text', text: 'inspect project' }],
+      workspacePath: '/workspace',
+      modelConfig: {
+        modelId: 'model-1',
+        providerId: 'provider-1',
+        temperature: 0.2,
+        maxOutputTokens: 2048,
+      },
+    })).rejects.toThrow('runtime start failed')
+
+    expect(appDataContext.conversationRepository.delete).toHaveBeenCalledWith('c1')
+    expect(emitConversationUpdated).not.toHaveBeenCalled()
+  })
+
   it('保留显式传入的 turn 上下文字段', async () => {
     const service = createService({ aiProviderFactory })
 
@@ -226,7 +265,7 @@ describe('createAgentTurnService 行为', () => {
     expect(startTask).not.toHaveBeenCalled()
   })
 
-  it('成功启动新会话后异步初始化标题并发出 conversation 更新', async () => {
+  it('成功启动新会话后由 titleGenerator 异步初始化标题，不重复发布更新事件', async () => {
     const titledConversation = { ...conversation, title: '项目检查' }
     const titleGenerator = {
       updateTitle: vi.fn(async () => titledConversation),
@@ -235,7 +274,7 @@ describe('createAgentTurnService 行为', () => {
     const service = createService({
       aiProviderFactory,
       titleGenerator,
-      emitConversationUpdated,
+      onConversationUpdated: emitConversationUpdated,
     })
 
     await service.startTurn({
@@ -251,7 +290,8 @@ describe('createAgentTurnService 行为', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
 
     expect(titleGenerator.updateTitle).toHaveBeenCalledWith('c1', { providerId: 'provider-1', modelId: 'model-1' })
-    expect(emitConversationUpdated).toHaveBeenCalledWith(titledConversation)
+    expect(emitConversationUpdated).toHaveBeenCalledOnce()
+    expect(emitConversationUpdated).toHaveBeenCalledWith(conversation)
   })
 
   it('初始化标题优先使用设置页面配置的助手模型', async () => {
@@ -270,7 +310,7 @@ describe('createAgentTurnService 行为', () => {
     const service = createService({
       aiProviderFactory,
       titleGenerator,
-      emitConversationUpdated,
+      onConversationUpdated: emitConversationUpdated,
     })
 
     await service.startTurn({
@@ -299,7 +339,7 @@ describe('createAgentTurnService 行为', () => {
     const service = createService({
       aiProviderFactory,
       titleGenerator,
-      emitConversationUpdated,
+      onConversationUpdated: emitConversationUpdated,
     })
 
     await service.startTurn({
@@ -315,7 +355,8 @@ describe('createAgentTurnService 行为', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
 
     expect(titleGenerator.updateTitle).toHaveBeenCalledWith('c1', { providerId: 'provider-1', modelId: 'model-1' })
-    expect(emitConversationUpdated).toHaveBeenCalledWith(titledConversation)
+    expect(emitConversationUpdated).toHaveBeenCalledOnce()
+    expect(emitConversationUpdated).toHaveBeenCalledWith(conversation)
   })
 
   it('startTurn 未传 workspacePath 时抛错,不再兜底 getCurrentWorkspacePath() 或 process.cwd()', async () => {

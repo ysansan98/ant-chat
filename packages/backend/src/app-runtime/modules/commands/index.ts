@@ -1,5 +1,6 @@
 import type { AIProviderFactory, AppRpcInput, IAgentEventEmitter } from '@ant-chat/shared'
 import type { createAgentRuntime } from '../../../agent-core'
+import type { ConversationLifecycle } from '../../../conversations/conversationLifecycle'
 import type { RuntimeCore } from '../../createRuntimeCore'
 import type { RuntimeModuleMethods } from '../../routeRegistry'
 import { createCommandController } from '../../../agent-runtime'
@@ -15,6 +16,7 @@ export class CommandsModule implements RuntimeModuleMethods<'commands'> {
       agentRuntime: ReturnType<typeof createAgentRuntime>
       aiProviderFactory: AIProviderFactory
       eventEmitter: IAgentEventEmitter
+      conversationLifecycle: ConversationLifecycle
     },
   ) {
     this.controller = createCommandController({
@@ -23,6 +25,7 @@ export class CommandsModule implements RuntimeModuleMethods<'commands'> {
       logger: core.logger,
       aiProviderFactory: dependencies.aiProviderFactory,
       listActiveTasks: conversationId => dependencies.agentRuntime.listActiveTasks(conversationId),
+      conversationLifecycle: dependencies.conversationLifecycle,
     })
   }
 

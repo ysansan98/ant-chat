@@ -1,4 +1,4 @@
-import type { AddConversationsSchema, AddMessage, LanguageModelUsage, ModelInfo, ProviderConfigSchema, ReasoningEffortLevel, SecretRef, SecretRequest, SecretRequestField, SecretRequestResult, ToolCallContent, ToolResultContent, UpdateConversationsSchema, UpdateMessageSchema } from '../schemas'
+import type { AddMessage, LanguageModelUsage, ModelInfo, ProviderConfigSchema, ReasoningEffortLevel, SecretRef, SecretRequest, SecretRequestField, SecretRequestResult, ToolCallContent, ToolResultContent, UpdateMessageSchema } from '../schemas'
 import type { AgentMemoryReader } from './agent-memory'
 import type { AgentMode, AgentPendingAction, AgentTaskSnapshot, AgentTurnSource, ToolApprovalWhitelistEntry } from './agent-runtime'
 import type { AgentTool } from './agent-tools'
@@ -95,8 +95,6 @@ export interface IConversationQuery {
   getMessagesByConvId: (convId: string) => Promise<IMessage[]>
 }
 
-export type CreateConversationInput = AddConversationsSchema
-export type UpdateConversationInput = Omit<UpdateConversationsSchema, 'id'>
 export type CreateUserMessageInput = Extract<AddMessage, { role: 'user' }> & { id?: string }
 export type CreateToolMessageInput = Extract<AddMessage, { role: 'tool' }>
 export type CreateEventMessageInput = Extract<AddMessage, { role: 'event' }>
@@ -110,8 +108,6 @@ export type UpdateEventMessageInput = Omit<UpdateMessageSchema, 'id'>
 
 export interface ISessionStore extends IConversationQuery {
   getConversation: (id: string) => Promise<IConversations | null>
-  createConversation: (data: CreateConversationInput) => Promise<IConversations>
-  updateConversation: (id: string, patch: UpdateConversationInput) => Promise<IConversations>
   listConversations: () => Promise<IConversations[]>
   getMessages: (convId: string) => Promise<IMessage[]>
   createUserMessage: (data: CreateUserMessageInput) => Promise<IMessage>

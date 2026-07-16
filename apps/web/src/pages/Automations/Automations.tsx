@@ -16,9 +16,7 @@ import { providerApi } from '@/api/providerApi'
 import { skillApi } from '@/api/skillApi'
 import workspaceApi from '@/api/workspaceApi'
 import { AUTOMATION_CHANGED_EVENT, AUTOMATION_RUN_CHANGED_EVENT } from '@/constants/automationEvents'
-import { activateWorkspace } from '@/store/conversation'
-import { setActiveConversationsId } from '@/store/messages'
-import { useWorkspaceStore } from '@/store/workspace'
+import { activateWorkspaceSession } from '@/store/workspaceSession'
 import { OverviewCard, RunHistorySheet, TaskMeta } from './automation-components'
 import { toAutomationItem } from './automation-utils'
 import { CreateAutomationSheet } from './CreateAutomationSheet'
@@ -95,9 +93,10 @@ export function AutomationsPage() {
   async function openConversation(run: AutomationRun, automation?: AutomationItem) {
     if (!run.conversationId || !automation)
       throw new Error(run.errorMessage || '该运行记录没有可查看的会话')
-    await useWorkspaceStore.getState().openWorkspace(automation.workspacePath)
-    await activateWorkspace(automation.workspacePath)
-    await setActiveConversationsId(run.conversationId)
+    await activateWorkspaceSession({
+      workspacePath: automation.workspacePath,
+      conversationId: run.conversationId,
+    })
     navigate('/chat')
   }
 

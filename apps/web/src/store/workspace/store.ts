@@ -13,7 +13,6 @@ interface WorkspaceStoreState {
 
 interface WorkspaceStoreActions {
   refresh: () => Promise<void>
-  openWorkspace: (path: string) => Promise<ListWorkspacesData>
   addWorkspace: (path: string) => Promise<ListWorkspacesData>
   removeWorkspace: (path: string) => Promise<ListWorkspacesData>
   reorderWorkspaces: (paths: string[]) => Promise<ListWorkspacesData>
@@ -55,12 +54,6 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
             : pickLatestWorkspace(workspaces)
           return { workspaceData: data, currentWorkspacePath }
         })
-      },
-
-      openWorkspace: async (path: string) => {
-        const data = await workspaceApi.openWorkspace(path)
-        set({ workspaceData: data, currentWorkspacePath: path })
-        return data
       },
 
       addWorkspace: async (path: string) => {

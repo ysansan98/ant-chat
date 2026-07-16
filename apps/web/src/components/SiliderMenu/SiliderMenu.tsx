@@ -6,7 +6,8 @@ import {
   Settings,
 } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router'
-import { setActiveConversationsId, useMessagesStore } from '@/store/messages'
+import { useMessagesStore } from '@/store/messages'
+import { clearConversationSession } from '@/store/workspaceSession'
 import { ipc, isElectronRuntime, unwrapIpcResponse } from '@/utils/ipc-bus'
 import { WorkspacePanels } from '../Workspace/WorkspacePanels'
 import { SidebarNavItem } from './SliderMenuItem'
@@ -59,7 +60,7 @@ export function SliderMenu({ mobile = false, onNavigate }: SliderMenuProps) {
             active={location.pathname === '/chat' && !activeConversationsId}
             onClick={() => {
               navigate('/chat')
-              void setActiveConversationsId('')
+              void clearConversationSession()
               onNavigate?.()
             }}
           />

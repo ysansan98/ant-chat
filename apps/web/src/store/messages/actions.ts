@@ -1,54 +1,7 @@
-import type { ConversationsId, IMessage } from '@ant-chat/shared'
+import type { IMessage } from '@ant-chat/shared'
 import { produce } from 'immer'
 import chatApi from '@/api/chatApi'
-import { syncConversationRuntime } from '../agentRuntime'
-import { useConversationsStore } from '../conversation'
 import { useMessagesStore } from './store'
-
-let loadVersion = 0
-
-export async function clearActiveConversations() {
-  const version = ++loadVersion
-
-  useMessagesStore.setState(state => produce(state, (draft) => {
-    draft.activeConversationsId = '' as ConversationsId
-    draft.messages = []
-  }))
-  useConversationsStore.getState().setActiveConversationsId('')
-
-  return version
-}
-
-export async function setActiveConversationsId(id: ConversationsId | '') {
-  if (!id) {
-    await clearActiveConversations()
-    return
-  }
-
-  const version = ++loadVersion
-
-  const [messages] = await Promise.all([
-    chatApi.getMessagesByConvId(id),
-    syncConversationRuntime(id),
-  ])
-
-  if (version !== loadVersion) {
-    return
-  }
-
-  useMessagesStore.setState(state => produce(state, (draft) => {
-    const persistedMessageIds = new Set(messages.map(message => message.id))
-    const pendingSteering = (draft.pendingSteeringByConversation[id] ?? [])
-      .filter(message => !persistedMessageIds.has(message.id))
-    if (pendingSteering.length > 0)
-      draft.pendingSteeringByConversation[id] = pendingSteering
-    else
-      delete draft.pendingSteeringByConversation[id]
-    draft.activeConversationsId = id as ConversationsId
-    draft.messages.splice(0, draft.messages.length, ...messages, ...pendingSteering)
-  }))
-  useConversationsStore.getState().setActiveConversationsId(id)
-}
 
 export async function addMessageAction(message: IMessage) {
   const data = await chatApi.addMessage(message)

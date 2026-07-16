@@ -1,4 +1,5 @@
 import type { AgentTaskSnapshot, AIProviderFactory, IAgentEventEmitter, ILogger, RunBuiltinCommandParams, RunBuiltinCommandResult } from '@ant-chat/shared'
+import type { ConversationLifecycle } from '../../conversations/conversationLifecycle'
 import type { AppDataContext } from '../../data'
 import { runCompact } from './compactCommand'
 import { runNew } from './conversationCommands'
@@ -10,6 +11,7 @@ export interface CommandControllerDeps {
   logger?: ILogger
   aiProviderFactory?: AIProviderFactory
   listActiveTasks: (conversationId?: string) => AgentTaskSnapshot[]
+  conversationLifecycle: ConversationLifecycle
 }
 
 export interface CommandController {
@@ -18,7 +20,7 @@ export interface CommandController {
 }
 
 export function createCommandController(deps: CommandControllerDeps): CommandController {
-  const { appDataContext, eventEmitter, logger, aiProviderFactory, listActiveTasks } = deps
+  const { appDataContext, conversationLifecycle, eventEmitter, logger, aiProviderFactory, listActiveTasks } = deps
   const abortControllers = new Map<string, AbortController>()
   const activeCommands = new Map<string, Promise<RunBuiltinCommandResult>>()
 
@@ -84,7 +86,7 @@ export function createCommandController(deps: CommandControllerDeps): CommandCon
 
         case 'new': {
           return runNew({
-            appDataContext,
+            conversationLifecycle,
             workspacePath: params.workspacePath,
             modelConfig: params.modelConfig,
             conversationInstructions: params.conversationInstructions,
@@ -98,7 +100,7 @@ export function createCommandController(deps: CommandControllerDeps): CommandCon
           guardConversationIdle(params.conversationId)
           guardNoActiveCommand(params.conversationId)
 
-          const commandPromise = runFork({ appDataContext, sourceConversationId: params.conversationId, workspacePath: params.workspacePath })
+          const commandPromise = runFork({ conversationLifecycle, sourceConversationId: params.conversationId, workspacePath: params.workspacePath })
           activeCommands.set(params.conversationId, commandPromise)
           try {
             return await commandPromise

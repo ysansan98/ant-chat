@@ -1,9 +1,22 @@
-import type { McpConfigSchema, McpServerStatus } from '@ant-chat/shared'
+import type {
+  AddMcpConfigSchema,
+  McpServerEditPatch,
+  McpServerLifecycleResult,
+  McpServerStatus,
+} from '@ant-chat/shared'
 import { produce } from 'immer'
-import { addMcpConfig, connectMcpServer, deleteMcpConfig, disconnectMcpServer, getMcpConfigByServerName, getMcpConfigs, updateMcpConfig } from '@/api/mcpApi'
+import {
+  deleteMcpServer,
+  editMcpServer,
+  getMcpConfigByServerName,
+  getMcpConfigs,
+  installMcpServer,
+  startMcpServer,
+  stopMcpServer,
+} from '@/api/mcpApi'
 import { useMcpConfigsStore } from './store'
 
-export async function initializeMcpConfigs() {
+export async function initializeMcpConfigs(): Promise<void> {
   const list = await getMcpConfigs()
 
   useMcpConfigsStore.setState(state => produce(state, (draft) => {
@@ -13,80 +26,57 @@ export async function initializeMcpConfigs() {
 }
 
 /** 刷新 MCP 配置（用于监听 mcp:changed 事件后刷新列表） */
-export async function refreshMcpConfigs() {
-  return initializeMcpConfigs()
+export async function refreshMcpConfigs(): Promise<void> {
+  await initializeMcpConfigs()
 }
 
-export async function addMcpConfigAction(config: McpConfigSchema) {
-  const data = await addMcpConfig(config)
-
-  useMcpConfigsStore.setState(state => produce(state, (draft) => {
-    draft.mcpConfigs.push(data)
-  }))
-
-  return data
+export async function installMcpServerAction(config: AddMcpConfigSchema): Promise<McpServerLifecycleResult> {
+  return runLifecycleAction(() => installMcpServer(config), true)
 }
 
-export async function upadteMcpConfigAction(config: McpConfigSchema) {
-  const newConfig = await updateMcpConfig(config)
-
-  useMcpConfigsStore.setState(state => produce(state, (draft) => {
-    const index = draft.mcpConfigs.findIndex(item => item.serverName === config.serverName)
-    if (index > -1) {
-      draft.mcpConfigs[index] = newConfig
-    }
-  }))
+export async function editMcpServerAction(serverName: string, updates: McpServerEditPatch): Promise<McpServerLifecycleResult> {
+  return runLifecycleAction(() => editMcpServer(serverName, updates), true)
 }
 
-export async function deleteMcpConfigAction(name: string) {
-  await deleteMcpConfig(name)
-
-  useMcpConfigsStore.setState(state => produce(state, (draft) => {
-    draft.mcpConfigs = draft.mcpConfigs.filter(item => item.serverName !== name)
-  }))
+export async function deleteMcpServerAction(serverName: string): Promise<McpServerLifecycleResult> {
+  return runLifecycleAction(() => deleteMcpServer(serverName), true)
 }
 
-export async function connectMcpServerAction(name: string) {
-  const config = await getMcpConfigByServerName(name)
-
-  useMcpConfigsStore.setState(state => produce(state, (draft) => {
-    draft.mcpServerRuningStatusMap[name] = 'connecting'
-  }))
-
-  await connectMcpServer(config)
+export async function startMcpServerAction(serverName: string): Promise<McpServerLifecycleResult> {
+  setStatus(serverName, 'connecting')
+  return runLifecycleAction(() => startMcpServer(serverName))
 }
 
-export async function disconnectMcpServerAction(name: string) {
-  const ok = await disconnectMcpServer(name)
-
-  useMcpConfigsStore.setState(state => produce(state, (draft) => {
-    delete draft.mcpServerRuningStatusMap[name]
-  }))
-  return ok
+export async function stopMcpServerAction(serverName: string): Promise<McpServerLifecycleResult> {
+  return runLifecycleAction(() => stopMcpServer(serverName))
 }
 
-export async function reconnectMcpServerAction(name: string) {
-  await getMcpConfigByServerName(name)
-
-  await disconnectMcpServerAction(name)
-  await connectMcpServerAction(name)
-}
-
-export async function onMcpServerStatusChanged(name: string, status: McpServerStatus) {
-  console.log('onMcpServerStatusChanged => ', name, status)
+export async function onMcpServerStatusChanged(name: string, status: McpServerStatus): Promise<void> {
   try {
     await getMcpConfigByServerName(name)
   }
   catch {
     return
   }
+  setStatus(name, status)
+}
 
+async function runLifecycleAction(
+  action: () => Promise<McpServerLifecycleResult>,
+  refreshConfigs = false,
+): Promise<McpServerLifecycleResult> {
+  const result = await action()
+  setStatus(result.serverName, result.status)
+  if (refreshConfigs)
+    await initializeMcpConfigs()
+  return result
+}
+
+function setStatus(name: string, status: McpServerStatus): void {
   useMcpConfigsStore.setState(state => produce(state, (draft) => {
-    if (status === 'disconnected') {
+    if (status === 'disconnected')
       delete draft.mcpServerRuningStatusMap[name]
-    }
-    else {
+    else
       draft.mcpServerRuningStatusMap[name] = status
-    }
   }))
 }

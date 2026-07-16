@@ -27,6 +27,7 @@ vi.mock('@/api/chatApi', () => ({
 const conversation = {
   id: 'conv-1',
   title: '测试会话',
+  workspacePath: '/workspace',
   conversationInstructions: '',
   createdAt: Date.now(),
   updatedAt: Date.now(),
@@ -42,7 +43,7 @@ describe('pending message actions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     usePendingMessagesStore.setState({ itemsByConversation: {} })
-    useConversationsStore.setState({ conversations: [conversation] })
+    useConversationsStore.setState({ conversations: [conversation], activeWorkspacePath: '/workspace' })
     useMessagesStore.setState({ activeConversationsId: 'conv-1', messages: [], pendingSteeringByConversation: {} })
     useWorkspaceStore.setState({ currentWorkspacePath: '/workspace' })
     useChatSttingsStore.setState({ agentMode: 'hybrid' })

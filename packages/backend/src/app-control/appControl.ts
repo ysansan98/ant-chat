@@ -227,10 +227,10 @@ export class AppControl {
             const config = transportType === 'stdio'
               ? { serverName, transportType, command: cmd, args, env, icon: resolvedIcon, description, timeout }
               : { serverName, transportType, url, headers, icon: resolvedIcon, description, timeout }
-            const result = await this.modules.mcp.installServer(config as McpConfigSchema)
+            const result = await this.modules.mcp.installServer({ config: config as McpConfigSchema })
             return {
               mcpServer: {
-                config: transportType,
+                config: result.transportType,
                 error: result.error,
                 name: result.serverName,
                 status: result.status as 'connected' | 'connecting' | 'disconnected',
@@ -239,17 +239,11 @@ export class AppControl {
           }
           case 'edit': {
             const { serverName, transportType, command: executable, args, env, url, headers, icon, description, timeout } = command
-            const existing = this.modules.mcp.getConfigByServerName({ serverName })
-            const tType = transportType ?? existing.transportType
-            const patch = omitUndefined({ command: executable, args, env, url, headers, icon, description, timeout })
-            const merged = { ...existing, ...patch, serverName, transportType: tType }
-            const config = tType === 'stdio'
-              ? omitKeys(merged, ['headers', 'url'])
-              : omitKeys(merged, ['args', 'command', 'env'])
-            const result = await this.modules.mcp.editServer(config as McpConfigSchema)
+            const updates = omitUndefined({ transportType, command: executable, args, env, url, headers, icon, description, timeout })
+            const result = await this.modules.mcp.editServer({ serverName, updates })
             return {
               mcpServer: {
-                config: tType,
+                config: result.transportType,
                 error: result.error,
                 name: result.serverName,
                 status: result.status as 'connected' | 'connecting' | 'disconnected',
@@ -257,16 +251,16 @@ export class AppControl {
             } as AppControlResult
           }
           case 'delete': {
-            await this.modules.mcp.deleteServer(command.name)
-            return { deleted: true } as AppControlResult
+            const result = await this.modules.mcp.deleteServer({ serverName: command.name })
+            return { deleted: !result.error, error: result.error } as AppControlResult
           }
           case 'start': {
-            const result = await this.modules.mcp.startServer(command.name)
-            return { name: command.name, status: result.status } as AppControlResult
+            const result = await this.modules.mcp.startServer({ serverName: command.name })
+            return { error: result.error, name: command.name, status: result.status } as AppControlResult
           }
           case 'stop': {
-            const result = await this.modules.mcp.stopServer(command.name)
-            return { name: command.name, status: result.status } as AppControlResult
+            const result = await this.modules.mcp.stopServer({ serverName: command.name })
+            return { error: result.error, name: command.name, status: result.status } as AppControlResult
           }
           default:
             throw new Error(`Unknown mcp action: ${(command as AppControlCommand & { action: string }).action}`)
@@ -330,10 +324,6 @@ export class AppControl {
         throw new Error(`Unknown command type: ${(command as AppControlCommand & { type: string }).type}`)
     }
   }
-}
-
-function omitKeys<T extends Record<string, unknown>>(value: T, keys: string[]): Record<string, unknown> {
-  return Object.fromEntries(Object.entries(value).filter(([key]) => !keys.includes(key)))
 }
 
 function omitUndefined<T extends Record<string, unknown>>(value: T): Record<string, unknown> {

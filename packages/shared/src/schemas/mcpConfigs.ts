@@ -46,3 +46,17 @@ export const UpdateMcpConfigSchema = z.discriminatedUnion('transportType', [
 ])
 
 export type UpdateMcpConfigSchema = z.infer<typeof UpdateMcpConfigSchema>
+
+/** MCP 生命周期 module 接收的编辑 patch；最终完整配置由 module 合并并校验。 */
+export interface McpServerEditPatch {
+  serverName?: string
+  icon?: string
+  description?: string | null
+  timeout?: number
+  transportType?: 'stdio' | 'sse'
+  command?: string
+  args?: string[]
+  env?: Record<string, unknown>
+  url?: string
+  headers?: Record<string, string>
+}

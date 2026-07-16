@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { createConversationLifecycle } from '../../../conversations/conversationLifecycle'
 import { createCommandController } from '../commandController'
 
 const summarizeMock = vi.hoisted(() =>
@@ -23,7 +24,10 @@ function mockDeps(overrides: { activeTasks?: Array<{ status: string }> } = {}) {
       getById: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
+      delete: vi.fn(),
     },
+    loadAttachmentData: vi.fn(),
+    workspaceService: {},
     messageRepository: {
       listByConversation: vi.fn(),
       create: vi.fn(),
@@ -36,8 +40,14 @@ function mockDeps(overrides: { activeTasks?: Array<{ status: string }> } = {}) {
       resolveModel: vi.fn(),
     },
   }
+  const conversationLifecycle = createConversationLifecycle({
+    data: appDataContext as never,
+    events: { emit: vi.fn() },
+    runtime: { closeConversation: vi.fn(), listActiveTasks: vi.fn(() => []) },
+  })
   return {
     appDataContext: appDataContext as any,
+    conversationLifecycle,
     eventEmitter: {
       emitMessageUpdated: vi.fn(),
     } as any,
@@ -566,7 +576,7 @@ describe('fork 命令', () => {
     })
     deps.appDataContext.conversationRepository.create.mockResolvedValue({
       id: 'fork-conv',
-      title: 'Original fork',
+      title: 'Original 副本',
       settings: {},
     })
     deps.appDataContext.messageRepository.listByConversation.mockResolvedValue([
@@ -626,7 +636,7 @@ describe('fork 命令', () => {
     })
     deps.appDataContext.conversationRepository.create.mockResolvedValue({
       id: 'fork-conv',
-      title: 'Original fork',
+      title: 'Original 副本',
       settings: {},
     })
     deps.appDataContext.messageRepository.listByConversation.mockResolvedValue([

@@ -1,6 +1,7 @@
 import type { ConversationsId, IMessage } from '@ant-chat/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { addPendingSteeringMessage, clearActiveConversations, setActiveConversationsId, updateMessageActionV2 } from '../actions'
+import { activateConversationSession, clearConversationSession } from '@/store/workspaceSession'
+import { addPendingSteeringMessage, updateMessageActionV2 } from '../actions'
 import { useMessagesStore } from '../store'
 
 const mocks = vi.hoisted(() => ({
@@ -21,7 +22,7 @@ vi.mock('@/api/agentApi', () => ({
   },
 }))
 
-vi.mock('../agentRuntime', () => ({
+vi.mock('@/store/agentRuntime', () => ({
   syncConversationRuntime: mocks.syncConversationRuntime,
 }))
 
@@ -40,35 +41,35 @@ describe('message actions', () => {
     const pending = createUserMessage('msg-steering-1', 'conv-1', 1)
     addPendingSteeringMessage(pending)
 
-    await setActiveConversationsId('conv-2' as ConversationsId)
+    await activateConversationSession('conv-2' as ConversationsId)
     expect(useMessagesStore.getState().messages).toEqual([])
 
-    await setActiveConversationsId('conv-1' as ConversationsId)
+    await activateConversationSession('conv-1' as ConversationsId)
     expect(useMessagesStore.getState().messages).toEqual([pending])
   })
 
   it('clears background pending steering when its persisted event arrives', async () => {
     const pending = createUserMessage('msg-steering-1', 'conv-1', 1)
     addPendingSteeringMessage(pending)
-    await setActiveConversationsId('conv-2' as ConversationsId)
+    await activateConversationSession('conv-2' as ConversationsId)
 
     const persisted = createUserMessage('msg-steering-1', 'conv-1', 3)
     await updateMessageActionV2(persisted)
 
     expect(useMessagesStore.getState().pendingSteeringByConversation).toEqual({})
     mocks.getMessagesByConvId.mockResolvedValue([persisted])
-    await setActiveConversationsId('conv-1' as ConversationsId)
+    await activateConversationSession('conv-1' as ConversationsId)
     expect(useMessagesStore.getState().messages).toEqual([persisted])
   })
 
   it('reconciles pending steering from persisted messages when the event was missed', async () => {
     const pending = createUserMessage('msg-steering-1', 'conv-1', 1)
     addPendingSteeringMessage(pending)
-    await setActiveConversationsId('conv-2' as ConversationsId)
+    await activateConversationSession('conv-2' as ConversationsId)
 
     const persisted = createUserMessage('msg-steering-1', 'conv-1', 3)
     mocks.getMessagesByConvId.mockResolvedValue([persisted])
-    await setActiveConversationsId('conv-1' as ConversationsId)
+    await activateConversationSession('conv-1' as ConversationsId)
 
     expect(useMessagesStore.getState().messages).toEqual([persisted])
     expect(useMessagesStore.getState().pendingSteeringByConversation).toEqual({})
@@ -118,8 +119,8 @@ describe('message actions', () => {
       return callCount === 1 ? promiseA : promiseB
     })
 
-    const pendingA = setActiveConversationsId('conv-a' as ConversationsId)
-    const pendingB = setActiveConversationsId('conv-b' as ConversationsId)
+    const pendingA = activateConversationSession('conv-a' as ConversationsId)
+    const pendingB = activateConversationSession('conv-b' as ConversationsId)
 
     resolveB()
     await pendingB
@@ -142,8 +143,8 @@ describe('message actions', () => {
 
     mocks.getMessagesByConvId.mockImplementation(() => promiseA)
 
-    const pendingA = setActiveConversationsId('conv-a' as ConversationsId)
-    await clearActiveConversations()
+    const pendingA = activateConversationSession('conv-a' as ConversationsId)
+    await clearConversationSession()
 
     resolveA()
     await pendingA

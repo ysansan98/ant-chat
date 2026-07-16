@@ -14,9 +14,10 @@ import SettingsPage from '../pages/Settings/Settings'
 import { useAgentRuntimeStore } from '../store/agentRuntime'
 import { useConversationsStore } from '../store/conversation'
 import { createInitialState } from '../store/conversation/initialState'
-import { setActiveConversationsId, useMessagesStore } from '../store/messages'
+import { useMessagesStore } from '../store/messages'
 import { usePendingMessagesStore } from '../store/pendingMessages'
 import { useWorkspaceStore } from '../store/workspace'
+import { activateConversationSession } from '../store/workspaceSession'
 
 const mocks = vi.hoisted(() => ({
   agent: {
@@ -394,9 +395,8 @@ describe('gui ui flow', () => {
       },
     })
 
-    // WorkspacePanels.initialize 在 render 后异步调用 activateWorkspace(currentWorkspacePath),
-    // 而 activateWorkspace 会先 setActiveConversationsId('') 清空调试会话。
-    // 将 workspaces mock 为空列表，使 refresh → pickLatestWorkspace([]) → '' → activateWorkspace('') 提前 return。
+    // WorkspacePanels.initialize 会在 render 后异步激活当前工作区。
+    // 将 workspaces mock 为空列表，使 refresh → pickLatestWorkspace([]) → '' 后提前返回。
     mocks.workspace.listWorkspaces.mockResolvedValue({ workspaces: [] })
 
     renderGui('/chat')
@@ -429,9 +429,9 @@ describe('gui ui flow', () => {
     useAgentRuntimeStore.setState({ pendingByTask: {}, tasks: {}, executionPhaseByTurn: {} })
     useConversationsStore.setState({ conversationStates: {} })
 
-    await setActiveConversationsId('conv-running' as ConversationsId)
+    await activateConversationSession('conv-running' as ConversationsId)
 
-    // 阻止 WorkspacePanels.initialize → activateWorkspace 清空调试会话
+    // 阻止 WorkspacePanels.initialize 激活工作区并清空调试会话
     mocks.workspace.listWorkspaces.mockResolvedValue({ workspaces: [] })
 
     renderGui('/chat')
@@ -463,9 +463,9 @@ describe('gui ui flow', () => {
       turnId: 'user-1',
     })
 
-    await setActiveConversationsId('conv-steering' as ConversationsId)
+    await activateConversationSession('conv-steering' as ConversationsId)
 
-    // 阻止 WorkspacePanels.initialize → activateWorkspace 清空调试会话
+    // 阻止 WorkspacePanels.initialize 激活工作区并清空调试会话
     mocks.workspace.listWorkspaces.mockResolvedValue({ workspaces: [] })
 
     renderGui('/chat')
@@ -509,7 +509,7 @@ describe('gui ui flow', () => {
     })
     mocks.agent.listActiveTasks.mockResolvedValue([task])
 
-    await setActiveConversationsId('conv-reference' as ConversationsId)
+    await activateConversationSession('conv-reference' as ConversationsId)
     mocks.workspace.listWorkspaces.mockResolvedValue({ workspaces: [] })
 
     renderGui('/chat')
@@ -547,7 +547,7 @@ describe('gui ui flow', () => {
       }],
     })
 
-    await setActiveConversationsId('conv-skill-reference' as ConversationsId)
+    await activateConversationSession('conv-skill-reference' as ConversationsId)
     mocks.workspace.listWorkspaces.mockResolvedValue({ workspaces: [] })
 
     renderGui('/chat')

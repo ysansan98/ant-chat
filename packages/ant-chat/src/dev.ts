@@ -1,7 +1,7 @@
 import { resolve } from 'node:path'
 import process from 'node:process'
 import { parseArgs } from 'node:util'
-import { createAppRuntime } from '@ant-chat/backend'
+import { activateAppRuntime } from '@ant-chat/backend'
 import { resolveAppDataRoot } from '@ant-chat/shared'
 import { listen } from './serverHost'
 
@@ -17,7 +17,7 @@ async function main() {
   const port = Number(values.port) || 3456
   const withWeb = values.web as boolean
   const appDataRoot = resolveAppDataRoot()
-  const runtime = createAppRuntime({
+  const runtime = await activateAppRuntime({
     appDataRoot,
     contextDiagnosticsEnabled: true,
     loggerOptions: {
@@ -25,8 +25,6 @@ async function main() {
       source: 'ant-chat',
     },
   })
-  await runtime.initialize()
-
   // 开发模式使用 Vite 中间件，同时提供 HMR 和前端页面。
   let webHandler: Parameters<typeof listen>[1]['webHandler']
   if (withWeb) {

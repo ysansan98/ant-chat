@@ -1,7 +1,7 @@
 export { createAgentBrowserPaths } from './agentBrowser'
 export type { AgentBrowserPaths } from './agentBrowser'
 export { SkillsModule } from './app-runtime/modules/skills'
-export { createAppRuntime } from './appRuntime'
+export { activateAppRuntime } from './appRuntime'
 export type { AppRuntime, CreateAppRuntimeOptions } from './appRuntime'
 export type { AppRuntimeEventBus, AppRuntimeEventListener, AppRuntimeEventName, AppRuntimeEvents } from './events'
 export { createAppRuntimePaths } from './paths'

@@ -288,7 +288,7 @@ export interface AppControlResultMap {
     | { mcpServer: McpListItem }
     | { automation: AutomationDefinition }
   'update': { provider: ProviderConfigSchema }
-  'delete': { deleted: boolean }
+  'delete': { deleted: boolean, error?: string }
   'enable': { id: string, enabled: boolean }
   'disable': { id: string, enabled: boolean }
   'models': { models: ProviderModelItem[] }
@@ -296,8 +296,8 @@ export interface AppControlResultMap {
   'key:clear': { id: string }
   'install': { mcpServer: McpListItem }
   'edit': { mcpServer: McpListItem }
-  'start': { name: string, status: string }
-  'stop': { name: string, status: string }
+  'start': { name: string, status: string, error?: string }
+  'stop': { name: string, status: string, error?: string }
   'runs': { runs: AutomationRun[] }
 }
 

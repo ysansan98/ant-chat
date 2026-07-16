@@ -104,7 +104,7 @@ describe('appControl 行为', () => {
   })
 
   it('mCP 安装失败时返回已保存配置和连接错误', async () => {
-    mcp.installServer.mockResolvedValue({ error: 'connection refused', serverName: 'demo', status: 'disconnected' })
+    mcp.installServer.mockResolvedValue({ error: 'connection refused', serverName: 'demo', status: 'disconnected', transportType: 'stdio' })
 
     await expect(createControl().execute({
       action: 'install',
@@ -122,7 +122,7 @@ describe('appControl 行为', () => {
     })
   })
 
-  it('编辑 MCP 时保留未修改的现有字段', async () => {
+  it('编辑 MCP 时只映射 patch，由生命周期 module 合并配置', async () => {
     mcp.getConfigByServerName.mockReturnValue({
       args: ['server.js'],
       command: 'node',
@@ -131,7 +131,7 @@ describe('appControl 行为', () => {
       serverName: 'demo',
       transportType: 'stdio',
     })
-    mcp.editServer.mockResolvedValue({ serverName: 'demo', status: 'disconnected' })
+    mcp.editServer.mockResolvedValue({ serverName: 'demo', status: 'disconnected', transportType: 'stdio' })
 
     await createControl().execute({
       action: 'edit',
@@ -141,12 +141,10 @@ describe('appControl 行为', () => {
     })
 
     expect(mcp.editServer).toHaveBeenCalledWith({
-      args: ['server.js'],
-      command: 'node',
-      description: '新说明',
-      icon: 'terminal',
       serverName: 'demo',
-      transportType: 'stdio',
+      updates: {
+        description: '新说明',
+      },
     })
   })
 

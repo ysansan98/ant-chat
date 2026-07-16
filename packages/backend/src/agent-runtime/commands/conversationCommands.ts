@@ -1,17 +1,17 @@
 import type { ReasoningEffortLevel, RunBuiltinCommandResult } from '@ant-chat/shared'
-import type { AppDataContext } from '../../data'
+import type { ConversationLifecycle } from '../../conversations/conversationLifecycle'
 
 const DEFAULT_TITLE = 'Untitled'
 
 export async function runNew(params: {
-  appDataContext: AppDataContext
+  conversationLifecycle: ConversationLifecycle
   workspacePath: string
   modelConfig: { modelId: string, providerId: string, temperature: number, maxOutputTokens: number, reasoningEffort?: ReasoningEffortLevel }
   conversationInstructions?: string
 }): Promise<RunBuiltinCommandResult> {
-  const { appDataContext, workspacePath, modelConfig, conversationInstructions } = params
+  const { conversationLifecycle, workspacePath, modelConfig, conversationInstructions } = params
 
-  const conversation = await appDataContext.conversationRepository.create({
+  const conversation = await conversationLifecycle.create({
     workspacePath,
     title: DEFAULT_TITLE,
     conversationInstructions: conversationInstructions ?? '',

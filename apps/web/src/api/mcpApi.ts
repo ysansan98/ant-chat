@@ -1,4 +1,12 @@
-import type { AddMcpConfigSchema, McpConfigSchema, McpConnection, McpTool, UpdateMcpConfigSchema } from '@ant-chat/shared'
+import type {
+  AddMcpConfigSchema,
+  McpConfigSchema,
+  McpConnection,
+  McpServerEditPatch,
+  McpServerLifecycleResult,
+  McpServerTestResult,
+  McpTool,
+} from '@ant-chat/shared'
 import { getAppRpcClient } from './transports/appRpc'
 
 export async function getMcpServers(): Promise<McpConnection[]> {
@@ -12,59 +20,38 @@ export async function getMcpServers(): Promise<McpConnection[]> {
   }
 }
 
-export async function getMcpConfigs(): Promise<McpConfigSchema[]> {
+export function getMcpConfigs(): Promise<McpConfigSchema[]> {
   return getAppRpcClient().call('mcp.getConfigs', undefined)
 }
 
-export async function getMcpConfigByServerName(serverName: string): Promise<McpConfigSchema> {
+export function getMcpConfigByServerName(serverName: string): Promise<McpConfigSchema> {
   return getAppRpcClient().call('mcp.getConfigByServerName', { serverName })
 }
 
-export async function addMcpConfig(config: AddMcpConfigSchema): Promise<McpConfigSchema> {
-  return getAppRpcClient().call('mcp.addConfig', { config })
+export function installMcpServer(config: AddMcpConfigSchema): Promise<McpServerLifecycleResult> {
+  return getAppRpcClient().call('mcp.installServer', { config })
 }
 
-export async function updateMcpConfig(config: UpdateMcpConfigSchema): Promise<McpConfigSchema> {
-  return getAppRpcClient().call('mcp.updateConfig', { config })
+export function editMcpServer(serverName: string, updates: McpServerEditPatch): Promise<McpServerLifecycleResult> {
+  return getAppRpcClient().call('mcp.editServer', { serverName, updates })
 }
 
-export async function deleteMcpConfig(serverName: string): Promise<null> {
-  return getAppRpcClient().call('mcp.deleteConfig', { serverName })
+export function deleteMcpServer(serverName: string): Promise<McpServerLifecycleResult> {
+  return getAppRpcClient().call('mcp.deleteServer', { serverName })
 }
 
-export async function getAllAvailableToolsList(): Promise<McpTool[]> {
+export function startMcpServer(serverName: string): Promise<McpServerLifecycleResult> {
+  return getAppRpcClient().call('mcp.startServer', { serverName })
+}
+
+export function stopMcpServer(serverName: string): Promise<McpServerLifecycleResult> {
+  return getAppRpcClient().call('mcp.stopServer', { serverName })
+}
+
+export function testMcpServer(config: AddMcpConfigSchema): Promise<McpServerTestResult> {
+  return getAppRpcClient().call('mcp.testServer', { config })
+}
+
+export function getAllAvailableToolsList(): Promise<McpTool[]> {
   return getAppRpcClient().call('mcp.getAllAvailableToolsList', undefined)
-}
-
-export async function connectMcpServer(config: McpConfigSchema): Promise<[boolean, string]> {
-  const { serverName } = config
-
-  try {
-    await getAppRpcClient().call('mcp.connectMcpServer', { name: serverName, config })
-    return [true, '']
-  }
-  catch (error) {
-    return [false, (error as Error).message]
-  }
-}
-
-export async function disconnectMcpServer(name: string): Promise<boolean> {
-  await getAppRpcClient().call('mcp.disconnectMcpServer', { name })
-  return true
-}
-
-export async function reconnectMcpServer(config: McpConfigSchema): Promise<[boolean, string]> {
-  const { serverName } = config
-
-  try {
-    await getAppRpcClient().call('mcp.reconnectMcpServer', { name: serverName, config })
-    return [true, '']
-  }
-  catch (error) {
-    return [false, (error as Error).message]
-  }
-}
-
-export async function fetchMcpServerTools(name: string): Promise<McpTool[]> {
-  return getAppRpcClient().call('mcp.fetchMcpServerTools', { name })
 }

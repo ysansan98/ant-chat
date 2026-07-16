@@ -14,6 +14,7 @@ import {
   createConversationTitleGenerator,
   createTaskLoggerFactory,
 } from '../../../agent-runtime'
+import { createConversationLifecycle } from '../../../conversations/conversationLifecycle'
 import { RuntimeSecretRequestController } from '../../../secretRequestController'
 import { Method, Module } from '../../decorators'
 
@@ -28,6 +29,7 @@ export interface AgentModuleDependencies {
 export class AgentModule implements RuntimeModuleMethods<'agent'> {
   readonly runtime: ReturnType<typeof createAgentRuntime>
   readonly turnService: ReturnType<typeof createAgentTurnService>
+  readonly conversationLifecycle: ReturnType<typeof createConversationLifecycle>
   readonly eventEmitter: IAgentEventEmitter
   readonly titleGenerator: ReturnType<typeof createConversationTitleGenerator>
   private readonly secretRequester: RuntimeSecretRequestController
@@ -87,18 +89,23 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
           : undefined,
       },
     })
+    this.conversationLifecycle = createConversationLifecycle({
+      data: core.data,
+      events: core.events,
+      runtime: this.runtime,
+    })
     this.titleGenerator = createConversationTitleGenerator({
       providerSettingsRepository: core.data.providerSettingsRepository,
       messageRepository: core.data.messageRepository,
-      conversationRepository: core.data.conversationRepository,
+      updateConversation: input => this.conversationLifecycle.update(input),
       aiProviderFactory: dependencies.aiProviderFactory,
     })
     this.turnService = createAgentTurnService({
       runtime: this.runtime,
       appDataContext: core.data,
+      conversationLifecycle: this.conversationLifecycle,
       aiProviderFactory: dependencies.aiProviderFactory,
       titleGenerator: this.titleGenerator,
-      emitConversationUpdated: conversation => core.events.emit('conversation:updated', { conversation }),
       emitMessageUpdated: message => core.events.emit('message:updated', { message }),
       logger: core.logger,
     })

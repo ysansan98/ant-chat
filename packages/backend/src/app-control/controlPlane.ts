@@ -7,6 +7,8 @@ import type {
   GeneralSettingsState,
   McpConfigSchema,
   McpConnection,
+  McpServerEditPatch,
+  McpServerLifecycleResult,
   ProviderConfigModelSchema,
   ProviderConfigSchema,
   UpdateProviderConfigSchema,
@@ -50,15 +52,15 @@ export interface McpControlPlane {
   getConnections: () => McpConnection[]
   getConfigByServerName: (input: { serverName: string }) => McpConfigSchema
   /** 安装配置并尝试连接；启动失败时保留配置并返回实际状态。 */
-  installServer: (config: AddMcpConfigSchema) => Promise<{ serverName: string, status: string, error?: string }>
+  installServer: (input: { config: AddMcpConfigSchema }) => Promise<McpServerLifecycleResult>
   /** 编辑配置，运行中自动重连；已停止则只更新配置。 */
-  editServer: (config: McpConfigSchema) => Promise<{ serverName: string, status: string, error?: string }>
+  editServer: (input: { serverName: string, updates: McpServerEditPatch }) => Promise<McpServerLifecycleResult>
   /** 删除配置，运行中先断开再删。 */
-  deleteServer: (serverName: string) => Promise<void>
+  deleteServer: (input: { serverName: string }) => Promise<McpServerLifecycleResult>
   /** 按名称启动（从持久化配置读取连接）。 */
-  startServer: (serverName: string) => Promise<{ status: string, error?: string }>
+  startServer: (input: { serverName: string }) => Promise<McpServerLifecycleResult>
   /** 按名称停止（幂等）。 */
-  stopServer: (serverName: string) => Promise<{ status: string }>
+  stopServer: (input: { serverName: string }) => Promise<McpServerLifecycleResult>
 }
 
 export interface AutomationControlPlane {

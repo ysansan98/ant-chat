@@ -38,10 +38,14 @@ describe('mcp settings repository', () => {
     }))
     expect(repository.getMcpConfigByServerName('local')).toEqual(created)
 
-    const updated = repository.updateMcpConfig({
+    const updated = repository.replaceMcpConfig('local', {
       serverName: 'local',
       transportType: 'stdio',
       command: 'bun',
+      args: ['server.js'],
+      env: { NODE_ENV: 'test' },
+      icon: 'L',
+      description: 'Local server',
     })
     expect(updated).toEqual(expect.objectContaining({
       serverName: 'local',

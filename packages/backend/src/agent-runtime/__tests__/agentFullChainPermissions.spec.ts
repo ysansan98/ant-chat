@@ -1,5 +1,6 @@
 import type { AgentMode, IAgentEventEmitter, IAIProvider, IAIStreamChunk, LoopMessage, ToolResultContent } from '@ant-chat/shared'
 import { createAgentRuntime } from '../../agent-core'
+import { createConversationLifecycle } from '../../conversations/conversationLifecycle'
 import { createAppDataContext } from '../../data'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
@@ -303,7 +304,12 @@ function createHarness(): AgentRuntimeHarness {
       },
     },
   })
-  const turnService = createAgentTurnService({ runtime, appDataContext, aiProviderFactory: async () => provider })
+  const conversationLifecycle = createConversationLifecycle({
+    data: appDataContext,
+    events: { emit() {} },
+    runtime,
+  })
+  const turnService = createAgentTurnService({ runtime, appDataContext, conversationLifecycle, aiProviderFactory: async () => provider })
 
   return {
     workspacePath,

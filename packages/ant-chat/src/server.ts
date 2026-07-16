@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { createAppRuntime } from '@ant-chat/backend'
+import { activateAppRuntime } from '@ant-chat/backend'
 import { listen } from './serverHost'
 
 export interface StartLocalServerOptions {
@@ -19,7 +19,7 @@ export async function startLocalServer(options: StartLocalServerOptions): Promis
   const host = options.host ?? '127.0.0.1'
   const port = options.port ?? 3456
   const webRoot = options.webRoot ?? path.resolve(import.meta.dirname, 'web')
-  const runtime = createAppRuntime({
+  const runtime = await activateAppRuntime({
     appDataRoot: options.appDataRoot,
     loggerOptions: {
       fileName: 'ant-chat.log',
@@ -28,7 +28,6 @@ export async function startLocalServer(options: StartLocalServerOptions): Promis
   })
 
   try {
-    await runtime.initialize()
     return await listen(runtime, { host, port, webRoot })
   }
   catch (error) {
