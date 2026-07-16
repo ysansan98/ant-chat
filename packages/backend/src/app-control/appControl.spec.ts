@@ -28,15 +28,11 @@ describe('appControl 行为', () => {
   }
   const automation = {
     create: vi.fn(),
+    get: vi.fn(),
     list: vi.fn(),
     listRuns: vi.fn(),
     safeDelete: vi.fn(),
   }
-  const secretStore = {
-    deleteProviderApiKey: vi.fn(),
-    saveProviderApiKey: vi.fn(),
-  }
-
   beforeEach(() => {
     vi.clearAllMocks()
     settings.getSettings.mockResolvedValue({
@@ -51,11 +47,10 @@ describe('appControl 行为', () => {
   })
 
   function createControl() {
-    return new AppControl({ automation, mcp, provider, settings } as never, secretStore as never)
+    return new AppControl({ automation, mcp, provider, settings })
   }
 
-  it('保存真实 API Key 后同步 provider 的密钥状态', async () => {
-    secretStore.saveProviderApiKey.mockResolvedValue({ id: 'provider:provider-1:api_key', kind: 'secret_ref', scope: 'persistent' })
+  it('保存真实 API Key 时交由 provider module 管理密钥生命周期', async () => {
     provider.updateProvider.mockResolvedValue({ id: 'provider-1', hasApiKey: true })
 
     await expect(createControl().execute({
@@ -65,14 +60,13 @@ describe('appControl 行为', () => {
       type: 'provider',
     })).resolves.toEqual({ hasApiKey: true, id: 'provider-1' })
 
-    expect(secretStore.saveProviderApiKey).toHaveBeenCalledWith({ apiKey: 'sk-secret', providerId: 'provider-1' })
     expect(provider.updateProvider).toHaveBeenCalledWith({
-      config: { apiKeySecretId: 'provider:provider-1:api_key', id: 'provider-1' },
+      config: { apiKey: 'sk-secret', id: 'provider-1' },
     })
   })
 
   it('拒绝把已停用 provider 设为助理模型', async () => {
-    provider.listProviders.mockReturnValue([{ id: 'provider-1', isEnabled: false }])
+    provider.getProviderById.mockReturnValue({ id: 'provider-1', isEnabled: false })
     provider.listProviderModels.mockReturnValue([{ isEnabled: true, model: 'model-1' }])
 
     await expect(createControl().execute({
@@ -174,6 +168,47 @@ describe('appControl 行为', () => {
         tools: [{ name: 'search' }],
       },
     })
+  })
+
+  it('provider 控制结果不返回 API Key 或 secret ref', async () => {
+    provider.getProviderById.mockReturnValue({
+      apiKey: 'sk-secret',
+      apiKeySecretId: 'provider:provider-1:api_key',
+      apiMode: 'openai',
+      baseUrl: 'https://example.com/v1',
+      createdAt: 1,
+      hasApiKey: true,
+      id: 'provider-1',
+      isEnabled: true,
+      isOfficial: false,
+      name: 'Example',
+      updatedAt: 2,
+    })
+
+    await expect(createControl().execute({ action: 'get', id: 'provider-1', type: 'provider' })).resolves.toEqual({
+      provider: {
+        apiMode: 'openai',
+        baseUrl: 'https://example.com/v1',
+        createdAt: 1,
+        hasApiKey: true,
+        id: 'provider-1',
+        isEnabled: true,
+        isOfficial: false,
+        name: 'Example',
+        updatedAt: 2,
+      },
+    })
+  })
+
+  it('automation get 直接委托领域读取入口', async () => {
+    automation.get.mockResolvedValue({ id: 'automation-1', name: '每日检查' })
+
+    await expect(createControl().execute({ action: 'get', id: 'automation-1', type: 'automation' })).resolves.toEqual({
+      automation: { id: 'automation-1', name: '每日检查' },
+    })
+
+    expect(automation.get).toHaveBeenCalledWith('automation-1')
+    expect(automation.list).not.toHaveBeenCalled()
   })
 
   it('provider 更新只向业务模块传递白名单字段', async () => {

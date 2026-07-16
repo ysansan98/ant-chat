@@ -65,6 +65,7 @@ export interface McpControlPlane {
 
 export interface AutomationControlPlane {
   list: () => Promise<AutomationDefinition[]>
+  get: (id: string) => Promise<AutomationDefinition>
   create: (input: { input: AutomationInput }) => Promise<AutomationDefinition>
   /** 安全删除 — 检查活跃 run 并支持 force。 */
   safeDelete: (id: string, force?: boolean) => Promise<void>

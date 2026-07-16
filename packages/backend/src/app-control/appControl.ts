@@ -1,331 +1,323 @@
 import type {
+  AddMcpConfigSchema,
   AppControlCommand,
   AppControlResult,
-  McpConfigSchema,
+  AppControlResultFor,
+  AutomationCommand,
+  AutomationInput,
+  McpCommand,
   McpConnection,
+  McpListItem,
+  McpServerLifecycleResult,
+  ProviderCommand,
+  ProviderConfigSchema,
+  ProviderListItem,
+  SettingsCommand,
 } from '@ant-chat/shared'
-import type { KeychainSecretStore } from '../secretStore'
 import type { ControlPlaneModules } from './controlPlane'
 
 /**
- * AppControl — 应用管理的控制面编排模块。
+ * 应用管理控制面的命令编排器。
  *
- * 职责：
- * 1. 校验命令合法性（白名单）。
- * 2. 路由到对应业务模块。
- * 3. 统一脱敏（Secret、API Key 只返回 hasApiKey 布尔值）。
- * 4. 合并结果到 AppControlResult。
- *
- * 调用方（CLI / 原生 Agent 工具 / AppRuntime）都通过同一个 execute 入口。
- * 依赖 {@link ControlPlaneModules} 这个 seam 与运行时模块解耦：控制面只看到
- * 它需要的方法，运行时模块换实现不影响命令映射。
+ * 它只负责把经过 socket 边界校验的控制命令翻译成领域调用、协调跨模块
+ * 操作，以及投影为不含 secret 的返回 DTO。Provider 的密钥生命周期属于
+ * ProviderModule，MCP 连接生命周期属于 McpModule。
  */
 export class AppControl {
-  constructor(
-    private readonly modules: ControlPlaneModules,
-    private readonly secretStore: KeychainSecretStore,
-  ) {}
+  constructor(private readonly modules: ControlPlaneModules) {}
 
   async execute(command: AppControlCommand): Promise<AppControlResult> {
     switch (command.type) {
-      // ── 设置 ──────────────────────────────────────
-      case 'settings': {
-        switch (command.action) {
-          case 'show': {
-            const settings = await this.modules.settings.getSettings()
-            return { settings } as AppControlResult
-          }
-          case 'theme:set': {
-            const current = await this.modules.settings.getSettings()
-            const appearance = {
-              ...current.appearance,
-              ...(command.mode ? { mode: command.mode } : {}),
-              ...(command.lightThemeId ? { lightThemeId: command.lightThemeId } : {}),
-              ...(command.darkThemeId ? { darkThemeId: command.darkThemeId } : {}),
-            }
-            if (!command.mode && !command.lightThemeId && !command.darkThemeId) {
-              throw new Error('theme:set 至少需要 mode、lightThemeId 或 darkThemeId')
-            }
-            await this.modules.settings.updateSettings({
-              updates: { appearance },
-            })
-            return { mode: appearance.mode } as AppControlResult
-          }
-          case 'assistant:set': {
-            // 验证 provider/model 组合存在且已启用
-            const provider = this.modules.provider.listProviders()
-              .find(p => p.id === command.providerId)
-            if (!provider) {
-              throw new Error(`Provider not found: ${command.providerId}`)
-            }
-            if (!provider.isEnabled) {
-              throw new Error(`Provider is disabled: ${command.providerId}`)
-            }
+      case 'settings':
+        return await this.executeSettings(command)
+      case 'provider':
+        return await this.executeProvider(command)
+      case 'mcp':
+        return await this.executeMcp(command)
+      case 'automation':
+        return await this.executeAutomation(command)
+    }
+  }
 
-            const models = this.modules.provider.listProviderModels({ id: command.providerId })
-            const model = models.find(m => m.model === command.modelId)
-            if (!model) {
-              throw new Error(`Model not found: ${command.providerId}/${command.modelId}`)
-            }
-            if (!model.isEnabled) {
-              throw new Error(`Model is disabled: ${command.modelId}`)
-            }
+  private async executeSettings(command: SettingsCommand): Promise<AppControlResultFor<SettingsCommand>> {
+    switch (command.action) {
+      case 'show': {
+        const settings = await this.modules.settings.getSettings()
+        return { settings }
+      }
+      case 'theme:set': {
+        const current = await this.modules.settings.getSettings()
+        const appearance = {
+          ...current.appearance,
+          ...(command.mode ? { mode: command.mode } : {}),
+          ...(command.lightThemeId ? { lightThemeId: command.lightThemeId } : {}),
+          ...(command.darkThemeId ? { darkThemeId: command.darkThemeId } : {}),
+        }
+        await this.modules.settings.updateSettings({ updates: { appearance } })
+        return { mode: appearance.mode }
+      }
+      case 'assistant:set': {
+        // 这是跨 settings/provider 的业务约束，控制面保留编排职责。
+        const provider = this.modules.provider.getProviderById({ id: command.providerId })
+        if (!provider.isEnabled)
+          throw new Error(`Provider is disabled: ${command.providerId}`)
 
-            await this.modules.settings.updateSettings({
-              updates: {
-                assistantProviderId: command.providerId,
-                assistantModelId: command.modelId,
-              },
-            })
-            return { providerId: command.providerId, modelId: command.modelId } as AppControlResult
-          }
-          case 'proxy:set': {
-            const { mode, url } = command
-            const current = await this.modules.settings.getSettings()
-            const proxySettings = mode === 'none'
-              ? { mode: 'none' as const }
-              : mode === 'system'
-                ? { mode: 'system' as const }
-                : { mode: 'custom' as const, customProxyUrl: url ?? current.proxySettings.customProxyUrl }
-            await this.modules.settings.updateSettings({
-              updates: { proxySettings },
-            })
-            return { mode } as AppControlResult
-          }
-          case 'proxy:test': {
-            const current = await this.modules.settings.getSettings()
-            const proxyUrl = command.url ?? current.proxySettings.customProxyUrl
-            const ok = proxyUrl ? await this.modules.settings.testProxyConnection({ proxyUrl }) : false
-            return { ok } as AppControlResult
-          }
-          default:
-            throw new Error(`Unknown settings action: ${(command as AppControlCommand & { action: string }).action}`)
+        const model = this.modules.provider.listProviderModels({ id: command.providerId })
+          .find(item => item.model === command.modelId)
+        if (!model)
+          throw new Error(`Model not found: ${command.providerId}/${command.modelId}`)
+        if (!model.isEnabled)
+          throw new Error(`Model is disabled: ${command.modelId}`)
+
+        await this.modules.settings.updateSettings({
+          updates: {
+            assistantProviderId: command.providerId,
+            assistantModelId: command.modelId,
+          },
+        })
+        return { providerId: command.providerId, modelId: command.modelId }
+      }
+      case 'proxy:set': {
+        const current = await this.modules.settings.getSettings()
+        const proxySettings = command.mode === 'none'
+          ? { mode: 'none' as const }
+          : command.mode === 'system'
+            ? { mode: 'system' as const }
+            : { mode: 'custom' as const, customProxyUrl: command.url ?? current.proxySettings.customProxyUrl }
+        await this.modules.settings.updateSettings({ updates: { proxySettings } })
+        return { mode: command.mode }
+      }
+      case 'proxy:test': {
+        const current = await this.modules.settings.getSettings()
+        const proxyUrl = command.url ?? current.proxySettings.customProxyUrl
+        const ok = proxyUrl ? await this.modules.settings.testProxyConnection({ proxyUrl }) : false
+        return { ok }
+      }
+    }
+  }
+
+  private async executeProvider(command: ProviderCommand): Promise<AppControlResultFor<ProviderCommand>> {
+    switch (command.action) {
+      case 'list':
+        return { providers: this.modules.provider.listProviders().map(toPublicProvider) }
+      case 'get':
+        return { provider: toPublicProvider(this.modules.provider.getProviderById({ id: command.id })) }
+      case 'create': {
+        const provider = await this.modules.provider.createProvider({
+          config: {
+            name: command.name,
+            baseUrl: command.baseUrl,
+            apiMode: command.apiMode,
+            apiKey: command.apiKey,
+            isOfficial: command.isOfficial ?? false,
+            isEnabled: command.isEnabled ?? true,
+          },
+        })
+        return { provider: toPublicProvider(provider) }
+      }
+      case 'update': {
+        const provider = await this.modules.provider.updateProvider({
+          config: {
+            id: command.id,
+            ...omitUndefined({
+              name: command.name,
+              baseUrl: command.baseUrl,
+              apiMode: command.apiMode,
+              apiKey: command.apiKey,
+              isOfficial: command.isOfficial,
+              isEnabled: command.isEnabled,
+            }),
+          },
+        })
+        return { provider: toPublicProvider(provider) }
+      }
+      case 'delete':
+        await this.modules.provider.deleteProvider({ id: command.id })
+        return { deleted: true }
+      case 'enable':
+        await this.modules.provider.updateProvider({ config: { id: command.id, isEnabled: true } })
+        return { id: command.id, enabled: true }
+      case 'disable':
+        await this.modules.provider.updateProvider({ config: { id: command.id, isEnabled: false } })
+        return { id: command.id, enabled: false }
+      case 'models':
+        return {
+          models: this.modules.provider.listProviderModels({ id: command.id }).map(model => ({
+            id: model.id,
+            modelId: model.model,
+            providerId: model.providerId,
+            displayName: model.name,
+            isEnabled: model.isEnabled,
+          })),
+        }
+      case 'key:set':
+        await this.modules.provider.updateProvider({ config: { id: command.id, apiKey: command.apiKey } })
+        return { id: command.id, hasApiKey: true }
+      case 'key:clear':
+        await this.modules.provider.updateProvider({ config: { id: command.id, apiKey: '' } })
+        return { id: command.id }
+    }
+  }
+
+  private async executeMcp(command: McpCommand): Promise<AppControlResultFor<McpCommand>> {
+    switch (command.action) {
+      case 'list': {
+        const activeConnections = new Map(this.modules.mcp.getConnections().map(connection => [connection.name, connection]))
+        const mcpServers = this.modules.mcp.getConfigs().map((config) => {
+          const connection = activeConnections.get(config.serverName)
+          return toMcpConnection(config.serverName, config.transportType, connection)
+        })
+        return { mcpServers }
+      }
+      case 'get': {
+        const config = this.modules.mcp.getConfigByServerName({ serverName: command.name })
+        const connection = this.modules.mcp.getConnections().find(item => item.name === command.name)
+        return { mcpServer: toMcpConnection(command.name, config.transportType, connection) }
+      }
+      case 'install': {
+        const result = await this.modules.mcp.installServer({ config: toMcpInstallConfig(command) })
+        return { mcpServer: toMcpListItem(result) }
+      }
+      case 'edit': {
+        const result = await this.modules.mcp.editServer({
+          serverName: command.serverName,
+          updates: omitUndefined({
+            transportType: command.transportType,
+            command: command.command,
+            args: command.args,
+            env: command.env,
+            url: command.url,
+            headers: command.headers,
+            icon: command.icon,
+            description: command.description,
+            timeout: command.timeout,
+          }),
+        })
+        return { mcpServer: toMcpListItem(result) }
+      }
+      case 'delete': {
+        const result = await this.modules.mcp.deleteServer({ serverName: command.name })
+        return {
+          deleted: !result.error,
+          ...(result.error ? { error: result.error } : {}),
         }
       }
-
-      // ── AI 服务商 ────────────────────────────────
-      case 'provider': {
-        switch (command.action) {
-          case 'list': {
-            const providers = this.modules.provider.listProviders()
-            return {
-              providers: providers.map(p => ({
-                id: p.id,
-                name: p.name,
-                baseUrl: p.baseUrl,
-                apiMode: p.apiMode,
-                hasApiKey: p.hasApiKey ?? false,
-                isOfficial: p.isOfficial,
-                isEnabled: p.isEnabled,
-                createdAt: p.createdAt,
-                updatedAt: p.updatedAt,
-              })),
-            } as AppControlResult
-          }
-          case 'get': {
-            const provider = this.modules.provider.getProviderById({ id: command.id })
-            return { provider: { ...provider, apiKey: undefined } } as AppControlResult
-          }
-          case 'create': {
-            const { name, baseUrl, apiMode, apiKey, isOfficial, isEnabled } = command
-            const provider = await this.modules.provider.createProvider({
-              config: {
-                name,
-                baseUrl,
-                apiMode,
-                apiKey,
-                isOfficial: isOfficial ?? false,
-                isEnabled: isEnabled ?? true,
-              },
-            })
-            return { provider } as AppControlResult
-          }
-          case 'update': {
-            const { id, name, baseUrl, apiMode, apiKey, isOfficial, isEnabled } = command
-            const provider = await this.modules.provider.updateProvider({
-              config: { id, ...omitUndefined({ name, baseUrl, apiMode, apiKey, isOfficial, isEnabled }) },
-            })
-            return { provider } as AppControlResult
-          }
-          case 'delete': {
-            await this.modules.provider.deleteProvider({ id: command.id })
-            return { deleted: true } as AppControlResult
-          }
-          case 'enable': {
-            await this.modules.provider.updateProvider({ config: { id: command.id, isEnabled: true } })
-            return { id: command.id, enabled: true } as AppControlResult
-          }
-          case 'disable': {
-            await this.modules.provider.updateProvider({ config: { id: command.id, isEnabled: false } })
-            return { id: command.id, enabled: false } as AppControlResult
-          }
-          case 'models': {
-            const models = this.modules.provider.listProviderModels({ id: command.id })
-            return {
-              models: models.map(m => ({
-                id: m.id,
-                modelId: m.model,
-                providerId: m.providerId,
-                displayName: m.name,
-                isEnabled: m.isEnabled,
-              })),
-            } as AppControlResult
-          }
-          case 'key:set': {
-            if (!command.apiKey) {
-              throw new Error('API Key 不能为空')
-            }
-            this.modules.provider.getProviderById({ id: command.id })
-            const ref = await this.secretStore.saveProviderApiKey({ providerId: command.id, apiKey: command.apiKey })
-            await this.modules.provider.updateProvider({ config: { apiKeySecretId: ref.id, id: command.id } })
-            return { id: command.id, hasApiKey: true } as AppControlResult
-          }
-          case 'key:clear': {
-            this.modules.provider.getProviderById({ id: command.id })
-            await this.secretStore.deleteProviderApiKey(command.id)
-            await this.modules.provider.updateProvider({ config: { apiKeySecretId: undefined, id: command.id } })
-            return { id: command.id } as AppControlResult
-          }
-          default:
-            throw new Error(`Unknown provider action: ${(command as AppControlCommand & { action: string }).action}`)
+      case 'start': {
+        const result = await this.modules.mcp.startServer({ serverName: command.name })
+        return {
+          name: command.name,
+          status: result.status,
+          ...(result.error ? { error: result.error } : {}),
         }
       }
-
-      // ── MCP ───────────────────────────────────────
-      case 'mcp': {
-        switch (command.action) {
-          case 'list': {
-            const configs = this.modules.mcp.getConfigs()
-            const activeConnections = this.modules.mcp.getConnections()
-            const connections: McpConnection[] = configs.map((cfg: McpConfigSchema) => {
-              const conn = activeConnections.find((c: McpConnection) => c.name === cfg.serverName)
-              return {
-                name: cfg.serverName,
-                config: cfg.transportType,
-                status: conn?.status ?? ('disconnected' as const),
-                tools: conn?.tools,
-              }
-            })
-            return { mcpServers: connections } as AppControlResult
-          }
-          case 'get': {
-            const config = this.modules.mcp.getConfigByServerName({ serverName: command.name })
-            const connection = this.modules.mcp.getConnections()
-              .find((c: McpConnection) => c.name === command.name)
-            return {
-              mcpServer: {
-                name: command.name,
-                config: config.transportType,
-                status: connection?.status ?? 'disconnected',
-                tools: connection?.tools,
-              },
-            } as AppControlResult
-          }
-          case 'install': {
-            const { serverName, transportType, command: cmd, args, env, url, headers, icon, description, timeout } = command
-            const resolvedIcon = icon ?? (transportType === 'stdio' ? 'terminal' : 'globe')
-            const config = transportType === 'stdio'
-              ? { serverName, transportType, command: cmd, args, env, icon: resolvedIcon, description, timeout }
-              : { serverName, transportType, url, headers, icon: resolvedIcon, description, timeout }
-            const result = await this.modules.mcp.installServer({ config: config as McpConfigSchema })
-            return {
-              mcpServer: {
-                config: result.transportType,
-                error: result.error,
-                name: result.serverName,
-                status: result.status as 'connected' | 'connecting' | 'disconnected',
-              },
-            } as AppControlResult
-          }
-          case 'edit': {
-            const { serverName, transportType, command: executable, args, env, url, headers, icon, description, timeout } = command
-            const updates = omitUndefined({ transportType, command: executable, args, env, url, headers, icon, description, timeout })
-            const result = await this.modules.mcp.editServer({ serverName, updates })
-            return {
-              mcpServer: {
-                config: result.transportType,
-                error: result.error,
-                name: result.serverName,
-                status: result.status as 'connected' | 'connecting' | 'disconnected',
-              },
-            } as AppControlResult
-          }
-          case 'delete': {
-            const result = await this.modules.mcp.deleteServer({ serverName: command.name })
-            return { deleted: !result.error, error: result.error } as AppControlResult
-          }
-          case 'start': {
-            const result = await this.modules.mcp.startServer({ serverName: command.name })
-            return { error: result.error, name: command.name, status: result.status } as AppControlResult
-          }
-          case 'stop': {
-            const result = await this.modules.mcp.stopServer({ serverName: command.name })
-            return { error: result.error, name: command.name, status: result.status } as AppControlResult
-          }
-          default:
-            throw new Error(`Unknown mcp action: ${(command as AppControlCommand & { action: string }).action}`)
+      case 'stop': {
+        const result = await this.modules.mcp.stopServer({ serverName: command.name })
+        return {
+          name: command.name,
+          status: result.status,
+          ...(result.error ? { error: result.error } : {}),
         }
       }
+    }
+  }
 
-      // ── 自动化 ─────────────────────────────────────
-      case 'automation': {
-        switch (command.action) {
-          case 'list': {
-            const automations = await this.modules.automation.list()
-            return { automations } as AppControlResult
-          }
-          case 'get': {
-            const automations = await this.modules.automation.list()
-            const automation = automations.find(item => item.id === command.id)
-            if (!automation) {
-              throw new Error(`Automation not found: ${command.id}`)
-            }
-            return { automation } as AppControlResult
-          }
-          case 'create': {
-            const { name, prompt, workspacePath, providerId, modelId, schedule, allowedSkills, allowedMcpServers, permissionPolicy, enabled } = command
-            const automation = await this.modules.automation.create({
-              input: {
-                name,
-                prompt,
-                workspacePath,
-                providerId,
-                modelId,
-                schedule,
-                allowedSkills: allowedSkills ?? [],
-                allowedMcpServers: allowedMcpServers ?? [],
-                permissionPolicy: {
-                  workspaceAccess: permissionPolicy?.workspaceAccess ?? 'read',
-                  allowSelectedSkillRuntime: permissionPolicy?.allowSelectedSkillRuntime ?? permissionPolicy?.allowSkillScripts ?? false,
-                  allowMcpMutations: permissionPolicy?.allowMcpMutations ?? false,
-                  extraFileRoots: permissionPolicy?.extraFileRoots ?? [],
-                  allowBashCommands: permissionPolicy?.allowBashCommands ?? false,
-                  bashCommandPatterns: permissionPolicy?.bashCommandPatterns ?? [],
-                },
-                enabled: enabled ?? true,
-              },
-            })
-            return { automation } as AppControlResult
-          }
-          case 'delete': {
-            await this.modules.automation.safeDelete(command.id, command.force)
-            return { deleted: true } as AppControlResult
-          }
-          case 'runs': {
-            const runs = await this.modules.automation.listRuns({ automationId: command.id })
-            return { runs } as AppControlResult
-          }
-          default:
-            throw new Error(`Unknown automation action: ${(command as AppControlCommand & { action: string }).action}`)
-        }
-      }
-
-      default:
-        throw new Error(`Unknown command type: ${(command as AppControlCommand & { type: string }).type}`)
+  private async executeAutomation(command: AutomationCommand): Promise<AppControlResultFor<AutomationCommand>> {
+    switch (command.action) {
+      case 'list':
+        return { automations: await this.modules.automation.list() }
+      case 'get':
+        return { automation: await this.modules.automation.get(command.id) }
+      case 'create':
+        return { automation: await this.modules.automation.create({ input: toAutomationInput(command) }) }
+      case 'delete':
+        await this.modules.automation.safeDelete(command.id, command.force)
+        return { deleted: true }
+      case 'runs':
+        return { runs: await this.modules.automation.listRuns({ automationId: command.id }) }
     }
   }
 }
 
-function omitUndefined<T extends Record<string, unknown>>(value: T): Record<string, unknown> {
-  return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined))
+function toPublicProvider(provider: ProviderConfigSchema): ProviderListItem {
+  return {
+    id: provider.id,
+    name: provider.name,
+    baseUrl: provider.baseUrl,
+    apiMode: provider.apiMode,
+    hasApiKey: provider.hasApiKey ?? false,
+    isOfficial: provider.isOfficial,
+    isEnabled: provider.isEnabled,
+    createdAt: provider.createdAt,
+    updatedAt: provider.updatedAt,
+  }
+}
+
+function toMcpConnection(name: string, config: string, connection?: McpConnection): McpConnection {
+  return {
+    name,
+    config,
+    status: connection?.status ?? 'disconnected',
+    tools: connection?.tools,
+  }
+}
+
+function toMcpInstallConfig(command: Extract<McpCommand, { action: 'install' }>): AddMcpConfigSchema {
+  const icon = command.icon ?? (command.transportType === 'stdio' ? 'terminal' : 'globe')
+  if (command.transportType === 'stdio') {
+    return {
+      serverName: command.serverName,
+      transportType: command.transportType,
+      command: command.command,
+      args: command.args,
+      env: command.env,
+      icon,
+      description: command.description,
+      timeout: command.timeout,
+    }
+  }
+  return {
+    serverName: command.serverName,
+    transportType: command.transportType,
+    url: command.url,
+    headers: command.headers,
+    icon,
+    description: command.description,
+    timeout: command.timeout,
+  }
+}
+
+function toMcpListItem(result: McpServerLifecycleResult): McpListItem {
+  return {
+    name: result.serverName,
+    config: result.transportType,
+    status: result.status,
+    ...(result.error ? { error: result.error } : {}),
+  }
+}
+
+function toAutomationInput(command: Extract<AutomationCommand, { action: 'create' }>): AutomationInput {
+  const policy = command.permissionPolicy
+  return {
+    name: command.name,
+    prompt: command.prompt,
+    workspacePath: command.workspacePath,
+    providerId: command.providerId,
+    modelId: command.modelId,
+    schedule: command.schedule,
+    allowedSkills: command.allowedSkills ?? [],
+    allowedMcpServers: command.allowedMcpServers ?? [],
+    permissionPolicy: {
+      workspaceAccess: policy?.workspaceAccess ?? 'read',
+      allowSelectedSkillRuntime: policy?.allowSelectedSkillRuntime ?? policy?.allowSkillScripts ?? false,
+      allowMcpMutations: policy?.allowMcpMutations ?? false,
+      extraFileRoots: policy?.extraFileRoots ?? [],
+      allowBashCommands: policy?.allowBashCommands ?? false,
+      bashCommandPatterns: policy?.bashCommandPatterns ?? [],
+    },
+    enabled: command.enabled ?? true,
+  }
+}
+
+function omitUndefined<T extends Record<string, unknown>>(value: T): Partial<T> {
+  return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined)) as Partial<T>
 }

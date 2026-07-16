@@ -1,4 +1,4 @@
-import type { AppControlCommand, AppControlResult } from '@ant-chat/shared'
+import type { AppControlCommand, AppControlResult, AutomationSchedule } from '@ant-chat/shared'
 import type { SocketClient } from '../socket-client'
 import { Buffer } from 'node:buffer'
 import { spawnSync } from 'node:child_process'
@@ -255,30 +255,47 @@ function parseMcp(args: string[]): AppControlCommand {
         throw new Error('--name or --server-name is required')
       }
       const transportType = parsed.transportType ?? 'stdio'
-      if (!['stdio', 'sse'].includes(transportType)) {
+      if (transportType !== 'stdio' && transportType !== 'sse') {
         throw new Error('--transport-type must be stdio or sse')
       }
-      const cmd: AppControlCommand = {
+      const icon = parsed.icon
+      const description = parsed.description
+      const timeout = parsed.timeout ? Number(parsed.timeout) : undefined
+      if (transportType === 'stdio') {
+        if (!parsed.command)
+          throw new Error('--command is required for stdio transport')
+        return {
+          type: 'mcp',
+          action: 'install',
+          serverName,
+          transportType,
+          command: parsed.command,
+          args: parsed.args?.split(' '),
+          env: mergeKeyValuePairs(
+            parsed.env ? parseKeyValuePairs(parsed.env) : undefined,
+            parsed.envFromEnv ? readKeyValuePairsFromEnv(parsed.envFromEnv, '--env-from-env') : undefined,
+          ),
+          icon,
+          description,
+          timeout,
+        }
+      }
+      if (!parsed.url)
+        throw new Error('--url is required for sse transport')
+      return {
         type: 'mcp',
         action: 'install',
         serverName,
-        transportType: transportType as 'stdio' | 'sse',
-        command: parsed.command as string | undefined,
-        args: parsed.args ? (parsed.args as string).split(' ') : undefined,
-        env: mergeKeyValuePairs(
-          parsed.env ? parseKeyValuePairs(parsed.env) : undefined,
-          parsed.envFromEnv ? readKeyValuePairsFromEnv(parsed.envFromEnv, '--env-from-env') : undefined,
-        ),
-        url: parsed.url as string | undefined,
+        transportType,
+        url: parsed.url,
         headers: mergeKeyValuePairs(
           parsed.headers ? parseKeyValuePairs(parsed.headers) : undefined,
           parsed.headersFromEnv ? readKeyValuePairsFromEnv(parsed.headersFromEnv, '--headers-from-env') : undefined,
         ),
-        icon: parsed.icon as string | undefined,
-        description: parsed.description as string | undefined,
-        timeout: parsed.timeout ? Number(parsed.timeout) : undefined,
+        icon,
+        description,
+        timeout,
       }
-      return cmd
     }
 
     case 'edit': {
@@ -286,24 +303,28 @@ function parseMcp(args: string[]): AppControlCommand {
         throw new Error('Usage: ant-chat mcp edit <name> [options]')
       const name = rest[0]
       const parsed = parseNamedArgs(rest.slice(1))
+      const transportType = parsed.transportType
+      if (transportType !== undefined && transportType !== 'stdio' && transportType !== 'sse') {
+        throw new Error('--transport-type must be stdio or sse')
+      }
       return {
         type: 'mcp',
         action: 'edit',
         serverName: name,
-        transportType: parsed.transportType as 'stdio' | 'sse' | undefined,
-        command: parsed.command as string | undefined,
-        args: parsed.args ? (parsed.args as string).split(' ') : undefined,
+        transportType,
+        command: parsed.command,
+        args: parsed.args?.split(' '),
         env: mergeKeyValuePairs(
           parsed.env ? parseKeyValuePairs(parsed.env) : undefined,
           parsed.envFromEnv ? readKeyValuePairsFromEnv(parsed.envFromEnv, '--env-from-env') : undefined,
         ),
-        url: parsed.url as string | undefined,
+        url: parsed.url,
         headers: mergeKeyValuePairs(
           parsed.headers ? parseKeyValuePairs(parsed.headers) : undefined,
           parsed.headersFromEnv ? readKeyValuePairsFromEnv(parsed.headersFromEnv, '--headers-from-env') : undefined,
         ),
-        icon: parsed.icon as string | undefined,
-        description: parsed.description as string | undefined,
+        icon: parsed.icon,
+        description: parsed.description,
         timeout: parsed.timeout ? Number(parsed.timeout) : undefined,
       }
     }
@@ -411,8 +432,9 @@ function formatResult(command: AppControlCommand, result: AppControlResult, opti
   // 人类可读输出
   switch (command.action) {
     case 'show': {
-      const r = result as any
-      const s = r.settings
+      if (!('settings' in result))
+        return JSON.stringify(result, null, 2)
+      const s = result.settings
       return [
         `Theme: ${s.appearance?.mode ?? 'unknown'}`,
         `Assistant: ${s.assistantProviderId ?? '-'} / ${s.assistantModelId ?? '-'}`,
@@ -421,20 +443,22 @@ function formatResult(command: AppControlCommand, result: AppControlResult, opti
     }
 
     case 'theme:set':
-      return `Theme set to: ${(result as any).mode}`
+      return 'mode' in result ? `Theme set to: ${result.mode}` : JSON.stringify(result, null, 2)
 
     case 'assistant:set':
-      return `Assistant model set to: ${(result as any).providerId}/${(result as any).modelId}`
+      return 'providerId' in result
+        ? `Assistant model set to: ${result.providerId}/${result.modelId}`
+        : JSON.stringify(result, null, 2)
 
     case 'proxy:set':
-      return `Proxy mode set to: ${(result as any).mode}`
+      return 'mode' in result ? `Proxy mode set to: ${result.mode}` : JSON.stringify(result, null, 2)
 
     case 'proxy:test':
-      return (result as any).ok ? 'Proxy connection OK' : 'Proxy connection FAILED'
+      return 'ok' in result && result.ok ? 'Proxy connection OK' : 'Proxy connection FAILED'
 
     case 'list': {
       if ('providers' in result) {
-        const items = result.providers as Array<{ id: string, name: string, apiMode: string, hasApiKey: boolean, isEnabled: boolean }>
+        const items = result.providers
         if (items.length === 0)
           return 'No providers configured.'
         return items.map(p =>
@@ -442,7 +466,7 @@ function formatResult(command: AppControlCommand, result: AppControlResult, opti
         ).join('\n')
       }
       if ('mcpServers' in result) {
-        const items = result.mcpServers as Array<{ name: string, status: string, tools?: Array<{ name: string }> }>
+        const items = result.mcpServers
         if (items.length === 0)
           return 'No MCP servers configured.'
         return items.map(m =>
@@ -450,7 +474,7 @@ function formatResult(command: AppControlCommand, result: AppControlResult, opti
         ).join('\n')
       }
       if ('automations' in result) {
-        const items = result.automations as Array<{ id: string, name: string, enabled: boolean, schedule: any }>
+        const items = result.automations
         if (items.length === 0)
           return 'No automations configured.'
         return items.map(a =>
@@ -462,7 +486,7 @@ function formatResult(command: AppControlCommand, result: AppControlResult, opti
 
     case 'get': {
       if ('provider' in result) {
-        const p = result.provider as any
+        const p = result.provider
         return [
           `ID: ${p.id}`,
           `Name: ${p.name}`,
@@ -473,16 +497,16 @@ function formatResult(command: AppControlCommand, result: AppControlResult, opti
         ].join('\n')
       }
       if ('mcpServer' in result) {
-        const m = result.mcpServer as any
+        const m = result.mcpServer
         return [
           `Name: ${m.name}`,
           `Config: ${m.config}`,
           `Status: ${m.status}`,
-          `Tools: ${(m.tools ?? []).map((t: any) => t.name).join(', ') || 'none'}`,
+          `Tools: ${(m.tools ?? []).map(tool => tool.name).join(', ') || 'none'}`,
         ].join('\n')
       }
       if ('automation' in result) {
-        const a = result.automation as any
+        const a = result.automation
         return [
           `ID: ${a.id}`,
           `Name: ${a.name}`,
@@ -498,15 +522,15 @@ function formatResult(command: AppControlCommand, result: AppControlResult, opti
     case 'install':
     case 'edit': {
       if ('mcpServer' in result) {
-        const m = result.mcpServer as any
+        const m = result.mcpServer
         return `MCP server "${m.name}" ${command.action === 'create' ? 'created' : command.action === 'edit' ? 'updated' : 'installed'}. Status: ${m.status}`
       }
       if ('provider' in result) {
-        const p = result.provider as any
+        const p = result.provider
         return `Provider "${p.name}" (${p.id}) created.`
       }
       if ('automation' in result) {
-        const a = result.automation as any
+        const a = result.automation
         return `Automation "${a.name}" (${a.id}) created.`
       }
       return 'Done.'
@@ -519,13 +543,15 @@ function formatResult(command: AppControlCommand, result: AppControlResult, opti
       return 'Deleted successfully.'
 
     case 'enable':
-      return `Provider ${(result as any).id} enabled.`
+      return 'id' in result ? `Provider ${result.id} enabled.` : JSON.stringify(result, null, 2)
 
     case 'disable':
-      return `Provider ${(result as any).id} disabled.`
+      return 'id' in result ? `Provider ${result.id} disabled.` : JSON.stringify(result, null, 2)
 
     case 'models': {
-      const items = (result as any).models as Array<{ modelId: string, displayName?: string, isEnabled: boolean }>
+      if (!('models' in result))
+        return JSON.stringify(result, null, 2)
+      const items = result.models
       if (items.length === 0)
         return 'No models configured.'
       return items.map(m =>
@@ -540,13 +566,15 @@ function formatResult(command: AppControlCommand, result: AppControlResult, opti
       return 'API Key cleared.'
 
     case 'start':
-      return `MCP "${(result as any).name}" started.`
+      return 'name' in result ? `MCP "${result.name}" started.` : JSON.stringify(result, null, 2)
 
     case 'stop':
-      return `MCP "${(result as any).name}" stopped.`
+      return 'name' in result ? `MCP "${result.name}" stopped.` : JSON.stringify(result, null, 2)
 
     case 'runs': {
-      const items = (result as any).runs as Array<{ id: string, status: string, scheduledAt: number, summary?: string }>
+      if (!('runs' in result))
+        return JSON.stringify(result, null, 2)
+      const items = result.runs
       if (items.length === 0)
         return 'No runs.'
       return items.map(r =>
@@ -559,9 +587,7 @@ function formatResult(command: AppControlCommand, result: AppControlResult, opti
   }
 }
 
-function scheduleSummary(schedule: any): string {
-  if (!schedule)
-    return '-'
+function scheduleSummary(schedule: AutomationSchedule): string {
   if (schedule.type === 'once')
     return `Once at ${new Date(schedule.runAt).toISOString()}`
   if (schedule.type === 'cron')
