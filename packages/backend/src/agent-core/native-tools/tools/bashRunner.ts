@@ -265,7 +265,7 @@ function resolveShellPath(inputPath: string, cwd: string): string {
 }
 
 function requiresExternalAccess(command: { command: string, args: string[] }): boolean {
-  if (new Set(['curl', 'wget', 'ssh', 'scp', 'sudo']).has(command.command)) {
+  if (new Set(['curl', 'wget', 'ssh', 'scp', 'sudo', 'rm']).has(command.command)) {
     return true
   }
   return (command.command === 'npm' || command.command === 'pnpm' || command.command === 'yarn' || command.command === 'pip')

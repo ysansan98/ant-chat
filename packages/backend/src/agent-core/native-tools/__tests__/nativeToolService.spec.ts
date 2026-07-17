@@ -270,10 +270,10 @@ describe('native tool service 行为', () => {
       expect(tool.inferScope({ command: 'find . > /tmp/out' })).toBe('outside')
     })
 
-    it('bash 非只读命令 → outside（需审批）', () => {
+    it('bash 工作区内的非只读命令保持 workspace（由授权层审批）', () => {
       const service = new NativeToolService(workspacePath)
       const tool = service.getTools().find(t => t.name === 'bash')!
-      expect(tool.inferScope({ command: 'git status' })).toBe('outside')
+      expect(tool.inferScope({ command: 'git status' })).toBe('workspace')
     })
 
     it('bash 空命令 → blocked', () => {

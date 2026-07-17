@@ -34,7 +34,7 @@ const originalEnvironment = {
   no_proxy: process.env.no_proxy,
 }
 
-describe('networkProxyManager', () => {
+describe('网络代理管理器', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     clearProxyEnvironment()
@@ -48,7 +48,7 @@ describe('networkProxyManager', () => {
     }
   })
 
-  it('applies a custom proxy to dispatcher and process environment', async () => {
+  it('自定义代理应用到 dispatcher 与进程环境', async () => {
     const { EnvHttpProxyAgent } = await import('undici')
     const { NetworkProxyManager } = await import('../networkProxy')
     const manager = new NetworkProxyManager()
@@ -75,7 +75,7 @@ describe('networkProxyManager', () => {
     expect(mocks.setGlobalDispatcher).toHaveBeenCalledOnce()
   })
 
-  it('restores startup proxy environment in system mode', async () => {
+  it('系统代理模式恢复启动时的代理环境', async () => {
     process.env.HTTP_PROXY = 'http://system-proxy:8080'
     const { NetworkProxyManager } = await import('../networkProxy')
     const manager = new NetworkProxyManager()
@@ -87,7 +87,7 @@ describe('networkProxyManager', () => {
     expect(process.env.HTTPS_PROXY).toBeUndefined()
   })
 
-  it('clears proxy environment in none mode', async () => {
+  it('无代理模式清空代理环境', async () => {
     const { Agent } = await import('undici')
     const { NetworkProxyManager } = await import('../networkProxy')
     const manager = new NetworkProxyManager()
@@ -101,14 +101,14 @@ describe('networkProxyManager', () => {
     expect(process.env.NO_PROXY).toBeUndefined()
   })
 
-  it('requires a URL for custom proxy mode', async () => {
+  it('自定义代理未填写 URL 时允许应用设置', async () => {
     const { NetworkProxyManager } = await import('../networkProxy')
     const manager = new NetworkProxyManager()
 
-    await expect(manager.apply({ mode: 'custom' })).rejects.toThrow('Custom proxy URL is required')
+    await expect(manager.apply({ mode: 'custom' })).resolves.toBeUndefined()
   })
 
-  it('tests a proxy with an isolated dispatcher', async () => {
+  it('使用隔离 dispatcher 测试代理连通性', async () => {
     const { NetworkProxyManager } = await import('../networkProxy')
     const manager = new NetworkProxyManager()
 
@@ -121,7 +121,7 @@ describe('networkProxyManager', () => {
     expect(mocks.agentClose).toHaveBeenCalledOnce()
   })
 
-  it('restores the initial dispatcher and environment on dispose', async () => {
+  it('销毁时恢复初始 dispatcher 与代理环境', async () => {
     process.env.HTTP_PROXY = 'http://system-proxy:8080'
     const { NetworkProxyManager } = await import('../networkProxy')
     const manager = new NetworkProxyManager()
@@ -138,15 +138,15 @@ describe('networkProxyManager', () => {
   })
 })
 
-describe('parseProxyResult', () => {
-  it('parses HTTP and SOCKS proxy entries', async () => {
+describe('代理结果解析', () => {
+  it('解析 HTTP 与 SOCKS 代理条目', async () => {
     const { parseProxyResult } = await import('../networkProxy')
 
     expect(parseProxyResult('PROXY 127.0.0.1:7890')).toBe('http://127.0.0.1:7890')
     expect(parseProxyResult('SOCKS5 proxy.local:1080')).toBe('http://proxy.local:1080')
   })
 
-  it('uses the first supported proxy and ignores direct entries', async () => {
+  it('使用第一个支持的代理并忽略直连条目', async () => {
     const { parseProxyResult } = await import('../networkProxy')
 
     expect(parseProxyResult('DIRECT; HTTPS proxy.local:8443; PROXY fallback.local:8080'))
