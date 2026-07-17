@@ -82,7 +82,7 @@ export function ModelList({ providerId }: ModelListProps) {
           同步模型列表
         </Button>
       </div>
-      <div className="mt-2 flex flex-col rounded-md border border-(--border-color)">
+      <div className="mt-2 flex max-h-100 flex-col overflow-y-auto rounded-md border border-(--border-color)">
         {data?.map(item => (
           <div
             key={item.id}
