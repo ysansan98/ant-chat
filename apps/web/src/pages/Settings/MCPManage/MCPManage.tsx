@@ -4,7 +4,7 @@ import { Plus } from 'lucide-react'
 import React from 'react'
 import { toast } from 'sonner'
 import { deleteMcpServerAction, editMcpServerAction, initializeMcpConfigs, installMcpServerAction, startMcpServerAction, stopMcpServerAction, useMcpConfigsStore } from '@/store/mcpConfigs'
-import { SettingsPageHeader } from '../SettingsPageHeader'
+import { SettingsPageLayout } from '../SettingsPageLayout'
 import { MCPList } from './MCPList'
 
 const McpConfigDrawer = React.lazy(() => import('@/components/MCPManage/McpConfigDrawer'))
@@ -20,23 +20,22 @@ export default function MCPManage() {
   }, [])
 
   return (
-    <div className="flex flex-col gap-4 p-4">
-      <SettingsPageHeader
-        title="MCP 设置"
-        description="管理模型上下文协议服务器及其连接状态。"
-      />
-      <div className="">
-        <Button
-          onClick={() => {
-            setMode('add')
-            setEditData(null)
-            setOpen(true)
-          }}
-        >
-          <Plus className="size-3.5" />
-          添加服务器
-        </Button>
-      </div>
+    <SettingsPageLayout
+      title="MCP 设置"
+      description="管理模型上下文协议服务器及其连接状态。"
+      variant="wide"
+    >
+      <Button
+        onClick={() => {
+          setMode('add')
+          setEditData(null)
+          setOpen(true)
+        }}
+        className="self-start"
+      >
+        <Plus className="size-3.5" />
+        添加服务器
+      </Button>
       <MCPList
         items={data}
         onTriggerAction={async (action, item) => {
@@ -107,6 +106,6 @@ export default function MCPManage() {
           }}
         />
       </React.Suspense>
-    </div>
+    </SettingsPageLayout>
   )
 }

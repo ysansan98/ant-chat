@@ -1,6 +1,6 @@
 import type { AgentMemoryFiles } from '@ant-chat/shared'
 import { Button } from '@workspace/ui/components/button'
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@workspace/ui/components/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@workspace/ui/components/card'
 import { Input } from '@workspace/ui/components/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@workspace/ui/components/tabs'
 import { Textarea } from '@workspace/ui/components/textarea'
@@ -8,7 +8,7 @@ import { PlusIcon, RotateCcwIcon, SaveIcon, Trash2Icon } from 'lucide-react'
 import React from 'react'
 import { toast } from 'sonner'
 import { memoryApi } from '@/api/memoryApi'
-import { SettingsPageHeader } from './SettingsPageHeader'
+import { SettingsPageLayout } from './SettingsPageLayout'
 
 type MemoryState
   = | { status: 'loading', data?: undefined }
@@ -79,45 +79,47 @@ export function MemorySettings() {
 
   if (state.status === 'error') {
     return (
-      <div className="p-4">
+      <SettingsPageLayout
+        title="记忆"
+        description={state.error}
+        actions={(
+          <Button variant="outline" onClick={() => void load()}>Retry</Button>
+        )}
+        variant="wide"
+      >
         <Card>
-          <CardHeader>
-            <CardTitle>记忆</CardTitle>
-            <CardDescription>{state.error}</CardDescription>
-            <CardAction>
-              <Button variant="outline" onClick={() => void load()}>Retry</Button>
-            </CardAction>
-          </CardHeader>
+          <CardContent className="py-8 text-center text-muted-foreground">
+            加载记忆文件失败，请重试。
+          </CardContent>
         </Card>
-      </div>
+      </SettingsPageLayout>
     )
   }
 
   const disabled = state.status !== 'ready' || saving
 
   return (
-    <div className="flex h-full flex-col gap-4 p-4">
-      <SettingsPageHeader
-        title="记忆"
-        description={state.status === 'ready' ? state.data.memoryRootPath : '正在加载...'}
-        actions={(
-          <>
-            <Button
-              variant="outline"
-              disabled={saving || state.status !== 'ready' || !state.data.lastSoulUpdate}
-              onClick={() => void rollbackSoul()}
-            >
-              <RotateCcwIcon className="size-4" />
-              Rollback SOUL
-            </Button>
-            <Button disabled={saving || state.status !== 'ready'} onClick={() => void save()}>
-              <SaveIcon className="size-4" />
-              Save
-            </Button>
-          </>
-        )}
-      />
-
+    <SettingsPageLayout
+      title="记忆"
+      description={state.status === 'ready' ? state.data.memoryRootPath : '正在加载...'}
+      actions={(
+        <>
+          <Button
+            variant="outline"
+            disabled={saving || state.status !== 'ready' || !state.data.lastSoulUpdate}
+            onClick={() => void rollbackSoul()}
+          >
+            <RotateCcwIcon className="size-4" />
+            Rollback SOUL
+          </Button>
+          <Button disabled={saving || state.status !== 'ready'} onClick={() => void save()}>
+            <SaveIcon className="size-4" />
+            Save
+          </Button>
+        </>
+      )}
+      variant="wide"
+    >
       {state.status === 'ready' && state.data.lastSoulUpdate
         ? (
             <p className="text-xs/4 text-muted-foreground">
@@ -170,7 +172,7 @@ export function MemorySettings() {
           </Card>
         </TabsContent>
       </Tabs>
-    </div>
+    </SettingsPageLayout>
   )
 }
 

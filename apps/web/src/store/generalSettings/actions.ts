@@ -136,7 +136,6 @@ export async function updateAppearance(appearanceUpdates: Partial<AppearanceSett
   }))
 
   try {
-    skipNextSettingsRefresh()
     const newSettings = await generalSettingsApi.updateSettings({
       appearance: { ...prevAppearance, ...appearanceUpdates },
     })
@@ -156,7 +155,6 @@ export async function updateAppearance(appearanceUpdates: Partial<AppearanceSett
     }
   }
   catch {
-    _skipNextRefresh = false
     toast.error('外观设置保存失败')
     // 回滚
     useGeneralSettingsStore.setState(produce((state) => {

@@ -10,7 +10,7 @@ import { ProviderLogo } from '@/components/Chat/providerLogo'
 import { AddCustomProvider } from '@/components/ProviderManage/AddCustomProvider'
 import { ProviderSettingsPanel } from '@/components/ProviderManage/ProviderSettingsPanel'
 import { PROVIDER_CHANGED_EVENT } from '@/constants/providerEvents'
-import { SettingsPageHeader } from './SettingsPageHeader'
+import { SettingsPageLayout } from './SettingsPageLayout'
 
 export default function ProviderManage() {
   const [activeProvider, setActiveProvider] = React.useState<ProviderConfigSchema | null>(null)
@@ -28,18 +28,24 @@ export default function ProviderManage() {
 
   if (error) {
     return (
-      <EmptyState title={error.message}>
-        <Button variant="ghost" size="sm" onClick={() => refresh()}>重试</Button>
-      </EmptyState>
+      <SettingsPageLayout
+        title="AI 服务商设置"
+        description="配置服务商凭证、接口地址与可用模型。"
+        variant="wide"
+      >
+        <EmptyState title={error.message}>
+          <Button variant="ghost" size="sm" onClick={() => refresh()}>重试</Button>
+        </EmptyState>
+      </SettingsPageLayout>
     )
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col p-4">
-      <SettingsPageHeader
-        title="AI 服务商设置"
-        description="配置服务商凭证、接口地址与可用模型。"
-      />
+    <SettingsPageLayout
+      title="AI 服务商设置"
+      description="配置服务商凭证、接口地址与可用模型。"
+      variant="wide"
+    >
       <div className="flex min-h-0 flex-1 overflow-hidden rounded-xl border border-border/70 bg-card/40">
         <div
           className="flex h-full w-50 shrink-0 flex-col gap-2 overflow-y-auto border-r border-border/70 p-2"
@@ -135,6 +141,6 @@ export default function ProviderManage() {
               )
         }
       </div>
-    </div>
+    </SettingsPageLayout>
   )
 }

@@ -59,13 +59,13 @@ export default function SettingsPage() {
             <div>
               <ArrowLeft className="size-[1em]" />
             </div>
-            <div className="text-sm">
+            <div className="text-[13px]">
               返回工作区
             </div>
           </div>
         </div>
 
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-1">
           {
             menus.map(item => (
               <div
@@ -74,7 +74,7 @@ export default function SettingsPage() {
                 tabIndex={0}
                 data-testid={`settings-nav-${item.id}`}
                 className={`
-                  flex h-10 cursor-pointer items-center gap-3 rounded-md px-4
+                  flex h-9 cursor-pointer items-center gap-3 rounded-md px-4
                   hover:bg-(--hover-bg-color)
                   ${activeName === item.id ? 'bg-(--hover-bg-color)' : ''}
                 `}
@@ -91,7 +91,7 @@ export default function SettingsPage() {
                 <div>
                   {item.icon}
                 </div>
-                <div className="text-sm">
+                <div className="text-[13px]">
                   {item.name}
                 </div>
               </div>

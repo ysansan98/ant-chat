@@ -15,7 +15,7 @@ import chatApi from '@/api/chatApi'
 import { getAppEventBus } from '@/api/transports/appEventBus'
 import { clearConversationPendingMessages } from '@/store/pendingMessages'
 import { formatTime } from '@/utils'
-import { SettingsPageHeader } from './SettingsPageHeader'
+import { SettingsPageLayout } from './SettingsPageLayout'
 
 const PAGE_SIZE = 20
 const ALL_WORKSPACES_FILTER = 'all'
@@ -192,23 +192,23 @@ export function ArchivedConversations() {
     : workspaces.filter(workspace => getWorkspaceKey(workspace.workspacePath) === workspaceFilter)
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-5 p-6">
-      <SettingsPageHeader
-        title="已归档的会话"
-        description="归档会话不会丢失内容，取消归档后会回到原工作区。"
-        actions={(
-          <Button
-            variant="destructive"
-            disabled={totalArchived === 0}
-            onClick={() => setDeleteTarget({ type: 'all', count: totalArchived })}
-          >
-            <Trash2Icon className="size-4" data-icon="inline-start" />
-            全部删除
-          </Button>
-        )}
-      />
+    <SettingsPageLayout
+      title="已归档的会话"
+      description="归档会话不会丢失内容，取消归档后会回到原工作区。"
+      actions={(
+        <Button
+          variant="destructive"
+          disabled={totalArchived === 0}
+          onClick={() => setDeleteTarget({ type: 'all', count: totalArchived })}
+        >
+          <Trash2Icon className="size-4" data-icon="inline-start" />
+          全部删除
+        </Button>
+      )}
+      variant="wide"
+    >
 
-      <div className="flex max-w-5xl shrink-0 items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2">
         <InputGroup className="min-w-0 flex-1 bg-card/60">
           <InputGroupAddon><SearchIcon className="size-4" /></InputGroupAddon>
           <InputGroupInput
@@ -353,7 +353,7 @@ export function ArchivedConversations() {
         onOpenChange={open => !open && setDeleteTarget(null)}
         onConfirm={() => void confirmDelete()}
       />
-    </div>
+    </SettingsPageLayout>
   )
 }
 

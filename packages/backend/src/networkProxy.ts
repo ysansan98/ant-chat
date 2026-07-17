@@ -24,9 +24,14 @@ export class NetworkProxyManager {
 
   async apply(settings: ProxySettings): Promise<void> {
     if (settings.mode === 'custom') {
-      if (!settings.customProxyUrl)
-        throw new Error('Custom proxy URL is required')
-      await this.applyCustomProxy(settings.customProxyUrl)
+      // URL 为空时不抛异常，仅不启用代理——前端"自定义"模式可先展示输入框再填 URL
+      if (settings.customProxyUrl) {
+        await this.applyCustomProxy(settings.customProxyUrl)
+      }
+      else {
+        clearProxyEnvironment()
+        await this.replaceDispatcher(new Agent())
+      }
       return
     }
 

@@ -10,7 +10,7 @@ import React from 'react'
 import { toast } from 'sonner'
 import { skillApi } from '@/api/skillApi'
 import { getAppRuntimeCapabilities } from '@/api/transports/appRpc'
-import { SettingsPageHeader } from './SettingsPageHeader'
+import { SettingsPageLayout } from './SettingsPageLayout'
 
 interface SkillState { data: SkillIndex, loading: boolean }
 
@@ -69,38 +69,37 @@ export default function SkillManage() {
   }
 
   return (
-    <div className="flex h-full flex-col gap-4 p-4">
-      <SettingsPageHeader
-        title="Skill 设置"
-        description={state.data.rootPath || '正在加载...'}
-        actions={(
-          <>
+    <SettingsPageLayout
+      title="Skill 设置"
+      description={state.data.rootPath || '正在加载...'}
+      actions={(
+        <>
+          <Button
+            variant="outline"
+            disabled={state.loading}
+            onClick={() => void runAction(async () => skillApi.rebuildSkillIndex(), '索引已重建')}
+          >
+            <RefreshCwIcon data-icon="inline-start" className="size-3.5" />
+            重建索引
+          </Button>
+          {nativeFilePicker && (
             <Button
               variant="outline"
               disabled={state.loading}
-              onClick={() => void runAction(async () => skillApi.rebuildSkillIndex(), '索引已重建')}
+              onClick={() => void runAction(async () => skillApi.importSkillFromZip(), 'ZIP 已导入')}
             >
-              <RefreshCwIcon data-icon="inline-start" className="size-3.5" />
-              重建索引
+              <ArchiveIcon data-icon="inline-start" />
+              导入 ZIP
             </Button>
-            {nativeFilePicker && (
-              <Button
-                variant="outline"
-                disabled={state.loading}
-                onClick={() => void runAction(async () => skillApi.importSkillFromZip(), 'ZIP 已导入')}
-              >
-                <ArchiveIcon data-icon="inline-start" />
-                导入 ZIP
-              </Button>
-            )}
-            <Button disabled={state.loading} onClick={() => setGithubOpen(true)}>
-              <GitBranchIcon data-icon="inline-start" className="size-3.5" />
-              从 GitHub 导入
-            </Button>
-          </>
-        )}
-      />
-
+          )}
+          <Button disabled={state.loading} onClick={() => setGithubOpen(true)}>
+            <GitBranchIcon data-icon="inline-start" className="size-3.5" />
+            从 GitHub 导入
+          </Button>
+        </>
+      )}
+      variant="wide"
+    >
       <div className="flex flex-col gap-3">
         {state.data.skills.length === 0
           ? (
@@ -155,7 +154,7 @@ export default function SkillManage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </SettingsPageLayout>
   )
 }
 
