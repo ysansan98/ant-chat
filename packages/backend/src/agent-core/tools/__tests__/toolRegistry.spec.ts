@@ -193,6 +193,24 @@ describe('toolRegistry Skill 白名单', () => {
     expect(registry.listTools().some(tool => tool.name === 'ant_chat')).toBe(false)
   })
 
+  it('普通交互 Turn 将严格只读 Bash 标记为 bash_read', async () => {
+    const registry = await ToolRegistry.create({
+      config: createConfig(),
+      mode: 'hybrid',
+      turnSource: { type: 'interactive' },
+      workspacePath,
+    })
+
+    expect(registry.prepare('bash', { command: 'which node && node --version' })).toMatchObject({
+      operationType: 'bash_read',
+      scope: 'workspace',
+    })
+    expect(registry.prepare('bash', { command: 'node -v --run build' })).toMatchObject({
+      operationType: 'bash',
+      scope: 'workspace',
+    })
+  })
+
   it('普通交互 Turn 始终注册已连接的 MCP 工具', async () => {
     const mcpClientHub: RuntimeMcpClientHub = {
       connections: [{

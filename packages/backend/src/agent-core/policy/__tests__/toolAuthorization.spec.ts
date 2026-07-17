@@ -123,6 +123,62 @@ describe('createToolAuthorization 行为', () => {
     expect(waitForApproval).not.toHaveBeenCalled()
   })
 
+  it('自动化仅在启用 Bash 后允许只读 Bash 探测', async () => {
+    const hook = createToolAuthorization(createTaskState(async () => ({ approved: true })))
+    const task = createTask({
+      turnSource: {
+        type: 'automation',
+        automationId: 'automation-1',
+        runId: 'run-1',
+        allowedSkills: [],
+        allowedMcpServers: [],
+        permissionPolicy: {
+          workspaceAccess: 'read',
+          allowSelectedSkillRuntime: false,
+          allowMcpMutations: false,
+          extraFileRoots: [],
+          allowBashCommands: true,
+          bashCommandPatterns: [],
+        },
+      },
+    })
+
+    await expect(hook({
+      task,
+      prepared: { ...createPrepared(), toolName: 'bash', operationType: 'bash_read', input: { command: 'which node && node --version' } },
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+    })).resolves.toEqual({ outcome: 'allow' })
+  })
+
+  it('自动化未启用 Bash 时阻止只读 Bash 探测', async () => {
+    const hook = createToolAuthorization(createTaskState(async () => ({ approved: true })))
+    const task = createTask({
+      turnSource: {
+        type: 'automation',
+        automationId: 'automation-1',
+        runId: 'run-1',
+        allowedSkills: [],
+        allowedMcpServers: [],
+        permissionPolicy: {
+          workspaceAccess: 'read',
+          allowSelectedSkillRuntime: false,
+          allowMcpMutations: false,
+          extraFileRoots: [],
+          allowBashCommands: false,
+          bashCommandPatterns: [],
+        },
+      },
+    })
+
+    const result = await hook({
+      task,
+      prepared: { ...createPrepared(), toolName: 'bash', operationType: 'bash_read', input: { command: 'which node && node --version' } },
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+    })
+
+    expect(result).toEqual(expect.objectContaining({ outcome: 'block', reason: '自动化任务未授权命令执行' }))
+  })
+
   it('hybrid 模式下 workspace read 返回 allow', async () => {
     const hook = createToolAuthorization(createTaskState(async () => ({ approved: true })))
     const task = createTask({ mode: 'hybrid' })
@@ -134,6 +190,26 @@ describe('createToolAuthorization 行为', () => {
     })
 
     expect(result).toEqual({ outcome: 'allow' })
+  })
+
+  it('普通交互的严格只读 Bash 直接放行，其他 Bash 仍需审批', async () => {
+    const waitForApproval = vi.fn(async () => ({ approved: true }))
+    const hook = createToolAuthorization(createTaskState(waitForApproval))
+    const task = createTask({ mode: 'hybrid' })
+
+    await expect(hook({
+      task,
+      prepared: { ...createPrepared(), toolName: 'bash', operationType: 'bash_read', input: { command: 'which node && node --version' } },
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+    })).resolves.toEqual({ outcome: 'allow' })
+    expect(waitForApproval).not.toHaveBeenCalled()
+
+    await expect(hook({
+      task: createTask({ mode: 'hybrid' }),
+      prepared: { ...createPrepared(), toolName: 'bash', operationType: 'bash', input: { command: 'git status' } },
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+    })).resolves.toEqual({ outcome: 'allow' })
+    expect(waitForApproval).toHaveBeenCalledOnce()
   })
 
   it('blocked scope 返回 block', async () => {

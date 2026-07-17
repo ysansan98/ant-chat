@@ -156,6 +156,11 @@ function decideAutomationPolicy(
     // Skill 能力已由当前 Turn 的 ToolRegistry 最小化注入，权限层不再重复维护白名单。
     return { type: 'allow' as const }
   }
+  if (operationType === 'bash_read') {
+    return policy.allowBashCommands
+      ? { type: 'allow' as const }
+      : { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '自动化任务未授权命令执行' }
+  }
   if (operationType === 'mcp') {
     return policy.allowMcpMutations
       ? { type: 'allow' as const }
@@ -195,7 +200,7 @@ function decidePolicy(mode: AgentMode, operationType: ToolOperationType, scope: 
   }
 
   // 其余情况仅会是 workspace scope。
-  if (operationType === 'read' || operationType === 'browser' || operationType === 'skill' || operationType === 'mcp') {
+  if (operationType === 'read' || operationType === 'bash_read' || operationType === 'browser' || operationType === 'skill' || operationType === 'mcp') {
     return { type: 'allow' }
   }
 

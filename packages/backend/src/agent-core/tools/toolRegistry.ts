@@ -4,6 +4,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { getNativeToolService } from '../native-tools/nativeToolService'
+import { isReadOnlyBashCommand } from '../native-tools/tools/bashRunner'
 import { createMcpTools } from './mcpToolAdapter'
 import { createPublishVisualizationTool } from './publishVisualizationTool'
 
@@ -107,7 +108,9 @@ export class ToolRegistry {
 
     const validationError = tool.validateInput?.(input) ?? undefined
     const scope = safeInferScope(tool, input)
-    const operationType = tool.operationType
+    const operationType = tool.operationType === 'bash' && isReadOnlyBashCommand(String(input.command ?? ''))
+      ? 'bash_read'
+      : tool.operationType
 
     const resolvedTool = scope === 'outside' ? (this.relaxedTools.get(toolName) ?? tool) : tool
 

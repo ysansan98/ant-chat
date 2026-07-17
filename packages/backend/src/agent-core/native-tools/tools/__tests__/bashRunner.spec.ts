@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { preValidateBashScope, runBashTool } from '../bashRunner'
+import { isReadOnlyBashCommand, preValidateBashScope, runBashTool } from '../bashRunner'
 
 describe('preValidateBashScope 行为', () => {
   let workspacePath: string
@@ -42,8 +42,8 @@ describe('preValidateBashScope 行为', () => {
   })
 
   describe('outside — 需用户审批', () => {
-    it('禁用命令: rm', () => {
-      expect(preValidateBashScope({ command: 'rm -rf src' }, workspacePath)).toBe('outside')
+    it('显式工作区外路径的 rm 命令', () => {
+      expect(preValidateBashScope({ command: 'rm -rf /tmp/outside' }, workspacePath)).toBe('outside')
     })
 
     it('禁用命令: sudo', () => {
@@ -62,10 +62,6 @@ describe('preValidateBashScope 行为', () => {
 
     it('重定向 >', () => {
       expect(preValidateBashScope({ command: 'find . > /tmp/out' }, workspacePath)).toBe('outside')
-    })
-
-    it('非只读命令: git', () => {
-      expect(preValidateBashScope({ command: 'git status' }, workspacePath)).toBe('outside')
     })
 
     it('mkdir 缺少 -p', () => {
@@ -90,6 +86,35 @@ describe('preValidateBashScope 行为', () => {
   })
 
   describe('workspace — 安全放行', () => {
+    it('环境探测命令判定为只读且留在工作区范围', () => {
+      const command = 'which node && node --version'
+
+      expect(isReadOnlyBashCommand(command)).toBe(true)
+      expect(preValidateBashScope({ command }, workspacePath)).toBe('workspace')
+    })
+
+    it('环境探测命令可真实执行', async () => {
+      const result = await runBashTool({ command: 'which node && node --version' }, workspacePath)
+
+      expect(result.ok).toBe(true)
+      expect(result.diagnostics?.stdout).toContain('node')
+    })
+
+    it('node 的版本参数不能夹带脚本执行', () => {
+      expect(isReadOnlyBashCommand('node --version')).toBe(true)
+      expect(isReadOnlyBashCommand('node -v --run build')).toBe(false)
+      expect(preValidateBashScope({ command: 'node -v --run build' }, workspacePath)).toBe('workspace')
+    })
+
+    it('只读分类不会放行会启动子进程或写入文件的搜索参数', () => {
+      expect(isReadOnlyBashCommand('rg --pre formatter query')).toBe(false)
+      expect(isReadOnlyBashCommand('find . -exec rm {} \\;')).toBe(false)
+    })
+
+    it('工作区内的非只读命令不应被误判为工作区外', () => {
+      expect(preValidateBashScope({ command: 'git status' }, workspacePath)).toBe('workspace')
+    })
+
     it('pwd 判定为 workspace', () => {
       expect(preValidateBashScope({ command: 'pwd' }, workspacePath)).toBe('workspace')
     })

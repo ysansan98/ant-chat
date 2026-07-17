@@ -10,7 +10,6 @@ import { createPathPolicyByMode } from '../pathPolicy'
 const DEFAULT_TIMEOUT_MS = 10_000
 const MAX_TIMEOUT_MS = 30_000
 const MAX_OUTPUT_CHARS = 20_000
-const READ_ONLY_COMMANDS = new Set(['pwd', 'ls', 'cat', 'rg', 'find'])
 const BLOCKED_TOKENS = ['>', '<', '|', ';', '||', '`', '$(', '\n']
 
 interface BashRunnerOptions {
@@ -28,7 +27,7 @@ export async function runBashTool(
   const startedAt = Date.now()
   const blockedResult = () => ({
     ok: false,
-    result: `工具 bash 执行失败：命令被安全策略拦截。请仅使用允许的只读命令（如 pwd、ls、cat、rg、find），不要使用重定向、管道、sudo、rm 等。原始命令=${input.command}`,
+    result: `工具 bash 执行失败：命令被安全策略拦截。请避免重定向、管道、命令替换、sudo 以及工作区外路径。原始命令=${input.command}`,
     diagnostics: { durationMs: Date.now() - startedAt },
   })
   let commands: Array<{ command: string, args: string[] }>
@@ -41,12 +40,15 @@ export async function runBashTool(
   if (commands.length === 0) {
     return blockedResult()
   }
+  if (hasUnsupportedShellSyntax(input.command)) {
+    return blockedResult()
+  }
   if (options.blockAgentBrowser && commands.some(isAgentBrowserCommand)) {
     return blockedResult()
   }
   const policy = createPathPolicyByMode(workspacePath, unrestricted ? 'unrestricted' : 'workspace', options.trustedPaths)
   const cwd = policy.resolveExisting(input.cwd || '.')
-  if (!unrestricted && !commands.every(item => isCommandAllowed(item, cwd, policy, options.trustedPaths ?? []))) {
+  if (!unrestricted && !commands.every(item => isCommandAllowed(item, cwd, policy))) {
     return blockedResult()
   }
   for (const item of commands) {
@@ -190,17 +192,12 @@ function isCommandAllowed(
   command: { command: string, args: string[] },
   cwd: string,
   policy: ReturnType<typeof createPathPolicyByMode>,
-  trustedPaths: string[],
 ): boolean {
   if (command.command === 'mkdir') {
     return isAllowedMkdir(command.args) && validateMkdirTargets(command.args.slice(1), cwd, policy)
   }
 
-  if (READ_ONLY_COMMANDS.has(command.command)) {
-    return command.args.every(arg => !isPathOutsidePolicy(arg, cwd, policy))
-  }
-
-  return commandTouchesTrustedRoot(command, cwd, trustedPaths)
+  return !requiresExternalAccess(command)
     && command.args.every(arg => !isPathOutsidePolicy(arg, cwd, policy))
 }
 
@@ -245,16 +242,6 @@ function isPathOutsidePolicy(arg: string, cwd: string, policy: ReturnType<typeof
   return !policy.isInsideWorkspace(resolved)
 }
 
-function commandTouchesTrustedRoot(
-  command: { command: string, args: string[] },
-  cwd: string,
-  trustedPaths: string[],
-): boolean {
-  return isInsideAnyRoot(cwd, trustedPaths)
-    || isInsideAnyRoot(resolveShellPath(command.command, cwd), trustedPaths)
-    || command.args.some(arg => looksLikePath(arg) && isInsideAnyRoot(resolveShellPath(arg, cwd), trustedPaths))
-}
-
 function looksLikePath(arg: string): boolean {
   return arg.startsWith('/')
     || arg.startsWith('~/')
@@ -277,22 +264,12 @@ function resolveShellPath(inputPath: string, cwd: string): string {
     : path.resolve(cwd, inputPath)
 }
 
-function isInsideAnyRoot(candidatePath: string, roots: string[]): boolean {
-  return roots.some((root) => {
-    const rootPath = normalizePathForBoundary(root)
-    const candidate = normalizePathForBoundary(candidatePath)
-    const relativePath = path.relative(rootPath, candidate)
-    return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath))
-  })
-}
-
-function normalizePathForBoundary(inputPath: string): string {
-  try {
-    return fs.realpathSync.native(inputPath)
+function requiresExternalAccess(command: { command: string, args: string[] }): boolean {
+  if (new Set(['curl', 'wget', 'ssh', 'scp', 'sudo']).has(command.command)) {
+    return true
   }
-  catch {
-    return path.resolve(inputPath)
-  }
+  return (command.command === 'npm' || command.command === 'pnpm' || command.command === 'yarn' || command.command === 'pip')
+    && command.args[0] === 'install'
 }
 
 function appendTruncated(current: string, next: string): string {
@@ -351,7 +328,7 @@ export function preValidateBashScope(
   workspacePath: string,
   options: BashRunnerOptions = {},
 ): ToolScope {
-  if (BLOCKED_TOKENS.some(token => (input.command || '').includes(token))) {
+  if (hasUnsupportedShellSyntax(input.command)) {
     try {
       parseCommands(input.command)
     }
@@ -375,26 +352,6 @@ export function preValidateBashScope(
     return 'blocked'
   }
 
-  let needsApproval = false
-  for (const cmd of commands) {
-    if (cmd.command === 'mkdir') {
-      if (cmd.args.length < 2 || cmd.args[0] !== '-p') {
-        needsApproval = true
-      }
-      else if (cmd.args.slice(1).some(a => hasObviousPathEscape(a))) {
-        needsApproval = true
-      }
-      continue
-    }
-    if (!READ_ONLY_COMMANDS.has(cmd.command)) {
-      needsApproval = true
-      continue
-    }
-    if (cmd.args.some(a => hasObviousPathEscape(a))) {
-      needsApproval = true
-    }
-  }
-
   const policy = createPathPolicyByMode(workspacePath, 'workspace', options.trustedPaths)
   let cwd: string
   try {
@@ -415,12 +372,43 @@ export function preValidateBashScope(
     }
   }
 
-  if (!needsApproval) {
-    return 'workspace'
-  }
-  return commands.every(item => isCommandAllowed(item, cwd, policy, options.trustedPaths ?? []))
+  return commands.every(item => isCommandAllowed(item, cwd, policy))
     ? 'workspace'
     : 'outside'
+}
+
+export function isReadOnlyBashCommand(command: string): boolean {
+  try {
+    return !hasUnsupportedShellSyntax(command) && parseCommands(command).every(isReadOnlyCommand)
+  }
+  catch {
+    return false
+  }
+}
+
+function isReadOnlyCommand(command: { command: string, args: string[] }): boolean {
+  // 只读分类会跳过普通对话审批，因此必须同时校验参数，不能只按可执行文件名判断。
+  switch (command.command) {
+    case 'pwd':
+      return command.args.every(arg => arg === '-L' || arg === '-P')
+    case 'ls':
+    case 'cat':
+      return true
+    case 'rg':
+      return !command.args.some(arg => arg === '--pre' || arg.startsWith('--pre=') || arg === '--pre-glob' || arg.startsWith('--pre-glob='))
+    case 'find':
+      return !command.args.some(arg => ['-exec', '-execdir', '-ok', '-okdir', '-delete', '-fprint', '-fprint0', '-fprintf'].includes(arg))
+    case 'which':
+      return command.args.length === 1 && /^[a-z][\w.+-]*$/i.test(command.args[0])
+    case 'node':
+      return command.args.length === 1 && (command.args[0] === '-v' || command.args[0] === '--version')
+    default:
+      return false
+  }
+}
+
+function hasUnsupportedShellSyntax(command: string): boolean {
+  return BLOCKED_TOKENS.some(token => command.includes(token))
 }
 
 function isAgentBrowserCommand(command: { command: string, args: string[] }): boolean {

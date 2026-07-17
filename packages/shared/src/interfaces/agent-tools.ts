@@ -1,6 +1,6 @@
 import type { SecretRef } from '../schemas'
 
-export type ToolOperationType = 'read' | 'write' | 'bash' | 'browser' | 'skill' | 'mcp'
+export type ToolOperationType = 'read' | 'write' | 'bash' | 'bash_read' | 'browser' | 'skill' | 'mcp'
 export type ToolScope = 'workspace' | 'outside' | 'blocked'
 export type AgentToolInput = Record<string, unknown>
 
