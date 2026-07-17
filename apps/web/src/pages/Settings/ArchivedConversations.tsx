@@ -12,7 +12,7 @@ import { ArchiveIcon, EllipsisIcon, FolderIcon, RotateCcwIcon, SearchIcon, Trash
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import chatApi from '@/api/chatApi'
-import { getAppEventBus } from '@/api/transports/appEventBus'
+import { getAppEventSubscriptions } from '@/api/transports/appEventSubscriptions'
 import { clearConversationPendingMessages } from '@/store/pendingMessages'
 import { formatTime } from '@/utils'
 import { SettingsPageLayout } from './SettingsPageLayout'
@@ -93,10 +93,9 @@ export function ArchivedConversations() {
   }, [loadWorkspaces])
 
   useEffect(() => {
-    const eventBus = getAppEventBus()
+    const eventSubscriptions = getAppEventSubscriptions()
     const refresh = () => void loadWorkspaces()
-    eventBus.on('conversation:updated', refresh)
-    return () => eventBus.removeListener('conversation:updated', refresh)
+    return eventSubscriptions.subscribe('conversation:updated', refresh)
   }, [loadWorkspaces])
 
   const loadPage = useCallback(async (workspacePath: string | null, reset = false) => {

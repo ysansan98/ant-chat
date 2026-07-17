@@ -6,7 +6,7 @@ import { Progress } from '@workspace/ui/components/progress'
 import { AlertTriangle, Download } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { getAppEventBus } from '@/api/transports/appEventBus'
+import { getAppEventSubscriptions } from '@/api/transports/appEventSubscriptions'
 import { updateApi } from '@/api/updateApi'
 
 export interface UpdateNotificationProps {
@@ -21,28 +21,28 @@ export function UpdateNotification({ updateInfo, visible, onClose }: UpdateNotif
 
   // 监听下载进度
   useEffect(() => {
-    const eventBus = getAppEventBus()
-    const handleDownloadProgress = (_: unknown, progress: ProgressInfo) => {
+    const eventSubscriptions = getAppEventSubscriptions()
+    const handleDownloadProgress = (progress: ProgressInfo) => {
       setDownloadProgress(progress)
     }
 
-    const handleUpdateDownloaded = (_: unknown) => {
+    const handleUpdateDownloaded = () => {
       setIsDownloaded(true)
     }
 
-    const handleUpdateError = (_: unknown, error: any) => {
+    const handleUpdateError = (error: any) => {
       console.error('更新错误:', error)
       toast.error(`更新失败: ${error?.message || error}`)
     }
 
-    eventBus.on('update:download-progress', handleDownloadProgress)
-    eventBus.on('update:update-downloaded', handleUpdateDownloaded)
-    eventBus.on('update:update-error', handleUpdateError)
+    const unsubscribeProgress = eventSubscriptions.subscribe('update:download-progress', handleDownloadProgress)
+    const unsubscribeDownloaded = eventSubscriptions.subscribe('update:update-downloaded', handleUpdateDownloaded)
+    const unsubscribeError = eventSubscriptions.subscribe('update:update-error', handleUpdateError)
 
     return () => {
-      eventBus.removeAllListeners('update:download-progress')
-      eventBus.removeAllListeners('update:update-downloaded')
-      eventBus.removeAllListeners('update:update-error')
+      unsubscribeProgress()
+      unsubscribeDownloaded()
+      unsubscribeError()
     }
   }, [])
 

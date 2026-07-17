@@ -1,7 +1,7 @@
 import type { NotificationOption } from '@ant-chat/shared'
 import { useEffect } from 'react'
 import { toast } from 'sonner'
-import { getAppEventBus } from '@/api/transports/appEventBus'
+import { getAppEventSubscriptions } from '@/api/transports/appEventSubscriptions'
 import { emitAutomationChanged, emitAutomationRunChanged } from '@/constants/automationEvents'
 import { emitProviderChanged } from '@/constants/providerEvents'
 import { applyApprovalRequired, applySecretRequest, applyTaskUpdate, isTaskActive } from '@/store/agentRuntime'
@@ -14,8 +14,8 @@ import { useWorkspaceStore } from '@/store/workspace'
 
 export function useAppEventListener() {
   useEffect(() => {
-    const eventBus = getAppEventBus()
-    const handle = (_: unknown, notif: NotificationOption) => {
+    const eventSubscriptions = getAppEventSubscriptions()
+    const handle = (notif: NotificationOption) => {
       const { message } = notif
       const desc = notif.description
       const text = `${message}${desc ? `: ${desc}` : ''}`
@@ -34,67 +34,58 @@ export function useAppEventListener() {
       }
     }
 
-    eventBus.on('common:Notification', handle)
-    eventBus.on('mcp:status-changed', (_, payload) => {
-      onMcpServerStatusChanged(payload.serverName, payload.status)
-    })
-    eventBus.on('conversation:updated', (_, payload) => {
-      upsertConversationAction(payload.conversation)
-    })
-    eventBus.on('message:updated', (_, payload) => {
-      touchConversationUpdatedAt(payload.message.convId, Date.now())
-      updateMessageActionV2(payload.message)
-    })
+    const unsubscribes = [
+      eventSubscriptions.subscribe('common:Notification', handle),
+      eventSubscriptions.subscribe('mcp:status-changed', (payload) => {
+        onMcpServerStatusChanged(payload.serverName, payload.status)
+      }),
+      eventSubscriptions.subscribe('conversation:updated', (payload) => {
+        upsertConversationAction(payload.conversation)
+      }),
+      eventSubscriptions.subscribe('message:updated', (payload) => {
+        touchConversationUpdatedAt(payload.message.convId, Date.now())
+        updateMessageActionV2(payload.message)
+      }),
 
-    eventBus.on('agent:task-updated', (_, payload) => {
-      applyTaskUpdate(payload.task)
-      // 任务完成时排空待处理消息队列
-      // turn 完成与 task-updated 在时序上紧邻（turn-finished 总在 task-updated 之前），
-      // 此处统一处理，无需额外监听 agent:turn-finished
-      if (!isTaskActive(payload.task)) {
-        if (payload.task.status !== 'cancelled')
-          void drainPendingMessages(payload.task.conversationId)
-      }
-    })
-    eventBus.on('agent:approval-required', (_, payload) => {
-      applyApprovalRequired(payload.taskId, payload.pendingAction)
-    })
-    eventBus.on('agent:secret-requested', (_, payload) => {
-      applySecretRequest(payload.request)
-    })
-    eventBus.on('settings:updated', () => {
-      void refreshGeneralSettings()
-    })
-    eventBus.on('mcp:changed', () => {
-      void refreshMcpConfigs()
-    })
-    eventBus.on('provider:changed', () => {
-      emitProviderChanged()
-    })
-    eventBus.on('automation:changed', () => {
-      emitAutomationChanged()
-    })
-    eventBus.on('automation:run-changed', () => {
-      emitAutomationRunChanged()
-    })
-    eventBus.on('workspace:changed', () => {
-      void useWorkspaceStore.getState().refresh()
-    })
+      eventSubscriptions.subscribe('agent:task-updated', (payload) => {
+        applyTaskUpdate(payload.task)
+        // 任务完成时排空待处理消息队列
+        // turn 完成与 task-updated 在时序上紧邻（turn-finished 总在 task-updated 之前），
+        // 此处统一处理，无需额外监听 agent:turn-finished
+        if (!isTaskActive(payload.task)) {
+          if (payload.task.status !== 'cancelled')
+            void drainPendingMessages(payload.task.conversationId)
+        }
+      }),
+      eventSubscriptions.subscribe('agent:approval-required', (payload) => {
+        applyApprovalRequired(payload.taskId, payload.pendingAction)
+      }),
+      eventSubscriptions.subscribe('agent:secret-requested', (payload) => {
+        applySecretRequest(payload.request)
+      }),
+      eventSubscriptions.subscribe('settings:updated', () => {
+        void refreshGeneralSettings()
+      }),
+      eventSubscriptions.subscribe('mcp:changed', () => {
+        void refreshMcpConfigs()
+      }),
+      eventSubscriptions.subscribe('provider:changed', () => {
+        emitProviderChanged()
+      }),
+      eventSubscriptions.subscribe('automation:changed', () => {
+        emitAutomationChanged()
+      }),
+      eventSubscriptions.subscribe('automation:run-changed', () => {
+        emitAutomationRunChanged()
+      }),
+      eventSubscriptions.subscribe('workspace:changed', () => {
+        void useWorkspaceStore.getState().refresh()
+      }),
+    ]
 
     return () => {
-      eventBus.removeAllListeners('common:Notification')
-      eventBus.removeAllListeners('mcp:status-changed')
-      eventBus.removeAllListeners('conversation:updated')
-      eventBus.removeAllListeners('message:updated')
-      eventBus.removeAllListeners('agent:task-updated')
-      eventBus.removeAllListeners('agent:approval-required')
-      eventBus.removeAllListeners('agent:secret-requested')
-      eventBus.removeAllListeners('settings:updated')
-      eventBus.removeAllListeners('mcp:changed')
-      eventBus.removeAllListeners('provider:changed')
-      eventBus.removeAllListeners('automation:changed')
-      eventBus.removeAllListeners('automation:run-changed')
-      eventBus.removeAllListeners('workspace:changed')
+      for (const unsubscribe of unsubscribes)
+        unsubscribe()
     }
   }, [])
 }

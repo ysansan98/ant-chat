@@ -2,7 +2,7 @@ import type { ContextItemSnapshot, ContextTraceItemDetail, ContextTraceListItem 
 import { ClipboardCopy, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { getAppEventBus } from '@/api/transports/appEventBus'
+import { getAppEventSubscriptions } from '@/api/transports/appEventSubscriptions'
 import { clipboardWrite } from '@/utils'
 import { getContextTraceItem, getContextTraceLogPath, listContextTrace } from './api'
 import { TurnDivider } from './Dividers'
@@ -196,15 +196,14 @@ export function ContextDiagnosticsPanel({
     if (!conversationId || !isOpen)
       return
 
-    const bus = getAppEventBus()
+    const eventSubscriptions = getAppEventSubscriptions()
     const handler = () => {
       if (isAtBottom.current)
         void loadLatest()
       else
         setNewContextCount(prev => prev + 1)
     }
-    bus.on('agent:context-trace-updated', handler)
-    return () => bus.removeListener('agent:context-trace-updated', handler)
+    return eventSubscriptions.subscribe('agent:context-trace-updated', handler)
   }, [conversationId, isOpen, loadLatest])
 
   // 初始加载

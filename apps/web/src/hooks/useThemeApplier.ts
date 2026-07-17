@@ -1,6 +1,6 @@
 import type { AppearanceSettingsState } from '@ant-chat/shared'
 import { useEffect, useRef } from 'react'
-import { getAppEventBus } from '@/api/transports/appEventBus'
+import { getAppEventSubscriptions } from '@/api/transports/appEventSubscriptions'
 import { useGeneralSettingsStore } from '@/store/generalSettings/store'
 import {
   applyThemeToDocument,
@@ -58,9 +58,9 @@ export function useThemeApplier(): void {
 
   // 监听 settings:updated 事件（跨窗口同步）
   useEffect(() => {
-    const bus = getAppEventBus()
+    const eventSubscriptions = getAppEventSubscriptions()
 
-    const handleSettingsUpdated = (_event: unknown, payload: { keys: string[] }) => {
+    const handleSettingsUpdated = (payload: { keys: string[] }) => {
       if (!payload.keys.includes('appearance') && !payload.keys.includes('all'))
         return
 
@@ -70,10 +70,7 @@ export function useThemeApplier(): void {
       cacheAppearance(currentAppearance)
     }
 
-    bus.on('settings:updated', handleSettingsUpdated)
-    return () => {
-      bus.removeListener('settings:updated', handleSettingsUpdated)
-    }
+    return eventSubscriptions.subscribe('settings:updated', handleSettingsUpdated)
   }, [])
 
   // 监听系统色彩方案变化（仅对 system 模式生效）
