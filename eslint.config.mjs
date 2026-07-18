@@ -115,9 +115,25 @@ export default antfu(
       'react-hooks/set-state-in-effect': 'off',
       'react-hooks/immutability': 'off',
       'react-hooks/static-components': 'off',
+      'react/static-components': 'off',
+      'react/no-children-count': 'off',
       'react-hooks-extra/no-direct-set-state-in-use-effect': 'off',
       'regexp/no-super-linear-backtracking': 'off',
       '@typescript-eslint/no-unused-vars': 'off',
+    },
+  },
+  {
+    // shadcn/ui 组件常导出 variant 对象，是标准模式
+    files: ['packages/ui/src/components/*.{ts,tsx}'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
+  {
+    // React Context 文件通常同时导出 Provider 组件和 consumer hook
+    files: ['apps/web/src/contexts/**/*.{ts,tsx}'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
     },
   },
   {

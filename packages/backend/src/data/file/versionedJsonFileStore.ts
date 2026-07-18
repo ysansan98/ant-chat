@@ -90,7 +90,7 @@ function parseVersionedFile(value: unknown): { schemaVersion: number, data: unkn
     && typeof value === 'object'
     && !Array.isArray(value)
     && Number.isInteger((value as Record<string, unknown>).schemaVersion)
-    && Object.prototype.hasOwnProperty.call(value, 'data')
+    && Object.hasOwn(value, 'data')
   ) {
     const file = value as Record<string, unknown>
     return {

@@ -372,7 +372,7 @@ export class AgentObservability implements AgentObservabilityPort {
     const completed = await Promise.race([
       Promise.all([this.flush(), this.maintenance]).then(() => true),
       new Promise<false>((resolve) => {
-        timeout = setTimeout(() => resolve(false), this.options.flushTimeoutMs ?? DEFAULT_FLUSH_TIMEOUT_MS)
+        timeout = setTimeout(resolve, this.options.flushTimeoutMs ?? DEFAULT_FLUSH_TIMEOUT_MS, false)
       }),
     ])
     if (timeout)

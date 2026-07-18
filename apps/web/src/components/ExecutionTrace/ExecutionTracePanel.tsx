@@ -303,7 +303,19 @@ function Waterfall({ timeline, selectedRecordId, onInspect }: {
 }) {
   if (timeline.summary.availability !== 'available')
     return <p className="py-4 text-center text-xs text-muted-foreground">Trace 不可用</p>
-  const total = Math.max(1, (timeline.summary.endedAt ?? Date.now()) - timeline.summary.startedAt)
+  // 当 endedAt 缺失（trace 进行中）时，从 items 中推导最晚时间戳，避免在渲染期间调用 impure Date.now()
+  const endedAt = timeline.summary.endedAt
+  const total = endedAt != null
+    ? Math.max(1, endedAt - timeline.summary.startedAt)
+    : Math.max(1, (() => {
+        let latest = timeline.summary.startedAt
+        for (const item of timeline.items) {
+          const ts = item.type === 'span' ? (item.endedAt ?? item.startedAt) : item.recordedAt
+          if (ts > latest)
+            latest = ts
+        }
+        return latest - timeline.summary.startedAt
+      })())
   return (
     <div className="space-y-1.5" aria-label="Turn 时间线">
       {timeline.items.map((item) => {
