@@ -1,6 +1,6 @@
+export * from './agentObservability'
 export * from './appSettings'
 export * from './automation'
-export * from './contextTrace'
 export * from './conversations'
 export * from './mcpConfigs'
 export * from './messages'

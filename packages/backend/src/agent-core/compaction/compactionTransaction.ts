@@ -19,7 +19,7 @@ export type CompactionTransactionResult
   = | { status: 'skipped', messages: LoopMessage[], reason: CompactionSkipReason }
     | { status: 'cancelled', messages: LoopMessage[] }
     | { status: 'error', messages: LoopMessage[], errorMessage: string, usage?: LanguageModelUsage }
-    | { status: 'compacted', messages: LoopMessage[], summaryText: string, usage?: LanguageModelUsage }
+    | { status: 'compacted', messages: LoopMessage[], summaryText: string, compactedThroughMessageId: string, usage?: LanguageModelUsage }
 
 export async function runCompactionTransaction(input: {
   trigger: CompactionTrigger
@@ -105,7 +105,7 @@ export async function runCompactionTransaction(input: {
       usage: result.usage,
       compactedThroughMessageId,
     })
-    return { status: 'compacted', messages: result.messages, summaryText: result.summaryText, usage: result.usage }
+    return { status: 'compacted', messages: result.messages, summaryText: result.summaryText, compactedThroughMessageId, usage: result.usage }
   }
   catch (error) {
     if (input.abortSignal?.aborted) {

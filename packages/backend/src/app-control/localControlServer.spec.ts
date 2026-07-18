@@ -26,6 +26,7 @@ describe('localControlServer', () => {
           assistantModelId: 'model-1',
           assistantProviderId: 'provider-1',
           autoGenerateTitle: true,
+          developerTools: { agentObservabilityEnabled: false },
           proxySettings: { mode: 'none' },
         },
       })),

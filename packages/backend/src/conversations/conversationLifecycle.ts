@@ -1,4 +1,4 @@
-import type { AddConversationsSchema, AddMessage, AgentTaskSnapshot, IConversations, IMessage, UpdateConversationsSchema, VisualizationBlock } from '@ant-chat/shared'
+import type { AddConversationsSchema, AddMessage, AgentTaskSnapshot, IConversations, ILogger, IMessage, UpdateConversationsSchema, VisualizationBlock } from '@ant-chat/shared'
 import type { AppDataContext } from '../data'
 import type { RuntimeEventBus } from '../events'
 import { randomUUID } from 'node:crypto'
@@ -32,6 +32,10 @@ export function createConversationLifecycle(options: {
     closeConversation: (conversationId: string) => Promise<void> | void
     listActiveTasks: (conversationId?: string) => AgentTaskSnapshot[]
   }
+  observability?: {
+    deleteConversation: (conversationId: string) => Promise<void>
+  }
+  logger?: ILogger
   now?: () => number
   randomId?: () => string
 }): ConversationLifecycle {
@@ -62,6 +66,18 @@ export function createConversationLifecycle(options: {
   async function closeConversations(conversations: IConversations[]) {
     for (const conversation of conversations) {
       await options.runtime.closeConversation(conversation.id)
+    }
+  }
+
+  async function deleteObservability(conversationIds: string[]) {
+    for (const conversationId of conversationIds) {
+      try {
+        await options.observability?.deleteConversation(conversationId)
+      }
+      catch (error) {
+        // 会话已永久删除时，诊断清理失败不能把业务删除伪装成失败。
+        options.logger?.warn('清理会话 Agent Observability 证据失败', { conversationId, error })
+      }
     }
   }
 
@@ -182,9 +198,12 @@ export function createConversationLifecycle(options: {
     async delete(id, deleteOptions) {
       await options.runtime.closeConversation(id)
       if (deleteOptions?.archivedOnly) {
-        return await options.data.conversationRepository.deleteArchived(id)
+        const deleted = await options.data.conversationRepository.deleteArchived(id)
+        await deleteObservability(deleted)
+        return deleted
       }
       await options.data.conversationRepository.delete(id)
+      await deleteObservability([id])
       return [id]
     },
     async clearWorkspace(workspacePath) {
@@ -196,12 +215,16 @@ export function createConversationLifecycle(options: {
       if (page.data.length === 0) {
         return []
       }
-      return await options.data.conversationRepository.deleteByWorkspace(workspacePath, false)
+      const deleted = await options.data.conversationRepository.deleteByWorkspace(workspacePath, false)
+      await deleteObservability(deleted)
+      return deleted
     },
     async clearArchivedWorkspace(workspacePath) {
       const page = await options.data.conversationRepository.listArchived(0, Number.MAX_SAFE_INTEGER, workspacePath)
       await closeConversations(page.data)
-      return await options.data.conversationRepository.deleteArchivedByWorkspace(workspacePath)
+      const deleted = await options.data.conversationRepository.deleteArchivedByWorkspace(workspacePath)
+      await deleteObservability(deleted)
+      return deleted
     },
     async clearAllArchived() {
       const workspaces = await options.data.conversationRepository.listArchivedWorkspaces()
@@ -211,7 +234,9 @@ export function createConversationLifecycle(options: {
         conversations.push(...page.data)
       }
       await closeConversations(conversations)
-      return await options.data.conversationRepository.deleteAllArchived()
+      const deleted = await options.data.conversationRepository.deleteAllArchived()
+      await deleteObservability(deleted)
+      return deleted
     },
   }
 }

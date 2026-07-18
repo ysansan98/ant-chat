@@ -1,4 +1,4 @@
-import type { AIProviderFactory, AppRpcInput, IAgentEventEmitter } from '@ant-chat/shared'
+import type { AgentTurnSummary, AIProviderFactory, AppRpcInput, IAgentEventEmitter } from '@ant-chat/shared'
 import type { SkillManagementService } from '../../../agent-runtime'
 import type { MCPClientHub } from '../../../mcp'
 import type { RuntimeCore } from '../../createRuntimeCore'
@@ -6,14 +6,11 @@ import type { RuntimeModuleMethods } from '../../routeRegistry'
 import path from 'node:path'
 import { createAgentRuntime } from '../../../agent-core'
 import {
-  ContextTraceWriter,
-  ConversationTaskLoggerManager,
   createAgentTurnService,
   createAppDataSessionStore,
-  createContextTraceReader,
   createConversationTitleGenerator,
-  createTaskLoggerFactory,
 } from '../../../agent-runtime'
+import { createAgentObservability } from '../../../agent-runtime/observability'
 import { createConversationLifecycle } from '../../../conversations/conversationLifecycle'
 import { RuntimeSecretRequestController } from '../../../secretRequestController'
 import { Method, Module } from '../../decorators'
@@ -22,7 +19,6 @@ export interface AgentModuleDependencies {
   aiProviderFactory: AIProviderFactory
   mcpClientHub: MCPClientHub
   skills: SkillManagementService
-  contextDiagnosticsEnabled?: boolean
 }
 
 @Module('agent')
@@ -32,11 +28,8 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
   readonly conversationLifecycle: ReturnType<typeof createConversationLifecycle>
   readonly eventEmitter: IAgentEventEmitter
   readonly titleGenerator: ReturnType<typeof createConversationTitleGenerator>
+  readonly observability: ReturnType<typeof createAgentObservability>
   private readonly secretRequester: RuntimeSecretRequestController
-  private readonly contextTraceReader: ReturnType<typeof createContextTraceReader>
-  private readonly contextTraceLogsRoot: string
-  private readonly conversationLoggerManager: ConversationTaskLoggerManager | null
-  private contextDiagnosticsEnabled: boolean
 
   constructor(private readonly core: RuntimeCore, dependencies: AgentModuleDependencies) {
     this.eventEmitter = createAgentEventEmitter(core)
@@ -45,28 +38,17 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
         core.events.emit('agent:secret-requested', { request })
       },
     })
-    this.contextTraceLogsRoot = core.paths.taskLogsRoot
-    this.contextTraceReader = createContextTraceReader({ taskLogsRoot: core.paths.taskLogsRoot })
-    this.contextDiagnosticsEnabled = dependencies.contextDiagnosticsEnabled ?? false
-    if (this.contextDiagnosticsEnabled) {
-      this.conversationLoggerManager = new ConversationTaskLoggerManager(core.paths.taskLogsRoot)
-    }
-    else {
-      this.conversationLoggerManager = null
-    }
-
-    // 创建 ContextTraceWriter（诊断启用时注入全局 config）
-    let contextTraceWriter: ContextTraceWriter | undefined
-    if (this.contextDiagnosticsEnabled && this.conversationLoggerManager) {
-      contextTraceWriter = new ContextTraceWriter({
-        enabled: true,
-        loggerManager: this.conversationLoggerManager,
-      })
-    }
+    this.observability = createAgentObservability({
+      rootDir: core.paths.observabilityRoot,
+      legacyRoots: [path.join(core.paths.logsRoot, 'tasks')],
+      logger: core.logger,
+      onChanged: event => core.events.emit('observability:changed', event),
+    })
 
     this.runtime = createAgentRuntime({
       host: {
         eventEmitter: this.eventEmitter,
+        agentObservability: this.observability,
         sessionStore: createAppDataSessionStore(core.data),
         memoryReader: core.data.memoryManager,
         skillReader: dependencies.skills,
@@ -74,25 +56,20 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
         browser: core.browserPaths,
         bashEnvironment: core.bashEnvironment,
         loadFileData: core.data.loadAttachmentData,
-        createTaskLogger: createTaskLoggerFactory(core.paths.taskLogsRoot),
         getToolApprovalWhitelistEntries: () => core.data.toolApprovalWhitelistRepository.getAll(),
         secretStore: core.secretStore,
         secretRequester: this.secretRequester,
       },
       overrides: {
         logger: core.logger,
-        contextTraceCapture: contextTraceWriter
-          ? (payload) => { contextTraceWriter.capture(payload as never) }
-          : undefined,
-        contextTraceCaptureResponse: contextTraceWriter
-          ? (payload) => { contextTraceWriter.captureResponse(payload.conversationId, payload.requestId, payload.text) }
-          : undefined,
       },
     })
     this.conversationLifecycle = createConversationLifecycle({
       data: core.data,
       events: core.events,
       runtime: this.runtime,
+      observability: this.observability,
+      logger: core.logger,
     })
     this.titleGenerator = createConversationTitleGenerator({
       providerSettingsRepository: core.data.providerSettingsRepository,
@@ -100,7 +77,7 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
       updateConversation: input => this.conversationLifecycle.update(input),
       aiProviderFactory: dependencies.aiProviderFactory,
     })
-    this.turnService = createAgentTurnService({
+    const turnService = createAgentTurnService({
       runtime: this.runtime,
       appDataContext: core.data,
       conversationLifecycle: this.conversationLifecycle,
@@ -109,13 +86,24 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
       emitMessageUpdated: message => core.events.emit('message:updated', { message }),
       logger: core.logger,
     })
+    this.turnService = {
+      startTurn: async (options) => {
+        await this.refreshObservabilitySetting()
+        return turnService.startTurn(options)
+      },
+    }
+  }
+
+  async initialize() {
+    await this.observability.initialize()
+    await this.refreshObservabilitySetting()
   }
 
   async dispose() {
     for (const task of this.runtime.listActiveTasks())
       this.runtime.cancelTask({ taskId: task.taskId })
     await this.runtime.dispose()
-    this.conversationLoggerManager?.closeAll()
+    await this.observability.dispose()
   }
 
   @Method()
@@ -176,27 +164,53 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
   }
 
   @Method()
-  listContextTrace(input: AppRpcInput<'agent.listContextTrace'>) {
-    if (!this.contextDiagnosticsEnabled) {
-      throw new Error('Context diagnostics is not enabled')
-    }
-    return this.contextTraceReader.listTraceItems(input.conversationId, input.before, input.limit)
+  async listTurns(input: AppRpcInput<'agent.listTurns'>) {
+    const summaries = await this.observability.listTurns(input.conversationId)
+    const summariesByTurn = new Map(summaries.map(summary => [summary.turnId, summary]))
+    const messages = await this.core.data.messageRepository.listByConversation(input.conversationId)
+    const turnCreatedAt = new Map(messages.map(message => [message.id, message.createdAt]))
+    const result: AgentTurnSummary[] = messages
+      .filter(message => message.role === 'user' && !message.turnId)
+      .map(message => summariesByTurn.get(message.id) ?? {
+        availability: 'not-collected' as const,
+        conversationId: input.conversationId,
+        turnId: message.id,
+        message: '该 Turn 未启用 Agent Observability',
+      })
+    const knownTurnIds = new Set(result.map(summary => summary.turnId))
+    result.push(...summaries.filter(summary => !knownTurnIds.has(summary.turnId)))
+    return result.sort((left, right) => {
+      const leftStartedAt = left.availability === 'available' ? left.startedAt : turnCreatedAt.get(left.turnId) ?? 0
+      const rightStartedAt = right.availability === 'available' ? right.startedAt : turnCreatedAt.get(right.turnId) ?? 0
+      return rightStartedAt - leftStartedAt
+    })
   }
 
   @Method()
-  getContextTraceItem(input: AppRpcInput<'agent.getContextTraceItem'>) {
-    if (!this.contextDiagnosticsEnabled) {
-      throw new Error('Context diagnostics is not enabled')
-    }
-    return this.contextTraceReader.getTraceItem(input.conversationId, input.requestId, input.itemId)
+  getTurnTimeline(input: AppRpcInput<'agent.getTurnTimeline'>) {
+    return this.observability.getTurnTimeline(input)
   }
 
   @Method()
-  getContextTraceLogPath(input: AppRpcInput<'agent.getContextTraceLogPath'>) {
-    if (!this.contextDiagnosticsEnabled) {
-      throw new Error('Context diagnostics is not enabled')
+  getEvidence(input: AppRpcInput<'agent.getEvidence'>) {
+    return this.observability.getEvidence(input)
+  }
+
+  @Method()
+  async clearAllObservability(_input?: AppRpcInput<'agent.clearAllObservability'>) {
+    await this.observability.clearAll()
+    return null
+  }
+
+  private async refreshObservabilitySetting() {
+    try {
+      const settings = await this.core.data.settingsRepository.getGeneralSettings()
+      this.observability.setEnabled(settings.developerTools.agentObservabilityEnabled)
     }
-    return path.join(this.contextTraceLogsRoot, `${input.conversationId}.jsonl`)
+    catch (error) {
+      this.observability.setEnabled(false)
+      this.core.logger.warn('读取 Agent Observability 设置失败，当前 Turn 不采集', error)
+    }
   }
 }
 

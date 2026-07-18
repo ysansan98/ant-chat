@@ -13,6 +13,9 @@ export const DEFAULT_APP_SETTINGS: AppSettingsState = {
     lightThemeId: 'default',
     darkThemeId: 'default',
   },
+  developerTools: {
+    agentObservabilityEnabled: false,
+  },
   providers: [
     {
       id: 'openai',

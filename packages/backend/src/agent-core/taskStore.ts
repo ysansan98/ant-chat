@@ -2,6 +2,7 @@ import type { AgentPendingAction, AgentTaskSnapshot, IAgentEventEmitter } from '
 import { AgentError } from './AgentError'
 
 export interface SteeringInput {
+  messageId: string
   text: string
   turnId: string
 }

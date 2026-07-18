@@ -1,14 +1,15 @@
 import type { IConversations } from '@ant-chat/shared'
-import { PencilIcon } from 'lucide-react'
+import { ActivityIcon, PencilIcon } from 'lucide-react'
 import { useState } from 'react'
 import { useSidebar } from '@/contexts/sidebar'
 import { renameConversationsAction } from '@/store/conversation'
 
 interface ConversationTitleBarProps {
   conversation: IConversations
+  onOpenTrace: () => void
 }
 
-export function ConversationTitleBar({ conversation }: ConversationTitleBarProps) {
+export function ConversationTitleBar({ conversation, onOpenTrace }: ConversationTitleBarProps) {
   const { showSliderMenu } = useSidebar()
   const [editing, setEditing] = useState(false)
   const [title, setTitle] = useState(conversation.title)
@@ -83,6 +84,15 @@ export function ConversationTitleBar({ conversation }: ConversationTitleBarProps
               </>
             )}
       </div>
+      <button
+        type="button"
+        className="ml-2 inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+        onClick={onOpenTrace}
+        aria-label="打开执行轨迹"
+      >
+        <ActivityIcon className="size-3.5" />
+        Trace
+      </button>
     </div>
   )
 }

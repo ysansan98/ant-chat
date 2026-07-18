@@ -17,6 +17,9 @@ export const DEFAULT_GENERAL_SETTINGS: GeneralSettingsState = {
     lightThemeId: 'default',
     darkThemeId: 'default',
   },
+  developerTools: {
+    agentObservabilityEnabled: false,
+  },
 }
 
 export interface GeneralSettingsRepositoryOptions {
@@ -56,6 +59,9 @@ export class GeneralSettingsRepository implements SettingsRepository {
       appearance: updates.appearance
         ? { ...currentSettings.appearance, ...updates.appearance }
         : currentSettings.appearance,
+      developerTools: updates.developerTools
+        ? { ...currentSettings.developerTools, ...updates.developerTools }
+        : currentSettings.developerTools,
     })
     this.store.update(settings => ({ ...settings, ...nextSettings }))
     return nextSettings

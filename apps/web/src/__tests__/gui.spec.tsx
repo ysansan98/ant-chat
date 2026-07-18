@@ -689,7 +689,6 @@ function createTask(options: {
   return {
     conversationId: options.conversationId,
     createdAt: now,
-    logPath: '',
     mode: 'hybrid',
     prompt: 'test',
     status: options.status,

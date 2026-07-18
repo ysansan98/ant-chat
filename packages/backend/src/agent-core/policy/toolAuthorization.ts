@@ -4,23 +4,14 @@ import type { ToolAuthorization } from '../tools/types'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import { AgentError } from '../AgentError'
-import { createAgentTraceLogger } from '../agentTraceLogger'
+import { cancelObservation, completeObservation, failObservation, startObservationSpan } from '../observation'
 
 export function createToolAuthorization(
   taskStore: TaskStore,
   getWhitelistEntries?: () => ToolApprovalWhitelistEntry[],
 ): ToolAuthorization {
   return async (input) => {
-    const { task, prepared, config, onToolCallContext } = input
-    const traceLogger = createAgentTraceLogger(config)
-    const logContext = {
-      runId: task.snapshot.taskId,
-      taskId: task.snapshot.taskId,
-      conversationId: task.snapshot.conversationId,
-      userMessageId: task.snapshot.userMessageId,
-      step: input.step,
-      toolCallId: input.toolCallId,
-    }
+    const { task, prepared, config, parentSpanId } = input
 
     const isAutomationTurn = task.snapshot.turnSource?.type === 'automation'
     const automationDecision = decideAutomationPolicy(
@@ -40,30 +31,24 @@ export function createToolAuthorization(
       ? (automationDecision ?? { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '自动化任务未配置权限策略或操作类型不支持' })
       : (automationDecision ?? decidePolicy(task.snapshot.mode, prepared.operationType, prepared.scope))
 
-    const context = {
-      toolName: prepared.toolName,
-      input: prepared.input,
-      operationType: prepared.operationType,
-      scope: prepared.scope,
-      policy: effectiveDecision.type,
-    }
-    onToolCallContext?.(context)
-
-    traceLogger.write('tool_decision', {
-      ...logContext,
+    const policySpan = startObservationSpan(config, recorder => recorder.startPolicyDecision({
       toolName: prepared.toolName,
       input: prepared.input,
       operationType: prepared.operationType,
       scope: prepared.scope,
       policy: effectiveDecision.type,
       workspacePath: task.snapshot.workspacePath,
-    })
+      step: input.step,
+      toolCallId: input.toolCallId,
+    }, parentSpanId))
 
     if (effectiveDecision.type === 'allow') {
+      completeObservation(policySpan, { status: 'allow', outcome: 'allow' }, config.logger)
       return { outcome: 'allow' }
     }
 
     if (effectiveDecision.type === 'block') {
+      completeObservation(policySpan, { status: 'block', outcome: 'block', errorCode: effectiveDecision.errorCode, reason: effectiveDecision.reason }, config.logger)
       return {
         outcome: 'block',
         errorCode: effectiveDecision.errorCode,
@@ -83,14 +68,7 @@ export function createToolAuthorization(
         task.snapshot.workspacePath,
       )
       if (matched) {
-        traceLogger.write('tool_whitelist_auto_approved', {
-          ...logContext,
-          toolName: prepared.toolName,
-          scope: prepared.scope,
-          matchKey,
-          pattern: matched.pattern,
-          workspacePath: task.snapshot.workspacePath,
-        })
+        completeObservation(policySpan, { status: 'allow', outcome: 'allow', whitelist: { matchKey, entry: matched } }, config.logger)
         return { outcome: 'allow' }
       }
     }
@@ -111,22 +89,33 @@ export function createToolAuthorization(
       whitelistPattern,
       createdAt: Date.now(),
     }
-    const decisionResult = await taskStore.requestApproval(task, pendingAction, config.eventEmitter)
+    let decisionResult: Awaited<ReturnType<TaskStore['requestApproval']>>
+    try {
+      decisionResult = await taskStore.requestApproval(task, pendingAction, config.eventEmitter)
+    }
+    catch (error) {
+      failObservation(policySpan, error, config.logger)
+      throw error
+    }
     if (
       task.abortController.signal.aborted
       || decisionResult.reason === 'AGENT_CANCELLED'
     ) {
+      cancelObservation(policySpan, 'AGENT_CANCELLED', config.logger)
       throw new AgentError('AGENT_CANCELLED', 'Task cancelled')
     }
 
     if (!decisionResult.approved) {
+      const reason = `Tool ${prepared.toolName} rejected: ${decisionResult.reason || 'no reason given'}`
+      completeObservation(policySpan, { status: 'approval', outcome: 'block', approval: { approved: false, pendingAction, reason: decisionResult.reason } }, config.logger)
       return {
         outcome: 'block',
         errorCode: decisionResult.reason || 'AGENT_APPROVAL_REJECTED',
-        reason: `Tool ${prepared.toolName} rejected: ${decisionResult.reason || 'no reason given'}`,
+        reason,
       }
     }
 
+    completeObservation(policySpan, { status: 'approval', outcome: 'allow', approval: { approved: true, pendingAction } }, config.logger)
     return { outcome: 'allow' }
   }
 }

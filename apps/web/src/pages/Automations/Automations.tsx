@@ -90,14 +90,14 @@ export function AutomationsPage() {
     }
   }
 
-  async function openConversation(run: AutomationRun, automation?: AutomationItem) {
+  async function openConversation(run: AutomationRun, automation?: AutomationItem, inspectTrace = false) {
     if (!run.conversationId || !automation)
       throw new Error(run.errorMessage || '该运行记录没有可查看的会话')
     await activateWorkspaceSession({
       workspacePath: automation.workspacePath,
       conversationId: run.conversationId,
     })
-    navigate('/chat')
+    navigate(inspectTrace && run.turnId ? `/chat?traceTurnId=${encodeURIComponent(run.turnId)}` : '/chat')
   }
 
   async function openRunConversation(run: AutomationRun) {
@@ -106,6 +106,15 @@ export function AutomationsPage() {
     }
     catch (error) {
       toast.error(error instanceof Error ? error.message : '会话打开失败')
+    }
+  }
+
+  async function inspectRunTrace(run: AutomationRun) {
+    try {
+      await openConversation(run, automations.find(item => item.id === run.automationId), true)
+    }
+    catch (error) {
+      toast.error(error instanceof Error ? error.message : '执行轨迹打开失败')
     }
   }
 
@@ -269,6 +278,7 @@ export function AutomationsPage() {
         records={runs}
         onOpenChange={open => !open && setHistoryTarget(undefined)}
         onOpenConversation={openRunConversation}
+        onInspectTrace={inspectRunTrace}
       />
       <AlertDialog open={Boolean(deleteTarget)} onOpenChange={open => !open && setDeleteTarget(undefined)}>
         <AlertDialogContent>

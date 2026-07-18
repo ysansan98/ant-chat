@@ -273,18 +273,24 @@ describe('agentRuntime 行为', () => {
       await expect(runtime.startPreparedTask(createValidStartInput())).resolves.toEqual({ taskId: expect.any(String) })
     })
 
-    it('会话准备完成后启动失败时关闭 task logger', async () => {
+    it('启动失败时终结已创建的 Turn Trace', async () => {
       const emitter = createMockEmitter()
-      const taskLogger = { filePath: '/tmp/task.jsonl', write: vi.fn(), close: vi.fn() }
+      const recorder = {
+        startModelRequest: vi.fn(),
+        startToolCall: vi.fn(),
+        startPolicyDecision: vi.fn(),
+        recordContextEvent: vi.fn(),
+        finish: vi.fn(),
+      }
       vi.mocked(emitter.emitTaskUpdated).mockRejectedValueOnce(new Error('event unavailable'))
       const runtime = new AgentRuntime(createSessionConfig({
         eventEmitter: emitter,
-        createTaskLogger: vi.fn(() => taskLogger),
+        agentObservability: { beginTurn: vi.fn(() => recorder) },
       }))
 
       await expect(runtime.startSessionTask(createValidSessionStartInput())).rejects.toThrow('event unavailable')
 
-      expect(taskLogger.close).toHaveBeenCalledTimes(1)
+      expect(recorder.finish).toHaveBeenCalledWith(expect.objectContaining({ status: 'failed' }))
     })
 
     it('阻止同一会话重复启动任务', async () => {
@@ -498,8 +504,16 @@ describe('agentRuntime 行为', () => {
       let memoryMarkdown = '§Initial memory.'
       const readMemory = vi.fn(async () => memoryMarkdown)
       const readUserMemory = vi.fn(async () => '§Prefer concise Chinese.')
+      const recorder = {
+        startModelRequest: vi.fn(),
+        startToolCall: vi.fn(),
+        startPolicyDecision: vi.fn(),
+        recordContextEvent: vi.fn(),
+        finish: vi.fn(),
+      }
       const config = createSessionConfig({
         sessionStore: store,
+        agentObservability: { beginTurn: vi.fn(() => recorder) },
         compactionStrategy: {
           summarize: vi.fn(async () => ({
             text: 'Earlier context summary.',
@@ -585,6 +599,16 @@ describe('agentRuntime 行为', () => {
           totalTokens: 12300,
         },
       })
+      expect(recorder.recordContextEvent).toHaveBeenLastCalledWith(expect.objectContaining({
+        kind: 'compaction',
+        trigger: 'automatic',
+        compactedThroughMessageId: 'a1',
+        input: expect.objectContaining({
+          contextEntries: expect.any(Array),
+          pendingUserMessage: expect.objectContaining({ role: 'user' }),
+        }),
+        output: expect.objectContaining({ summaryText: 'Earlier context summary.' }),
+      }))
       expect(readMemory).toHaveBeenCalledTimes(2)
       expect(readUserMemory).toHaveBeenCalledTimes(2)
     })

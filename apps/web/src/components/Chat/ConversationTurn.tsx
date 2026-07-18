@@ -1,6 +1,9 @@
 import type { AgentExecutionPhase, IMessage } from '@ant-chat/shared'
 import type { TurnViewModel } from './conversationItems'
 import { Shimmer } from '@workspace/ui/components/ai-elements/shimmer'
+import { Button } from '@workspace/ui/components/button'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@workspace/ui/components/dropdown-menu'
+import { ActivityIcon, MoreHorizontalIcon } from 'lucide-react'
 import { MessageBubble } from './MessageBubble'
 
 const executionStatusText: Record<AgentExecutionPhase, string> = {
@@ -14,15 +17,34 @@ const executionStatusText: Record<AgentExecutionPhase, string> = {
 interface ConversationTurnProps {
   turn: TurnViewModel
   onCopyMessage: (message: IMessage) => void
+  onInspectTrace?: (turnId: string) => void
 }
 
-export function ConversationTurn({ turn, onCopyMessage }: ConversationTurnProps) {
+export function ConversationTurn({ turn, onCopyMessage, onInspectTrace }: ConversationTurnProps) {
   const status = turn.status === 'running' && turn.executionPhase
     ? <ExecutionStatus phase={turn.executionPhase} />
     : null
 
   return (
-    <div className="space-y-5" data-turn-id={turn.id}>
+    <div className="group/turn relative space-y-5" data-turn-id={turn.id}>
+      {onInspectTrace && (
+        <div className="absolute top-0 right-0 z-2 opacity-0 transition-opacity group-hover/turn:opacity-100 focus-within:opacity-100">
+          <DropdownMenu>
+            <DropdownMenuTrigger render={(
+              <Button type="button" variant="ghost" size="icon-sm" aria-label={`Turn ${turn.id} 菜单`}>
+                <MoreHorizontalIcon />
+              </Button>
+            )}
+            />
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => onInspectTrace(turn.id)}>
+                <ActivityIcon className="size-3.5" />
+                检查 Trace
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
       {turn.userMessage && (
         <MessageBubble messages={[turn.userMessage]} onCopyMessage={onCopyMessage} />
       )}

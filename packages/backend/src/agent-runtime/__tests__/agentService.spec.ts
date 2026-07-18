@@ -299,6 +299,7 @@ describe('createAgentTurnService 行为', () => {
       assistantModelId: 'assistant-model-9',
       assistantProviderId: 'provider-1',
       autoGenerateTitle: true,
+      developerTools: { agentObservabilityEnabled: false },
       proxySettings: { mode: 'none', customProxyUrl: '' },
       appearance: { mode: 'system', lightThemeId: 'default', darkThemeId: 'default' },
     })

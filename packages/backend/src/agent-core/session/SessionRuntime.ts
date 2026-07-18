@@ -41,7 +41,7 @@ export class SessionRuntime {
     this.browserSessions = config.browser ? new BrowserSessionManager(config.browser) : null
   }
 
-  async prepareTask(options: AgentRuntimeStartTaskOptions): Promise<{ input: RuntimeStartInput, createEventEmitter: (taskId: string) => IAgentEventEmitter, dispose: () => void, conversation: Awaited<ReturnType<ISessionStore['getConversation']>> }> {
+  async prepareTask(options: AgentRuntimeStartTaskOptions): Promise<{ input: RuntimeStartInput, createEventEmitter: (taskId: string) => IAgentEventEmitter, conversation: Awaited<ReturnType<ISessionStore['getConversation']>> }> {
     const store = requireSessionStore(this.config)
     const userText = extractMessageText(options.messageContent)
     if (!userText) {
@@ -140,8 +140,6 @@ export class SessionRuntime {
 
     const turnId = userMessage.id
 
-    const taskLogger = this.config.createTaskLogger?.(conversation.id, userMessage.id)
-
     // Create task first so we can pass taskId to the event emitter
     const taskSnapshot = {
       conversationId: conversation.id,
@@ -158,17 +156,16 @@ export class SessionRuntime {
       providerName: provider.name,
       providerId: provider.id,
       apiMode,
-      taskLogger,
       temperature: options.modelSettings?.temperature,
       maxOutputTokens: options.modelSettings?.maxOutputTokens,
       reasoningEffort: options.modelSettings?.reasoningEffort,
       compaction: compactionSettings,
+      preTurnContextEvents: preTurnCompaction.contextEvent ? [preTurnCompaction.contextEvent] : undefined,
     }
 
     return {
       input: taskSnapshot,
       createEventEmitter: taskId => createPersistedTurnEmitter(store, this.config.eventEmitter, turnId, conversation.id, () => this.taskStore.takePendingSteeringMessages(taskId)),
-      dispose: () => taskLogger?.close(),
       conversation,
     }
   }
@@ -192,7 +189,7 @@ export class SessionRuntime {
     }
 
     this.taskStore.enqueueSteeringMessage(task.taskId, { id: messageId, text, turnId })
-    this.taskStore.enqueueSteeringInput(task.taskId, { text, turnId })
+    this.taskStore.enqueueSteeringInput(task.taskId, { messageId, text, turnId })
 
     return message
   }
@@ -227,7 +224,7 @@ async function compactPersistedHistoryBeforeTurn(params: {
   conversationId: string
   modelInfo: ModelInfo
   store: ISessionStore
-}): Promise<{ compacted: boolean, messages: LoopMessage[] }> {
+}): Promise<{ compacted: boolean, messages: LoopMessage[], contextEvent?: unknown }> {
   const { contextEntries, pendingUserMessage, settings, aiProvider, modelName, contextLength, summarize, logger, conversationId, modelInfo, store } = params
   const contextMessages = contextEntries.map(entry => entry.message)
   if (!aiProvider) {
@@ -249,7 +246,27 @@ async function compactPersistedHistoryBeforeTurn(params: {
       delete: async eventId => await store.deleteEventMessage(eventId),
     },
   })
-  return { compacted: result.status === 'compacted', messages: result.messages }
+  return {
+    compacted: result.status === 'compacted',
+    messages: result.messages,
+    contextEvent: result.status === 'compacted'
+      ? {
+          kind: 'compaction',
+          trigger: 'automatic',
+          compactedThroughMessageId: result.compactedThroughMessageId,
+          input: {
+            contextEntries,
+            pendingUserMessage,
+            settings,
+          },
+          output: {
+            messages: result.messages,
+            summaryText: result.summaryText,
+            usage: result.usage,
+          },
+        }
+      : undefined,
+  }
 }
 
 async function readPromptMemory(config: AgentRuntimeConfig): Promise<{ memory?: string, soul?: string, user?: string } | undefined> {

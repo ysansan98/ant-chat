@@ -86,5 +86,15 @@ export function createAppDataMigrations(
         }
       },
     },
+    {
+      version: 5,
+      name: '关联自动化运行与 Agent Turn',
+      migrate(db) {
+        const columns = db.prepare('PRAGMA table_info(automation_runs)').all() as Array<{ name: string }>
+        if (columns.length > 0 && !columns.some(column => column.name === 'turn_id')) {
+          db.exec('ALTER TABLE automation_runs ADD COLUMN turn_id text')
+        }
+      },
+    },
   ]
 }

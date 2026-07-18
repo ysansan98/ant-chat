@@ -1,6 +1,7 @@
 import type { AgentMode, IMessageContent } from '@ant-chat/shared'
 import { Skeleton } from '@workspace/ui/components/skeleton'
-import { lazy, Suspense, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router'
 import { toast } from 'sonner'
 import { skillApi } from '@/api/skillApi'
 import { AgentApprovalCard, AgentSecretRequestCard } from '@/components/Agent'
@@ -15,9 +16,8 @@ import {
 } from '@/store/pendingMessages'
 import { cancelTurnCommand, submitTurnIntake } from '@/store/turnIntake'
 import { useWorkspaceStore } from '@/store/workspace'
+import { ExecutionTracePanel } from '../ExecutionTrace'
 import Sender from '../Sender'
-import { ContextDiagnosticsPanel } from './ContextDiagnostics'
-import { ContextFloatingButton } from './ContextDiagnostics/ContextFloatingButton'
 import { ConversationTitleBar } from './ConversationTitleBar'
 
 const BubbleList = lazy(() => import('./BubbleList'))
@@ -50,9 +50,25 @@ export default function Chat() {
   const senderRef = useRef<HTMLDivElement>(null)
   const chatContainerRef = useRef<HTMLDivElement>(null)
 
-  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
-  const [diagnosticsWidth, setDiagnosticsWidth] = useState(420)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const initialTraceTurnId = searchParams.get('traceTurnId') ?? undefined
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(Boolean(initialTraceTurnId))
+  const [focusedTraceTurnId, setFocusedTraceTurnId] = useState<string | undefined>(initialTraceTurnId)
   const [commandRunning, setCommandRunning] = useState(false)
+
+  useEffect(() => {
+    const turnId = searchParams.get('traceTurnId')
+    if (!turnId)
+      return
+    const next = new URLSearchParams(searchParams)
+    next.delete('traceTurnId')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams])
+
+  function openTrace(turnId?: string) {
+    setFocusedTraceTurnId(turnId)
+    setDiagnosticsOpen(true)
+  }
 
   async function onSubmit(
     content: IMessageContent,
@@ -121,7 +137,7 @@ export default function Chat() {
     <div ref={chatContainerRef} className="relative flex size-full min-w-0">
       <div className="flex min-w-0 flex-1 flex-col">
         {currentConversations && (
-          <ConversationTitleBar conversation={currentConversations} />
+          <ConversationTitleBar conversation={currentConversations} onOpenTrace={() => openTrace()} />
         )}
         <div className={`flex min-h-0 min-w-0 flex-1 flex-col ${!hasMessages ? 'justify-center' : ''}`}>
           {hasMessages && (
@@ -130,6 +146,7 @@ export default function Chat() {
                 <BubbleList
                   key={currentConversations?.id}
                   messages={messages}
+                  onInspectTrace={turnId => openTrace(turnId)}
                 />
               </Suspense>
             </div>
@@ -183,20 +200,12 @@ export default function Chat() {
         </div>
       </div>
 
-      {import.meta.env.DEV && !diagnosticsOpen && (
-        <ContextFloatingButton
-          containerRef={chatContainerRef}
-          onOpen={() => setDiagnosticsOpen(true)}
-        />
-      )}
-
-      {import.meta.env.DEV && diagnosticsOpen && (
-        <ContextDiagnosticsPanel
+      {diagnosticsOpen && (
+        <ExecutionTracePanel
           conversationId={activeConversationsId}
           isOpen={diagnosticsOpen}
+          focusTurnId={focusedTraceTurnId}
           onClose={() => setDiagnosticsOpen(false)}
-          width={diagnosticsWidth}
-          onWidthChange={setDiagnosticsWidth}
         />
       )}
     </div>

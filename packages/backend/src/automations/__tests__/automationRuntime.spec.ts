@@ -8,7 +8,7 @@ describe('automationRuntime', () => {
     const automation = definition()
     const queued = run({ status: 'queued' })
     const running = run({ status: 'running', startedAt: 2_000 })
-    const linked = run({ status: 'running', startedAt: 2_000, taskId: 'task-1', conversationId: 'conversation-1' })
+    const linked = run({ status: 'running', startedAt: 2_000, taskId: 'task-1', conversationId: 'conversation-1', turnId: 'turn-1' })
     const repository = {
       listDue: vi.fn(async () => [automation]),
       claim: vi.fn(async () => queued),
@@ -16,7 +16,7 @@ describe('automationRuntime', () => {
       updateRun: vi.fn().mockResolvedValueOnce(running).mockResolvedValueOnce(linked),
       cancelRunning: vi.fn(),
     }
-    const startTurn = vi.fn(async () => ({ taskId: 'task-1', conversationId: 'conversation-1' }))
+    const startTurn = vi.fn(async () => ({ taskId: 'task-1', conversationId: 'conversation-1', userMessageId: 'turn-1' }))
     const runtime = createAutomationRuntime({
       repository: repository as never,
       startTurn,
@@ -36,6 +36,11 @@ describe('automationRuntime', () => {
         allowedSkills: ['review'],
         allowedMcpServers: ['github'],
       }),
+    }))
+    expect(repository.updateRun).toHaveBeenLastCalledWith(queued.id, expect.objectContaining({
+      taskId: 'task-1',
+      conversationId: 'conversation-1',
+      turnId: 'turn-1',
     }))
     await runtime.dispose()
   })
@@ -73,8 +78,8 @@ describe('automationRuntime', () => {
   it('force delete 等待尚未获得 taskId 的执行，并取消晚到的任务后再删除', async () => {
     const automation = definition()
     let currentRun = run({ status: 'queued' })
-    let resolveStart!: (value: { taskId: string, conversationId: string }) => void
-    const startTurn = vi.fn(() => new Promise<{ taskId: string, conversationId: string }>((resolve) => {
+    let resolveStart!: (value: { taskId: string, conversationId: string, userMessageId: string }) => void
+    const startTurn = vi.fn(() => new Promise<{ taskId: string, conversationId: string, userMessageId: string }>((resolve) => {
       resolveStart = resolve
     }))
     const repository = {
@@ -104,7 +109,7 @@ describe('automationRuntime', () => {
     await vi.waitFor(() => expect(repository.updateRun).toHaveBeenCalledWith('run-1', expect.objectContaining({ status: 'cancelled' })))
     expect(repository.delete).not.toHaveBeenCalled()
 
-    resolveStart({ taskId: 'late-task', conversationId: 'late-conversation' })
+    resolveStart({ taskId: 'late-task', conversationId: 'late-conversation', userMessageId: 'late-turn' })
     await Promise.all([execution, deletion])
 
     expect(cancelTask).toHaveBeenCalledWith('late-task')
@@ -144,7 +149,7 @@ describe('automationRuntime', () => {
     const cancelTask = vi.fn()
     const runtime = createAutomationRuntime({
       repository: repository as never,
-      startTurn: vi.fn(async () => ({ taskId: 'racing-task', conversationId: 'racing-conversation' })),
+      startTurn: vi.fn(async () => ({ taskId: 'racing-task', conversationId: 'racing-conversation', userMessageId: 'racing-turn' })),
       cancelTask,
       events: new RuntimeEventBus(),
       clock: { now: () => 2_000 },
@@ -183,7 +188,7 @@ describe('automationRuntime', () => {
     const events = new RuntimeEventBus()
     const runtime = createAutomationRuntime({
       repository: repository as never,
-      startTurn: vi.fn(async () => ({ taskId: 'task-1', conversationId: 'conversation-1' })),
+      startTurn: vi.fn(async () => ({ taskId: 'task-1', conversationId: 'conversation-1', userMessageId: 'turn-1' })),
       cancelTask: vi.fn(),
       events,
       clock: { now: () => 2_000 },
@@ -221,7 +226,7 @@ describe('automationRuntime', () => {
     const logger = { error: vi.fn() }
     const runtime = createAutomationRuntime({
       repository: repository as never,
-      startTurn: vi.fn(async () => ({ taskId: 'task-1', conversationId: 'conversation-1' })),
+      startTurn: vi.fn(async () => ({ taskId: 'task-1', conversationId: 'conversation-1', userMessageId: 'turn-1' })),
       cancelTask: vi.fn(),
       events,
       logger: logger as never,
@@ -269,7 +274,6 @@ describe('automationRuntime', () => {
           status: 'failed',
           createdAt: 2_000,
           updatedAt: 2_000,
-          logPath: '/tmp/fast-task.log',
           prompt: automation.prompt,
           turnSource: {
             type: 'automation',
@@ -282,7 +286,7 @@ describe('automationRuntime', () => {
           errorMessage: '快速失败',
         },
       })
-      return { taskId: 'fast-task', conversationId: 'fast-conversation' }
+      return { taskId: 'fast-task', conversationId: 'fast-conversation', userMessageId: 'fast-turn' }
     })
     const runtime = createAutomationRuntime({
       repository: repository as never,
@@ -323,7 +327,7 @@ describe('automationRuntime', () => {
     const cancelTask = vi.fn()
     const runtime = createAutomationRuntime({
       repository: repository as never,
-      startTurn: vi.fn(async () => ({ taskId: 'task-1', conversationId: 'conversation-1' })),
+      startTurn: vi.fn(async () => ({ taskId: 'task-1', conversationId: 'conversation-1', userMessageId: 'turn-1' })),
       cancelTask,
       events,
       clock: { now: () => 2_000 },
@@ -361,7 +365,7 @@ describe('automationRuntime', () => {
     const cancelTask = vi.fn()
     const runtime = createAutomationRuntime({
       repository: repository as never,
-      startTurn: vi.fn(async () => ({ taskId: 'task-1', conversationId: 'conversation-1' })),
+      startTurn: vi.fn(async () => ({ taskId: 'task-1', conversationId: 'conversation-1', userMessageId: 'turn-1' })),
       cancelTask,
       events,
       clock: {

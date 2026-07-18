@@ -1,8 +1,5 @@
-import type { AgentMode, AgentTurnSource, CompactionSettingsSchema, IAIProvider, ITaskLogger, LoopMessage, ReasoningEffortLevel } from '@ant-chat/shared'
+import type { AgentMode, AgentTurnSource, CompactionSettingsSchema, IAIProvider, LoopMessage, ReasoningEffortLevel } from '@ant-chat/shared'
 import type { ToolRegistry } from '../tools/toolRegistry'
-
-/** 上下文诊断捕获回调类型 */
-export type ContextTraceCaptureFn = (payload: Record<string, unknown>) => void
 
 export interface BeforeTurnResult {
   messages: LoopMessage[]
@@ -33,9 +30,6 @@ export interface RuntimeStartInput {
   providerId: string
   apiMode: string
 
-  // ===== 按任务日志 =====
-  taskLogger?: ITaskLogger
-
   // ===== 可选配置 =====
   temperature?: number
   maxOutputTokens?: number
@@ -46,8 +40,9 @@ export interface RuntimeStartInput {
   /** 自动化/交互来源标记 */
   turnSource?: AgentTurnSource
 
-  /** 上下文诊断捕获（开发环境使用，由 SessionRuntime 设置） */
-  contextTraceCapture?: ContextTraceCaptureFn
+  /** Turn 准备阶段已发生、待 recorder 创建后按序写入的上下文事实。 */
+  preTurnContextEvents?: unknown[]
+
 }
 
 export interface RuntimeStartResult {

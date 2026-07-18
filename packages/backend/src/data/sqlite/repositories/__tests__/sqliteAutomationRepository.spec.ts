@@ -69,6 +69,22 @@ describe('sqliteAutomationRepository', () => {
     await expect(repository.listRuns(automation.id)).resolves.toEqual([])
   })
 
+  it('持久化运行对应的 Agent Turn', async () => {
+    const automation = await repository.create(input, 1_000)
+    const run = await repository.createManualRun(automation.id, 500)
+
+    await repository.updateRun(run.id, {
+      status: 'running',
+      taskId: 'task-1',
+      conversationId: 'conversation-1',
+      turnId: 'turn-1',
+    })
+
+    await expect(repository.listRuns(automation.id)).resolves.toEqual([
+      expect.objectContaining({ turnId: 'turn-1' }),
+    ])
+  })
+
   it('上一次仍在运行时跳过本次并继续推进计划', async () => {
     const automation = await repository.create(input, 1_000)
     const active = await repository.createManualRun(automation.id, 500)

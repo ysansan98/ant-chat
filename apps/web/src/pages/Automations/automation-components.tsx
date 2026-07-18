@@ -47,6 +47,7 @@ export function RunHistorySheet(props: {
   records: AutomationRun[]
   onOpenChange: (open: boolean) => void
   onOpenConversation: (record: AutomationRun) => Promise<void>
+  onInspectTrace: (record: AutomationRun) => Promise<void>
 }) {
   const selectedAutomation = props.target === 'all'
     ? undefined
@@ -96,16 +97,26 @@ export function RunHistorySheet(props: {
                 <CardContent>
                   <p className="text-sm/6">{record.summary || record.errorMessage || '任务正在执行，完成后会显示结果。'}</p>
                 </CardContent>
-                <CardFooter className="justify-between">
+                <CardFooter className="justify-between gap-2">
                   <span className="text-xs text-muted-foreground">独立会话</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={!record.conversationId}
-                    onClick={() => void props.onOpenConversation(record)}
-                  >
-                    查看会话
-                  </Button>
+                  <span className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={!record.turnId || !record.conversationId}
+                      onClick={() => void props.onInspectTrace(record)}
+                    >
+                      检查 Trace
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={!record.conversationId}
+                      onClick={() => void props.onOpenConversation(record)}
+                    >
+                      查看会话
+                    </Button>
+                  </span>
                 </CardFooter>
               </Card>
             )

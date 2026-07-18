@@ -75,6 +75,7 @@ export function initializeAppDataSchema(db: AppDataDatabase): void {
       status text NOT NULL,
       task_id text,
       conversation_id text,
+      turn_id text,
       summary text,
       error_code text,
       error_message text,

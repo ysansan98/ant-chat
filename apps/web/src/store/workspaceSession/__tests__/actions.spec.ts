@@ -60,7 +60,6 @@ describe('activateWorkspaceSession', () => {
           status: 'running',
           createdAt: 1,
           updatedAt: 1,
-          logPath: '/tmp/old-task.log',
           prompt: '旧任务',
         },
       },
@@ -100,7 +99,6 @@ describe('activateWorkspaceSession', () => {
         status: 'running',
         createdAt: 2,
         updatedAt: 2,
-        logPath: '/tmp/unrelated-task.log',
         prompt: '无关任务',
       })
       useConversationsStore.setState(state => ({

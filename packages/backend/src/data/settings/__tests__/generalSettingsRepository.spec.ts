@@ -26,6 +26,7 @@ describe('general settings repository', () => {
         autoGenerateTitle: false,
         proxySettings: { mode: 'none', customProxyUrl: '' },
         appearance: { mode: 'system', lightThemeId: 'default', darkThemeId: 'default' },
+        developerTools: { agentObservabilityEnabled: false },
       },
     })
 
@@ -35,6 +36,7 @@ describe('general settings repository', () => {
       autoGenerateTitle: false,
       proxySettings: { mode: 'none', customProxyUrl: '' },
       appearance: { mode: 'system', lightThemeId: 'default', darkThemeId: 'default' },
+      developerTools: { agentObservabilityEnabled: false },
     })
   })
 
@@ -47,6 +49,7 @@ describe('general settings repository', () => {
         autoGenerateTitle: false,
         proxySettings: { mode: 'custom', customProxyUrl: 'http://localhost:7890' },
         appearance: { mode: 'system', lightThemeId: 'default', darkThemeId: 'default' },
+        developerTools: { agentObservabilityEnabled: false },
       },
     })
 
@@ -60,6 +63,21 @@ describe('general settings repository', () => {
       autoGenerateTitle: false,
       proxySettings: { mode: 'system', customProxyUrl: 'http://localhost:7890' },
       appearance: { mode: 'system', lightThemeId: 'default', darkThemeId: 'default' },
+      developerTools: { agentObservabilityEnabled: false },
+    })
+  })
+
+  it('持久化 Developer Tools 开关且不改写其他设置', async () => {
+    const repository = new GeneralSettingsRepository({ filePath })
+
+    const updated = await repository.updateGeneralSettings({
+      developerTools: { agentObservabilityEnabled: true },
+    })
+
+    expect(updated.developerTools).toEqual({ agentObservabilityEnabled: true })
+    await expect(repository.getGeneralSettings()).resolves.toMatchObject({
+      developerTools: { agentObservabilityEnabled: true },
+      proxySettings: { mode: 'none' },
     })
   })
 

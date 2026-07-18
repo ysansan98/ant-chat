@@ -43,6 +43,7 @@ describe('app-data SQLite 迁移', () => {
       { version: 2, name: '增加会话归档状态' },
       { version: 3, name: '重命名自动化 selected 字段为 allowed' },
       { version: 4, name: '分离会话指令并迁移输出 token 字段' },
+      { version: 5, name: '关联自动化运行与 Agent Turn' },
     ])
   })
 
@@ -84,7 +85,7 @@ describe('app-data SQLite 迁移', () => {
     expect(messageColumnNames).not.toEqual(expect.arrayContaining(['images', 'attachments']))
     const conversationColumns = sqlite.prepare('PRAGMA table_info(conversations)').all() as Array<{ name: string }>
     expect(conversationColumns.map(column => column.name)).toContain('archived')
-    expect(sqlite.prepare('SELECT version FROM app_data_migrations').all()).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }])
+    expect(sqlite.prepare('SELECT version FROM app_data_migrations').all()).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }])
   })
 
   // ===== 测试：version 3 → 4 迁移 =====

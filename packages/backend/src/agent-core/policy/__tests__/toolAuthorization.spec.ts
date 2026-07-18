@@ -30,7 +30,6 @@ function createTask(overrides: Record<string, unknown> = {}): RuntimeTask {
       prompt: 'test',
       createdAt: 1000,
       updatedAt: 1000,
-      logPath: '',
       ...overrides,
     } as AgentTaskSnapshot,
     abortController: new AbortController(),
@@ -327,27 +326,20 @@ describe('createToolAuthorization 行为', () => {
     ).rejects.toThrow('Task cancelled')
   })
 
-  it('调用 onToolCallContext 回调', async () => {
+  it('记录 allow 决策', async () => {
     const hook = createToolAuthorization(createTaskState(async () => ({ approved: true })))
     const task = createTask({ mode: 'hybrid' })
-    const onContext = vi.fn()
+    const span = { id: 'mock', complete: vi.fn(), fail: vi.fn(), cancel: vi.fn() }
+    const turnRecorder = { startModelRequest: vi.fn(() => span), startToolCall: vi.fn(() => span), startPolicyDecision: vi.fn(() => span), recordContextEvent: vi.fn(), finish: vi.fn() }
 
     const result = await hook({
       task,
       prepared: { ...createPrepared(), operationType: 'read', scope: 'workspace' },
-      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
-      onToolCallContext: onContext,
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger(), turnRecorder },
     })
 
     expect(result).toEqual({ outcome: 'allow' })
-    expect(onContext).toHaveBeenCalledWith(
-      expect.objectContaining({
-        toolName: 'read_file',
-        operationType: 'read',
-        scope: 'workspace',
-        policy: 'allow',
-      }),
-    )
+    expect(span.complete).toHaveBeenCalledWith(expect.objectContaining({ status: 'allow', outcome: 'allow' }))
   })
 
   it('白名单匹配时自动批准', async () => {

@@ -14,7 +14,6 @@ describe('agentRecovery', () => {
           status: 'awaiting_approval',
           createdAt: Date.now(),
           updatedAt: Date.now(),
-          logPath: '',
           prompt: 'p',
         },
       },

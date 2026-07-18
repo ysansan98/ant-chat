@@ -4,6 +4,7 @@ import type { ToolAuthorization } from './tools/types'
 import { randomUUID } from 'node:crypto'
 import { AgentError } from './AgentError'
 import { runAgentLoop } from './loop/agentLoop'
+import { finishTurnObservation, recordContextObservation } from './observation'
 import { createToolAuthorization } from './policy/toolAuthorization'
 import { SessionRuntime } from './session/SessionRuntime'
 import { TaskStore } from './taskStore'
@@ -25,14 +26,8 @@ export class AgentRuntime {
 
   async startSessionTask(options: AgentRuntimeStartTaskOptions): Promise<AgentRuntimeStartTaskResult> {
     const prepared = await this.sessionRuntime.prepareTask(options)
-    try {
-      const task = await this.startPreparedTask(prepared.input, { eventEmitterFactory: prepared.createEventEmitter })
-      return { ...task, conversationId: options.conversationId, userMessageId: options.userMessageId, conversation: prepared.conversation! }
-    }
-    catch (error) {
-      prepared.dispose()
-      throw error
-    }
+    const task = await this.startPreparedTask(prepared.input, { eventEmitterFactory: prepared.createEventEmitter })
+    return { ...task, conversationId: options.conversationId, userMessageId: options.userMessageId, conversation: prepared.conversation! }
   }
 
   async startPreparedTask(
@@ -56,19 +51,13 @@ export class AgentRuntime {
     const now = Date.now()
     const taskId = randomUUID()
 
-    // 合并 runtime 提供的 eventEmitter 和 contextTraceCapture，以及 options 透传的 taskLogger
     const eventEmitter = runtime?.eventEmitterFactory?.(taskId) ?? runtime?.eventEmitter
-    const needMerge = eventEmitter || options.taskLogger || options.contextTraceCapture
-    const config = needMerge
+    const baseConfig = eventEmitter
       ? {
           ...this.config,
-          ...(eventEmitter ? { eventEmitter } : {}),
-          ...(options.taskLogger ? { taskLogger: options.taskLogger } : {}),
-          ...(options.contextTraceCapture ? { contextTraceCapture: options.contextTraceCapture } : {}),
+          eventEmitter,
         }
       : this.config
-
-    const logPath = options.taskLogger?.filePath ?? ''
 
     const snapshot: AgentTaskSnapshot = {
       taskId,
@@ -80,17 +69,26 @@ export class AgentRuntime {
       executionPhase: 'waiting_model',
       createdAt: now,
       updatedAt: now,
-      logPath,
       prompt: options.userText,
       turnSource: options.turnSource,
     }
 
     const task = { snapshot, abortController: new AbortController() }
     const execution = this.taskStore.reserve(task)
+    const turnRecorder = beginTurnObservation(baseConfig, {
+      conversationId: options.conversationId,
+      turnId: options.userMessageId,
+      taskId,
+      source: options.turnSource ?? { type: 'interactive' },
+    })
+    const config = turnRecorder ? { ...baseConfig, turnRecorder } : baseConfig
+    for (const event of options.preTurnContextEvents ?? [])
+      recordContextObservation(config, event)
     try {
       await config.eventEmitter.emitTaskUpdated(snapshot)
     }
     catch (error) {
+      finishTurnObservation(config, { status: 'failed', error })
       execution.finish()
       throw error
     }
@@ -152,6 +150,19 @@ export class AgentRuntime {
 
   async dispose(): Promise<void> {
     await this.sessionRuntime.dispose()
+  }
+}
+
+function beginTurnObservation(
+  config: AgentRuntimeConfig,
+  meta: Parameters<NonNullable<AgentRuntimeConfig['agentObservability']>['beginTurn']>[0],
+) {
+  try {
+    return config.agentObservability?.beginTurn(meta)
+  }
+  catch (error) {
+    config.logger?.warn('Agent Observability 启动失败', error)
+    return undefined
   }
 }
 

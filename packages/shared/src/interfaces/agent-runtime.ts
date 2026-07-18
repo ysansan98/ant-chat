@@ -63,7 +63,6 @@ export interface AgentTaskSnapshot {
   executionPhase?: AgentExecutionPhase
   createdAt: number
   updatedAt: number
-  logPath: string
   prompt: string
   turnSource?: AgentTurnSource
   pendingAction?: AgentPendingAction

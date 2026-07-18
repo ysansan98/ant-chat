@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AutomationsPage } from './Automations'
 
@@ -65,7 +65,7 @@ describe('automationsPage', () => {
       <MemoryRouter initialEntries={['/chat/automations']}>
         <Routes>
           <Route path="/chat/automations" element={<AutomationsPage />} />
-          <Route path="/chat" element={<div>会话页面</div>} />
+          <Route path="/chat" element={<ChatRoute />} />
         </Routes>
       </MemoryRouter>,
     )
@@ -100,6 +100,7 @@ describe('automationsPage', () => {
       finishedAt: Date.now() + 1_000,
       status: 'succeeded',
       conversationId: 'conv-history-1',
+      turnId: 'turn-history-1',
       summary: '检查完成',
       createdAt: Date.now(),
     }])
@@ -111,6 +112,30 @@ describe('automationsPage', () => {
 
     expect(await screen.findByText('会话页面')).toBeInTheDocument()
     expect(mocks.openWorkspace).toHaveBeenCalledWith('/workspace/project')
+  })
+
+  it('从运行记录直接检查该次执行的 Trace', async () => {
+    mocks.listRuns.mockResolvedValue([{
+      id: 'run-1',
+      automationId: automation.id,
+      scheduledAt: Date.now(),
+      startedAt: Date.now(),
+      finishedAt: Date.now() + 1_000,
+      status: 'succeeded',
+      conversationId: 'conv-history-1',
+      turnId: 'turn-history-1',
+      summary: '检查完成',
+      createdAt: Date.now(),
+    }])
+    renderPage()
+    await screen.findAllByText('每日检查')
+
+    fireEvent.click(screen.getByRole('button', { name: '运行记录' }))
+    fireEvent.click(await screen.findByRole('button', { name: '检查 Trace' }))
+
+    expect(await screen.findByText('会话页面')).toBeInTheDocument()
+    expect(mocks.openWorkspace).toHaveBeenCalledWith('/workspace/project')
+    expect(screen.getByTestId('chat-search')).toHaveTextContent('?traceTurnId=turn-history-1')
   })
 
   it('创建任务时权限区域跟随上方选择的工作区', async () => {
@@ -174,3 +199,13 @@ describe('automationsPage', () => {
     expect(screen.queryByText('0 9 * * *')).not.toBeInTheDocument()
   })
 })
+
+function ChatRoute() {
+  const location = useLocation()
+  return (
+    <div>
+      会话页面
+      <span data-testid="chat-search">{location.search}</span>
+    </div>
+  )
+}

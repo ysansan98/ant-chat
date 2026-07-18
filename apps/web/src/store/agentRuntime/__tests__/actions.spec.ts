@@ -50,7 +50,6 @@ function createTask(overrides: Partial<AgentTaskSnapshot> = {}): AgentTaskSnapsh
     status: 'running',
     createdAt: 1,
     updatedAt: 2,
-    logPath: '',
     prompt: 'p',
     ...overrides,
   }

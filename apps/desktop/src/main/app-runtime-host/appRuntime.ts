@@ -4,7 +4,6 @@ import process from 'node:process'
 import { activateAppRuntime } from '@ant-chat/backend'
 import { resolveAppDataRoot } from '@ant-chat/shared'
 import { attachAppRuntimeEvents } from '@main/app-runtime-host/electronAppRuntimeEvents'
-import { isDev } from '@main/utils/env'
 import { app } from 'electron'
 import { createRuntimeHost } from './runtimeHost'
 
@@ -25,7 +24,6 @@ export function disposeDesktopAppRuntime(): Promise<void> {
 function createDesktopAppRuntime(): Promise<AppRuntime> {
   return activateAppRuntime({
     appDataRoot: resolveAppDataRoot(),
-    contextDiagnosticsEnabled: isDev,
     bashEnvironment: {
       PATH: [resolveBundledCliDirectory(), process.env.PATH].filter(Boolean).join(path.delimiter),
     },

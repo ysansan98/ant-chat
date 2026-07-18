@@ -5,8 +5,6 @@ export interface CreateAppRuntimeOptions {
   appDataRoot: string
   logger?: SystemLogger
   loggerOptions?: AppRuntimeLoggerOptions
-  /** 启用上下文诊断追踪（开发环境） */
-  contextDiagnosticsEnabled?: boolean
   /** 注入到 Agent bash 工具的受控环境。 */
   bashEnvironment?: Record<string, string>
 }

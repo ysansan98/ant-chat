@@ -28,6 +28,23 @@ export async function setAutoGenerateTitle(autoGenerateTitle: boolean) {
   }
 }
 
+export async function setAgentObservabilityEnabled(agentObservabilityEnabled: boolean) {
+  useGeneralSettingsStore.setState(produce((state) => {
+    state.isLoading = true
+  }))
+  try {
+    const newSettings = await generalSettingsApi.updateSettings({
+      developerTools: { agentObservabilityEnabled },
+    })
+    useGeneralSettingsStore.setState(newSettings)
+  }
+  finally {
+    useGeneralSettingsStore.setState(produce((state) => {
+      state.isLoading = false
+    }))
+  }
+}
+
 export async function setAssistantModelId(id: string) {
   useGeneralSettingsStore.setState(produce((state) => {
     state.isLoading = true

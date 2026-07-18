@@ -109,6 +109,50 @@ describe('conversationLifecycle', () => {
     expect(setArchived).not.toHaveBeenCalled()
   })
 
+  it('归档保留 Trace，永久删除成功后清理对应 Trace', async () => {
+    const current = conversation({ id: 'conversation-1' })
+    const deleteTrace = vi.fn(async () => {})
+    const repository = {
+      setArchived: vi.fn(async () => ({ ...current, archived: true })),
+      delete: vi.fn(async () => true),
+    }
+    const lifecycle = createConversationLifecycle({
+      data: {
+        conversationRepository: repository,
+        messageRepository: {},
+        loadAttachmentData: vi.fn(),
+        workspaceService: {},
+      } as never,
+      events: new RuntimeEventBus(),
+      runtime: { closeConversation: vi.fn(), listActiveTasks: vi.fn(() => []) },
+      observability: { deleteConversation: deleteTrace },
+    })
+
+    await lifecycle.archive(current.id)
+    expect(deleteTrace).not.toHaveBeenCalled()
+    await lifecycle.delete(current.id)
+    expect(deleteTrace).toHaveBeenCalledWith(current.id)
+  })
+
+  it('trace 清理失败不改变已经完成的会话删除结果', async () => {
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+    const lifecycle = createConversationLifecycle({
+      data: {
+        conversationRepository: { delete: vi.fn(async () => true) },
+        messageRepository: {},
+        loadAttachmentData: vi.fn(),
+        workspaceService: {},
+      } as never,
+      events: new RuntimeEventBus(),
+      runtime: { closeConversation: vi.fn(), listActiveTasks: vi.fn(() => []) },
+      observability: { deleteConversation: vi.fn(async () => { throw new Error('disk unavailable') }) },
+      logger,
+    })
+
+    await expect(lifecycle.delete('conversation-1')).resolves.toEqual(['conversation-1'])
+    expect(logger.warn).toHaveBeenCalled()
+  })
+
   it('取消归档失败时撤销刚恢复的工作区配置', async () => {
     const archived = conversation({ archived: true })
     const addWorkspace = vi.fn()
@@ -176,6 +220,32 @@ describe('conversationLifecycle', () => {
       .rejects
       .toThrow('可视化 artifact 不存在：missing-artifact')
     expect(repository.delete).toHaveBeenCalledWith(fork.id)
+  })
+
+  it('fork 只复制会话与消息，不复制或删除 Trace', async () => {
+    const source = conversation({ id: 'source', title: '源会话' })
+    const fork = conversation({ id: 'fork', title: '源会话 副本' })
+    const deleteTrace = vi.fn(async () => {})
+    const lifecycle = createConversationLifecycle({
+      data: {
+        conversationRepository: {
+          getById: vi.fn(async () => source),
+          create: vi.fn(async () => fork),
+        },
+        messageRepository: {
+          listByConversation: vi.fn(async () => []),
+          create: vi.fn(async input => ({ ...input, id: 'event-1' })),
+        },
+        loadAttachmentData: vi.fn(),
+        workspaceService: {},
+      } as never,
+      events: new RuntimeEventBus(),
+      runtime: { closeConversation: vi.fn(), listActiveTasks: vi.fn(() => []) },
+      observability: { deleteConversation: deleteTrace },
+    })
+
+    await expect(lifecycle.fork({ sourceConversationId: source.id, workspacePath: '/workspace' })).resolves.toEqual(fork)
+    expect(deleteTrace).not.toHaveBeenCalled()
   })
 })
 

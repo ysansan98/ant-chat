@@ -19,7 +19,6 @@ async function main() {
   const appDataRoot = resolveAppDataRoot()
   const runtime = await activateAppRuntime({
     appDataRoot,
-    contextDiagnosticsEnabled: true,
     loggerOptions: {
       fileName: 'ant-chat.log',
       source: 'ant-chat',

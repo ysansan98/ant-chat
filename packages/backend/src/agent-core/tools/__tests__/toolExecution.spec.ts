@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { createPublishVisualizationTool } from '../publishVisualizationTool'
 import { createInvalidToolArgsResult, executeToolStep } from '../toolExecution'
 import { ToolRegistry } from '../toolRegistry'
-import type { AgentTaskSnapshot, AgentTool, IAgentEventEmitter, ILogger, McpToolCall } from '@ant-chat/shared'
+import type { AgentRuntimeConfig, AgentTaskSnapshot, AgentTool, IAgentEventEmitter, ILogger, McpToolCall } from '@ant-chat/shared'
 
 function createMockEmitter(): IAgentEventEmitter {
   return {
@@ -48,10 +48,20 @@ function createTask(overrides: Record<string, unknown> = {}) {
       prompt: 'test',
       createdAt: 1000,
       updatedAt: 1000,
-      logPath: '',
       ...overrides,
     } as AgentTaskSnapshot,
     abortController: new AbortController(),
+  }
+}
+
+function createMockSecretStore(secret: string): NonNullable<AgentRuntimeConfig['secretStore']> {
+  return {
+    saveProviderApiKey: vi.fn(async () => ({ kind: 'secret_ref' as const, id: 'unused', scope: 'persistent' as const })),
+    getProviderApiKey: vi.fn(async () => null),
+    deleteProviderApiKey: vi.fn(async () => {}),
+    createTurnSecret: vi.fn(async () => ({ kind: 'secret_ref' as const, id: 'unused', scope: 'turn' as const })),
+    resolve: vi.fn(async () => secret),
+    clearTurnSecrets: vi.fn(async () => {}),
   }
 }
 
@@ -192,6 +202,23 @@ describe('executeToolStep 行为', () => {
     expect(result.toolResultContent).toBe('策略阻断，禁止执行')
   })
 
+  it('策略阻断时不会提前解析 SecretRef', async () => {
+    const secretStore = createMockSecretStore('不得解析')
+    const result = await executeToolStep({
+      task: createTask(),
+      registry: new ToolRegistry([createReadTool()], undefined, secretStore),
+      requestedToolCall: { toolName: 'read_file', input: { path: { kind: 'secret_ref', id: 'secret-id', scope: 'turn' } } },
+      currentModelText: '',
+      currentToolMessages: [],
+      step: 1,
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger(), secretStore },
+      beforeToolExecute: async () => ({ outcome: 'block', errorCode: 'AGENT_POLICY_BLOCKED', reason: '策略阻断' }),
+    })
+
+    expect(result.isError).toBe(true)
+    expect(secretStore.resolve).not.toHaveBeenCalled()
+  })
+
   it('hook 返回 allow 时执行工具', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
@@ -284,7 +311,8 @@ describe('executeToolStep 行为', () => {
   it('工具执行抛异常时返回工具失败并保留异常细节', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
-    const taskLogger = { filePath: '/tmp/task.jsonl', write: vi.fn(), close: vi.fn() }
+    const span = { id: 'mock', complete: vi.fn(), fail: vi.fn(), cancel: vi.fn() }
+    const turnRecorder = { startModelRequest: vi.fn(() => span), startToolCall: vi.fn(() => span), startPolicyDecision: vi.fn(() => span), recordContextEvent: vi.fn(), finish: vi.fn() }
     const tool = createReadTool({
       execute: async () => {
         throw new Error('secret missing')
@@ -300,15 +328,15 @@ describe('executeToolStep 行为', () => {
       currentModelText: '',
       currentToolMessages: [],
       step: 1,
-      config: { eventEmitter: emitter, logger, taskLogger },
+      config: { eventEmitter: emitter, logger, turnRecorder },
       beforeToolExecute: async () => ({ outcome: 'allow' }),
     })
 
     expect(result.isError).toBe(true)
     expect(result.toolResultContent).toBe('secret missing')
-    expect(taskLogger.write).toHaveBeenCalledWith('tool_failed', expect.objectContaining({
+    expect(span.fail).toHaveBeenCalledWith(expect.objectContaining({
       error: 'AGENT_TOOL_EXEC_FAILED',
-      stderr: 'secret missing',
+      diagnostics: expect.objectContaining({ stderr: 'secret missing' }),
     }))
     expect(emitter.emitTurnToolCalls).toHaveBeenCalledTimes(2)
   })
@@ -363,197 +391,148 @@ describe('executeToolStep 行为', () => {
     expect(emitter.emitTurnToolCalls).toHaveBeenCalledTimes(2) // once at start, once at completion
   })
 
-  it('通过 beforeToolExecute hook 调用 onToolCallContext 回调', async () => {
-    const emitter = createMockEmitter()
-    const logger = createMockLogger()
-    const tool = createReadTool()
-    const registry = new ToolRegistry([tool])
-    const task = createTask()
-    const onContext = vi.fn()
+  it('成功、阻断和取消都记录完整 Tool span 终态', async () => {
+    const span = { id: 'mock', complete: vi.fn(), fail: vi.fn(), cancel: vi.fn() }
+    const turnRecorder = {
+      startModelRequest: vi.fn(() => span),
+      startToolCall: vi.fn(() => span),
+      startPolicyDecision: vi.fn(() => span),
+      recordContextEvent: vi.fn(),
+      finish: vi.fn(),
+    }
+    const config = { eventEmitter: createMockEmitter(), logger: createMockLogger(), turnRecorder }
+    const registry = new ToolRegistry([createReadTool()])
 
     await executeToolStep({
-      task,
+      task: createTask(),
       registry,
       requestedToolCall: { toolName: 'read_file', input: { path: 'test.txt' } },
       currentModelText: '',
       currentToolMessages: [],
       step: 1,
-      config: { eventEmitter: emitter, logger },
-      beforeToolExecute: async (input) => {
-        // Simulate what the real hook does: call onToolCallContext
-        input.onToolCallContext?.({
-          toolName: input.prepared.toolName,
-          input: input.prepared.input,
-          operationType: input.prepared.operationType,
-          scope: input.prepared.scope,
-          policy: 'allow',
-        })
-        return { outcome: 'allow' }
-      },
-      onToolCallContext: onContext,
+      config,
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
     })
+    expect(span.complete).toHaveBeenCalledWith(expect.objectContaining({ output: 'file content' }))
 
-    expect(onContext).toHaveBeenCalledWith(
-      expect.objectContaining({
-        toolName: 'read_file',
-        operationType: 'read',
-        scope: 'workspace',
-      }),
-    )
-  })
-
-  it('向 tool_completed 日志 payload 写入 durationMs', async () => {
-    const emitter = createMockEmitter()
-    const logger = createMockLogger()
-    const taskLogger = { filePath: '/tmp/task.jsonl', write: vi.fn(), close: vi.fn() }
-    const registry = new ToolRegistry([createReadTool()])
-    const task = createTask()
-
+    span.complete.mockClear()
     await executeToolStep({
-      task,
+      task: createTask(),
       registry,
       requestedToolCall: { toolName: 'read_file', input: { path: 'test.txt' } },
-      currentModelText: 'Reading...',
-      currentToolMessages: [],
-      step: 1,
-      config: { eventEmitter: emitter, logger, taskLogger },
-      beforeToolExecute: async () => ({ outcome: 'allow' }),
-    })
-
-    expect(taskLogger.write).toHaveBeenCalledWith('tool_completed', expect.objectContaining({
-      durationMs: expect.any(Number),
-    }))
-  })
-
-  it('执行错误时向 tool_failed 日志 payload 写入 durationMs', async () => {
-    const emitter = createMockEmitter()
-    const logger = createMockLogger()
-    const taskLogger = { filePath: '/tmp/task.jsonl', write: vi.fn(), close: vi.fn() }
-    const tool = createReadTool({
-      execute: async () => ({ ok: false, result: 'fail', diagnostics: { stderr: 'fail', exitCode: 1 } }),
-    })
-    const registry = new ToolRegistry([tool])
-    const task = createTask()
-
-    await executeToolStep({
-      task,
-      registry,
-      requestedToolCall: { toolName: 'read_file', input: { path: 'secret.txt' } },
       currentModelText: '',
       currentToolMessages: [],
-      step: 1,
-      config: { eventEmitter: emitter, logger, taskLogger },
-      beforeToolExecute: async () => ({ outcome: 'allow' }),
+      step: 2,
+      config,
+      beforeToolExecute: async () => ({ outcome: 'block', errorCode: 'AGENT_POLICY_BLOCKED', reason: 'blocked' }),
     })
+    expect(span.complete).toHaveBeenCalledWith(expect.objectContaining({ status: 'blocked', error: 'AGENT_POLICY_BLOCKED' }))
 
-    expect(taskLogger.write).toHaveBeenCalledWith('tool_failed', expect.objectContaining({
-      durationMs: expect.any(Number),
-    }))
-  })
-
-  it('校验错误时向 tool_failed 日志 payload 写入 durationMs', async () => {
-    const emitter = createMockEmitter()
-    const logger = createMockLogger()
-    const taskLogger = { filePath: '/tmp/task.jsonl', write: vi.fn(), close: vi.fn() }
-    const tool = createReadTool({ validateInput: () => 'Path must be absolute' })
-    const registry = new ToolRegistry([tool])
-    const task = createTask()
-
-    await executeToolStep({
-      task,
-      registry,
-      requestedToolCall: { toolName: 'read_file', input: { path: '' } },
-      currentModelText: '',
-      currentToolMessages: [],
-      step: 1,
-      config: { eventEmitter: emitter, logger, taskLogger },
-      beforeToolExecute: async () => ({ outcome: 'allow' }),
-    })
-
-    expect(taskLogger.write).toHaveBeenCalledWith('tool_failed', expect.objectContaining({
-      durationMs: expect.any(Number),
-    }))
-  })
-
-  it('策略阻断时向 tool_blocked 日志 payload 写入 durationMs', async () => {
-    const emitter = createMockEmitter()
-    const logger = createMockLogger()
-    const taskLogger = { filePath: '/tmp/task.jsonl', write: vi.fn(), close: vi.fn() }
-    const registry = new ToolRegistry([createReadTool()])
-    const task = createTask()
-
-    await executeToolStep({
-      task,
-      registry,
-      requestedToolCall: { toolName: 'read_file', input: { path: '' } },
-      currentModelText: '',
-      currentToolMessages: [],
-      step: 1,
-      config: { eventEmitter: emitter, logger, taskLogger },
-      beforeToolExecute: async () => ({
-        outcome: 'block',
-        errorCode: 'AGENT_POLICY_BLOCKED',
-        reason: 'blocked',
-      }),
-    })
-
-    expect(taskLogger.write).toHaveBeenCalledWith('tool_blocked', expect.objectContaining({
-      durationMs: expect.any(Number),
-    }))
-  })
-
-  it('中止时向 tool_cancelled 日志 payload 写入 durationMs', async () => {
-    const emitter = createMockEmitter()
-    const logger = createMockLogger()
-    const taskLogger = { filePath: '/tmp/task.jsonl', write: vi.fn(), close: vi.fn() }
-    const registry = new ToolRegistry([createReadTool()])
-    const task = createTask()
     const abortController = new AbortController()
     abortController.abort()
-
     await executeToolStep({
-      task,
+      task: createTask(),
       registry,
       requestedToolCall: { toolName: 'read_file', input: { path: 'test.txt' } },
       currentModelText: '',
       currentToolMessages: [],
-      step: 1,
-      config: { eventEmitter: emitter, logger, taskLogger },
+      step: 3,
+      config,
       beforeToolExecute: async () => ({ outcome: 'allow' }),
       abortSignal: abortController.signal,
     })
-
-    expect(taskLogger.write).toHaveBeenCalledWith('tool_cancelled', expect.objectContaining({
-      durationMs: expect.any(Number),
-    }))
+    expect(span.cancel).toHaveBeenCalledWith(expect.objectContaining({ status: 'cancelled' }))
   })
 
-  it('工具结果自带 durationMs 时写入 toolReportedDurationMs', async () => {
-    const emitter = createMockEmitter()
-    const logger = createMockLogger()
-    const taskLogger = { filePath: '/tmp/task.jsonl', write: vi.fn(), close: vi.fn() }
+  it('工具成功回显任意格式的 SecretRef 真实值时深度脱敏运行结果和观测证据', async () => {
+    const secret = 'p@$$w0rd\n[]{}.*?'
+    const secretRef = { kind: 'secret_ref' as const, id: 'secret-id-1', scope: 'turn' as const }
+    const span = { id: 'tool-span', complete: vi.fn(), fail: vi.fn(), cancel: vi.fn() }
+    const secretStore = createMockSecretStore(secret)
     const tool = createReadTool({
-      execute: async () => ({ ok: true, result: 'ok', diagnostics: { exitCode: 0, durationMs: 42 } }),
+      execute: async () => ({
+        ok: true,
+        result: `stdout:${secret}:secret-id-1`,
+        diagnostics: {
+          data: { nested: [`value=${secret}`, { ref: 'secret-id-1' }] },
+          stderr: `stderr=${secret}`,
+        },
+      }),
     })
-    const registry = new ToolRegistry([tool])
-    const task = createTask()
 
-    await executeToolStep({
-      task,
-      registry,
-      requestedToolCall: { toolName: 'read_file', input: { path: 'test.txt' } },
+    const result = await executeToolStep({
+      task: createTask(),
+      registry: new ToolRegistry([tool], undefined, secretStore),
+      requestedToolCall: { toolName: 'read_file', input: { path: secretRef } },
       currentModelText: '',
       currentToolMessages: [],
       step: 1,
-      config: { eventEmitter: emitter, logger, taskLogger },
+      config: {
+        eventEmitter: createMockEmitter(),
+        logger: createMockLogger(),
+        secretStore,
+        turnRecorder: {
+          startModelRequest: vi.fn(() => span),
+          startToolCall: vi.fn(() => span),
+          startPolicyDecision: vi.fn(() => span),
+          recordContextEvent: vi.fn(),
+          finish: vi.fn(),
+        },
+      },
       beforeToolExecute: async () => ({ outcome: 'allow' }),
     })
 
-    expect(taskLogger.write).toHaveBeenCalledWith('tool_completed', expect.objectContaining({
-      durationMs: expect.any(Number),
-      toolReportedDurationMs: 42,
+    expect(result.toolResultContent).toBe('stdout:[secret]:[secret-ref]')
+    expect(span.complete).toHaveBeenCalledWith(expect.objectContaining({
+      output: 'stdout:[secret]:[secret-ref]',
+      diagnostics: {
+        data: { nested: ['value=[secret]', { ref: '[secret-ref]' }] },
+        stderr: 'stderr=[secret]',
+      },
     }))
-    expect(logger.info).not.toHaveBeenCalled()
+  })
+
+  it('工具失败回显任意格式的 SecretRef 真实值时深度脱敏运行结果和观测证据', async () => {
+    const secret = 'p@$$w0rd\n[]{}.*?'
+    const secretRef = { kind: 'secret_ref' as const, id: 'secret-id-1', scope: 'turn' as const }
+    const span = { id: 'tool-span', complete: vi.fn(), fail: vi.fn(), cancel: vi.fn() }
+    const secretStore = createMockSecretStore(secret)
+    const tool = createReadTool({
+      execute: async () => ({
+        ok: false,
+        result: `failed:${secret}:secret-id-1`,
+        diagnostics: { data: { nested: [secret] }, stderr: `stderr=${secret}` },
+      }),
+    })
+
+    const result = await executeToolStep({
+      task: createTask(),
+      registry: new ToolRegistry([tool], undefined, secretStore),
+      requestedToolCall: { toolName: 'read_file', input: { path: secretRef } },
+      currentModelText: '',
+      currentToolMessages: [],
+      step: 1,
+      config: {
+        eventEmitter: createMockEmitter(),
+        logger: createMockLogger(),
+        secretStore,
+        turnRecorder: {
+          startModelRequest: vi.fn(() => span),
+          startToolCall: vi.fn(() => span),
+          startPolicyDecision: vi.fn(() => span),
+          recordContextEvent: vi.fn(),
+          finish: vi.fn(),
+        },
+      },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
+    })
+
+    expect(result.toolResultContent).toBe('failed:[secret]:[secret-ref]')
+    expect(span.fail).toHaveBeenCalledWith(expect.objectContaining({
+      error: 'failed:[secret]:[secret-ref]',
+      output: 'failed:[secret]:[secret-ref]',
+      diagnostics: { data: { nested: ['[secret]'] }, stderr: 'stderr=[secret]' },
+    }))
   })
 })
 
@@ -634,5 +613,31 @@ describe('createInvalidToolArgsResult 行为', () => {
 
     expect(result.isError).toBe(true)
     expect(result.toolResultContent).toContain('args must be a JSON object')
+  })
+
+  it('无效工具参数 span 继承模型 span', async () => {
+    const span = { id: 'tool-span', complete: vi.fn(), fail: vi.fn(), cancel: vi.fn() }
+    const startToolCall = vi.fn(() => span)
+
+    await createInvalidToolArgsResult({
+      config: {
+        eventEmitter: createMockEmitter(),
+        logger: createMockLogger(),
+        turnRecorder: {
+          startModelRequest: vi.fn(() => span),
+          startToolCall,
+          startPolicyDecision: vi.fn(() => span),
+          recordContextEvent: vi.fn(),
+          finish: vi.fn(),
+        },
+      },
+      conversationId: 'conv-1',
+      requestedToolCall: { toolName: 'bash', input: {}, invalidArgsError: 'command is required' },
+      currentModelText: '',
+      currentToolMessages: [],
+      parentSpanId: 'model-span',
+    })
+
+    expect(startToolCall).toHaveBeenCalledWith(expect.any(Object), 'model-span')
   })
 })

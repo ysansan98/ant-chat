@@ -34,7 +34,7 @@ export interface AutomationClock {
 
 export function createAutomationRuntime(options: {
   repository: AutomationRepository
-  startTurn: (input: StartAgentTurnOptions) => Promise<{ taskId: string, conversationId: string }>
+  startTurn: (input: StartAgentTurnOptions) => Promise<{ taskId: string, conversationId: string, userMessageId: string }>
   cancelTask: (taskId: string) => void
   events: Pick<RuntimeEventBus, 'on' | 'emit'>
   logger?: ILogger
@@ -190,6 +190,7 @@ export function createAutomationRuntime(options: {
         run = await options.repository.updateRun(runId, {
           taskId: result.taskId,
           conversationId: result.conversationId,
+          turnId: result.userMessageId,
         })
         options.events.emit('automation:run-changed', { run })
         return run
@@ -199,6 +200,7 @@ export function createAutomationRuntime(options: {
       run = await options.repository.updateRun(runId, {
         taskId: result.taskId,
         conversationId: result.conversationId,
+        turnId: result.userMessageId,
       })
       options.events.emit('automation:run-changed', { run })
       return run

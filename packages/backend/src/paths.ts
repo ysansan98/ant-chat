@@ -10,7 +10,7 @@ export interface AppRuntimePaths {
   attachmentsRoot: string
   skillsRoot: string
   logsRoot: string
-  taskLogsRoot: string
+  observabilityRoot: string
 }
 
 export function createAppRuntimePaths(root: string): AppRuntimePaths {
@@ -26,6 +26,6 @@ export function createAppRuntimePaths(root: string): AppRuntimePaths {
     attachmentsRoot: path.join(root, 'attachments'),
     skillsRoot: path.join(root, 'skills'),
     logsRoot,
-    taskLogsRoot: path.join(logsRoot, 'tasks'),
+    observabilityRoot: path.join(logsRoot, 'observability'),
   }
 }

@@ -16,7 +16,7 @@ export interface BeforeToolExecuteInput {
   config: AgentRuntimeConfig
   step?: number
   toolCallId?: string
-  onToolCallContext?: (context: ToolCallContext) => void
+  parentSpanId?: string
 }
 
 export type BeforeToolExecuteResult

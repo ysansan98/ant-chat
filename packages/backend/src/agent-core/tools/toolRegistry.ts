@@ -17,6 +17,7 @@ export interface PreparedToolCall {
   scope: ToolScope
   validationError?: string
   execute: () => Promise<AgentToolResult>
+  resolvedSecretValues?: string[]
   truncateResult?: boolean
 }
 
@@ -114,7 +115,7 @@ export class ToolRegistry {
 
     const resolvedTool = scope === 'outside' ? (this.relaxedTools.get(toolName) ?? tool) : tool
 
-    return {
+    const prepared: PreparedToolCall = {
       toolName,
       source: tool.source,
       serverName: tool.serverName || tool.source,
@@ -122,9 +123,15 @@ export class ToolRegistry {
       operationType,
       scope,
       validationError,
-      execute: async () => resolvedTool.execute(await resolveToolInputSecrets(input, this.secretStore)),
+      execute: async () => {
+        const resolvedSecretValues: string[] = []
+        const resolvedInput = await resolveToolInputSecrets(input, this.secretStore, resolvedSecretValues)
+        prepared.resolvedSecretValues = resolvedSecretValues
+        return resolvedTool.execute(resolvedInput)
+      },
       truncateResult: tool.truncateResult,
     }
+    return prepared
   }
 
   listTools(): RuntimeToolDefinition[] {
@@ -236,7 +243,7 @@ function createRequestSecretTool(): AgentTool {
   }
 }
 
-async function resolveToolInputSecrets(input: Record<string, unknown>, secretStore?: SecretStore): Promise<Record<string, unknown>> {
+async function resolveToolInputSecrets(input: Record<string, unknown>, secretStore?: SecretStore, resolvedSecretValues: string[] = []): Promise<Record<string, unknown>> {
   if (!secretStore) {
     return input
   }
@@ -247,10 +254,11 @@ async function resolveToolInputSecrets(input: Record<string, unknown>, secretSto
       if (!secret) {
         throw new Error(`Secret not found: ${value.id}`)
       }
+      resolvedSecretValues.push(secret)
       resolved[key] = secret
     }
     else if (isPlainRecord(value)) {
-      resolved[key] = await resolveToolInputSecrets(value, secretStore)
+      resolved[key] = await resolveToolInputSecrets(value, secretStore, resolvedSecretValues)
     }
     else {
       resolved[key] = value

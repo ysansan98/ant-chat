@@ -32,6 +32,7 @@ interface RunRow {
   status: AutomationRun['status']
   task_id: string | null
   conversation_id: string | null
+  turn_id: string | null
   summary: string | null
   error_code: string | null
   error_message: string | null
@@ -39,7 +40,7 @@ interface RunRow {
 }
 
 const AUTOMATION_COLUMNS = 'id, name, prompt, workspace_path, provider_id, model_id, allowed_skills, allowed_mcp_servers, permission_policy, schedule, enabled, next_run_at, last_run_at, created_at, updated_at'
-const RUN_COLUMNS = 'id, automation_id, scheduled_at, started_at, finished_at, status, task_id, conversation_id, summary, error_code, error_message, created_at'
+const RUN_COLUMNS = 'id, automation_id, scheduled_at, started_at, finished_at, status, task_id, conversation_id, turn_id, summary, error_code, error_message, created_at'
 
 export class SqliteAutomationRepository implements AutomationRepository {
   constructor(private readonly db: AppDataDatabase) {}
@@ -167,13 +168,14 @@ export class SqliteAutomationRepository implements AutomationRepository {
   async updateRun(id: string, patch: Partial<Omit<AutomationRun, 'id' | 'automationId' | 'createdAt'>>) {
     const current = this.getRunSync(id)
     const value = { ...current, ...patch }
-    this.db.prepare('UPDATE automation_runs SET scheduled_at=?, started_at=?, finished_at=?, status=?, task_id=?, conversation_id=?, summary=?, error_code=?, error_message=? WHERE id=?').run(
+    this.db.prepare('UPDATE automation_runs SET scheduled_at=?, started_at=?, finished_at=?, status=?, task_id=?, conversation_id=?, turn_id=?, summary=?, error_code=?, error_message=? WHERE id=?').run(
       value.scheduledAt,
       value.startedAt ?? null,
       value.finishedAt ?? null,
       value.status,
       value.taskId ?? null,
       value.conversationId ?? null,
+      value.turnId ?? null,
       value.summary ?? null,
       value.errorCode ?? null,
       value.errorMessage ?? null,
@@ -262,6 +264,7 @@ function mapRun(row: RunRow): AutomationRun {
     status: row.status,
     taskId: row.task_id ?? undefined,
     conversationId: row.conversation_id ?? undefined,
+    turnId: row.turn_id ?? undefined,
     summary: row.summary ?? undefined,
     errorCode: row.error_code ?? undefined,
     errorMessage: row.error_message ?? undefined,

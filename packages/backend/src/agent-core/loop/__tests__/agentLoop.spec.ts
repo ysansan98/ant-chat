@@ -73,7 +73,6 @@ function createTask(taskId = 'task-loop-1', conversationId = 'conv-loop-1') {
       prompt: 'test',
       createdAt: Date.now(),
       updatedAt: Date.now(),
-      logPath: '',
     },
     abortController: new AbortController(),
   }
@@ -196,16 +195,20 @@ describe('runAgentLoop 行为', () => {
     expect(finish).toHaveBeenCalledTimes(1)
   })
 
-  it('向 task log 写入模型请求诊断信息', async () => {
+  it('记录与 streamModel 入参相同的完整模型请求', async () => {
     const aiProvider = createMockAIProvider([
       [makeTextChunk('Done')],
     ])
-    const taskLogger = {
-      filePath: '/tmp/task.jsonl',
-      write: vi.fn(),
-      close: vi.fn(),
-    }
     const readTool = createReadTool()
+    const streamModel = vi.spyOn(aiProvider, 'streamModel')
+    const span = { id: 'mock', complete: vi.fn<(output?: unknown) => void>(), fail: vi.fn(), cancel: vi.fn() }
+    const turnRecorder = {
+      startModelRequest: vi.fn<(input: unknown) => typeof span>(() => span),
+      startToolCall: vi.fn(() => span),
+      startPolicyDecision: vi.fn(() => span),
+      recordContextEvent: vi.fn(),
+      finish: vi.fn(),
+    }
 
     const { taskId, options } = createBaseInput({
       aiProvider: aiProvider as unknown as IAIProvider,
@@ -214,7 +217,6 @@ describe('runAgentLoop 行为', () => {
         'You are helpful.',
         'Use persistent memory for durable user preferences.',
       ].join('\n'),
-      taskLogger,
     })
     const task = createTask(taskId, options.conversationId)
     const { execution } = createExecution(task)
@@ -222,89 +224,17 @@ describe('runAgentLoop 行为', () => {
     await runAgentLoop({
       execution,
       options,
-      config: { eventEmitter: emitter, logger, taskLogger },
+      config: { eventEmitter: emitter, logger, turnRecorder },
       beforeToolExecute: async () => ({ outcome: 'allow' }),
     })
 
-    expect(taskLogger.write).toHaveBeenCalledWith('model_request_started', expect.objectContaining({
-      runId: taskId,
-      taskId,
-      conversationId: options.conversationId,
-      userMessageId: options.userMessageId,
-      messagesPreviewKind: 'full',
-      contextResetReason: 'initial',
-      model: options.modelName,
-      provider: options.providerName,
-      toolNames: ['read_file'],
-      messagesPreview: [
-        expect.objectContaining({
-          role: 'user',
-          content: [{ type: 'text', text: 'Hello' }],
-        }),
-      ],
-    }))
-    expect(taskLogger.write).toHaveBeenCalledWith('model_response_finished', expect.objectContaining({
-      runId: taskId,
-      taskId,
-      durationMs: expect.any(Number),
-      textPreview: 'Done',
-      hasToolCall: false,
-      toolCalls: [],
-    }))
-    expect(taskLogger.close).toHaveBeenCalledTimes(1)
-    expect(logger.info).not.toHaveBeenCalled()
+    expect(turnRecorder.startModelRequest).toHaveBeenCalledTimes(1)
+    expect(turnRecorder.startModelRequest.mock.calls[0][0]).toBe(streamModel.mock.calls[0][0])
+    expect(span.complete).toHaveBeenCalledWith(expect.objectContaining({ text: 'Done', toolCalls: [] }))
+    expect(turnRecorder.finish).toHaveBeenCalledWith(expect.objectContaining({ status: 'success' }))
   })
 
-  it('首次模型请求后只写入新增消息', async () => {
-    const taskLogger = {
-      filePath: '/tmp/task.jsonl',
-      write: vi.fn(),
-      close: vi.fn(),
-    }
-    const readTool = createReadTool()
-    const aiProvider = createMockAIProvider([
-      [makeToolCallChunk('read_file', { path: 'test.txt' }, 'tool-call-1')],
-      [makeTextChunk('File contents: file contents here')],
-    ])
-
-    const { taskId, options } = createBaseInput({
-      aiProvider: aiProvider as unknown as IAIProvider,
-      registry: new ToolRegistry([readTool]),
-      taskLogger,
-    })
-    const { execution } = createExecution(createTask(taskId, options.conversationId))
-
-    await runAgentLoop({
-      execution,
-      options,
-      config: { eventEmitter: emitter, logger, taskLogger },
-      beforeToolExecute: async () => ({ outcome: 'allow' }),
-    })
-
-    const requestPayloads = taskLogger.write.mock.calls
-      .filter(([event]) => event === 'model_request_started')
-      .map(([, payload]) => payload as Record<string, any>)
-
-    expect(requestPayloads).toHaveLength(2)
-    expect(requestPayloads[0]).toEqual(expect.objectContaining({
-      messagesPreviewKind: 'full',
-      messagesPreviewStartIndex: 0,
-      messagesPreviewCount: 1,
-      contextResetReason: 'initial',
-    }))
-    expect(requestPayloads[1]).toEqual(expect.objectContaining({
-      messagesPreviewKind: 'delta',
-      messagesPreviewStartIndex: 1,
-      messagesPreviewCount: 2,
-      contextResetReason: undefined,
-    }))
-    expect(requestPayloads[1].messagesPreview).toEqual([
-      expect.objectContaining({ role: 'assistant' }),
-      expect.objectContaining({ role: 'tool' }),
-    ])
-  })
-
-  it('publish_visualization 在 task log 和后续模型上下文保留原始 HTML', async () => {
+  it('publish_visualization 在后续模型上下文保留原始 HTML', async () => {
     const html = '<section class="card"><button type="button">更新趋势</button></section>'
     const input = { title: '趋势', summary: '展示趋势', html }
     const modelRequests: LoopMessage[][] = []
@@ -319,29 +249,19 @@ describe('runAgentLoop 行为', () => {
       },
       complete: vi.fn().mockResolvedValue({ text: 'mock complete' }),
     }
-    const taskLogger = {
-      filePath: '/tmp/task.jsonl',
-      write: vi.fn(),
-      close: vi.fn(),
-    }
     const { taskId, options } = createBaseInput({
       aiProvider,
       registry: new ToolRegistry([createPublishVisualizationTool()]),
-      taskLogger,
     })
     const { execution } = createExecution(createTask(taskId, options.conversationId))
 
     await runAgentLoop({
       execution,
       options,
-      config: { eventEmitter: emitter, logger, taskLogger },
+      config: { eventEmitter: emitter, logger },
       beforeToolExecute: async () => ({ outcome: 'allow' }),
     })
 
-    expect(taskLogger.write).toHaveBeenCalledWith('model_response_finished', expect.objectContaining({
-      hasToolCall: true,
-      toolCalls: [expect.objectContaining({ toolName: 'publish_visualization', input })],
-    }))
     expect(modelRequests[1]).toContainEqual(expect.objectContaining({
       role: 'assistant',
       content: [expect.objectContaining({ type: 'tool-call', toolName: 'publish_visualization', args: input })],
@@ -401,5 +321,39 @@ describe('runAgentLoop 行为', () => {
     expect(emitter.emitTurnFinished).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'success', durationMs: expect.any(Number) }),
     )
+  })
+
+  it('非法 JSON 工具参数的 Tool span 继承当前 Model span', async () => {
+    const aiProvider = createMockAIProvider([
+      [{ functionCalls: [{ id: 'bad-call', toolName: 'read_file', args: '{bad json' }] } as unknown as IAIStreamChunk],
+      [makeTextChunk('已修正')],
+    ])
+    const modelSpan = { id: 'model-span-1', complete: vi.fn(), fail: vi.fn(), cancel: vi.fn() }
+    const toolSpan = { id: 'tool-span-1', complete: vi.fn(), fail: vi.fn(), cancel: vi.fn() }
+    const startToolCall = vi.fn(() => toolSpan)
+    const turnRecorder = {
+      startModelRequest: vi.fn(() => modelSpan),
+      startToolCall,
+      startPolicyDecision: vi.fn(() => toolSpan),
+      recordContextEvent: vi.fn(),
+      finish: vi.fn(),
+    }
+    const { taskId, options } = createBaseInput({
+      aiProvider,
+      registry: new ToolRegistry([createReadTool()]),
+    })
+    const { execution } = createExecution(createTask(taskId, options.conversationId))
+
+    await runAgentLoop({
+      execution,
+      options,
+      config: { eventEmitter: emitter, logger, turnRecorder },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
+    })
+
+    expect(startToolCall).toHaveBeenCalledWith(expect.objectContaining({
+      toolCallId: 'bad-call',
+      toolName: 'read_file',
+    }), 'model-span-1')
   })
 })

@@ -20,6 +20,9 @@ const DEFAULT_SETTINGS: GeneralSettingsState = {
     lightThemeId: 'default',
     darkThemeId: 'default',
   },
+  developerTools: {
+    agentObservabilityEnabled: false,
+  },
 }
 
 export const useGeneralSettingsStore = create<GeneralSettingsStoreState>()(

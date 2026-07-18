@@ -12,7 +12,7 @@ import type {
   UpdateConversationsSchema,
   UpdateProviderConfigSchema,
 } from '../schemas'
-import type { ContextTraceItemDetail, ContextTraceListItem } from '../schemas/contextTrace'
+import type { AgentObservabilityEvidence, AgentTurnIdentity, AgentTurnSummary, AgentTurnTimeline } from '../schemas/agentObservability'
 import type { AgentMemoryFiles, UpdateAgentMemoryInput } from './agent-memory'
 import type {
   AgentTaskSnapshot,
@@ -131,24 +131,10 @@ export interface AppRpcContract {
   'agent.injectSteering': RpcEndpoint<{ conversationId: string, text: string }, IMessage>
   'agent.listActiveTasks': RpcEndpoint<{ conversationId?: string } | undefined, AgentTaskSnapshot[]>
 
-  'agent.listContextTrace': RpcEndpoint<{
-    conversationId: string
-    before?: string
-    limit?: number
-  }, {
-    items: ContextTraceListItem[]
-    nextCursor?: string
-    hasMore: boolean
-  }>
-  'agent.getContextTraceItem': RpcEndpoint<{
-    conversationId: string
-    requestId: string
-    itemId: string
-  }, ContextTraceItemDetail | null>
-
-  'agent.getContextTraceLogPath': RpcEndpoint<{
-    conversationId: string
-  }, string | null>
+  'agent.listTurns': RpcEndpoint<{ conversationId: string }, AgentTurnSummary[]>
+  'agent.getTurnTimeline': RpcEndpoint<AgentTurnIdentity, AgentTurnTimeline | null>
+  'agent.getEvidence': RpcEndpoint<AgentTurnIdentity & { recordId: string }, AgentObservabilityEvidence | null>
+  'agent.clearAllObservability': RpcEndpoint<undefined, null>
 
   'automation.list': RpcEndpoint<undefined, AutomationDefinition[]>
   'automation.create': RpcEndpoint<{ input: AutomationInput }, AutomationDefinition>

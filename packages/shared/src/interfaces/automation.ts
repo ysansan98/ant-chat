@@ -21,6 +21,7 @@ export interface AutomationRun {
   status: AutomationRunStatus
   taskId?: string
   conversationId?: string
+  turnId?: string
   summary?: string
   errorCode?: string
   errorMessage?: string

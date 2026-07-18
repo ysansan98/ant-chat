@@ -14,7 +14,6 @@ function createTask(overrides: Partial<RuntimeTask['snapshot']> = {}): RuntimeTa
       prompt: 'test',
       createdAt: 1000,
       updatedAt: 1000,
-      logPath: '',
       ...overrides,
     },
     abortController: new AbortController(),

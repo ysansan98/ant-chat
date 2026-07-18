@@ -16,7 +16,7 @@ describe('createAppRuntimePaths', () => {
       attachmentsRoot: path.join('/data/ant-chat', 'attachments'),
       skillsRoot: path.join('/data/ant-chat', 'skills'),
       logsRoot: path.join('/data/ant-chat', 'logs'),
-      taskLogsRoot: path.join('/data/ant-chat', 'logs', 'tasks'),
+      observabilityRoot: path.join('/data/ant-chat', 'logs', 'observability'),
     })
   })
 

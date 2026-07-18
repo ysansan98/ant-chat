@@ -29,7 +29,6 @@ export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModu
     aiProviderFactory: provider.aiProviderFactory,
     mcpClientHub: mcp.clientHub,
     skills: skills.service,
-    contextDiagnosticsEnabled: core.contextDiagnosticsEnabled,
   })
   const chat = new ChatModule(core, agent.conversationLifecycle, agent.titleGenerator)
   const settings = new SettingsModule(core)

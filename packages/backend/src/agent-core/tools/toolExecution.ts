@@ -4,7 +4,7 @@ import type { PreparedToolCall, ToolRegistry } from './toolRegistry'
 import type { ToolAuthorization, ToolCallContext } from './types'
 import { randomUUID } from 'node:crypto'
 import { AGENT_TOOL_EXEC_FAILED, VisualizationOutputBlocksSchema } from '@ant-chat/shared'
-import { createAgentTraceLogger } from '../agentTraceLogger'
+import { cancelObservation, completeObservation, failObservation, startObservationSpan } from '../observation'
 import { createVisualizationToolFailureResult } from './publishVisualizationTool'
 
 export interface RequestedToolCall {
@@ -22,8 +22,8 @@ export interface ExecuteToolStepOptions {
   step: number
   config: AgentRuntimeConfig
   beforeToolExecute: ToolAuthorization
-  onToolCallContext?: (context: ToolCallContext) => void
   abortSignal?: AbortSignal
+  parentSpanId?: string
 }
 
 export interface ExecuteToolStepResult {
@@ -39,7 +39,7 @@ export interface ExecuteToolStepResult {
 
 type ToolPreparation
   = | { kind: 'ready', prepared: PreparedToolCall, lastToolCallContext: ToolCallContext }
-    | { kind: 'error', error: string, toolResultText: string, lastToolCallContext: ToolCallContext }
+    | { kind: 'error', status: 'failed' | 'blocked' | 'cancelled', error: string, toolResultText: string, lastToolCallContext: ToolCallContext }
 
 interface ToolExecutionOutcome {
   result: AgentToolResult
@@ -51,39 +51,63 @@ interface ToolExecutionOutcome {
 // ============================================================
 
 export async function executeToolStep(options: ExecuteToolStepOptions): Promise<ExecuteToolStepResult> {
-  const { task, registry, requestedToolCall, currentModelText, currentToolMessages, step, config } = options
-  const traceLogger = createAgentTraceLogger(config)
+  const { task, registry, requestedToolCall, currentModelText, currentToolMessages, step, config, beforeToolExecute: beforeToolExecuteFn, parentSpanId } = options
   const toolStartedAt = Date.now()
 
   const prepared = registry.prepare(requestedToolCall.toolName, requestedToolCall.input)
+  const redactOpaqueRefs = createToolEvidenceRedactor(prepared.input)
   const currentToolCall = registerPendingToolCall(requestedToolCall, prepared, currentToolMessages)
-  const logContext = createToolLogContext(task, step, currentToolCall.id)
-  traceLogger.write('tool_call_received', { ...logContext, toolName: requestedToolCall.toolName, input: prepared.input })
+  const toolSpan = startObservationSpan(config, recorder => recorder.startToolCall({
+    toolCallId: currentToolCall.id,
+    toolName: requestedToolCall.toolName,
+    input: prepared.input,
+    operationType: prepared.operationType,
+    scope: prepared.scope,
+    serverName: prepared.serverName,
+    workspacePath: task.snapshot.workspacePath,
+    step,
+  }, options.parentSpanId))
   await emitTurnToolCalls(config, task.snapshot.conversationId, currentModelText, currentToolMessages)
 
   // Phase 1: Prepare — validate args and check policy
-  const preparation = await prepareToolStep({
-    task,
-    prepared,
-    requestedToolCall,
-    currentToolCall,
-    step,
-    config,
-    beforeToolExecute: options.beforeToolExecute,
-    onToolCallContext: options.onToolCallContext,
-    toolStartedAt,
-  })
+  let preparation: ToolPreparation
+  try {
+    preparation = await prepareToolStep({
+      task,
+      prepared,
+      requestedToolCall,
+      currentToolCall,
+      step,
+      config,
+      beforeToolExecute: beforeToolExecuteFn,
+      parentSpanId,
+    })
+  }
+  catch (error) {
+    if (options.abortSignal?.aborted || task.abortController.signal.aborted)
+      cancelObservation(toolSpan, error, config.logger)
+    else
+      failObservation(toolSpan, error, config.logger)
+    throw error
+  }
 
   if (preparation.kind === 'error') {
-    return finalizeToolStep(currentToolCall, preparation, task.snapshot.conversationId, config, currentModelText, currentToolMessages)
+    const safePreparation = redactPreparation(preparation, redactOpaqueRefs)
+    const evidence = { status: safePreparation.status, error: safePreparation.error, durationMs: Date.now() - toolStartedAt }
+    if (preparation.status === 'blocked')
+      completeObservation(toolSpan, evidence, config.logger)
+    else
+      failObservation(toolSpan, evidence, config.logger)
+    return finalizeToolStep(currentToolCall, safePreparation, task.snapshot.conversationId, config, currentModelText, currentToolMessages)
   }
 
   // Abort check between prepare and execute
   if (options.abortSignal?.aborted) {
     const durationMs = Date.now() - toolStartedAt
-    traceLogger.write('tool_cancelled', { ...logContext, toolName: requestedToolCall.toolName, durationMs })
+    cancelObservation(toolSpan, { status: 'cancelled', durationMs }, config.logger)
     return finalizeToolStep(currentToolCall, {
       kind: 'error',
+      status: 'cancelled',
       error: 'AGENT_CANCELLED',
       toolResultText: '任务已取消。',
       lastToolCallContext: preparation.lastToolCallContext,
@@ -95,18 +119,22 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
 
   // Phase 3: Finalize
   const durationMs = Date.now() - toolStartedAt
+  const redactEvidence = createToolEvidenceRedactor(prepared.input, prepared.resolvedSecretValues)
   if (execution.failureReason) {
-    const toolReportedDurationMs = execution.result.diagnostics?.durationMs
-    traceLogger.write('tool_failed', { ...logContext, toolName: preparation.prepared.toolName, input: preparation.prepared.input, error: execution.failureReason, workspacePath: task.snapshot.workspacePath, stdout: execution.result.diagnostics?.stdout, stderr: execution.result.diagnostics?.stderr, exitCode: execution.result.diagnostics?.exitCode, durationMs, toolReportedDurationMs })
+    const safeFailureReason = redactEvidence(execution.failureReason)
+    const safeResult = redactEvidence(execution.result.result)
+    const safeDiagnostics = redactEvidence(execution.result.diagnostics)
+    failObservation(toolSpan, { status: 'failed', error: safeFailureReason, output: safeResult, diagnostics: safeDiagnostics, exitCode: execution.result.diagnostics?.exitCode, durationMs }, config.logger)
     return finalizeToolStep(currentToolCall, {
       kind: 'error',
-      error: execution.failureReason,
-      toolResultText: execution.result.result,
+      status: 'failed',
+      error: safeFailureReason,
+      toolResultText: safeResult,
       lastToolCallContext: preparation.lastToolCallContext,
     }, task.snapshot.conversationId, config, currentModelText, currentToolMessages)
   }
 
-  return finalizeSuccessToolStep(currentToolCall, preparation, execution.result, logContext, config, currentModelText, currentToolMessages, durationMs)
+  return finalizeSuccessToolStep(currentToolCall, preparation, execution.result, toolSpan, task.snapshot.conversationId, config, currentModelText, currentToolMessages, durationMs, redactEvidence)
 }
 
 // ============================================================
@@ -121,13 +149,11 @@ interface PrepareToolStepInput {
   step: number
   config: AgentRuntimeConfig
   beforeToolExecute: ToolAuthorization
-  onToolCallContext?: (context: ToolCallContext) => void
-  toolStartedAt: number
+  parentSpanId?: string
 }
 
 async function prepareToolStep(input: PrepareToolStepInput): Promise<ToolPreparation> {
-  const { task, prepared, requestedToolCall, currentToolCall, step, config, beforeToolExecute, onToolCallContext, toolStartedAt } = input
-  const traceLogger = createAgentTraceLogger(config)
+  const { task, prepared, requestedToolCall, currentToolCall, step, config, beforeToolExecute, parentSpanId } = input
 
   let lastToolCallContext: ToolCallContext = {
     toolName: requestedToolCall.toolName,
@@ -138,11 +164,9 @@ async function prepareToolStep(input: PrepareToolStepInput): Promise<ToolPrepara
   }
 
   if (prepared.validationError) {
-    const logContext = createToolLogContext(task, step, currentToolCall.id)
-    const durationMs = Date.now() - toolStartedAt
-    traceLogger.write('tool_failed', { ...logContext, toolName: prepared.toolName, input: prepared.input, error: prepared.validationError, workspacePath: task.snapshot.workspacePath, durationMs })
     return {
       kind: 'error',
+      status: 'failed',
       error: prepared.validationError,
       toolResultText: formatToolFailureResult(prepared.toolName, prepared.validationError),
       lastToolCallContext,
@@ -155,18 +179,14 @@ async function prepareToolStep(input: PrepareToolStepInput): Promise<ToolPrepara
     config,
     step,
     toolCallId: currentToolCall.id,
-    onToolCallContext: (context) => {
-      lastToolCallContext = context
-      onToolCallContext?.(context)
-    },
+    parentSpanId,
   })
+  lastToolCallContext = { ...lastToolCallContext, policy: beforeResult.outcome }
 
   if (beforeResult.outcome === 'block') {
-    const logContext = createToolLogContext(task, step, currentToolCall.id)
-    const durationMs = Date.now() - toolStartedAt
-    traceLogger.write('tool_blocked', { ...logContext, toolName: requestedToolCall.toolName, input: prepared.input, operationType: prepared.operationType, scope: prepared.scope, policy: 'block', reason: beforeResult.reason, errorCode: beforeResult.errorCode, workspacePath: task.snapshot.workspacePath, durationMs })
     return {
       kind: 'error',
+      status: 'blocked',
       error: beforeResult.errorCode,
       toolResultText: formatToolFailureResult(prepared.toolName, beforeResult.reason),
       lastToolCallContext,
@@ -260,16 +280,16 @@ async function finalizeSuccessToolStep(
   currentToolCall: McpToolCall,
   preparation: ToolPreparation & { kind: 'ready' },
   result: ToolExecutionOutcome['result'],
-  logContext: ToolLogContext,
+  toolSpan: import('@ant-chat/shared').AgentObservationSpan | undefined,
+  conversationId: string,
   config: AgentRuntimeConfig,
   currentModelText: string,
   currentToolMessages: McpToolCall[],
   durationMs: number,
+  redactEvidence: ToolEvidenceRedactor,
 ): Promise<ExecuteToolStepResult> {
   const { prepared, lastToolCallContext } = preparation
-  const traceLogger = createAgentTraceLogger(config)
-
-  const toolOutputText = await redactSecrets(result.result, prepared.input, config)
+  const toolOutputText = redactEvidence(result.result)
   const outputBlocks = prepared.toolName === 'publish_visualization'
     ? extractVisualizationOutputBlocks(result.diagnostics?.data)
     : []
@@ -281,9 +301,8 @@ async function finalizeSuccessToolStep(
   currentToolCall.executeState = 'completed'
   currentToolCall.result = { success: true, data: toolOutputText }
 
-  await emitTurnToolCalls(config, logContext.conversationId, currentModelText, currentToolMessages)
-
-  traceLogger.write('tool_completed', { ...logContext, toolName: prepared.toolName, outputPreview: toolOutputText, exitCode: result.diagnostics?.exitCode, durationMs, toolReportedDurationMs })
+  await emitTurnToolCalls(config, conversationId, currentModelText, currentToolMessages)
+  completeObservation(toolSpan, { output: toolOutputText, diagnostics: redactEvidence(result.diagnostics), exitCode: result.diagnostics?.exitCode, durationMs, toolReportedDurationMs }, config.logger)
 
   return {
     lastToolCallContext,
@@ -293,29 +312,93 @@ async function finalizeSuccessToolStep(
   }
 }
 
-async function redactSecrets(text: string, input: Record<string, unknown>, config: AgentRuntimeConfig): Promise<string> {
-  let next = text
-  for (const ref of collectSecretRefs(input)) {
-    next = next.split(ref.id).join('[secret-ref]')
-    const secretValue = await config.secretStore?.resolve(ref)
-    if (secretValue) {
-      next = next.split(secretValue).join('[secret]')
-    }
-  }
-  return next
+type ToolEvidenceRedactor = <T>(value: T) => T
+
+function createToolEvidenceRedactor(input: Record<string, unknown>, resolvedSecretValues: string[] = []): ToolEvidenceRedactor {
+  const refs = collectSecretRefs(input)
+  const replacements: Array<{ value: string, marker: string }> = refs
+    .filter(ref => ref.id.length > 0)
+    .map(ref => ({ value: ref.id, marker: '[secret-ref]' }))
+
+  for (const value of resolvedSecretValues.filter(Boolean))
+    replacements.push({ value, marker: '[secret]' })
+  replacements.sort((left, right) => right.value.length - left.value.length)
+
+  return <T>(value: T): T => redactToolEvidenceValue(value, replacements, new WeakSet<object>()) as T
 }
 
-function collectSecretRefs(value: unknown): SecretRef[] {
+function redactToolEvidenceValue(
+  value: unknown,
+  replacements: Array<{ value: string, marker: string }>,
+  ancestors: WeakSet<object>,
+): unknown {
+  if (typeof value === 'string') {
+    return replacements.reduce(
+      (text, replacement) => text.split(replacement.value).join(replacement.marker),
+      value,
+    )
+  }
+  if (!value || typeof value !== 'object')
+    return value
+  if (ancestors.has(value))
+    return '[circular]'
+
+  ancestors.add(value)
+  try {
+    if (Array.isArray(value))
+      return value.map(item => redactToolEvidenceValue(item, replacements, ancestors))
+
+    if (value instanceof Error) {
+      const error = value as Error & { cause?: unknown }
+      const result: Record<string, unknown> = {
+        name: redactToolEvidenceValue(error.name, replacements, ancestors),
+        message: redactToolEvidenceValue(error.message, replacements, ancestors),
+        stack: redactToolEvidenceValue(error.stack, replacements, ancestors),
+        cause: redactToolEvidenceValue(error.cause, replacements, ancestors),
+      }
+      for (const [key, child] of Object.entries(error)) {
+        if (key === 'cause')
+          continue
+        result[key] = redactToolEvidenceValue(child, replacements, ancestors)
+      }
+      return result
+    }
+
+    const result: Record<string, unknown> = {}
+    for (const [key, child] of Object.entries(value))
+      result[key] = redactToolEvidenceValue(child, replacements, ancestors)
+    return result
+  }
+  finally {
+    ancestors.delete(value)
+  }
+}
+
+function collectSecretRefs(value: unknown, visited = new WeakSet<object>()): SecretRef[] {
   if (isSecretRef(value)) {
     return [value]
   }
   if (!value || typeof value !== 'object') {
     return []
   }
+  if (visited.has(value))
+    return []
+  visited.add(value)
   if (Array.isArray(value)) {
-    return (value as unknown[]).flatMap(collectSecretRefs)
+    return (value as unknown[]).flatMap(item => collectSecretRefs(item, visited))
   }
-  return Object.values(value).flatMap(collectSecretRefs)
+  return Object.values(value).flatMap(item => collectSecretRefs(item, visited))
+}
+
+function redactPreparation(
+  preparation: ToolPreparation & { kind: 'error' },
+  redactEvidence: ToolEvidenceRedactor,
+): ToolPreparation & { kind: 'error' } {
+  return {
+    ...preparation,
+    error: redactEvidence(preparation.error),
+    toolResultText: redactEvidence(preparation.toolResultText),
+  }
 }
 
 function isSecretRef(value: unknown): value is SecretRef {
@@ -330,26 +413,6 @@ function isSecretRef(value: unknown): value is SecretRef {
 // ============================================================
 // Helpers
 // ============================================================
-
-interface ToolLogContext {
-  runId: string
-  taskId: string
-  conversationId: string
-  userMessageId: string
-  step: number
-  toolCallId: string
-}
-
-function createToolLogContext(task: RuntimeTask, step: number, toolCallId: string): ToolLogContext {
-  return {
-    runId: task.snapshot.taskId,
-    taskId: task.snapshot.taskId,
-    conversationId: task.snapshot.conversationId,
-    userMessageId: task.snapshot.userMessageId,
-    step,
-    toolCallId,
-  }
-}
 
 function registerPendingToolCall(
   requestedToolCall: RequestedToolCall,
@@ -404,6 +467,8 @@ export async function createInvalidToolArgsResult(options: {
   requestedToolCall: RequestedToolCall & { invalidArgsError?: string }
   currentModelText: string
   currentToolMessages: McpToolCall[]
+  step?: number
+  parentSpanId?: string
 }): Promise<{
   lastToolCallContext: ToolCallContext
   toolCallId: string
@@ -413,6 +478,13 @@ export async function createInvalidToolArgsResult(options: {
   const { config, conversationId, requestedToolCall, currentModelText, currentToolMessages } = options
   const toolCallId = requestedToolCall.id ?? randomUUID()
   const error = `Tool ${requestedToolCall.toolName} argument error: ${requestedToolCall.invalidArgsError || 'args must be a JSON object'}. Fix the arguments and retry.`
+  const toolSpan = startObservationSpan(config, recorder => recorder.startToolCall({
+    toolCallId,
+    toolName: requestedToolCall.toolName,
+    input: requestedToolCall.input,
+    step: options.step,
+  }, options.parentSpanId))
+  failObservation(toolSpan, { status: 'failed', error }, config.logger)
   currentToolMessages.push({
     id: toolCallId,
     serverName: 'native',

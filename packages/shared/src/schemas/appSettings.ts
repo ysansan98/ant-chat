@@ -10,6 +10,14 @@ export const AppearanceSettingsSchema = z.object({
 
 export type AppearanceSettingsState = z.infer<typeof AppearanceSettingsSchema>
 
+export const DeveloperToolsSettingsSchema = z.object({
+  agentObservabilityEnabled: z.boolean().default(false),
+}).default({
+  agentObservabilityEnabled: false,
+})
+
+export type DeveloperToolsSettingsState = z.infer<typeof DeveloperToolsSettingsSchema>
+
 export const ProviderModelSettingsSchema = z.object({
   isEnabled: z.boolean(),
   temperature: z.number().min(0).max(2).optional(),
@@ -51,6 +59,7 @@ export const AppSettingsSchema = z.object({
     lightThemeId: 'default',
     darkThemeId: 'default',
   }),
+  developerTools: DeveloperToolsSettingsSchema,
   providers: z.array(ProviderSettingsSchema),
   toolApprovalWhitelist: z.array(ToolApprovalWhitelistEntrySchema).default([]),
 })

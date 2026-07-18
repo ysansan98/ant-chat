@@ -1,9 +1,9 @@
-import type { AgentExecutionPhase, AgentRuntimeConfig, AgentTaskSnapshot, LoopMessage, McpToolCall, RuntimeToolDefinition, ToolResultContent } from '@ant-chat/shared'
+import type { AgentExecutionPhase, AgentObservationSpan, AgentRuntimeConfig, AgentTaskSnapshot, LoopMessage, McpToolCall, ToolResultContent } from '@ant-chat/shared'
 import type { RuntimeStartInput } from '../session/types'
 import type { RuntimeTask, TaskExecution } from '../taskStore'
 import type { ToolAuthorization, ToolCallContext } from '../tools/types'
 import { AgentError } from '../AgentError'
-import { createAgentTraceLogger } from '../agentTraceLogger'
+import { cancelObservation, completeObservation, failObservation, finishTurnObservation, recordContextObservation, startObservationSpan } from '../observation'
 import { createInvalidToolArgsResult, executeToolStep } from '../tools/toolExecution'
 import { transformErrorMessage } from '../utils/errorMessages'
 import { normalizeToolArgs } from './loopContext'
@@ -17,7 +17,6 @@ export async function runAgentLoop(input: {
   const { execution, options, config, beforeToolExecute } = input
   const { task } = execution
   const { taskId } = task.snapshot
-  const traceLogger = createAgentTraceLogger(config)
 
   const {
     messages: initialMessages,
@@ -41,9 +40,6 @@ export async function runAgentLoop(input: {
   let lastToolCallContext: ToolCallContext | null = null
   const loopMessages: LoopMessage[] = [...initialMessages]
   const systemPrompt = initialSystemPrompt
-  let lastLoggedMessages: LoopMessage[] = []
-  let lastLoggedSystemPrompt = ''
-  let previousRequestId: string | undefined
   const taskStartedAt = Date.now()
 
   try {
@@ -57,8 +53,14 @@ export async function runAgentLoop(input: {
 
       // === Steering: 检查是否有运行中追加的用户输入 ===
       const steeringInputs = execution.dequeueSteeringInputs()
-      for (const input of steeringInputs) {
-        loopMessages.push({ role: 'user', content: [{ type: 'text', text: input.text }] })
+      for (const steering of steeringInputs) {
+        loopMessages.push({ role: 'user', content: [{ type: 'text', text: steering.text }] })
+        recordContextObservation(config, {
+          kind: 'steering',
+          messageId: steering.messageId,
+          turnId: steering.turnId,
+          text: steering.text,
+        })
       }
 
       const modelSettings = {
@@ -78,157 +80,86 @@ export async function runAgentLoop(input: {
 
       currentToolMessages = []
 
-      const requestId = `req-${taskId}-${step}`
-
-      // 上下文诊断：捕获完整上下文快照（开发环境）
-      if (config.contextTraceCapture) {
-        const messageIdentities = loopMessages.map((_, i) => `loop-${i}`)
-        config.contextTraceCapture({
-          requestId,
-          previousRequestId,
-          conversationId: options.conversationId,
-          userTurnId: options.userMessageId,
-          step,
-          model: modelName,
-          provider: providerName,
-          providerId,
-          apiMode: options.apiMode,
-          systemPrompt,
-          messages: loopMessages,
-          messageIdentities,
-          toolDefs,
-          modelSettings,
-          isCompactionBaseline: false,
-        } as Record<string, unknown>)
-      }
-      previousRequestId = requestId
-
-      // 遗留 trace 日志（preview 格式）
-      const requestPreview = createRequestPreview({
-        messages: loopMessages,
-        systemPrompt,
-        lastLoggedMessages,
-        lastLoggedSystemPrompt,
-        step,
-        compacted: false,
-      })
-      const requestDiagnostics = createModelRequestDiagnostics({
-        messages: requestPreview.messages,
-        systemPrompt,
-        toolDefs,
-      })
-      const requestPayload = {
-        runId: taskId,
-        taskId,
-        conversationId: options.conversationId,
-        userMessageId: options.userMessageId,
-        step,
-        messageCount: loopMessages.length,
-        messagesPreviewKind: requestPreview.kind,
-        messagesPreviewStartIndex: requestPreview.startIndex,
-        messagesPreviewCount: requestPreview.messages.length,
-        contextResetReason: requestPreview.resetReason,
-        toolCount: toolDefs.length,
-        model: modelName,
-        provider: providerName,
-        providerId,
-        apiMode: options.apiMode,
-        temperature,
-        maxOutputTokens,
-        ...requestDiagnostics,
-      }
-      traceLogger.write('model_request_started', requestPayload)
-      lastLoggedMessages = [...loopMessages]
-      lastLoggedSystemPrompt = systemPrompt
-
-      const modelStartedAt = Date.now()
-      const stream = aiProvider.streamModel({
+      const modelRequest = {
         messages: loopMessages,
         modelSettings,
         tools: toolDefs.map(item => ({ ...item, serverName: item.serverName || 'native' })),
         abortSignal: task.abortController.signal,
-      })
+      }
+      const modelSpan = startObservationSpan(config, recorder => recorder.startModelRequest(modelRequest))
 
+      const modelStartedAt = Date.now()
       let modelText = ''
       let usage: Record<string, number | undefined> | undefined
       let finishReason: string | undefined
       let streamPhase: AgentExecutionPhase = 'waiting_model'
       const requestedToolCalls: Array<{ id?: string, toolName: string, input: Record<string, unknown>, invalidArgsError?: string }> = []
+      const responseChunks: import('@ant-chat/shared').IAIStreamChunk[] = []
+      // 将 model span 的 id 作为后续 tool/policy span 的父 span
+      const modelSpanId = modelSpan?.id || undefined
 
-      for await (const chunk of stream) {
-        if (chunk.usage) {
-          usage = { ...chunk.usage }
-        }
-        if (chunk.finishReason) {
-          finishReason = chunk.finishReason
-        }
-        if (chunk.reasoningContent && streamPhase === 'waiting_model') {
-          streamPhase = 'thinking'
-          await emitExecutionPhase(config, task, streamPhase)
-        }
-        const content = chunk.content || []
-        for (const item of content) {
-          if (item.type === 'text' && item.text) {
-            if (streamPhase !== 'generating_response') {
-              streamPhase = 'generating_response'
-              await emitExecutionPhase(config, task, streamPhase)
-            }
-            modelText += item.text
+      try {
+        const stream = aiProvider.streamModel(modelRequest)
+        for await (const chunk of stream) {
+          responseChunks.push(chunk)
+          if (chunk.usage) {
+            usage = { ...chunk.usage }
           }
-        }
-        const functionCalls = chunk.functionCalls || []
-        if (functionCalls.length > 0 && requestedToolCalls.length === 0) {
-          await emitExecutionPhase(config, task, 'preparing_tool')
-        }
-        for (const fc of functionCalls) {
-          const argsResult = normalizeToolArgs(fc.args)
-          requestedToolCalls.push({
-            id: fc.id,
-            toolName: fc.toolName,
-            input: argsResult.ok ? argsResult.input : {},
-            invalidArgsError: argsResult.ok ? undefined : argsResult.error,
+          if (chunk.finishReason) {
+            finishReason = chunk.finishReason
+          }
+          if (chunk.reasoningContent && streamPhase === 'waiting_model') {
+            streamPhase = 'thinking'
+            await emitExecutionPhase(config, task, streamPhase)
+          }
+          const content = chunk.content || []
+          for (const item of content) {
+            if (item.type === 'text' && item.text) {
+              if (streamPhase !== 'generating_response') {
+                streamPhase = 'generating_response'
+                await emitExecutionPhase(config, task, streamPhase)
+              }
+              modelText += item.text
+            }
+          }
+          const functionCalls = chunk.functionCalls || []
+          if (functionCalls.length > 0 && requestedToolCalls.length === 0) {
+            await emitExecutionPhase(config, task, 'preparing_tool')
+          }
+          for (const fc of functionCalls) {
+            const argsResult = normalizeToolArgs(fc.args)
+            requestedToolCalls.push({
+              id: fc.id,
+              toolName: fc.toolName,
+              input: argsResult.ok ? argsResult.input : {},
+              invalidArgsError: argsResult.ok ? undefined : argsResult.error,
+            })
+          }
+          await config.eventEmitter.emitTurnChunk({
+            conversationId: options.conversationId,
+            accumulatedText: modelText,
+            chunk,
           })
         }
-        await config.eventEmitter.emitTurnChunk({
-          conversationId: options.conversationId,
-          accumulatedText: modelText,
-          chunk,
-        })
+      }
+      catch (error) {
+        finishModelSpan(modelSpan, task.abortController.signal, error, config)
+        throw error
       }
 
-      const responsePayload = {
-        runId: taskId,
-        taskId,
-        conversationId: options.conversationId,
-        userMessageId: options.userMessageId,
-        step,
+      completeObservation(modelSpan, {
+        text: modelText,
         durationMs: Date.now() - modelStartedAt,
         usage,
         finishReason,
-        textPreview: modelText.slice(0, 1000),
-        hasToolCall: requestedToolCalls.length > 0,
-        toolCalls: requestedToolCalls.map(call => ({
-          id: call.id,
-          toolName: call.toolName,
-          input: call.input,
-          invalidArgsError: call.invalidArgsError,
-        })),
-      }
-      traceLogger.write('model_response_finished', responsePayload)
+        toolCalls: requestedToolCalls,
+        chunks: responseChunks,
+      }, config.logger)
       currentModelText = modelText.trim()
 
       if (requestedToolCalls.length === 0) {
         finalAnswer = currentModelText || 'Task completed.'
         loopMessages.push({ role: 'assistant', content: [{ type: 'text', text: modelText }] })
-
-        // 写入模型响应到上下文诊断（最终无工具调用时）
-        if (config.contextTraceCaptureResponse) {
-          config.contextTraceCaptureResponse({
-            conversationId: options.conversationId,
-            requestId,
-            text: finalAnswer,
-          })
-        }
 
         await config.eventEmitter.emitTurnFinished({
           conversationId: options.conversationId,
@@ -254,6 +185,8 @@ export async function runAgentLoop(input: {
             },
             currentModelText,
             currentToolMessages,
+            step,
+            parentSpanId: modelSpanId,
           })
           outcomes.push({
             toolCallId: res.toolCallId,
@@ -275,9 +208,7 @@ export async function runAgentLoop(input: {
             config,
             beforeToolExecute,
             abortSignal: task.abortController.signal,
-            onToolCallContext: (context) => {
-              lastToolCallContext = context
-            },
+            parentSpanId: modelSpanId,
           })
           outcomes.push({
             toolCallId: res.toolCallId,
@@ -328,8 +259,7 @@ export async function runAgentLoop(input: {
     task.snapshot.status = 'success'
     task.snapshot.summary = finalAnswer || 'Task completed.'
     await config.eventEmitter.emitTaskUpdated(task.snapshot)
-    const completedPayload = { runId: taskId, taskId, conversationId: options.conversationId, userMessageId: options.userMessageId, durationMs: Date.now() - taskStartedAt, finalAnswer }
-    traceLogger.write('task_completed', completedPayload)
+    finishTurnObservation(config, { status: 'success', output: { finalAnswer, durationMs: Date.now() - taskStartedAt } })
   }
   catch (error) {
     await handleLoopFailure({
@@ -346,10 +276,14 @@ export async function runAgentLoop(input: {
     }
     finally {
       task.snapshot.updatedAt = Date.now()
+      finishTurnObservation(config, task.snapshot.status === 'success'
+        ? { status: 'success', output: { finalAnswer, durationMs: Date.now() - taskStartedAt } }
+        : task.snapshot.status === 'cancelled'
+          ? { status: 'cancelled', error: task.snapshot.errorMessage }
+          : { status: 'failed', error: task.snapshot.errorMessage ?? task.snapshot.summary })
       if (['success', 'failed', 'cancelled'].includes(task.snapshot.status)) {
         execution.finish()
       }
-      traceLogger.close()
     }
   }
 }
@@ -410,105 +344,16 @@ async function handleLoopFailure(options: {
     })
   }
   await config.eventEmitter.emitTaskUpdated(task.snapshot)
-  createAgentTraceLogger(config).write('task_failed', failurePayload)
+  finishTurnObservation(config, error instanceof AgentError && error.code === 'AGENT_CANCELLED'
+    ? { status: 'cancelled', error: failurePayload }
+    : { status: 'failed', error: failurePayload })
 }
 
-function createModelRequestDiagnostics(input: {
-  messages: LoopMessage[]
-  systemPrompt: string
-  toolDefs: RuntimeToolDefinition[]
-}) {
-  return {
-    systemPromptPreview: previewText(input.systemPrompt, 4000),
-    messagesPreview: input.messages.map(message => ({
-      role: message.role,
-      content: message.content.map((part) => {
-        if (part.type === 'text') {
-          return { type: 'text', text: previewText(part.text, 2000) }
-        }
-        if (part.type === 'image') {
-          return {
-            type: 'image',
-            mimeType: part.mimeType,
-            dataPreview: `${part.data.slice(0, 100)}...`,
-          }
-        }
-        if (part.type === 'file') {
-          return {
-            type: 'file',
-            mimeType: part.mimeType,
-            dataPreview: `${part.data.slice(0, 100)}...`,
-          }
-        }
-        if (part.type === 'tool-call') {
-          return {
-            type: 'tool-call',
-            toolCallId: part.toolCallId,
-            toolName: part.toolName,
-            args: part.args,
-          }
-        }
-        return {
-          type: 'tool-result',
-          toolCallId: part.toolCallId,
-          toolName: part.toolName,
-          result: typeof part.result === 'string' ? previewText(part.result, 2000) : part.result,
-          isError: part.isError,
-        }
-      }),
-    })),
-    toolNames: input.toolDefs.map(tool => tool.name),
+function finishModelSpan(span: AgentObservationSpan | undefined, signal: AbortSignal, error: unknown, config: AgentRuntimeConfig): void {
+  if (signal.aborted) {
+    cancelObservation(span, error, config.logger)
   }
-}
-
-function createRequestPreview(input: {
-  messages: LoopMessage[]
-  systemPrompt: string
-  lastLoggedMessages: LoopMessage[]
-  lastLoggedSystemPrompt: string
-  step: number
-  compacted: boolean
-}): {
-  kind: 'full' | 'delta'
-  messages: LoopMessage[]
-  startIndex: number
-  resetReason?: 'initial' | 'compaction' | 'system_prompt_changed' | 'history_rewritten'
-} {
-  if (input.step === 1) {
-    return { kind: 'full', messages: input.messages, startIndex: 0, resetReason: 'initial' }
+  else {
+    failObservation(span, error, config.logger)
   }
-  if (input.compacted) {
-    return { kind: 'full', messages: input.messages, startIndex: 0, resetReason: 'compaction' }
-  }
-  if (input.systemPrompt !== input.lastLoggedSystemPrompt) {
-    return { kind: 'full', messages: input.messages, startIndex: 0, resetReason: 'system_prompt_changed' }
-  }
-  if (!isMessagePrefix(input.lastLoggedMessages, input.messages)) {
-    return { kind: 'full', messages: input.messages, startIndex: 0, resetReason: 'history_rewritten' }
-  }
-
-  return {
-    kind: 'delta',
-    messages: input.messages.slice(input.lastLoggedMessages.length),
-    startIndex: input.lastLoggedMessages.length,
-  }
-}
-
-function isMessagePrefix(prefix: LoopMessage[], messages: LoopMessage[]): boolean {
-  if (prefix.length > messages.length) {
-    return false
-  }
-  for (let i = 0; i < prefix.length; i++) {
-    if (JSON.stringify(prefix[i]) !== JSON.stringify(messages[i])) {
-      return false
-    }
-  }
-  return true
-}
-
-function previewText(value: string, maxLength: number): string {
-  if (value.length <= maxLength) {
-    return value
-  }
-  return `${value.slice(0, maxLength)}\n...[truncated ${value.length - maxLength} chars]`
 }
