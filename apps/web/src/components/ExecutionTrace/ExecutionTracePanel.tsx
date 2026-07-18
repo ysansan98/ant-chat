@@ -328,16 +328,16 @@ function Waterfall({ timeline, selectedRecordId, onInspect }: {
             key={item.recordId}
             type="button"
             aria-label={itemLabels[kind]}
-            className={cn('grid w-full grid-cols-[4.5rem_1fr_3.5rem] items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-accent', selectedRecordId === item.recordId && 'bg-accent')}
+            className={cn('grid w-full grid-cols-[4.5rem_1fr_3.5rem] items-center gap-2 px-2 py-1.5 text-left text-xs hover:bg-accent', selectedRecordId === item.recordId && 'bg-accent')}
             onClick={() => onInspect(item)}
           >
             <span className="text-muted-foreground tabular-nums">
               +
               {formatOffset(startedAt - timeline.summary.startedAt)}
             </span>
-            <span className="relative h-7 overflow-hidden rounded-sm bg-muted">
+            <span className="relative h-7 overflow-hidden bg-muted">
               <span
-                className={cn('absolute inset-y-0 rounded-sm', waterfallColor(kind))}
+                className={cn('absolute inset-y-0', waterfallColor(kind))}
                 style={{ left: `${left}%`, width: `${width}%` }}
               />
               <span className="relative z-1 flex h-full items-center px-2 font-medium">{itemLabels[kind]}</span>
