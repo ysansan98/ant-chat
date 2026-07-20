@@ -28,10 +28,15 @@ export function formatTime(time: number) {
 }
 
 export function formatRelativeTime(time: number, now = Date.now()) {
-  const elapsedHours = Math.max(0, Math.floor((now - time) / 3_600_000))
+  const elapsedMs = Math.max(0, now - time)
+  const elapsedMinutes = Math.floor(elapsedMs / 60_000)
 
-  if (elapsedHours < 1)
+  if (elapsedMinutes < 1)
     return '刚刚'
+  if (elapsedMinutes < 60)
+    return `${elapsedMinutes}分钟`
+
+  const elapsedHours = Math.floor(elapsedMinutes / 60)
   if (elapsedHours < 24)
     return `${elapsedHours}小时`
 
@@ -52,6 +57,9 @@ export function formatRelativeTime(time: number, now = Date.now()) {
  * - 60 秒及以上: "1m 05s"
  */
 export function formatDuration(ms: number): string {
+  if (ms === 0)
+    return '<1ms'
+
   const seconds = ms / 1000
 
   if (seconds < 1) {
