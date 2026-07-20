@@ -29,6 +29,8 @@ export interface CreateRegistryOptions {
   turnSource?: AgentTurnSource
 }
 
+type AutomationTurnSource = Extract<AgentTurnSource, { type: 'automation' }>
+
 export class ToolRegistry {
   private readonly tools: Map<string, AgentTool>
   private readonly relaxedTools: Map<string, AgentTool>
@@ -37,9 +39,11 @@ export class ToolRegistry {
     const { config, workspacePath, mode, browserSession, turnSource } = options
     const unrestricted = mode === 'full_managed'
     const skillReader = resolveSkillReader(config)
-    const readableRoots = await resolveTrustedRoots(skillReader, turnSource)
+    const trustedPaths = turnSource?.type === 'automation'
+      ? await resolveAutomationTrustedPaths(skillReader, turnSource)
+      : []
     const nativeTools = getNativeToolService(workspacePath, unrestricted, {
-      readableRoots,
+      trustedPaths,
       browser: config.browser,
       bashEnvironment: config.bashEnvironment,
       browserSession,
@@ -47,7 +51,7 @@ export class ToolRegistry {
     const relaxedNativeTools = unrestricted
       ? nativeTools
       : getNativeToolService(workspacePath, true, {
-          readableRoots,
+          trustedPaths,
           browser: config.browser,
           bashEnvironment: config.bashEnvironment,
           browserSession,
@@ -147,11 +151,7 @@ export class ToolRegistry {
   }
 }
 
-async function resolveTrustedRoots(skillReader: SkillReader | null, turnSource?: AgentTurnSource): Promise<string[]> {
-  if (turnSource?.type !== 'automation') {
-    return skillReader ? [skillReader.getSkillsRoot()] : []
-  }
-
+async function resolveAutomationTrustedPaths(skillReader: SkillReader | null, turnSource: AutomationTurnSource): Promise<string[]> {
   const roots = turnSource.permissionPolicy.extraFileRoots
     .map(root => root.trim())
     .filter(Boolean)

@@ -181,6 +181,18 @@ describe('toolRegistry Skill 白名单', () => {
     expect(config.skillReader?.readSkillMarkdown).toHaveBeenCalledWith('deploy')
   })
 
+  it('普通交互 Turn 不把 Skill 安装目录纳入工作区权限', async () => {
+    const registry = await ToolRegistry.create({
+      config: createConfig(),
+      workspacePath,
+      mode: 'hybrid',
+      turnSource: { type: 'interactive' },
+    })
+
+    expect(registry.prepare('read_file', { path: path.join(skillsRoot, 'review', 'SKILL.md') }).scope).toBe('outside')
+    expect(registry.prepare('bash', { command: `node ${path.join(skillsRoot, 'review', 'scripts', 'run.js')}` }).scope).toBe('outside')
+  })
+
   it('普通交互 Turn 不注册 ant_chat 工具', async () => {
     const config = createConfig()
     const registry = await ToolRegistry.create({

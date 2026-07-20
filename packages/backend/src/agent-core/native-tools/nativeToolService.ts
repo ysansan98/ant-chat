@@ -22,7 +22,7 @@ import { createReadFileTool, readFile } from './tools/readFileTool'
 import { createWriteFileTool, writeFile } from './tools/writeFileTool'
 
 interface NativeToolServiceOptions {
-  readableRoots?: string[]
+  trustedPaths?: string[]
   browser?: {
     profilePath: string
     artifactsPath: string
@@ -60,7 +60,7 @@ export class NativeToolService {
       createBashTool(this.workspacePath, this.unrestricted, {
         blockAgentBrowser: Boolean(this.options.browser),
         bashEnvironment: this.options.bashEnvironment,
-        trustedPaths: this.options.readableRoots ?? [],
+        trustedPaths: this.options.trustedPaths ?? [],
       }),
       ...(this.options.browser
         ? [createBrowserTool(this.workspacePath, this.options.browser, browserSession)]
@@ -69,7 +69,7 @@ export class NativeToolService {
   }
 
   private get pathPolicy() {
-    return createPathPolicyByMode(this.workspacePath, this.unrestricted ? 'unrestricted' : 'workspace', this.options.readableRoots ?? [])
+    return createPathPolicyByMode(this.workspacePath, this.unrestricted ? 'unrestricted' : 'workspace', this.options.trustedPaths ?? [])
   }
 
   async readFile(input: ReadFileToolInput): Promise<AgentToolResult> {
