@@ -146,7 +146,6 @@ export default function Chat() {
                 <BubbleList
                   key={currentConversations?.id}
                   messages={messages}
-                  onInspectTrace={turnId => openTrace(turnId)}
                 />
               </Suspense>
             </div>

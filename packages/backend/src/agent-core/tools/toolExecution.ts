@@ -4,6 +4,7 @@ import type { PreparedToolCall, ToolRegistry } from './toolRegistry'
 import type { ToolAuthorization, ToolCallContext } from './types'
 import { randomUUID } from 'node:crypto'
 import { AGENT_TOOL_EXEC_FAILED, VisualizationOutputBlocksSchema } from '@ant-chat/shared'
+import { AgentError } from '../AgentError'
 import { cancelObservation, completeObservation, failObservation, startObservationSpan } from '../observation'
 import { createVisualizationToolFailureResult } from './publishVisualizationTool'
 
@@ -57,7 +58,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   const prepared = registry.prepare(requestedToolCall.toolName, requestedToolCall.input)
   const redactOpaqueRefs = createToolEvidenceRedactor(prepared.input)
   const currentToolCall = registerPendingToolCall(requestedToolCall, prepared, currentToolMessages)
-  const toolSpan = startObservationSpan(config, recorder => recorder.startToolCall({
+  const toolObservationInput = {
     toolCallId: currentToolCall.id,
     toolName: requestedToolCall.toolName,
     input: prepared.input,
@@ -66,45 +67,31 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
     serverName: prepared.serverName,
     workspacePath: task.snapshot.workspacePath,
     step,
-  }, options.parentSpanId))
+  }
   await emitTurnToolCalls(config, task.snapshot.conversationId, currentModelText, currentToolMessages)
 
-  // Phase 1: Prepare — validate args and check policy
-  let preparation: ToolPreparation
-  try {
-    preparation = await prepareToolStep({
-      task,
-      prepared,
-      requestedToolCall,
-      currentToolCall,
-      step,
-      config,
-      beforeToolExecute: beforeToolExecuteFn,
-      parentSpanId,
-    })
-  }
-  catch (error) {
-    if (options.abortSignal?.aborted || task.abortController.signal.aborted)
-      cancelObservation(toolSpan, error, config.logger)
-    else
-      failObservation(toolSpan, error, config.logger)
-    throw error
-  }
+  const preparation = await prepareToolStep({
+    task,
+    prepared,
+    requestedToolCall,
+    currentToolCall,
+    step,
+    config,
+    beforeToolExecute: beforeToolExecuteFn,
+    parentSpanId,
+  })
 
   if (preparation.kind === 'error') {
+    // 参数校验发生在策略判断前，必须由失败的 Tool span 保留这次执行事实。
+    if (preparation.status === 'failed') {
+      const validationSpan = startObservationSpan(config, recorder => recorder.startToolCall(toolObservationInput, parentSpanId))
+      failObservation(validationSpan, { status: 'failed', error: preparation.error }, config.logger)
+    }
     const safePreparation = redactPreparation(preparation, redactOpaqueRefs)
-    const evidence = { status: safePreparation.status, error: safePreparation.error, durationMs: Date.now() - toolStartedAt }
-    if (preparation.status === 'blocked')
-      completeObservation(toolSpan, evidence, config.logger)
-    else
-      failObservation(toolSpan, evidence, config.logger)
     return finalizeToolStep(currentToolCall, safePreparation, task.snapshot.conversationId, config, currentModelText, currentToolMessages)
   }
 
-  // Abort check between prepare and execute
   if (options.abortSignal?.aborted) {
-    const durationMs = Date.now() - toolStartedAt
-    cancelObservation(toolSpan, { status: 'cancelled', durationMs }, config.logger)
     return finalizeToolStep(currentToolCall, {
       kind: 'error',
       status: 'cancelled',
@@ -114,10 +101,23 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
     }, task.snapshot.conversationId, config, currentModelText, currentToolMessages)
   }
 
-  // Phase 2: Execute
-  const execution = await executePreparedTool(preparation.prepared, task, config)
+  // Tool span 只代表实际执行；策略阻断由 Policy span 单独保留。
+  const toolSpan = startObservationSpan(config, recorder => recorder.startToolCall(toolObservationInput, options.parentSpanId))
 
-  // Phase 3: Finalize
+  let execution: ToolExecutionOutcome
+  try {
+    execution = await executePreparedTool(preparation.prepared, task, config, options.abortSignal)
+  }
+  catch (error) {
+    if (isToolExecutionCancelled(error, task, options.abortSignal)) {
+      cancelObservation(toolSpan, error, config.logger)
+      throw error instanceof AgentError && error.code === 'AGENT_CANCELLED'
+        ? error
+        : new AgentError('AGENT_CANCELLED', '任务已取消')
+    }
+    throw error
+  }
+
   const durationMs = Date.now() - toolStartedAt
   const redactEvidence = createToolEvidenceRedactor(prepared.input, prepared.resolvedSecretValues)
   if (execution.failureReason) {
@@ -200,7 +200,12 @@ async function prepareToolStep(input: PrepareToolStepInput): Promise<ToolPrepara
 // Phase 2: Execute — run the prepared tool
 // ============================================================
 
-async function executePreparedTool(prepared: PreparedToolCall, task: RuntimeTask, config: AgentRuntimeConfig): Promise<ToolExecutionOutcome> {
+async function executePreparedTool(
+  prepared: PreparedToolCall,
+  task: RuntimeTask,
+  config: AgentRuntimeConfig,
+  abortSignal?: AbortSignal,
+): Promise<ToolExecutionOutcome> {
   let result: AgentToolResult
   try {
     result = prepared.toolName === 'requestSecret'
@@ -208,12 +213,16 @@ async function executePreparedTool(prepared: PreparedToolCall, task: RuntimeTask
       : await prepared.execute()
   }
   catch (error) {
+    if (isToolExecutionCancelled(error, task, abortSignal))
+      throw error
     const message = error instanceof Error ? error.message : String(error || '工具执行失败。')
     return {
       result: { ok: false, result: formatToolFailureResult(prepared.toolName, message), diagnostics: { stderr: message } },
       failureReason: AGENT_TOOL_EXEC_FAILED,
     }
   }
+  if (isToolExecutionCancelled(undefined, task, abortSignal))
+    throw new AgentError('AGENT_CANCELLED', '任务已取消')
   if (!result.ok) {
     return {
       result: { ...result, result: formatToolFailureResult(prepared.toolName, result.result) },
@@ -221,6 +230,11 @@ async function executePreparedTool(prepared: PreparedToolCall, task: RuntimeTask
     }
   }
   return { result }
+}
+
+function isToolExecutionCancelled(error: unknown, task: RuntimeTask, abortSignal?: AbortSignal): boolean {
+  return Boolean(abortSignal?.aborted || task.abortController.signal.aborted)
+    || (error instanceof AgentError && error.code === 'AGENT_CANCELLED')
 }
 
 async function executeRequestSecret(prepared: PreparedToolCall, task: RuntimeTask, config: AgentRuntimeConfig): Promise<AgentToolResult> {

@@ -1,15 +1,18 @@
 import type { AgentObservabilityEvidence, AgentTurnSummary, AgentTurnTimeline, AgentTurnTimelineItem } from '@ant-chat/shared'
+import type { ToolDefinitionView } from './evidenceModel'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@workspace/ui/components/collapsible'
 import { Sheet, SheetContent } from '@workspace/ui/components/sheet'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@workspace/ui/components/tabs'
 import { cn } from '@workspace/ui/lib/utils'
-import { ActivityIcon, AlertTriangleIcon, ChevronRightIcon, XIcon } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { ActivityIcon, AlertTriangleIcon, ChevronRightIcon, LoaderIcon, XIcon } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { observabilityApi } from '@/api/observabilityApi'
 import { getAppEventSubscriptions } from '@/api/transports/appEventSubscriptions'
 import { formatDuration, formatTime } from '@/utils'
+import { EvidenceDetails } from './EvidenceDetails'
+import { itemLabels, parseEvidence } from './evidenceModel'
+import { CodeBlock } from './evidencePrimitives'
 
 interface ExecutionTracePanelProps {
   conversationId?: string
@@ -22,21 +25,18 @@ const NARROW_QUERY = '(max-width: 767px)'
 const DEFAULT_PANEL_WIDTH = 520
 
 type AvailableTurnSummary = Extract<AgentTurnSummary, { availability: 'available' }>
+type CompletedTurnSummary = Extract<AvailableTurnSummary, { lifecycle: 'completed' }>
 
-const statusLabels: Record<AvailableTurnSummary['status'], string> = {
+interface TurnContext {
+  systemPrompt?: string
+  tools: ToolDefinitionView[]
+}
+
+const statusLabels: Record<CompletedTurnSummary['status'], string> = {
   success: '成功',
   failed: '失败',
   cancelled: '已取消',
   interrupted: '已中断',
-}
-
-const itemLabels: Record<string, string> = {
-  'model-request': '模型请求',
-  'policy-decision': '策略判断',
-  'tool-call': '工具调用',
-  'compaction': '上下文压缩',
-  'steering': '追加指令',
-  'history-rewrite': '历史重写',
 }
 
 export function ExecutionTracePanel(props: ExecutionTracePanelProps) {
@@ -72,59 +72,65 @@ function TraceContent({ conversationId, isOpen, focusTurnId, onClose }: Executio
   const [summaries, setSummaries] = useState<AgentTurnSummary[]>([])
   const [timelines, setTimelines] = useState<Record<string, AgentTurnTimeline | null>>({})
   const [timelineErrors, setTimelineErrors] = useState<Record<string, string>>({})
+  const [turnContexts, setTurnContexts] = useState<Record<string, TurnContext | null>>({})
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
   const [selected, setSelected] = useState<{ turnId: string, item: AgentTurnTimelineItem }>()
   const [evidence, setEvidence] = useState<AgentObservabilityEvidence | null>()
   const [evidenceError, setEvidenceError] = useState<string>()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>()
-  const evidenceRequestId = useRef(0)
-  const summaryRequestId = useRef(0)
-  const timelineRequestIds = useRef<Record<string, number>>({})
+  const evidenceRequestIdRef = useRef(0)
+  const summaryRequestIdRef = useRef(0)
+  const timelineRequestIdsRef = useRef<Record<string, number>>({})
 
-  const loadTimeline = useCallback(async (turnId: string) => {
+  const loadTimeline = useCallback(async (turnId: string): Promise<AgentTurnTimeline | null> => {
     if (!conversationId)
-      return
-    const requestId = (timelineRequestIds.current[turnId] ?? 0) + 1
-    timelineRequestIds.current[turnId] = requestId
+      return null
+    const requestId = (timelineRequestIdsRef.current[turnId] ?? 0) + 1
+    timelineRequestIdsRef.current[turnId] = requestId
     setTimelineErrors(current => omitKey(current, turnId))
     try {
       const timeline = await observabilityApi.getTurnTimeline(conversationId, turnId)
-      if (requestId === timelineRequestIds.current[turnId])
+      if (requestId === timelineRequestIdsRef.current[turnId]) {
         setTimelines(current => ({ ...current, [turnId]: timeline }))
+        return timeline
+      }
+      return null
     }
     catch (cause) {
-      if (requestId === timelineRequestIds.current[turnId])
+      if (requestId === timelineRequestIdsRef.current[turnId])
         setTimelineErrors(current => ({ ...current, [turnId]: toRequestError('读取时间线失败', cause) }))
+      return null
     }
   }, [conversationId])
 
   const loadSummaries = useCallback(async (selectDefault: boolean) => {
     if (!conversationId || !isOpen)
       return
-    const requestId = ++summaryRequestId.current
+    const requestId = ++summaryRequestIdRef.current
     setLoading(true)
     setError(undefined)
     try {
       const items = await observabilityApi.listTurns(conversationId)
-      if (requestId !== summaryRequestId.current)
+      if (requestId !== summaryRequestIdRef.current)
         return
       setSummaries(items)
       if (selectDefault) {
-        const initialTurnId = focusTurnId ?? items[0]?.turnId
-        const initialSummary = items.find(item => item.turnId === initialTurnId)
-        if (initialTurnId && initialSummary?.availability === 'available') {
-          setExpanded(current => new Set(current).add(initialTurnId))
-          void loadTimeline(initialTurnId)
+        const initialSummary = focusTurnId
+          ? items.find(item => item.turnId === focusTurnId)
+          : items.find(item => item.availability === 'available' && item.lifecycle === 'completed')
+        if (initialSummary?.availability === 'available' && initialSummary.lifecycle === 'completed') {
+          setExpanded(current => new Set(current).add(initialSummary.turnId))
+          void loadTimeline(initialSummary.turnId)
         }
       }
     }
     catch (cause) {
-      if (requestId === summaryRequestId.current)
+      if (requestId === summaryRequestIdRef.current)
         setError(toTraceError(cause))
     }
     finally {
-      if (requestId === summaryRequestId.current)
+      if (requestId === summaryRequestIdRef.current)
         setLoading(false)
     }
   }, [conversationId, focusTurnId, isOpen, loadTimeline])
@@ -138,8 +144,7 @@ function TraceContent({ conversationId, isOpen, focusTurnId, onClose }: Executio
   useEffect(() => {
     if (!isOpen || !conversationId)
       return
-    const subscriptions = getAppEventSubscriptions()
-    return subscriptions.subscribe('observability:changed', (payload) => {
+    return getAppEventSubscriptions().subscribe('observability:turn-settled', (payload) => {
       if (payload.conversationId === conversationId)
         void loadSummaries(false)
     })
@@ -155,12 +160,15 @@ function TraceContent({ conversationId, isOpen, focusTurnId, onClose }: Executio
         next.delete(turnId)
       return next
     })
-    if (willOpen && conversationId && !(turnId in timelines))
-      await loadTimeline(turnId)
+    if (willOpen && conversationId) {
+      const timeline = await (turnId in timelines ? Promise.resolve(timelines[turnId]) : loadTimeline(turnId))
+      if (timeline && !(turnId in turnContexts))
+        await loadTurnContext(turnId, timeline)
+    }
   }
 
   async function inspectItem(turnId: string, item: AgentTurnTimelineItem) {
-    const requestId = ++evidenceRequestId.current
+    const requestId = ++evidenceRequestIdRef.current
     setSelected({ turnId, item })
     setEvidence(undefined)
     setEvidenceError(undefined)
@@ -168,18 +176,51 @@ function TraceContent({ conversationId, isOpen, focusTurnId, onClose }: Executio
       return
     try {
       const result = await observabilityApi.getEvidence(conversationId, turnId, item.recordId)
-      if (requestId === evidenceRequestId.current)
+      if (requestId === evidenceRequestIdRef.current)
         setEvidence(result)
     }
     catch (cause) {
-      if (requestId === evidenceRequestId.current)
+      if (requestId === evidenceRequestIdRef.current)
         setEvidenceError(toRequestError('读取原始证据失败', cause))
     }
   }
 
   function closeEvidence() {
-    evidenceRequestId.current += 1
+    evidenceRequestIdRef.current += 1
     setSelected(undefined)
+  }
+
+  async function loadTurnContext(turnId: string, timeline: AgentTurnTimeline) {
+    const firstModelRequest = timeline.items.find(
+      (item): item is Extract<AgentTurnTimelineItem, { type: 'span' }> =>
+        item.type === 'span' && item.kind === 'model-request',
+    )
+    if (!firstModelRequest || !conversationId) {
+      setTurnContexts(current => ({ ...current, [turnId]: null }))
+      return
+    }
+    try {
+      const evidence = await observabilityApi.getEvidence(conversationId, turnId, firstModelRequest.recordId)
+      if (!evidence) {
+        setTurnContexts(current => ({ ...current, [turnId]: null }))
+        return
+      }
+      const view = parseEvidence(firstModelRequest, evidence)
+      if (view.type !== 'model-request') {
+        setTurnContexts(current => ({ ...current, [turnId]: null }))
+        return
+      }
+      setTurnContexts(current => ({
+        ...current,
+        [turnId]: {
+          systemPrompt: view.systemPrompt,
+          tools: view.tools,
+        },
+      }))
+    }
+    catch {
+      setTurnContexts(current => ({ ...current, [turnId]: null }))
+    }
   }
 
   return (
@@ -207,6 +248,7 @@ function TraceContent({ conversationId, isOpen, focusTurnId, onClose }: Executio
               summary={summary}
               timeline={timelines[summary.turnId]}
               timelineError={timelineErrors[summary.turnId]}
+              turnContext={turnContexts[summary.turnId]}
               open={expanded.has(summary.turnId)}
               selectedRecordId={selected?.turnId === summary.turnId ? selected.item.recordId : undefined}
               onToggle={() => void toggleTurn(summary.turnId)}
@@ -227,12 +269,13 @@ function TurnCard(props: {
   summary: AgentTurnSummary
   timeline?: AgentTurnTimeline | null
   timelineError?: string
+  turnContext?: TurnContext | null
   open: boolean
   selectedRecordId?: string
   onToggle: () => void
   onInspect: (item: AgentTurnTimelineItem) => void
 }) {
-  const { summary, timeline } = props
+  const { summary, timeline, turnContext } = props
   if (summary.availability !== 'available') {
     const availabilityLabel = {
       'expired': 'Trace 已过期',
@@ -247,6 +290,33 @@ function TurnCard(props: {
           {summary.turnId}
         </div>
         <p className="mt-1 text-xs text-muted-foreground">{summary.message ?? availabilityLabel}</p>
+      </div>
+    )
+  }
+  if (summary.lifecycle === 'collecting') {
+    return (
+      <div className="rounded-xl border border-border bg-card p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-medium">
+            Turn
+            {' '}
+            {summary.turnId}
+          </span>
+          <Badge variant="outline">{summary.source.type === 'automation' ? 'Automation' : '交互'}</Badge>
+          <Badge variant="secondary" className="gap-1">
+            <LoaderIcon className="size-3 animate-spin" />
+            执行中
+          </Badge>
+        </div>
+        <div className="mt-1 flex gap-2 text-xs text-muted-foreground">
+          <span>{formatTime(summary.startedAt)}</span>
+          <span>
+            {summary.spanCounts.modelRequests + summary.spanCounts.policyDecisions + summary.spanCounts.toolCalls}
+            {' '}
+            个步骤
+          </span>
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">执行中，完成后可查看</p>
       </div>
     )
   }
@@ -276,6 +346,7 @@ function TurnCard(props: {
               个步骤
             </span>
           </div>
+          {summary.errorSummary && <p className="mt-1 text-xs text-destructive">{summary.errorSummary}</p>}
         </div>
         {summary.completeness === 'incomplete' && (
           <span className="inline-flex items-center gap-1 text-xs text-amber-600">
@@ -286,6 +357,9 @@ function TurnCard(props: {
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="border-t border-border p-3">
+          {turnContext && (turnContext.systemPrompt || turnContext.tools.length > 0) && (
+            <TurnContextSection turnContext={turnContext} />
+          )}
           {props.timelineError && <p className="py-4 text-center text-xs text-destructive">{props.timelineError}</p>}
           {!props.timelineError && timeline === undefined && <p className="py-4 text-center text-xs text-muted-foreground">正在加载时间线…</p>}
           {timeline === null && <p className="py-4 text-center text-xs text-muted-foreground">Trace 已过期</p>}
@@ -303,7 +377,6 @@ function Waterfall({ timeline, selectedRecordId, onInspect }: {
 }) {
   if (timeline.summary.availability !== 'available')
     return <p className="py-4 text-center text-xs text-muted-foreground">Trace 不可用</p>
-  // 当 endedAt 缺失（trace 进行中）时，从 items 中推导最晚时间戳，避免在渲染期间调用 impure Date.now()
   const endedAt = timeline.summary.endedAt
   const total = endedAt != null
     ? Math.max(1, endedAt - timeline.summary.startedAt)
@@ -317,33 +390,46 @@ function Waterfall({ timeline, selectedRecordId, onInspect }: {
         return latest - timeline.summary.startedAt
       })())
   return (
-    <div className="space-y-1.5" aria-label="Turn 时间线">
+    <div className="space-y-0.5" aria-label="Turn 时间线">
       {timeline.items.map((item) => {
         const startedAt = item.type === 'span' ? item.startedAt : item.recordedAt
-        const left = Math.min(88, Math.max(0, ((startedAt - timeline.summary.startedAt) / total) * 100))
-        const width = item.type === 'span' ? Math.max(8, Math.min(100 - left, ((item.durationMs ?? 1) / total) * 100)) : 2
-        const kind = item.kind
+        const offset = Math.max(0, startedAt - timeline.summary.startedAt)
+        const left = Math.min(92, (offset / total) * 100)
+        const width = item.type === 'span'
+          ? item.durationMs != null ? Math.max(item.durationMs === 0 ? 0 : 2, Math.min(100 - left, (item.durationMs / total) * 100)) : 0
+          : 3
         return (
           <button
             key={item.recordId}
             type="button"
-            aria-label={itemLabels[kind]}
-            className={cn('grid w-full grid-cols-[4.5rem_1fr_3.5rem] items-center gap-2 px-2 py-1.5 text-left text-xs hover:bg-accent', selectedRecordId === item.recordId && 'bg-accent')}
+            aria-label={itemLabels[item.kind]}
+            className={cn('grid w-full grid-cols-[4.5rem_1fr_4rem] items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs hover:bg-accent', selectedRecordId === item.recordId && 'bg-accent')}
             onClick={() => onInspect(item)}
           >
             <span className="text-muted-foreground tabular-nums">
               +
-              {formatOffset(startedAt - timeline.summary.startedAt)}
+              {formatOffset(offset)}
             </span>
-            <span className="relative h-7 overflow-hidden bg-muted">
+            <span className="relative h-7 overflow-hidden rounded-sm bg-muted">
               <span
-                className={cn('absolute inset-y-0', waterfallColor(kind))}
+                className={cn('absolute inset-y-0', waterfallColor(item.kind))}
                 style={{ left: `${left}%`, width: `${width}%` }}
               />
-              <span className="relative z-1 flex h-full items-center px-2 font-medium">{itemLabels[kind]}</span>
+              <span className="relative z-1 flex h-full items-center gap-1.5 px-2">
+                <span className="shrink-0 rounded-sm bg-background/70 px-1 py-0.5 text-[10px] leading-none font-medium">
+                  {itemLabels[item.kind]}
+                </span>
+                {item.type === 'span' && item.summary && (
+                  <span className="truncate">{item.summary}</span>
+                )}
+              </span>
             </span>
-            <span className="text-right text-muted-foreground tabular-nums">
-              {item.type === 'span' && item.durationMs != null ? formatDuration(item.durationMs) : '事件'}
+            <span className="flex items-center justify-end gap-1 text-muted-foreground tabular-nums">
+              {item.type === 'span' && item.durationMs != null
+                ? formatDuration(item.durationMs)
+                : item.type === 'span'
+                  ? '未结束'
+                  : '事件'}
             </span>
           </button>
         )
@@ -352,55 +438,58 @@ function Waterfall({ timeline, selectedRecordId, onInspect }: {
   )
 }
 
-function EvidenceDetails({ selection, evidence, error, onClose }: {
-  selection: { turnId: string, item: AgentTurnTimelineItem }
-  evidence: AgentObservabilityEvidence | null | undefined
-  error?: string
-  onClose: () => void
-}) {
-  const developerView = useMemo(() => ({ turnId: selection.turnId, ...selection.item }), [selection])
+function TurnContextSection({ turnContext }: { turnContext: TurnContext }) {
+  const [open, setOpen] = useState(false)
   return (
-    <section className="max-h-[48%] shrink-0 overflow-auto border-t border-border bg-background p-3" aria-label="步骤证据">
-      <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-sm font-semibold">{itemLabels[selection.item.kind]}</h3>
-        <Button type="button" variant="ghost" size="icon-sm" aria-label="关闭步骤证据" onClick={onClose}><XIcon /></Button>
-      </div>
-      {error && <p className="mb-2 text-xs text-destructive">{error}</p>}
-      <Tabs defaultValue="overview">
-        <TabsList variant="line">
-          <TabsTrigger value="overview">概览</TabsTrigger>
-          <TabsTrigger value="developer">开发者视图</TabsTrigger>
-          <TabsTrigger value="raw">原始证据</TabsTrigger>
-        </TabsList>
-        <TabsContent value="overview" className="space-y-2 py-2 text-xs">
-          <EvidenceRow label="类型" value={itemLabels[selection.item.kind]} />
-          <EvidenceRow label="记录 ID" value={selection.item.recordId} />
-          {selection.item.type === 'span' && <EvidenceRow label="状态" value={selection.item.status ?? '进行中'} />}
-        </TabsContent>
-        <TabsContent value="developer" className="py-2">
-          <JsonEvidence value={developerView} />
-        </TabsContent>
-        <TabsContent value="raw" className="py-2">
-          {!error && evidence === undefined && <p className="text-xs text-muted-foreground">正在读取原始证据…</p>}
-          {!error && evidence === null && <p className="text-xs text-muted-foreground">原始证据不可用</p>}
-          {!error && evidence && <JsonEvidence value={evidence.records} />}
-        </TabsContent>
-      </Tabs>
-    </section>
+    <Collapsible open={open} onOpenChange={setOpen} className="mb-3 rounded-lg border border-border">
+      <CollapsibleTrigger render={(
+        <button type="button" className="flex w-full items-center gap-2 p-2.5 text-left text-xs">
+          <ChevronRightIcon className={`size-3.5 shrink-0 text-muted-foreground transition-transform ${open ? 'rotate-90' : ''}`} />
+          <span className="font-medium">Turn 上下文</span>
+          <span className="text-muted-foreground">
+            {[
+              turnContext.systemPrompt && '系统提示',
+              turnContext.tools.length > 0 && `${turnContext.tools.length} 个工具`,
+            ].filter(Boolean).join(' · ')}
+          </span>
+        </button>
+      )}
+      />
+      <CollapsibleContent>
+        <div className="space-y-3 border-t border-border p-2.5">
+          {turnContext.systemPrompt && (
+            <div className="space-y-1">
+              <h5 className="text-xs font-medium text-muted-foreground">系统提示</h5>
+              <CodeBlock text={turnContext.systemPrompt} />
+            </div>
+          )}
+          {turnContext.tools.length > 0 && (
+            <div className="space-y-1">
+              <h5 className="text-xs font-medium text-muted-foreground">
+                可用工具（
+                {turnContext.tools.length}
+                ）
+              </h5>
+              <div className="space-y-1">
+                {turnContext.tools.map(tool => (
+                  <div key={`${tool.serverName ?? ''}:${tool.name}`} className="rounded-sm border border-border px-2.5 py-1.5 text-xs">
+                    <span className="font-medium">{tool.name}</span>
+                    {tool.serverName && <span className="ml-1.5 text-muted-foreground">{tool.serverName}</span>}
+                    {tool.description && (
+                      <span className="ml-1.5 text-muted-foreground">
+                        —
+                        {tool.description}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
   )
-}
-
-function EvidenceRow({ label, value }: { label: string, value: string }) {
-  return (
-    <div className="grid grid-cols-[5rem_1fr] gap-2">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="break-all">{value}</span>
-    </div>
-  )
-}
-
-function JsonEvidence({ value }: { value: unknown }) {
-  return <pre className="max-h-80 overflow-auto rounded-lg bg-code p-3 text-xs/relaxed break-all whitespace-pre-wrap text-code-foreground">{JSON.stringify(value, null, 2)}</pre>
 }
 
 function EmptyState({ children, tone }: { children: React.ReactNode, tone?: 'warning' }) {

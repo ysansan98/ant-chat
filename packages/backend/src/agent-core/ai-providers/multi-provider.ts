@@ -259,7 +259,7 @@ export class MultiProvider {
         case 'error':
           throw this.normalizeError(part.error)
         case 'abort':
-          throw new AgentError('AGENT_CANCELLED', 'Task cancelled')
+          throw new AgentError('AGENT_CANCELLED', '任务已取消')
       }
     }
 

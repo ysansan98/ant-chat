@@ -90,7 +90,8 @@ function parseVersionedFile(value: unknown): { schemaVersion: number, data: unkn
     && typeof value === 'object'
     && !Array.isArray(value)
     && Number.isInteger((value as Record<string, unknown>).schemaVersion)
-    && Object.hasOwn(value, 'data')
+    // eslint-disable-next-line e18e/prefer-object-has-own -- 当前 TypeScript lib 不包含 Object.hasOwn。
+    && Object.prototype.hasOwnProperty.call(value, 'data')
   ) {
     const file = value as Record<string, unknown>
     return {

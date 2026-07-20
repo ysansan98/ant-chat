@@ -323,7 +323,7 @@ describe('createToolAuthorization 行为', () => {
         prepared: { ...createPrepared(), operationType: 'bash', scope: 'workspace' },
         config: { eventEmitter: emitter, logger },
       }),
-    ).rejects.toThrow('Task cancelled')
+    ).rejects.toThrow('任务已取消')
   })
 
   it('记录 allow 决策', async () => {

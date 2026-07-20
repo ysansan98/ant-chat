@@ -73,7 +73,7 @@ describe('multiProvider 行为', () => {
     expect(thrown).toBeInstanceOf(AgentError)
     expect(thrown).toMatchObject({
       code: 'AGENT_CANCELLED',
-      message: 'Task cancelled',
+      message: '任务已取消',
     })
   })
 

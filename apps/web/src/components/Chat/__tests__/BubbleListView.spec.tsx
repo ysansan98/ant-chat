@@ -123,19 +123,4 @@ describe('bubbleList', () => {
     expect(screen.getByText('执行过程(2)').closest('[data-slot="collapsible"]')).toHaveAttribute('data-closed')
     expect(Element.prototype.scrollTo).toHaveBeenLastCalledWith(expect.objectContaining({ behavior: 'auto' }))
   })
-
-  it('从 Turn 菜单检查对应执行轨迹', async () => {
-    const onInspectTrace = vi.fn()
-    render(
-      <BubbleList
-        messages={[createMessage('user-1', 'user', [{ type: 'text', text: '检查轨迹' }], 'success')]}
-        onInspectTrace={onInspectTrace}
-      />,
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Turn user-1 菜单' }))
-    fireEvent.click(await screen.findByRole('menuitem', { name: '检查 Trace' }))
-
-    expect(onInspectTrace).toHaveBeenCalledWith('user-1')
-  })
 })

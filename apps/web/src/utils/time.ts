@@ -52,18 +52,18 @@ export function formatRelativeTime(time: number, now = Date.now()) {
 
 /**
  * 将毫秒耗时格式化为可读字符串。
- * - 小于 1 秒: "0.8s"
+ * - 小于 1 秒: "800ms"
  * - 小于 60 秒: "12.3s"
  * - 60 秒及以上: "1m 05s"
  */
 export function formatDuration(ms: number): string {
-  if (ms === 0)
+  if (ms < 1)
     return '<1ms'
 
   const seconds = ms / 1000
 
-  if (seconds < 1) {
-    return `${seconds.toFixed(1)}s`
+  if (ms < 1000) {
+    return `${Math.floor(ms)}ms`
   }
 
   if (seconds < 60) {

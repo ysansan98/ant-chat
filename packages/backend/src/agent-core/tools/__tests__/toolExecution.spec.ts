@@ -161,6 +161,14 @@ describe('executeToolStep 行为', () => {
     })
     const registry = new ToolRegistry([tool])
     const task = createTask()
+    const span = { id: 'validation-span', complete: vi.fn(), fail: vi.fn(), cancel: vi.fn() }
+    const turnRecorder = {
+      startModelRequest: vi.fn(() => span),
+      startToolCall: vi.fn(() => span),
+      startPolicyDecision: vi.fn(() => span),
+      recordContextEvent: vi.fn(),
+      finish: vi.fn(),
+    }
 
     const result = await executeToolStep({
       task,
@@ -169,12 +177,17 @@ describe('executeToolStep 行为', () => {
       currentModelText: '',
       currentToolMessages: [],
       step: 1,
-      config: { eventEmitter: emitter, logger },
+      config: { eventEmitter: emitter, logger, turnRecorder },
       beforeToolExecute: async () => ({ outcome: 'allow' }),
     })
 
     expect(result.isError).toBe(true)
     expect(result.toolResultContent).toContain('Path must be absolute')
+    expect(turnRecorder.startToolCall).toHaveBeenCalledWith(expect.objectContaining({
+      toolName: 'read_file',
+      input: { path: '' },
+    }), undefined)
+    expect(span.fail).toHaveBeenCalledWith(expect.objectContaining({ error: 'Path must be absolute' }))
   })
 
   it('处理 hook 返回 block 的结果', async () => {
@@ -341,6 +354,43 @@ describe('executeToolStep 行为', () => {
     expect(emitter.emitTurnToolCalls).toHaveBeenCalledTimes(2)
   })
 
+  it('工具执行期间任务中止时取消 Tool span 并向 loop 抛出取消', async () => {
+    const span = { id: 'tool-span', complete: vi.fn(), fail: vi.fn(), cancel: vi.fn() }
+    const task = createTask()
+    const tool = createReadTool({
+      execute: async () => {
+        task.abortController.abort()
+        throw new DOMException('The operation was aborted', 'AbortError')
+      },
+    })
+
+    await expect(executeToolStep({
+      task,
+      registry: new ToolRegistry([tool]),
+      requestedToolCall: { toolName: 'read_file', input: { path: 'test.txt' } },
+      currentModelText: '',
+      currentToolMessages: [],
+      step: 1,
+      config: {
+        eventEmitter: createMockEmitter(),
+        logger: createMockLogger(),
+        turnRecorder: {
+          startModelRequest: vi.fn(() => span),
+          startToolCall: vi.fn(() => span),
+          startPolicyDecision: vi.fn(() => span),
+          recordContextEvent: vi.fn(),
+          finish: vi.fn(),
+        },
+      },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
+      abortSignal: task.abortController.signal,
+    })).rejects.toMatchObject({ code: 'AGENT_CANCELLED' })
+
+    expect(span.cancel).toHaveBeenCalledWith(expect.objectContaining({ name: 'AbortError' }))
+    expect(span.fail).not.toHaveBeenCalled()
+    expect(span.complete).not.toHaveBeenCalled()
+  })
+
   it('失败结果只注入工具返回的 result，不做执行层包装', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
@@ -388,15 +438,16 @@ describe('executeToolStep 行为', () => {
       beforeToolExecute: async () => ({ outcome: 'allow' }),
     })
 
-    expect(emitter.emitTurnToolCalls).toHaveBeenCalledTimes(2) // once at start, once at completion
+    expect(emitter.emitTurnToolCalls).toHaveBeenCalledTimes(2)
   })
 
-  it('成功、阻断和取消都记录完整 Tool span 终态', async () => {
+  it('策略放行后创建工具 span 并记录执行结果，阻断/取消则不创建工具 span', async () => {
     const span = { id: 'mock', complete: vi.fn(), fail: vi.fn(), cancel: vi.fn() }
+    const policySpan = { id: 'policy-mock', complete: vi.fn(), fail: vi.fn(), cancel: vi.fn() }
     const turnRecorder = {
       startModelRequest: vi.fn(() => span),
       startToolCall: vi.fn(() => span),
-      startPolicyDecision: vi.fn(() => span),
+      startPolicyDecision: vi.fn(() => policySpan),
       recordContextEvent: vi.fn(),
       finish: vi.fn(),
     }
@@ -413,9 +464,12 @@ describe('executeToolStep 行为', () => {
       config,
       beforeToolExecute: async () => ({ outcome: 'allow' }),
     })
+    expect(turnRecorder.startToolCall).toHaveBeenCalledTimes(1)
     expect(span.complete).toHaveBeenCalledWith(expect.objectContaining({ output: 'file content' }))
 
+    turnRecorder.startToolCall.mockClear()
     span.complete.mockClear()
+
     await executeToolStep({
       task: createTask(),
       registry,
@@ -426,7 +480,7 @@ describe('executeToolStep 行为', () => {
       config,
       beforeToolExecute: async () => ({ outcome: 'block', errorCode: 'AGENT_POLICY_BLOCKED', reason: 'blocked' }),
     })
-    expect(span.complete).toHaveBeenCalledWith(expect.objectContaining({ status: 'blocked', error: 'AGENT_POLICY_BLOCKED' }))
+    expect(turnRecorder.startToolCall).not.toHaveBeenCalled()
 
     const abortController = new AbortController()
     abortController.abort()
@@ -441,7 +495,7 @@ describe('executeToolStep 行为', () => {
       beforeToolExecute: async () => ({ outcome: 'allow' }),
       abortSignal: abortController.signal,
     })
-    expect(span.cancel).toHaveBeenCalledWith(expect.objectContaining({ status: 'cancelled' }))
+    expect(span.cancel).not.toHaveBeenCalled()
   })
 
   it('工具成功回显任意格式的 SecretRef 真实值时深度脱敏运行结果和观测证据', async () => {

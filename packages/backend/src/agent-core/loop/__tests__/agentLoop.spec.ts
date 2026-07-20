@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { runAgentLoop } from '../agentLoop'
+import { AgentError } from '../../AgentError'
 import { ToolRegistry } from '../../tools/toolRegistry'
 import { createPublishVisualizationTool } from '../../tools/publishVisualizationTool'
 import type { AgentRuntimeConfig, AgentTool, IAgentEventEmitter, IAIProvider, IAIStreamChunk, ILogger, LoopMessage } from '@ant-chat/shared'
@@ -283,6 +284,177 @@ describe('runAgentLoop 行为', () => {
     expect(emitter.emitTurnFinished).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'error', durationMs: expect.any(Number) }),
     )
+  })
+
+  it('模型请求抛错时标记 Model span 和 Turn 为失败', async () => {
+    const providerError = new Error('provider unavailable')
+    const aiProvider: IAIProvider = {
+      async* streamModel() {
+        throw providerError
+      },
+      complete: vi.fn().mockResolvedValue({ text: 'unused' }),
+    }
+    const modelSpan = { id: 'model-span', complete: vi.fn(), fail: vi.fn(), cancel: vi.fn() }
+    const turnRecorder = {
+      startModelRequest: vi.fn(() => modelSpan),
+      startToolCall: vi.fn(() => modelSpan),
+      startPolicyDecision: vi.fn(() => modelSpan),
+      recordContextEvent: vi.fn(),
+      finish: vi.fn(),
+    }
+    const { taskId, options } = createBaseInput({ aiProvider })
+    const task = createTask(taskId, options.conversationId)
+    const { execution } = createExecution(task)
+
+    await runAgentLoop({
+      execution,
+      options,
+      config: { eventEmitter: emitter, logger, turnRecorder },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
+    })
+
+    expect(modelSpan.fail).toHaveBeenCalledWith(providerError)
+    expect(modelSpan.cancel).not.toHaveBeenCalled()
+    expect(task.snapshot.status).toBe('failed')
+    expect(emitter.emitTurnFinished).toHaveBeenCalledWith(expect.objectContaining({ status: 'error' }))
+    expect(turnRecorder.finish).toHaveBeenCalledWith(expect.objectContaining({ status: 'failed' }))
+  })
+
+  it('模型流因任务 signal 中止时标记 Model span 和 Turn 为取消', async () => {
+    const modelSpan = { id: 'model-span', complete: vi.fn(), fail: vi.fn(), cancel: vi.fn() }
+    const turnRecorder = {
+      startModelRequest: vi.fn(() => modelSpan),
+      startToolCall: vi.fn(() => modelSpan),
+      startPolicyDecision: vi.fn(() => modelSpan),
+      recordContextEvent: vi.fn(),
+      finish: vi.fn(),
+    }
+    const { taskId, options } = createBaseInput()
+    const task = createTask(taskId, options.conversationId)
+    options.aiProvider = {
+      async* streamModel() {
+        task.abortController.abort()
+        throw new DOMException('The operation was aborted', 'AbortError')
+      },
+      complete: vi.fn().mockResolvedValue({ text: 'unused' }),
+    }
+    const { execution } = createExecution(task)
+
+    await runAgentLoop({
+      execution,
+      options,
+      config: { eventEmitter: emitter, logger, turnRecorder },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
+    })
+
+    expect(modelSpan.cancel).toHaveBeenCalledWith(expect.objectContaining({ name: 'AbortError' }))
+    expect(modelSpan.fail).not.toHaveBeenCalled()
+    expect(task.snapshot.status).toBe('cancelled')
+    expect(emitter.emitTurnFinished).toHaveBeenCalledWith(expect.objectContaining({ status: 'cancel' }))
+    expect(turnRecorder.finish).toHaveBeenCalledWith(expect.objectContaining({ status: 'cancelled' }))
+  })
+
+  it('provider 返回取消错误时统一取消 Model span 和 Turn', async () => {
+    const cancellation = new AgentError('AGENT_CANCELLED', '任务已取消')
+    const aiProvider: IAIProvider = {
+      async* streamModel() {
+        throw cancellation
+      },
+      complete: vi.fn().mockResolvedValue({ text: 'unused' }),
+    }
+    const modelSpan = { id: 'model-span', complete: vi.fn(), fail: vi.fn(), cancel: vi.fn() }
+    const turnRecorder = {
+      startModelRequest: vi.fn(() => modelSpan),
+      startToolCall: vi.fn(() => modelSpan),
+      startPolicyDecision: vi.fn(() => modelSpan),
+      recordContextEvent: vi.fn(),
+      finish: vi.fn(),
+    }
+    const { taskId, options } = createBaseInput({ aiProvider })
+    const task = createTask(taskId, options.conversationId)
+    const { execution } = createExecution(task)
+
+    await runAgentLoop({
+      execution,
+      options,
+      config: { eventEmitter: emitter, logger, turnRecorder },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
+    })
+
+    expect(modelSpan.cancel).toHaveBeenCalledWith(cancellation)
+    expect(modelSpan.fail).not.toHaveBeenCalled()
+    expect(task.snapshot.status).toBe('cancelled')
+    expect(turnRecorder.finish).toHaveBeenCalledWith(expect.objectContaining({ status: 'cancelled' }))
+  })
+
+  it('模型流在 signal 中止后正常返回也标记 Model span 和 Turn 为取消', async () => {
+    const modelSpan = { id: 'model-span', complete: vi.fn(), fail: vi.fn(), cancel: vi.fn() }
+    const turnRecorder = {
+      startModelRequest: vi.fn(() => modelSpan),
+      startToolCall: vi.fn(() => modelSpan),
+      startPolicyDecision: vi.fn(() => modelSpan),
+      recordContextEvent: vi.fn(),
+      finish: vi.fn(),
+    }
+    const { taskId, options } = createBaseInput()
+    const task = createTask(taskId, options.conversationId)
+    options.aiProvider = {
+      async* streamModel() {
+        task.abortController.abort()
+      },
+      complete: vi.fn().mockResolvedValue({ text: 'unused' }),
+    }
+    const { execution } = createExecution(task)
+
+    await runAgentLoop({
+      execution,
+      options,
+      config: { eventEmitter: emitter, logger, turnRecorder },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
+    })
+
+    expect(modelSpan.cancel).toHaveBeenCalledWith('任务已取消')
+    expect(modelSpan.complete).not.toHaveBeenCalled()
+    expect(task.snapshot.status).toBe('cancelled')
+    expect(turnRecorder.finish).toHaveBeenCalledWith(expect.objectContaining({ status: 'cancelled' }))
+  })
+
+  it('工具执行期间任务中止时取消 Tool span 和 Turn', async () => {
+    const modelSpan = { id: 'model-span', complete: vi.fn(), fail: vi.fn(), cancel: vi.fn() }
+    const toolSpan = { id: 'tool-span', complete: vi.fn(), fail: vi.fn(), cancel: vi.fn() }
+    const turnRecorder = {
+      startModelRequest: vi.fn(() => modelSpan),
+      startToolCall: vi.fn(() => toolSpan),
+      startPolicyDecision: vi.fn(() => toolSpan),
+      recordContextEvent: vi.fn(),
+      finish: vi.fn(),
+    }
+    const { taskId, options } = createBaseInput()
+    const task = createTask(taskId, options.conversationId)
+    options.aiProvider = createMockAIProvider([[
+      makeToolCallChunk('read_file', { path: 'test.txt' }, 'tool-call-1'),
+    ]])
+    options.registry = new ToolRegistry([createReadTool({
+      execute: async () => {
+        task.abortController.abort()
+        throw new DOMException('The operation was aborted', 'AbortError')
+      },
+    })])
+    const { execution } = createExecution(task)
+
+    await runAgentLoop({
+      execution,
+      options,
+      config: { eventEmitter: emitter, logger, turnRecorder },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
+    })
+
+    expect(modelSpan.complete).toHaveBeenCalled()
+    expect(toolSpan.cancel).toHaveBeenCalledWith(expect.objectContaining({ name: 'AbortError' }))
+    expect(toolSpan.fail).not.toHaveBeenCalled()
+    expect(task.snapshot.status).toBe('cancelled')
+    expect(emitter.emitTurnFinished).toHaveBeenCalledWith(expect.objectContaining({ status: 'cancel' }))
+    expect(turnRecorder.finish).toHaveBeenCalledWith(expect.objectContaining({ status: 'cancelled' }))
   })
 
   it('通过 createInvalidToolArgsResult 处理无效工具参数', async () => {

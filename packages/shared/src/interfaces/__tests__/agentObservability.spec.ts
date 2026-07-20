@@ -67,6 +67,7 @@ describe('智能体可观测性合同', () => {
         },
       },
       taskId: 'task-1',
+      lifecycle: 'completed',
       status: 'failed',
       completeness: 'incomplete',
       incompleteReasons: ['disk'],
@@ -82,6 +83,33 @@ describe('智能体可观测性合同', () => {
     }
 
     expect(AgentTurnSummarySchema.parse(summary)).toEqual(summary)
+  })
+
+  it('采集中的 Turn 不伪装成业务终态或不完整 Trace', () => {
+    const summary = {
+      conversationId: 'conversation-1',
+      turnId: 'turn-running',
+      availability: 'available',
+      lifecycle: 'collecting',
+      traceId: 'trace-running',
+      source: { type: 'interactive' },
+      taskId: 'task-running',
+      startedAt: 100,
+      spanCounts: {
+        modelRequests: 1,
+        policyDecisions: 0,
+        toolCalls: 0,
+        contextEvents: 0,
+      },
+    }
+
+    expect(AgentTurnSummarySchema.parse(summary)).toEqual(summary)
+    expect(() => AgentTurnSummarySchema.parse({
+      ...summary,
+      status: 'interrupted',
+      completeness: 'incomplete',
+      incompleteReasons: [],
+    })).toThrow()
   })
 
   it('未知版本、过期与未采集不伪装成空 Trace', () => {
@@ -111,12 +139,12 @@ describe('智能体可观测性合同', () => {
   })
 
   it('注册轻量实时失效事件并携带 Turn 身份', () => {
-    const payload: AppRendererEvents['observability:changed'] = {
+    const payload: AppRendererEvents['observability:turn-settled'] = {
       conversationId: 'conversation-1',
       turnId: 'turn-1',
     }
 
-    expect(APP_RENDERER_EVENT_NAMES).toContain('observability:changed')
+    expect(APP_RENDERER_EVENT_NAMES).toContain('observability:turn-settled')
     expect(payload).toEqual({ conversationId: 'conversation-1', turnId: 'turn-1' })
   })
 })

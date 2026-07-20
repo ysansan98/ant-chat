@@ -9,6 +9,8 @@ import type {
   AgentTurnSummary,
   AgentTurnTimeline,
   AvailableAgentTurnSummary,
+  CollectingAgentTurnSummary,
+  CompletedAgentTurnSummary,
   ContextEventKind,
   ILogger,
   TraceIncompleteReason,
@@ -40,7 +42,7 @@ const NOOP_RECORDER: AgentTurnRecorder = {
 export interface AgentObservabilityOptions {
   rootDir: string
   logger?: ILogger
-  onChanged?: (input: { conversationId: string, turnId: string }) => void
+  onTurnSettled?: (input: { conversationId: string, turnId: string }) => void
   queueByteLimit?: number
   quotaBytes?: number
   quotaTargetBytes?: number
@@ -53,8 +55,6 @@ interface QueuedRecord {
   filePath: string
   line: string
   bytes: number
-  conversationId: string
-  turnId: string
   recordType: AgentObservabilityRecord['recordType'] | 'overflow-terminal'
 }
 
@@ -70,7 +70,8 @@ interface RuntimeTurnState {
   traceId: string
   startedAt: number
   endedAt?: number
-  status?: AvailableAgentTurnSummary['status']
+  status?: CompletedAgentTurnSummary['status']
+  errorSummary?: string
   spanCounts: AvailableAgentTurnSummary['spanCounts']
 }
 
@@ -224,6 +225,7 @@ export class AgentObservability implements AgentObservabilityPort {
         if (runtime) {
           runtime.status = result.status
           runtime.endedAt = endedAt
+          runtime.errorSummary = buildTerminalErrorSummary(redactObservabilityEvidence(result.error))
         }
         enqueue({
           recordType: 'trace-completed',
@@ -241,22 +243,27 @@ export class AgentObservability implements AgentObservabilityPort {
         }
         this.maintenance = this.maintenance
           .then(async () => {
-            await this.flush()
-            const persisted = await this.parseTurn(filePath)
-            const terminalPersisted = persisted?.records.some(record => record.recordType === 'trace-completed') ?? false
-            const persistedIncomplete = new Set(persisted?.records
-              .filter(record => record.recordType === 'trace-incomplete')
-              .map(record => record.reason))
-            const runtimeIncompletePersisted = [...(this.runtimeIncomplete.get(key) ?? [])]
-              .every(reason => persistedIncomplete.has(reason))
-            if (!this.runtimeIncomplete.get(key)?.has('disk') && terminalPersisted && runtimeIncompletePersisted) {
-              this.runtimeTurns.delete(key)
-              this.runtimeIncomplete.delete(key)
-              this.stoppedTurns.delete(key)
-              this.overflowMarkers.delete(key)
-              this.overflowSequences.delete(key)
+            try {
+              await this.flush()
+              const persisted = await this.parseTurn(filePath)
+              const terminalPersisted = persisted?.records.some(record => record.recordType === 'trace-completed') ?? false
+              const persistedIncomplete = new Set(persisted?.records
+                .filter(record => record.recordType === 'trace-incomplete')
+                .map(record => record.reason))
+              const runtimeIncompletePersisted = [...(this.runtimeIncomplete.get(key) ?? [])]
+                .every(reason => persistedIncomplete.has(reason))
+              if (!this.runtimeIncomplete.get(key)?.has('disk') && terminalPersisted && runtimeIncompletePersisted) {
+                this.runtimeTurns.delete(key)
+                this.runtimeIncomplete.delete(key)
+                this.stoppedTurns.delete(key)
+                this.overflowMarkers.delete(key)
+                this.overflowSequences.delete(key)
+              }
+              await this.enforceQuota()
             }
-            await this.enforceQuota()
+            finally {
+              this.options.onTurnSettled?.({ conversationId: meta.conversationId, turnId: meta.turnId })
+            }
           })
           .catch(error => this.options.logger?.warn('Agent Observability 终态刷盘或配额清理失败', error))
       },
@@ -301,10 +308,14 @@ export class AgentObservability implements AgentObservabilityPort {
     if (!parsed) {
       const key = turnKey(turn.conversationId, turn.turnId)
       const runtime = this.runtimeTurns.get(key)
-      return runtime && (this.runtimeIncomplete.get(key)?.size ?? 0) > 0
-        ? { summary: this.createRuntimeSummary(key, runtime), items: [] }
-        : null
+      if (runtime) {
+        const summary = this.createRuntimeSummary(key, runtime)
+        return summary.lifecycle === 'completed' ? { summary, items: [] } : null
+      }
+      return null
     }
+    if (parsed.summary.lifecycle === 'collecting')
+      return null
     const completed = new Map(parsed.records
       .filter(record => record.recordType === 'span-completed')
       .map(record => [record.spanId, record]))
@@ -322,6 +333,7 @@ export class AgentObservability implements AgentObservabilityPort {
           startedAt: record.startedAt,
           endedAt: end?.endedAt,
           durationMs: end ? Math.max(0, end.endedAt - record.startedAt) : undefined,
+          summary: end ? buildSpanSummary(record.spanKind, record.input, end.output, end.error, end.status) : undefined,
         })
       }
       else if (record.recordType === 'context-event') {
@@ -334,7 +346,7 @@ export class AgentObservability implements AgentObservabilityPort {
   async getEvidence(turn: AgentTurnIdentity & { recordId: string }): Promise<AgentObservabilityEvidence | null> {
     await this.flush()
     const parsed = await this.parseTurn(this.getTurnPath(turn.conversationId, turn.turnId))
-    if (!parsed)
+    if (!parsed || parsed.summary.lifecycle === 'collecting')
       return null
     const record = parsed.records.find(item => item.recordId === turn.recordId)
     if (!record)
@@ -387,7 +399,7 @@ export class AgentObservability implements AgentObservabilityPort {
     const line = `${JSON.stringify(record)}\n`
     const bytes = Buffer.byteLength(line)
     if (this.queueBytes + bytes <= limit) {
-      this.queue.push({ key, filePath, line, bytes, conversationId, turnId, recordType: record.recordType })
+      this.queue.push({ key, filePath, line, bytes, recordType: record.recordType })
       this.queueBytes += bytes
       this.scheduleDrain()
       return
@@ -397,10 +409,9 @@ export class AgentObservability implements AgentObservabilityPort {
     this.rememberOverflowSequence(key, record.sequence)
     this.stoppedTurns.add(key)
     this.options.logger?.warn('Agent Observability 队列溢出，已停止当前 Turn 采集', { conversationId, turnId })
-    this.options.onChanged?.({ conversationId, turnId })
 
     if (terminal) {
-      this.enqueueOverflowTerminal(key, conversationId, turnId, record, filePath, limit)
+      this.enqueueOverflowTerminal(key, record, filePath, limit)
       this.scheduleDrain()
       return
     }
@@ -411,7 +422,7 @@ export class AgentObservability implements AgentObservabilityPort {
       const markerLine = `${JSON.stringify(marker)}\n`
       const markerBytes = Buffer.byteLength(markerLine)
       if (this.queueBytes + markerBytes <= limit) {
-        this.queue.push({ key, filePath, line: markerLine, bytes: markerBytes, conversationId, turnId, recordType: 'trace-incomplete' })
+        this.queue.push({ key, filePath, line: markerLine, bytes: markerBytes, recordType: 'trace-incomplete' })
         this.queueBytes += markerBytes
         this.overflowMarkers.add(key)
       }
@@ -419,14 +430,14 @@ export class AgentObservability implements AgentObservabilityPort {
     this.scheduleDrain()
   }
 
-  private enqueueOverflowTerminal(key: string, conversationId: string, turnId: string, record: AgentObservabilityRecord, filePath: string, limit: number): void {
+  private enqueueOverflowTerminal(key: string, record: AgentObservabilityRecord, filePath: string, limit: number): void {
     const compactTerminal = omitTerminalEvidence(record)
     const queuedMarkerIndex = this.queue.findIndex(item => item.key === key && item.recordType === 'trace-incomplete')
     if (this.overflowMarkers.has(key) && queuedMarkerIndex === -1) {
       const terminalLine = `${JSON.stringify(compactTerminal)}\n`
       const terminalBytes = Buffer.byteLength(terminalLine)
       if (this.queueBytes + terminalBytes <= limit) {
-        this.queue.push({ key, filePath, line: terminalLine, bytes: terminalBytes, conversationId, turnId, recordType: 'trace-completed' })
+        this.queue.push({ key, filePath, line: terminalLine, bytes: terminalBytes, recordType: 'trace-completed' })
         this.queueBytes += terminalBytes
       }
       return
@@ -467,7 +478,7 @@ export class AgentObservability implements AgentObservabilityPort {
       const [item] = this.queue.splice(index, 1)
       this.queueBytes -= item.bytes
     }
-    this.queue.push({ key, filePath, line: controlLine, bytes: controlBytes, conversationId, turnId, recordType: 'overflow-terminal' })
+    this.queue.push({ key, filePath, line: controlLine, bytes: controlBytes, recordType: 'overflow-terminal' })
     this.queueBytes += controlBytes
     this.overflowMarkers.add(key)
   }
@@ -497,13 +508,11 @@ export class AgentObservability implements AgentObservabilityPort {
         finally {
           await handle.close()
         }
-        this.options.onChanged?.({ conversationId: item.conversationId, turnId: item.turnId })
       }
       catch (error) {
         this.markIncomplete(item.key, 'disk')
         this.stoppedTurns.add(item.key)
         this.options.logger?.error('写入 Agent Observability 证据失败', error)
-        this.options.onChanged?.({ conversationId: item.conversationId, turnId: item.turnId })
       }
     }
   }
@@ -541,21 +550,32 @@ export class AgentObservability implements AgentObservabilityPort {
   }
 
   private createRuntimeSummary(key: string, state: RuntimeTurnState): AvailableAgentTurnSummary {
-    return {
+    const base = {
       availability: 'available',
       conversationId: state.meta.conversationId,
       turnId: state.meta.turnId,
       traceId: state.traceId,
       source: state.meta.source,
       taskId: state.meta.taskId,
-      status: state.status ?? 'interrupted',
+      startedAt: state.startedAt,
+      spanCounts: { ...state.spanCounts },
+    } as const
+    if (!state.status) {
+      return {
+        ...base,
+        lifecycle: 'collecting',
+      } satisfies CollectingAgentTurnSummary
+    }
+    return {
+      ...base,
+      lifecycle: 'completed',
+      status: state.status,
       completeness: 'incomplete',
       incompleteReasons: [...(this.runtimeIncomplete.get(key) ?? [])],
-      startedAt: state.startedAt,
       endedAt: state.endedAt,
       durationMs: state.endedAt ? Math.max(0, state.endedAt - state.startedAt) : undefined,
-      spanCounts: { ...state.spanCounts },
-    }
+      errorSummary: state.errorSummary,
+    } satisfies CompletedAgentTurnSummary
   }
 
   private async parseTurn(filePath: string): Promise<ParsedTurn | null> {
@@ -615,6 +635,8 @@ export class AgentObservability implements AgentObservabilityPort {
         break
       }
     }
+    if (terminal && hasSpanMismatch(records))
+      incompleteReasons.add('span-mismatch')
     for (const reason of this.runtimeIncomplete.get(turnKey(started.conversationId, started.turnId)) ?? [])
       incompleteReasons.add(reason)
     const runtime = this.runtimeTurns.get(turnKey(started.conversationId, started.turnId))
@@ -631,24 +653,40 @@ export class AgentObservability implements AgentObservabilityPort {
         spanCounts.contextEvents++
       }
     }
+    const base = {
+      availability: 'available' as const,
+      conversationId: started.conversationId,
+      turnId: started.turnId,
+      traceId: started.traceId,
+      source: started.source,
+      taskId: started.taskId,
+      startedAt: started.startedAt,
+      spanCounts,
+    }
+    if (!terminal && runtime && !runtime.status) {
+      return {
+        records,
+        summary: {
+          ...base,
+          lifecycle: 'collecting',
+        },
+      }
+    }
+    if (!terminal && incompleteReasons.size === 0)
+      incompleteReasons.add('missing-terminal')
+    const status = terminal?.status ?? runtime?.status ?? 'interrupted'
+    const endedAt = terminal?.endedAt ?? runtime?.endedAt
     return {
       records,
       summary: {
-        availability: 'available',
-        conversationId: started.conversationId,
-        turnId: started.turnId,
-        traceId: started.traceId,
-        source: started.source,
-        taskId: started.taskId,
-        status: terminal?.status ?? runtime?.status ?? 'interrupted',
+        ...base,
+        lifecycle: 'completed',
+        status,
         completeness: terminal && incompleteReasons.size === 0 ? 'complete' : 'incomplete',
         incompleteReasons: [...incompleteReasons],
-        startedAt: started.startedAt,
-        endedAt: terminal?.endedAt ?? runtime?.endedAt,
-        durationMs: terminal?.endedAt || runtime?.endedAt
-          ? Math.max(0, (terminal?.endedAt ?? runtime!.endedAt!) - started.startedAt)
-          : undefined,
-        spanCounts,
+        endedAt,
+        durationMs: endedAt ? Math.max(0, endedAt - started.startedAt) : undefined,
+        errorSummary: buildTerminalErrorSummary(terminal?.error) ?? runtime?.errorSummary,
       },
     }
   }
@@ -667,7 +705,7 @@ export class AgentObservability implements AgentObservabilityPort {
       if (this.activeTurns.has(file.key))
         continue
       const parsed = await this.parseTurn(file.path)
-      if (!parsed || parsed.summary.status === 'interrupted' || parsed.summary.completeness !== 'complete')
+      if (!parsed || parsed.summary.lifecycle === 'collecting' || parsed.summary.status === 'interrupted' || parsed.summary.completeness !== 'complete')
         continue
       await rm(file.path, { force: true })
       await writeFile(file.path.replace(/\.jsonl$/, '.expired'), '')
@@ -690,6 +728,126 @@ export function createAgentObservability(options: AgentObservabilityOptions): Ag
 
 function turnKey(conversationId: string, turnId: string): string {
   return `${conversationId}\0${turnId}`
+}
+
+/** 从 span-completed 的 output/error 中提取一行摘要，供时间线行内展示。 */
+function buildSpanSummary(spanKind: TraceSpanKind, input: unknown, output: unknown, error: unknown, status: TraceSpanStatus | undefined): string {
+  if (spanKind === 'model-request') {
+    const out = asRecord(output)
+    const toolCalls = asArray(out?.toolCalls)
+    if (toolCalls && toolCalls.length > 0) {
+      const names = toolCalls
+        .map(tc => asString(asRecord(tc)?.toolName))
+        .filter((name): name is string => Boolean(name))
+      return names.length > 0 ? `调用 ${names.join(', ')}` : `请求 ${toolCalls.length} 个工具`
+    }
+    const text = asString(out?.text)
+    if (text)
+      return `回复 "${truncate(text, 60)}"`
+    if (out?.finishReason)
+      return `结束（${String(out.finishReason)}）`
+    const errorText = extractErrorText(error)
+    if (errorText)
+      return `错误: ${truncate(errorText, 60)}`
+    return ''
+  }
+  if (spanKind === 'tool-call') {
+    const envelope = asRecord(output) ?? asRecord(error)
+    const toolName = asString(asRecord(input)?.toolName) ?? ''
+    const exitCode = asNumber(envelope?.exitCode)
+    const success = status === 'success' || exitCode === 0
+    const label = toolName || '工具'
+    if (success)
+      return exitCode != null ? `${label} 成功 · 退出码 ${exitCode}` : `${label} 成功`
+    const errorText = extractErrorText(error) ?? asString(envelope?.error)
+    if (errorText)
+      return `${label} 失败: ${truncate(errorText, 60)}`
+    return `${label} 失败`
+  }
+  if (spanKind === 'policy-decision') {
+    const out = asRecord(output)
+    const outcome = asString(out?.outcome) ?? status ?? ''
+    const toolName = asString(asRecord(input)?.toolName) ?? ''
+    const prefix = toolName ? `${toolName}: ` : ''
+    if (outcome === 'allow')
+      return `${prefix}允许`
+    if (outcome === 'block')
+      return `${prefix}已阻止`
+    if (outcome === 'approval')
+      return `${prefix}需审批`
+    const reason = asString(out?.reason)
+    if (reason)
+      return `${prefix}${truncate(reason, 40)}`
+    if (outcome)
+      return `${prefix}${outcome}`
+    return prefix || String(outcome)
+  }
+  return ''
+}
+
+function extractErrorText(error: unknown): string | undefined {
+  if (typeof error === 'string')
+    return error
+  const record = asRecord(error)
+  if (!record)
+    return undefined
+  if (typeof record.error === 'string')
+    return record.error
+  if (typeof record.message === 'string' && record.message)
+    return record.message
+  return asString(record.name)
+}
+
+function buildTerminalErrorSummary(error: unknown): string | undefined {
+  const text = extractErrorText(error)
+  return text ? truncate(text, 200) : undefined
+}
+
+function hasSpanMismatch(records: AgentObservabilityRecord[]): boolean {
+  const started = new Map<string, Extract<AgentObservabilityRecord, { recordType: 'span-started' }>>()
+  const completed = new Map<string, Extract<AgentObservabilityRecord, { recordType: 'span-completed' }>>()
+  for (const record of records) {
+    if (record.recordType === 'span-started') {
+      if (started.has(record.spanId))
+        return true
+      started.set(record.spanId, record)
+    }
+    else if (record.recordType === 'span-completed') {
+      if (completed.has(record.spanId))
+        return true
+      completed.set(record.spanId, record)
+    }
+  }
+  if (started.size !== completed.size)
+    return true
+  for (const [spanId, start] of started) {
+    const end = completed.get(spanId)
+    if (!end || end.spanKind !== start.spanKind || end.parentSpanId !== start.parentSpanId)
+      return true
+  }
+  return false
+}
+
+function truncate(text: string, max: number): string {
+  return text.length <= max ? text : `${text.slice(0, max)}…`
+}
+
+function asString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined
+}
+
+function asNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function asArray(value: unknown): unknown[] | undefined {
+  return Array.isArray(value) ? value : undefined
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined
 }
 
 function omitTerminalEvidence(record: AgentObservabilityRecord): AgentObservabilityRecord {

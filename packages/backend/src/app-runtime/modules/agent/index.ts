@@ -42,7 +42,7 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
       rootDir: core.paths.observabilityRoot,
       legacyRoots: [path.join(core.paths.logsRoot, 'tasks')],
       logger: core.logger,
-      onChanged: event => core.events.emit('observability:changed', event),
+      onTurnSettled: event => core.events.emit('observability:turn-settled', event),
     })
 
     this.runtime = createAgentRuntime({

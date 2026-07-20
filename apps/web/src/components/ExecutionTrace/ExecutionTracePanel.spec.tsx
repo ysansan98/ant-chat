@@ -1,5 +1,5 @@
 import type { AgentTurnSummary, AgentTurnTimeline } from '@ant-chat/shared'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { observabilityApi } from '@/api/observabilityApi'
 import { ExecutionTracePanel } from './ExecutionTracePanel'
@@ -30,6 +30,8 @@ const first = summary('turn-2', 2_000, 'success')
 const second = summary('turn-1', 1_000, 'failed')
 
 type AvailableAgentTurnSummary = Extract<AgentTurnSummary, { availability: 'available' }>
+type CompletedAgentTurnSummary = Extract<AvailableAgentTurnSummary, { lifecycle: 'completed' }>
+type CollectingAgentTurnSummary = Extract<AvailableAgentTurnSummary, { lifecycle: 'collecting' }>
 
 describe('executionTracePanel', () => {
   beforeEach(() => {
@@ -62,13 +64,36 @@ describe('executionTracePanel', () => {
   it('关闭时不查询，打开后只加载摘要并默认展开最新 Turn', async () => {
     const view = render(<ExecutionTracePanel conversationId="conversation-1" isOpen={false} onClose={vi.fn()} />)
     expect(observabilityApi.listTurns).not.toHaveBeenCalled()
+    expect(eventBoundary.handler).toBeUndefined()
 
     view.rerender(<ExecutionTracePanel conversationId="conversation-1" isOpen onClose={vi.fn()} />)
 
     expect(await screen.findByText('Turn turn-2')).toBeInTheDocument()
+    expect(eventBoundary.handler).toBeTypeOf('function')
     expect(observabilityApi.listTurns).toHaveBeenCalledWith('conversation-1')
     expect(observabilityApi.getTurnTimeline).toHaveBeenCalledWith('conversation-1', 'turn-2')
     expect(observabilityApi.getEvidence).not.toHaveBeenCalled()
+
+    view.rerender(<ExecutionTracePanel conversationId="conversation-1" isOpen={false} onClose={vi.fn()} />)
+    expect(eventBoundary.handler).toBeUndefined()
+  })
+
+  it('执行中的 Turn 可见但不可展开，完成后才按需读取时间线', async () => {
+    vi.mocked(observabilityApi.listTurns).mockResolvedValue([collectingSummary('turn-running', 3_000), first])
+    render(<ExecutionTracePanel conversationId="conversation-1" isOpen onClose={vi.fn()} />)
+
+    expect(await screen.findByText('执行中，完成后可查看')).toBeInTheDocument()
+    expect(screen.getByText('Turn turn-running')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Turn turn-running/ })).not.toBeInTheDocument()
+    expect(observabilityApi.getTurnTimeline).not.toHaveBeenCalledWith('conversation-1', 'turn-running')
+  })
+
+  it('失败 Turn 展示终态错误摘要', async () => {
+    vi.mocked(observabilityApi.listTurns).mockResolvedValue([{ ...second, errorSummary: 'API 请求失败：429 Too Many Requests' }])
+    render(<ExecutionTracePanel conversationId="conversation-1" isOpen onClose={vi.fn()} />)
+
+    expect(await screen.findByText('API 请求失败：429 Too Many Requests')).toBeInTheDocument()
+    expect(screen.getByText('失败')).toBeInTheDocument()
   })
 
   it('允许同时展开多个 Turn，点击步骤后才读取原始证据', async () => {
@@ -77,8 +102,7 @@ describe('executionTracePanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Turn turn-1/ }))
     expect(await screen.findByText('工具调用')).toBeInTheDocument()
-    expect(observabilityApi.getEvidence).not.toHaveBeenCalled()
-
+    vi.mocked(observabilityApi.getEvidence).mockClear()
     fireEvent.click(screen.getAllByRole('button', { name: '模型请求' })[0])
     expect(observabilityApi.getEvidence).toHaveBeenCalledWith('conversation-1', 'turn-2', 'model-1')
     fireEvent.click(await screen.findByRole('tab', { name: '原始证据' }))
@@ -209,6 +233,132 @@ describe('executionTracePanel', () => {
     expect(await screen.findByText('Trace 版本不受支持')).toBeInTheDocument()
   })
 
+  it('详情展示模型请求的模型、usage、回复与工具调用', async () => {
+    vi.mocked(observabilityApi.getEvidence).mockResolvedValue({
+      recordId: 'model-1',
+      records: [
+        modelStarted({
+          messages: [{ role: 'user', content: [{ type: 'text', text: '审查代码' }] }],
+          modelSettings: { model: 'gpt-4o', systemPrompt: '你是代码助手' },
+        }),
+        modelCompleted({
+          text: '最终回复文本',
+          durationMs: 900,
+          usage: { inputTokens: 900, outputTokens: 120 },
+          finishReason: 'stop',
+          toolCalls: [{ id: 'c1', toolName: 'write', input: { path: '/b' } }],
+        }),
+      ],
+    })
+    render(<ExecutionTracePanel conversationId="conversation-1" isOpen onClose={vi.fn()} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: '模型请求' }))
+
+    expect(await screen.findByText('gpt-4o')).toBeInTheDocument()
+    expect(screen.getByText('900')).toBeInTheDocument()
+    expect(screen.getByText('120')).toBeInTheDocument()
+    expect(screen.getByText('stop')).toBeInTheDocument()
+    expect(screen.getByText('最终回复文本')).toBeInTheDocument()
+    expect(screen.getByText('write')).toBeInTheDocument()
+  })
+
+  it('工具调用失败时详情展示失败状态与错误原因', async () => {
+    vi.mocked(observabilityApi.getEvidence).mockResolvedValue({
+      recordId: 'tool-1',
+      records: [
+        toolStarted({ toolCallId: 'c1', toolName: 'write', input: { path: '/a' } }),
+        toolCompleted('failed', undefined, { status: 'failed', error: '磁盘已满', exitCode: 1, durationMs: 30 }),
+      ],
+    })
+    render(<ExecutionTracePanel conversationId="conversation-1" isOpen onClose={vi.fn()} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: '工具调用' }))
+
+    expect(await screen.findByText('磁盘已满')).toBeInTheDocument()
+    expect(screen.getByText('write')).toBeInTheDocument()
+    const drawer = screen.getByLabelText('步骤证据')
+    expect(within(drawer).getByText('失败')).toBeInTheDocument()
+  })
+
+  it('策略判断详情展示决策横幅、权限模式、判定依据与白名单命中', async () => {
+    vi.mocked(observabilityApi.getTurnTimeline).mockResolvedValue({
+      summary: first,
+      items: [{ type: 'span', recordId: 'policy-1', spanId: 'span-9', kind: 'policy-decision', status: 'allow', startedAt: first.startedAt, endedAt: first.startedAt + 5, durationMs: 5 }],
+    })
+    vi.mocked(observabilityApi.getEvidence).mockResolvedValue({
+      recordId: 'policy-1',
+      records: [
+        {
+          schemaVersion: 1,
+          sequence: 1,
+          recordedAt: 2_000,
+          traceId: 'trace-turn-2',
+          recordId: 'policy-1',
+          recordType: 'span-started',
+          spanId: 'span-9',
+          spanKind: 'policy-decision',
+          startedAt: 2_000,
+          input: { toolName: 'write', input: { path: '/workspace/a.txt' }, operationType: 'write', scope: 'workspace', policy: 'require_approval', basis: 'default.require-approval', mode: 'strict' },
+        },
+        {
+          schemaVersion: 1,
+          sequence: 2,
+          recordedAt: 2_005,
+          traceId: 'trace-turn-2',
+          recordId: 'policy-2',
+          recordType: 'span-completed',
+          spanId: 'span-9',
+          spanKind: 'policy-decision',
+          status: 'allow',
+          endedAt: 2_005,
+          output: { status: 'allow', outcome: 'allow', whitelist: { matchKey: '/workspace/a.txt', entry: { toolName: 'write' } } },
+        },
+      ],
+    })
+    render(<ExecutionTracePanel conversationId="conversation-1" isOpen onClose={vi.fn()} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: '策略判断' }))
+
+    expect(await screen.findByText('默认权限')).toBeInTheDocument()
+    expect(screen.getByText('当前权限模式要求人工审批')).toBeInTheDocument()
+    expect(screen.getByText('/workspace/a.txt')).toBeInTheDocument()
+  })
+
+  it('开发者视图展示请求参数与模型响应', async () => {
+    vi.mocked(observabilityApi.getEvidence).mockResolvedValue({
+      recordId: 'model-1',
+      records: [
+        modelStarted({
+          messages: [{ role: 'user', content: [{ type: 'text', text: '审查代码' }] }],
+          modelSettings: { model: 'gpt-4o', systemPrompt: '你是代码助手' },
+          tools: [{ name: 'read', serverName: 'native', description: '读取文件', inputSchema: { type: 'object', properties: {}, required: [] } }],
+        }),
+        modelCompleted({ text: '回复', durationMs: 10 }),
+      ],
+    })
+    render(<ExecutionTracePanel conversationId="conversation-1" isOpen onClose={vi.fn()} />)
+    fireEvent.click(await screen.findByRole('button', { name: '模型请求' }))
+
+    fireEvent.click(await screen.findByRole('tab', { name: '详情' }))
+
+    expect(await screen.findByText('gpt-4o')).toBeInTheDocument()
+    expect(screen.getByText('回复文本')).toBeInTheDocument()
+    expect(screen.getByText('响应耗时')).toBeInTheDocument()
+  })
+
+  it('原始证据支持复制单条记录', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    render(<ExecutionTracePanel conversationId="conversation-1" isOpen onClose={vi.fn()} />)
+    fireEvent.click(await screen.findByRole('button', { name: '模型请求' }))
+    fireEvent.click(await screen.findByRole('tab', { name: '原始证据' }))
+
+    fireEvent.click(await screen.findByRole('button', { name: '复制该记录' }))
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce())
+    expect(writeText.mock.calls[0][0]).toContain('model-1')
+  })
+
   it('窄屏使用全屏 Sheet 展示', async () => {
     window.matchMedia = vi.fn().mockReturnValue({
       matches: true,
@@ -223,11 +373,12 @@ describe('executionTracePanel', () => {
   })
 })
 
-function summary(turnId: string, startedAt: number, status: 'success' | 'failed'): AvailableAgentTurnSummary {
+function summary(turnId: string, startedAt: number, status: 'success' | 'failed'): CompletedAgentTurnSummary {
   return {
     conversationId: 'conversation-1',
     turnId,
     availability: 'available',
+    lifecycle: 'completed',
     traceId: `trace-${turnId}`,
     source: { type: 'interactive' },
     status,
@@ -237,6 +388,19 @@ function summary(turnId: string, startedAt: number, status: 'success' | 'failed'
     endedAt: startedAt + 500,
     durationMs: 500,
     spanCounts: { modelRequests: 1, policyDecisions: 0, toolCalls: 1, contextEvents: 0 },
+  }
+}
+
+function collectingSummary(turnId: string, startedAt: number): CollectingAgentTurnSummary {
+  return {
+    conversationId: 'conversation-1',
+    turnId,
+    availability: 'available',
+    lifecycle: 'collecting',
+    traceId: `trace-${turnId}`,
+    source: { type: 'interactive' },
+    startedAt,
+    spanCounts: { modelRequests: 1, policyDecisions: 0, toolCalls: 0, contextEvents: 0 },
   }
 }
 
@@ -266,6 +430,69 @@ function evidence(recordId: string, content: string): Awaited<ReturnType<typeof 
       startedAt: 2_000,
       input: { content },
     }],
+  }
+}
+
+function modelStarted(input: unknown): import('@ant-chat/shared').AgentObservabilityRecord {
+  return {
+    schemaVersion: 1,
+    sequence: 1,
+    recordedAt: 2_000,
+    traceId: 'trace-turn-2',
+    recordId: 'model-1',
+    recordType: 'span-started',
+    spanId: 'span-1',
+    spanKind: 'model-request',
+    startedAt: 2_000,
+    input,
+  }
+}
+
+function modelCompleted(output: unknown): import('@ant-chat/shared').AgentObservabilityRecord {
+  return {
+    schemaVersion: 1,
+    sequence: 2,
+    recordedAt: 2_900,
+    traceId: 'trace-turn-2',
+    recordId: 'model-2',
+    recordType: 'span-completed',
+    spanId: 'span-1',
+    spanKind: 'model-request',
+    status: 'success',
+    endedAt: 2_900,
+    output,
+  }
+}
+
+function toolStarted(input: unknown): import('@ant-chat/shared').AgentObservabilityRecord {
+  return {
+    schemaVersion: 1,
+    sequence: 1,
+    recordedAt: 2_200,
+    traceId: 'trace-turn-2',
+    recordId: 'tool-1',
+    recordType: 'span-started',
+    spanId: 'span-2',
+    spanKind: 'tool-call',
+    startedAt: 2_200,
+    input,
+  }
+}
+
+function toolCompleted(status: 'success' | 'failed', output?: unknown, error?: unknown): import('@ant-chat/shared').AgentObservabilityRecord {
+  return {
+    schemaVersion: 1,
+    sequence: 2,
+    recordedAt: 2_400,
+    traceId: 'trace-turn-2',
+    recordId: 'tool-2',
+    recordType: 'span-completed',
+    spanId: 'span-2',
+    spanKind: 'tool-call',
+    status,
+    endedAt: 2_400,
+    output,
+    error,
   }
 }
 

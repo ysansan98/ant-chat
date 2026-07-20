@@ -45,7 +45,7 @@ export async function runAgentLoop(input: {
   try {
     for (;;) {
       if (task.abortController.signal.aborted)
-        throw new AgentError('AGENT_CANCELLED', 'Task cancelled')
+        throw new AgentError('AGENT_CANCELLED', '任务已取消')
       step += 1
 
       if (!aiProvider)
@@ -145,6 +145,11 @@ export async function runAgentLoop(input: {
       catch (error) {
         finishModelSpan(modelSpan, task.abortController.signal, error, config)
         throw error
+      }
+
+      if (task.abortController.signal.aborted) {
+        cancelObservation(modelSpan, '任务已取消', config.logger)
+        throw new AgentError('AGENT_CANCELLED', '任务已取消')
       }
 
       completeObservation(modelSpan, {
@@ -308,6 +313,7 @@ async function handleLoopFailure(options: {
   durationMs: number
 }) {
   const { config, task, error, lastToolCallContext, durationMs } = options
+  const cancelled = isCancellation(error, task.abortController.signal)
   const failurePayload = {
     runId: task.snapshot.taskId,
     taskId: task.snapshot.taskId,
@@ -319,7 +325,7 @@ async function handleLoopFailure(options: {
     workspacePath: task.snapshot.workspacePath,
     lastToolCallContext,
   }
-  if (error instanceof AgentError && error.code === 'AGENT_CANCELLED') {
+  if (cancelled) {
     task.snapshot.status = 'cancelled'
     task.snapshot.summary = '任务已取消'
     await config.eventEmitter.emitTurnFinished({
@@ -344,16 +350,21 @@ async function handleLoopFailure(options: {
     })
   }
   await config.eventEmitter.emitTaskUpdated(task.snapshot)
-  finishTurnObservation(config, error instanceof AgentError && error.code === 'AGENT_CANCELLED'
+  finishTurnObservation(config, cancelled
     ? { status: 'cancelled', error: failurePayload }
     : { status: 'failed', error: failurePayload })
 }
 
 function finishModelSpan(span: AgentObservationSpan | undefined, signal: AbortSignal, error: unknown, config: AgentRuntimeConfig): void {
-  if (signal.aborted) {
+  if (isCancellation(error, signal)) {
     cancelObservation(span, error, config.logger)
   }
   else {
     failObservation(span, error, config.logger)
   }
+}
+
+function isCancellation(error: unknown, signal: AbortSignal): boolean {
+  return signal.aborted
+    || (error instanceof AgentError && error.code === 'AGENT_CANCELLED')
 }

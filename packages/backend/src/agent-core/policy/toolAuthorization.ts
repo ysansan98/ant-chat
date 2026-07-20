@@ -1,4 +1,4 @@
-import type { AgentErrorCode, AgentMode, AgentPendingAction, ToolApprovalWhitelistEntry, ToolOperationType, ToolScope } from '@ant-chat/shared'
+import type { AgentErrorCode, AgentMode, AgentPendingAction, PolicyBasis, ToolApprovalWhitelistEntry, ToolOperationType, ToolScope } from '@ant-chat/shared'
 import type { TaskStore } from '../taskStore'
 import type { ToolAuthorization } from '../tools/types'
 import { randomUUID } from 'node:crypto'
@@ -28,7 +28,7 @@ export function createToolAuthorization(
     // 如果自动化策略未覆盖某个 operationType（包括 permissionPolicy 缺失），
     // 视为拒绝而非"需审批"——因为没有人可以审批。
     const effectiveDecision = isAutomationTurn
-      ? (automationDecision ?? { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '自动化任务未配置权限策略或操作类型不支持' })
+      ? (automationDecision ?? { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '自动化任务未配置权限策略或操作类型不支持', basis: 'automation.no-policy' as const })
       : (automationDecision ?? decidePolicy(task.snapshot.mode, prepared.operationType, prepared.scope))
 
     const policySpan = startObservationSpan(config, recorder => recorder.startPolicyDecision({
@@ -37,6 +37,9 @@ export function createToolAuthorization(
       operationType: prepared.operationType,
       scope: prepared.scope,
       policy: effectiveDecision.type,
+      basis: effectiveDecision.basis,
+      mode: task.snapshot.mode,
+      automationPolicy: task.snapshot.turnSource?.type === 'automation' ? task.snapshot.turnSource.permissionPolicy : undefined,
       workspacePath: task.snapshot.workspacePath,
       step: input.step,
       toolCallId: input.toolCallId,
@@ -102,7 +105,7 @@ export function createToolAuthorization(
       || decisionResult.reason === 'AGENT_CANCELLED'
     ) {
       cancelObservation(policySpan, 'AGENT_CANCELLED', config.logger)
-      throw new AgentError('AGENT_CANCELLED', 'Task cancelled')
+      throw new AgentError('AGENT_CANCELLED', '任务已取消')
     }
 
     if (!decisionResult.approved) {
@@ -127,77 +130,77 @@ function decideAutomationPolicy(
   operationType: import('@ant-chat/shared').ToolOperationType,
   scope: import('@ant-chat/shared').ToolScope,
   workspacePath: string,
-) {
+): PolicyDecision | undefined {
   if (!policy)
     return undefined
   if (scope !== 'workspace')
-    return { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '自动化任务不允许访问工作区外资源' }
+    return { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '自动化任务不允许访问工作区外资源', basis: 'automation.scope.blocked' as const }
   if (operationType === 'read')
-    return { type: 'allow' as const }
+    return { type: 'allow' as const, basis: 'automation.read.allow' as const }
   if (operationType === 'browser')
-    return { type: 'allow' as const }
+    return { type: 'allow' as const, basis: 'automation.browser.allow' as const }
   if (operationType === 'write') {
     return policy.workspaceAccess === 'write'
-      ? { type: 'allow' as const }
-      : { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '自动化任务仅有工作区读取权限' }
+      ? { type: 'allow' as const, basis: 'automation.write.allow' as const }
+      : { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '自动化任务仅有工作区读取权限', basis: 'automation.write.blocked' as const }
   }
   if (operationType === 'skill') {
     // Skill 能力已由当前 Turn 的 ToolRegistry 最小化注入，权限层不再重复维护白名单。
-    return { type: 'allow' as const }
+    return { type: 'allow' as const, basis: 'automation.skill.allow' as const }
   }
   if (operationType === 'bash_read') {
     return policy.allowBashCommands
-      ? { type: 'allow' as const }
-      : { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '自动化任务未授权命令执行' }
+      ? { type: 'allow' as const, basis: 'automation.bash-read.allow' as const }
+      : { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '自动化任务未授权命令执行', basis: 'automation.bash-read.blocked' as const }
   }
   if (operationType === 'mcp') {
     return policy.allowMcpMutations
-      ? { type: 'allow' as const }
-      : { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '自动化任务未授权 MCP 操作' }
+      ? { type: 'allow' as const, basis: 'automation.mcp.allow' as const }
+      : { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '自动化任务未授权 MCP 操作', basis: 'automation.mcp.blocked' as const }
   }
   if (operationType === 'bash') {
     if (!policy.allowBashCommands)
-      return { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '自动化任务未授权命令执行' }
+      return { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '自动化任务未授权命令执行', basis: 'automation.bash.blocked' as const }
     if (policy.bashCommandPatterns.length === 0)
-      return { type: 'allow' as const }
+      return { type: 'allow' as const, basis: 'automation.bash.allow' as const }
     const matchKey = extractInputKey(toolName, input)
     const entries = policy.bashCommandPatterns.map(pattern => ({ toolName, toolScope: scope, pattern, workspacePath }))
     return isWhitelisted(entries, toolName, scope, matchKey, workspacePath)
-      ? { type: 'allow' as const }
-      : { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '命令不在自动化任务允许范围内' }
+      ? { type: 'allow' as const, basis: 'automation.bash.pattern-match' as const }
+      : { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '命令不在自动化任务允许范围内', basis: 'automation.bash.pattern-blocked' as const }
   }
   // 未知 operationType — 安全默认拒绝。不在自动化策略中显式支持的操作一律不允许。
-  return { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: `自动化任务不支持该操作类型: ${operationType}` }
+  return { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: `自动化任务不支持该操作类型: ${operationType}`, basis: 'automation.unsupported' as const }
 }
 
 type PolicyDecision
-  = | { type: 'allow' }
-    | { type: 'require_approval' }
-    | { type: 'block', errorCode: AgentErrorCode, reason: string }
+  = | { type: 'allow', basis: PolicyBasis }
+    | { type: 'require_approval', basis: PolicyBasis }
+    | { type: 'block', errorCode: AgentErrorCode, reason: string, basis: PolicyBasis }
 
 function decidePolicy(mode: AgentMode, operationType: ToolOperationType, scope: ToolScope): PolicyDecision {
   if (mode === 'full_managed') {
-    return { type: 'allow' }
+    return { type: 'allow', basis: 'mode.full-managed' }
   }
 
   if (scope === 'blocked') {
-    return { type: 'block', errorCode: 'AGENT_POLICY_BLOCKED', reason: '策略阻断，禁止执行' }
+    return { type: 'block', errorCode: 'AGENT_POLICY_BLOCKED', reason: '策略阻断，禁止执行', basis: 'scope.blocked' }
   }
 
   if (scope === 'outside') {
-    return { type: 'require_approval' }
+    return { type: 'require_approval', basis: 'scope.outside' }
   }
 
   // 其余情况仅会是 workspace scope。
   if (operationType === 'read' || operationType === 'bash_read' || operationType === 'browser' || operationType === 'skill' || operationType === 'mcp') {
-    return { type: 'allow' }
+    return { type: 'allow', basis: 'workspace.read' }
   }
 
   if (mode === 'hybrid' && operationType === 'write') {
-    return { type: 'allow' }
+    return { type: 'allow', basis: 'hybrid.write' }
   }
 
-  return { type: 'require_approval' }
+  return { type: 'require_approval', basis: 'default.require-approval' }
 }
 
 const FILE_TOOLS = new Set([

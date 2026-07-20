@@ -19,10 +19,9 @@ import { MessageJumpRail } from './MessageJumpRail'
 
 interface Props {
   messages: IMessage[]
-  onInspectTrace?: (turnId: string) => void
 }
 
-function BubbleList({ messages, onInspectTrace }: Props) {
+function BubbleList({ messages }: Props) {
   const {
     autoScrollToBottom,
     setAutoScrollToBottom,
@@ -112,7 +111,6 @@ function BubbleList({ messages, onInspectTrace }: Props) {
                 key={item.key}
                 turn={item.turn}
                 onCopyMessage={copyMessage}
-                onInspectTrace={onInspectTrace}
               />
             )
           : (

@@ -15,9 +15,10 @@ export const AgentTurnSourceSchema = z.discriminatedUnion('type', [
   }),
 ])
 export const AgentTurnStatusSchema = z.enum(['success', 'failed', 'cancelled', 'interrupted'])
+export const AgentTurnLifecycleSchema = z.enum(['collecting', 'completed'])
 export const TraceCompletenessSchema = z.enum(['complete', 'incomplete'])
 export const AgentTraceAvailabilitySchema = z.enum(['available', 'unsupported', 'expired', 'not-collected'])
-export const TraceIncompleteReasonSchema = z.enum(['disk', 'queue-overflow', 'corrupt-delta'])
+export const TraceIncompleteReasonSchema = z.enum(['disk', 'queue-overflow', 'corrupt-delta', 'missing-terminal', 'span-mismatch'])
 export const TraceSpanKindSchema = z.enum(['model-request', 'policy-decision', 'tool-call'])
 export const TraceSpanStatusSchema = z.enum([
   'success',
@@ -29,6 +30,30 @@ export const TraceSpanStatusSchema = z.enum([
   'blocked',
 ])
 export const ContextEventKindSchema = z.enum(['compaction', 'steering', 'history-rewrite'])
+export const PolicyBasisSchema = z.enum([
+  'mode.full-managed',
+  'scope.blocked',
+  'scope.outside',
+  'workspace.read',
+  'hybrid.write',
+  'default.require-approval',
+  'automation.no-policy',
+  'automation.scope.blocked',
+  'automation.read.allow',
+  'automation.browser.allow',
+  'automation.write.allow',
+  'automation.write.blocked',
+  'automation.skill.allow',
+  'automation.bash-read.allow',
+  'automation.bash-read.blocked',
+  'automation.mcp.allow',
+  'automation.mcp.blocked',
+  'automation.bash.allow',
+  'automation.bash.blocked',
+  'automation.bash.pattern-match',
+  'automation.bash.pattern-blocked',
+  'automation.unsupported',
+])
 
 const TraceRecordEnvelopeSchema = z.object({
   schemaVersion: z.literal(AGENT_OBSERVABILITY_SCHEMA_VERSION),
@@ -111,19 +136,39 @@ const AgentTurnSummaryIdentitySchema = z.object({
   turnId: z.string().min(1),
 })
 
-export const AvailableAgentTurnSummarySchema = AgentTurnSummaryIdentitySchema.extend({
+const AvailableAgentTurnSummaryBaseSchema = AgentTurnSummaryIdentitySchema.extend({
   availability: z.literal('available'),
   traceId: z.string().min(1),
   source: AgentTurnSourceSchema,
   taskId: z.string().min(1).optional(),
+  startedAt: z.number().nonnegative(),
+  spanCounts: AgentTurnSpanCountsSchema,
+})
+
+export const CollectingAgentTurnSummarySchema = AvailableAgentTurnSummaryBaseSchema.extend({
+  lifecycle: z.literal('collecting'),
+  status: z.never().optional(),
+  completeness: z.never().optional(),
+  incompleteReasons: z.never().optional(),
+  endedAt: z.never().optional(),
+  durationMs: z.never().optional(),
+  errorSummary: z.never().optional(),
+})
+
+export const CompletedAgentTurnSummarySchema = AvailableAgentTurnSummaryBaseSchema.extend({
+  lifecycle: z.literal('completed'),
   status: AgentTurnStatusSchema,
   completeness: TraceCompletenessSchema,
   incompleteReasons: z.array(TraceIncompleteReasonSchema),
-  startedAt: z.number().nonnegative(),
   endedAt: z.number().nonnegative().optional(),
   durationMs: z.number().nonnegative().optional(),
-  spanCounts: AgentTurnSpanCountsSchema,
+  errorSummary: z.string().min(1).optional(),
 })
+
+export const AvailableAgentTurnSummarySchema = z.discriminatedUnion('lifecycle', [
+  CollectingAgentTurnSummarySchema,
+  CompletedAgentTurnSummarySchema,
+])
 
 export const UnavailableAgentTurnSummarySchema = AgentTurnSummaryIdentitySchema.extend({
   availability: z.enum(['unsupported', 'expired', 'not-collected']),
@@ -131,7 +176,7 @@ export const UnavailableAgentTurnSummarySchema = AgentTurnSummaryIdentitySchema.
   message: z.string().optional(),
 })
 
-export const AgentTurnSummarySchema = z.discriminatedUnion('availability', [
+export const AgentTurnSummarySchema = z.union([
   AvailableAgentTurnSummarySchema,
   UnavailableAgentTurnSummarySchema,
 ])
@@ -146,6 +191,8 @@ export const AgentTraceSpanSchema = z.object({
   startedAt: z.number().nonnegative(),
   endedAt: z.number().nonnegative().optional(),
   durationMs: z.number().nonnegative().optional(),
+  /** 由查询端生成，保证时间线列表无需读取原始证据即可展示。 */
+  summary: z.string().optional(),
 })
 
 export const AgentTraceContextEventSchema = z.object({
@@ -161,7 +208,7 @@ export const AgentTurnTimelineItemSchema = z.discriminatedUnion('type', [
 ])
 
 export const AgentTurnTimelineSchema = z.object({
-  summary: AvailableAgentTurnSummarySchema,
+  summary: CompletedAgentTurnSummarySchema,
   items: z.array(AgentTurnTimelineItemSchema),
 })
 
@@ -174,11 +221,13 @@ export interface AgentTurnIdentity { conversationId: string, turnId: string }
 
 export type AgentObservabilityTurnSource = z.infer<typeof AgentTurnSourceSchema>
 export type AgentTurnStatus = z.infer<typeof AgentTurnStatusSchema>
+export type AgentTurnLifecycle = z.infer<typeof AgentTurnLifecycleSchema>
 export type TraceCompleteness = z.infer<typeof TraceCompletenessSchema>
 export type AgentTraceAvailability = z.infer<typeof AgentTraceAvailabilitySchema>
 export type TraceIncompleteReason = z.infer<typeof TraceIncompleteReasonSchema>
 export type TraceSpanKind = z.infer<typeof TraceSpanKindSchema>
 export type TraceSpanStatus = z.infer<typeof TraceSpanStatusSchema>
+export type PolicyBasis = z.infer<typeof PolicyBasisSchema>
 export type ContextEventKind = z.infer<typeof ContextEventKindSchema>
 export type AgentObservabilityRecord = z.infer<typeof AgentObservabilityRecordSchema>
 export type AgentObservabilityRecordInput = AgentObservabilityRecord extends infer TRecord
@@ -187,6 +236,8 @@ export type AgentObservabilityRecordInput = AgentObservabilityRecord extends inf
     : never
   : never
 export type AvailableAgentTurnSummary = z.infer<typeof AvailableAgentTurnSummarySchema>
+export type CollectingAgentTurnSummary = z.infer<typeof CollectingAgentTurnSummarySchema>
+export type CompletedAgentTurnSummary = z.infer<typeof CompletedAgentTurnSummarySchema>
 export type AgentTurnSummary = z.infer<typeof AgentTurnSummarySchema>
 export type AgentTraceSpan = z.infer<typeof AgentTraceSpanSchema>
 export type AgentTraceContextEvent = z.infer<typeof AgentTraceContextEventSchema>

@@ -61,6 +61,27 @@ describe('agent Observability module', () => {
     ]))
   })
 
+  it('只在 Turn 终态完成持久化后发送一次失效通知', async () => {
+    const root = await createRoot()
+    const onTurnSettled = vi.fn()
+    const module = createAgentObservability({ rootDir: root, onTurnSettled })
+    await module.initialize()
+    module.setEnabled(true)
+    const recorder = begin(module)
+    recorder.startModelRequest({ messages: [], modelSettings: { model: 'model-1' } } as never).complete({ text: '完成' })
+    await module.flush()
+    expect(onTurnSettled).not.toHaveBeenCalled()
+
+    recorder.finish({ status: 'success' })
+    await module.dispose()
+
+    expect(onTurnSettled).toHaveBeenCalledOnce()
+    expect(onTurnSettled).toHaveBeenCalledWith({ conversationId: 'conversation-1', turnId: 'turn-1' })
+    await expect(module.listTurns('conversation-1')).resolves.toEqual([
+      expect.objectContaining({ lifecycle: 'completed', status: 'success' }),
+    ])
+  })
+
   it('敏感值在进入异步队列前统一脱敏，磁盘与查询均不含明文', async () => {
     const root = await createRoot()
     const module = createAgentObservability({ rootDir: root })
@@ -153,6 +174,26 @@ describe('agent Observability module', () => {
       items: [],
       summary: expect.objectContaining({ incompleteReasons: ['disk'] }),
     }))
+  })
+
+  it('磁盘失败时运行时错误摘要仍经过统一脱敏', async () => {
+    const root = await createRoot()
+    const module = createAgentObservability({ rootDir: root })
+    await module.initialize()
+    await rm(root, { recursive: true, force: true })
+    await writeFile(root, '阻断目录创建')
+    module.setEnabled(true)
+
+    begin(module).finish({ status: 'failed', error: new Error('Bearer raw-token') })
+    await module.flush()
+
+    await expect(module.listTurns('conversation-1')).resolves.toEqual([
+      expect.objectContaining({
+        lifecycle: 'completed',
+        status: 'failed',
+        errorSummary: 'Bearer [secret]',
+      }),
+    ])
   })
 
   it('存储目录初始化失败不会阻断 runtime 启动', async () => {
@@ -248,7 +289,7 @@ describe('agent Observability module', () => {
     ])
   })
 
-  it('没有终态的崩溃文件读取为 interrupted 与 incomplete', async () => {
+  it('仍在采集的 Turn 显示为 collecting 且不能读取时间线', async () => {
     const root = await createRoot()
     const module = createAgentObservability({ rootDir: root })
     await module.initialize()
@@ -257,7 +298,49 @@ describe('agent Observability module', () => {
     await module.flush()
 
     await expect(module.listTurns('conversation-1')).resolves.toEqual([
-      expect.objectContaining({ status: 'interrupted', completeness: 'incomplete' }),
+      expect.objectContaining({ lifecycle: 'collecting' }),
+    ])
+    await expect(module.getTurnTimeline({ conversationId: 'conversation-1', turnId: 'turn-1' })).resolves.toBeNull()
+  })
+
+  it('重启后没有终态的 Trace 显示为 interrupted 与 incomplete', async () => {
+    const root = await createRoot()
+    const module = createAgentObservability({ rootDir: root })
+    await module.initialize()
+    module.setEnabled(true)
+    begin(module).recordContextEvent({ kind: 'steering', text: '继续' })
+    await module.flush()
+
+    const reopened = createAgentObservability({ rootDir: root })
+    await reopened.initialize()
+
+    await expect(reopened.listTurns('conversation-1')).resolves.toEqual([
+      expect.objectContaining({
+        lifecycle: 'completed',
+        status: 'interrupted',
+        completeness: 'incomplete',
+        incompleteReasons: ['missing-terminal'],
+      }),
+    ])
+  })
+
+  it('已结束的 Turn 缺少 Span 终态时标记 Trace 不完整', async () => {
+    const root = await createRoot()
+    const module = createAgentObservability({ rootDir: root })
+    await module.initialize()
+    module.setEnabled(true)
+    const recorder = begin(module)
+    recorder.startToolCall({ toolName: 'read_file' })
+    recorder.finish({ status: 'failed', error: new Error('事件发送失败') })
+
+    await expect(module.listTurns('conversation-1')).resolves.toEqual([
+      expect.objectContaining({
+        lifecycle: 'completed',
+        status: 'failed',
+        completeness: 'incomplete',
+        incompleteReasons: ['span-mismatch'],
+        errorSummary: '事件发送失败',
+      }),
     ])
   })
 
