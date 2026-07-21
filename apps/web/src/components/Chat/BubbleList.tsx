@@ -24,11 +24,8 @@ interface Props {
 function BubbleList({ messages }: Props) {
   const {
     autoScrollToBottom,
-    setAutoScrollToBottom,
+    disableAutoScroll,
     infiniteScrollRef,
-    handleWheel,
-    handleTouchStart,
-    handleTouchMove,
     scrollToBottom,
   } = useAutoScroll()
 
@@ -53,7 +50,7 @@ function BubbleList({ messages }: Props) {
   const handleJumpToMessage = useCallback(
     (messageId: string) => {
       // 关闭自动滚动，防止跳转后被拉回底部
-      setAutoScrollToBottom(false)
+      disableAutoScroll()
 
       const container = infiniteScrollRef.current?.containerRef.current
       if (!container)
@@ -86,7 +83,7 @@ function BubbleList({ messages }: Props) {
         target.style.boxShadow = ''
       }, 1500)
     },
-    [infiniteScrollRef, setAutoScrollToBottom],
+    [infiniteScrollRef, disableAutoScroll],
   )
 
   return (
@@ -101,9 +98,6 @@ function BubbleList({ messages }: Props) {
         loading={false}
         onLoadMore={async () => {}}
         direction="top"
-        onWheel={handleWheel}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
       >
         {conversationItems.map(item => item.type === 'turn'
           ? (
