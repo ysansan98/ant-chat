@@ -282,11 +282,12 @@ export class AgentObservability implements AgentObservabilityPort {
       .filter(entry => entry.isFile() && (entry.name.endsWith('.jsonl') || entry.name.endsWith('.expired')))
       .map(async (entry): Promise<AgentTurnSummary> => {
         const turnId = decodeURIComponent(entry.name.replace(/\.(?:jsonl|expired)$/, ''))
+        const filePath = path.join(conversationDir, entry.name)
         if (entry.name.endsWith('.expired')) {
-          return { availability: 'expired', conversationId, turnId, message: 'Trace 已过期' }
+          return { availability: 'expired', conversationId, turnId, traceFilePath: filePath, message: 'Trace 已过期' }
         }
-        const parsed = await this.parseTurn(path.join(conversationDir, entry.name))
-        return parsed?.summary ?? { availability: 'unsupported', conversationId, turnId, message: '不支持的 Trace schema' }
+        const parsed = await this.parseTurn(filePath)
+        return parsed?.summary ?? { availability: 'unsupported', conversationId, turnId, traceFilePath: filePath, message: '不支持的 Trace schema' }
       }))
     const knownTurnIds = new Set(summaries.map(summary => summary.turnId))
     for (const [key, state] of this.runtimeTurns) {
@@ -662,6 +663,7 @@ export class AgentObservability implements AgentObservabilityPort {
       taskId: started.taskId,
       startedAt: started.startedAt,
       spanCounts,
+      traceFilePath: filePath,
     }
     if (!terminal && runtime && !runtime.status) {
       return {

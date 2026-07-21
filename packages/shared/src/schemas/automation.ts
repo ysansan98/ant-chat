@@ -8,7 +8,8 @@ export const AutomationScheduleSchema = z.discriminatedUnion('type', [
 export const AutomationPermissionPolicySchema = z.object({
   workspaceAccess: z.enum(['read', 'write']).default('read'),
   allowSelectedSkillRuntime: z.boolean().default(false),
-  allowMcpMutations: z.boolean().default(false),
+  allowBrowser: z.boolean().default(false),
+  allowMcpTools: z.boolean().default(false),
   extraFileRoots: z.array(z.string()).default([]),
   allowBashCommands: z.boolean().default(false),
   bashCommandPatterns: z.array(z.string()).default([]),

@@ -25,7 +25,7 @@ export function createMcpTool(
     description: mcpTool.description,
     inputSchema: mcpTool.inputSchema,
     operationType: 'mcp',
-    inferScope: () => 'outside',
+    inferScope: () => 'external',
     execute: async (input) => {
       try {
         const result = await clientHub.callTool(serverName, mcpTool.name, input)

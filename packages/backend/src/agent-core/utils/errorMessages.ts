@@ -62,6 +62,12 @@ const ERROR_MAPPINGS: ErrorMapping[] = [
     message: '模型未返回响应。请检查 API Key 配置，或尝试更换模型。',
   },
 
+  // Agent errors
+  {
+    pattern: /approval\s+timeout/i,
+    message: '审批超时，请重新操作。',
+  },
+
   // Network errors
   {
     pattern: /network\s+error/i,

@@ -3,6 +3,26 @@ import { describe, expect, it, vi } from 'vitest'
 import AgentApprovalCard from '../AgentApprovalCard'
 
 describe('agentApprovalCard', () => {
+  it('清楚标识 MCP 工具的审批类型和外部资源域', () => {
+    render(
+      <AgentApprovalCard
+        pending={{
+          actionId: 'action-mcp',
+          toolName: 'github__list_issues',
+          operationType: 'mcp',
+          scope: 'external',
+          inputPreview: '{}',
+          createdAt: 1,
+        }}
+        onApprove={vi.fn()}
+        onReject={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('MCP 工具')).toBeInTheDocument()
+    expect(screen.getByText('外部服务')).toBeInTheDocument()
+  })
+
   it('展示审批信息并触发按钮事件', () => {
     const onApprove = vi.fn()
     const onReject = vi.fn()

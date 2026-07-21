@@ -1,4 +1,4 @@
-import type { IAgentEventEmitter, SecretRequestController, SecretRequestField, SecretRequestResult, SecretStore } from '@ant-chat/shared'
+import type { IAgentEventEmitter, SecretRequestController, SecretRequestField, SecretRequestInput, SecretRequestResult, SecretStore } from '@ant-chat/shared'
 import { randomUUID } from 'node:crypto'
 
 const SECRET_REQUEST_TIMEOUT_MS = 5 * 60 * 1000
@@ -10,6 +10,8 @@ export class RuntimeSecretRequestController implements SecretRequestController {
     resolve: (result: SecretRequestResult) => void
     reject: (error: Error) => void
     timer: ReturnType<typeof setTimeout>
+    signal?: AbortSignal
+    onAbort: () => void
   }>()
 
   constructor(
@@ -17,21 +19,23 @@ export class RuntimeSecretRequestController implements SecretRequestController {
     private readonly eventEmitter: Pick<IAgentEventEmitter, 'emitSecretRequested'>,
   ) {}
 
-  async requestSecret(input: {
-    runId: string
-    conversationId: string
-    label: string
-    fields?: SecretRequestField[]
-    reason?: string
-  }): Promise<SecretRequestResult> {
+  async requestSecret(input: SecretRequestInput): Promise<SecretRequestResult> {
     const requestId = randomUUID()
     const fields = normalizeFields(input)
+    if (input.signal?.aborted)
+      throw new Error('任务已取消')
 
     return await new Promise<SecretRequestResult>((resolve, reject) => {
       const timer = setTimeout(() => {
-        this.pending.delete(requestId)
+        this.deletePending(requestId)
         reject(new Error('敏感信息请求超时'))
       }, SECRET_REQUEST_TIMEOUT_MS)
+      const onAbort = () => {
+        if (!this.pending.has(requestId))
+          return
+        this.deletePending(requestId)
+        reject(new Error('任务已取消'))
+      }
 
       this.pending.set(requestId, {
         runId: input.runId,
@@ -39,10 +43,18 @@ export class RuntimeSecretRequestController implements SecretRequestController {
         resolve,
         reject,
         timer,
+        signal: input.signal,
+        onAbort,
       })
+      input.signal?.addEventListener('abort', onAbort, { once: true })
+      if (input.signal?.aborted) {
+        onAbort()
+        return
+      }
 
       void this.eventEmitter.emitSecretRequested?.({
         requestId,
+        automationRunId: input.automationRunId,
         runId: input.runId,
         conversationId: input.conversationId,
         label: input.label,
@@ -95,6 +107,7 @@ export class RuntimeSecretRequestController implements SecretRequestController {
       return
     }
     clearTimeout(pending.timer)
+    pending.signal?.removeEventListener('abort', pending.onAbort)
     this.pending.delete(requestId)
   }
 }

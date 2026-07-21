@@ -19,7 +19,8 @@ const input: AutomationInput = {
   permissionPolicy: {
     workspaceAccess: 'read',
     allowSelectedSkillRuntime: false,
-    allowMcpMutations: false,
+    allowBrowser: false,
+    allowMcpTools: false,
     extraFileRoots: [],
     allowBashCommands: false,
     bashCommandPatterns: [],
@@ -49,6 +50,18 @@ describe('sqliteAutomationRepository', () => {
       nextRunAt: 1_000,
       allowedSkills: ['review'],
     }))
+  })
+
+  it('读取存量定义时把 MCP 副作用开关迁移为显式工具能力', async () => {
+    const created = await repository.create(input, 1_000)
+    const legacyPolicy = { ...input.permissionPolicy, allowMcpMutations: true } as Record<string, unknown>
+    delete legacyPolicy.allowMcpTools
+    db.prepare('UPDATE automations SET permission_policy=? WHERE id=?').run(JSON.stringify(legacyPolicy), created.id)
+
+    const restored = await repository.getById(created.id)
+
+    expect(restored.permissionPolicy.allowMcpTools).toBe(true)
+    expect(restored.permissionPolicy).not.toHaveProperty('allowMcpMutations')
   })
 
   it('同一计划时间只能领取一次并原子推进下次时间', async () => {

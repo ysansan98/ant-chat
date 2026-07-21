@@ -114,6 +114,13 @@ describe('transformErrorMessage 行为', () => {
     })
   })
 
+  describe('agent 错误', () => {
+    it('转换 approval timeout 错误', () => {
+      const result = transformErrorMessage('Approval timeout')
+      expect(result).toBe('审批超时，请重新操作。')
+    })
+  })
+
   describe('未知错误', () => {
     it('未知错误返回原始消息', () => {
       const rawMessage = 'some unknown error occurred'

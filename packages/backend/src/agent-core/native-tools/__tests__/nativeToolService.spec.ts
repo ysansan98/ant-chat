@@ -168,7 +168,7 @@ describe('native tool service 行为', () => {
     expect(result.result).toContain('exitCode=')
   })
 
-  it('将 browser 注册为自动允许的 browser 操作', () => {
+  it('将普通网页操作标记为外部资源，将系统 Profile 标记为本机越界资源', () => {
     const service = new NativeToolService(workspacePath, false, {
       browser: {
         profilePath: '/tmp/profile',
@@ -181,7 +181,8 @@ describe('native tool service 行为', () => {
       name: 'browser',
       operationType: 'browser',
     })
-    expect(browser?.inferScope({ command: 'open', args: ['https://example.com'] })).toBe('workspace')
+    expect(browser?.inferScope({ command: 'open', args: ['https://example.com'] })).toBe('external')
+    expect(browser?.inferScope({ command: 'open', args: ['--profile', 'Default', 'https://example.com'] })).toBe('outside')
   })
 
   it('注册 browser 工具后阻断 Bash 绕过调用 agent-browser', async () => {

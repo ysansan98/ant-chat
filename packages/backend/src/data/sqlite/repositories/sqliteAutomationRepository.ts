@@ -234,8 +234,8 @@ function mapAutomation(row: AutomationRow): AutomationDefinition {
 
 /**
  * 解析权限策略，兼容存量数据中的旧字段名。
- * 存量自动化可能使用 allowSkillScripts / allowArbitraryCommands / commandPatterns，
- * 新写入使用 allowSelectedSkillRuntime / allowBashCommands / bashCommandPatterns。
+ * 存量自动化可能使用 allowSkillScripts / allowArbitraryCommands / commandPatterns /
+ * allowMcpMutations，新写入使用明确的能力字段。
  */
 function parsePermissionPolicy(raw: string) {
   const obj = JSON.parse(raw)
@@ -250,6 +250,10 @@ function parsePermissionPolicy(raw: string) {
   if ('commandPatterns' in obj && !('bashCommandPatterns' in obj)) {
     obj.bashCommandPatterns = obj.commandPatterns
     delete obj.commandPatterns
+  }
+  if ('allowMcpMutations' in obj && !('allowMcpTools' in obj)) {
+    obj.allowMcpTools = obj.allowMcpMutations
+    delete obj.allowMcpMutations
   }
   return AutomationPermissionPolicySchema.parse(obj)
 }

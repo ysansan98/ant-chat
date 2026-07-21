@@ -12,7 +12,7 @@ import { getAppEventSubscriptions } from '@/api/transports/appEventSubscriptions
 import { formatDuration, formatTime } from '@/utils'
 import { EvidenceDetails } from './EvidenceDetails'
 import { itemLabels, parseEvidence } from './evidenceModel'
-import { CodeBlock } from './evidencePrimitives'
+import { CodeBlock, CopyButton } from './evidencePrimitives'
 
 interface ExecutionTracePanelProps {
   conversationId?: string
@@ -276,6 +276,7 @@ function TurnCard(props: {
   onInspect: (item: AgentTurnTimelineItem) => void
 }) {
   const { summary, timeline, turnContext } = props
+  const traceFilePath = 'traceFilePath' in summary ? summary.traceFilePath : undefined
   if (summary.availability !== 'available') {
     const availabilityLabel = {
       'expired': 'Trace 已过期',
@@ -284,10 +285,13 @@ function TurnCard(props: {
     }[summary.availability]
     return (
       <div className="rounded-xl border border-dashed border-border bg-card p-3">
-        <div className="font-medium">
-          Turn
-          {' '}
-          {summary.turnId}
+        <div className="flex items-center justify-between gap-2">
+          <div className="font-medium">
+            Turn
+            {' '}
+            {summary.turnId}
+          </div>
+          {traceFilePath && <CopyButton text={() => traceFilePath} label="复制路径" />}
         </div>
         <p className="mt-1 text-xs text-muted-foreground">{summary.message ?? availabilityLabel}</p>
       </div>
@@ -296,17 +300,20 @@ function TurnCard(props: {
   if (summary.lifecycle === 'collecting') {
     return (
       <div className="rounded-xl border border-border bg-card p-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium">
-            Turn
-            {' '}
-            {summary.turnId}
-          </span>
-          <Badge variant="outline">{summary.source.type === 'automation' ? 'Automation' : '交互'}</Badge>
-          <Badge variant="secondary" className="gap-1">
-            <LoaderIcon className="size-3 animate-spin" />
-            执行中
-          </Badge>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-medium">
+              Turn
+              {' '}
+              {summary.turnId}
+            </span>
+            <Badge variant="outline">{summary.source.type === 'automation' ? 'Automation' : '交互'}</Badge>
+            <Badge variant="secondary" className="gap-1">
+              <LoaderIcon className="size-3 animate-spin" />
+              执行中
+            </Badge>
+          </div>
+          {traceFilePath && <CopyButton text={() => traceFilePath} label="复制路径" />}
         </div>
         <div className="mt-1 flex gap-2 text-xs text-muted-foreground">
           <span>{formatTime(summary.startedAt)}</span>
@@ -322,39 +329,42 @@ function TurnCard(props: {
   }
   return (
     <Collapsible open={props.open} onOpenChange={props.onToggle} className="overflow-hidden rounded-xl border border-border bg-card">
-      <CollapsibleTrigger render={(
-        <button type="button" className="flex w-full items-center gap-3 p-3 text-left" />
-      )}
-      >
-        <ChevronRightIcon className={cn('size-4 shrink-0 text-muted-foreground transition-transform', props.open && 'rotate-90')} />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-medium">
-              Turn
-              {' '}
-              {summary.turnId}
-            </span>
-            <Badge variant="outline">{summary.source.type === 'automation' ? 'Automation' : '交互'}</Badge>
-            <Badge variant={summary.status === 'success' ? 'secondary' : 'destructive'}>{statusLabels[summary.status]}</Badge>
-          </div>
-          <div className="mt-1 flex gap-2 text-xs text-muted-foreground">
-            <span>{formatTime(summary.startedAt)}</span>
-            {summary.durationMs != null && <span>{formatDuration(summary.durationMs)}</span>}
-            <span>
-              {summary.spanCounts.modelRequests + summary.spanCounts.policyDecisions + summary.spanCounts.toolCalls}
-              {' '}
-              个步骤
-            </span>
-          </div>
-          {summary.errorSummary && <p className="mt-1 text-xs text-destructive">{summary.errorSummary}</p>}
-        </div>
-        {summary.completeness === 'incomplete' && (
-          <span className="inline-flex items-center gap-1 text-xs text-amber-600">
-            <AlertTriangleIcon className="size-3.5" />
-            Trace 不完整
-          </span>
+      <div className="flex items-center gap-3 p-3">
+        <CollapsibleTrigger render={(
+          <button type="button" className="flex min-w-0 flex-1 items-center gap-3 text-left" />
         )}
-      </CollapsibleTrigger>
+        >
+          <ChevronRightIcon className={cn('size-4 shrink-0 text-muted-foreground transition-transform', props.open && 'rotate-90')} />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium">
+                Turn
+                {' '}
+                {summary.turnId}
+              </span>
+              <Badge variant="outline">{summary.source.type === 'automation' ? 'Automation' : '交互'}</Badge>
+              <Badge variant={summary.status === 'success' ? 'secondary' : 'destructive'}>{statusLabels[summary.status]}</Badge>
+            </div>
+            <div className="mt-1 flex gap-2 text-xs text-muted-foreground">
+              <span>{formatTime(summary.startedAt)}</span>
+              {summary.durationMs != null && <span>{formatDuration(summary.durationMs)}</span>}
+              <span>
+                {summary.spanCounts.modelRequests + summary.spanCounts.policyDecisions + summary.spanCounts.toolCalls}
+                {' '}
+                个步骤
+              </span>
+            </div>
+            {summary.errorSummary && <p className="mt-1 text-xs text-destructive">{summary.errorSummary}</p>}
+          </div>
+          {summary.completeness === 'incomplete' && (
+            <span className="inline-flex items-center gap-1 text-xs text-amber-600">
+              <AlertTriangleIcon className="size-3.5" />
+              Trace 不完整
+            </span>
+          )}
+        </CollapsibleTrigger>
+        {traceFilePath && <CopyButton text={() => traceFilePath} label="复制路径" className="shrink-0 self-start" />}
+      </div>
       <CollapsibleContent>
         <div className="border-t border-border p-3">
           {turnContext && (turnContext.systemPrompt || turnContext.tools.length > 0) && (

@@ -9,6 +9,7 @@ import { useState } from 'react'
 const scopeLabels: Record<string, string> = {
   workspace: '工作区内',
   outside: '跨工作区',
+  external: '外部服务',
   blocked: '已拦截',
 }
 
@@ -16,7 +17,10 @@ const typeLabels: Record<string, string> = {
   read: '读取',
   write: '写入',
   bash: '命令',
+  bash_read: '只读命令',
+  browser: '浏览器',
   skill: '技能',
+  mcp: 'MCP 工具',
 }
 
 export default function AgentApprovalCard({

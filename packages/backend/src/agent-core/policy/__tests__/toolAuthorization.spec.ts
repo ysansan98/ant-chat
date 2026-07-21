@@ -78,7 +78,8 @@ describe('createToolAuthorization 行为', () => {
         permissionPolicy: {
           workspaceAccess: 'read',
           allowSelectedSkillRuntime: false,
-          allowMcpMutations: false,
+          allowBrowser: false,
+          allowMcpTools: false,
           extraFileRoots: [],
           allowBashCommands: false,
           bashCommandPatterns: [],
@@ -109,7 +110,8 @@ describe('createToolAuthorization 行为', () => {
         permissionPolicy: {
           workspaceAccess: 'read',
           allowSelectedSkillRuntime: false,
-          allowMcpMutations: false,
+          allowBrowser: false,
+          allowMcpTools: false,
           extraFileRoots: [],
           allowBashCommands: false,
           bashCommandPatterns: [],
@@ -138,7 +140,8 @@ describe('createToolAuthorization 行为', () => {
         permissionPolicy: {
           workspaceAccess: 'read',
           allowSelectedSkillRuntime: false,
-          allowMcpMutations: false,
+          allowBrowser: false,
+          allowMcpTools: false,
           extraFileRoots: [],
           allowBashCommands: true,
           bashCommandPatterns: [],
@@ -165,7 +168,8 @@ describe('createToolAuthorization 行为', () => {
         permissionPolicy: {
           workspaceAccess: 'read',
           allowSelectedSkillRuntime: false,
-          allowMcpMutations: false,
+          allowBrowser: false,
+          allowMcpTools: false,
           extraFileRoots: [],
           allowBashCommands: false,
           bashCommandPatterns: [],
@@ -231,7 +235,7 @@ describe('createToolAuthorization 行为', () => {
     }
   })
 
-  it('full_managed 模式下无论 scope 都返回 allow', async () => {
+  it('完全访问权限也不能绕过系统硬阻断', async () => {
     const hook = createToolAuthorization(createTaskState(async () => ({ approved: true })))
     const task = createTask({ mode: 'full_managed' })
 
@@ -241,7 +245,125 @@ describe('createToolAuthorization 行为', () => {
       config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
     })
 
-    expect(result).toEqual({ outcome: 'allow' })
+    expect(result).toMatchObject({ outcome: 'block', errorCode: 'AGENT_POLICY_BLOCKED' })
+  })
+
+  it('工具能力与资源域不一致时任何模式都直接阻断', async () => {
+    const hook = createToolAuthorization(createTaskState(async () => ({ approved: true })))
+
+    await expect(hook({
+      task: createTask({ mode: 'full_managed' }),
+      prepared: { ...createPrepared(), toolName: 'github__list_issues', operationType: 'mcp', scope: 'outside' },
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+    })).resolves.toMatchObject({ outcome: 'block', reason: '工具能力与资源域不一致' })
+  })
+
+  it('自动化只在显式授权后允许调用所选 MCP 工具', async () => {
+    const hook = createToolAuthorization(createTaskState(async () => ({ approved: true })))
+    const createAutomationTask = (allowMcpTools: boolean) => createTask({
+      turnSource: {
+        type: 'automation',
+        automationId: 'automation-1',
+        runId: 'run-1',
+        allowedSkills: [],
+        allowedMcpServers: ['github'],
+        permissionPolicy: {
+          workspaceAccess: 'read',
+          allowSelectedSkillRuntime: false,
+          allowBrowser: false,
+          allowMcpTools,
+          extraFileRoots: [],
+          allowBashCommands: false,
+          bashCommandPatterns: [],
+        },
+      },
+    })
+    const prepared = { ...createPrepared(), toolName: 'github__create_issue', operationType: 'mcp' as const, scope: 'external' as const }
+
+    await expect(hook({
+      task: createAutomationTask(false),
+      prepared,
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+    })).resolves.toMatchObject({ outcome: 'block', errorCode: 'AGENT_POLICY_BLOCKED' })
+    await expect(hook({
+      task: createAutomationTask(true),
+      prepared,
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+    })).resolves.toEqual({ outcome: 'allow' })
+  })
+
+  it('自动化只在显式授权后允许普通浏览器操作', async () => {
+    const hook = createToolAuthorization(createTaskState(async () => ({ approved: true })))
+    const createAutomationTask = (allowBrowser: boolean) => createTask({
+      turnSource: {
+        type: 'automation',
+        automationId: 'automation-1',
+        runId: 'run-1',
+        allowedSkills: [],
+        allowedMcpServers: [],
+        permissionPolicy: {
+          workspaceAccess: 'read',
+          allowSelectedSkillRuntime: false,
+          allowBrowser,
+          allowMcpTools: false,
+          extraFileRoots: [],
+          allowBashCommands: false,
+          bashCommandPatterns: [],
+        },
+      },
+    })
+    const prepared = { ...createPrepared(), toolName: 'browser', operationType: 'browser' as const, scope: 'external' as const }
+
+    await expect(hook({
+      task: createAutomationTask(false),
+      prepared,
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+    })).resolves.toMatchObject({ outcome: 'block', reason: '自动化任务未授权浏览器操作' })
+    await expect(hook({
+      task: createAutomationTask(true),
+      prepared,
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+    })).resolves.toEqual({ outcome: 'allow' })
+  })
+
+  it('自动化即使允许浏览器也不能复用系统 Chrome Profile', async () => {
+    const hook = createToolAuthorization(createTaskState(async () => ({ approved: true })))
+    const task = createTask({
+      turnSource: {
+        type: 'automation',
+        automationId: 'automation-1',
+        runId: 'run-1',
+        allowedSkills: [],
+        allowedMcpServers: [],
+        permissionPolicy: {
+          workspaceAccess: 'read',
+          allowSelectedSkillRuntime: false,
+          allowBrowser: true,
+          allowMcpTools: false,
+          extraFileRoots: [],
+          allowBashCommands: false,
+          bashCommandPatterns: [],
+        },
+      },
+    })
+
+    await expect(hook({
+      task,
+      prepared: { ...createPrepared(), toolName: 'browser', operationType: 'browser', scope: 'outside' },
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+    })).resolves.toMatchObject({ outcome: 'block', reason: '自动化任务不允许复用系统浏览器身份' })
+  })
+
+  it('交互任务访问外部服务时进入人工审批', async () => {
+    const waitForApproval = vi.fn(async () => ({ approved: true }))
+    const hook = createToolAuthorization(createTaskState(waitForApproval))
+
+    await expect(hook({
+      task: createTask({ mode: 'hybrid' }),
+      prepared: { ...createPrepared(), toolName: 'browser', operationType: 'browser', scope: 'external' },
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+    })).resolves.toEqual({ outcome: 'allow' })
+    expect(waitForApproval).toHaveBeenCalledOnce()
   })
 
   it('outside scope 设置 pendingAction 并等待审批', async () => {

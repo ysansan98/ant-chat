@@ -215,6 +215,44 @@ describe('executeToolStep 行为', () => {
     expect(result.toolResultContent).toBe('策略阻断，禁止执行')
   })
 
+  it('自动化被权限策略阻断时终止执行而不是把错误交回模型继续', async () => {
+    const currentToolMessages: McpToolCall[] = []
+    const task = createTask({
+      turnSource: {
+        type: 'automation',
+        automationId: 'automation-1',
+        runId: 'run-1',
+        allowedSkills: [],
+        allowedMcpServers: [],
+        permissionPolicy: {
+          workspaceAccess: 'read',
+          allowSelectedSkillRuntime: false,
+          allowBrowser: false,
+          allowMcpTools: false,
+          extraFileRoots: [],
+          allowBashCommands: false,
+          bashCommandPatterns: [],
+        },
+      },
+    })
+
+    await expect(executeToolStep({
+      task,
+      registry: new ToolRegistry([createReadTool()]),
+      requestedToolCall: { toolName: 'read_file', input: {} },
+      currentModelText: '',
+      currentToolMessages,
+      step: 1,
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+      beforeToolExecute: async () => ({ outcome: 'block', errorCode: 'AGENT_POLICY_BLOCKED', reason: '任务需要额外授权' }),
+    })).rejects.toMatchObject({ code: 'AGENT_POLICY_BLOCKED', message: '任务需要额外授权' })
+
+    expect(currentToolMessages[0]).toMatchObject({
+      executeState: 'completed',
+      result: { success: false, error: 'AGENT_POLICY_BLOCKED' },
+    })
+  })
+
   it('策略阻断时不会提前解析 SecretRef', async () => {
     const secretStore = createMockSecretStore('不得解析')
     const result = await executeToolStep({

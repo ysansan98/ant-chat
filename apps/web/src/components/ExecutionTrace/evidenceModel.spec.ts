@@ -171,7 +171,7 @@ describe('parseEvidence · policy-decision', () => {
 
   it('解析阻止判断与原因', () => {
     const view = parseEvidence(spanItem('policy-decision', 'block'), evidence(
-      spanStarted('policy-decision', { toolName: 'write', operationType: 'write', basis: 'automation.write.blocked', automationPolicy: { workspaceAccess: 'read', allowBashCommands: false, bashCommandPatterns: [], allowMcpMutations: false } }),
+      spanStarted('policy-decision', { toolName: 'write', operationType: 'write', basis: 'automation.write.blocked', automationPolicy: { workspaceAccess: 'read', allowBashCommands: false, bashCommandPatterns: [], allowMcpTools: false } }),
       spanCompleted('policy-decision', 'block', { status: 'block', outcome: 'block', errorCode: 'AGENT_POLICY_BLOCKED', reason: '自动化任务仅有工作区读取权限' }),
     ))
     expect(view.type).toBe('policy-decision')

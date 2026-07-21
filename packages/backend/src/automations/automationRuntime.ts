@@ -101,14 +101,19 @@ export function createAutomationRuntime(options: {
     else if (task.status === 'success' || task.status === 'failed' || task.status === 'cancelled') {
       markTerminalRun(runId)
       runByTaskId.delete(task.taskId)
-      const status = task.status === 'success' ? 'succeeded' : task.status
+      const status = task.status === 'success'
+        ? 'succeeded'
+        : task.status === 'failed' && task.errorCode === 'AGENT_POLICY_BLOCKED'
+          ? 'needs_attention'
+          : task.status
       trackFinish(runId, finishRun(runId, status, task.errorCode, task.errorMessage, task.summary))
     }
   })
   const unsubscribeSecretRequested = options.events.on('agent:secret-requested', ({ request }) => {
-    // SecretRequest.runId 由 agent loop 写入 taskId；自动化 runId 只存在于 turnSource。
+    // SecretRequest.runId 是 taskId；automationRunId 让 startTurn 返回前的早到事件
+    // 也能定位运行，避免依赖尚未建立的 taskId 映射。
     const taskId = request.runId
-    const runId = runByTaskId.get(taskId)
+    const runId = runByTaskId.get(taskId) ?? request.automationRunId
     if (!runId) {
       return
     }

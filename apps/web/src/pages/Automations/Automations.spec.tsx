@@ -38,7 +38,8 @@ const automation = {
   permissionPolicy: {
     workspaceAccess: 'read' as const,
     allowSelectedSkillRuntime: false,
-    allowMcpMutations: false,
+    allowBrowser: false,
+    allowMcpTools: false,
     extraFileRoots: [],
     allowBashCommands: false,
     bashCommandPatterns: [],
@@ -145,6 +146,7 @@ describe('automationsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '新建自动化' }))
 
     expect(await screen.findByText('/workspace/project')).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: /允许浏览器操作/ })).not.toBeChecked()
   })
 
   it('创建任务时计划标签明确标识当前选项', async () => {

@@ -320,7 +320,7 @@ export function CreateAutomationSheet(props: {
             <Alert>
               <ShieldCheck />
               <AlertTitle>只授权明确的能力范围</AlertTitle>
-              <AlertDescription>未覆盖的文件、命令或 MCP 操作会暂停任务并通知你，不会在后台静默扩大权限。</AlertDescription>
+              <AlertDescription>未覆盖的文件、浏览器、命令或 MCP 操作会暂停任务并通知你，不会在后台静默扩大权限。</AlertDescription>
             </Alert>
             <div className="flex flex-col gap-4 rounded-xl border border-border/70 p-4">
               <div className="flex items-start gap-3">
@@ -359,10 +359,16 @@ export function CreateAutomationSheet(props: {
                 onCheckedChange={checked => updateForm((draft) => { draft.permissionScopes.selectedSkillRuntime = checked })}
               />
               <PermissionSwitch
-                label="允许 MCP 执行有副作用的操作"
-                description={`未开启时，${form.selectedMcps.length} 个已选服务仅可调用只读工具`}
-                checked={form.permissionScopes.mcpMutations}
-                onCheckedChange={checked => updateForm((draft) => { draft.permissionScopes.mcpMutations = checked })}
+                label="允许浏览器操作"
+                description="允许访问网页并与页面交互；自动化任务不能复用系统 Chrome Profile"
+                checked={form.permissionScopes.browser}
+                onCheckedChange={checked => updateForm((draft) => { draft.permissionScopes.browser = checked })}
+              />
+              <PermissionSwitch
+                label="允许调用所选 MCP 工具"
+                description={`允许调用 ${form.selectedMcps.length} 个已选服务提供的工具；客户端无法验证远端工具是否有副作用`}
+                checked={form.permissionScopes.mcpTools}
+                onCheckedChange={checked => updateForm((draft) => { draft.permissionScopes.mcpTools = checked })}
               />
               <Separator />
               <div className="flex items-start gap-3">

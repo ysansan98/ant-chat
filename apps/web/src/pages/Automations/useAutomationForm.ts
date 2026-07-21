@@ -9,7 +9,8 @@ import { buildCron, parseCronForForm, splitCommaList, timestampToDatetimeLocal }
 export interface PermissionFormState {
   workspaceWrite: boolean
   selectedSkillRuntime: boolean
-  mcpMutations: boolean
+  browser: boolean
+  mcpTools: boolean
   bashCommands: boolean
 }
 
@@ -36,7 +37,8 @@ export interface AutomationFormState {
 const DEFAULT_PERMISSION_SCOPES: PermissionFormState = {
   workspaceWrite: true,
   selectedSkillRuntime: true,
-  mcpMutations: false,
+  browser: false,
+  mcpTools: false,
   bashCommands: false,
 }
 
@@ -107,7 +109,8 @@ export function useAutomationForm(opts: {
       const policy = def.permissionPolicy
       draft.permissionScopes.workspaceWrite = policy.workspaceAccess === 'write'
       draft.permissionScopes.selectedSkillRuntime = policy.allowSelectedSkillRuntime
-      draft.permissionScopes.mcpMutations = policy.allowMcpMutations
+      draft.permissionScopes.browser = policy.allowBrowser
+      draft.permissionScopes.mcpTools = policy.allowMcpTools
       draft.permissionScopes.bashCommands = policy.allowBashCommands
       draft.extraFileRoots = policy.extraFileRoots.join(', ')
       draft.bashCommandPatterns = policy.bashCommandPatterns.join(', ')
@@ -206,7 +209,8 @@ export function useAutomationForm(opts: {
       permissionPolicy: {
         workspaceAccess: form.permissionScopes.workspaceWrite ? 'write' as const : 'read' as const,
         allowSelectedSkillRuntime: form.permissionScopes.selectedSkillRuntime,
-        allowMcpMutations: form.permissionScopes.mcpMutations,
+        allowBrowser: form.permissionScopes.browser,
+        allowMcpTools: form.permissionScopes.mcpTools,
         extraFileRoots: splitCommaList(form.extraFileRoots),
         allowBashCommands: form.permissionScopes.bashCommands,
         bashCommandPatterns: splitCommaList(form.bashCommandPatterns),

@@ -307,6 +307,53 @@ describe('automationRuntime', () => {
     await runtime.dispose()
   })
 
+  it('startTurn 返回前请求秘密信息时仍能转为 needs_attention', async () => {
+    const automation = definition()
+    let currentRun = run({ status: 'queued' })
+    const repository = {
+      getById: vi.fn(async () => automation),
+      createManualRun: vi.fn(async () => currentRun),
+      updateRun: vi.fn(async (_id: string, patch: Partial<AutomationRun>) => {
+        currentRun = { ...currentRun, ...patch }
+        return currentRun
+      }),
+      cancelRunning: vi.fn(),
+    }
+    const events = new RuntimeEventBus()
+    const cancelTask = vi.fn()
+    const startTurn = vi.fn(async () => {
+      events.emit('agent:secret-requested', {
+        request: {
+          requestId: 'secret-1',
+          runId: 'fast-task',
+          automationRunId: currentRun.id,
+          conversationId: 'fast-conversation',
+          label: '部署凭据',
+          fields: [{ key: 'value', label: '部署凭据' }],
+          createdAt: 2_000,
+        },
+      })
+      return { taskId: 'fast-task', conversationId: 'fast-conversation', userMessageId: 'fast-turn' }
+    })
+    const runtime = createAutomationRuntime({
+      repository: repository as never,
+      startTurn,
+      cancelTask,
+      events,
+      clock: { now: () => 2_000 },
+    })
+
+    const completed = await runtime.runNow(automation.id)
+
+    expect(completed).toEqual(expect.objectContaining({
+      status: 'needs_attention',
+      taskId: 'fast-task',
+      errorCode: 'AUTOMATION_SECRET_REQUIRED',
+    }))
+    expect(cancelTask).toHaveBeenCalledWith('fast-task')
+    await runtime.dispose()
+  })
+
   it('awaiting approval 取消 task 并将 run 收口为 needs_attention', async () => {
     const automation = definition()
     const linked = run({ status: 'running', taskId: 'task-1', conversationId: 'conversation-1' })
@@ -343,6 +390,49 @@ describe('automationRuntime', () => {
       }))
     })
     expect(cancelTask).toHaveBeenCalledWith('task-1')
+    await runtime.dispose()
+  })
+
+  it('权限策略阻断时将自动化收口为 needs_attention', async () => {
+    const automation = definition()
+    const repository = {
+      getById: vi.fn(async () => automation),
+      createManualRun: vi.fn(async () => run({ status: 'queued' })),
+      updateRun: vi.fn(async (_id: string, patch: Partial<AutomationRun>) => run({
+        status: patch.status ?? 'running',
+        taskId: patch.taskId ?? 'task-1',
+        conversationId: patch.conversationId ?? 'conversation-1',
+        errorCode: patch.errorCode,
+        errorMessage: patch.errorMessage,
+        summary: patch.summary,
+        finishedAt: patch.finishedAt,
+      })),
+      cancelRunning: vi.fn(),
+    }
+    const events = new RuntimeEventBus()
+    const runtime = createAutomationRuntime({
+      repository: repository as never,
+      startTurn: vi.fn(async () => ({ taskId: 'task-1', conversationId: 'conversation-1', userMessageId: 'turn-1' })),
+      cancelTask: vi.fn(),
+      events,
+      clock: { now: () => 2_000 },
+    })
+    await runtime.runNow(automation.id)
+
+    events.emit('agent:task-updated', {
+      task: {
+        taskId: 'task-1',
+        status: 'failed',
+        errorCode: 'AGENT_POLICY_BLOCKED',
+        errorMessage: '自动化任务未授权浏览器操作',
+      },
+    } as never)
+
+    await vi.waitFor(() => expect(repository.updateRun).toHaveBeenCalledWith('run-1', expect.objectContaining({
+      status: 'needs_attention',
+      errorCode: 'AGENT_POLICY_BLOCKED',
+      errorMessage: '自动化任务未授权浏览器操作',
+    })))
     await runtime.dispose()
   })
 
@@ -402,7 +492,8 @@ function definition(): AutomationDefinition {
     permissionPolicy: {
       workspaceAccess: 'read',
       allowSelectedSkillRuntime: false,
-      allowMcpMutations: false,
+      allowBrowser: false,
+      allowMcpTools: false,
       extraFileRoots: [],
       allowBashCommands: false,
       bashCommandPatterns: [],

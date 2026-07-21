@@ -309,7 +309,8 @@ function toAutomationInput(command: Extract<AutomationCommand, { action: 'create
     permissionPolicy: {
       workspaceAccess: policy?.workspaceAccess ?? 'read',
       allowSelectedSkillRuntime: policy?.allowSelectedSkillRuntime ?? policy?.allowSkillScripts ?? false,
-      allowMcpMutations: policy?.allowMcpMutations ?? false,
+      allowBrowser: policy?.allowBrowser ?? false,
+      allowMcpTools: policy?.allowMcpTools ?? false,
       extraFileRoots: policy?.extraFileRoots ?? [],
       allowBashCommands: policy?.allowBashCommands ?? false,
       bashCommandPatterns: policy?.bashCommandPatterns ?? [],

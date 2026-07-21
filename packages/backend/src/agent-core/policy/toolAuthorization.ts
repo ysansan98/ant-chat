@@ -157,12 +157,31 @@ function decideAutomationPolicy(
 ): PolicyDecision | undefined {
   if (!policy)
     return undefined
+  if (scope === 'blocked')
+    return { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '策略阻断，禁止执行', basis: 'scope.blocked' as const }
+  if (!hasValidResourceDomain(operationType, scope))
+    return { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '工具能力与资源域不一致', basis: 'scope.blocked' as const }
+
+  // MCP 服务端无法提供可验证的副作用保证；ToolAnnotations 只能作为提示。
+  // ToolRegistry 先按所选服务和显式能力开关缩小集合，这里保留安全默认拒绝。
+  if (operationType === 'mcp') {
+    return policy.allowMcpTools
+      ? { type: 'allow' as const, basis: 'automation.mcp.allow' as const }
+      : { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '自动化任务未授权 MCP 工具', basis: 'automation.mcp.blocked' as const }
+  }
+
+  if (operationType === 'browser') {
+    if (scope === 'outside')
+      return { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '自动化任务不允许复用系统浏览器身份', basis: 'automation.browser-profile.blocked' as const }
+    return policy.allowBrowser
+      ? { type: 'allow' as const, basis: 'automation.browser.allow' as const }
+      : { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '自动化任务未授权浏览器操作', basis: 'automation.browser.blocked' as const }
+  }
+
   if (scope !== 'workspace')
     return { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '自动化任务不允许访问工作区外资源', basis: 'automation.scope.blocked' as const }
   if (operationType === 'read')
     return { type: 'allow' as const, basis: 'automation.read.allow' as const }
-  if (operationType === 'browser')
-    return { type: 'allow' as const, basis: 'automation.browser.allow' as const }
   if (operationType === 'write') {
     return policy.workspaceAccess === 'write'
       ? { type: 'allow' as const, basis: 'automation.write.allow' as const }
@@ -176,11 +195,6 @@ function decideAutomationPolicy(
     return policy.allowBashCommands
       ? { type: 'allow' as const, basis: 'automation.bash-read.allow' as const }
       : { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '自动化任务未授权命令执行', basis: 'automation.bash-read.blocked' as const }
-  }
-  if (operationType === 'mcp') {
-    return policy.allowMcpMutations
-      ? { type: 'allow' as const, basis: 'automation.mcp.allow' as const }
-      : { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '自动化任务未授权 MCP 操作', basis: 'automation.mcp.blocked' as const }
   }
   if (operationType === 'bash') {
     if (!policy.allowBashCommands)
@@ -202,20 +216,24 @@ type PolicyDecision
     | { type: 'block', errorCode: AgentErrorCode, reason: string, basis: PolicyBasis }
 
 function decidePolicy(mode: AgentMode, operationType: ToolOperationType, scope: ToolScope): PolicyDecision {
+  if (scope === 'blocked') {
+    return { type: 'block', errorCode: 'AGENT_POLICY_BLOCKED', reason: '策略阻断，禁止执行', basis: 'scope.blocked' }
+  }
+  if (!hasValidResourceDomain(operationType, scope)) {
+    return { type: 'block', errorCode: 'AGENT_POLICY_BLOCKED', reason: '工具能力与资源域不一致', basis: 'scope.blocked' }
+  }
+
+  // 完全访问只跳过人工审批，不能覆盖工具或系统产生的硬阻断。
   if (mode === 'full_managed') {
     return { type: 'allow', basis: 'mode.full-managed' }
   }
 
-  if (scope === 'blocked') {
-    return { type: 'block', errorCode: 'AGENT_POLICY_BLOCKED', reason: '策略阻断，禁止执行', basis: 'scope.blocked' }
-  }
-
-  if (scope === 'outside') {
-    return { type: 'require_approval', basis: 'scope.outside' }
+  if (scope === 'outside' || scope === 'external') {
+    return { type: 'require_approval', basis: scope === 'external' ? 'scope.external' : 'scope.outside' }
   }
 
   // 其余情况仅会是 workspace scope。
-  if (operationType === 'read' || operationType === 'bash_read' || operationType === 'browser' || operationType === 'skill' || operationType === 'mcp') {
+  if (operationType === 'read' || operationType === 'bash_read' || operationType === 'skill') {
     return { type: 'allow', basis: 'workspace.read' }
   }
 
@@ -224,6 +242,14 @@ function decidePolicy(mode: AgentMode, operationType: ToolOperationType, scope: 
   }
 
   return { type: 'require_approval', basis: 'default.require-approval' }
+}
+
+function hasValidResourceDomain(operationType: ToolOperationType, scope: ToolScope): boolean {
+  if (operationType === 'mcp')
+    return scope === 'external'
+  if (operationType === 'browser')
+    return scope === 'external' || scope === 'outside'
+  return true
 }
 
 const FILE_TOOLS = new Set([

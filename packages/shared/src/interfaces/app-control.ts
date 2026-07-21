@@ -17,9 +17,10 @@ const OptionalRecordOfStringsSchema = z.record(z.string(), z.string()).optional(
 const AutomationPermissionPolicyCommandSchema = z.object({
   workspaceAccess: z.enum(['read', 'write']).optional(),
   allowSelectedSkillRuntime: z.boolean().optional(),
+  allowBrowser: z.boolean().optional(),
   /** @deprecated use allowSelectedSkillRuntime */
   allowSkillScripts: z.boolean().optional(),
-  allowMcpMutations: z.boolean().optional(),
+  allowMcpTools: z.boolean().optional(),
   extraFileRoots: z.array(z.string()).optional(),
   allowBashCommands: z.boolean().optional(),
   bashCommandPatterns: z.array(z.string()).optional(),

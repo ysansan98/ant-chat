@@ -42,20 +42,20 @@ export class ToolRegistry {
     const trustedPaths = turnSource?.type === 'automation'
       ? await resolveAutomationTrustedPaths(skillReader, turnSource)
       : []
-    const nativeTools = getNativeToolService(workspacePath, unrestricted, {
+    const nativeTools = filterNativeToolsForTurn(getNativeToolService(workspacePath, unrestricted, {
       trustedPaths,
       browser: config.browser,
       bashEnvironment: config.bashEnvironment,
       browserSession,
-    }).getTools()
+    }).getTools(), turnSource)
     const relaxedNativeTools = unrestricted
       ? nativeTools
-      : getNativeToolService(workspacePath, true, {
+      : filterNativeToolsForTurn(getNativeToolService(workspacePath, true, {
           trustedPaths,
           browser: config.browser,
           bashEnvironment: config.bashEnvironment,
           browserSession,
-        }).getTools()
+        }).getTools(), turnSource)
     const skillTools = skillReader
       ? await makeSkillTools(skillReader, turnSource)
       : []
@@ -69,7 +69,9 @@ export class ToolRegistry {
     const mcpTools = config.mcpClientHub
       ? createMcpTools(config.mcpClientHub)
       : []
-    const allowedMcpServers = turnSource?.type === 'automation' ? turnSource.allowedMcpServers : undefined
+    const allowedMcpServers = turnSource?.type === 'automation'
+      ? (turnSource.permissionPolicy.allowMcpTools ? turnSource.allowedMcpServers : [])
+      : undefined
     const allowedMcpTools = allowedMcpServers === undefined
       ? mcpTools
       : mcpTools.filter(tool => allowedMcpServers.includes(tool.serverName ?? ''))
@@ -149,6 +151,12 @@ export class ToolRegistry {
       }
     })
   }
+}
+
+function filterNativeToolsForTurn(tools: AgentTool[], turnSource?: AgentTurnSource): AgentTool[] {
+  if (turnSource?.type !== 'automation' || turnSource.permissionPolicy.allowBrowser)
+    return tools
+  return tools.filter(tool => tool.name !== 'browser')
 }
 
 async function resolveAutomationTrustedPaths(skillReader: SkillReader | null, turnSource: AutomationTurnSource): Promise<string[]> {

@@ -34,6 +34,7 @@ export const PolicyBasisSchema = z.enum([
   'mode.full-managed',
   'scope.blocked',
   'scope.outside',
+  'scope.external',
   'workspace.read',
   'hybrid.write',
   'default.require-approval',
@@ -44,6 +45,8 @@ export const PolicyBasisSchema = z.enum([
   'automation.scope.blocked',
   'automation.read.allow',
   'automation.browser.allow',
+  'automation.browser.blocked',
+  'automation.browser-profile.blocked',
   'automation.write.allow',
   'automation.write.blocked',
   'automation.skill.allow',
@@ -146,6 +149,8 @@ const AvailableAgentTurnSummaryBaseSchema = AgentTurnSummaryIdentitySchema.exten
   taskId: z.string().min(1).optional(),
   startedAt: z.number().nonnegative(),
   spanCounts: AgentTurnSpanCountsSchema,
+  /** trace 数据持久化后的磁盘文件路径（运行时尚未落盘的 turn 无此字段）。 */
+  traceFilePath: z.string().optional(),
 })
 
 export const CollectingAgentTurnSummarySchema = AvailableAgentTurnSummaryBaseSchema.extend({
@@ -176,6 +181,7 @@ export const AvailableAgentTurnSummarySchema = z.discriminatedUnion('lifecycle',
 export const UnavailableAgentTurnSummarySchema = AgentTurnSummaryIdentitySchema.extend({
   availability: z.enum(['unsupported', 'expired', 'not-collected']),
   traceId: z.string().min(1).optional(),
+  traceFilePath: z.string().optional(),
   message: z.string().optional(),
 })
 

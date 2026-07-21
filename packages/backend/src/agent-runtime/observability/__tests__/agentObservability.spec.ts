@@ -358,6 +358,7 @@ describe('agent Observability module', () => {
       availability: 'unsupported',
       conversationId: 'conversation-1',
       turnId: 'turn-1',
+      traceFilePath: path.join(root, 'conversation-1', 'turn-1.jsonl'),
       message: '不支持的 Trace schema',
     }])
   })

@@ -197,7 +197,8 @@ describe('app runtime', () => {
         permissionPolicy: {
           workspaceAccess: 'read',
           allowSelectedSkillRuntime: false,
-          allowMcpMutations: false,
+          allowBrowser: false,
+          allowMcpTools: false,
           extraFileRoots: [],
           allowBashCommands: false,
           bashCommandPatterns: [],

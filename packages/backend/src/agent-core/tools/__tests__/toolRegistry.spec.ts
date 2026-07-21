@@ -65,7 +65,8 @@ describe('toolRegistry Skill 白名单', () => {
         permissionPolicy: {
           workspaceAccess: 'read',
           allowSelectedSkillRuntime: false,
-          allowMcpMutations: false,
+          allowBrowser: false,
+          allowMcpTools: false,
           extraFileRoots: [],
           allowBashCommands: false,
           bashCommandPatterns: [],
@@ -101,7 +102,8 @@ describe('toolRegistry Skill 白名单', () => {
         permissionPolicy: {
           workspaceAccess: 'read',
           allowSelectedSkillRuntime: false,
-          allowMcpMutations: false,
+          allowBrowser: false,
+          allowMcpTools: false,
           extraFileRoots: [],
           allowBashCommands: false,
           bashCommandPatterns: [],
@@ -126,7 +128,8 @@ describe('toolRegistry Skill 白名单', () => {
         permissionPolicy: {
           workspaceAccess: 'read',
           allowSelectedSkillRuntime: true,
-          allowMcpMutations: false,
+          allowBrowser: false,
+          allowMcpTools: false,
           extraFileRoots: [],
           allowBashCommands: false,
           bashCommandPatterns: [],
@@ -152,7 +155,8 @@ describe('toolRegistry Skill 白名单', () => {
         permissionPolicy: {
           workspaceAccess: 'read',
           allowSelectedSkillRuntime: false,
-          allowMcpMutations: false,
+          allowBrowser: false,
+          allowMcpTools: false,
           extraFileRoots: [],
           allowBashCommands: false,
           bashCommandPatterns: [],
@@ -205,6 +209,35 @@ describe('toolRegistry Skill 白名单', () => {
     expect(registry.listTools().some(tool => tool.name === 'ant_chat')).toBe(false)
   })
 
+  it('自动化只在显式授权后注入浏览器能力', async () => {
+    const config = {
+      ...createConfig(),
+      browser: { profilePath: '/tmp/profile', artifactsPath: '/tmp/artifacts' },
+    }
+    const createTurnSource = (allowBrowser: boolean) => ({
+      type: 'automation' as const,
+      automationId: 'automation-1',
+      runId: 'run-1',
+      allowedSkills: [],
+      allowedMcpServers: [],
+      permissionPolicy: {
+        workspaceAccess: 'read' as const,
+        allowSelectedSkillRuntime: false,
+        allowBrowser,
+        allowMcpTools: false,
+        extraFileRoots: [],
+        allowBashCommands: false,
+        bashCommandPatterns: [],
+      },
+    })
+
+    const deniedRegistry = await ToolRegistry.create({ config, mode: 'hybrid', turnSource: createTurnSource(false), workspacePath })
+    expect(deniedRegistry.listTools().some(tool => tool.name === 'browser')).toBe(false)
+
+    const allowedRegistry = await ToolRegistry.create({ config, mode: 'hybrid', turnSource: createTurnSource(true), workspacePath })
+    expect(allowedRegistry.listTools().some(tool => tool.name === 'browser')).toBe(true)
+  })
+
   it('普通交互 Turn 将严格只读 Bash 标记为 bash_read', async () => {
     const registry = await ToolRegistry.create({
       config: createConfig(),
@@ -223,7 +256,52 @@ describe('toolRegistry Skill 白名单', () => {
     })
   })
 
-  it('普通交互 Turn 始终注册已连接的 MCP 工具', async () => {
+  it('自动化只在显式授权后注入所选 MCP 服务的工具', async () => {
+    const mcpClientHub: RuntimeMcpClientHub = {
+      connections: [{
+        server: {
+          name: 'github',
+          status: 'connected',
+          tools: [{ name: 'list_issues', description: '列出 issue', inputSchema: { type: 'object', properties: {}, required: [] } }],
+        },
+      }, {
+        server: {
+          name: 'slack',
+          status: 'connected',
+          tools: [{ name: 'send_message', description: '发送消息', inputSchema: { type: 'object', properties: {}, required: [] } }],
+        },
+      }],
+      callTool: vi.fn(),
+    }
+    const createTurnSource = (allowMcpTools: boolean) => ({
+      type: 'automation' as const,
+      automationId: 'automation-1',
+      runId: 'run-1',
+      allowedSkills: [],
+      allowedMcpServers: ['github'],
+      permissionPolicy: {
+        workspaceAccess: 'read' as const,
+        allowSelectedSkillRuntime: false,
+        allowBrowser: false,
+        allowMcpTools,
+        extraFileRoots: [],
+        allowBashCommands: false,
+        bashCommandPatterns: [],
+      },
+    })
+    const config = { ...createConfig(), mcpClientHub }
+
+    const deniedRegistry = await ToolRegistry.create({ config, mode: 'strict', turnSource: createTurnSource(false), workspacePath })
+    expect(deniedRegistry.listTools().some(tool => tool.source === 'mcp')).toBe(false)
+
+    const allowedRegistry = await ToolRegistry.create({ config, mode: 'strict', turnSource: createTurnSource(true), workspacePath })
+    expect(allowedRegistry.listTools()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: `github${DEFAULT_MCP_TOOL_NAME_SEPARATOR}list_issues` }),
+    ]))
+    expect(allowedRegistry.listTools().some(tool => tool.name.includes('slack'))).toBe(false)
+  })
+
+  it('mcp 工具统一标记为外部资源且不信任服务端副作用提示', async () => {
     const mcpClientHub: RuntimeMcpClientHub = {
       connections: [{
         server: {
@@ -232,6 +310,10 @@ describe('toolRegistry Skill 白名单', () => {
           tools: [{
             name: 'list_issues',
             description: '列出 issue',
+            inputSchema: { type: 'object', properties: {}, required: [] },
+          }, {
+            name: 'create_issue',
+            description: '创建 issue',
             inputSchema: { type: 'object', properties: {}, required: [] },
           }],
         },
@@ -250,5 +332,7 @@ describe('toolRegistry Skill 白名单', () => {
       serverName: 'github',
       source: 'mcp',
     }))
+    expect(registry.prepare(`github${DEFAULT_MCP_TOOL_NAME_SEPARATOR}list_issues`, {})).toMatchObject({ operationType: 'mcp', scope: 'external' })
+    expect(registry.prepare(`github${DEFAULT_MCP_TOOL_NAME_SEPARATOR}create_issue`, {})).toMatchObject({ operationType: 'mcp', scope: 'external' })
   })
 })

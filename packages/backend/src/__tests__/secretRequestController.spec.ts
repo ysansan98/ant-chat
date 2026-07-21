@@ -25,6 +25,7 @@ describe('runtimeSecretRequestController', () => {
 
     const pending = controller.requestSecret({
       runId: 'run-1',
+      automationRunId: 'automation-run-1',
       conversationId: 'conv-1',
       label: '登录凭据',
       fields: [
@@ -52,5 +53,28 @@ describe('runtimeSecretRequestController', () => {
       { key: 'username', label: '账号' },
       { key: 'password', label: '密码' },
     ])
+    expect(requests[0].automationRunId).toBe('automation-run-1')
+  })
+
+  it('任务取消时立即结束敏感信息请求', async () => {
+    const controller = new RuntimeSecretRequestController({
+      saveProviderApiKey: vi.fn(),
+      getProviderApiKey: vi.fn(),
+      deleteProviderApiKey: vi.fn(),
+      createTurnSecret: vi.fn(),
+      resolve: vi.fn(),
+      clearTurnSecrets: vi.fn(),
+    }, { emitSecretRequested: vi.fn() })
+    const abortController = new AbortController()
+
+    const pending = controller.requestSecret({
+      runId: 'task-1',
+      conversationId: 'conversation-1',
+      label: '部署凭据',
+      signal: abortController.signal,
+    })
+    abortController.abort()
+
+    await expect(pending).rejects.toThrow('任务已取消')
   })
 })

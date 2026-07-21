@@ -3,7 +3,7 @@ import type { RuntimeTask } from '../taskStore'
 import type { PreparedToolCall, ToolRegistry } from './toolRegistry'
 import type { ToolAuthorization, ToolCallContext } from './types'
 import { randomUUID } from 'node:crypto'
-import { AGENT_TOOL_EXEC_FAILED, VisualizationOutputBlocksSchema } from '@ant-chat/shared'
+import { AGENT_POLICY_BLOCKED, AGENT_TOOL_EXEC_FAILED, VisualizationOutputBlocksSchema } from '@ant-chat/shared'
 import { AgentError } from '../AgentError'
 import { cancelObservation, completeObservation, failObservation, startObservationSpan } from '../observation'
 import { createVisualizationToolFailureResult } from './publishVisualizationTool'
@@ -88,7 +88,12 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
       failObservation(validationSpan, { status: 'failed', error: preparation.error }, config.logger)
     }
     const safePreparation = redactPreparation(preparation, redactOpaqueRefs)
-    return finalizeToolStep(currentToolCall, safePreparation, task.snapshot.conversationId, config, currentModelText, currentToolMessages)
+    const result = await finalizeToolStep(currentToolCall, safePreparation, task.snapshot.conversationId, config, currentModelText, currentToolMessages)
+    // 交互 Turn 可把拒绝结果交还模型解释；无人值守 Turn 必须终止，
+    // 否则模型下一轮正常回复会把被权限阻断的自动化误标为成功。
+    if (preparation.status === 'blocked' && preparation.error === AGENT_POLICY_BLOCKED && task.snapshot.turnSource?.type === 'automation')
+      throw new AgentError(AGENT_POLICY_BLOCKED, safePreparation.toolResultText)
+    return result
   }
 
   if (options.abortSignal?.aborted) {
@@ -251,10 +256,12 @@ async function executeRequestSecret(prepared: PreparedToolCall, task: RuntimeTas
   const reason = typeof prepared.input.reason === 'string' ? prepared.input.reason : undefined
   const result = await config.secretRequester.requestSecret({
     runId: task.snapshot.taskId,
+    automationRunId: task.snapshot.turnSource?.type === 'automation' ? task.snapshot.turnSource.runId : undefined,
     conversationId: task.snapshot.conversationId,
     label: label || (fields?.length === 1 ? fields[0].label : '敏感信息'),
     fields,
     reason,
+    signal: task.abortController.signal,
   })
   return { ok: true, result: JSON.stringify(result) }
 }

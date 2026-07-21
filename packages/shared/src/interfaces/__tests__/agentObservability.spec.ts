@@ -60,7 +60,8 @@ describe('智能体可观测性合同', () => {
         permissionPolicy: {
           workspaceAccess: 'read',
           allowSelectedSkillRuntime: false,
-          allowMcpMutations: false,
+          allowBrowser: false,
+          allowMcpTools: false,
           extraFileRoots: [],
           allowBashCommands: false,
           bashCommandPatterns: [],

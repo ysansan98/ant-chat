@@ -239,10 +239,12 @@ export interface SecretStore {
 
 export interface SecretRequestInput {
   runId: string
+  automationRunId?: string
   conversationId: string
   label: string
   fields?: SecretRequestField[]
   reason?: string
+  signal?: AbortSignal
 }
 
 export interface SecretRequestController {

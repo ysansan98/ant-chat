@@ -27,12 +27,17 @@ export function createBrowserTool(workspacePath: string, config: AgentBrowserRun
     },
     unrestricted: true,
     inferScope: (input) => {
-      return validateBrowserInput(input as unknown as BrowserToolInput, {
+      const validationError = validateBrowserInput(input as unknown as BrowserToolInput, {
         workspacePath,
         artifactsPath: config.artifactsPath,
       })
-        ? 'blocked'
-        : 'workspace'
+      if (validationError)
+        return 'blocked'
+
+      // 系统 Chrome Profile 携带工作区外身份状态，必须进入本机资源审批；
+      // 普通网页操作属于已连接的外部资源，不再伪装成 workspace。
+      const args = Array.isArray(input.args) ? input.args : []
+      return args.includes('--profile') ? 'outside' : 'external'
     },
     validateInput: input => validateBrowserInput(input as unknown as BrowserToolInput, {
       workspacePath,

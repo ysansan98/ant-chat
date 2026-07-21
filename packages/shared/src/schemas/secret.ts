@@ -15,6 +15,7 @@ export const SecretRequestFieldSchema = z.object({
 
 export const SecretRequestSchema = z.object({
   requestId: z.string(),
+  automationRunId: z.string().optional(),
   runId: z.string(),
   conversationId: z.string(),
   label: z.string(),
