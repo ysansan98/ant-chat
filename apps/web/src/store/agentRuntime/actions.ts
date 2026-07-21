@@ -21,12 +21,6 @@ export async function approveAgentAction(options: ApprovePendingActionOptions) {
   await agentApi.approvePendingAction(options)
 }
 
-export async function approveAgentActionWithWhitelist(
-  options: ApprovePendingActionOptions & { remember: boolean, workspacePath?: string },
-) {
-  await agentApi.approvePendingActionWithWhitelist(options)
-}
-
 export async function rejectAgentAction(options: RejectPendingActionOptions) {
   await agentApi.rejectPendingAction(options)
 }

@@ -124,7 +124,6 @@ export interface AppRpcContract {
   'agent.startTurn': RpcEndpoint<{ options: StartAgentTurnOptions }, AgentTurnResult>
   'agent.approvePendingAction': RpcEndpoint<{ options: ApprovePendingActionOptions }, null>
   'agent.rejectPendingAction': RpcEndpoint<{ options: RejectPendingActionOptions }, null>
-  'agent.approvePendingActionWithWhitelist': RpcEndpoint<{ options: ApprovePendingActionOptions & { remember: boolean, workspacePath?: string } }, null>
   'agent.resolveSecretRequest': RpcEndpoint<{ options: { requestId: string, value?: string, values?: Record<string, string> } }, null>
   'agent.rejectSecretRequest': RpcEndpoint<{ options: { requestId: string, reason?: string } }, null>
   'agent.cancelTask': RpcEndpoint<{ taskId: string }, null>

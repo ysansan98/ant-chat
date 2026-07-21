@@ -18,6 +18,98 @@ interface BashRunnerOptions {
   trustedPaths?: string[]
 }
 
+export interface BashApprovalTarget {
+  key: string
+  description: string
+}
+
+/**
+ * 持久授权必须描述实际执行能力，而不是只描述可执行文件名。
+ * Node 脚本按脚本和 cwd 收口；带环境覆盖的命令不提供持久授权候选。
+ */
+export function createBashApprovalTarget(input: BashToolInput, workspacePath: string, executableSearchPath?: string): BashApprovalTarget | undefined {
+  if (input.env && Object.keys(input.env).length > 0) {
+    return undefined
+  }
+  try {
+    const commands = parseCommands(input.command)
+    const cwd = input.cwd
+      ? (path.isAbsolute(input.cwd) ? path.resolve(input.cwd) : path.resolve(workspacePath, input.cwd))
+      : path.resolve(workspacePath)
+    if (commands.length === 1) {
+      const [command] = commands
+      const script = command.args[0]
+      const executableName = path.basename(command.command).toLowerCase()
+      if ((executableName === 'node' || executableName === 'node.exe') && script && !script.startsWith('-')) {
+        const executable = resolveExecutable(command.command, cwd, executableSearchPath ?? process.env.PATH)
+        if (!executable) {
+          return undefined
+        }
+        const scriptPath = resolveRealPathIfPresent(path.resolve(cwd, script))
+        return {
+          key: `node-script:${executable}:${scriptPath}:cwd:${resolveRealPathIfPresent(cwd)}`,
+          description: `允许 ${executable} 执行脚本 ${scriptPath}`,
+        }
+      }
+    }
+    const resolvedCommands = commands.map((command) => {
+      const executable = resolveExecutable(command.command, cwd, executableSearchPath ?? process.env.PATH)
+      if (!executable) {
+        throw new Error('无法解析命令可执行文件')
+      }
+      return { executable, args: command.args }
+    })
+    return {
+      key: `command:${JSON.stringify({ cwd: resolveRealPathIfPresent(cwd), commands: resolvedCommands })}`,
+      description: `允许执行命令 ${input.command}`,
+    }
+  }
+  catch {
+    return undefined
+  }
+}
+
+function resolveExecutable(command: string, cwd: string, searchPath: string | undefined): string | undefined {
+  if (looksLikePath(command)) {
+    const candidate = path.resolve(cwd, command)
+    return isExecutableFile(candidate) ? resolveRealPathIfPresent(candidate) : undefined
+  }
+  const executableNames = process.platform === 'win32' && !command.toLowerCase().endsWith('.exe')
+    ? [command, `${command}.exe`]
+    : [command]
+  for (const directory of searchPath?.split(path.delimiter) ?? []) {
+    for (const name of executableNames) {
+      const candidate = path.join(directory, name)
+      if (isExecutableFile(candidate)) {
+        return resolveRealPathIfPresent(candidate)
+      }
+    }
+  }
+  return undefined
+}
+
+function isExecutableFile(filePath: string): boolean {
+  try {
+    if (!fs.statSync(filePath).isFile()) {
+      return false
+    }
+    fs.accessSync(filePath, process.platform === 'win32' ? fs.constants.F_OK : fs.constants.X_OK)
+    return true
+  }
+  catch {
+    return false
+  }
+}
+
+function resolveRealPathIfPresent(filePath: string): string {
+  try {
+    return fs.realpathSync.native(filePath)
+  }
+  catch {
+    return filePath
+  }
+}
+
 export async function runBashTool(
   input: BashToolInput,
   workspacePath: string,

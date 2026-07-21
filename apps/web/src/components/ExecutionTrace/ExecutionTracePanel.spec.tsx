@@ -280,7 +280,7 @@ describe('executionTracePanel', () => {
     expect(within(drawer).getByText('失败')).toBeInTheDocument()
   })
 
-  it('策略判断详情展示决策横幅、权限模式、判定依据与白名单命中', async () => {
+  it('记忆授权放行时同时展示基础判定与最终依据', async () => {
     vi.mocked(observabilityApi.getTurnTimeline).mockResolvedValue({
       summary: first,
       items: [{ type: 'span', recordId: 'policy-1', spanId: 'span-9', kind: 'policy-decision', status: 'allow', startedAt: first.startedAt, endedAt: first.startedAt + 5, durationMs: 5 }],
@@ -298,7 +298,7 @@ describe('executionTracePanel', () => {
           spanId: 'span-9',
           spanKind: 'policy-decision',
           startedAt: 2_000,
-          input: { toolName: 'write', input: { path: '/workspace/a.txt' }, operationType: 'write', scope: 'workspace', policy: 'require_approval', basis: 'default.require-approval', mode: 'strict' },
+          input: { toolName: 'write', input: { path: '/workspace/a.txt' }, operationType: 'write', scope: 'workspace', policy: 'require_approval', basis: 'default.require-approval', initialDecision: { outcome: 'require_approval', basis: 'default.require-approval' }, mode: 'strict' },
         },
         {
           schemaVersion: 1,
@@ -311,7 +311,7 @@ describe('executionTracePanel', () => {
           spanKind: 'policy-decision',
           status: 'allow',
           endedAt: 2_005,
-          output: { status: 'allow', outcome: 'allow', whitelist: { matchKey: '/workspace/a.txt', entry: { toolName: 'write' } } },
+          output: { status: 'allow', outcome: 'allow', effectiveDecision: { outcome: 'allow', basis: 'approval-grant.match' }, whitelist: { matchKey: '/workspace/a.txt', entry: { toolName: 'write' } } },
         },
       ],
     })
@@ -321,6 +321,7 @@ describe('executionTracePanel', () => {
 
     expect(await screen.findByText('默认权限')).toBeInTheDocument()
     expect(screen.getByText('当前权限模式要求人工审批')).toBeInTheDocument()
+    expect(screen.getByText('已命中用户记住的授权规则')).toBeInTheDocument()
     expect(screen.getByText('/workspace/a.txt')).toBeInTheDocument()
   })
 

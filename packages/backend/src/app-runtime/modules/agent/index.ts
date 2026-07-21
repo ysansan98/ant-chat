@@ -57,6 +57,7 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
         bashEnvironment: core.bashEnvironment,
         loadFileData: core.data.loadAttachmentData,
         getToolApprovalWhitelistEntries: () => core.data.toolApprovalWhitelistRepository.getAll(),
+        addToolApprovalWhitelistEntry: entry => core.data.toolApprovalWhitelistRepository.add(entry),
         secretStore: core.secretStore,
         secretRequester: this.secretRequester,
       },
@@ -120,18 +121,6 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
   @Method()
   rejectPendingAction(input: AppRpcInput<'agent.rejectPendingAction'>) {
     this.runtime.rejectPendingAction(input.options)
-    return null
-  }
-
-  @Method()
-  approvePendingActionWithWhitelist(input: AppRpcInput<'agent.approvePendingActionWithWhitelist'>) {
-    if (input.options.remember) {
-      const pending = this.runtime.getTask(input.options.taskId).pendingAction
-      if (pending?.whitelistPattern) {
-        this.core.data.toolApprovalWhitelistRepository.add({ toolName: pending.toolName, toolScope: pending.scope, pattern: pending.whitelistPattern, workspacePath: input.options.workspacePath })
-      }
-    }
-    this.runtime.approvePendingAction(input.options)
     return null
   }
 

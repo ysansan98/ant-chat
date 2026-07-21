@@ -3,7 +3,7 @@ import { AppSettingsSchema } from '@ant-chat/shared'
 import { JsonFileMigrationError, UnsupportedJsonSchemaVersionError, VersionedJsonFileStore } from '../file'
 import { DEFAULT_APP_SETTINGS } from './defaultAppSettings'
 
-const APP_SETTINGS_SCHEMA_VERSION = 2
+const APP_SETTINGS_SCHEMA_VERSION = 3
 const APP_SETTINGS_MIGRATIONS = [
   {
     version: 1,
@@ -12,6 +12,10 @@ const APP_SETTINGS_MIGRATIONS = [
   {
     version: 2,
     migrate: migrateProviderModelOutputTokens,
+  },
+  {
+    version: 3,
+    migrate: revokeLegacyToolApprovalWhitelist,
   },
 ] as const
 
@@ -36,6 +40,18 @@ function migrateProviderModelOutputTokens(value: unknown): unknown {
     }
   }
 
+  return value
+}
+
+/**
+ * 旧 glob 规则无法安全还原为用户当时批准的具体资源和输入。
+ * 升级时统一撤销，避免把历史宽泛规则带入精确能力模型。
+ */
+function revokeLegacyToolApprovalWhitelist(value: unknown): unknown {
+  if (!isRecord(value) || !Array.isArray(value.toolApprovalWhitelist)) {
+    return value
+  }
+  value.toolApprovalWhitelist = []
   return value
 }
 

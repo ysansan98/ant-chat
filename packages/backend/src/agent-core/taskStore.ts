@@ -1,4 +1,4 @@
-import type { AgentPendingAction, AgentTaskSnapshot, IAgentEventEmitter } from '@ant-chat/shared'
+import type { AgentPendingAction, AgentTaskSnapshot, ApprovePendingActionOptions, IAgentEventEmitter } from '@ant-chat/shared'
 import { AgentError } from './AgentError'
 
 export interface SteeringInput {
@@ -25,7 +25,7 @@ export interface TaskExecution {
 }
 
 interface StoredTask extends RuntimeTask {
-  pendingResolver?: (value: { approved: boolean, reason?: string }) => void
+  pendingResolver?: (value: ApprovalDecision) => void
   steeringQueue: SteeringInput[]
   pendingSteeringMessages: PendingSteeringMessage[]
 }
@@ -33,6 +33,7 @@ interface StoredTask extends RuntimeTask {
 export interface ApprovalDecision {
   approved: boolean
   reason?: string
+  remember?: ApprovePendingActionOptions['remember']
 }
 
 const APPROVAL_TIMEOUT_MS = 5 * 60 * 1000
@@ -102,11 +103,22 @@ export class TaskStore {
     return messages
   }
 
-  approve(taskId: string, actionId: string): RuntimeTask {
+  approve(
+    taskId: string,
+    actionId: string,
+    remember?: ApprovePendingActionOptions['remember'],
+    persistGrant?: (pendingAction: AgentPendingAction, workspacePath: string) => void,
+  ): RuntimeTask {
     const task = this.getApprovableTask(taskId, actionId)
+    if (remember) {
+      if (!persistGrant) {
+        throw new Error('记忆授权缺少持久化 owner')
+      }
+      persistGrant(task.snapshot.pendingAction!, task.snapshot.workspacePath)
+    }
     task.snapshot.pendingAction = undefined
     task.snapshot.status = 'running'
-    task.pendingResolver?.({ approved: true })
+    task.pendingResolver?.({ approved: true, remember })
     task.pendingResolver = undefined
     return task
   }

@@ -1,7 +1,11 @@
-import { describe, expect, it, vi } from 'vitest'
-import { createToolAuthorization } from '../toolAuthorization'
 import type { AgentTaskSnapshot, IAgentEventEmitter, ILogger, ToolApprovalWhitelistEntry } from '@ant-chat/shared'
-import type { RuntimeTask, TaskStore } from '../../taskStore'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { describe, expect, it, vi } from 'vitest'
+import type { RuntimeTask } from '../../taskStore'
+import { TaskStore } from '../../taskStore'
+import { createToolAuthorization } from '../toolAuthorization'
 
 function createMockEmitter(): IAgentEventEmitter {
   return {
@@ -48,7 +52,7 @@ function createPrepared() {
   }
 }
 
-function createTaskState(waitForApproval: (task: RuntimeTask) => Promise<{ approved: boolean, reason?: string }>): TaskStore {
+function createTaskState(waitForApproval: (task: RuntimeTask) => Promise<{ approved: boolean, reason?: string, remember?: 'workspace' | 'global' }>): TaskStore {
   return {
     requestApproval: async (task, pendingAction, eventEmitter) => {
       task.snapshot.status = 'awaiting_approval'
@@ -342,19 +346,21 @@ describe('createToolAuthorization 行为', () => {
     expect(span.complete).toHaveBeenCalledWith(expect.objectContaining({ status: 'allow', outcome: 'allow' }))
   })
 
-  it('白名单匹配时自动批准', async () => {
+  it('精确记忆授权匹配时自动批准', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
 
     const whitelist: ToolApprovalWhitelistEntry[] = [{
       toolName: 'write_file',
+      operationType: 'write',
       toolScope: 'workspace',
-      pattern: './src/**',
+      pattern: '/workspace/src/index.ts',
+      description: '允许写入 src',
     }]
 
     const hook = createToolAuthorization(
       createTaskState(async () => ({ approved: true })),
-      () => whitelist,
+      { getEntries: () => whitelist },
     )
     const task = createTask({ mode: 'strict' })
 
@@ -369,14 +375,16 @@ describe('createToolAuthorization 行为', () => {
     expect(task.snapshot.status).toBe('running')
   })
 
-  it('白名单不匹配时不自动批准', async () => {
+  it('记忆授权不匹配时仍请求审批', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
 
     const whitelist: ToolApprovalWhitelistEntry[] = [{
       toolName: 'write_file',
+      operationType: 'write',
       toolScope: 'workspace',
       pattern: '/safe-path/**',
+      description: '允许写入安全目录',
     }]
 
     let resolveApproval!: (value: { approved: boolean, reason?: string }) => void
@@ -386,7 +394,7 @@ describe('createToolAuthorization 行为', () => {
       })
     })
 
-    const hook = createToolAuthorization(createTaskState(waitForApproval), () => whitelist)
+    const hook = createToolAuthorization(createTaskState(waitForApproval), { getEntries: () => whitelist })
     const task = createTask({ mode: 'strict' })
 
     const resultPromise = hook({
@@ -401,7 +409,35 @@ describe('createToolAuthorization 行为', () => {
     expect(result).toEqual({ outcome: 'allow' })
   })
 
-  it('在 pendingAction 中发送 whitelistPattern 和 whitelistApplicableScope', async () => {
+  it('全局文件授权仍绑定同一个绝对资源', async () => {
+    const entries: ToolApprovalWhitelistEntry[] = []
+    const firstHook = createToolAuthorization(
+      createTaskState(async (task) => {
+        entries.push(task.snapshot.pendingAction!.approvalGrant!)
+        return { approved: true }
+      }),
+      { getEntries: () => entries },
+    )
+    const prepared = { ...createPrepared(), toolName: 'write_file', operationType: 'write' as const, scope: 'workspace' as const, input: { path: './src/index.ts' } }
+
+    await firstHook({
+      task: createTask({ mode: 'strict' }),
+      prepared,
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+    })
+    expect(entries[0]?.pattern).toBe('/workspace/src/index.ts')
+
+    const waitForApproval = vi.fn(async () => ({ approved: true }))
+    const nextHook = createToolAuthorization(createTaskState(waitForApproval), { getEntries: () => entries })
+    await nextHook({
+      task: createTask({ mode: 'strict', workspacePath: '/other-workspace' }),
+      prepared,
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+    })
+    expect(waitForApproval).toHaveBeenCalledOnce()
+  })
+
+  it('审批请求携带具体的记忆授权能力', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
 
@@ -412,7 +448,7 @@ describe('createToolAuthorization 行为', () => {
       })
     })
 
-    const hook = createToolAuthorization(createTaskState(waitForApproval), () => [])
+    const hook = createToolAuthorization(createTaskState(waitForApproval), { getEntries: () => [] })
     const task = createTask({ mode: 'strict' })
 
     const resultPromise = hook({
@@ -421,7 +457,11 @@ describe('createToolAuthorization 行为', () => {
       config: { eventEmitter: emitter, logger },
     })
 
-    expect(task.snapshot.pendingAction?.whitelistPattern).toBeDefined()
+    expect(task.snapshot.pendingAction?.approvalGrant).toMatchObject({
+      toolName: 'bash',
+      operationType: 'bash',
+      description: '允许执行命令 git log',
+    })
 
     resolveApproval({ approved: true })
     await resultPromise
@@ -451,5 +491,184 @@ describe('createToolAuthorization 行为', () => {
     resolveApproval({ approved: true })
     const result = await resultPromise
     expect(result).toEqual({ outcome: 'allow' })
+  })
+
+  it('记住 Node 脚本后只放行同一脚本，不扩大为任意 Node 命令', async () => {
+    const entries: ToolApprovalWhitelistEntry[] = []
+    const grants = { getEntries: () => entries }
+    const firstHook = createToolAuthorization(
+      createTaskState(async (task) => {
+        entries.push(task.snapshot.pendingAction!.approvalGrant!)
+        return { approved: true, remember: 'global' }
+      }),
+      grants,
+    )
+    const prepared = {
+      ...createPrepared(),
+      toolName: 'bash',
+      operationType: 'bash' as const,
+      scope: 'outside' as const,
+      input: { command: 'node meituan/run.js init', cwd: 'skills' },
+    }
+
+    await expect(firstHook({
+      task: createTask({ mode: 'strict' }),
+      prepared,
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+    })).resolves.toEqual({ outcome: 'allow' })
+
+    expect(entries).toHaveLength(1)
+    expect(entries[0]).toMatchObject({
+      description: expect.stringContaining('执行脚本 /workspace/skills/meituan/run.js'),
+    })
+
+    const waitForApproval = vi.fn(async () => ({ approved: true }))
+    const nextHook = createToolAuthorization(createTaskState(waitForApproval), grants)
+    await expect(nextHook({
+      task: createTask({ mode: 'strict' }),
+      prepared: { ...prepared, input: { command: 'node meituan/run.js issue', cwd: 'skills' } },
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+    })).resolves.toEqual({ outcome: 'allow' })
+    expect(waitForApproval).not.toHaveBeenCalled()
+
+    await nextHook({
+      task: createTask({ mode: 'strict' }),
+      prepared: { ...prepared, input: { command: 'node other/run.js issue', cwd: 'skills' } },
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+    })
+    await nextHook({
+      task: createTask({ mode: 'strict', workspacePath: '/other-workspace' }),
+      prepared: { ...prepared, input: { command: 'node meituan/run.js issue', cwd: 'skills' } },
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+    })
+    await nextHook({
+      task: createTask({ mode: 'strict' }),
+      prepared: { ...prepared, input: { command: '/tmp/attacker/node meituan/run.js issue', cwd: 'skills' } },
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+    })
+    expect(waitForApproval).toHaveBeenCalledTimes(3)
+  })
+
+  it('执行路径解析到其他 Node 解释器后不复用原授权', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ant-chat-node-grant-'))
+    try {
+      const firstBin = path.join(root, 'first-bin')
+      const secondBin = path.join(root, 'second-bin')
+      fs.mkdirSync(firstBin)
+      fs.mkdirSync(secondBin)
+      fs.writeFileSync(path.join(firstBin, 'node'), '')
+      fs.writeFileSync(path.join(secondBin, 'node'), '')
+      fs.chmodSync(path.join(firstBin, 'node'), 0o755)
+      fs.chmodSync(path.join(secondBin, 'node'), 0o755)
+      const entries: ToolApprovalWhitelistEntry[] = []
+      const prepared = { ...createPrepared(), toolName: 'bash', operationType: 'bash' as const, scope: 'outside' as const, input: { command: 'node scripts/run.js init' } }
+      const firstHook = createToolAuthorization(createTaskState(async (task) => {
+        entries.push(task.snapshot.pendingAction!.approvalGrant!)
+        return { approved: true }
+      }), { getEntries: () => entries })
+      await firstHook({
+        task: createTask({ mode: 'strict' }),
+        prepared,
+        config: { eventEmitter: createMockEmitter(), logger: createMockLogger(), bashEnvironment: { PATH: firstBin } },
+      })
+
+      const waitForApproval = vi.fn(async () => ({ approved: true }))
+      const nextHook = createToolAuthorization(createTaskState(waitForApproval), { getEntries: () => entries })
+      await nextHook({
+        task: createTask({ mode: 'strict' }),
+        prepared,
+        config: { eventEmitter: createMockEmitter(), logger: createMockLogger(), bashEnvironment: { PATH: secondBin } },
+      })
+
+      expect(waitForApproval).toHaveBeenCalledOnce()
+    }
+    finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('符号链接父目录改靶后不复用新建文件授权', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ant-chat-file-grant-'))
+    try {
+      const workspacePath = path.join(root, 'workspace')
+      const firstTarget = path.join(root, 'first-target')
+      const secondTarget = path.join(root, 'second-target')
+      const linkPath = path.join(workspacePath, 'linked')
+      fs.mkdirSync(workspacePath)
+      fs.mkdirSync(firstTarget)
+      fs.mkdirSync(secondTarget)
+      fs.symlinkSync(firstTarget, linkPath, 'dir')
+      const entries: ToolApprovalWhitelistEntry[] = []
+      const prepared = { ...createPrepared(), toolName: 'write_file', operationType: 'write' as const, scope: 'outside' as const, input: { path: 'linked/new.txt' } }
+      const firstHook = createToolAuthorization(createTaskState(async (task) => {
+        entries.push(task.snapshot.pendingAction!.approvalGrant!)
+        return { approved: true }
+      }), { getEntries: () => entries })
+      await firstHook({
+        task: createTask({ mode: 'strict', workspacePath }),
+        prepared,
+        config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+      })
+      expect(entries[0]?.pattern).toBe(path.join(fs.realpathSync.native(firstTarget), 'new.txt'))
+
+      fs.unlinkSync(linkPath)
+      fs.symlinkSync(secondTarget, linkPath, 'dir')
+      const waitForApproval = vi.fn(async () => ({ approved: true }))
+      const nextHook = createToolAuthorization(createTaskState(waitForApproval), { getEntries: () => entries })
+      await nextHook({
+        task: createTask({ mode: 'strict', workspacePath }),
+        prepared,
+        config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+      })
+
+      expect(waitForApproval).toHaveBeenCalledOnce()
+    }
+    finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('错误 actionId 不会提前写入记忆授权', async () => {
+    const taskStore = new TaskStore()
+    const task = createTask({ mode: 'strict' })
+    taskStore.reserve(task)
+    const addEntry = vi.fn()
+    const hook = createToolAuthorization(taskStore, { getEntries: () => [] })
+    const result = hook({
+      task,
+      prepared: { ...createPrepared(), toolName: 'bash', operationType: 'bash', scope: 'outside', input: { command: 'git log' } },
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+    })
+    await vi.waitFor(() => expect(task.snapshot.pendingAction).toBeDefined())
+
+    expect(() => taskStore.approve(task.snapshot.taskId, 'stale-action', 'global', grant => addEntry(grant)))
+      .toThrow('Approval action mismatch')
+    expect(addEntry).not.toHaveBeenCalled()
+
+    taskStore.approve(task.snapshot.taskId, task.snapshot.pendingAction!.actionId, 'workspace', (grant, workspacePath) => addEntry({ ...grant, workspacePath }))
+    await expect(result).resolves.toEqual({ outcome: 'allow' })
+    expect(addEntry).toHaveBeenCalledWith(expect.objectContaining({ workspacePath: '/workspace' }))
+  })
+
+  it('记忆授权持久化失败时不返回允许执行', async () => {
+    const taskStore = new TaskStore()
+    const task = createTask({ mode: 'strict' })
+    taskStore.reserve(task)
+    const hook = createToolAuthorization(taskStore, { getEntries: () => [] })
+    const result = hook({
+      task,
+      prepared: { ...createPrepared(), toolName: 'bash', operationType: 'bash', scope: 'outside', input: { command: 'git log' } },
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+    })
+    await vi.waitFor(() => expect(task.snapshot.pendingAction).toBeDefined())
+
+    expect(() => taskStore.approve(task.snapshot.taskId, task.snapshot.pendingAction!.actionId, 'global', () => {
+      throw new Error('settings write failed')
+    })).toThrow('settings write failed')
+    expect(task.snapshot.status).toBe('awaiting_approval')
+    expect(task.snapshot.pendingAction).toBeDefined()
+
+    taskStore.reject(task.snapshot.taskId, task.snapshot.pendingAction!.actionId, '持久化失败')
+    await expect(result).resolves.toMatchObject({ outcome: 'block' })
   })
 })

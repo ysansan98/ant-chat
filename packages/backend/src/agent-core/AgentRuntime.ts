@@ -19,7 +19,9 @@ export class AgentRuntime {
     this.config = config
     this.beforeToolExecuteHook = createToolAuthorization(
       this.taskStore,
-      config.getToolApprovalWhitelistEntries,
+      {
+        getEntries: config.getToolApprovalWhitelistEntries,
+      },
     )
     this.sessionRuntime = new SessionRuntime(config, this.taskStore)
   }
@@ -103,7 +105,15 @@ export class AgentRuntime {
   }
 
   approvePendingAction(options: ApprovePendingActionOptions): void {
-    const task = this.taskStore.approve(options.taskId, options.actionId)
+    const task = this.taskStore.approve(options.taskId, options.actionId, options.remember, (pendingAction, workspacePath) => {
+      if (!pendingAction.approvalGrant || !this.config.addToolApprovalWhitelistEntry) {
+        throw new Error('当前工具调用不支持记忆授权')
+      }
+      this.config.addToolApprovalWhitelistEntry({
+        ...pendingAction.approvalGrant,
+        workspacePath: options.remember === 'workspace' ? workspacePath : undefined,
+      })
+    })
     void this.config.eventEmitter.emitTaskUpdated(task.snapshot)
   }
 

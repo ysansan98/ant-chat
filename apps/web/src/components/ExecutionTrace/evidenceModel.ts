@@ -108,6 +108,8 @@ export interface PolicyDecisionView extends SpanTiming {
   policy?: string
   /** 判定依据 key（backend decidePolicy/decideAutomationPolicy 发出），policyBasisLabel 转中文 */
   basis?: string
+  /** 应用记忆授权或人工审批前的基础判定依据。 */
+  initialBasis?: string
   /** 交互 Turn 的权限模式（strict/hybrid/full_managed） */
   mode?: string
   /** Automation Turn 的权限策略 */
@@ -216,6 +218,9 @@ const policyBasisLabels: Record<PolicyBasis, string> = {
   'workspace.read': '工作区内只读操作默认允许',
   'hybrid.write': '自动审查模式：允许工作区内写入',
   'default.require-approval': '当前权限模式要求人工审批',
+  'approval-grant.match': '已命中用户记住的授权规则',
+  'approval.user-approved': '用户已批准本次操作',
+  'approval.user-rejected': '用户已拒绝本次操作',
   'automation.no-policy': '自动化任务未配置权限策略，安全默认拒绝',
   'automation.scope.blocked': '自动化任务不允许访问工作区外资源',
   'automation.read.allow': '自动化策略允许读取',
@@ -335,6 +340,9 @@ function parsePolicyDecision(timing: SpanTiming, input: unknown, output: unknown
   const decision = asRecord(output)
   const whitelist = asRecord(decision?.whitelist)
   const approval = asRecord(decision?.approval)
+  const initialDecision = asRecord(request?.initialDecision)
+  const effectiveDecision = asRecord(decision?.effectiveDecision)
+  const initialBasis = asString(initialDecision?.basis) ?? asString(request?.basis)
   return {
     type: 'policy-decision',
     ...timing,
@@ -342,7 +350,8 @@ function parsePolicyDecision(timing: SpanTiming, input: unknown, output: unknown
     operationType: asString(request?.operationType),
     scope: asString(request?.scope),
     policy: asString(request?.policy),
-    basis: asString(request?.basis),
+    basis: asString(effectiveDecision?.basis) ?? initialBasis,
+    initialBasis,
     mode: asString(request?.mode),
     automationPolicy: asRecord(request?.automationPolicy),
     workspacePath: asString(request?.workspacePath),

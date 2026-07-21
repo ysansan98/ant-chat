@@ -24,11 +24,11 @@ describe('agentApprovalCard', () => {
     expect(screen.getByText(/write_file/)).toBeTruthy()
     fireEvent.click(screen.getByText('批准'))
     fireEvent.click(screen.getByText('拒绝'))
-    expect(onApprove).toHaveBeenCalledWith(false, undefined)
+    expect(onApprove).toHaveBeenCalledWith(undefined)
     expect(onReject).toHaveBeenCalledTimes(1)
   })
 
-  it('打开开关后展示 pattern 并批准', () => {
+  it('打开记忆授权后默认只对当前工作区生效', () => {
     const onApprove = vi.fn()
     const onReject = vi.fn()
     render(
@@ -39,7 +39,13 @@ describe('agentApprovalCard', () => {
           operationType: 'bash',
           scope: 'workspace',
           inputPreview: '{"command":"git status"}',
-          whitelistPattern: 'git **',
+          approvalGrant: {
+            toolName: 'bash',
+            operationType: 'bash',
+            toolScope: 'workspace',
+            pattern: 'command:git-status',
+            description: '允许执行命令 git status',
+          },
           createdAt: Date.now(),
         }}
         onApprove={onApprove}
@@ -49,12 +55,12 @@ describe('agentApprovalCard', () => {
 
     const toggle = screen.getByTestId('agent-whitelist-toggle')
     fireEvent.click(toggle)
-    expect(screen.getByText('bash(git **)')).toBeTruthy()
+    expect(screen.getByText('允许执行命令 git status')).toBeTruthy()
     fireEvent.click(screen.getByText('批准'))
-    expect(onApprove).toHaveBeenCalledWith(true, undefined)
+    expect(onApprove).toHaveBeenCalledWith('workspace')
   })
 
-  it('可切换作用域为工作区', () => {
+  it('用户可显式把记忆授权切换为全局', () => {
     const onApprove = vi.fn()
     const onReject = vi.fn()
     render(
@@ -65,19 +71,24 @@ describe('agentApprovalCard', () => {
           operationType: 'write',
           scope: 'workspace',
           inputPreview: '{"path":"TODO.md"}',
-          whitelistPattern: './src/**',
+          approvalGrant: {
+            toolName: 'write_file',
+            operationType: 'write',
+            toolScope: 'workspace',
+            pattern: './src/index.ts',
+            description: '允许 write_file 访问 ./src/index.ts',
+          },
           createdAt: Date.now(),
         }}
-        workspacePath="/Users/me/project"
         onApprove={onApprove}
         onReject={onReject}
       />,
     )
 
     fireEvent.click(screen.getByTestId('agent-whitelist-toggle'))
-    expect(screen.getByText('write_file(./src/**)')).toBeTruthy()
-    fireEvent.click(screen.getByTestId('agent-whitelist-scope-workspace'))
+    expect(screen.getByText('允许 write_file 访问 ./src/index.ts')).toBeTruthy()
+    fireEvent.click(screen.getByTestId('agent-whitelist-scope-global'))
     fireEvent.click(screen.getByText('批准'))
-    expect(onApprove).toHaveBeenCalledWith(true, '/Users/me/project')
+    expect(onApprove).toHaveBeenCalledWith('global')
   })
 })

@@ -22,7 +22,6 @@ import { activateConversationSession } from '../store/workspaceSession'
 const mocks = vi.hoisted(() => ({
   agent: {
     approvePendingAction: vi.fn(async () => null),
-    approvePendingActionWithWhitelist: vi.fn(async () => null),
     cancelTask: vi.fn(async () => null),
     injectSteering: vi.fn(async (): Promise<IMessage> => ({
       id: 'msg-steering-default',
@@ -405,11 +404,10 @@ describe('gui ui flow', () => {
     fireEvent.click(screen.getByTestId('agent-approve'))
     fireEvent.click(screen.getByTestId('agent-reject'))
 
-    expect(mocks.agent.approvePendingActionWithWhitelist).toHaveBeenCalledWith({
+    expect(mocks.agent.approvePendingAction).toHaveBeenCalledWith({
       actionId: 'action-1',
       taskId: 'task-approval',
-      remember: false,
-      workspacePath: undefined,
+      remember: undefined,
     })
     expect(mocks.agent.rejectPendingAction).toHaveBeenCalledWith({
       actionId: 'action-1',

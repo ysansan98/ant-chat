@@ -1,14 +1,18 @@
-import type { AgentErrorCode, AgentMode, AgentPendingAction, PolicyBasis, ToolApprovalWhitelistEntry, ToolOperationType, ToolScope } from '@ant-chat/shared'
+import type { AgentErrorCode, AgentMode, AgentPendingAction, BashToolInput, PolicyBasis, ToolApprovalWhitelistEntry, ToolOperationType, ToolScope } from '@ant-chat/shared'
 import type { TaskStore } from '../taskStore'
 import type { ToolAuthorization } from '../tools/types'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import { AgentError } from '../AgentError'
+import { normalizeCandidatePath } from '../native-tools/pathPolicy'
+import { createBashApprovalTarget } from '../native-tools/tools/bashRunner'
 import { cancelObservation, completeObservation, failObservation, startObservationSpan } from '../observation'
 
 export function createToolAuthorization(
   taskStore: TaskStore,
-  getWhitelistEntries?: () => ToolApprovalWhitelistEntry[],
+  grants: {
+    getEntries?: () => ToolApprovalWhitelistEntry[]
+  } = {},
 ): ToolAuthorization {
   return async (input) => {
     const { task, prepared, config, parentSpanId } = input
@@ -18,11 +22,9 @@ export function createToolAuthorization(
       task.snapshot.turnSource?.type === 'automation'
         ? task.snapshot.turnSource.permissionPolicy
         : undefined,
-      prepared.toolName,
       prepared.input,
       prepared.operationType,
       prepared.scope,
-      task.snapshot.workspacePath,
     )
     // 自动化 turn 的权限决策是自治的、穷举的，不回退到交互策略。
     // 如果自动化策略未覆盖某个 operationType（包括 permissionPolicy 缺失），
@@ -38,6 +40,7 @@ export function createToolAuthorization(
       scope: prepared.scope,
       policy: effectiveDecision.type,
       basis: effectiveDecision.basis,
+      initialDecision: { outcome: effectiveDecision.type, basis: effectiveDecision.basis },
       mode: task.snapshot.mode,
       automationPolicy: task.snapshot.turnSource?.type === 'automation' ? task.snapshot.turnSource.permissionPolicy : undefined,
       workspacePath: task.snapshot.workspacePath,
@@ -46,12 +49,12 @@ export function createToolAuthorization(
     }, parentSpanId))
 
     if (effectiveDecision.type === 'allow') {
-      completeObservation(policySpan, { status: 'allow', outcome: 'allow' }, config.logger)
+      completeObservation(policySpan, { status: 'allow', outcome: 'allow', effectiveDecision: { outcome: 'allow', basis: effectiveDecision.basis } }, config.logger)
       return { outcome: 'allow' }
     }
 
     if (effectiveDecision.type === 'block') {
-      completeObservation(policySpan, { status: 'block', outcome: 'block', errorCode: effectiveDecision.errorCode, reason: effectiveDecision.reason }, config.logger)
+      completeObservation(policySpan, { status: 'block', outcome: 'block', effectiveDecision: { outcome: 'block', basis: effectiveDecision.basis }, errorCode: effectiveDecision.errorCode, reason: effectiveDecision.reason }, config.logger)
       return {
         outcome: 'block',
         errorCode: effectiveDecision.errorCode,
@@ -59,29 +62,42 @@ export function createToolAuthorization(
       }
     }
 
-    // require_approval — check whitelist before showing dialog
-    if (getWhitelistEntries) {
-      const matchKey = extractInputKey(prepared.toolName, prepared.input)
-      const entries = getWhitelistEntries()
-      const matched = isWhitelisted(
-        entries,
-        prepared.toolName,
-        prepared.scope,
-        matchKey,
-        task.snapshot.workspacePath,
-      )
-      if (matched) {
-        completeObservation(policySpan, { status: 'allow', outcome: 'allow', whitelist: { matchKey, entry: matched } }, config.logger)
-        return { outcome: 'allow' }
+    // 记忆授权只能满足“需要审批”，不能覆盖 block。
+    if (grants.getEntries) {
+      try {
+        const matchKey = extractInputKey(prepared.toolName, prepared.input, task.snapshot.workspacePath, config.bashEnvironment?.PATH)
+        const entries = grants.getEntries()
+        const matched = isWhitelisted(
+          entries,
+          prepared.toolName,
+          prepared.operationType,
+          prepared.scope,
+          matchKey,
+          task.snapshot.workspacePath,
+        )
+        if (matched) {
+          completeObservation(policySpan, {
+            status: 'allow',
+            outcome: 'allow',
+            effectiveDecision: { outcome: 'allow', basis: 'approval-grant.match' },
+            whitelist: { matchKey, entry: matched },
+          }, config.logger)
+          return { outcome: 'allow' }
+        }
+      }
+      catch (error) {
+        failObservation(policySpan, error, config.logger)
+        throw error
       }
     }
 
-    // require_approval
-    const whitelistPattern = generatePattern(
+    const approvalGrant = createApprovalGrant(
       prepared.toolName,
       prepared.input,
+      prepared.operationType,
       prepared.scope,
       task.snapshot.workspacePath,
+      config.bashEnvironment?.PATH,
     )
     const pendingAction: AgentPendingAction = {
       actionId: randomUUID(),
@@ -89,7 +105,7 @@ export function createToolAuthorization(
       operationType: prepared.operationType,
       scope: prepared.scope,
       inputPreview: JSON.stringify(prepared.input).slice(0, 200),
-      whitelistPattern,
+      approvalGrant,
       createdAt: Date.now(),
     }
     let decisionResult: Awaited<ReturnType<TaskStore['requestApproval']>>
@@ -110,7 +126,12 @@ export function createToolAuthorization(
 
     if (!decisionResult.approved) {
       const reason = `Tool ${prepared.toolName} rejected: ${decisionResult.reason || 'no reason given'}`
-      completeObservation(policySpan, { status: 'approval', outcome: 'block', approval: { approved: false, pendingAction, reason: decisionResult.reason } }, config.logger)
+      completeObservation(policySpan, {
+        status: 'approval',
+        outcome: 'block',
+        effectiveDecision: { outcome: 'block', basis: 'approval.user-rejected' },
+        approval: { approved: false, pendingAction, reason: decisionResult.reason },
+      }, config.logger)
       return {
         outcome: 'block',
         errorCode: decisionResult.reason || 'AGENT_APPROVAL_REJECTED',
@@ -118,18 +139,21 @@ export function createToolAuthorization(
       }
     }
 
-    completeObservation(policySpan, { status: 'approval', outcome: 'allow', approval: { approved: true, pendingAction } }, config.logger)
+    completeObservation(policySpan, {
+      status: 'approval',
+      outcome: 'allow',
+      effectiveDecision: { outcome: 'allow', basis: 'approval.user-approved' },
+      approval: { approved: true, pendingAction, remember: decisionResult.remember },
+    }, config.logger)
     return { outcome: 'allow' }
   }
 }
 
 function decideAutomationPolicy(
   policy: import('@ant-chat/shared').AutomationPermissionPolicy | undefined,
-  toolName: string,
   input: Record<string, unknown>,
   operationType: import('@ant-chat/shared').ToolOperationType,
   scope: import('@ant-chat/shared').ToolScope,
-  workspacePath: string,
 ): PolicyDecision | undefined {
   if (!policy)
     return undefined
@@ -163,9 +187,8 @@ function decideAutomationPolicy(
       return { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '自动化任务未授权命令执行', basis: 'automation.bash.blocked' as const }
     if (policy.bashCommandPatterns.length === 0)
       return { type: 'allow' as const, basis: 'automation.bash.allow' as const }
-    const matchKey = extractInputKey(toolName, input)
-    const entries = policy.bashCommandPatterns.map(pattern => ({ toolName, toolScope: scope, pattern, workspacePath }))
-    return isWhitelisted(entries, toolName, scope, matchKey, workspacePath)
+    const matchKey = String(input.command ?? '')
+    return policy.bashCommandPatterns.some(pattern => matchPattern(pattern, matchKey))
       ? { type: 'allow' as const, basis: 'automation.bash.pattern-match' as const }
       : { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '命令不在自动化任务允许范围内', basis: 'automation.bash.pattern-blocked' as const }
   }
@@ -212,60 +235,57 @@ const FILE_TOOLS = new Set([
   'grep_files',
 ])
 
-function extractInputKey(toolName: string, input: Record<string, unknown>): string {
+function extractInputKey(toolName: string, input: Record<string, unknown>, workspacePath: string, executableSearchPath?: string): string {
   if (toolName === 'bash') {
-    return String(input.command ?? '')
+    return createBashApprovalTarget(input as unknown as BashToolInput, workspacePath, executableSearchPath)?.key ?? ''
   }
   if (FILE_TOOLS.has(toolName)) {
-    return String(input.path ?? '')
+    return normalizeInputKey(toolName, String(input.path ?? '.'), workspacePath)
   }
   if (toolName === 'use_skill' || toolName === 'install_skill_from_github') {
     return String(input.name ?? '')
   }
-  return ''
+  return stableStringify(input)
 }
 
-function generatePattern(
+function createApprovalGrant(
   toolName: string,
   input: Record<string, unknown>,
+  operationType: ToolOperationType,
   toolScope: ToolScope,
-  workspacePath?: string,
-): string {
+  workspacePath: string,
+  executableSearchPath?: string,
+): ToolApprovalWhitelistEntry | undefined {
+  if (toolScope === 'blocked') {
+    return undefined
+  }
   if (toolName === 'bash') {
-    const cmd = String(input.command ?? '')
-    const firstWord = cmd.split(/\s+/)[0] ?? ''
-    return firstWord ? `${firstWord} **` : cmd
+    const target = createBashApprovalTarget(input as unknown as BashToolInput, workspacePath, executableSearchPath)
+    return target
+      ? { toolName, operationType, toolScope, pattern: target.key, description: target.description }
+      : undefined
   }
 
-  if (FILE_TOOLS.has(toolName)) {
-    const filePath = String(input.path ?? '')
-    if (!filePath) {
-      return '*'
-    }
+  const pattern = extractInputKey(toolName, input, workspacePath, executableSearchPath)
+  const description = FILE_TOOLS.has(toolName)
+    ? `允许 ${toolName} 访问 ${String(input.path ?? '.')}`
+    : toolName === 'use_skill' || toolName === 'install_skill_from_github'
+      ? `允许 ${toolName} 使用 ${pattern}`
+      : `允许 ${toolName} 使用当前输入`
+  return { toolName, operationType, toolScope, pattern, description }
+}
 
-    if (toolScope === 'workspace' && workspacePath) {
-      try {
-        const relative = path.relative(workspacePath, filePath)
-        if (!relative.startsWith('..') && !path.isAbsolute(relative)) {
-          const dir = path.dirname(relative)
-          return dir === '.' ? './**' : `.${path.sep}${dir}${path.sep}**`
-        }
-      }
-      catch {
-        // 无法生成相对路径时，回退到绝对路径。
-      }
-    }
-
-    // 工作区外或未提供工作区时，按绝对路径目录匹配。
-    const dir = path.dirname(filePath)
-    return `${dir}${path.sep}**`
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map(stableStringify).join(',')}]`
   }
-
-  if (toolName === 'use_skill' || toolName === 'install_skill_from_github') {
-    return extractInputKey(toolName, input)
+  if (value !== null && typeof value === 'object') {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => `${JSON.stringify(key)}:${stableStringify(item)}`)
+      .join(',')}}`
   }
-  // MCP 和未知工具只能按工具名加入白名单，统一建议匹配所有输入。
-  return '*'
+  return JSON.stringify(value) ?? 'null'
 }
 
 function normalizeInputKey(
@@ -278,17 +298,8 @@ function normalizeInputKey(
   if (!FILE_TOOLS.has(toolName))
     return inputKey
 
-  try {
-    const relative = path.relative(workspacePath, inputKey)
-    if (!relative.startsWith('..') && !path.isAbsolute(relative)) {
-      return relative === '.' ? '.' : `.${path.sep}${relative}`
-    }
-  }
-  catch {
-    // Windows 跨盘符时 path.relative 可能抛错，保留原始输入。
-  }
-
-  return inputKey
+  const absoluteInput = path.isAbsolute(inputKey) ? path.resolve(inputKey) : path.resolve(workspacePath, inputKey)
+  return normalizeCandidatePath(absoluteInput)
 }
 
 function globToRegex(pattern: string): RegExp {
@@ -323,14 +334,13 @@ function matchPattern(pattern: string, inputKey: string): boolean {
 function isWhitelisted(
   entries: ToolApprovalWhitelistEntry[],
   toolName: string,
+  operationType: ToolOperationType,
   toolScope: ToolScope,
   inputKey: string,
   currentWorkspace?: string,
 ): ToolApprovalWhitelistEntry | undefined {
-  const normalizedKey = normalizeInputKey(toolName, inputKey, currentWorkspace)
-
   return entries.find((entry) => {
-    if (entry.toolName !== toolName || entry.toolScope !== toolScope)
+    if (entry.toolName !== toolName || entry.operationType !== operationType || entry.toolScope !== toolScope)
       return false
 
     if (entry.workspacePath !== undefined) {
@@ -338,6 +348,6 @@ function isWhitelisted(
         return false
     }
 
-    return matchPattern(entry.pattern, normalizedKey)
+    return entry.pattern === inputKey
   })
 }

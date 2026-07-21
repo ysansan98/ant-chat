@@ -94,13 +94,18 @@ function PolicyDecisionOverview({ view }: { view: PolicyDecisionView }) {
       {view.reason && <p className="text-xs/relaxed text-muted-foreground">{view.reason}</p>}
       {view.whitelistMatchKey && (
         <p className="text-xs text-muted-foreground">
-          命中白名单：
+          命中记忆授权：
           <code className="rounded-sm bg-muted px-1 py-0.5 break-all">{view.whitelistMatchKey}</code>
         </p>
       )}
       <KeyValueList items={[
         ...(permissionContextLabel(view) ? [{ label: '权限模式', value: permissionContextLabel(view)! }] : []),
-        ...(policyBasisLabel(view.basis) ? [{ label: '判定依据', value: policyBasisLabel(view.basis)! }] : []),
+        ...(view.initialBasis && view.initialBasis !== view.basis && policyBasisLabel(view.initialBasis)
+          ? [{ label: '基础判定', value: policyBasisLabel(view.initialBasis)! }]
+          : []),
+        ...(policyBasisLabel(view.basis)
+          ? [{ label: view.initialBasis && view.initialBasis !== view.basis ? '最终依据' : '判定依据', value: policyBasisLabel(view.basis)! }]
+          : []),
         { label: '目标工具', value: view.toolName ?? '未知' },
         { label: '操作类型', value: view.operationType ?? '—' },
         { label: '作用范围', value: view.scope ?? '—' },
@@ -113,7 +118,7 @@ function PolicyDecisionOverview({ view }: { view: PolicyDecisionView }) {
 function DecisionBanner({ view }: { view: PolicyDecisionView }) {
   const status = view.status
   const config = status === 'allow'
-    ? { icon: ShieldCheckIcon, label: view.whitelistMatchKey ? '允许执行（命中白名单）' : '允许执行', className: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' }
+    ? { icon: ShieldCheckIcon, label: view.whitelistMatchKey ? '允许执行（命中记忆授权）' : '允许执行', className: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' }
     : status === 'block'
       ? { icon: ShieldXIcon, label: '已阻止', className: 'border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-400' }
       : view.outcome === 'allow'

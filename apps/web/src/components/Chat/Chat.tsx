@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import { skillApi } from '@/api/skillApi'
 import { AgentApprovalCard, AgentSecretRequestCard } from '@/components/Agent'
 import { useChatSettingsContext } from '@/contexts/chatSettings'
-import { abortConversationRuntime, approveAgentActionWithWhitelist, rejectAgentAction, rejectSecretRequestAction, resolveSecretRequestAction, useAgentRuntimeStore } from '@/store/agentRuntime'
+import { abortConversationRuntime, approveAgentAction, rejectAgentAction, rejectSecretRequestAction, resolveSecretRequestAction, useAgentRuntimeStore } from '@/store/agentRuntime'
 import { useConversationsStore } from '@/store/conversation'
 import { useMessagesStore } from '@/store/messages'
 import {
@@ -158,13 +158,13 @@ export default function Chat() {
               ? (
                   <AgentApprovalCard
                     pending={pending}
-                    workspacePath={currentWorkspacePath}
-                    onApprove={(remember, workspacePath) => {
-                      void approveAgentActionWithWhitelist({
+                    onApprove={(remember) => {
+                      void approveAgentAction({
                         taskId: agentTask.taskId,
                         actionId: pending.actionId,
                         remember,
-                        workspacePath,
+                      }).catch((error) => {
+                        toast.error(error instanceof Error ? error.message : '审批失败，请重试')
                       })
                     }}
                     onReject={() => void rejectAgentAction({ taskId: agentTask.taskId, actionId: pending.actionId, reason: '用户拒绝' })}

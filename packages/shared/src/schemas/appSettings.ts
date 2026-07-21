@@ -38,10 +38,12 @@ export const ProviderSettingsSchema = ProviderConfigSchema.omit({
 })
 
 export const ToolApprovalWhitelistEntrySchema = z.object({
-  toolName: z.string(),
-  toolScope: z.enum(['workspace', 'outside', 'blocked']),
-  pattern: z.string(),
-  workspacePath: z.string().optional(),
+  toolName: z.string().min(1),
+  operationType: z.enum(['read', 'write', 'bash', 'bash_read', 'browser', 'skill', 'mcp']),
+  toolScope: z.enum(['workspace', 'outside']),
+  pattern: z.string().min(1),
+  description: z.string().min(1),
+  workspacePath: z.string().min(1).optional(),
 })
 
 export const AppSettingsSchema = z.object({

@@ -21,12 +21,6 @@ async function listActiveTasks(conversationId?: string): Promise<AgentTaskSnapsh
   return getAppRpcClient().call('agent.listActiveTasks', { conversationId })
 }
 
-async function approvePendingActionWithWhitelist(
-  options: ApprovePendingActionOptions & { remember: boolean, workspacePath?: string },
-): Promise<null> {
-  return getAppRpcClient().call('agent.approvePendingActionWithWhitelist', { options })
-}
-
 async function injectSteering(conversationId: string, text: string): Promise<IMessage> {
   return getAppRpcClient().call('agent.injectSteering', { conversationId, text })
 }
@@ -46,7 +40,6 @@ export default {
   cancelTask,
   injectSteering,
   listActiveTasks,
-  approvePendingActionWithWhitelist,
   resolveSecretRequest,
   rejectSecretRequest,
 }

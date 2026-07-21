@@ -172,15 +172,18 @@ function PolicyDecisionDetail({ view }: { view: PolicyDecisionView }) {
       <Section title="判断详情">
         <div className="space-y-3">
           <KeyValueList items={[
+            ...(view.initialBasis && view.initialBasis !== view.basis && policyBasisLabel(view.initialBasis)
+              ? [{ label: '基础判定', value: policyBasisLabel(view.initialBasis)! }]
+              : []),
             ...(view.approvalApproved != null ? [{ label: '审批', value: view.approvalApproved ? '用户批准' : '用户拒绝' }] : []),
             ...(view.approvalReason ? [{ label: '审批说明', value: view.approvalReason }] : []),
             ...(view.reason ? [{ label: '原因', value: view.reason }] : []),
             ...(view.errorCode ? [{ label: '错误码', value: view.errorCode }] : []),
-            ...(view.whitelistMatchKey ? [{ label: '白名单匹配键', value: <code className="break-all">{view.whitelistMatchKey}</code> }] : []),
+            ...(view.whitelistMatchKey ? [{ label: '记忆授权匹配键', value: <code className="break-all">{view.whitelistMatchKey}</code> }] : []),
           ]}
           />
           {view.whitelistEntry != null && (
-            <SubSection title="命中的白名单条目">
+            <SubSection title="命中的记忆授权规则">
               <JsonTree value={view.whitelistEntry} expandDepth={2} />
             </SubSection>
           )}

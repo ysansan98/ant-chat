@@ -21,6 +21,7 @@ export class ToolApprovalWhitelistRepository {
     const existing = this.getAll()
     const isDuplicate = existing.some(e =>
       e.toolName === entry.toolName
+      && e.operationType === entry.operationType
       && e.toolScope === entry.toolScope
       && e.pattern === entry.pattern
       && e.workspacePath === entry.workspacePath,
@@ -42,6 +43,7 @@ export class ToolApprovalWhitelistRepository {
       const list = settings.toolApprovalWhitelist ?? []
       const filtered = list.filter(e =>
         e.toolName !== entry.toolName
+        || e.operationType !== entry.operationType
         || e.toolScope !== entry.toolScope
         || e.pattern !== entry.pattern
         || e.workspacePath !== entry.workspacePath,

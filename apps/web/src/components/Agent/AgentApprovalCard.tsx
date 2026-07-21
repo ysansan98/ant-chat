@@ -21,21 +21,19 @@ const typeLabels: Record<string, string> = {
 
 export default function AgentApprovalCard({
   pending,
-  workspacePath: currentWorkspacePath,
   onApprove,
   onReject,
 }: {
   pending: AgentPendingAction
-  workspacePath?: string
-  onApprove: (remember: boolean, workspacePath?: string) => void
+  onApprove: (remember?: 'workspace' | 'global') => void
   onReject: () => void
 }) {
   const [remember, setRemember] = useState(false)
-  const [isGlobal, setIsGlobal] = useState(true)
+  const [isGlobal, setIsGlobal] = useState(false)
   const scopeLabel = scopeLabels[pending.scope] || pending.scope
   const typeLabel = typeLabels[pending.operationType] || pending.operationType
-  const patternText = pending.whitelistPattern
-    ? `${pending.toolName}(${pending.whitelistPattern})`
+  const patternText = pending.approvalGrant
+    ? pending.approvalGrant.description
     : ''
 
   return (
@@ -53,19 +51,21 @@ export default function AgentApprovalCard({
       <CardContent className="break-all text-muted-foreground">
         {pending.inputPreview}
       </CardContent>
-      <div className="flex items-center gap-2 px-3 pb-1">
-        <Switch
-          id="remember-whitelist"
-          size="sm"
-          checked={remember}
-          onCheckedChange={val => setRemember(Boolean(val))}
-          data-testid="agent-whitelist-toggle"
-        />
-        <Label htmlFor="remember-whitelist" className="cursor-pointer text-xs">
-          加入白名单
-        </Label>
-      </div>
-      {remember && (
+      {pending.approvalGrant && (
+        <div className="flex items-center gap-2 px-3 pb-1">
+          <Switch
+            id="remember-whitelist"
+            size="sm"
+            checked={remember}
+            onCheckedChange={val => setRemember(Boolean(val))}
+            data-testid="agent-whitelist-toggle"
+          />
+          <Label htmlFor="remember-whitelist" className="cursor-pointer text-xs">
+            记住此授权
+          </Label>
+        </div>
+      )}
+      {remember && pending.approvalGrant && (
         <div className="space-y-2 px-3 pb-2">
           <div className="
             rounded-md border bg-muted/20 p-2 text-center font-mono text-xs text-muted-foreground
@@ -98,7 +98,7 @@ export default function AgentApprovalCard({
         <Button
           size="xs"
           data-testid="agent-approve"
-          onClick={() => onApprove(remember, isGlobal ? undefined : currentWorkspacePath)}
+          onClick={() => onApprove(remember ? (isGlobal ? 'global' : 'workspace') : undefined)}
         >
           批准
         </Button>

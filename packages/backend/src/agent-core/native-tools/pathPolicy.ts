@@ -79,7 +79,7 @@ export class PathPolicy {
     if (!this.enforceWorkspaceBoundary) {
       return true
     }
-    const normalizedCandidatePath = normalizeCandidateForBoundary(candidatePath)
+    const normalizedCandidatePath = normalizeCandidatePath(candidatePath)
     const workspaceRealPath = fs.realpathSync.native(this.workspacePath)
     if (isInsideDir(workspaceRealPath, normalizedCandidatePath)) {
       return true
@@ -129,7 +129,8 @@ function resolveWorkspaceRoot(workspacePath: string): string {
     : path.resolve(workspacePath)
 }
 
-function normalizeCandidateForBoundary(candidatePath: string): string {
+/** 将不存在的叶子绑定到最近存在祖先的真实路径，避免父级符号链接改靶。 */
+export function normalizeCandidatePath(candidatePath: string): string {
   if (fs.existsSync(candidatePath)) {
     return fs.realpathSync.native(candidatePath)
   }
