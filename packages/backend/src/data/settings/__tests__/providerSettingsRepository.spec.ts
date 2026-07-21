@@ -179,8 +179,17 @@ describe('provider settings repository', () => {
       ],
     }
 
+    const tempDirs: string[] = []
+
+    afterEach(() => {
+      for (const d of tempDirs.splice(0)) {
+        rmSync(d, { recursive: true, force: true })
+      }
+    })
+
     function makeRepository(): ProviderSettingsRepository {
       const tmpDir = mkdtempSync(path.join(tmpdir(), 'ant-chat-legacy-provider-'))
+      tempDirs.push(tmpDir)
       return new ProviderSettingsRepository(new AppSettingsStore({
         filePath: path.join(tmpDir, 'settings.json'),
         initialSettings: baseSettings,

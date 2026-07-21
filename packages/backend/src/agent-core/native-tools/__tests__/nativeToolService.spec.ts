@@ -126,6 +126,17 @@ describe('native tool service 行为', () => {
     await expect(bash.execute({ command: 'pwd && ls -la' })).resolves.toMatchObject({ ok: true })
   })
 
+  it('bash schema 暴露可选 description 供界面展示命令用途，且不影响执行', async () => {
+    const service = new NativeToolService(workspacePath)
+    const bash = service.getTools().find(tool => tool.name === 'bash')!
+
+    expect(bash.inputSchema?.properties).toHaveProperty('description')
+    expect(bash.inputSchema?.required).toEqual(['command'])
+
+    // description 仅用于展示，执行路径忽略该字段
+    await expect(bash.execute({ command: 'pwd', description: '查看当前目录' })).resolves.toMatchObject({ ok: true })
+  })
+
   it('将 Desktop 注入的 launcher PATH 传给 bash 子进程', async () => {
     const launcherPath = fs.mkdtempSync(path.join(os.tmpdir(), 'ant-chat-launcher-'))
     const launcher = path.join(launcherPath, 'ant-chat')

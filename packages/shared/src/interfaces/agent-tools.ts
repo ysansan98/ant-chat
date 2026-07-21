@@ -37,6 +37,8 @@ export interface AgentTool {
 
 export interface BashToolInput {
   command: string
+  /** 一句话说明命令目的，仅用于 UI 展示（消息列表工具 header），执行路径不读取 */
+  description?: string
   cwd?: string
   timeoutMs?: number
   env?: Record<string, string | SecretRef>

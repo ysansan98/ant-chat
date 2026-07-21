@@ -7,38 +7,29 @@ import {
 import {
   Shimmer,
 } from '@workspace/ui/components/ai-elements/shimmer'
+import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Button } from '@workspace/ui/components/button'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@workspace/ui/components/collapsible'
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@workspace/ui/components/popover'
-import { Separator } from '@workspace/ui/components/separator'
 import { cn } from '@workspace/ui/lib/utils'
-import { ChevronRightIcon, Loader2Icon, ShrinkIcon } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { Loader2Icon, ShrinkIcon } from 'lucide-react'
+import { useMemo } from 'react'
 import { Role } from '@/constants'
-import { formatTime } from '@/utils'
 import { extractMessageAttachments } from '@/utils/extractMessageAttachments'
 import { transformMessageContent } from '@/utils/messageTransform'
-import { AssistantTrace } from './AssistantTrace'
 import BubbleFooter from './BubbleFooter'
 import MessageContent from './MessageContent'
+import { buildToolResultMap } from './turnSteps'
+import { TurnErrorAlert, TurnTrace } from './TurnTrace'
 
 interface MessageBubbleProps {
   messages: IMessage[]
   onCopyMessage: (message: IMessage) => void
   turnStatus?: ReactNode
 }
-
-type ProcessEntry
-  = | { type: 'assistant', message: IMessage }
-    | { type: 'steering', message: IMessage }
 
 export function MessageBubble({ messages, onCopyMessage, turnStatus }: MessageBubbleProps) {
   const message = messages[0]
@@ -47,19 +38,7 @@ export function MessageBubble({ messages, onCopyMessage, turnStatus }: MessageBu
   const isEvent = message.role === Role.EVENT
 
   // Build toolCallId → tool-result message index
-  const toolResultMap = useMemo(() => {
-    const map = new Map<string, IMessage>()
-    for (const m of messages) {
-      if (m.role === 'tool') {
-        for (const block of m.content) {
-          if (block.type === 'tool-result') {
-            map.set(block.toolCallId, m)
-          }
-        }
-      }
-    }
-    return map
-  }, [messages])
+  const toolResultMap = useMemo(() => buildToolResultMap(messages), [messages])
 
   // Determine if the last assistant message is running (for fold decisions).
   // Exclude tool and event messages — only assistant streaming should auto-expand.
@@ -155,15 +134,19 @@ export function MessageBubble({ messages, onCopyMessage, turnStatus }: MessageBu
   if (nonToolMessages.length === 0)
     return null
 
-  const { processEntries, visibleMessages } = isAI
-    ? splitTurnMessages(nonToolMessages)
-    : { processEntries: [], visibleMessages: nonToolMessages }
-  const shouldShowProcess = isAI && processEntries.length > 0
-
   const taskDurationMs = lastAssistant?.durationMs
   const taskStartedAt = assistantMessages[0]?.createdAt ?? footerMessage.createdAt
   const isRunning = isAssistantStreaming
     || (taskDurationMs == null && hasToolCallAfterLastVisibleResponse(assistantMessages))
+
+  // error block 由 TurnTrace 原位渲染；这里只处理没有 error block 的失败兜底与取消终态。
+  const statusAlertMessages = isAI
+    ? assistantMessages.filter(m =>
+        m.status === 'cancel'
+        || (m.status === 'error' && !messageHasErrorContent(m)),
+      )
+    : []
+
   return (
     <Message
       from={message.role === Role.USER ? 'user' : 'assistant'}
@@ -177,34 +160,31 @@ export function MessageBubble({ messages, onCopyMessage, turnStatus }: MessageBu
               ? 'w-full'
               : undefined}
           >
-            <div className={cn('space-y-5', isUser && 'space-y-3')}>
-              {shouldShowProcess && (
-                <ProcessMessagesPanel
-                  key={isRunning ? 'running' : 'settled'}
-                  processEntries={processEntries}
-                  toolResultMap={toolResultMap}
-                  defaultOpen={isRunning}
-                />
-              )}
-
-              {visibleMessages.map((item, index) => (
-                <div
-                  key={item.id}
-                  data-message-id={item.id}
-                >
-                  {
-                    (index > 0 || shouldShowProcess) && (
-                      <Separator className="my-3" />
-                    )
-                  }
-                  <AssistantMessageContent
-                    item={item}
-                    toolResultMap={toolResultMap}
-                    showReasoning={false}
-                  />
-                </div>
-              ))}
-            </div>
+            {isAI
+              ? (
+                  <div className="space-y-3">
+                    <TurnTrace
+                      messages={nonToolMessages}
+                      toolResultMap={toolResultMap}
+                      turnRunning={isRunning}
+                    />
+                    {statusAlertMessages.map(item => (
+                      <TurnStatusAlert key={item.id} message={item} />
+                    ))}
+                  </div>
+                )
+              : (
+                  <div className={cn('space-y-5', isUser && 'space-y-3')}>
+                    {nonToolMessages.map(item => (
+                      <div
+                        key={item.id}
+                        data-message-id={item.id}
+                      >
+                        <PlainMessageContent item={item} />
+                      </div>
+                    ))}
+                  </div>
+                )}
           </AiMessageContent>
 
           {turnStatus}
@@ -226,175 +206,61 @@ export function MessageBubble({ messages, onCopyMessage, turnStatus }: MessageBu
 
 // ---- per-message content renderer ----
 
-function AssistantMessageContent({
-  item,
-  toolResultMap,
-  showReasoning = true,
-}: {
-  item: IMessage
-  toolResultMap: Map<string, IMessage>
-  showReasoning?: boolean
-}) {
-  if (item.role !== Role.AI) {
-    const { images, attachments } = extractMessageAttachments(item)
+function PlainMessageContent({ item }: { item: IMessage }) {
+  const { images, attachments } = extractMessageAttachments(item)
 
+  return (
+    <MessageContent
+      content={transformMessageContent(item)}
+      images={images}
+      attachments={attachments}
+      status={item.status as 'success' | 'loading' | 'typing'}
+      enableReferenceTokens
+    />
+  )
+}
+
+/** turn 结束态的整气泡提示：请求失败 / 任务取消（无正文时） */
+function TurnStatusAlert({ message }: { message: IMessage }) {
+  if (message.status === 'error') {
+    return <TurnErrorAlert error={getErrorText(message)} />
+  }
+
+  if (message.status === 'cancel' && !messageHasTextContent(message)) {
     return (
-      <MessageContent
-        content={transformMessageContent(item)}
-        images={images}
-        attachments={attachments}
-        status={item.status as 'success' | 'loading' | 'typing'}
-        enableReferenceTokens
-      />
+      <Alert variant="default">
+        <AlertTitle>任务已取消</AlertTitle>
+        <AlertDescription>
+          <p>任务已取消。</p>
+        </AlertDescription>
+      </Alert>
     )
   }
 
-  return <AssistantTrace message={item} toolResultMap={toolResultMap} showReasoning={showReasoning} />
-}
-
-function ProcessMessagesPanel({
-  processEntries,
-  toolResultMap,
-  defaultOpen,
-}: {
-  processEntries: ProcessEntry[]
-  toolResultMap: Map<string, IMessage>
-  defaultOpen: boolean
-}) {
-  const [open, setOpen] = useState(defaultOpen)
-
-  return (
-    <Collapsible
-      className="mb-0"
-      open={open}
-      onOpenChange={setOpen}
-    >
-      <CollapsibleTrigger render={(
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="mb-1 h-7 px-2 text-muted-foreground"
-        >
-          <ChevronRightIcon
-            className={cn(
-              'size-4 transition-transform',
-              open ? 'rotate-90' : undefined,
-            )}
-          />
-          {`执行过程(${processEntries.length})`}
-        </Button>
-      )}
-      />
-      <CollapsibleContent>
-        <div className="">
-          {processEntries.map(entry => (
-            entry.type === 'steering'
-              ? <SteeringMessage key={entry.message.id} message={entry.message} />
-              : (
-                  <div
-                    key={entry.message.id}
-                    data-message-id={entry.message.id}
-                  >
-                    <AssistantMessageContent
-                      item={entry.message}
-                      toolResultMap={toolResultMap}
-                    />
-                  </div>
-                )
-          ))}
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
-  )
-}
-
-function SteeringMessage({ message }: { message: IMessage }) {
-  return (
-    <div
-      className="mr-1 ml-3 border-l-2 border-primary/25 py-1 pl-4"
-      data-message-id={message.id}
-    >
-      <div className="rounded-lg bg-primary/8 px-3 py-2.5 ring-1 ring-primary/18">
-        <div className="mb-1 flex items-center justify-between gap-3">
-          <span className="text-xs font-medium text-primary">
-            追加指令
-          </span>
-          <span className="text-[11px] text-muted-foreground tabular-nums">
-            {formatTime(message.createdAt)}
-          </span>
-        </div>
-        <MessageContent
-          content={transformMessageContent(message)}
-          status={message.status as 'success' | 'loading' | 'typing'}
-          enableReferenceTokens
-        />
-      </div>
-    </div>
-  )
+  return null
 }
 
 // ---- helpers ----
+
+function getErrorText(message: IMessage): string {
+  if (!Array.isArray(message.content))
+    return ''
+  return message.content
+    .filter(b => b.type === 'error')
+    .map(b => b.error)
+    .join('\n')
+}
 
 function messageHasTextContent(msg: IMessage): boolean {
   return Array.isArray(msg.content) && msg.content.some(b => b.type === 'text' && b.text.length > 0)
 }
 
-function messageHasVisibleResponse(msg: IMessage): boolean {
-  return Array.isArray(msg.content) && msg.content.some(block =>
-    (block.type === 'text' && block.text.length > 0) || block.type === 'error' || block.type === 'visualization',
-  )
+function messageHasErrorContent(msg: IMessage): boolean {
+  return Array.isArray(msg.content) && msg.content.some(b => b.type === 'error')
 }
 
 function messageHasToolCalls(msg: IMessage): boolean {
   return Array.isArray(msg.content) && msg.content.some(b => b.type === 'tool-call')
-}
-
-interface ProcessSplit {
-  processEntries: ProcessEntry[]
-  visibleMessages: IMessage[]
-}
-
-/**
- * Keep the latest assistant text response visible. Earlier assistant work and
- * steering messages retain their chronological position in the process panel.
- */
-function splitTurnMessages(messages: IMessage[]): ProcessSplit {
-  const assistantMessages = messages.filter(message => message.role === Role.AI)
-  const visibleMessage = [...assistantMessages]
-    .reverse()
-    .find(message => messageHasVisibleResponse(message) && !messageHasToolCalls(message))
-  const processEntries: ProcessEntry[] = []
-
-  for (const message of messages) {
-    if (message.role === Role.USER) {
-      processEntries.push({ type: 'steering', message })
-      continue
-    }
-
-    if (message.id === visibleMessage?.id) {
-      if (message.reasoningContent) {
-        processEntries.push({
-          type: 'assistant',
-          message: {
-            ...message,
-            id: `${message.id}:reasoning-fold`,
-            content: [],
-          },
-        })
-      }
-      continue
-    }
-
-    if (message.reasoningContent || message.content.length > 0) {
-      processEntries.push({ type: 'assistant', message })
-    }
-  }
-
-  return {
-    processEntries,
-    visibleMessages: visibleMessage ? [visibleMessage] : [],
-  }
 }
 
 function hasToolCallBlocks(msgs: IMessage[]): boolean {

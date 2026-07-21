@@ -93,7 +93,7 @@ describe('bubbleList', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
-  it('同一轮增量消息到达时保留用户关闭的执行过程状态', () => {
+  it('同一轮增量消息到达时保留用户手动展开的工具面板状态', () => {
     const messages = [
       createMessage('user-1', 'user', [{ type: 'text', text: '开始任务' }], 'success'),
       createMessage('tool-call', 'assistant', [{
@@ -106,10 +106,12 @@ describe('bubbleList', () => {
       createMessage('answer-1', 'assistant', [{ type: 'text', text: '处理中' }], 'typing'),
     ]
 
+    // 面板默认收起，用户手动展开
     const view = render(<BubbleList messages={messages} />)
-    const trigger = screen.getByText('执行过程(1)')
+    const trigger = screen.getByRole('button', { name: '终端 pnpm check，执行中' })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
     fireEvent.click(trigger)
-    expect(trigger.closest('[data-slot="collapsible"]')).toHaveAttribute('data-closed')
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
 
     view.rerender(
       <BubbleList
@@ -120,7 +122,7 @@ describe('bubbleList', () => {
       />,
     )
 
-    expect(screen.getByText('执行过程(2)').closest('[data-slot="collapsible"]')).toHaveAttribute('data-closed')
+    expect(screen.getByRole('button', { name: '终端 pnpm check，执行中' })).toHaveAttribute('aria-expanded', 'true')
     expect(Element.prototype.scrollTo).toHaveBeenLastCalledWith(expect.objectContaining({ behavior: 'auto' }))
   })
 })
