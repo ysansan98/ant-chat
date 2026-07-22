@@ -156,13 +156,14 @@ export class LocalControlServer {
 
     this.acquireRuntimeLock(appDataRoot)
 
-    const socketName = `ant-chat-control-${process.pid}.sock`
+    const socketName = 'ant-chat-control.sock'
     const isWindows = os.platform() === 'win32'
     const socketPath = isWindows
       ? `\\\\.\\pipe\\${socketName}`
       : path.join(appDataRoot, socketName)
 
-    // 清除陈旧 socket 文件
+    // 清除上一次异常退出残留的 socket 文件
+    // 此时已持有 runtime lock，不可能有第二个实例在使用该 socket
     if (!isWindows && existsSync(socketPath)) {
       try {
         unlinkSync(socketPath)
