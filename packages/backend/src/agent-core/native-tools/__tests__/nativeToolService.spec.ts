@@ -118,7 +118,7 @@ describe('native tool service 行为', () => {
 
     await expect(bash.execute({ command: 'rm -rf src' })).resolves.toMatchObject({
       ok: false,
-      result: expect.stringContaining('命令被安全策略拦截'),
+      result: expect.stringContaining('禁止命令'),
     })
 
     await expect(bash.execute({ command: 'mkdir -p src/nested' })).resolves.toMatchObject({ ok: true })
@@ -197,7 +197,7 @@ describe('native tool service 行为', () => {
     expect(bash.inferScope({ command: 'npx --yes agent-browser snapshot -i' })).toBe('blocked')
     await expect(bash.execute({ command: 'npx --yes agent-browser snapshot -i' })).resolves.toMatchObject({
       ok: false,
-      result: expect.stringContaining('命令被安全策略拦截'),
+      result: expect.stringContaining('禁止启动 agent-browser'),
     })
   })
 
@@ -267,15 +267,15 @@ describe('native tool service 行为', () => {
       expect(tool.inferScope({ command: 'find . -name "*.ts"' })).toBe('workspace')
     })
 
-    it('bash rm/sudo/curl → outside（需审批）', () => {
+    it('bash rm/sudo/curl → blocked（硬阻断）', () => {
       const service = new NativeToolService(workspacePath)
       const tool = service.getTools().find(t => t.name === 'bash')!
-      expect(tool.inferScope({ command: 'rm -rf src' })).toBe('outside')
-      expect(tool.inferScope({ command: 'sudo ls' })).toBe('outside')
-      expect(tool.inferScope({ command: 'curl http://example.com' })).toBe('outside')
+      expect(tool.inferScope({ command: 'rm -rf src' })).toBe('blocked')
+      expect(tool.inferScope({ command: 'sudo ls' })).toBe('blocked')
+      expect(tool.inferScope({ command: 'curl http://example.com' })).toBe('blocked')
     })
 
-    it('bash 管道重定向 → outside（需审批）', () => {
+    it('bash 管道重定向 → outside（需要单次审批）', () => {
       const service = new NativeToolService(workspacePath)
       const tool = service.getTools().find(t => t.name === 'bash')!
       expect(tool.inferScope({ command: 'ls | grep foo' })).toBe('outside')

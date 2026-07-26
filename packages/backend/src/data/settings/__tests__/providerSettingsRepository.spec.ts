@@ -17,7 +17,6 @@ describe('provider settings repository', () => {
     developerTools: { agentObservabilityEnabled: false },
     proxySettings: { mode: 'none', customProxyUrl: '' },
     appearance: { mode: 'system', lightThemeId: 'default', darkThemeId: 'default' },
-    toolApprovalWhitelist: [],
     providers: [
       {
         id: 'provider-1',
@@ -111,7 +110,6 @@ describe('provider settings repository', () => {
     const legacy = {
       assistantModelId: 'gpt-4',
       proxySettings: { mode: 'none' },
-      toolApprovalWhitelist: [],
       providers: [
         {
           id: 'custom-provider',
@@ -149,7 +147,6 @@ describe('provider settings repository', () => {
       developerTools: { agentObservabilityEnabled: false },
       proxySettings: { mode: 'none' },
       appearance: { mode: 'system', lightThemeId: 'default', darkThemeId: 'default' },
-      toolApprovalWhitelist: [],
       providers: [
         {
           id: 'provider-a',

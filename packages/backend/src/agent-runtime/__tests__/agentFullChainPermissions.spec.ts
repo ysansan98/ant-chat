@@ -255,6 +255,7 @@ function createHarness(): AgentRuntimeHarness {
     memoryRootPath: path.join(rootPath, 'memory'),
     workspaceSettingsFilePath: path.join(rootPath, 'workspaces.json'),
     attachmentsRootPath: path.join(rootPath, 'attachments'),
+    permissionsFilePath: path.join(rootPath, 'permissions.json'),
   })
   appDataContext.providerSettingsRepository.createProvider({
     id: 'mock-provider',
@@ -294,7 +295,8 @@ function createHarness(): AgentRuntimeHarness {
       sessionStore: createAppDataSessionStore(appDataContext),
       memoryReader: appDataContext.memoryManager,
       loadFileData: appDataContext.loadAttachmentData,
-      getToolApprovalWhitelistEntries: () => appDataContext.toolApprovalWhitelistRepository.getAll(),
+      getPermissionRules: (workspacePath: string) => appDataContext.permissionsFileStore.getEffectiveRules(workspacePath),
+      savePermissionRules: (scope, workspacePath, rules) => appDataContext.permissionsFileStore.saveRules(scope, workspacePath, rules),
     },
     overrides: {
       logger: {

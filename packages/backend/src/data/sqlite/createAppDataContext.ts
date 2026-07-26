@@ -2,7 +2,8 @@ import type { AppDataDatabase } from './types'
 import path from 'node:path'
 import { McpSettingsRepository, McpSettingsStore } from '../mcp'
 import { AgentMemoryManager } from '../memory'
-import { AppSettingsStore, createModelCatalog, GeneralSettingsRepository, ProviderSettingsRepository, ToolApprovalWhitelistRepository } from '../settings'
+import { PermissionsFileStore } from '../permissions'
+import { AppSettingsStore, createModelCatalog, GeneralSettingsRepository, ProviderSettingsRepository } from '../settings'
 import { WorkspaceService } from '../workspace'
 import { createAppDataMigrations, runSqliteMigrations } from './migrations'
 import { SqliteMessageSearchQuery } from './queries'
@@ -15,10 +16,11 @@ export interface CreateAppDataContextOptions {
   memoryRootPath: string
   workspaceSettingsFilePath: string
   attachmentsRootPath?: string
+  permissionsFilePath: string
 }
 
 export function createAppDataContext(options: CreateAppDataContextOptions) {
-  const { db, settingsFilePath, mcpSettingsFilePath, memoryRootPath, workspaceSettingsFilePath } = options
+  const { db, settingsFilePath, mcpSettingsFilePath, memoryRootPath, workspaceSettingsFilePath, permissionsFilePath } = options
   const attachmentsRootPath = options.attachmentsRootPath ?? path.join(path.dirname(settingsFilePath), 'attachments')
   runSqliteMigrations(db, createAppDataMigrations({ attachmentsRootPath }))
 
@@ -46,7 +48,7 @@ export function createAppDataContext(options: CreateAppDataContextOptions) {
       filePath: mcpSettingsFilePath,
       resetInvalidFile: true,
     })),
-    toolApprovalWhitelistRepository: new ToolApprovalWhitelistRepository(appSettingsStore),
+    permissionsFileStore: new PermissionsFileStore(permissionsFilePath),
     workspaceService: new WorkspaceService({
       filePath: workspaceSettingsFilePath,
       resetInvalidFile: true,

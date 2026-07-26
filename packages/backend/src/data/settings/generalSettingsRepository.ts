@@ -35,7 +35,7 @@ export class GeneralSettingsRepository implements SettingsRepository {
     this.store = options.store ?? new AppSettingsStore({
       filePath: options.filePath,
       initialSettings: options.initialSettings
-        ? { ...options.initialSettings, providers: [], toolApprovalWhitelist: [] }
+        ? { ...options.initialSettings, providers: [] }
         : undefined,
     })
   }

@@ -2,7 +2,7 @@ import type { McpConfigSchema, McpTool } from '@ant-chat/shared'
 import type { KeyValueItem } from '@/components/Common/KeyValueList'
 
 import { AddMcpConfigSchema, UpdateMcpConfigSchema } from '@ant-chat/shared'
-import { Alert, AlertTitle } from '@workspace/ui/components/alert'
+import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Avatar } from '@workspace/ui/components/avatar'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -22,6 +22,7 @@ interface McpConfigDrawerProps {
   open: boolean
   mode: 'add' | 'edit'
   defaultValues?: McpConfigSchema
+  renamePermissionRuleCount?: number
   onClose?: () => void
   onSave?: (config: AddMcpConfigSchema | UpdateMcpConfigSchema) => Promise<void> | void
 }
@@ -39,7 +40,7 @@ interface McpConfigForm {
   timeout?: number
 }
 
-export default function McpConfigDrawer({ open, mode, defaultValues, onClose, onSave }: McpConfigDrawerProps) {
+export default function McpConfigDrawer({ open, mode, defaultValues, renamePermissionRuleCount = 0, onClose, onSave }: McpConfigDrawerProps) {
   const _defaultValues: McpConfigForm = mode === 'edit' && defaultValues
     ? {
         serverName: defaultValues.serverName,
@@ -178,6 +179,19 @@ export default function McpConfigDrawer({ open, mode, defaultValues, onClose, on
                   <FormItemLabel name="MCP Server 名称" tag="serverName" />
                   <Input placeholder="例如: my-mcp-plugin" {...register('serverName', { required: true })} />
                 </div>
+
+                {mode === 'edit' && renamePermissionRuleCount > 0 && (
+                  <Alert>
+                    <AlertTitle>
+                      重命名将迁移
+                      {' '}
+                      {renamePermissionRuleCount}
+                      {' '}
+                      条权限规则
+                    </AlertTitle>
+                    <AlertDescription>保存新名称时，服务器配置与相关权限规则会由后端原子更新。</AlertDescription>
+                  </Alert>
+                )}
 
                 <div className="flex flex-col gap-1">
                   <FormItemLabel name="图标" tag="icon" />

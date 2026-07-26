@@ -36,8 +36,8 @@ export function editMcpServer(serverName: string, updates: McpServerEditPatch): 
   return getAppRpcClient().call('mcp.editServer', { serverName, updates })
 }
 
-export function deleteMcpServer(serverName: string): Promise<McpServerLifecycleResult> {
-  return getAppRpcClient().call('mcp.deleteServer', { serverName })
+export function deleteMcpServer(serverName: string, deletePermissionRules: boolean): Promise<McpServerLifecycleResult> {
+  return getAppRpcClient().call('mcp.deleteServer', { serverName, deletePermissionRules })
 }
 
 export function startMcpServer(serverName: string): Promise<McpServerLifecycleResult> {

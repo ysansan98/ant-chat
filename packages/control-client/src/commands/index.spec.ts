@@ -91,7 +91,7 @@ describe('ant-chat CLI 命令', () => {
     })
   })
 
-  it('允许 Skill 通过 bash.env 给 provider key:set 注入 API Key', async () => {
+  it('允许 Skill 通过 bash.secretEnv 给 provider key:set 注入 API Key', async () => {
     process.env.ANT_CHAT_PROVIDER_API_KEY = 'sk-from-env'
     const client = createClient({ hasApiKey: true, id: 'provider-1' })
 
@@ -111,7 +111,7 @@ describe('ant-chat CLI 命令', () => {
     })
   })
 
-  it('允许 Skill 通过 bash.env 给 SSE MCP headers 注入敏感值', async () => {
+  it('允许 Skill 通过 bash.secretEnv 给 SSE MCP headers 注入敏感值', async () => {
     process.env.ANT_CHAT_TEST_MCP_AUTHORIZATION = 'Bearer secret'
     const client = createClient({ mcpServer: { name: 'remote', status: 'connected' } })
 

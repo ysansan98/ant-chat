@@ -85,9 +85,10 @@ describe('workspaceStore currentWorkspacePath SSOT', () => {
     })
     mocks.removeWorkspace.mockResolvedValue(makeWorkspaces([{ path: '/other', lastOpenedAt: 8 }]))
 
-    await useWorkspaceStore.getState().removeWorkspace('/cur')
+    await useWorkspaceStore.getState().removeWorkspace('/cur', true)
 
     expect(useWorkspaceStore.getState().currentWorkspacePath).toBe('/other')
+    expect(mocks.removeWorkspace).toHaveBeenCalledWith('/cur', true)
   })
 
   it('removeWorkspace 删除非当前工作区时 currentWorkspacePath 保持不变', async () => {
@@ -100,9 +101,10 @@ describe('workspaceStore currentWorkspacePath SSOT', () => {
     })
     mocks.removeWorkspace.mockResolvedValue(makeWorkspaces([{ path: '/cur', lastOpenedAt: 5 }]))
 
-    await useWorkspaceStore.getState().removeWorkspace('/other')
+    await useWorkspaceStore.getState().removeWorkspace('/other', false)
 
     expect(useWorkspaceStore.getState().currentWorkspacePath).toBe('/cur')
+    expect(mocks.removeWorkspace).toHaveBeenCalledWith('/other', false)
   })
 
   it('reorderWorkspaces 后只更新列表顺序并保持当前工作区', async () => {

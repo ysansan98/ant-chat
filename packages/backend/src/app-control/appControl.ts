@@ -196,7 +196,10 @@ export class AppControl {
         return { mcpServer: toMcpListItem(result) }
       }
       case 'delete': {
-        const result = await this.modules.mcp.deleteServer({ serverName: command.name })
+        const result = await this.modules.mcp.deleteServer({
+          serverName: command.name,
+          deletePermissionRules: true,
+        })
         return {
           deleted: !result.error,
           ...(result.error ? { error: result.error } : {}),

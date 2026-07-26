@@ -22,6 +22,8 @@ export interface AgentTool {
   name: string
   source: 'mcp' | 'native' | 'skill'
   serverName?: string
+  /** MCP 工具的原始 toolName（不与 serverName 拼接）；非 MCP 工具为 undefined */
+  originalToolName?: string
   description?: string
   inputSchema?: {
     type: 'object'
@@ -41,7 +43,8 @@ export interface BashToolInput {
   description?: string
   cwd?: string
   timeoutMs?: number
-  env?: Record<string, string | SecretRef>
+  /** 仅用于把当前 Turn 的 SecretRef 注入子进程环境；不接受普通字符串或持久 SecretRef。 */
+  secretEnv?: Record<string, SecretRef>
 }
 
 export interface BrowserToolInput {

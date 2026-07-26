@@ -11,6 +11,7 @@ export interface AppRuntimePaths {
   skillsRoot: string
   logsRoot: string
   observabilityRoot: string
+  permissionsFile: string
 }
 
 export function createAppRuntimePaths(root: string): AppRuntimePaths {
@@ -27,5 +28,6 @@ export function createAppRuntimePaths(root: string): AppRuntimePaths {
     skillsRoot: path.join(root, 'skills'),
     logsRoot,
     observabilityRoot: path.join(logsRoot, 'observability'),
+    permissionsFile: path.join(root, 'permissions.json'),
   }
 }

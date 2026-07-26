@@ -38,8 +38,8 @@ export async function editMcpServerAction(serverName: string, updates: McpServer
   return runLifecycleAction(() => editMcpServer(serverName, updates), true)
 }
 
-export async function deleteMcpServerAction(serverName: string): Promise<McpServerLifecycleResult> {
-  return runLifecycleAction(() => deleteMcpServer(serverName), true)
+export async function deleteMcpServerAction(serverName: string, deletePermissionRules: boolean): Promise<McpServerLifecycleResult> {
+  return runLifecycleAction(() => deleteMcpServer(serverName, deletePermissionRules), true)
 }
 
 export async function startMcpServerAction(serverName: string): Promise<McpServerLifecycleResult> {

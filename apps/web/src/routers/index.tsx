@@ -12,6 +12,7 @@ import { ArchivedConversations } from '@/pages/Settings/ArchivedConversations'
 import { GeneralSettings } from '@/pages/Settings/GeneralSettings'
 import MCPManage from '@/pages/Settings/MCPManage'
 import { MemorySettings } from '@/pages/Settings/Memory'
+import { PermissionsPage } from '@/pages/Settings/Permissions'
 import ProviderManage from '@/pages/Settings/ProviderManage'
 import SettingsPage from '@/pages/Settings/Settings'
 import SkillManage from '@/pages/Settings/SkillManage'
@@ -28,6 +29,7 @@ const settingsRoute = {
     { path: 'general', Component: GeneralSettings },
     { path: 'appearance', Component: AppearanceSettings },
     { path: 'memory', Component: MemorySettings },
+    { path: 'permissions', Component: PermissionsPage },
     { path: 'provider', Component: ProviderManage },
     { path: 'mcp', Component: MCPManage },
     { path: 'skills', Component: SkillManage },

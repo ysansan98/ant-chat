@@ -155,14 +155,24 @@ describe('parseEvidence · policy-decision', () => {
   it('解析记忆授权命中的初始判定与最终判定', () => {
     const view = parseEvidence(spanItem('policy-decision', 'allow'), evidence(
       spanStarted('policy-decision', { toolName: 'write', input: { path: '/a' }, operationType: 'write', scope: 'workspace', policy: 'require_approval', basis: 'default.require-approval', initialDecision: { outcome: 'require_approval', basis: 'default.require-approval' }, mode: 'strict', step: 1, toolCallId: 'c1' }),
-      spanCompleted('policy-decision', 'allow', { status: 'allow', outcome: 'allow', effectiveDecision: { outcome: 'allow', basis: 'approval-grant.match' }, whitelist: { matchKey: '/a', entry: { toolName: 'write' } } }),
+      spanCompleted('policy-decision', 'allow', {
+        status: 'allow',
+        outcome: 'allow',
+        effectiveDecision: { outcome: 'allow', basis: 'approval-grant.match' },
+        permissionRules: [
+          { ruleId: 'rule-a', kind: 'filesystem', effect: 'allow', group: 'workspace' },
+          { ruleId: 'rule-b', kind: 'filesystem', effect: 'allow', group: 'global' },
+        ],
+      }),
     ))
     expect(view.type).toBe('policy-decision')
     if (view.type !== 'policy-decision')
       return
     expect(view.outcome).toBe('allow')
-    expect(view.whitelistMatchKey).toBe('/a')
-    expect(view.whitelistEntry).toEqual({ toolName: 'write' })
+    expect(view.permissionRules).toEqual([
+      { ruleId: 'rule-a', kind: 'filesystem', effect: 'allow', group: 'workspace' },
+      { ruleId: 'rule-b', kind: 'filesystem', effect: 'allow', group: 'global' },
+    ])
     expect(view.policy).toBe('require_approval')
     expect(view.initialBasis).toBe('default.require-approval')
     expect(view.basis).toBe('approval-grant.match')

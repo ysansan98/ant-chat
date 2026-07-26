@@ -29,7 +29,7 @@ export function createLoopSystemPrompt(workspacePath: string, conversationInstru
     '2. Use persistent memory when it is available and the user provides a durable preference, correction, environment fact, or stable convention.',
     '3. Take the single most valuable next step each turn.',
     '4. Your output must be either a final answer or paired with an active tool call. Do not output plan-only statements.',
-    '5. Work inside the workspace directory. Prefer relative paths.',
+    '5. Bash commands already run in the workspace directory. Do not cd to it — just write the command directly.',
     '6. If a tool returns an error, adjust parameters and retry. Do not repeat the same failing call.',
     '7. If a tool result indicates more content is available, continue reading.',
     '8. When sufficient information is available, execute the change and provide the final result.',

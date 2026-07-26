@@ -92,10 +92,13 @@ function PolicyDecisionOverview({ view }: { view: PolicyDecisionView }) {
     <div className="space-y-3">
       <DecisionBanner view={view} />
       {view.reason && <p className="text-xs/relaxed text-muted-foreground">{view.reason}</p>}
-      {view.whitelistMatchKey && (
+      {view.permissionRules.length > 0 && (
         <p className="text-xs text-muted-foreground">
-          命中记忆授权：
-          <code className="rounded-sm bg-muted px-1 py-0.5 break-all">{view.whitelistMatchKey}</code>
+          命中权限规则：
+          {' '}
+          <code className="rounded-sm bg-muted px-1 py-0.5 break-all">
+            {view.permissionRules.map(rule => rule.ruleId).join('、')}
+          </code>
         </p>
       )}
       <KeyValueList items={[
@@ -118,7 +121,7 @@ function PolicyDecisionOverview({ view }: { view: PolicyDecisionView }) {
 function DecisionBanner({ view }: { view: PolicyDecisionView }) {
   const status = view.status
   const config = status === 'allow'
-    ? { icon: ShieldCheckIcon, label: view.whitelistMatchKey ? '允许执行（命中记忆授权）' : '允许执行', className: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' }
+    ? { icon: ShieldCheckIcon, label: view.permissionRules.length > 0 ? '允许执行（命中权限规则）' : '允许执行', className: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' }
     : status === 'block'
       ? { icon: ShieldXIcon, label: '已阻止', className: 'border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-400' }
       : view.outcome === 'allow'

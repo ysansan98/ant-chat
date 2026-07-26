@@ -1,10 +1,10 @@
-import type { AgentMode, AgentRuntimeConfig, AgentTool, AgentToolResult, AgentTurnSource, RuntimeToolDefinition, SecretRef, SecretStore, SkillManifest, SkillReader, ToolOperationType, ToolScope } from '@ant-chat/shared'
+import type { AgentMode, AgentRuntimeConfig, AgentTool, AgentToolResult, AgentTurnSource, RuntimeToolDefinition, SkillManifest, SkillReader, ToolOperationType, ToolScope } from '@ant-chat/shared'
 import type { BrowserSessionState } from '../native-tools/tools/browserSessionManager'
+import type { PreparedNativeTool } from '../native-tools/tools/toolFactory'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { getNativeToolService } from '../native-tools/nativeToolService'
-import { isReadOnlyBashCommand } from '../native-tools/tools/bashRunner'
 import { createMcpTools } from './mcpToolAdapter'
 import { createPublishVisualizationTool } from './publishVisualizationTool'
 
@@ -12,12 +12,15 @@ export interface PreparedToolCall {
   toolName: string
   source: AgentTool['source']
   serverName: string
+  /** MCP 工具的原始 toolName（不与 serverName 拼接）；非 MCP 工具为 undefined */
+  originalToolName?: string
   input: Record<string, unknown>
   operationType: ToolOperationType
   scope: ToolScope
   validationError?: string
+  /** 工具在 prepare 阶段固定的私有状态；只有 owning tool 与授权层解释。 */
+  preparedState?: unknown
   execute: () => Promise<AgentToolResult>
-  resolvedSecretValues?: string[]
   truncateResult?: boolean
 }
 
@@ -27,6 +30,7 @@ export interface CreateRegistryOptions {
   mode: AgentMode
   browserSession?: BrowserSessionState
   turnSource?: AgentTurnSource
+  runId?: string
 }
 
 type AutomationTurnSource = Extract<AgentTurnSource, { type: 'automation' }>
@@ -34,9 +38,8 @@ type AutomationTurnSource = Extract<AgentTurnSource, { type: 'automation' }>
 export class ToolRegistry {
   private readonly tools: Map<string, AgentTool>
   private readonly relaxedTools: Map<string, AgentTool>
-
   static async create(options: CreateRegistryOptions): Promise<ToolRegistry> {
-    const { config, workspacePath, mode, browserSession, turnSource } = options
+    const { config, workspacePath, mode, browserSession, turnSource, runId } = options
     const unrestricted = mode === 'full_managed'
     const skillReader = resolveSkillReader(config)
     const trustedPaths = turnSource?.type === 'automation'
@@ -47,6 +50,8 @@ export class ToolRegistry {
       browser: config.browser,
       bashEnvironment: config.bashEnvironment,
       browserSession,
+      secretStore: config.secretStore,
+      runId,
     }).getTools(), turnSource)
     const relaxedNativeTools = unrestricted
       ? nativeTools
@@ -55,6 +60,8 @@ export class ToolRegistry {
           browser: config.browser,
           bashEnvironment: config.bashEnvironment,
           browserSession,
+          secretStore: config.secretStore,
+          runId,
         }).getTools(), turnSource)
     const skillTools = skillReader
       ? await makeSkillTools(skillReader, turnSource)
@@ -79,14 +86,12 @@ export class ToolRegistry {
     return new ToolRegistry(
       [...nativeTools, ...skillTools, ...agentLoopTools, ...allowedMcpTools],
       unrestricted ? undefined : relaxedNativeTools,
-      config.secretStore,
     )
   }
 
   constructor(
     tools: AgentTool[],
     relaxedTools?: AgentTool[],
-    private readonly secretStore?: SecretStore,
   ) {
     for (const tool of tools) {
       if (!tool.description || !tool.inputSchema) {
@@ -114,27 +119,33 @@ export class ToolRegistry {
     }
 
     const validationError = tool.validateInput?.(input) ?? undefined
-    const scope = safeInferScope(tool, input)
-    const operationType = tool.operationType === 'bash' && isReadOnlyBashCommand(String(input.command ?? ''))
-      ? 'bash_read'
-      : tool.operationType
+    // 输入必须先通过公开校验，再创建工具私有 prepare 状态。
+    const toolPreparation = validationError
+      ? undefined
+      : (tool as PreparedNativeTool).prepare?.(input)
+    const scope = toolPreparation?.scope ?? safeInferScope(tool, input)
+    const operationType = toolPreparation?.operationType ?? tool.operationType
 
     const resolvedTool = scope === 'outside' ? (this.relaxedTools.get(toolName) ?? tool) : tool
+    const executePrepared = toolPreparation
+      ? scope === 'outside' && this.relaxedTools.has(toolName)
+        ? (toolPreparation.executeRelaxed ?? resolvedTool.execute.bind(resolvedTool))
+        : toolPreparation.execute
+      : undefined
 
     const prepared: PreparedToolCall = {
       toolName,
       source: tool.source,
       serverName: tool.serverName || tool.source,
+      originalToolName: tool.originalToolName,
       input,
       operationType,
       scope,
       validationError,
-      execute: async () => {
-        const resolvedSecretValues: string[] = []
-        const resolvedInput = await resolveToolInputSecrets(input, this.secretStore, resolvedSecretValues)
-        prepared.resolvedSecretValues = resolvedSecretValues
-        return resolvedTool.execute(resolvedInput)
-      },
+      preparedState: toolPreparation?.state,
+      execute: async () => executePrepared
+        ? executePrepared(input)
+        : resolvedTool.execute(input),
       truncateResult: tool.truncateResult,
     }
     return prepared
@@ -201,7 +212,7 @@ function createRequestSecretTool(): AgentTool {
       '向用户请求当前任务临时使用的敏感信息。',
       '当工具需要密码、token、验证码、账号密码等一个或多个敏感字段时使用。',
       '单字段可传 label；多字段传 fields，例如 [{ key: "username", label: "账号" }, { key: "password", label: "密码" }]。',
-      '此工具不会返回真实值，只返回 SecretRef 或 secretRefs；后续工具应把 SecretRef 传给 bash.env 等字段。',
+      '此工具不会返回真实值，只返回 SecretRef 或 secretRefs；后续只能把当前 Turn 的 SecretRef 传给 bash.secretEnv。',
     ].join('\n'),
     inputSchema: {
       type: 'object',
@@ -249,37 +260,6 @@ function createRequestSecretTool(): AgentTool {
     },
     execute: async () => ({ ok: false, result: 'requestSecret must be executed by runtime' }),
   }
-}
-
-async function resolveToolInputSecrets(input: Record<string, unknown>, secretStore?: SecretStore, resolvedSecretValues: string[] = []): Promise<Record<string, unknown>> {
-  if (!secretStore) {
-    return input
-  }
-  const resolved: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(input)) {
-    if (isSecretRef(value)) {
-      const secret = await secretStore.resolve(value)
-      if (!secret) {
-        throw new Error(`Secret not found: ${value.id}`)
-      }
-      resolvedSecretValues.push(secret)
-      resolved[key] = secret
-    }
-    else if (isPlainRecord(value)) {
-      resolved[key] = await resolveToolInputSecrets(value, secretStore, resolvedSecretValues)
-    }
-    else {
-      resolved[key] = value
-    }
-  }
-  return resolved
-}
-
-function isSecretRef(value: unknown): value is SecretRef {
-  return isPlainRecord(value)
-    && value.kind === 'secret_ref'
-    && typeof value.id === 'string'
-    && (value.scope === 'persistent' || value.scope === 'turn')
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {

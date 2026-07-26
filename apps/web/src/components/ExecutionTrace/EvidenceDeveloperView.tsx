@@ -179,12 +179,18 @@ function PolicyDecisionDetail({ view }: { view: PolicyDecisionView }) {
             ...(view.approvalReason ? [{ label: '审批说明', value: view.approvalReason }] : []),
             ...(view.reason ? [{ label: '原因', value: view.reason }] : []),
             ...(view.errorCode ? [{ label: '错误码', value: view.errorCode }] : []),
-            ...(view.whitelistMatchKey ? [{ label: '记忆授权匹配键', value: <code className="break-all">{view.whitelistMatchKey}</code> }] : []),
+            ...(view.permissionRules.length > 0 ? [{ label: '命中权限规则数', value: String(view.permissionRules.length) }] : []),
+            ...(view.permissionRules.length > 0
+              ? [{
+                  label: '命中权限规则',
+                  value: <code className="break-all">{view.permissionRules.map(rule => rule.ruleId).join('、')}</code>,
+                }]
+              : []),
           ]}
           />
-          {view.whitelistEntry != null && (
-            <SubSection title="命中的记忆授权规则">
-              <JsonTree value={view.whitelistEntry} expandDepth={2} />
+          {view.permissionRules.length > 0 && (
+            <SubSection title="命中的权限规则">
+              <JsonTree value={view.permissionRules} expandDepth={2} />
             </SubSection>
           )}
         </div>

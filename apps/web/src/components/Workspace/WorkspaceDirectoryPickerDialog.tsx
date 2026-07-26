@@ -24,12 +24,20 @@ interface WorkspaceDirectoryPickerDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onConfirm: (path: string) => void
+  title?: string
+  description?: string
+  confirmLabel?: string
+  allowCreateDirectory?: boolean
 }
 
 export function WorkspaceDirectoryPickerDialog({
   open,
   onOpenChange,
   onConfirm,
+  title = '选择工作区',
+  description = '浏览并选择一个目录作为工作区。',
+  confirmLabel = '添加工作区',
+  allowCreateDirectory = true,
 }: WorkspaceDirectoryPickerDialogProps) {
   const [listing, setListing] = useState<WorkspaceDirectoryListing | null>(null)
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
@@ -151,10 +159,8 @@ export function WorkspaceDirectoryPickerDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="flex max-h-[70vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
         <DialogHeader className="shrink-0 border-b px-4 py-3">
-          <DialogTitle>选择工作区</DialogTitle>
-          <DialogDescription>
-            浏览并选择一个目录作为工作区。
-          </DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
         <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden px-4 py-3">
@@ -260,7 +266,7 @@ export function WorkspaceDirectoryPickerDialog({
           </div>
 
           {/* New folder input */}
-          {showNewFolder && (
+          {allowCreateDirectory && showNewFolder && (
             <div className="flex shrink-0 items-center gap-2">
               <Input
                 ref={newFolderInputRef}
@@ -310,15 +316,19 @@ export function WorkspaceDirectoryPickerDialog({
 
         {/* Footer: override built-in -mx-4 -mb-4 p-4 to avoid overflow */}
         <div className="flex shrink-0 flex-row items-center justify-between border-t border-border/70 bg-muted/50 px-4 py-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={loading}
-            onClick={() => setShowNewFolder(true)}
-          >
-            <FolderPlusIcon className="size-4" />
-            新建文件夹
-          </Button>
+          {allowCreateDirectory
+            ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={loading}
+                  onClick={() => setShowNewFolder(true)}
+                >
+                  <FolderPlusIcon className="size-4" />
+                  新建文件夹
+                </Button>
+              )
+            : <span />}
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
@@ -330,7 +340,7 @@ export function WorkspaceDirectoryPickerDialog({
               disabled={!selectedPath || loading}
               onClick={handleConfirm}
             >
-              添加工作区
+              {confirmLabel}
             </Button>
           </div>
         </div>

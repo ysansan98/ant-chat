@@ -26,6 +26,7 @@ export interface TaskExecution {
 
 interface StoredTask extends RuntimeTask {
   pendingResolver?: (value: ApprovalDecision) => void
+  pendingPersistenceFailureReporter?: (error: unknown) => void
   steeringQueue: SteeringInput[]
   pendingSteeringMessages: PendingSteeringMessage[]
 }
@@ -33,7 +34,8 @@ interface StoredTask extends RuntimeTask {
 export interface ApprovalDecision {
   approved: boolean
   reason?: string
-  remember?: ApprovePendingActionOptions['remember']
+  /** 用户对后端候选的选择；空或 undefined = 仅本次允许 */
+  selection?: ApprovePendingActionOptions['selection']
 }
 
 const APPROVAL_TIMEOUT_MS = 5 * 60 * 1000
@@ -106,20 +108,27 @@ export class TaskStore {
   approve(
     taskId: string,
     actionId: string,
-    remember?: ApprovePendingActionOptions['remember'],
-    persistGrant?: (pendingAction: AgentPendingAction, workspacePath: string) => void,
+    selection?: ApprovePendingActionOptions['selection'],
+    persistGrant?: (pendingAction: AgentPendingAction, workspacePath: string, selection: NonNullable<ApprovePendingActionOptions['selection']>) => void,
   ): RuntimeTask {
     const task = this.getApprovableTask(taskId, actionId)
-    if (remember) {
+    if (selection && selection.selections.length > 0) {
       if (!persistGrant) {
         throw new Error('记忆授权缺少持久化 owner')
       }
-      persistGrant(task.snapshot.pendingAction!, task.snapshot.workspacePath)
+      try {
+        persistGrant(task.snapshot.pendingAction!, task.snapshot.workspacePath, selection)
+      }
+      catch (error) {
+        task.pendingPersistenceFailureReporter?.(error)
+        throw error
+      }
     }
     task.snapshot.pendingAction = undefined
     task.snapshot.status = 'running'
-    task.pendingResolver?.({ approved: true, remember })
+    task.pendingResolver?.({ approved: true, selection })
     task.pendingResolver = undefined
+    task.pendingPersistenceFailureReporter = undefined
     return task
   }
 
@@ -129,6 +138,7 @@ export class TaskStore {
     task.snapshot.status = 'running'
     task.pendingResolver?.({ approved: false, reason })
     task.pendingResolver = undefined
+    task.pendingPersistenceFailureReporter = undefined
     return task
   }
 
@@ -141,6 +151,7 @@ export class TaskStore {
     task.snapshot.pendingAction = undefined
     task.pendingResolver?.({ approved: false, reason: 'AGENT_CANCELLED' })
     task.pendingResolver = undefined
+    task.pendingPersistenceFailureReporter = undefined
     return task
   }
 
@@ -157,18 +168,25 @@ export class TaskStore {
       timer = setTimeout(() => {
         if (storedTask.snapshot.status === 'awaiting_approval') {
           storedTask.pendingResolver = undefined
+          storedTask.pendingPersistenceFailureReporter = undefined
           reject(new AgentError('AGENT_APPROVAL_TIMEOUT', 'Approval timeout'))
         }
       }, APPROVAL_TIMEOUT_MS)
     })
   }
 
-  async requestApproval(task: RuntimeTask, pendingAction: AgentPendingAction, eventEmitter: IAgentEventEmitter): Promise<ApprovalDecision> {
+  async requestApproval(
+    task: RuntimeTask,
+    pendingAction: AgentPendingAction,
+    eventEmitter: IAgentEventEmitter,
+    reportPersistenceFailure?: (error: unknown) => void,
+  ): Promise<ApprovalDecision> {
     const storedTask = this.getStored(task.snapshot.taskId)
     if (!storedTask)
       throw new AgentError('AGENT_TASK_NOT_FOUND', 'Task not found')
     storedTask.snapshot.status = 'awaiting_approval'
     storedTask.snapshot.pendingAction = pendingAction
+    storedTask.pendingPersistenceFailureReporter = reportPersistenceFailure
     void eventEmitter.emitTaskUpdated(storedTask.snapshot)
     void eventEmitter.emitApprovalRequired(storedTask.snapshot.taskId, storedTask.snapshot.conversationId, pendingAction)
     return await this.waitForApproval(storedTask)

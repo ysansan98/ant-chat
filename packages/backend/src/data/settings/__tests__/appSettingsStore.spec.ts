@@ -19,11 +19,11 @@ describe('appSettingsStore', () => {
 
   it('自动重置开启时也拒绝覆盖更高版本的设置文件', () => {
     const filePath = path.join(dir, 'future-settings.json')
-    const original = JSON.stringify({ schemaVersion: 4, data: DEFAULT_APP_SETTINGS })
+    const original = JSON.stringify({ schemaVersion: 5, data: DEFAULT_APP_SETTINGS })
     writeFileSync(filePath, original, 'utf8')
 
     expect(() => new AppSettingsStore({ filePath, resetInvalidFile: true }))
-      .toThrow('文件 schema 版本 4 高于当前支持的 3')
+      .toThrow('文件 schema 版本 5 高于当前支持的 4')
     expect(readFileSync(filePath, 'utf8')).toBe(original)
   })
 
@@ -65,25 +65,37 @@ describe('appSettingsStore', () => {
       schemaVersion: number
       data: { providers: Array<{ models: Record<string, Record<string, unknown>> }> }
     }
-    expect(persisted.schemaVersion).toBe(3)
+    expect(persisted.schemaVersion).toBe(4)
     expect(persisted.data.providers[0].models['legacy-model']).not.toHaveProperty('maxTokens')
     expect(persisted.data.providers[0].models['already-migrated-model']).not.toHaveProperty('maxTokens')
   })
 
-  it('升级时撤销无法安全还原的旧 glob 授权', () => {
-    const filePath = path.join(dir, 'legacy-whitelist-settings.json')
-    const legacySettings = {
-      ...DEFAULT_APP_SETTINGS,
-      toolApprovalWhitelist: [
-        { toolName: 'bash', toolScope: 'outside', pattern: 'node **' },
-        { toolName: 'write_file', toolScope: 'workspace', pattern: './src/**' },
-      ],
+  it('版本 3 设置可直接升级且只删除旧白名单，不生成权限数据', () => {
+    const filePath = path.join(dir, 'version-3-settings.json')
+    writeFileSync(filePath, JSON.stringify({
+      schemaVersion: 3,
+      data: {
+        ...DEFAULT_APP_SETTINGS,
+        toolApprovalWhitelist: [
+          {
+            toolName: 'bash',
+            operationType: 'bash',
+            toolScope: 'workspace',
+            pattern: 'git **',
+            description: '旧规则',
+          },
+        ],
+      },
+    }), 'utf8')
+
+    expect(() => new AppSettingsStore({ filePath })).not.toThrow()
+    const persisted = JSON.parse(readFileSync(filePath, 'utf8')) as {
+      schemaVersion: number
+      data: Record<string, unknown>
     }
-    writeFileSync(filePath, JSON.stringify({ schemaVersion: 2, data: legacySettings }), 'utf8')
-
-    const entries = new AppSettingsStore({ filePath }).read().toolApprovalWhitelist
-
-    expect(entries).toEqual([])
+    expect(persisted.schemaVersion).toBe(4)
+    expect(persisted.data).not.toHaveProperty('toolApprovalWhitelist')
+    expect(readFileSync(filePath, 'utf8')).not.toContain('permissions')
   })
 
   describe('mergeBuiltinProviders', () => {
@@ -96,7 +108,6 @@ describe('appSettingsStore', () => {
         developerTools: { agentObservabilityEnabled: false },
         proxySettings: { mode: 'none' },
         appearance: { mode: 'system', lightThemeId: 'default', darkThemeId: 'default' },
-        toolApprovalWhitelist: [],
         providers: [
           {
             id: 'existing-provider',
@@ -141,7 +152,6 @@ describe('appSettingsStore', () => {
         developerTools: { agentObservabilityEnabled: false },
         proxySettings: { mode: 'none' },
         appearance: { mode: 'system', lightThemeId: 'default', darkThemeId: 'default' },
-        toolApprovalWhitelist: [],
         providers: [
           {
             id: 'openai',
@@ -201,7 +211,6 @@ describe('appSettingsStore', () => {
         developerTools: { agentObservabilityEnabled: false },
         proxySettings: { mode: 'none' },
         appearance: { mode: 'system', lightThemeId: 'default', darkThemeId: 'default' },
-        toolApprovalWhitelist: [],
         providers: [],
       }
       writeFileSync(filePath, JSON.stringify(existingSettings), 'utf8')

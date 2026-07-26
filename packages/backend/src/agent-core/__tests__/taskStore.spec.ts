@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import type { AgentPendingAction, IAgentEventEmitter } from '@ant-chat/shared'
+import { describe, expect, it, vi } from 'vitest'
 import { TaskStore } from '../taskStore'
 import type { RuntimeTask } from '../taskStore'
 
@@ -17,6 +18,29 @@ function createTask(overrides: Partial<RuntimeTask['snapshot']> = {}): RuntimeTa
       ...overrides,
     },
     abortController: new AbortController(),
+  }
+}
+
+function createEventEmitter(): IAgentEventEmitter {
+  return {
+    emitTaskUpdated: vi.fn(),
+    emitApprovalRequired: vi.fn(),
+    emitTurnStarted: vi.fn(),
+    emitTurnChunk: vi.fn(),
+    emitTurnToolCalls: vi.fn(),
+    emitTurnFinished: vi.fn(),
+    emitMessageUpdated: vi.fn(),
+  }
+}
+
+function createPendingAction(): AgentPendingAction {
+  return {
+    actionId: 'action-1',
+    toolName: 'write_file',
+    operationType: 'write',
+    scope: 'workspace',
+    inputPreview: '{"path":"test.txt"}',
+    createdAt: 1000,
   }
 }
 
@@ -96,6 +120,50 @@ describe('taskStore 行为', () => {
       expect(() =>
         store.reserve(createTask({ taskId: 'task-2' })),
       ).not.toThrow()
+    })
+  })
+
+  describe('审批行为', () => {
+    it('权限规则写入失败时保留审批并允许用户重试', async () => {
+      const store = new TaskStore()
+      const task = createTask()
+      const pendingAction = createPendingAction()
+      const persistenceError = new Error('permissions write failed')
+      const reportPersistenceFailure = vi.fn()
+      const persistGrant = vi.fn()
+        .mockImplementationOnce(() => { throw persistenceError })
+        .mockImplementationOnce(() => {})
+      store.reserve(task)
+
+      const decision = store.requestApproval(
+        task,
+        pendingAction,
+        createEventEmitter(),
+        reportPersistenceFailure,
+      )
+
+      expect(() => store.approve(
+        task.snapshot.taskId,
+        pendingAction.actionId,
+        { selections: [{ candidateIndex: 0 }], scope: 'workspace' },
+        persistGrant,
+      )).toThrow('permissions write failed')
+      expect(reportPersistenceFailure).toHaveBeenCalledWith(persistenceError)
+      expect(task.snapshot).toMatchObject({
+        status: 'awaiting_approval',
+        pendingAction,
+      })
+
+      store.approve(
+        task.snapshot.taskId,
+        pendingAction.actionId,
+        { selections: [{ candidateIndex: 0 }], scope: 'workspace' },
+        persistGrant,
+      )
+
+      await expect(decision).resolves.toMatchObject({ approved: true })
+      expect(task.snapshot.status).toBe('running')
+      expect(task.snapshot.pendingAction).toBeUndefined()
     })
   })
 })

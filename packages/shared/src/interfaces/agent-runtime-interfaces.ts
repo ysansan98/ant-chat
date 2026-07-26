@@ -1,6 +1,6 @@
-import type { AddMessage, LanguageModelUsage, ModelInfo, ProviderConfigSchema, ReasoningEffortLevel, SecretRef, SecretRequest, SecretRequestField, SecretRequestResult, ToolCallContent, ToolResultContent, UpdateMessageSchema } from '../schemas'
+import type { AddMessage, LanguageModelUsage, ModelInfo, ProviderConfigSchema, ReasoningEffortLevel, SecretRef, SecretRequest, SecretRequestField, SecretRequestResult, ToolApprovalRule, ToolCallContent, ToolResultContent, UpdateMessageSchema } from '../schemas'
 import type { AgentMemoryReader } from './agent-memory'
-import type { AgentMode, AgentPendingAction, AgentTaskSnapshot, AgentTurnSource, ToolApprovalWhitelistEntry } from './agent-runtime'
+import type { AgentMode, AgentPendingAction, AgentTaskSnapshot, AgentTurnSource } from './agent-runtime'
 import type { AgentTool } from './agent-tools'
 import type { IConversations, IMessage, IMessageContent } from './db-types'
 import type { McpServer, McpToolCallResponse } from './mcp'
@@ -233,6 +233,8 @@ export interface SecretStore {
   getProviderApiKey: (providerId: string) => Promise<string | null>
   deleteProviderApiKey: (providerId: string) => Promise<void>
   createTurnSecret: (input: { runId: string, label: string, value: string }) => Promise<SecretRef>
+  /** 仅解析属于指定 Turn 的临时 SecretRef；不得回退到通用 resolve。 */
+  resolveTurnSecret?: (ref: SecretRef, runId: string) => Promise<string | null>
   resolve: (ref: SecretRef) => Promise<string | null>
   clearTurnSecrets: (runId: string) => Promise<void>
 }
@@ -285,8 +287,10 @@ export interface AgentRuntimeHost {
   secretRequester?: SecretRequestController
   /** 加载附件文件数据（用于将 file_id 转换为 base64 数据） */
   loadFileData?: (fileId: string) => Promise<string | null>
-  getToolApprovalWhitelistEntries?: () => ToolApprovalWhitelistEntry[]
-  addToolApprovalWhitelistEntry?: (entry: ToolApprovalWhitelistEntry) => void
+  /** 读取权限规则（全局 + 指定工作区） */
+  getPermissionRules?: (workspacePath: string) => { global: ToolApprovalRule[], workspace: ToolApprovalRule[] }
+  /** 原子保存一组规则到指定分组；全部成功或全部不保存 */
+  savePermissionRules?: (scope: 'workspace' | 'global', workspacePath: string, rules: ToolApprovalRule[]) => void
 }
 
 export interface AgentRuntimeOverrides {
@@ -309,8 +313,10 @@ export interface AgentRuntimeConfig extends AgentRuntimeOverrides {
   turnRecorder?: AgentTurnRecorder
   sessionStore?: ISessionStore
   memoryReader?: AgentMemoryReader
-  getToolApprovalWhitelistEntries?: () => ToolApprovalWhitelistEntry[]
-  addToolApprovalWhitelistEntry?: (entry: ToolApprovalWhitelistEntry) => void
+  /** 读取权限规则（全局 + 指定工作区） */
+  getPermissionRules?: (workspacePath: string) => { global: ToolApprovalRule[], workspace: ToolApprovalRule[] }
+  /** 原子保存一组规则到指定分组；全部成功或全部不保存 */
+  savePermissionRules?: (scope: 'workspace' | 'global', workspacePath: string, rules: ToolApprovalRule[]) => void
   skillReader?: SkillReader
   mcpClientHub?: RuntimeMcpClientHub
   browser?: AgentBrowserRuntimeConfig

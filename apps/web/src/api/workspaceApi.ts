@@ -9,8 +9,8 @@ async function addWorkspace(path: string): Promise<ListWorkspacesData> {
   return getAppRpcClient().call('workspace.addWorkspace', { path })
 }
 
-async function removeWorkspace(path: string): Promise<ListWorkspacesData> {
-  return getAppRpcClient().call('workspace.removeWorkspace', { path })
+async function removeWorkspace(path: string, deletePermissionGroup: boolean): Promise<ListWorkspacesData> {
+  return getAppRpcClient().call('workspace.removeWorkspace', { path, deletePermissionGroup })
 }
 
 async function openWorkspace(path: string): Promise<ListWorkspacesData> {

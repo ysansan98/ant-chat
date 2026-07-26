@@ -1,6 +1,7 @@
 import type { AgentMode, IMessageContent } from '@ant-chat/shared'
 import { Skeleton } from '@workspace/ui/components/skeleton'
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { cn } from '@workspace/ui/lib/utils'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { toast } from 'sonner'
 import { skillApi } from '@/api/skillApi'
@@ -55,6 +56,43 @@ export default function Chat() {
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(Boolean(initialTraceTurnId))
   const [focusedTraceTurnId, setFocusedTraceTurnId] = useState<string | undefined>(initialTraceTurnId)
   const [commandRunning, setCommandRunning] = useState(false)
+
+  // AgentApprovalCard 进入/退出动画
+  const approvalVisible = !!(agentTask && pending)
+  const [approvalMounted, setApprovalMounted] = useState(false)
+  const [approvalState, setApprovalState] = useState<'open' | 'closed'>('closed')
+  const approvalMountedRef = useRef(false)
+  // 快照：退出动画期间 pending/agentTask 可能已被 store 清除，需要保留引用
+  const snapshotPendingRef = useRef(pending)
+  const snapshotAgentTaskRef = useRef(agentTask)
+  if (pending) {
+    snapshotPendingRef.current = pending
+  }
+  if (agentTask) {
+    snapshotAgentTaskRef.current = agentTask
+  }
+
+  useEffect(() => {
+    if (approvalVisible) {
+      // eslint-disable-next-line react/set-state-in-effect -- 需先挂载 DOM，下一帧触发 CSS 进入动画
+      setApprovalMounted(true)
+      approvalMountedRef.current = true
+      const raf = requestAnimationFrame(() => setApprovalState('open'))
+      return () => cancelAnimationFrame(raf)
+    }
+
+    if (approvalMountedRef.current) {
+      setApprovalState('closed')
+    }
+    return undefined
+  }, [approvalVisible])
+
+  const handleApprovalAnimEnd = useCallback(() => {
+    if (!approvalVisible && approvalState === 'closed') {
+      setApprovalMounted(false)
+      approvalMountedRef.current = false
+    }
+  }, [approvalVisible, approvalState])
 
   useEffect(() => {
     const turnId = searchParams.get('traceTurnId')
@@ -154,23 +192,6 @@ export default function Chat() {
             ref={senderRef}
             className={`w-full min-w-0 px-2 md:px-3 ${hasMessages ? 'pb-[max(0.5rem,env(safe-area-inset-bottom))] md:pb-4' : ''}`}
           >
-            {agentTask && pending
-              ? (
-                  <AgentApprovalCard
-                    pending={pending}
-                    onApprove={(remember) => {
-                      void approveAgentAction({
-                        taskId: agentTask.taskId,
-                        actionId: pending.actionId,
-                        remember,
-                      }).catch((error) => {
-                        toast.error(error instanceof Error ? error.message : '审批失败，请重试')
-                      })
-                    }}
-                    onReject={() => void rejectAgentAction({ taskId: agentTask.taskId, actionId: pending.actionId, reason: '用户拒绝' })}
-                  />
-                )
-              : null}
             {secretRequest
               ? (
                   <AgentSecretRequestCard
@@ -180,21 +201,47 @@ export default function Chat() {
                   />
                 )
               : null}
-            <Sender
-              disabled={commandRunning}
-              onSubmit={onSubmit}
-              canInjectPendingMessage={true}
-              onInjectPendingMessage={id => void injectPendingMessage(activeConversationsId, id)}
-              onEditPendingMessage={(id, text) => editPendingMessage(activeConversationsId, id, text)}
-              onRemovePendingMessage={id => removePendingMessage(activeConversationsId, id)}
-              onCancel={async () => {
-                if (commandRunning) {
-                  await cancelTurnCommand(activeConversationsId)
-                  return
-                }
-                await abortConversationRuntime(activeConversationsId)
-              }}
-            />
+            <div className="relative mx-auto w-full max-w-(--chat-width)">
+              <Sender
+                disabled={commandRunning}
+                onSubmit={onSubmit}
+                canInjectPendingMessage={true}
+                onInjectPendingMessage={id => void injectPendingMessage(activeConversationsId, id)}
+                onEditPendingMessage={(id, text) => editPendingMessage(activeConversationsId, id, text)}
+                onRemovePendingMessage={id => removePendingMessage(activeConversationsId, id)}
+                onCancel={async () => {
+                  if (commandRunning) {
+                    await cancelTurnCommand(activeConversationsId)
+                    return
+                  }
+                  await abortConversationRuntime(activeConversationsId)
+                }}
+              />
+              {approvalMounted && (
+                <div
+                  data-state={approvalState}
+                  onAnimationEnd={handleApprovalAnimEnd}
+                  className={cn(
+                    'absolute inset-x-0 bottom-0 z-10',
+                    'data-[state=open]:animate-in data-[state=open]:duration-300 data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-bottom-4',
+                    'data-[state=closed]:animate-out data-[state=closed]:duration-200 data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-bottom-4',
+                  )}
+                >
+                  <AgentApprovalCard
+                    key={snapshotPendingRef.current?.actionId}
+                    pending={snapshotPendingRef.current!}
+                    onApprove={async (selection) => {
+                      await approveAgentAction({
+                        taskId: snapshotAgentTaskRef.current!.taskId,
+                        actionId: snapshotPendingRef.current!.actionId,
+                        selection,
+                      })
+                    }}
+                    onReject={() => void rejectAgentAction({ taskId: snapshotAgentTaskRef.current!.taskId, actionId: snapshotPendingRef.current!.actionId, reason: '用户拒绝' })}
+                  />
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

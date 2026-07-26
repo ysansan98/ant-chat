@@ -39,6 +39,7 @@ export function createRuntimeCore(options: CreateAppRuntimeOptions): RuntimeCore
     memoryRootPath: paths.memoryRoot,
     workspaceSettingsFilePath: paths.workspaceSettingsFile,
     attachmentsRootPath: paths.attachmentsRoot,
+    permissionsFilePath: paths.permissionsFile,
   })
 
   return {

@@ -96,6 +96,10 @@ export class McpModule implements RuntimeModuleMethods<'mcp'> {
       throw new Error(`MCP server 已存在：${next.serverName}`)
     const connectionStatus = this.getConnectionStatus(input.serverName)
     const wasRunning = connectionStatus === 'connected' || connectionStatus === 'connecting'
+    const isRename = next.serverName !== input.serverName
+    const permissionSnapshot = isRename
+      ? this.core.data.permissionsFileStore.listAll()
+      : undefined
 
     if (connectionStatus) {
       const stopped = await this.disconnect(current)
@@ -117,6 +121,37 @@ export class McpModule implements RuntimeModuleMethods<'mcp'> {
       }
       throw error
     }
+
+    if (isRename) {
+      try {
+        this.core.data.permissionsFileStore.migrateMcpServerName(input.serverName, saved.serverName)
+      }
+      catch (error) {
+        const rollbackErrors: string[] = []
+        let configRestored = true
+        try {
+          this.core.data.permissionsFileStore.write(permissionSnapshot!)
+        }
+        catch (rollbackError) {
+          rollbackErrors.push(`权限规则回滚失败：${errorMessage(rollbackError)}`)
+        }
+        try {
+          this.core.data.mcpSettingsRepository.replaceMcpConfig(saved.serverName, current)
+        }
+        catch (rollbackError) {
+          configRestored = false
+          rollbackErrors.push(`配置回滚失败：${errorMessage(rollbackError)}`)
+        }
+        if (wasRunning && configRestored) {
+          const recovery = await this.connect(current)
+          if (recovery.error)
+            rollbackErrors.push(`旧连接恢复失败：${recovery.error}`)
+        }
+        const details = rollbackErrors.length > 0 ? `；${rollbackErrors.join('；')}` : ''
+        throw new Error(`MCP 重命名事务失败：${errorMessage(error)}${details}`)
+      }
+    }
+
     this.emitChanged(saved.serverName)
     return wasRunning ? this.connect(saved, true) : this.result(saved, 'disconnected')
   }
@@ -125,11 +160,45 @@ export class McpModule implements RuntimeModuleMethods<'mcp'> {
   @Method()
   async deleteServer(input: AppRpcInput<'mcp.deleteServer'>): Promise<McpServerLifecycleResult> {
     const config = this.requireConfig(input.serverName)
+    const connectionStatus = this.getConnectionStatus(input.serverName)
+    const wasRunning = connectionStatus === 'connected' || connectionStatus === 'connecting'
+    const permissionSnapshot = input.deletePermissionRules
+      ? this.core.data.permissionsFileStore.listAll()
+      : undefined
     const stopped = await this.disconnect(config)
     if (stopped.error)
       return stopped
 
     this.core.data.mcpSettingsRepository.deleteMcpConfig(input.serverName)
+    if (input.deletePermissionRules) {
+      try {
+        this.core.data.permissionsFileStore.deleteMcpServerRules(input.serverName)
+      }
+      catch (error) {
+        const rollbackErrors: string[] = []
+        let configRestored = true
+        try {
+          this.core.data.permissionsFileStore.write(permissionSnapshot!)
+        }
+        catch (rollbackError) {
+          rollbackErrors.push(`权限规则回滚失败：${errorMessage(rollbackError)}`)
+        }
+        try {
+          this.core.data.mcpSettingsRepository.addMcpConfig(config)
+        }
+        catch (rollbackError) {
+          configRestored = false
+          rollbackErrors.push(`配置回滚失败：${errorMessage(rollbackError)}`)
+        }
+        if (wasRunning && configRestored) {
+          const recovery = await this.connect(config)
+          if (recovery.error)
+            rollbackErrors.push(`旧连接恢复失败：${recovery.error}`)
+        }
+        const details = rollbackErrors.length > 0 ? `；${rollbackErrors.join('；')}` : ''
+        throw new Error(`删除 MCP server 事务失败：${errorMessage(error)}${details}`)
+      }
+    }
     this.emitChanged(input.serverName)
     return stopped
   }
@@ -256,4 +325,8 @@ export class McpModule implements RuntimeModuleMethods<'mcp'> {
 
 function mergeConfig(current: McpConfigSchema, updates: McpServerEditPatch): McpConfigSchema {
   return McpConfigValidator.parse({ ...current, ...updates })
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }

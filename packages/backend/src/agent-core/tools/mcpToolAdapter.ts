@@ -22,6 +22,7 @@ export function createMcpTool(
     name: `${serverName}${DEFAULT_MCP_TOOL_NAME_SEPARATOR}${mcpTool.name}`,
     source: 'mcp',
     serverName,
+    originalToolName: mcpTool.name,
     description: mcpTool.description,
     inputSchema: mcpTool.inputSchema,
     operationType: 'mcp',

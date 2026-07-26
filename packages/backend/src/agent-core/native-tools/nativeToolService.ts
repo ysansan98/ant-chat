@@ -6,6 +6,7 @@ import type {
   GrepFilesToolInput,
   ListDirToolInput,
   ReadFileToolInput,
+  SecretStore,
   WriteFileToolInput,
 } from '@ant-chat/shared'
 import type { BrowserSessionState } from './tools/browserSessionManager'
@@ -30,6 +31,8 @@ interface NativeToolServiceOptions {
   }
   browserSession?: BrowserSessionState
   bashEnvironment?: Record<string, string>
+  secretStore?: SecretStore
+  runId?: string
 }
 
 export class NativeToolService {
@@ -60,6 +63,8 @@ export class NativeToolService {
       createBashTool(this.workspacePath, this.unrestricted, {
         blockAgentBrowser: Boolean(this.options.browser),
         bashEnvironment: this.options.bashEnvironment,
+        secretStore: this.options.secretStore,
+        runId: this.options.runId,
         trustedPaths: this.options.trustedPaths ?? [],
       }),
       ...(this.options.browser

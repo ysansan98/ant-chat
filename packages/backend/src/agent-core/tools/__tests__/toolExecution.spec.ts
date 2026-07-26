@@ -249,7 +249,53 @@ describe('executeToolStep 行为', () => {
 
     expect(currentToolMessages[0]).toMatchObject({
       executeState: 'completed',
-      result: { success: false, error: 'AGENT_POLICY_BLOCKED' },
+      result: { success: false, error: '任务需要额外授权' },
+    })
+  })
+
+  it('黑名单阻止只返回可读原因，不中断自动化 Agent', async () => {
+    const currentToolMessages: McpToolCall[] = []
+    const task = createTask({
+      turnSource: {
+        type: 'automation',
+        automationId: 'automation-1',
+        runId: 'run-1',
+        allowedSkills: [],
+        allowedMcpServers: [],
+        permissionPolicy: {
+          workspaceAccess: 'read',
+          allowSelectedSkillRuntime: false,
+          allowBrowser: false,
+          allowMcpTools: false,
+          extraFileRoots: [],
+          allowBashCommands: false,
+          bashCommandPatterns: [],
+        },
+      },
+    })
+
+    const result = await executeToolStep({
+      task,
+      registry: new ToolRegistry([createReadTool()]),
+      requestedToolCall: { toolName: 'read_file', input: {} },
+      currentModelText: '',
+      currentToolMessages,
+      step: 1,
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+      beforeToolExecute: async () => ({
+        outcome: 'block',
+        errorCode: 'AGENT_POLICY_BLOCKED',
+        reason: '已被权限黑名单阻止：读取 /workspace/secret.txt',
+        continueAgent: true,
+      }),
+    })
+
+    expect(result).toEqual(expect.objectContaining({
+      isError: true,
+      toolResultContent: '已被权限黑名单阻止：读取 /workspace/secret.txt',
+    }))
+    expect(currentToolMessages[0]).toMatchObject({
+      result: { success: false, error: '已被权限黑名单阻止：读取 /workspace/secret.txt' },
     })
   })
 
@@ -257,7 +303,7 @@ describe('executeToolStep 行为', () => {
     const secretStore = createMockSecretStore('不得解析')
     const result = await executeToolStep({
       task: createTask(),
-      registry: new ToolRegistry([createReadTool()], undefined, secretStore),
+      registry: new ToolRegistry([createReadTool()]),
       requestedToolCall: { toolName: 'read_file', input: { path: { kind: 'secret_ref', id: 'secret-id', scope: 'turn' } } },
       currentModelText: '',
       currentToolMessages: [],
@@ -536,7 +582,7 @@ describe('executeToolStep 行为', () => {
     expect(span.cancel).not.toHaveBeenCalled()
   })
 
-  it('工具成功回显任意格式的 SecretRef 真实值时深度脱敏运行结果和观测证据', async () => {
+  it('工具成功时只脱敏输入中的 SecretRef 标识，不猜测任意工具的秘密值', async () => {
     const secret = 'p@$$w0rd\n[]{}.*?'
     const secretRef = { kind: 'secret_ref' as const, id: 'secret-id-1', scope: 'turn' as const }
     const span = { id: 'tool-span', complete: vi.fn(), fail: vi.fn(), cancel: vi.fn() }
@@ -554,7 +600,7 @@ describe('executeToolStep 行为', () => {
 
     const result = await executeToolStep({
       task: createTask(),
-      registry: new ToolRegistry([tool], undefined, secretStore),
+      registry: new ToolRegistry([tool]),
       requestedToolCall: { toolName: 'read_file', input: { path: secretRef } },
       currentModelText: '',
       currentToolMessages: [],
@@ -574,17 +620,17 @@ describe('executeToolStep 行为', () => {
       beforeToolExecute: async () => ({ outcome: 'allow' }),
     })
 
-    expect(result.toolResultContent).toBe('stdout:[secret]:[secret-ref]')
+    expect(result.toolResultContent).toBe(`stdout:${secret}:[secret-ref]`)
     expect(span.complete).toHaveBeenCalledWith(expect.objectContaining({
-      output: 'stdout:[secret]:[secret-ref]',
+      output: `stdout:${secret}:[secret-ref]`,
       diagnostics: {
-        data: { nested: ['value=[secret]', { ref: '[secret-ref]' }] },
-        stderr: 'stderr=[secret]',
+        data: { nested: [`value=${secret}`, { ref: '[secret-ref]' }] },
+        stderr: `stderr=${secret}`,
       },
     }))
   })
 
-  it('工具失败回显任意格式的 SecretRef 真实值时深度脱敏运行结果和观测证据', async () => {
+  it('工具失败时只脱敏输入中的 SecretRef 标识，不解析任意字段', async () => {
     const secret = 'p@$$w0rd\n[]{}.*?'
     const secretRef = { kind: 'secret_ref' as const, id: 'secret-id-1', scope: 'turn' as const }
     const span = { id: 'tool-span', complete: vi.fn(), fail: vi.fn(), cancel: vi.fn() }
@@ -599,7 +645,7 @@ describe('executeToolStep 行为', () => {
 
     const result = await executeToolStep({
       task: createTask(),
-      registry: new ToolRegistry([tool], undefined, secretStore),
+      registry: new ToolRegistry([tool]),
       requestedToolCall: { toolName: 'read_file', input: { path: secretRef } },
       currentModelText: '',
       currentToolMessages: [],
@@ -619,11 +665,11 @@ describe('executeToolStep 行为', () => {
       beforeToolExecute: async () => ({ outcome: 'allow' }),
     })
 
-    expect(result.toolResultContent).toBe('failed:[secret]:[secret-ref]')
+    expect(result.toolResultContent).toBe(`failed:${secret}:[secret-ref]`)
     expect(span.fail).toHaveBeenCalledWith(expect.objectContaining({
-      error: 'failed:[secret]:[secret-ref]',
-      output: 'failed:[secret]:[secret-ref]',
-      diagnostics: { data: { nested: ['[secret]'] }, stderr: 'stderr=[secret]' },
+      error: `failed:${secret}:[secret-ref]`,
+      output: `failed:${secret}:[secret-ref]`,
+      diagnostics: { data: { nested: [secret] }, stderr: `stderr=${secret}` },
     }))
   })
 })

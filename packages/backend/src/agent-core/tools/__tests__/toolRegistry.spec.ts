@@ -1,4 +1,4 @@
-import type { AgentRuntimeConfig, IAgentEventEmitter, RuntimeMcpClientHub, SkillManifest, SkillReader } from '@ant-chat/shared'
+import type { AgentRuntimeConfig, AgentTool, IAgentEventEmitter, RuntimeMcpClientHub, SecretRef, SkillManifest, SkillReader } from '@ant-chat/shared'
 import { DEFAULT_MCP_TOOL_NAME_SEPARATOR } from '@ant-chat/shared'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
@@ -254,6 +254,135 @@ describe('toolRegistry Skill 白名单', () => {
       operationType: 'bash',
       scope: 'workspace',
     })
+  })
+
+  it('bash 输入校验失败时不进入 canonical prepare', async () => {
+    const registry = await ToolRegistry.create({
+      config: createConfig(),
+      mode: 'hybrid',
+      turnSource: { type: 'interactive' },
+      workspacePath,
+    })
+
+    expect(() => registry.prepare('bash', {})).not.toThrow()
+    expect(registry.prepare('bash', {})).toMatchObject({
+      validationError: 'command 必须是非空字符串',
+      scope: 'blocked',
+      preparedState: undefined,
+    })
+  })
+
+  it('bash 只公开 secretEnv，拒绝旧 env、字符串秘密和 PATH', async () => {
+    const registry = await ToolRegistry.create({
+      config: createConfig(),
+      mode: 'hybrid',
+      turnSource: { type: 'interactive' },
+      workspacePath,
+    })
+    const bash = registry.listTools().find(tool => tool.name === 'bash')
+    const secretRef: SecretRef = { kind: 'secret_ref', id: 'turn:run-1:secret-1', scope: 'turn' }
+
+    expect(bash?.inputSchema.properties).toHaveProperty('secretEnv')
+    expect(bash?.inputSchema.properties).not.toHaveProperty('env')
+    expect(registry.prepare('bash', { command: 'printf ok', env: { TOKEN: secretRef } }).validationError)
+      .toContain('env')
+    expect(registry.prepare('bash', { command: 'printf ok', secretEnv: { TOKEN: 'literal-secret' } }).validationError)
+      .toContain('SecretRef')
+    expect(registry.prepare('bash', { command: 'printf ok', secretEnv: { PATH: secretRef } }).validationError)
+      .toContain('PATH')
+  })
+
+  it('只解析 bash secretEnv，并在执行结果中脱敏真实秘密', async () => {
+    const secret = 'registry-secret-value'
+    const secretRef: SecretRef = { kind: 'secret_ref', id: 'turn:run-1:secret-1', scope: 'turn' }
+    const secretStore: NonNullable<AgentRuntimeConfig['secretStore']> = {
+      saveProviderApiKey: vi.fn(),
+      getProviderApiKey: vi.fn(),
+      deleteProviderApiKey: vi.fn(),
+      createTurnSecret: vi.fn(),
+      resolveTurnSecret: vi.fn(async () => secret),
+      resolve: vi.fn(async () => secret),
+      clearTurnSecrets: vi.fn(),
+    }
+    const registry = await ToolRegistry.create({
+      config: { ...createConfig(), secretStore },
+      mode: 'hybrid',
+      turnSource: { type: 'interactive' },
+      workspacePath,
+      runId: 'run-1',
+    })
+
+    const prepared = registry.prepare('bash', {
+      command: `${process.execPath} -e "process.stdout.write(process.env.ANT_CHAT_TOKEN || '')"`,
+      secretEnv: { ANT_CHAT_TOKEN: secretRef },
+    })
+    const result = await prepared.execute()
+
+    expect(secretStore.resolveTurnSecret).toHaveBeenCalledWith(secretRef, 'run-1')
+    expect(secretStore.resolve).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ ok: true, diagnostics: { stdout: '[secret]' } })
+    expect(result.result).toContain('[secret]')
+    expect(JSON.stringify(result)).not.toContain(secret)
+  })
+
+  it('bash 拒绝解析其他 Turn 的 SecretRef', async () => {
+    const secretRef: SecretRef = { kind: 'secret_ref', id: 'turn:run-2:secret-1', scope: 'turn' }
+    const secretStore: NonNullable<AgentRuntimeConfig['secretStore']> = {
+      saveProviderApiKey: vi.fn(),
+      getProviderApiKey: vi.fn(),
+      deleteProviderApiKey: vi.fn(),
+      createTurnSecret: vi.fn(),
+      resolveTurnSecret: vi.fn(async () => null),
+      resolve: vi.fn(),
+      clearTurnSecrets: vi.fn(),
+    }
+    const registry = await ToolRegistry.create({
+      config: { ...createConfig(), secretStore },
+      mode: 'hybrid',
+      turnSource: { type: 'interactive' },
+      workspacePath,
+      runId: 'run-1',
+    })
+
+    const result = await registry.prepare('bash', {
+      command: 'printf ok',
+      secretEnv: { TOKEN: secretRef },
+    }).execute()
+
+    expect(result).toMatchObject({ ok: false })
+    expect(secretStore.resolveTurnSecret).toHaveBeenCalledWith(secretRef, 'run-1')
+  })
+
+  it('非 bash 工具收到 SecretRef 时不由 ToolRegistry 解析', async () => {
+    const secretRef: SecretRef = { kind: 'secret_ref', id: 'secret-1', scope: 'turn' }
+    const execute = vi.fn(async () => ({ ok: true, result: 'ok' }))
+    const tool: AgentTool = {
+      name: 'demo',
+      source: 'skill',
+      description: '测试工具',
+      inputSchema: {
+        type: 'object',
+        properties: { credential: { type: 'object' } },
+        required: ['credential'],
+      },
+      operationType: 'skill',
+      inferScope: () => 'workspace',
+      execute,
+    }
+    const secretStore: NonNullable<AgentRuntimeConfig['secretStore']> = {
+      saveProviderApiKey: vi.fn(),
+      getProviderApiKey: vi.fn(),
+      deleteProviderApiKey: vi.fn(),
+      createTurnSecret: vi.fn(),
+      resolve: vi.fn(async () => '不应解析'),
+      clearTurnSecrets: vi.fn(),
+    }
+    const registry = new ToolRegistry([tool])
+
+    await registry.prepare('demo', { credential: secretRef }).execute()
+
+    expect(secretStore.resolve).not.toHaveBeenCalled()
+    expect(execute).toHaveBeenCalledWith({ credential: secretRef })
   })
 
   it('自动化只在显式授权后注入所选 MCP 服务的工具', async () => {

@@ -40,7 +40,7 @@ export interface ExecuteToolStepResult {
 
 type ToolPreparation
   = | { kind: 'ready', prepared: PreparedToolCall, lastToolCallContext: ToolCallContext }
-    | { kind: 'error', status: 'failed' | 'blocked' | 'cancelled', error: string, toolResultText: string, lastToolCallContext: ToolCallContext }
+    | { kind: 'error', status: 'failed' | 'blocked' | 'cancelled', error: string, policyErrorCode?: string, continueAgent?: boolean, toolResultText: string, lastToolCallContext: ToolCallContext }
 
 interface ToolExecutionOutcome {
   result: AgentToolResult
@@ -91,7 +91,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
     const result = await finalizeToolStep(currentToolCall, safePreparation, task.snapshot.conversationId, config, currentModelText, currentToolMessages)
     // 交互 Turn 可把拒绝结果交还模型解释；无人值守 Turn 必须终止，
     // 否则模型下一轮正常回复会把被权限阻断的自动化误标为成功。
-    if (preparation.status === 'blocked' && preparation.error === AGENT_POLICY_BLOCKED && task.snapshot.turnSource?.type === 'automation')
+    if (preparation.status === 'blocked' && preparation.policyErrorCode === AGENT_POLICY_BLOCKED && !preparation.continueAgent && task.snapshot.turnSource?.type === 'automation')
       throw new AgentError(AGENT_POLICY_BLOCKED, safePreparation.toolResultText)
     return result
   }
@@ -124,7 +124,7 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   }
 
   const durationMs = Date.now() - toolStartedAt
-  const redactEvidence = createToolEvidenceRedactor(prepared.input, prepared.resolvedSecretValues)
+  const redactEvidence = createToolEvidenceRedactor(prepared.input)
   if (execution.failureReason) {
     const safeFailureReason = redactEvidence(execution.failureReason)
     const safeResult = redactEvidence(execution.result.result)
@@ -192,7 +192,10 @@ async function prepareToolStep(input: PrepareToolStepInput): Promise<ToolPrepara
     return {
       kind: 'error',
       status: 'blocked',
-      error: beforeResult.errorCode,
+      // 错误码只用于 runtime 控制流和 Trace，模型只接收可行动的原因文本。
+      error: beforeResult.reason,
+      policyErrorCode: beforeResult.errorCode,
+      continueAgent: beforeResult.continueAgent,
       toolResultText: formatToolFailureResult(prepared.toolName, beforeResult.reason),
       lastToolCallContext,
     }
@@ -255,7 +258,7 @@ async function executeRequestSecret(prepared: PreparedToolCall, task: RuntimeTas
     : undefined
   const reason = typeof prepared.input.reason === 'string' ? prepared.input.reason : undefined
   const result = await config.secretRequester.requestSecret({
-    runId: task.snapshot.taskId,
+    runId: task.snapshot.userMessageId,
     automationRunId: task.snapshot.turnSource?.type === 'automation' ? task.snapshot.turnSource.runId : undefined,
     conversationId: task.snapshot.conversationId,
     label: label || (fields?.length === 1 ? fields[0].label : '敏感信息'),
@@ -335,14 +338,12 @@ async function finalizeSuccessToolStep(
 
 type ToolEvidenceRedactor = <T>(value: T) => T
 
-function createToolEvidenceRedactor(input: Record<string, unknown>, resolvedSecretValues: string[] = []): ToolEvidenceRedactor {
+function createToolEvidenceRedactor(input: Record<string, unknown>): ToolEvidenceRedactor {
   const refs = collectSecretRefs(input)
   const replacements: Array<{ value: string, marker: string }> = refs
     .filter(ref => ref.id.length > 0)
     .map(ref => ({ value: ref.id, marker: '[secret-ref]' }))
 
-  for (const value of resolvedSecretValues.filter(Boolean))
-    replacements.push({ value, marker: '[secret]' })
   replacements.sort((left, right) => right.value.length - left.value.length)
 
   return <T>(value: T): T => redactToolEvidenceValue(value, replacements, new WeakSet<object>()) as T

@@ -3,7 +3,7 @@ import { AppSettingsSchema } from '@ant-chat/shared'
 import { JsonFileMigrationError, UnsupportedJsonSchemaVersionError, VersionedJsonFileStore } from '../file'
 import { DEFAULT_APP_SETTINGS } from './defaultAppSettings'
 
-const APP_SETTINGS_SCHEMA_VERSION = 3
+const APP_SETTINGS_SCHEMA_VERSION = 4
 const APP_SETTINGS_MIGRATIONS = [
   {
     version: 1,
@@ -17,9 +17,15 @@ const APP_SETTINGS_MIGRATIONS = [
     version: 3,
     migrate: revokeLegacyToolApprovalWhitelist,
   },
+  {
+    version: 4,
+    migrate: removeLegacyToolApprovalWhitelist,
+  },
 ] as const
 
-/** 旧版 provider model 使用 maxTokens；文件迁移后只保留语义明确的输出上限字段。 */
+/**
+ * 旧版 provider model 使用 maxTokens；文件迁移后只保留语义明确的输出上限字段。
+ */
 function migrateProviderModelOutputTokens(value: unknown): unknown {
   if (!isRecord(value) || !Array.isArray(value.providers)) {
     return value
@@ -43,15 +49,17 @@ function migrateProviderModelOutputTokens(value: unknown): unknown {
   return value
 }
 
-/**
- * 旧 glob 规则无法安全还原为用户当时批准的具体资源和输入。
- * 升级时统一撤销，避免把历史宽泛规则带入精确能力模型。
- */
+/** v3 延续已发布的安全策略：无法还原边界的旧 glob 授权全部撤销。 */
 function revokeLegacyToolApprovalWhitelist(value: unknown): unknown {
-  if (!isRecord(value) || !Array.isArray(value.toolApprovalWhitelist)) {
-    return value
-  }
-  value.toolApprovalWhitelist = []
+  if (isRecord(value) && Array.isArray(value.toolApprovalWhitelist))
+    value.toolApprovalWhitelist = []
+  return value
+}
+
+/** v4 从通用设置中彻底删除旧字段，不迁移或双写到独立权限文件。 */
+function removeLegacyToolApprovalWhitelist(value: unknown): unknown {
+  if (isRecord(value))
+    delete value.toolApprovalWhitelist
   return value
 }
 

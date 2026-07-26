@@ -14,7 +14,7 @@ interface WorkspaceStoreState {
 interface WorkspaceStoreActions {
   refresh: () => Promise<void>
   addWorkspace: (path: string) => Promise<ListWorkspacesData>
-  removeWorkspace: (path: string) => Promise<ListWorkspacesData>
+  removeWorkspace: (path: string, deletePermissionGroup: boolean) => Promise<ListWorkspacesData>
   reorderWorkspaces: (paths: string[]) => Promise<ListWorkspacesData>
 }
 
@@ -62,8 +62,8 @@ export const useWorkspaceStore = create<WorkspaceStore>()(
         return data
       },
 
-      removeWorkspace: async (path: string) => {
-        const data = await workspaceApi.removeWorkspace(path)
+      removeWorkspace: async (path: string, deletePermissionGroup: boolean) => {
+        const data = await workspaceApi.removeWorkspace(path, deletePermissionGroup)
         set((state) => {
           // 删的是当前工作区时,回退到 lastOpenedAt 最大者;否则保持
           const isCurrent = path === state.currentWorkspacePath

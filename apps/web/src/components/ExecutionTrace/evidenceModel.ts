@@ -121,8 +121,12 @@ export interface PolicyDecisionView extends SpanTiming {
   outcome?: string
   reason?: string
   errorCode?: string
-  whitelistMatchKey?: string
-  whitelistEntry?: unknown
+  permissionRules: Array<{
+    ruleId: string
+    kind?: string
+    effect?: string
+    group?: string
+  }>
   /** 审批结果（status 为 approval 时存在） */
   approvalApproved?: boolean
   approvalReason?: string
@@ -219,6 +223,9 @@ const policyBasisLabels: Record<PolicyBasis, string> = {
   'workspace.read': '工作区内只读操作默认允许',
   'hybrid.write': '自动审查模式：允许工作区内写入',
   'default.require-approval': '当前权限模式要求人工审批',
+  'bash.syntax.require-approval': '复杂 shell 或秘密注入需要本次人工审批',
+  'approval-rule.deny-match': '已命中用户配置的黑名单规则',
+  'approval.rule-read-failed': '权限规则读取失败，已按安全策略降级',
   'approval-grant.match': '已命中用户记住的授权规则',
   'approval.user-approved': '用户已批准本次操作',
   'approval.user-rejected': '用户已拒绝本次操作',
@@ -341,7 +348,20 @@ function parseToolCall(timing: SpanTiming, input: unknown, output: unknown, erro
 function parsePolicyDecision(timing: SpanTiming, input: unknown, output: unknown, error: unknown): PolicyDecisionView {
   const request = asRecord(input)
   const decision = asRecord(output)
-  const whitelist = asRecord(decision?.whitelist)
+  const permissionRules = (asArray(decision?.permissionRules) ?? [])
+    .map(asRecord)
+    .filter((rule): rule is Record<string, unknown> => Boolean(rule))
+    .flatMap((rule) => {
+      const ruleId = asString(rule.ruleId)
+      return ruleId
+        ? [{
+            ruleId,
+            kind: asString(rule.kind),
+            effect: asString(rule.effect),
+            group: asString(rule.group),
+          }]
+        : []
+    })
   const approval = asRecord(decision?.approval)
   const initialDecision = asRecord(request?.initialDecision)
   const effectiveDecision = asRecord(decision?.effectiveDecision)
@@ -364,8 +384,7 @@ function parsePolicyDecision(timing: SpanTiming, input: unknown, output: unknown
     outcome: asString(decision?.outcome),
     reason: asString(decision?.reason) ?? errorToText(error),
     errorCode: asString(decision?.errorCode),
-    whitelistMatchKey: asString(whitelist?.matchKey),
-    whitelistEntry: whitelist?.entry,
+    permissionRules,
     approvalApproved: typeof approval?.approved === 'boolean' ? approval.approved : undefined,
     approvalReason: asString(approval?.reason),
     errorRaw: error,

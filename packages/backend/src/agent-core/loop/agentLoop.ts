@@ -16,7 +16,6 @@ export async function runAgentLoop(input: {
 }) {
   const { execution, options, config, beforeToolExecute } = input
   const { task } = execution
-  const { taskId } = task.snapshot
 
   const {
     messages: initialMessages,
@@ -277,7 +276,7 @@ export async function runAgentLoop(input: {
   }
   finally {
     try {
-      await config.secretStore?.clearTurnSecrets(taskId)
+      await config.secretStore?.clearTurnSecrets(task.snapshot.userMessageId)
     }
     finally {
       task.snapshot.updatedAt = Date.now()

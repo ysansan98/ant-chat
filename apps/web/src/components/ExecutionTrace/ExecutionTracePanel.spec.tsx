@@ -311,7 +311,12 @@ describe('executionTracePanel', () => {
           spanKind: 'policy-decision',
           status: 'allow',
           endedAt: 2_005,
-          output: { status: 'allow', outcome: 'allow', effectiveDecision: { outcome: 'allow', basis: 'approval-grant.match' }, whitelist: { matchKey: '/workspace/a.txt', entry: { toolName: 'write' } } },
+          output: {
+            status: 'allow',
+            outcome: 'allow',
+            effectiveDecision: { outcome: 'allow', basis: 'approval-grant.match' },
+            permissionRules: [{ ruleId: 'rule-a', kind: 'filesystem', effect: 'allow', group: 'workspace' }],
+          },
         },
       ],
     })
@@ -322,7 +327,7 @@ describe('executionTracePanel', () => {
     expect(await screen.findByText('默认权限')).toBeInTheDocument()
     expect(screen.getByText('当前权限模式要求人工审批')).toBeInTheDocument()
     expect(screen.getByText('已命中用户记住的授权规则')).toBeInTheDocument()
-    expect(screen.getByText('/workspace/a.txt')).toBeInTheDocument()
+    expect(screen.getByText('rule-a')).toBeInTheDocument()
   })
 
   it('开发者视图展示请求参数与模型响应', async () => {

@@ -13,6 +13,7 @@ import type {
   UpdateProviderConfigSchema,
 } from '../schemas'
 import type { AgentObservabilityEvidence, AgentTurnIdentity, AgentTurnSummary, AgentTurnTimeline } from '../schemas/agentObservability'
+import type { ToolApprovalRule, ToolApprovalRuleInput } from '../schemas/toolApprovalRules'
 import type { AgentMemoryFiles, UpdateAgentMemoryInput } from './agent-memory'
 import type {
   AgentTaskSnapshot,
@@ -101,7 +102,7 @@ export interface AppRpcContract {
   'mcp.getConfigByServerName': RpcEndpoint<{ serverName: string }, McpConfigSchema>
   'mcp.installServer': RpcEndpoint<{ config: AddMcpConfigSchema }, McpServerLifecycleResult>
   'mcp.editServer': RpcEndpoint<{ serverName: string, updates: McpServerEditPatch }, McpServerLifecycleResult>
-  'mcp.deleteServer': RpcEndpoint<{ serverName: string }, McpServerLifecycleResult>
+  'mcp.deleteServer': RpcEndpoint<{ serverName: string, deletePermissionRules: boolean }, McpServerLifecycleResult>
   'mcp.startServer': RpcEndpoint<{ serverName: string }, McpServerLifecycleResult>
   'mcp.stopServer': RpcEndpoint<{ serverName: string }, McpServerLifecycleResult>
   'mcp.testServer': RpcEndpoint<{ config: AddMcpConfigSchema }, McpServerTestResult>
@@ -113,7 +114,7 @@ export interface AppRpcContract {
 
   'workspace.listWorkspaces': RpcEndpoint<undefined, ListWorkspacesData>
   'workspace.addWorkspace': RpcEndpoint<{ path: string }, ListWorkspacesData>
-  'workspace.removeWorkspace': RpcEndpoint<{ path: string }, ListWorkspacesData>
+  'workspace.removeWorkspace': RpcEndpoint<{ path: string, deletePermissionGroup: boolean }, ListWorkspacesData>
   'workspace.openWorkspace': RpcEndpoint<{ path: string }, ListWorkspacesData>
   'workspace.reorderWorkspaces': RpcEndpoint<{ paths: string[] }, ListWorkspacesData>
   'workspace.getDefaultWorkspacePath': RpcEndpoint<undefined, string>
@@ -134,6 +135,13 @@ export interface AppRpcContract {
   'agent.getTurnTimeline': RpcEndpoint<AgentTurnIdentity, AgentTurnTimeline | null>
   'agent.getEvidence': RpcEndpoint<AgentTurnIdentity & { recordId: string }, AgentObservabilityEvidence | null>
   'agent.clearAllObservability': RpcEndpoint<undefined, null>
+
+  'permissions.list': RpcEndpoint<undefined, { global: ToolApprovalRule[], workspaces: Record<string, ToolApprovalRule[]> }>
+  'permissions.add': RpcEndpoint<{ scope: 'workspace' | 'global', workspacePath?: string, rule: ToolApprovalRuleInput }, ToolApprovalRule>
+  'permissions.update': RpcEndpoint<{ ruleId: string, scope: 'workspace' | 'global', workspacePath?: string, rule: ToolApprovalRuleInput }, ToolApprovalRule>
+  'permissions.delete': RpcEndpoint<{ ruleId: string, scope: 'workspace' | 'global', workspacePath?: string }, null>
+  'permissions.clear': RpcEndpoint<{ scope: 'workspace' | 'global', workspacePath?: string }, null>
+  'permissions.clearWorkspace': RpcEndpoint<{ workspacePath: string }, null>
 
   'automation.list': RpcEndpoint<undefined, AutomationDefinition[]>
   'automation.create': RpcEndpoint<{ input: AutomationInput }, AutomationDefinition>

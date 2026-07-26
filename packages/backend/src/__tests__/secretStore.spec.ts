@@ -53,6 +53,8 @@ describe('keychainSecretStore', () => {
     const ref = await store.createTurnSecret({ runId: 'run-1', label: 'token', value: 'secret-token' })
 
     expect(await store.resolve(ref)).toBe('secret-token')
+    expect(await store.resolveTurnSecret(ref, 'run-1')).toBe('secret-token')
+    expect(await store.resolveTurnSecret(ref, 'run-2')).toBeNull()
 
     await store.clearTurnSecrets('run-1')
 

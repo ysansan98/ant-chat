@@ -12,7 +12,7 @@ description: Manage Ant Chat settings, AI providers, MCP servers, and automation
 ## 安全规则
 
 - Provider API Key、MCP Token、密码必须先通过 `requestSecret` 收集。
-- `requestSecret` 只返回 `SecretRef`。后续把 `SecretRef` 放进 `bash.env`，不要放进命令文本。
+- `requestSecret` 只返回 `SecretRef`。后续把当前 Turn 的 `SecretRef` 放进 `bash.secretEnv`，不要放进命令文本。
 - Provider API Key 使用环境变量 `ANT_CHAT_PROVIDER_API_KEY` 传给 CLI。
 - MCP `env` 和 `headers` 最终按普通配置明文保存。执行前明确告知用户这一点，不要声称它们存入 Keychain。
 - MCP 敏感字段通过 `--env-from-env` 或 `--headers-from-env` 从环境变量读取。
@@ -71,14 +71,14 @@ ant-chat provider disable provider-id --json
 配置 API Key：
 
 1. 调用 `requestSecret`，让用户在原生敏感输入框中输入 API Key。
-2. 调用 `bash`，命令文本不包含密钥，`env.ANT_CHAT_PROVIDER_API_KEY` 使用上一步返回的 `SecretRef`。
+2. 调用 `bash`，命令文本不包含密钥，`secretEnv.ANT_CHAT_PROVIDER_API_KEY` 使用上一步返回的 `SecretRef`。
 3. 设置后查询 Provider，确认 `hasApiKey` 为 `true`。
 
 ```text
 tool: bash
 input:
   command: ant-chat provider key set provider-id --json
-  env:
+  secretEnv:
     ANT_CHAT_PROVIDER_API_KEY: <SecretRef>
 ```
 
@@ -110,7 +110,7 @@ ant-chat mcp install --name=filesystem --command=npx --args="-y @modelcontextpro
 tool: bash
 input:
   command: ant-chat mcp install --name=remote --transport-type=sse --url=https://example.com/mcp --headers-from-env=Authorization=ANT_CHAT_MCP_AUTHORIZATION --json
-  env:
+  secretEnv:
     ANT_CHAT_MCP_AUTHORIZATION: <SecretRef>
 ```
 
@@ -120,7 +120,7 @@ stdio `env` 中的 Token 或密码使用同样方式：
 tool: bash
 input:
   command: ant-chat mcp install --name=demo --command=npx --args="-y demo-server" --env-from-env=API_KEY=ANT_CHAT_MCP_API_KEY --json
-  env:
+  secretEnv:
     ANT_CHAT_MCP_API_KEY: <SecretRef>
 ```
 

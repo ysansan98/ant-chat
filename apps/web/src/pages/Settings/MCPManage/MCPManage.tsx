@@ -3,9 +3,11 @@ import { Button } from '@workspace/ui/components/button'
 import { Plus } from 'lucide-react'
 import React from 'react'
 import { toast } from 'sonner'
+import permissionsApi from '@/api/permissionsApi'
 import { deleteMcpServerAction, editMcpServerAction, initializeMcpConfigs, installMcpServerAction, startMcpServerAction, stopMcpServerAction, useMcpConfigsStore } from '@/store/mcpConfigs'
 import { SettingsPageLayout } from '../SettingsPageLayout'
 import { MCPList } from './MCPList'
+import { countMcpRules } from './mcpPermissionRules'
 
 const McpConfigDrawer = React.lazy(() => import('@/components/MCPManage/McpConfigDrawer'))
 
@@ -13,6 +15,7 @@ export default function MCPManage() {
   const [open, setOpen] = React.useState(false)
   const [mode, setMode] = React.useState<'add' | 'edit'>('add')
   const [editData, setEditData] = React.useState<McpConfigSchema | null>(null)
+  const [renamePermissionRuleCount, setRenamePermissionRuleCount] = React.useState(0)
   const data = useMcpConfigsStore(state => state.mcpConfigs)
 
   React.useEffect(() => {
@@ -38,12 +41,12 @@ export default function MCPManage() {
       </Button>
       <MCPList
         items={data}
-        onTriggerAction={async (action, item) => {
+        onTriggerAction={async (action, item, options) => {
           switch (action) {
             case 'delete': {
-              const result = await deleteMcpServerAction(item.serverName)
+              const result = await deleteMcpServerAction(item.serverName, options?.deletePermissionRules ?? false)
               if (result.error)
-                toast.error(result.error)
+                throw new Error(result.error)
               break
             }
 
@@ -59,11 +62,19 @@ export default function MCPManage() {
                 toast.error(result.error)
               break
             }
-            case 'edit':
-              setEditData(item)
-              setMode('edit')
-              setOpen(true)
+            case 'edit': {
+              try {
+                const permissions = await permissionsApi.list()
+                setRenamePermissionRuleCount(countMcpRules(permissions, item.serverName))
+                setEditData(item)
+                setMode('edit')
+                setOpen(true)
+              }
+              catch (error) {
+                toast.error(error instanceof Error ? error.message : '读取 MCP 权限失败')
+              }
               break
+            }
             default:
               break
           }
@@ -75,6 +86,7 @@ export default function MCPManage() {
           open={open}
           mode={mode}
           defaultValues={mode === 'edit' && editData ? editData : undefined}
+          renamePermissionRuleCount={renamePermissionRuleCount}
           onClose={() => setOpen(false)}
           onSave={async (e: AddMcpConfigSchema | UpdateMcpConfigSchema) => {
             const nextConfig = e as McpConfigSchema

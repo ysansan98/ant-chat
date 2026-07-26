@@ -8,6 +8,7 @@ import { ChatModule } from './modules/chat'
 import { CommandsModule } from './modules/commands'
 import { createDataRoutes } from './modules/dataRoutes'
 import { McpModule } from './modules/mcp'
+import { PermissionsModule } from './modules/permissions'
 import { ProviderModule } from './modules/provider'
 import { SettingsModule } from './modules/settings'
 import { SkillsModule } from './modules/skills'
@@ -33,6 +34,7 @@ export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModu
   const chat = new ChatModule(core, agent.conversationLifecycle, agent.titleGenerator)
   const settings = new SettingsModule(core)
   const workspace = new WorkspaceModule(core)
+  const permissions = new PermissionsModule(core)
   const automation = new AutomationModule(core, {
     startTurn: agent.turnService.startTurn,
     cancelTask: taskId => agent.runtime.cancelTask({ taskId }),
@@ -47,7 +49,7 @@ export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModu
   const appControl = new AppControl({ settings, provider, mcp, automation })
 
   return {
-    routes: [chat, settings, provider, mcp, skills, workspace, agent, automation, commands],
+    routes: [chat, settings, provider, mcp, skills, workspace, permissions, agent, automation, commands],
     lifecycle: [workspace, skills, provider, settings, mcp, agent, automation],
     routeBindings: createDataRoutes(core),
     appControl,

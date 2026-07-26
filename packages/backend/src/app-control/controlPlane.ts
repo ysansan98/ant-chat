@@ -55,8 +55,8 @@ export interface McpControlPlane {
   installServer: (input: { config: AddMcpConfigSchema }) => Promise<McpServerLifecycleResult>
   /** 编辑配置，运行中自动重连；已停止则只更新配置。 */
   editServer: (input: { serverName: string, updates: McpServerEditPatch }) => Promise<McpServerLifecycleResult>
-  /** 删除配置，运行中先断开再删。 */
-  deleteServer: (input: { serverName: string }) => Promise<McpServerLifecycleResult>
+  /** 删除配置，运行中先断开再删，并显式决定是否清理关联权限规则。 */
+  deleteServer: (input: { serverName: string, deletePermissionRules: boolean }) => Promise<McpServerLifecycleResult>
   /** 按名称启动（从持久化配置读取连接）。 */
   startServer: (input: { serverName: string }) => Promise<McpServerLifecycleResult>
   /** 按名称停止（幂等）。 */

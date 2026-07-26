@@ -1,3 +1,4 @@
+import type { ApprovalGrantCandidates } from '../schemas/toolApprovalRules'
 import type { ToolOperationType, ToolScope } from './agent-tools'
 import type { AutomationPermissionPolicy } from './automation'
 
@@ -49,7 +50,8 @@ export interface AgentPendingAction {
   scope: ToolScope
   inputPreview: string
   createdAt: number
-  approvalGrant?: ToolApprovalWhitelistEntry
+  /** 后端构造的候选规则和重建上下文；用户审批时从快照重建并校验 */
+  approvalCandidates?: ApprovalGrantCandidates
 }
 
 export interface AgentTaskSnapshot {
@@ -81,7 +83,17 @@ export interface AgentTaskSnapshot {
 export interface ApprovePendingActionOptions {
   taskId: string
   actionId: string
-  remember?: 'workspace' | 'global'
+  /** 用户对后端候选项的选择；空数组或 undefined = 仅本次允许，不持久化 */
+  selection?: {
+    selections: Array<{
+      candidateIndex: number
+      adjustedArgvPrefix?: string[]
+      allowRemainingArgs?: boolean
+      wholeExecutable?: boolean
+      parentDirectory?: boolean
+    }>
+    scope: 'workspace' | 'global'
+  }
 }
 
 export interface RejectPendingActionOptions {
@@ -92,13 +104,4 @@ export interface RejectPendingActionOptions {
 
 export interface CancelTaskOptions {
   taskId: string
-}
-
-export interface ToolApprovalWhitelistEntry {
-  toolName: string
-  operationType: ToolOperationType
-  toolScope: Exclude<ToolScope, 'blocked'>
-  pattern: string
-  description: string
-  workspacePath?: string
 }

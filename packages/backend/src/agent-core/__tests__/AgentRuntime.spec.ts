@@ -1,9 +1,19 @@
-import { describe, expect, it, vi } from 'vitest'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { afterAll, describe, expect, it, vi } from 'vitest'
 import { AgentRuntime } from '../AgentRuntime'
 import { runAgentLoop } from '../loop/agentLoop'
 import { ToolRegistry } from '../tools/toolRegistry'
 import type { AgentRuntimeConfig, AgentRuntimeStartTaskOptions, IAgentEventEmitter, ILogger, ISessionStore } from '@ant-chat/shared'
 import type { RuntimeStartInput } from '../session/types'
+
+const TEST_WORKSPACE_INPUT = fs.mkdtempSync(path.join(os.tmpdir(), 'ant-chat-agent-runtime-'))
+const TEST_WORKSPACE_PATH = fs.realpathSync.native(TEST_WORKSPACE_INPUT)
+
+afterAll(() => {
+  fs.rmSync(TEST_WORKSPACE_INPUT, { recursive: true, force: true })
+})
 
 // Mock the agentLoop so startTask doesn't actually run the loop
 vi.mock('../loop/agentLoop', () => ({
@@ -41,7 +51,7 @@ function createSessionStore(overrides: Partial<ISessionStore> = {}): ISessionSto
   const conversation = {
     id: 'conv-session',
     title: 'Untitled',
-    workspacePath: '/workspace',
+    workspacePath: TEST_WORKSPACE_INPUT,
     createdAt: 1,
     updatedAt: 1,
     conversationInstructions: '',
@@ -143,7 +153,7 @@ function createValidStartInput(overrides: Partial<RuntimeStartInput> = {}): Runt
   return {
     conversationId: 'conv-1',
     userMessageId: 'msg-1',
-    workspacePath: '/workspace',
+    workspacePath: TEST_WORKSPACE_INPUT,
     mode: 'hybrid',
     userText: 'test prompt',
     messages: [],
@@ -165,7 +175,7 @@ function createValidSessionStartInput(overrides: Partial<AgentRuntimeStartTaskOp
     messageContent: [{ type: 'text', text: 'inspect project' }],
     model: { id: 'model-1', model: 'gpt-4', name: 'GPT-4', providerId: 'provider-1', contextLength: 128_000 },
     provider: { id: 'provider-1', name: 'Provider 1', apiMode: 'openai', baseUrl: 'https://api.example.com', isOfficial: true, isEnabled: true, hasApiKey: true, createdAt: 0, updatedAt: 0 },
-    workspacePath: '/workspace',
+    workspacePath: TEST_WORKSPACE_INPUT,
     mode: 'hybrid',
     aiProvider: { streamModel: vi.fn(), complete: vi.fn() },
     ...overrides,
@@ -333,7 +343,7 @@ describe('agentRuntime 行为', () => {
         userMessageId: 'user-msg-1',
         model: { id: 'model-1', model: 'gpt-4', name: 'GPT-4', providerId: 'provider-1', contextLength: 128_000 },
         provider: { id: 'provider-1', name: 'Provider 1', apiMode: 'openai', baseUrl: 'https://api.example.com', isOfficial: true, isEnabled: true, hasApiKey: true, createdAt: 0, updatedAt: 0 },
-        workspacePath: '/workspace',
+        workspacePath: TEST_WORKSPACE_INPUT,
         mode: 'hybrid',
         aiProvider: { streamModel: vi.fn(), complete: vi.fn() },
       })
@@ -481,7 +491,7 @@ describe('agentRuntime 行为', () => {
       const conversation = {
         id: 'conv-session',
         title: 'Untitled',
-        workspacePath: '/workspace',
+        workspacePath: TEST_WORKSPACE_INPUT,
         createdAt: 1,
         updatedAt: 1,
         conversationInstructions: '',
@@ -617,7 +627,7 @@ describe('agentRuntime 行为', () => {
       const conversation = {
         id: 'conv-session',
         title: 'Untitled',
-        workspacePath: '/workspace',
+        workspacePath: TEST_WORKSPACE_INPUT,
         createdAt: 1,
         updatedAt: 1,
         conversationInstructions: '',
@@ -672,7 +682,7 @@ describe('agentRuntime 行为', () => {
       const conversation = {
         id: 'conv-session',
         title: 'Untitled',
-        workspacePath: '/workspace',
+        workspacePath: TEST_WORKSPACE_INPUT,
         createdAt: 1,
         updatedAt: 1,
         conversationInstructions: '',
@@ -734,7 +744,7 @@ describe('agentRuntime 行为', () => {
       const conversation = {
         id: 'conv-session',
         title: 'Untitled',
-        workspacePath: '/workspace',
+        workspacePath: TEST_WORKSPACE_INPUT,
         createdAt: 1,
         updatedAt: 1,
         conversationInstructions: '',
@@ -902,6 +912,59 @@ describe('agentRuntime 行为', () => {
         runtime.approvePendingAction({ taskId: 'nonexistent', actionId: 'action-1' }),
       ).toThrow('Task not found')
     })
+
+    it('拒绝用空 argvPrefix 加 allowRemainingArgs 隐式授权整个可执行文件', async () => {
+      const savePermissionRules = vi.fn()
+      const config = { ...createConfig(), savePermissionRules }
+      const registry = await ToolRegistry.create({
+        config,
+        workspacePath: TEST_WORKSPACE_INPUT,
+        mode: 'strict',
+        turnSource: { type: 'interactive' },
+      })
+      const runtime = new AgentRuntime(config)
+      const { taskId } = await runtime.startPreparedTask(createValidStartInput({
+        mode: 'strict',
+        registry,
+      }))
+      const loopCall = vi.mocked(runAgentLoop).mock.calls.at(-1)?.[0]
+      if (!loopCall)
+        throw new Error('缺少 Agent loop 调用')
+      const prepared = registry.prepare('bash', {
+        command: `${process.execPath} -e "process.stdout.write('ok')"`,
+      })
+      const authorization = loopCall.beforeToolExecute({
+        task: loopCall.execution.task,
+        prepared,
+        config: loopCall.config,
+      })
+      await vi.waitFor(() => expect(runtime.getTask(taskId).status).toBe('awaiting_approval'))
+      const pendingAction = runtime.getTask(taskId).pendingAction
+      if (!pendingAction)
+        throw new Error('缺少待审批动作')
+
+      expect(() => runtime.approvePendingAction({
+        taskId,
+        actionId: pendingAction.actionId,
+        selection: {
+          selections: [{
+            candidateIndex: 0,
+            adjustedArgvPrefix: [],
+            allowRemainingArgs: true,
+            wholeExecutable: false,
+          }],
+          scope: 'workspace',
+        },
+      })).toThrow('wholeExecutable')
+      expect(savePermissionRules).not.toHaveBeenCalled()
+      expect(runtime.getTask(taskId)).toMatchObject({
+        status: 'awaiting_approval',
+        pendingAction: { actionId: pendingAction.actionId },
+      })
+
+      runtime.rejectPendingAction({ taskId, actionId: pendingAction.actionId, reason: '测试结束' })
+      await expect(authorization).resolves.toMatchObject({ outcome: 'block' })
+    })
   })
 
   describe('rejectPendingAction 行为', () => {
@@ -935,7 +998,7 @@ describe('agentRuntime 行为', () => {
 
       const calls = vi.mocked(runAgentLoop).mock.calls
       const systemPrompt = calls[calls.length - 1]?.[0].options.systemPrompt
-      expect(systemPrompt).toContain('Workspace path: /workspace')
+      expect(systemPrompt).toContain(`Workspace path: ${TEST_WORKSPACE_PATH}`)
       expect(systemPrompt).toContain('Always call tools for file-related requests')
       expect(systemPrompt).toContain('<workspace_references>')
       expect(systemPrompt).toContain('`@<path>`')
@@ -956,10 +1019,10 @@ describe('agentRuntime 行为', () => {
 
       const calls = vi.mocked(runAgentLoop).mock.calls
       const systemPrompt = calls[calls.length - 1]?.[0].options.systemPrompt
-      expect(systemPrompt).toContain('Workspace path: /workspace')
+      expect(systemPrompt).toContain(`Workspace path: ${TEST_WORKSPACE_PATH}`)
       expect(systemPrompt).toContain('<workspace_references>')
       expect(systemPrompt).toContain('<conversation_instructions>')
-      expect(systemPrompt).toContain('请用中文回答，并检查 /workspace。')
+      expect(systemPrompt).toContain(`请用中文回答，并检查 ${TEST_WORKSPACE_PATH}。`)
     })
 
     it('空指令不生成 conversation instructions section', async () => {

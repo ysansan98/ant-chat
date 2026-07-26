@@ -4,6 +4,8 @@
 
 已接受，2026-07-21。
 
+交互审批规则的数据结构、匹配和持久化由 [ADR-0001：交互审批采用结构化权限规则与独立存储](./0001-tool-approval-rules.md) 规定。
+
 ## 背景
 
 Agent 工具权限原先主要依赖 `operationType + scope`，但两个字段的语义并不稳定：
@@ -39,8 +41,8 @@ owner。
 ### 3. Tool Authorization 拥有唯一策略裁决
 
 - `blocked` 在任何交互模式下都不能被覆盖；`full_managed` 只跳过人工审批。
-- 交互 Turn 的 `outside` 和 `external` 都进入审批，记忆授权仍绑定精确工具、能力、
-  资源域和目标。
+- 交互 Turn 的 `outside` 和 `external` 都进入审批；持久 deny 规则优先阻止，allow
+  规则只能满足 `require_approval`，各工具的匹配粒度由 ADR-0001 定义。
 - 自动化策略是穷举的，不回退到交互审批：
   - MCP 工具需要 `allowMcpTools`，并且只注入用户选中的服务。
   - Browser 需要 `allowBrowser`；系统 Chrome Profile 始终拒绝。
@@ -49,7 +51,7 @@ owner。
 ### 4. Agent Loop 和 Automation Runtime 拥有各自终态
 
 - 交互 Turn 可把普通权限拒绝作为工具结果交还模型解释。
-- 自动化遇到 `AGENT_POLICY_BLOCKED` 时必须终止 Loop，不能继续生成成功回复。
+- 自动化遇到策略阻断时必须终止 Loop，不能继续生成成功回复；用户配置的 deny 规则是例外，它只阻止当前工具调用并将原因交回模型。
 - `AutomationRuntime` 将该终态收口为 `needs_attention`。
 - Secret 请求携带 `automationRunId`，即使事件早于 `startTurn` 返回，也能可靠转为
   `needs_attention`。
@@ -64,7 +66,7 @@ owner。
 - 未知操作类型、无策略、`blocked` 和未覆盖能力均拒绝。
 - 记忆授权不能覆盖系统拒绝或自动化策略。
 
-## 验证合同
+## 验证门槛
 
 - 自动化关闭 MCP 能力时不注入任何 MCP 工具；开启后也只注入所选服务。
 - Browser 关闭时不进入自动化工具集合；开启后普通网页操作可执行。

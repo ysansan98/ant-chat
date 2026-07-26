@@ -21,7 +21,7 @@ export interface BeforeToolExecuteInput {
 
 export type BeforeToolExecuteResult
   = | { outcome: 'allow' }
-    | { outcome: 'block', errorCode: string, reason: string }
+    | { outcome: 'block', errorCode: string, reason: string, continueAgent?: boolean }
 
 export type ToolAuthorization = (
   input: BeforeToolExecuteInput,

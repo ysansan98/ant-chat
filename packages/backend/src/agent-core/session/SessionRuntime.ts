@@ -14,6 +14,7 @@ import type { ConversationContextEntry } from '../loop/loopContext'
 import type { TaskStore } from '../taskStore'
 import type { RuntimeStartInput } from './types'
 import { randomUUID } from 'node:crypto'
+import { canonicalizeWorkspacePath } from '../../data/permissions/canonicalizePermissionInput'
 import {
   DEFAULT_COMPACTION_SETTINGS,
 } from '../compaction/compaction'
@@ -56,6 +57,10 @@ export class SessionRuntime {
     if (!options.workspacePath.trim()) {
       throw new Error('invalid start task options: missing workspacePath')
     }
+
+    // Turn 入口统一 canonical workspace identity：realpath + normalize
+    // 后续任务快照、规则分组和匹配都使用同一身份
+    const workspacePath = canonicalizeWorkspacePath(options.workspacePath)
     if (!options.conversationId?.trim()) {
       throw new Error('invalid start task options: missing conversationId')
     }
@@ -126,14 +131,15 @@ export class SessionRuntime {
     const mode = options.mode ?? 'hybrid'
     const registry = await ToolRegistry.create({
       config: this.config,
-      workspacePath: options.workspacePath,
+      workspacePath,
       mode,
       browserSession: this.browserSessions?.get(conversation.id),
       turnSource: options.turnSource,
+      runId: userMessage.id,
     })
     const memory = await this.getPromptMemorySnapshot(conversation.id)
     const systemPrompt = createLoopSystemPrompt(
-      options.workspacePath,
+      workspacePath,
       currentConversation?.conversationInstructions,
       memory,
     )
@@ -145,7 +151,7 @@ export class SessionRuntime {
       conversationId: conversation.id,
       userMessageId: userMessage.id,
       userText,
-      workspacePath: options.workspacePath,
+      workspacePath,
       mode,
       turnSource: options.turnSource,
       messages,

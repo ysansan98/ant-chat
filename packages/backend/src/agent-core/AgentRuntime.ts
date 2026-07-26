@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto'
 import { AgentError } from './AgentError'
 import { runAgentLoop } from './loop/agentLoop'
 import { finishTurnObservation, recordContextObservation } from './observation'
+import { rebuildRulesFromApproval } from './policy/approvalRuleRebuilder'
 import { createToolAuthorization } from './policy/toolAuthorization'
 import { SessionRuntime } from './session/SessionRuntime'
 import { TaskStore } from './taskStore'
@@ -20,7 +21,7 @@ export class AgentRuntime {
     this.beforeToolExecuteHook = createToolAuthorization(
       this.taskStore,
       {
-        getEntries: config.getToolApprovalWhitelistEntries,
+        getRules: config.getPermissionRules,
       },
     )
     this.sessionRuntime = new SessionRuntime(config, this.taskStore)
@@ -105,14 +106,19 @@ export class AgentRuntime {
   }
 
   approvePendingAction(options: ApprovePendingActionOptions): void {
-    const task = this.taskStore.approve(options.taskId, options.actionId, options.remember, (pendingAction, workspacePath) => {
-      if (!pendingAction.approvalGrant || !this.config.addToolApprovalWhitelistEntry) {
+    const task = this.taskStore.approve(options.taskId, options.actionId, options.selection, (pendingAction, workspacePath, selection) => {
+      // Agent Runtime 是审批事务的唯一 owner：
+      // 从 pending action 重建、规范化并验证最终规则，然后原子保存。
+      // 持久化失败时保持等待审批状态，不执行工具。
+      if (!pendingAction.approvalCandidates || !this.config.savePermissionRules) {
         throw new Error('当前工具调用不支持记忆授权')
       }
-      this.config.addToolApprovalWhitelistEntry({
-        ...pendingAction.approvalGrant,
-        workspacePath: options.remember === 'workspace' ? workspacePath : undefined,
-      })
+      const rules = rebuildRulesFromApproval(pendingAction.approvalCandidates, selection)
+      if (rules.length === 0) {
+        throw new Error('无法从审批选择重建规则')
+      }
+      // 一次原子写入全部保存；任何一条无效或写入失败都不执行任何段
+      this.config.savePermissionRules(selection.scope, workspacePath, rules)
     })
     void this.config.eventEmitter.emitTaskUpdated(task.snapshot)
   }

@@ -33,6 +33,7 @@ import { useMessagesStore } from '@/store/messages'
 import { useWorkspaceStore } from '@/store/workspace'
 import { activateWorkspaceSession } from '@/store/workspaceSession'
 import { formatRelativeTime } from '@/utils'
+import { WorkspaceDeleteDialog } from './WorkspaceDeleteDialog'
 import { WorkspaceDirectoryPickerDialog } from './WorkspaceDirectoryPickerDialog'
 
 interface WorkspaceConversationState {
@@ -114,9 +115,9 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
     }
   }, [addWorkspace])
 
-  const handleDeleteWorkspace = useCallback(async (path: string) => {
+  const handleDeleteWorkspace = useCallback(async (path: string, deletePermissionGroup: boolean) => {
     try {
-      await removeWorkspace(path)
+      await removeWorkspace(path, deletePermissionGroup)
       await activateWorkspaceSession({ workspacePath: useWorkspaceStore.getState().currentWorkspacePath })
       setExpandedPaths((paths) => {
         const next = new Set(paths)
@@ -126,6 +127,7 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
     }
     catch (error) {
       setPanelError((error as Error).message)
+      throw error
     }
   }, [removeWorkspace])
 
@@ -245,6 +247,7 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
                 variant="ghost"
                 size="icon-xs"
                 type="button"
+                aria-label="添加工作区"
                 onClick={handleChooseWorkspace}
               >
                 <PlusIcon className="size-4" />
@@ -345,7 +348,7 @@ interface WorkspacePanelProps {
   onToggleAll: (workspacePath: string) => void
   onOpenConversation: (workspacePath: string, conversationId: string) => void
   onCreateConversation: (workspacePath: string) => void
-  onDeleteWorkspace: (path: string) => void
+  onDeleteWorkspace: (path: string, deletePermissionGroup: boolean) => Promise<void>
   dragging: boolean
   dragHandleProps: DraggableProvidedDragHandleProps | null
 }
@@ -401,6 +404,7 @@ function WorkspacePanel({
               type="button"
               variant="ghost"
               size="icon-xs"
+              aria-label={`工作区操作：${item.displayName}`}
               className="opacity-0 group-hover:opacity-100"
               onPointerDown={event => event.stopPropagation()}
               onMouseDown={event => event.stopPropagation()}
@@ -435,24 +439,12 @@ function WorkspacePanel({
         </DropdownMenu>
       </div>
 
-      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <AlertDialogContent size="sm" onClick={event => event.stopPropagation()}>
-          <AlertDialogHeader>
-            <AlertDialogTitle>删除工作区</AlertDialogTitle>
-            <AlertDialogDescription>
-              确定要删除工作区「
-              {item.displayName}
-              」吗？此操作不会删除磁盘上的文件，仅从列表中移除。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="px-4 py-2">
-            <AlertDialogCancel size="sm">取消</AlertDialogCancel>
-            <AlertDialogAction size="sm" variant="destructive" onClick={() => onDeleteWorkspace(item.path)}>
-              删除
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <WorkspaceDeleteDialog
+        item={item}
+        open={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
+        onDelete={onDeleteWorkspace}
+      />
 
       {expanded
         ? (

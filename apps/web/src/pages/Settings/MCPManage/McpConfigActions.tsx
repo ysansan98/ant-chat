@@ -1,15 +1,22 @@
 import type { McpConfigSchema, McpServerStatus } from '@ant-chat/shared'
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@workspace/ui/components/alert-dialog'
 import { Button } from '@workspace/ui/components/button'
 import { PauseCircle, Pencil, PlayCircle, Trash2 } from 'lucide-react'
+import { useState } from 'react'
+import { McpDeleteDialog } from './McpDeleteDialog'
 
 export interface McpConfigActionsProps {
   item: McpConfigSchema
   status: McpServerStatus
-  onTriggerAction?: (action: 'start' | 'stop' | 'edit' | 'delete', item: McpConfigSchema) => void | Promise<void>
+  onTriggerAction?: (
+    action: 'start' | 'stop' | 'edit' | 'delete',
+    item: McpConfigSchema,
+    options?: { deletePermissionRules?: boolean },
+  ) => void | Promise<void>
 }
 
 export function McpConfigActions({ item, status, onTriggerAction }: McpConfigActionsProps) {
+  const [deleteOpen, setDeleteOpen] = useState(false)
+
   return (
     <div className="flex items-center gap-2">
       {
@@ -17,7 +24,7 @@ export function McpConfigActions({ item, status, onTriggerAction }: McpConfigAct
           <Button
             variant="ghost"
             size="icon-sm"
-            title="停止"
+            aria-label={`停止服务器：${item.serverName}`}
             onClick={() => {
               onTriggerAction?.('stop', item)
             }}
@@ -31,7 +38,7 @@ export function McpConfigActions({ item, status, onTriggerAction }: McpConfigAct
           <Button
             variant="ghost"
             size="icon-sm"
-            title="启动"
+            aria-label={`启动服务器：${item.serverName}`}
             onClick={() => {
               onTriggerAction?.('start', item)
             }}
@@ -43,7 +50,7 @@ export function McpConfigActions({ item, status, onTriggerAction }: McpConfigAct
       <Button
         variant="ghost"
         size="icon-sm"
-        title="编辑"
+        aria-label={`编辑服务器：${item.serverName}`}
         onClick={() => {
           onTriggerAction?.('edit', item)
         }}
@@ -52,37 +59,24 @@ export function McpConfigActions({ item, status, onTriggerAction }: McpConfigAct
       </Button>
       {
         status === 'disconnected' && (
-          <AlertDialog>
-            <AlertDialogTrigger render={(
-              <Button variant="ghost" size="icon-sm" title="删除">
-                <Trash2 />
-              </Button>
-            )}
+          <>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`删除服务器：${item.serverName}`}
+              onClick={() => setDeleteOpen(true)}
+            >
+              <Trash2 />
+            </Button>
+            <McpDeleteDialog
+              item={item}
+              open={deleteOpen}
+              onOpenChange={setDeleteOpen}
+              onDelete={async (deletePermissionRules) => {
+                await onTriggerAction?.('delete', item, { deletePermissionRules })
+              }}
             />
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>
-                  删除
-                  {item.serverName}
-                  服务器
-                </AlertDialogTitle>
-                <AlertDialogDescription>
-                  删除后将无法使用该服务器
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>取消</AlertDialogCancel>
-                <AlertDialogAction
-                  variant="destructive"
-                  onClick={async () => {
-                    await onTriggerAction?.('delete', item)
-                  }}
-                >
-                  删除
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          </>
         )
       }
     </div>

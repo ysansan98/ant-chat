@@ -1,7 +1,8 @@
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { WorkspaceModule } from '../app-runtime/modules/workspace'
 import type { activateAppRuntime as activateAppRuntimeFn } from '../appRuntime'
 
 vi.mock('keytar', () => ({
@@ -140,12 +141,74 @@ describe('app runtime', () => {
       },
     })
     await runtime.invoke('chat.archiveConversation', { id: conversation.id })
-    await runtime.invoke('workspace.removeWorkspace', { path: workspacePath })
+    await runtime.invoke('workspace.removeWorkspace', { path: workspacePath, deletePermissionGroup: false })
 
     await runtime.invoke('chat.restoreConversation', { id: conversation.id })
 
     const workspaces = await runtime.invoke('workspace.listWorkspaces', undefined)
     expect(workspaces.workspaces.map(item => item.path)).toContain(workspacePath)
+  })
+
+  it('删除工作区时按输入保留或删除 canonical 权限分组', async () => {
+    const requestedPath = path.join(appDataRoot, 'permission-workspace')
+    const aliasPath = path.join(appDataRoot, 'permission-workspace-alias')
+    mkdirSync(requestedPath)
+    symlinkSync(requestedPath, aliasPath)
+    const added = await runtime.invoke('workspace.addWorkspace', { path: aliasPath })
+    const workspacePath = added.workspaces.find(item => item.displayName === 'permission-workspace')!.path
+    await runtime.invoke('permissions.add', {
+      scope: 'workspace',
+      workspacePath: aliasPath,
+      rule: { kind: 'mcp-tool', serverName: 'demo', toolName: 'read' },
+    })
+
+    await runtime.invoke('workspace.removeWorkspace', {
+      path: aliasPath,
+      deletePermissionGroup: false,
+    })
+    expect((await runtime.invoke('permissions.list', undefined)).workspaces).toHaveProperty(workspacePath)
+
+    await runtime.invoke('workspace.addWorkspace', { path: aliasPath })
+    await runtime.invoke('workspace.removeWorkspace', {
+      path: aliasPath,
+      deletePermissionGroup: true,
+    })
+    expect((await runtime.invoke('permissions.list', undefined)).workspaces).not.toHaveProperty(workspacePath)
+  })
+
+  it('权限分组清理失败时不提交工作区删除', async () => {
+    const requestedPath = path.join(appDataRoot, 'atomic-remove-workspace')
+    mkdirSync(requestedPath)
+    const added = await runtime.invoke('workspace.addWorkspace', { path: requestedPath })
+    const workspacePath = added.workspaces.find(item => item.displayName === 'atomic-remove-workspace')!.path
+    await runtime.invoke('permissions.add', {
+      scope: 'workspace',
+      workspacePath,
+      rule: { kind: 'mcp-tool', serverName: 'demo', toolName: 'read' },
+    })
+    const workspaceModule = runtime.getModule(WorkspaceModule)
+    const permissionsFileStore = (workspaceModule as unknown as {
+      core: {
+        data: {
+          permissionsFileStore: {
+            clearWorkspace: (path: string) => void
+          }
+        }
+      }
+    }).core.data.permissionsFileStore
+    vi.spyOn(permissionsFileStore, 'clearWorkspace').mockImplementationOnce(() => {
+      throw new Error('permissions cleanup failed')
+    })
+
+    await expect(runtime.invoke('workspace.removeWorkspace', {
+      path: workspacePath,
+      deletePermissionGroup: true,
+    })).rejects.toThrow('permissions cleanup failed')
+
+    expect((await runtime.invoke('workspace.listWorkspaces', undefined)).workspaces.map(item => item.path))
+      .toContain(workspacePath)
+    expect((await runtime.invoke('permissions.list', undefined)).workspaces)
+      .toHaveProperty(workspacePath)
   })
 
   it('workspace:changed 事件 payload 为空对象', async () => {

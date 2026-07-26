@@ -1,7 +1,7 @@
 import type { AppRpcInput } from '@ant-chat/shared'
 import type { RuntimeCore } from '../../createRuntimeCore'
 import type { RuntimeModuleMethods } from '../../routeRegistry'
-import { searchWorkspaceFiles } from '../../../data'
+import { canonicalizeWorkspacePath, searchWorkspaceFiles } from '../../../data'
 import { Method, Module } from '../../decorators'
 
 @Module('workspace')
@@ -19,17 +19,38 @@ export class WorkspaceModule implements RuntimeModuleMethods<'workspace'> {
 
   @Method()
   addWorkspace(input: AppRpcInput<'workspace.addWorkspace'>) {
-    return this.emitWorkspaceResult(this.core.data.workspaceService.addWorkspace(input.path))
+    return this.emitWorkspaceResult(this.core.data.workspaceService.addWorkspace(canonicalizeWorkspacePath(input.path)))
   }
 
   @Method()
   removeWorkspace(input: AppRpcInput<'workspace.removeWorkspace'>) {
-    return this.emitWorkspaceResult(this.core.data.workspaceService.removeWorkspace(input.path))
+    const workspacePath = canonicalizeWorkspacePath(input.path)
+    const deletePermissionGroup = input.deletePermissionGroup
+      && this.core.data.permissionsFileStore.hasWorkspaceGroup(workspacePath)
+    if (!deletePermissionGroup)
+      return this.emitWorkspaceResult(this.core.data.workspaceService.removeWorkspace(workspacePath))
+
+    const permissionSnapshot = this.core.data.permissionsFileStore.listAll()
+    this.core.data.permissionsFileStore.clearWorkspace(workspacePath)
+    let result: ReturnType<RuntimeCore['data']['workspaceService']['removeWorkspace']>
+    try {
+      result = this.core.data.workspaceService.removeWorkspace(workspacePath)
+    }
+    catch (error) {
+      try {
+        this.core.data.permissionsFileStore.write(permissionSnapshot)
+      }
+      catch (rollbackError) {
+        throw new Error(`删除工作区失败：${errorMessage(error)}；权限分组回滚失败：${errorMessage(rollbackError)}`)
+      }
+      throw error
+    }
+    return this.emitWorkspaceResult(result)
   }
 
   @Method()
   openWorkspace(input: AppRpcInput<'workspace.openWorkspace'>) {
-    return this.emitWorkspaceResult(this.core.data.workspaceService.openWorkspace(input.path))
+    return this.emitWorkspaceResult(this.core.data.workspaceService.openWorkspace(canonicalizeWorkspacePath(input.path)))
   }
 
   @Method()
@@ -64,4 +85,8 @@ export class WorkspaceModule implements RuntimeModuleMethods<'workspace'> {
     this.core.events.emit('workspace:changed', {})
     return result
   }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }

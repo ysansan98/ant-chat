@@ -402,17 +402,47 @@ describe('gui ui flow', () => {
 
     expect(await screen.findByTestId('agent-approval-card')).toHaveTextContent('write_file')
     fireEvent.click(screen.getByTestId('agent-approve'))
-    fireEvent.click(screen.getByTestId('agent-reject'))
 
     expect(mocks.agent.approvePendingAction).toHaveBeenCalledWith({
       actionId: 'action-1',
       taskId: 'task-approval',
-      remember: undefined,
+      selection: undefined,
     })
+  })
+
+  it('agent 审批卡片支持拒绝', async () => {
+    seedActiveConversation('conv-approval-reject')
+    useAgentRuntimeStore.setState({
+      pendingByTask: {
+        'task-approval-reject': {
+          actionId: 'action-2',
+          createdAt: 1,
+          inputPreview: '{"path":"file.txt"}',
+          operationType: 'write',
+          scope: 'workspace',
+          toolName: 'write_file',
+        },
+      },
+      tasks: {
+        'task-approval-reject': createTask({
+          conversationId: 'conv-approval-reject',
+          status: 'awaiting_approval',
+          taskId: 'task-approval-reject',
+        }),
+      },
+    })
+
+    mocks.workspace.listWorkspaces.mockResolvedValue({ workspaces: [] })
+
+    renderGui('/chat')
+
+    expect(await screen.findByTestId('agent-approval-card')).toHaveTextContent('write_file')
+    fireEvent.click(screen.getByTestId('agent-reject'))
+
     expect(mocks.agent.rejectPendingAction).toHaveBeenCalledWith({
-      actionId: 'action-1',
+      actionId: 'action-2',
       reason: '用户拒绝',
-      taskId: 'task-approval',
+      taskId: 'task-approval-reject',
     })
   })
 

@@ -37,15 +37,6 @@ export const ProviderSettingsSchema = ProviderConfigSchema.omit({
   models: z.record(z.string(), ProviderModelSettingsSchema),
 })
 
-export const ToolApprovalWhitelistEntrySchema = z.object({
-  toolName: z.string().min(1),
-  operationType: z.enum(['read', 'write', 'bash', 'bash_read', 'browser', 'skill', 'mcp']),
-  toolScope: z.enum(['workspace', 'outside', 'external']),
-  pattern: z.string().min(1),
-  description: z.string().min(1),
-  workspacePath: z.string().min(1).optional(),
-})
-
 export const AppSettingsSchema = z.object({
   assistantModelId: z.string(),
   assistantProviderId: z.string().default(''),
@@ -63,7 +54,6 @@ export const AppSettingsSchema = z.object({
   }),
   developerTools: DeveloperToolsSettingsSchema,
   providers: z.array(ProviderSettingsSchema),
-  toolApprovalWhitelist: z.array(ToolApprovalWhitelistEntrySchema).default([]),
 })
 
 export type ProviderModelSettingsSchema = z.infer<typeof ProviderModelSettingsSchema>

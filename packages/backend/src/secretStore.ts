@@ -34,6 +34,12 @@ export class KeychainSecretStore implements SecretStore {
     return this.turnSecrets.get(ref.id) ?? null
   }
 
+  async resolveTurnSecret(ref: SecretRef, runId: string): Promise<string | null> {
+    if (ref.scope !== 'turn' || !ref.id.startsWith(`turn:${runId}:`))
+      return null
+    return this.turnSecrets.get(ref.id) ?? null
+  }
+
   async clearTurnSecrets(runId: string): Promise<void> {
     for (const id of this.turnSecrets.keys()) {
       if (id.startsWith(`turn:${runId}:`)) {

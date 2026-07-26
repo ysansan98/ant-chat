@@ -495,6 +495,52 @@ describe('runAgentLoop 行为', () => {
     )
   })
 
+  it('普通交互的工具调用被策略阻断后仍把结果交回模型继续', async () => {
+    const modelRequests: LoopMessage[][] = []
+    let requestIndex = 0
+    const aiProvider: IAIProvider = {
+      async* streamModel(options) {
+        modelRequests.push(options.messages)
+        yield* requestIndex++ === 0
+          ? [makeToolCallChunk('read_file', { path: 'test.txt' }, 'blocked-call')]
+          : [makeTextChunk('已调整执行方案')]
+      },
+      complete: vi.fn().mockResolvedValue({ text: 'unused' }),
+    }
+    const { taskId, options } = createBaseInput({
+      aiProvider,
+      registry: new ToolRegistry([createReadTool()]),
+    })
+    const task = createTask(taskId, options.conversationId)
+    const { execution } = createExecution(task)
+
+    await runAgentLoop({
+      execution,
+      options,
+      config: { eventEmitter: emitter, logger },
+      beforeToolExecute: async () => ({
+        outcome: 'block',
+        errorCode: 'AGENT_POLICY_BLOCKED',
+        reason: '策略阻断，禁止执行',
+      }),
+    })
+
+    expect(modelRequests).toHaveLength(2)
+    expect(modelRequests[1]).toContainEqual({
+      role: 'tool',
+      content: [expect.objectContaining({
+        type: 'tool-result',
+        toolCallId: 'blocked-call',
+        isError: true,
+      })],
+    })
+    expect(task.snapshot.status).toBe('success')
+    expect(emitter.emitTurnFinished).toHaveBeenCalledWith(expect.objectContaining({
+      status: 'success',
+      text: '已调整执行方案',
+    }))
+  })
+
   it('非法 JSON 工具参数的 Tool span 继承当前 Model span', async () => {
     const aiProvider = createMockAIProvider([
       [{ functionCalls: [{ id: 'bad-call', toolName: 'read_file', args: '{bad json' }] } as unknown as IAIStreamChunk],

@@ -80,9 +80,6 @@ const appDataContext = {
     create: vi.fn(async () => userMessage),
     delete: vi.fn(async () => true),
   },
-  toolApprovalWhitelistRepository: {
-    add: vi.fn(),
-  },
   settingsRepository: {
     getGeneralSettings: vi.fn(async () => ({ assistantModelId: '', assistantProviderId: '', autoGenerateTitle: true, proxySettings: { mode: 'none', customProxyUrl: '' } })),
   },
