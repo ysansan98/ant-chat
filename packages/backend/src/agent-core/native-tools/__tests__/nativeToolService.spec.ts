@@ -112,62 +112,6 @@ describe('native tool service 行为', () => {
     expect(fs.readFileSync(path.join(workspacePath, 'src/overlap.ts'), 'utf8')).toBe('abcdef\n')
   })
 
-  it('bash 阻断危险命令并允许低风险 mkdir', async () => {
-    const service = new NativeToolService(workspacePath)
-    const bash = service.getTools().find(tool => tool.name === 'bash')!
-
-    await expect(bash.execute({ command: 'rm -rf src' })).resolves.toMatchObject({
-      ok: false,
-      result: expect.stringContaining('禁止命令'),
-    })
-
-    await expect(bash.execute({ command: 'mkdir -p src/nested' })).resolves.toMatchObject({ ok: true })
-    expect(fs.statSync(path.join(workspacePath, 'src/nested')).isDirectory()).toBe(true)
-    await expect(bash.execute({ command: 'pwd && ls -la' })).resolves.toMatchObject({ ok: true })
-  })
-
-  it('bash schema 暴露可选 description 供界面展示命令用途，且不影响执行', async () => {
-    const service = new NativeToolService(workspacePath)
-    const bash = service.getTools().find(tool => tool.name === 'bash')!
-
-    expect(bash.inputSchema?.properties).toHaveProperty('description')
-    expect(bash.inputSchema?.required).toEqual(['command'])
-
-    // description 仅用于展示，执行路径忽略该字段
-    await expect(bash.execute({ command: 'pwd', description: '查看当前目录' })).resolves.toMatchObject({ ok: true })
-  })
-
-  it('将 Desktop 注入的 launcher PATH 传给 bash 子进程', async () => {
-    const launcherPath = fs.mkdtempSync(path.join(os.tmpdir(), 'ant-chat-launcher-'))
-    const launcher = path.join(launcherPath, 'ant-chat')
-    fs.writeFileSync(launcher, '#!/bin/sh\nprintf launcher-ok\n')
-    fs.chmodSync(launcher, 0o755)
-
-    const service = new NativeToolService(workspacePath, true, {
-      bashEnvironment: { PATH: launcherPath },
-    })
-    const bash = service.getTools().find(tool => tool.name === 'bash')!
-    const result = await bash.execute({ command: 'ant-chat' })
-
-    expect(result.ok).toBe(true)
-    expect(result.diagnostics?.stdout).toContain('launcher-ok')
-    fs.rmSync(launcherPath, { force: true, recursive: true })
-  })
-
-  it('bash 自己定义失败结果写入模型上下文的格式', async () => {
-    const service = new NativeToolService(workspacePath)
-    const bash = service.getTools().find(tool => tool.name === 'bash')!
-    const result = await bash.execute({ command: 'ls missing.txt' })
-
-    expect(result).toMatchObject({
-      ok: false,
-      result: expect.stringContaining('stderr:'),
-      diagnostics: { exitCode: expect.any(Number) },
-    })
-    expect(result.diagnostics?.exitCode).toBeGreaterThan(0)
-    expect(result.result).toContain('exitCode=')
-  })
-
   it('将普通网页操作标记为外部资源，将系统 Profile 标记为本机越界资源', () => {
     const service = new NativeToolService(workspacePath, false, {
       browser: {
@@ -183,22 +127,6 @@ describe('native tool service 行为', () => {
     })
     expect(browser?.inferScope({ command: 'open', args: ['https://example.com'] })).toBe('external')
     expect(browser?.inferScope({ command: 'open', args: ['--profile', 'Default', 'https://example.com'] })).toBe('outside')
-  })
-
-  it('注册 browser 工具后阻断 Bash 绕过调用 agent-browser', async () => {
-    const service = new NativeToolService(workspacePath, true, {
-      browser: {
-        profilePath: '/tmp/profile',
-        artifactsPath: '/tmp/artifacts',
-      },
-    })
-    const bash = service.getTools().find(tool => tool.name === 'bash')!
-
-    expect(bash.inferScope({ command: 'npx --yes agent-browser snapshot -i' })).toBe('blocked')
-    await expect(bash.execute({ command: 'npx --yes agent-browser snapshot -i' })).resolves.toMatchObject({
-      ok: false,
-      result: expect.stringContaining('禁止启动 agent-browser'),
-    })
   })
 
   it('tool execute 遇到越界路径返回 AGENT_POLICY_BLOCKED', async () => {
@@ -251,47 +179,6 @@ describe('native tool service 行为', () => {
       const service = new NativeToolService(workspacePath)
       const tool = service.getTools().find(t => t.name === 'edit_file')!
       expect(tool.inferScope({ path: 'src/a.txt', edits: [{ oldText: 'a', newText: 'b' }] })).toBe('workspace')
-    })
-
-    it('bash find /Users → outside（路径逃逸，可审批）', () => {
-      const service = new NativeToolService(workspacePath)
-      const tool = service.getTools().find(t => t.name === 'bash')!
-      expect(tool.inferScope({ command: 'find /Users/ysansan -name "*.pdf"' })).toBe('outside')
-      expect(tool.inferScope({ command: 'find ~/Documents -name "*.pdf"' })).toBe('outside')
-    })
-
-    it('bash 安全命令工作区内 → workspace', () => {
-      const service = new NativeToolService(workspacePath)
-      const tool = service.getTools().find(t => t.name === 'bash')!
-      expect(tool.inferScope({ command: 'ls' })).toBe('workspace')
-      expect(tool.inferScope({ command: 'find . -name "*.ts"' })).toBe('workspace')
-    })
-
-    it('bash rm/sudo/curl → blocked（硬阻断）', () => {
-      const service = new NativeToolService(workspacePath)
-      const tool = service.getTools().find(t => t.name === 'bash')!
-      expect(tool.inferScope({ command: 'rm -rf src' })).toBe('blocked')
-      expect(tool.inferScope({ command: 'sudo ls' })).toBe('blocked')
-      expect(tool.inferScope({ command: 'curl http://example.com' })).toBe('blocked')
-    })
-
-    it('bash 管道重定向 → outside（需要单次审批）', () => {
-      const service = new NativeToolService(workspacePath)
-      const tool = service.getTools().find(t => t.name === 'bash')!
-      expect(tool.inferScope({ command: 'ls | grep foo' })).toBe('outside')
-      expect(tool.inferScope({ command: 'find . > /tmp/out' })).toBe('outside')
-    })
-
-    it('bash 工作区内的非只读命令保持 workspace（由授权层审批）', () => {
-      const service = new NativeToolService(workspacePath)
-      const tool = service.getTools().find(t => t.name === 'bash')!
-      expect(tool.inferScope({ command: 'git status' })).toBe('workspace')
-    })
-
-    it('bash 空命令 → blocked', () => {
-      const service = new NativeToolService(workspacePath)
-      const tool = service.getTools().find(t => t.name === 'bash')!
-      expect(tool.inferScope({ command: '' })).toBe('blocked')
     })
   })
 })

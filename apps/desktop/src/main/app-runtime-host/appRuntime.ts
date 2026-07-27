@@ -24,7 +24,7 @@ export function disposeDesktopAppRuntime(): Promise<void> {
 function createDesktopAppRuntime(): Promise<AppRuntime> {
   return activateAppRuntime({
     appDataRoot: resolveAppDataRoot(),
-    bashEnvironment: {
+    commandEnvironment: {
       PATH: [resolveBundledCliDirectory(), process.env.PATH].filter(Boolean).join(path.delimiter),
     },
   })

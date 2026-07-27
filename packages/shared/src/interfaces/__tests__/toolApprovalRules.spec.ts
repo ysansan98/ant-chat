@@ -49,9 +49,10 @@ describe('权限文件 schema', () => {
 })
 
 describe('权限管理输入 schema', () => {
-  it('bash 命令规则只保存用户写出的命令身份', () => {
+  it('命令规则保存解释器和用户写出的命令身份', () => {
     const result = ToolApprovalRuleInputSchema.safeParse({
-      kind: 'bash-command',
+      kind: 'command',
+      interpreter: 'bash',
       executable: 'node',
       argvPrefix: ['run.js'],
       allowRemainingArgs: false,
@@ -59,6 +60,7 @@ describe('权限管理输入 schema', () => {
     })
 
     expect(result.success).toBe(true)
+    expect(result.data).toMatchObject({ kind: 'command', interpreter: 'bash' })
     expect(result.data).not.toHaveProperty('executablePath')
   })
 
@@ -67,10 +69,11 @@ describe('权限管理输入 schema', () => {
       schemaVersion: PERMISSIONS_SCHEMA_VERSION,
       data: {
         global: [{
-          id: 'bash-1',
+          id: 'command-1',
           createdAt: 1,
           updatedAt: 1,
-          kind: 'bash-command',
+          kind: 'command',
+          interpreter: 'bash',
           executable: 'node',
           executablePath: '/runtime/nub',
           argvPrefix: ['run.js'],
@@ -83,6 +86,30 @@ describe('权限管理输入 schema', () => {
 
     expect(result.success).toBe(false)
   })
+
+  it('拒绝历史 Bash 规则类型', () => {
+    expect(ToolApprovalRuleInputSchema.safeParse({
+      kind: 'bash-command',
+      executable: 'node',
+      argvPrefix: [],
+      allowRemainingArgs: true,
+      resourceScope: 'workspace',
+    }).success).toBe(false)
+  })
+
+  it.each(['bash', 'powershell7', 'windows-powershell', 'cmd'] as const)(
+    '接受 $interpreter 解释器的命令规则',
+    (interpreter) => {
+      expect(ToolApprovalRuleInputSchema.safeParse({
+        kind: 'command',
+        interpreter,
+        executable: 'echo',
+        argvPrefix: [],
+        allowRemainingArgs: true,
+        resourceScope: 'workspace',
+      }).success).toBe(true)
+    },
+  )
 
   it('不接受前端指定持久化身份和时间戳', () => {
     const result = ToolApprovalRuleInputSchema.safeParse({

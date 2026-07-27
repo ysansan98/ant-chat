@@ -42,6 +42,14 @@ function createMockLogger(): ILogger {
 
 function createConfig(): AgentRuntimeConfig {
   return {
+    commandHost: {
+      status: 'available',
+      platform: 'posix',
+      adapter: 'bash',
+      interpreter: 'bash',
+      executablePath: '/bin/bash',
+      environment: { PATH: process.env.PATH ?? '', HOME: os.homedir() },
+    },
     eventEmitter: createMockEmitter(),
     logger: createMockLogger(),
   }
@@ -930,7 +938,7 @@ describe('agentRuntime 行为', () => {
       const loopCall = vi.mocked(runAgentLoop).mock.calls.at(-1)?.[0]
       if (!loopCall)
         throw new Error('缺少 Agent loop 调用')
-      const prepared = registry.prepare('bash', {
+      const prepared = registry.prepare('execute_command', {
         command: `${process.execPath} -e "process.stdout.write('ok')"`,
       })
       const authorization = loopCall.beforeToolExecute({

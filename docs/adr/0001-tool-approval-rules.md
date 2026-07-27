@@ -1,6 +1,6 @@
 # ADR-0001：交互审批采用结构化权限规则与独立存储
 
-权限规则表达用户明确允许或禁止的能力边界，而不是某次工具调用的完整字符串。规则按 Bash、文件系统和 MCP 三类结构化表达，独立保存到 `~/.ant-chat/permissions.json`，由 Agent Runtime 统一匹配和持久化。
+权限规则表达用户明确允许或禁止的能力边界，而不是某次工具调用的完整字符串。规则按命令、文件系统和 MCP 三类结构化表达，独立保存到 `~/.ant-chat/permissions.json`，由 Agent Runtime 统一匹配和持久化。
 
 ## 状态
 
@@ -10,7 +10,7 @@
 
 ## 背景
 
-当前 `toolApprovalWhitelist` 将规则保存为 `toolName + operationType + toolScope + pattern`。Bash 规则虽然已经从过宽的 `node **` 收紧为完整命令键，但参数稍有变化就会再次审批；MCP 按完整 input 匹配同样缺少复用价值。反过来，重新引入无语义的 glob 又会把授权扩大到用户没有确认的操作。
+当前 `toolApprovalWhitelist` 将规则保存为 `toolName + operationType + toolScope + pattern`。命令规则虽然已经从过宽的 `node **` 收紧为完整命令键，但参数稍有变化就会再次审批；MCP 按完整 input 匹配同样缺少复用价值。反过来，重新引入无语义的 glob 又会把授权扩大到用户没有确认的操作。
 
 此外，规则仍属于通用 settings：没有独立的生命周期和管理页，工作区作用域与资源范围混在单条记录中，前端只能在审批卡片里追加规则，无法可靠编辑、审计或处理工作区和 MCP 服务的重命名、删除。
 
@@ -32,7 +32,7 @@
 
 - `deny` 规则是黑名单：优先于 allow 规则、基础 allow 和 `full_managed`，命中后返回可理解原因作为工具结果，不中断 Agent loop。
 - `allow` 规则只能把交互 Turn 的 `require_approval` 转为 `allow`。
-- allow 规则不能覆盖 `block`、工具输入校验或 Bash 硬阻断。
+- allow 规则不能覆盖 `block`、工具输入校验或命令底线阻断。
 - `full_managed` 只跳过人工审批，不能跳过硬阻断。
 - Automation 使用自身穷举的 `permissionPolicy`，不读取 allow 规则也不等待人工审批；deny 规则仍生效。
 - Agent Runtime 是审批事务的唯一 owner；工具侧负责构造类型化授权目标，权限仓库只负责校验后的原子持久化。
@@ -68,7 +68,7 @@
 首版只支持三类持久规则：
 
 ```ts
-type ToolApprovalRule = BashCommandRule | FilesystemRule | McpToolRule
+type ToolApprovalRule = CommandRule | FilesystemRule | McpToolRule
 
 interface RuleBase {
   id: string
@@ -77,8 +77,9 @@ interface RuleBase {
   effect?: 'allow' | 'deny' // 缺失兼容旧 allow 规则
 }
 
-interface BashCommandRule extends RuleBase {
-  kind: 'bash-command'
+interface CommandRule extends RuleBase {
+  kind: 'command'
+  interpreter: 'bash' | 'powershell7' | 'windows-powershell' | 'cmd'
   executable: string
   argvPrefix: string[]
   allowRemainingArgs: boolean
@@ -111,14 +112,32 @@ Browser 暂不支持持久规则。它的指令未来拆成独立工具后再设
 - 工作区分组中的 `git show` 规则只供该工作区使用。
 - 全局分组中的 `git show` 规则可在工作区 A、工作区 B 以及未来添加的工作区使用。
 - 上述两种规则默认仍只匹配 `resourceScope: 'workspace'`，即 cwd 与可见路径参数位于当前工作区根目录或其子目录。
-- 如用户明确授权工作区外的 Bash 操作，保存独立的 `resourceScope: 'outside'` 规则；全局分组不自动代表任意本机路径。
+- 如用户明确授权工作区外的命令操作，保存独立的 `resourceScope: 'outside'` 规则；全局分组不自动代表任意本机路径。
 - 文件规则的 `canonicalPath` 才是被授权资源；分组只限制哪些工作区可以使用这项授权。
 
-Bash 的 `workspace` 分类不是操作系统沙箱。它只能约束 Agent 提交的 cwd 和可见路径参数；被启动的本机程序仍可能在内部读取其他路径。产品文案不得声称 Bash “只能访问工作区”。本地 Agent 的目标是防止模型意外扩大权限，不承诺防御恶意本机程序或可执行文件在匹配后被替换。
+命令的 `workspace` 分类不是操作系统沙箱。它只能约束 Agent 提交的 cwd 和可见路径参数；被启动的本机程序仍可能在内部读取其他路径。产品文案不得声称命令“只能访问工作区”。本地 Agent 的目标是防止模型意外扩大权限，不承诺防御恶意本机程序或可执行文件在匹配后被替换。
 
-### 5. Bash 使用共享解析结果匹配命令能力
+### 5. 命令宿主、adapter 与权限共同使用 prepared command
 
-Bash 解析、scope 推导、只读判定、规则候选和规则匹配必须消费同一份 canonical 解析结果，禁止各自重新用字符串或正则猜测命令。解析出的 `&&` segments 只是权限事实，不是执行计划；最终执行必须把模型提交的完整原始命令交给一个受控 shell，一次启动、使用一个整体 timeout。
+App Runtime 启动时只探测一次命令宿主。POSIX 固定 Bash 绝对路径；Windows 按
+`pwsh.exe → powershell.exe → cmd.exe` 固定一个解释器。每个 Turn 只注册稳定工具
+`execute_command`，不得暴露 `bash` 或 Windows 专用工具名。找不到解释器时不注册
+命令工具，但 App Runtime 继续启动并通过只读状态 RPC 暴露可行动诊断。
+
+Bash adapter 与 Windows adapter 都产生同一种 prepared command。它固定原始命令、
+解释器身份、canonical cwd、解析段、资源域、只读结论、风险结论和执行计划。scope
+推导、权限规则、Automation、Trace 与 runner 必须消费这份状态，禁止根据工具名、
+解释器名或原始字符串重新猜测。runner 只执行 prepared plan 中固定的解释器绝对路径
+和显式参数，并关闭二次 shell 选择。
+
+命令风险分为：
+
+- `ordinary`：按基础策略和 Permission Rule 裁决。
+- `requires_approval`：删除、网络、安装、提权、环境修改和可执行但不能持久授权的复杂
+  语法；strict/hybrid 单次审批，`full_managed` 直接执行，Automation 由自身穷举策略
+  决定，均不生成或命中持久 allow。
+- `bottomline_block`：危及系统根、用户目录根、工作区根及祖先，或无法证明授权对象
+  等于执行对象；所有模式和 Automation 都不可覆盖。
 
 规则支持三种粒度：
 
@@ -130,31 +149,44 @@ Bash 解析、scope 推导、只读判定、规则候选和规则匹配必须消
 
 用户可在结构化表单中调整参数分界；不支持逐参数通配符、可选参数或自由 glob。命令任意参数的授权范围过大，只能由用户主动选择，系统不得自动建议，并需要二次确认。
 
-`executable` 就是规则的命令身份。PATH 命令（如 `node`、`ls`）、相对路径命令和绝对路径命令统一按用户输入的命令字符串保存与匹配，不解析、不保存、不比较它当前指向的真实可执行文件。PATH 或 shim 指向变化不会使旧规则失效，绝对路径命令的 symlink 漂移同样不影响规则命中——命令能否真正执行由 spawn 自行处理（not found 自然失败），规则匹配不承担路径有效性校验。
+`interpreter + executable` 共同构成规则身份。Bash 规则不得匹配 PowerShell/CMD，
+Windows 规则也不得匹配 Bash。PATH/相对命令保留用户文本；绝对路径按宿主路径语义
+规范化。规则身份不承担运行期重新探测解释器或 PATH 的职责。
 
 权限页可直接填写 PATH 命令名或绝对路径，不要求用户执行 `which`。提交绝对路径规则时仅验证文件存在且可执行，防止保存垃圾路径；验证通过后按用户输入的原始字符串存库，不解析 symlink。
 
-所有有效命令都使用受控 PATH，并以完整原始字符串在一个 shell 中执行。解析器必须把 shell 会解释、但无法稳定结构化的操作符、变量展开和 glob 标记为复杂语法；复杂语法仅在本次审批后执行，不能生成或命中 allow 规则。
+所有有效命令使用 Command Host 的受控环境。Bash 用
+`--noprofile --norc -c`；PowerShell 用 `-NoLogo -NoProfile -NonInteractive -Command`；
+CMD 用 `/d /s /c` 禁用 AutoRun。解释器语法只能由对应 adapter 解释。
 
-Bash 不提供通用 `env`。秘密只能通过 `secretEnv: Record<string, SecretRef>` 专用通道注入：仅接受当前 Turn 的 SecretRef、合法环境变量名，明确拒绝字符串、persistent SecretRef 和 `PATH`。SecretStore 必须同时校验 `scope` 与 ref 所属 `runId`，不能解析另一个并发 Turn 的临时秘密。SecretRef 只在权限放行后的 Bash owner 内解析；其他工具和其他 Bash 字段不得获得通用递归解析能力。带 `secretEnv` 的命令不进入自动 `bash_read`，不能生成或命中持久 allow 规则，只能由交互 Turn 单次审批；Automation 因无人工审批而阻断。
+命令工具不提供通用 `env`。秘密只能通过
+`secretEnv: Record<string, SecretRef>` 专用通道注入：仅接受当前 Turn 的 SecretRef、
+合法环境变量名，明确拒绝字符串、persistent SecretRef 和 `PATH`。SecretRef 只在权限
+放行后由 command owner 解析，stdout、stderr 与 Trace 继续脱敏。带 `secretEnv` 的命令
+不是 `command_read`，也不能生成或命中持久 allow。
 
 为避免从命令文本重新引入通用环境通道，`NAME=value command`、环境修改命令以及可嵌套命令的 shell/包装器一律硬阻断。普通非秘密环境也不能由模型自行注入。
 
-#### Bash 语法边界
+#### 平台语法与底线边界
 
-- 允许单个命令或使用 `&&` 串联的命令；分段仅用于权限分析，执行仍是一个完整 shell 进程。
-- `cd <path>` 只改变后续命令的执行上下文，不作为可授权命令保存。
+- Bash 允许单个命令或 `&&`；PowerShell 与 CMD 分别使用各自 adapter 的静态语法边界。
+- `cd` 只改变后续段的执行上下文，不作为可授权命令保存。
 - 一个调用包含多个 `&&` 段时，每段独立匹配和生成规则；审批卡片仍只显示一次，并只列出尚未授权的段。
 - 用户一次确认保存多条规则时，必须在恢复任务前以一次原子写入全部保存；任何一条无效或写入失败都不执行任何段。
 - 引号内的 `&&` 不是分隔符。
 - `&&` 前后缺少命令或连续出现时按无效输入拒绝，不得静默丢弃空段。
-- 管道、重定向、`;`、`||` 和多行命令无法生成结构化持久规则，统一按工作区外风险进行单次审批；批准后以原始 shell 语义执行。
-- 子 shell、命令替换、动态变量展开、命令名引号拼接或 glob、分组、控制结构和未引用反斜杠无法在当前 parser 中可靠抽取全部 command node，因此直接硬阻断；不能把“单次审批”当成绕过禁止命令的替代品。单引号内的同名字符保持字面量。
-- `rm`、`sudo`、`curl`、`wget`、`ssh`、`scp` 和包安装等禁止命令族只按用户输入的命令 basename 识别，不做 PATH 遍历或 symlink 解析。绝对路径直接调用禁用命令（如 `/bin/rm`）会被 basename 命中；但 symlink 间接调用（如 `./mytool` 指向 `/bin/rm`）不再阻断——PATH 可信，环境里 symlink 指向什么是用户自身的行为。所有权限模式一致阻断。
-
-Bash 工具描述必须直接说明上述语法需要单次审批，并优先使用 `cwd`。
-
-参数安全的 `git status`、`git diff`、`git log`、`git show` 归入 `bash_read`，但必须拒绝 `--output`、`--ext-diff`、`--textconv` 等会写文件或执行外部程序的参数。
+- 可以静态分析的 `sudo`、`env`、`command` wrapper 继续分析最终命令；动态 shell、
+  PowerShell `-Command` 嵌套、脚本和动态变量直接底线阻断。
+- POSIX 保护 `/`、系统关键目录、HOME 根、工作区根及祖先和挂载卷根；只保护根本身
+  和覆盖全部内容的表达式，不阻断普通子目录。
+- Windows 按大小写不敏感语义规范化 `/`、`\`、drive、UNC、扩展路径、junction/
+  reparse point 和 8.3 短路径；保护 drive/UNC/device 根、系统目录、User Profile 根、
+  工作区根及祖先。
+- `rm`、`Remove-Item`、`del`、`erase`、`rd`、`rmdir` 根据静态目标分类，不再因
+  basename 一刀切禁止。工作区内部构建产物属于 `requires_approval`，根级目标属于
+  `bottomline_block`。
+- 参数安全的 `git status`、`git diff`、`git log`、`git show` 归入 `command_read`，
+  但必须拒绝会写文件或执行外部程序的参数。
 
 ### 6. 文件系统规则按 canonical 资源匹配
 
@@ -164,7 +196,7 @@ Bash 工具描述必须直接说明上述语法需要单次审批，并优先使
 - 精确文件写入；
 - 目录递归读取。
 
-目录读取规则覆盖 `read_file`、`list_dir`、`glob_files`、`grep_files` 的对应资源范围，不授权 Bash 中的 `cat`、`find` 或其他进程。匹配使用 realpath；目标尚不存在时绑定最近存在祖先的真实路径，并在后续操作时重新校验，symlink 逃逸不能命中规则。
+目录读取规则覆盖 `read_file`、`list_dir`、`glob_files`、`grep_files` 的对应资源范围，不授权命令工具中的 `cat`、`find` 或其他进程。匹配使用 realpath；目标尚不存在时绑定最近存在祖先的真实路径，并在后续操作时重新校验，symlink 逃逸不能命中规则。
 
 审批文件读取时可选择当前文件或其直接父目录递归读取。`list_dir`、`glob_files`、`grep_files` 请求目录时可选择该请求目录递归读取。更高层祖先目录只能在“权限”页面通过目录选择器主动添加。首版不提供目录递归写入。
 
@@ -178,7 +210,7 @@ MCP 身份在 `PreparedToolCall`、pending action 和权限匹配链路中始终
 
 ### 8. 审批和“权限”页面共同管理规则
 
-设置新增一级页面“权限”，支持按全局和工作区分组查看、添加、编辑、删除、清空规则。表单按 Bash、文件系统、MCP 分类型展示，不提供原始 JSON、glob 或通用 pattern 编辑器。
+设置新增一级页面“权限”，支持按全局和工作区分组查看、添加、编辑、删除、清空规则。表单按命令、文件系统、MCP 分类型展示，不提供原始 JSON、glob 或通用 pattern 编辑器。
 
 - 审批默认“仅本次允许”，持久保存必须由用户显式选择。
 - 审批前端只提交 `taskId`、`actionId` 和用户对后端候选项的选择；后端从 pending action 重建、规范化并验证最终规则，禁止前端提交任意可执行规则。
@@ -206,5 +238,5 @@ Policy Trace 继续分别记录基础判定和最终判定。权限规则命中�
 - MCP 完整 input、字段级 input 匹配、服务指纹或配置版本绑定。
 - 递归目录写入。
 - 规则临时禁用、自动过期或审批后自动恢复其他 pending task。
-- 用操作系统沙箱限制 Bash 子进程，或防御恶意本机程序在匹配与执行之间替换文件。
+- 用操作系统沙箱限制命令子进程，或防御恶意本机程序在匹配与执行之间替换文件。
 - 防御 symlink 间接调用绕过黑白名单（如 `./mytool` 指向 `/bin/rm`）。PATH 环境变量视为可信，命令身份只按用户输入的字符串 basename 识别，不解析 symlink 真实指向。

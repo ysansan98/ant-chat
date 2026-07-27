@@ -52,11 +52,11 @@ describe('permissionsFileStore', () => {
   })
 
   it('批量保存包含非法规则时整批不落盘', () => {
-    store.write({ global: [bashRule('existing')], workspaces: {} })
+    store.write({ global: [commandRule('existing')], workspaces: {} })
     const before = readFileSync(filePath, 'utf8')
 
     expect(() => store.saveRules('global', '', [
-      bashRule('new'),
+      commandRule('new'),
       invalidDirectoryWrite(),
     ])).toThrow('目录规则只支持读取')
 
@@ -64,16 +64,16 @@ describe('permissionsFileStore', () => {
   })
 
   it('全局和工作区规则独立保存并只组合当前工作区', () => {
-    store.saveRules('global', '', [bashRule('global')])
-    store.saveRules('workspace', '/workspace/a', [bashRule('workspace-a')])
-    store.saveRules('workspace', '/workspace/b', [bashRule('workspace-b')])
+    store.saveRules('global', '', [commandRule('global')])
+    store.saveRules('workspace', '/workspace/a', [commandRule('workspace-a')])
+    store.saveRules('workspace', '/workspace/b', [commandRule('workspace-b')])
 
     expect(store.getEffectiveRules('/workspace/a')).toEqual({
-      global: [bashRule('global')],
-      workspace: [bashRule('workspace-a')],
+      global: [commandRule('global')],
+      workspace: [commandRule('workspace-a')],
     })
     expect(store.getEffectiveRules('/workspace/missing')).toEqual({
-      global: [bashRule('global')],
+      global: [commandRule('global')],
       workspace: [],
     })
   })
@@ -81,11 +81,11 @@ describe('permissionsFileStore', () => {
   it('更新保留 id 和 createdAt，只刷新 updatedAt', () => {
     vi.useFakeTimers()
     vi.setSystemTime(1_000)
-    const created = store.addRule('global', undefined, bashRuleInput('git'))
+    const created = store.addRule('global', undefined, commandRuleInput('git'))
     vi.setSystemTime(2_000)
 
     const updated = store.updateRule(created.id, 'global', undefined, {
-      ...bashRuleInput('git'),
+      ...commandRuleInput('git'),
       argvPrefix: ['show'],
     })
 
@@ -98,10 +98,10 @@ describe('permissionsFileStore', () => {
   })
 
   it('更新或删除不存在的规则时明确报错且不改文件', () => {
-    store.write({ global: [bashRule('existing')], workspaces: {} })
+    store.write({ global: [commandRule('existing')], workspaces: {} })
     const before = readFileSync(filePath, 'utf8')
 
-    expect(() => store.updateRule('missing', 'global', undefined, bashRuleInput('git')))
+    expect(() => store.updateRule('missing', 'global', undefined, commandRuleInput('git')))
       .toThrow('权限规则不存在：missing')
     expect(() => store.deleteRule('missing', 'global', undefined))
       .toThrow('权限规则不存在：missing')
@@ -109,18 +109,19 @@ describe('permissionsFileStore', () => {
   })
 })
 
-function bashRule(id: string): ToolApprovalRule {
+function commandRule(id: string): ToolApprovalRule {
   return {
-    ...bashRuleInput('git'),
+    ...commandRuleInput('git'),
     id,
     createdAt: 1,
     updatedAt: 1,
   }
 }
 
-function bashRuleInput(executable: string) {
+function commandRuleInput(executable: string) {
   return {
-    kind: 'bash-command' as const,
+    kind: 'command' as const,
+    interpreter: 'bash' as const,
     executable,
     argvPrefix: ['status'],
     allowRemainingArgs: false,

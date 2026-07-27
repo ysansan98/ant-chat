@@ -1,4 +1,4 @@
-import type { BashCommandRule, BashSegmentCandidate, BashToolInput } from '@ant-chat/shared'
+import type { CommandRule, CommandSegmentCandidate, CommandToolInput } from '@ant-chat/shared'
 import type { PathPolicy } from '../pathPolicy'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -8,7 +8,7 @@ import { createPathPolicyByMode } from '../pathPolicy'
 /**
  * Bash 命令的 canonical 解析结果。
  *
- * 所有消费方——scope 推导、硬阻断、bash_read 判定、规则候选、规则匹配和最终执行——
+ * 所有消费方——scope 推导、硬阻断、command_read 判定、规则候选、规则匹配和最终执行——
  * 必须消费同一份解析结果，禁止各自重新用字符串或正则猜测命令。
  *
  * 详见 docs/adr/0001-tool-approval-rules.md §5。
@@ -128,7 +128,7 @@ export interface ParsedBashCommand {
   /** 是否整体为只读 */
   isReadOnly: boolean
   /** 原始 input */
-  input: BashToolInput
+  input: CommandToolInput
 }
 
 export interface BashParseOptions {
@@ -158,10 +158,10 @@ export function isPreparedBashToolState(value: unknown): value is PreparedBashTo
  * - 受控 PATH 解析的可执行文件
  * - scope 推导（workspace/outside）
  * - 硬阻断判定
- * - bash_read 只读判定
+ * - command_read 只读判定
  */
 export function parseBashCommand(
-  input: BashToolInput,
+  input: CommandToolInput,
   workspacePath: string,
   options: BashParseOptions = {},
 ): ParsedBashCommand {
@@ -324,7 +324,7 @@ export function parseBashCommand(
   const allInside = segments.every(s => s.isInsideWorkspace)
   const resourceScope: 'workspace' | 'outside' = (allInside && cwdInsideWorkspace) ? 'workspace' : 'outside'
 
-  // bash_read 判定：SecretRef 注入可能改变解释器行为，因此不可能是只读。
+  // command_read 判定：SecretRef 注入可能改变解释器行为，因此不可能是只读。
   // 所有段都是只读命令且参数安全
   const isReadOnly = !hasSecretEnv && !isBlocked && segments.every(s => s.isReadOnly)
 
@@ -594,7 +594,7 @@ function isPackageInstallCommand(packageInstaller: string, args: string[]): bool
 /**
  * 只读命令判定。
  *
- * 带 secretEnv 的命令不进入自动 bash_read（在 parseBashCommand 层处理）。
+ * 带 secretEnv 的命令不进入自动 command_read（在 parseBashCommand 层处理）。
  * 参数安全的 git status/diff/log/show 归入只读，但拒绝 --output/--ext-diff/--textconv。
  */
 function checkReadOnly(executableBasename: string, args: string[]): boolean {
@@ -848,7 +848,10 @@ function isAgentBrowserCommand(inputBasename: string, args: string[]): boolean {
  * Bash 多段命令中，每段独立匹配；所有需要审批的段都必须命中才能跳过审批。
  * `cd` 段不参与匹配。
  */
-export function matchBashRule(parsed: ParsedBashCommand, rule: BashCommandRule): boolean {
+export function matchBashRule(parsed: ParsedBashCommand, rule: CommandRule): boolean {
+  if (rule.interpreter !== 'bash') {
+    return false
+  }
   for (const segment of parsed.segments) {
     if (segment.isCd) {
       continue
@@ -882,7 +885,7 @@ export function matchBashRule(parsed: ParsedBashCommand, rule: BashCommandRule):
  * 检查 Bash 命令的所有非 cd、非硬阻断段是否都被规则覆盖。
  * 返回未命中的段索引列表。
  */
-export function findUnmatchedBashSegments(parsed: ParsedBashCommand, rules: BashCommandRule[]): number[] {
+export function findUnmatchedBashSegments(parsed: ParsedBashCommand, rules: CommandRule[]): number[] {
   const unmatched: number[] = []
   for (let i = 0; i < parsed.segments.length; i++) {
     const segment = parsed.segments[i]
@@ -897,7 +900,10 @@ export function findUnmatchedBashSegments(parsed: ParsedBashCommand, rules: Bash
   return unmatched
 }
 
-function matchSegmentAgainstRule(segment: ParsedBashSegment, rule: BashCommandRule): boolean {
+function matchSegmentAgainstRule(segment: ParsedBashSegment, rule: CommandRule): boolean {
+  if (rule.interpreter !== 'bash') {
+    return false
+  }
   if (rule.resourceScope !== segment.resourceScope) {
     return false
   }
@@ -928,11 +934,11 @@ function isArgvPrefix(prefix: string[], args: string[]): boolean {
  * 每个非 cd、非硬阻断段生成一个候选。
  * 带 secretEnv 的命令不生成候选。
  */
-export function createBashCandidates(parsed: ParsedBashCommand, segmentIndexes?: number[]): BashSegmentCandidate[] {
+export function createBashCandidates(parsed: ParsedBashCommand, segmentIndexes?: number[]): CommandSegmentCandidate[] {
   if (parsed.hasSecretEnv) {
     return []
   }
-  const candidates: BashSegmentCandidate[] = []
+  const candidates: CommandSegmentCandidate[] = []
   const selected = segmentIndexes ? new Set(segmentIndexes) : undefined
   for (let i = 0; i < parsed.segments.length; i++) {
     const segment = parsed.segments[i]
@@ -943,7 +949,8 @@ export function createBashCandidates(parsed: ParsedBashCommand, segmentIndexes?:
       continue
     }
     candidates.push({
-      type: 'bash-segment',
+      type: 'command-segment',
+      interpreter: 'bash',
       segmentIndex: i,
       executable: segment.command,
       displayCommand: segment.rawCommand,

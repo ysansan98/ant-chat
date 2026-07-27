@@ -90,13 +90,14 @@ describe('parseEvidence · model-request', () => {
 describe('parseEvidence · tool-call', () => {
   it('成功时从 output envelope 解析输出、退出码与耗时', () => {
     const view = parseEvidence(spanItem('tool-call'), evidence(
-      spanStarted('tool-call', { toolCallId: 'c1', toolName: 'bash', input: { command: 'ls' }, operationType: 'execute', scope: 'workspace', serverName: 'native', step: 2 }),
+      spanStarted('tool-call', { toolCallId: 'c1', toolName: 'execute_command', input: { command: 'ls' }, operationType: 'command', interpreter: 'bash', scope: 'workspace', serverName: 'native', step: 2 }),
       spanCompleted('tool-call', 'success', { output: 'file.txt', exitCode: 0, durationMs: 120, diagnostics: { stderr: '' } }),
     ))
     expect(view.type).toBe('tool-call')
     if (view.type !== 'tool-call')
       return
-    expect(view.toolName).toBe('bash')
+    expect(view.toolName).toBe('execute_command')
+    expect(view.interpreter).toBe('bash')
     expect(view.input).toEqual({ command: 'ls' })
     expect(view.outputText).toBe('file.txt')
     expect(view.exitCode).toBe(0)
@@ -131,7 +132,7 @@ describe('parseEvidence · tool-call', () => {
 
   it('抛出的异常经脱敏后从 message 提取失败原因', () => {
     const view = parseEvidence(spanItem('tool-call', 'failed'), evidence(
-      spanStarted('tool-call', { toolName: 'bash' }),
+      spanStarted('tool-call', { toolName: 'execute_command', command: { interpreter: 'cmd' } }),
       spanCompleted('tool-call', 'failed', undefined, { name: 'Error', message: 'spawn ENOENT' }),
     ))
     expect(view.type).toBe('tool-call')
@@ -181,7 +182,7 @@ describe('parseEvidence · policy-decision', () => {
 
   it('解析阻止判断与原因', () => {
     const view = parseEvidence(spanItem('policy-decision', 'block'), evidence(
-      spanStarted('policy-decision', { toolName: 'write', operationType: 'write', basis: 'automation.write.blocked', automationPolicy: { workspaceAccess: 'read', allowBashCommands: false, bashCommandPatterns: [], allowMcpTools: false } }),
+      spanStarted('policy-decision', { toolName: 'write', operationType: 'write', basis: 'automation.write.blocked', automationPolicy: { workspaceAccess: 'read', allowCommandExecution: false, commandPatterns: [], allowMcpTools: false } }),
       spanCompleted('policy-decision', 'block', { status: 'block', outcome: 'block', errorCode: 'AGENT_POLICY_BLOCKED', reason: '自动化任务仅有工作区读取权限' }),
     ))
     expect(view.type).toBe('policy-decision')
@@ -267,7 +268,10 @@ describe('policyBasisLabel / agentModeLabel', () => {
   it('覆盖交互与自动化判定依据', () => {
     expect(policyBasisLabel('mode.full-managed')).toBe('完全访问权限模式：允许全部操作')
     expect(policyBasisLabel('workspace.read')).toBe('工作区内只读操作默认允许')
+    expect(policyBasisLabel('command.risk.require-approval')).toBe('高风险命令需要本次人工审批')
+    expect(policyBasisLabel('command.bottomline-block')).toBe('命令触及不可覆盖的系统保护边界')
     expect(policyBasisLabel('automation.write.blocked')).toBe('自动化任务仅有工作区读取权限')
+    expect(policyBasisLabel('automation.command.pattern-blocked')).toBe('命令不在自动化任务允许范围内')
     expect(policyBasisLabel('automation.no-policy')).toBe('自动化任务未配置权限策略，安全默认拒绝')
     expect(policyBasisLabel('future.unknown-basis')).toBe('future.unknown-basis')
     expect(policyBasisLabel(undefined)).toBeUndefined()

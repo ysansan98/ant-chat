@@ -51,7 +51,8 @@ export class PermissionsFileStore {
       throw this.quarantineAndRecover('权限文件不是有效 JSON', cause)
     }
 
-    const parsed = PermissionsFileSchema.safeParse(raw)
+    const migrated = migratePermissionsFile(raw)
+    const parsed = PermissionsFileSchema.safeParse(migrated)
     if (!parsed.success)
       throw this.quarantineAndRecover(`权限文件 schema 校验失败：${parsed.error.message}`, parsed.error)
     return parsed.data.data
@@ -264,4 +265,43 @@ function emptyRuleGroups(): PermissionRuleGroups {
 
 function collectRules(data: PermissionRuleGroups): ToolApprovalRule[] {
   return [...data.global, ...Object.values(data.workspaces).flat()]
+}
+
+/**
+ * 读路径迁移：将旧版权限文件转换为当前 schema 可接受的格式。
+ *
+ * 9435b68a 引入时命令规则 kind 为 'bash-command'（无 interpreter 字段），
+ * 后续重构为 kind='command' + interpreter。旧规则一律视为 bash 解释器。
+ */
+function migratePermissionsFile(raw: unknown): unknown {
+  if (typeof raw !== 'object' || raw === null)
+    return raw
+  const file = raw as Record<string, unknown>
+  const data = file.data
+  if (typeof data !== 'object' || data === null)
+    return raw
+
+  const migrated = { ...file, data: { ...data as Record<string, unknown> } }
+  const d = migrated.data as Record<string, unknown>
+
+  if (Array.isArray(d.global))
+    d.global = d.global.map(migrateRule)
+  if (typeof d.workspaces === 'object' && d.workspaces !== null) {
+    const workspaces: Record<string, unknown> = {}
+    for (const [key, rules] of Object.entries(d.workspaces as Record<string, unknown>)) {
+      workspaces[key] = Array.isArray(rules) ? rules.map(migrateRule) : rules
+    }
+    d.workspaces = workspaces
+  }
+  return migrated
+}
+
+function migrateRule(rule: unknown): unknown {
+  if (typeof rule !== 'object' || rule === null)
+    return rule
+  const r = rule as Record<string, unknown>
+  if (r.kind === 'bash-command') {
+    return { ...r, kind: 'command', interpreter: r.interpreter ?? 'bash' }
+  }
+  return rule
 }

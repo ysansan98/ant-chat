@@ -1,11 +1,11 @@
-import type { AgentErrorCode, AgentMode, AgentPendingAction, ApprovalCandidate, ApprovalGrantCandidates, BashCommandRule, FilesystemRule, McpToolRule, PolicyBasis, ToolApprovalRule, ToolOperationType, ToolScope } from '@ant-chat/shared'
-import type { ParsedBashCommand } from '../native-tools/tools/bashCommandParser'
+import type { AgentErrorCode, AgentMode, AgentPendingAction, ApprovalCandidate, ApprovalGrantCandidates, CommandRule, FilesystemRule, McpToolRule, PolicyBasis, ToolApprovalRule, ToolOperationType, ToolScope } from '@ant-chat/shared'
+import type { PreparedCommandSegment, PreparedCommandState } from '../native-tools/command/types'
 import type { TaskStore } from '../taskStore'
 import type { PreparedToolCall } from '../tools/toolRegistry'
 import type { ToolAuthorization } from '../tools/types'
 import { randomUUID } from 'node:crypto'
 import { AgentError } from '../AgentError'
-import { createBashCandidates, findUnmatchedBashSegments, isPreparedBashToolState, matchBashRule } from '../native-tools/tools/bashCommandParser'
+import { isPreparedCommandState } from '../native-tools/command/types'
 import { buildFileResource, createFilesystemCandidate, FILE_TOOLS, matchFilesystemRule } from '../native-tools/tools/fileResourceBuilder'
 import { cancelObservation, completeObservation, failObservation, startObservationSpan } from '../observation'
 
@@ -29,6 +29,9 @@ export function createToolAuthorization(
     const { task, prepared, config, parentSpanId } = input
 
     const isAutomationTurn = task.snapshot.turnSource?.type === 'automation'
+    const commandState = isPreparedCommandState(prepared.preparedState)
+      ? prepared.preparedState
+      : undefined
     const automationDecision = decideAutomationPolicy(
       task.snapshot.turnSource?.type === 'automation'
         ? task.snapshot.turnSource.permissionPolicy
@@ -37,19 +40,35 @@ export function createToolAuthorization(
       prepared.operationType,
       prepared.scope,
     )
-    const requiresSingleUseApproval = prepared.toolName === 'bash'
-      && isPreparedBashToolState(prepared.preparedState)
-      && (prepared.preparedState.parsed.hasShellSyntax || prepared.preparedState.parsed.hasSecretEnv)
+    const requiresSingleUseApproval = commandState?.risk === 'requires_approval'
+      || commandState?.hasSecretEnv === true
     // 自动化 turn 的权限决策是自治的、穷举的，不回退到交互策略。
-    let effectiveDecision: PolicyDecision = isAutomationTurn
-      ? (automationDecision ?? { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '自动化任务未配置权限策略或操作类型不支持', basis: 'automation.no-policy' as const })
-      : requiresSingleUseApproval
-        ? { type: 'require_approval' as const, basis: 'bash.syntax.require-approval' as const }
-        : (automationDecision ?? decidePolicy(task.snapshot.mode, prepared.operationType, prepared.scope))
+    let effectiveDecision: PolicyDecision = commandState?.risk === 'bottomline_block'
+      ? {
+          type: 'block',
+          errorCode: 'AGENT_POLICY_BLOCKED',
+          reason: commandState.riskReason || '命令命中不可覆盖的底线保护',
+          basis: 'command.bottomline-block',
+        }
+      : isAutomationTurn
+        ? (automationDecision ?? { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '自动化任务未配置权限策略或操作类型不支持', basis: 'automation.no-policy' as const })
+        : requiresSingleUseApproval
+          ? task.snapshot.mode === 'full_managed'
+            ? { type: 'allow' as const, basis: 'mode.full-managed' as const }
+            : { type: 'require_approval' as const, basis: 'command.risk.require-approval' as const }
+          : (automationDecision ?? decidePolicy(task.snapshot.mode, prepared.operationType, prepared.scope))
 
     const policySpan = startObservationSpan(config, recorder => recorder.startPolicyDecision({
       toolName: prepared.toolName,
       input: prepared.input,
+      interpreter: commandState?.interpreter,
+      command: commandState
+        ? {
+            interpreter: commandState.interpreter,
+            risk: commandState.risk,
+            riskReason: commandState.riskReason,
+          }
+        : undefined,
       operationType: prepared.operationType,
       scope: prepared.scope,
       policy: effectiveDecision.type,
@@ -114,18 +133,6 @@ export function createToolAuthorization(
       }
     }
 
-    if (isAutomationTurn && requiresSingleUseApproval) {
-      const reason = '自动化任务不能执行需要单次人工审批的复杂 Bash 或 secretEnv 调用'
-      completeObservation(policySpan, {
-        status: 'block',
-        outcome: 'block',
-        effectiveDecision: { outcome: 'block', basis: 'bash.syntax.require-approval' },
-        errorCode: 'AGENT_POLICY_BLOCKED',
-        reason,
-      }, config.logger)
-      return { outcome: 'block', errorCode: 'AGENT_POLICY_BLOCKED', reason }
-    }
-
     if (effectiveDecision.type === 'allow') {
       completeObservation(policySpan, { status: 'allow', outcome: 'allow', effectiveDecision: { outcome: 'allow', basis: effectiveDecision.basis } }, config.logger)
       return { outcome: 'allow' }
@@ -169,7 +176,7 @@ export function createToolAuthorization(
       prepared,
       task.snapshot.workspacePath,
       ruleGroups
-        ? [...ruleGroups.global, ...ruleGroups.workspace].filter((rule): rule is BashCommandRule => rule.kind === 'bash-command' && !isDenyRule(rule))
+        ? [...ruleGroups.global, ...ruleGroups.workspace].filter((rule): rule is CommandRule => rule.kind === 'command' && !isDenyRule(rule))
         : [],
     )
 
@@ -253,10 +260,8 @@ function matchRulesAgainstToolCall(
   prepared: PreparedToolCall,
   workspacePath: string,
 ): ToolApprovalRule[] {
-  if (prepared.toolName === 'bash') {
-    return isPreparedBashToolState(prepared.preparedState)
-      ? matchBashRules(rules, prepared.preparedState.parsed)
-      : []
+  if (isPreparedCommandState(prepared.preparedState)) {
+    return matchCommandRules(rules, prepared.preparedState)
   }
 
   if (FILE_TOOLS.has(prepared.toolName)) {
@@ -278,7 +283,7 @@ function isDenyRule(rule: ToolApprovalRule): boolean {
 }
 
 function describePermissionRule(rule: ToolApprovalRule): string {
-  if (rule.kind === 'bash-command') {
+  if (rule.kind === 'command') {
     return [rule.executable, ...rule.argvPrefix].join(' ') || rule.executable
   }
   if (rule.kind === 'filesystem') {
@@ -287,39 +292,43 @@ function describePermissionRule(rule: ToolApprovalRule): string {
   return `${rule.serverName} → ${rule.toolName}`
 }
 
-function matchBashRules(
+function matchCommandRules(
   rules: ToolApprovalRule[],
-  parsed: ParsedBashCommand,
-): BashCommandRule[] {
-  const bashRules = rules.filter((r): r is BashCommandRule => r.kind === 'bash-command')
-  if (bashRules.length === 0) {
+  prepared: PreparedCommandState,
+): CommandRule[] {
+  const commandRules = rules.filter((rule): rule is CommandRule =>
+    rule.kind === 'command' && rule.interpreter === prepared.interpreter,
+  )
+  if (commandRules.length === 0) {
     return []
   }
-  if (parsed.isBlocked || parsed.segments.length === 0) {
+  if (prepared.risk === 'bottomline_block' || prepared.segments.length === 0) {
     return []
   }
-  // 黑名单只要命中任一实际命令段就必须阻断；不能要求整条复合命令都匹配。
-  if (bashRules.every(isDenyRule)) {
-    const denied = bashRules.find(rule => matchBashRule(parsed, rule))
+  if (commandRules.every(isDenyRule)) {
+    const denied = commandRules.find(rule =>
+      prepared.segments.some(segment => matchCommandSegment(segment, rule)),
+    )
     return denied ? [denied] : []
   }
-  // 所有非 cd、非硬阻断段都必须命中某条规则
-  const unmatched = findUnmatchedBashSegments(parsed, bashRules)
-  if (unmatched.length === 0) {
-    const matched = new Set<BashCommandRule>()
-    for (const segment of parsed.segments) {
-      if (segment.isCd || segment.isHardBlocked)
-        continue
-      const rule = bashRules.find(candidate => matchBashRule(
-        { ...parsed, segments: [segment] },
-        candidate,
-      ))
+  const executableSegments = prepared.segments.filter(segment => !segment.isCd)
+  if (executableSegments.every(segment => commandRules.some(rule => matchCommandSegment(segment, rule)))) {
+    const matched = new Set<CommandRule>()
+    for (const segment of executableSegments) {
+      const rule = commandRules.find(candidate => matchCommandSegment(segment, candidate))
       if (rule)
         matched.add(rule)
     }
     return [...matched]
   }
   return []
+}
+
+function matchCommandSegment(segment: PreparedCommandSegment, rule: CommandRule): boolean {
+  return segment.resourceScope === rule.resourceScope
+    && segment.executable === rule.executable
+    && rule.argvPrefix.every((arg, index) => arg === segment.args[index])
+    && (rule.allowRemainingArgs || rule.argvPrefix.length === segment.args.length)
 }
 
 function matchFilesystemRules(
@@ -356,26 +365,39 @@ function matchMcpRules(
 function createApprovalCandidates(
   prepared: PreparedToolCall,
   workspacePath: string,
-  allowedBashRules: BashCommandRule[],
+  allowedCommandRules: CommandRule[],
 ): ApprovalGrantCandidates | null {
   if (prepared.scope === 'blocked') {
     return null
   }
 
-  if (prepared.toolName === 'bash') {
-    if (!isPreparedBashToolState(prepared.preparedState)) {
+  if (isPreparedCommandState(prepared.preparedState)) {
+    const command = prepared.preparedState
+    if (command.risk !== 'ordinary' || command.hasSecretEnv) {
       return null
     }
-    const parsed = prepared.preparedState.parsed
-    if (parsed.isBlocked || parsed.hasSecretEnv || parsed.hasShellSyntax) {
-      return null
-    }
-    const unmatched = findUnmatchedBashSegments(parsed, allowedBashRules)
-    const candidates = createBashCandidates(parsed, unmatched)
+    const unmatched = command.segments
+      .map((segment, index) => ({ segment, index }))
+      .filter(({ segment }) =>
+        !segment.isCd
+        && !allowedCommandRules.some(rule =>
+          rule.interpreter === command.interpreter && matchCommandSegment(segment, rule),
+        ),
+      )
+    const candidates = unmatched.map(({ segment, index }) => ({
+      type: 'command-segment' as const,
+      interpreter: command.interpreter,
+      segmentIndex: index,
+      executable: segment.executable,
+      displayCommand: [segment.executable, ...segment.args].join(' '),
+      argvPrefix: [...segment.args],
+      canWholeExecutable: true,
+      resourceScope: segment.resourceScope,
+    }))
     if (candidates.length === 0) {
       return null
     }
-    return { candidates, context: { parsed } }
+    return { candidates, context: { command } }
   }
 
   if (FILE_TOOLS.has(prepared.toolName)) {
@@ -429,7 +451,7 @@ function decidePolicy(mode: AgentMode, operationType: ToolOperationType, scope: 
   }
 
   // 其余情况仅会是 workspace scope。
-  if (operationType === 'read' || operationType === 'bash_read' || operationType === 'skill') {
+  if (operationType === 'read' || operationType === 'command_read' || operationType === 'skill') {
     return { type: 'allow', basis: 'workspace.read' }
   }
 
@@ -489,20 +511,20 @@ function decideAutomationPolicy(
   if (operationType === 'skill') {
     return { type: 'allow' as const, basis: 'automation.skill.allow' as const }
   }
-  if (operationType === 'bash_read') {
-    return policy.allowBashCommands
-      ? { type: 'allow' as const, basis: 'automation.bash-read.allow' as const }
-      : { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '自动化任务未授权命令执行', basis: 'automation.bash-read.blocked' as const }
+  if (operationType === 'command_read') {
+    return policy.allowCommandExecution
+      ? { type: 'allow' as const, basis: 'automation.command-read.allow' as const }
+      : { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '自动化任务未授权命令执行', basis: 'automation.command-read.blocked' as const }
   }
-  if (operationType === 'bash') {
-    if (!policy.allowBashCommands)
-      return { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '自动化任务未授权命令执行', basis: 'automation.bash.blocked' as const }
-    if (policy.bashCommandPatterns.length === 0)
-      return { type: 'allow' as const, basis: 'automation.bash.allow' as const }
+  if (operationType === 'command') {
+    if (!policy.allowCommandExecution)
+      return { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '自动化任务未授权命令执行', basis: 'automation.command.blocked' as const }
+    if (policy.commandPatterns.length === 0)
+      return { type: 'allow' as const, basis: 'automation.command.allow' as const }
     const matchKey = String(input.command ?? '')
-    return policy.bashCommandPatterns.some(pattern => matchPattern(pattern, matchKey))
-      ? { type: 'allow' as const, basis: 'automation.bash.pattern-match' as const }
-      : { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '命令不在自动化任务允许范围内', basis: 'automation.bash.pattern-blocked' as const }
+    return policy.commandPatterns.some(pattern => matchPattern(pattern, matchKey))
+      ? { type: 'allow' as const, basis: 'automation.command.pattern-match' as const }
+      : { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: '命令不在自动化任务允许范围内', basis: 'automation.command.pattern-blocked' as const }
   }
   return { type: 'block' as const, errorCode: 'AGENT_POLICY_BLOCKED' as const, reason: `自动化任务不支持该操作类型: ${operationType}`, basis: 'automation.unsupported' as const }
 }

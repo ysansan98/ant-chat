@@ -1,3 +1,4 @@
+import type { CommandHost } from '../agent-core/native-tools/command/types'
 import type { AgentBrowserPaths } from '../agentBrowser'
 import type { AppDataContext, AppDataDatabase } from '../data'
 import type { RuntimeEventBus } from '../events'
@@ -25,10 +26,10 @@ export interface RuntimeCore {
   logger: SystemLogger
   paths: AppRuntimePaths
   secretStore: KeychainSecretStore
-  bashEnvironment?: Record<string, string>
+  commandHost: CommandHost
 }
 
-export function createRuntimeCore(options: CreateAppRuntimeOptions): RuntimeCore {
+export function createRuntimeCore(options: CreateAppRuntimeOptions, commandHost: CommandHost): RuntimeCore {
   const paths = createAppRuntimePaths(options.appDataRoot)
   const logger = options.logger ?? getAppRuntimeLogger(options.appDataRoot, options.loggerOptions)
   const db = openAppDataDatabase(paths.databaseFile)
@@ -50,6 +51,6 @@ export function createRuntimeCore(options: CreateAppRuntimeOptions): RuntimeCore
     logger,
     paths,
     secretStore: new KeychainSecretStoreImpl(),
-    bashEnvironment: options.bashEnvironment,
+    commandHost,
   }
 }

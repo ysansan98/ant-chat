@@ -17,6 +17,7 @@ interface CreateNativeToolOptions {
   name: string
   description: string
   inputSchema: NonNullable<AgentTool['inputSchema']>
+  operationType?: ToolOperationType
   unrestricted: boolean
   inferScope: AgentTool['inferScope']
   execute: AgentTool['execute']
@@ -49,7 +50,7 @@ export function createNativeTool(options: CreateNativeToolOptions): PreparedNati
     source: 'native',
     description: options.description,
     inputSchema: options.inputSchema,
-    operationType: getToolOperationType(options.name),
+    operationType: options.operationType ?? getToolOperationType(options.name),
     inferScope: options.inferScope,
     validateInput: options.validateInput,
     truncateResult: options.truncateResult,
@@ -75,8 +76,8 @@ function getToolOperationType(name: string): ToolOperationType {
       return 'read'
     case 'write_file': case 'edit_file':
       return 'write'
-    case 'bash':
-      return 'bash'
+    case 'execute_command':
+      return 'command'
     case 'browser':
       return 'browser'
     default:

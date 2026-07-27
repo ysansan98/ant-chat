@@ -46,7 +46,7 @@ owner。
 - 自动化策略是穷举的，不回退到交互审批：
   - MCP 工具需要 `allowMcpTools`，并且只注入用户选中的服务。
   - Browser 需要 `allowBrowser`；系统 Chrome Profile 始终拒绝。
-  - 文件、Bash 和 Skill 继续使用各自已有的显式权限。
+  - 文件、平台中立命令和 Skill 继续使用各自已有的显式权限。
 
 ### 4. Agent Loop 和 Automation Runtime 拥有各自终态
 

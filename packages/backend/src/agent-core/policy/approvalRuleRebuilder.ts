@@ -1,4 +1,4 @@
-import type { ApprovalCandidate, ApprovalGrantCandidates, BashCommandRule, FilesystemRule, McpToolRule, ToolApprovalRule } from '@ant-chat/shared'
+import type { ApprovalCandidate, ApprovalGrantCandidates, CommandRule, FilesystemRule, McpToolRule, ToolApprovalRule } from '@ant-chat/shared'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 
@@ -51,8 +51,8 @@ function rebuildSingleRule(
   },
   context: Record<string, unknown>,
 ): ToolApprovalRule | null {
-  if (candidate.type === 'bash-segment') {
-    return rebuildBashRule(candidate, selection, context)
+  if (candidate.type === 'command-segment') {
+    return rebuildCommandRule(candidate, selection, context)
   }
 
   if (candidate.type === 'filesystem') {
@@ -66,18 +66,18 @@ function rebuildSingleRule(
   return null
 }
 
-function rebuildBashRule(
-  candidate: Extract<ApprovalCandidate, { type: 'bash-segment' }>,
+function rebuildCommandRule(
+  candidate: Extract<ApprovalCandidate, { type: 'command-segment' }>,
   selection: {
     adjustedArgvPrefix?: string[]
     allowRemainingArgs?: boolean
     wholeExecutable?: boolean
   },
   context: Record<string, unknown>,
-): BashCommandRule | null {
-  const parsed = context.parsed as { segments: Array<{ args: string[] }> } | undefined
-  if (!parsed) {
-    throw new Error('Bash 审批候选缺少解析后的命令上下文')
+): CommandRule | null {
+  const command = context.command as { segments: Array<{ args: string[] }> } | undefined
+  if (!command) {
+    throw new Error('命令审批候选缺少准备后的命令上下文')
   }
 
   const now = Date.now()
@@ -90,14 +90,14 @@ function rebuildBashRule(
     : (selection.allowRemainingArgs ?? false)
 
   if (wholeExecutable && !candidate.canWholeExecutable)
-    throw new Error('当前 Bash 候选不允许授权整个可执行文件')
+    throw new Error('当前命令候选不允许授权整个可执行文件')
   if (!wholeExecutable && argvPrefix.length === 0 && allowRemainingArgs)
     throw new Error('空参数前缀并允许任意后续参数时，必须显式选择 wholeExecutable')
 
   // 校验 argvPrefix 必须是实际参数的前缀
-  const segment = parsed.segments?.[candidate.segmentIndex]
+  const segment = command.segments?.[candidate.segmentIndex]
   if (!segment) {
-    throw new Error(`Bash 审批候选引用了无效命令段：${candidate.segmentIndex}`)
+    throw new Error(`命令审批候选引用了无效命令段：${candidate.segmentIndex}`)
   }
   if (!wholeExecutable && !argvPrefix.every((arg, i) => arg === segment.args[i])) {
     throw new Error(`参数前缀与实际命令段不匹配：${candidate.segmentIndex}`)
@@ -106,7 +106,8 @@ function rebuildBashRule(
   return {
     id: randomUUID(),
     effect: 'allow',
-    kind: 'bash-command',
+    kind: 'command',
+    interpreter: candidate.interpreter,
     executable: candidate.executable,
     argvPrefix,
     allowRemainingArgs,

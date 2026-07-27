@@ -94,11 +94,12 @@ describe('审批卡片', () => {
     render(
       <AgentApprovalCard
         pending={createPending({
-          toolName: 'bash',
-          operationType: 'bash',
+          toolName: 'execute_command',
+          operationType: 'command',
           approvalCandidates: {
             candidates: [{
-              type: 'bash-segment',
+              type: 'command-segment',
+              interpreter: 'bash',
               segmentIndex: 0,
               executable: 'git',
               displayCommand: 'git status --short',
@@ -114,7 +115,7 @@ describe('审批卡片', () => {
       />,
     )
 
-    fireEvent.click(screen.getByRole('checkbox', { name: '记住命令 git status --short' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: '记住命令 git status --short · Bash' }))
     fireEvent.click(screen.getByRole('checkbox', { name: '允许该命令使用任意参数（范围较大）' }))
     fireEvent.click(screen.getByRole('button', { name: '批准并记住' }))
 
@@ -138,11 +139,12 @@ describe('审批卡片', () => {
     render(
       <AgentApprovalCard
         pending={createPending({
-          toolName: 'bash',
-          operationType: 'bash',
+          toolName: 'execute_command',
+          operationType: 'command',
           approvalCandidates: {
             candidates: [{
-              type: 'bash-segment',
+              type: 'command-segment',
+              interpreter: 'bash',
               segmentIndex: 0,
               executable: 'git',
               displayCommand: 'git show HEAD --stat',
@@ -158,7 +160,7 @@ describe('审批卡片', () => {
       />,
     )
 
-    fireEvent.click(screen.getByRole('checkbox', { name: '记住命令 git show HEAD --stat' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: '记住命令 git show HEAD --stat · Bash' }))
     fireEvent.change(screen.getByRole('combobox', { name: '固定参数边界' }), { target: { value: '1' } })
 
     expect(screen.getByRole('checkbox', { name: '允许在固定参数后追加任意数量参数' })).toBeChecked()
@@ -183,11 +185,12 @@ describe('审批卡片', () => {
     render(
       <AgentApprovalCard
         pending={createPending({
-          toolName: 'bash',
-          operationType: 'bash',
+          toolName: 'execute_command',
+          operationType: 'command',
           approvalCandidates: {
             candidates: [{
-              type: 'bash-segment',
+              type: 'command-segment',
+              interpreter: 'bash',
               segmentIndex: 0,
               executable: 'node',
               displayCommand: 'node run.js issue',
@@ -203,7 +206,7 @@ describe('审批卡片', () => {
       />,
     )
 
-    fireEvent.click(screen.getByRole('checkbox', { name: '记住命令 node run.js issue' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: '记住命令 node run.js issue · Bash' }))
 
     expect(screen.getByRole('checkbox', { name: '允许在固定参数后追加任意数量参数' })).not.toBeChecked()
     expect(screen.getByText('仅允许参数与当前命令完全一致')).toBeInTheDocument()
@@ -241,11 +244,12 @@ describe('审批卡片', () => {
     render(
       <AgentApprovalCard
         pending={createPending({
-          toolName: 'bash',
-          operationType: 'bash',
+          toolName: 'execute_command',
+          operationType: 'command',
           approvalCandidates: {
             candidates: [{
-              type: 'bash-segment',
+              type: 'command-segment',
+              interpreter: 'bash',
               segmentIndex: 0,
               executable: 'git',
               displayCommand: 'git status',
@@ -261,7 +265,7 @@ describe('审批卡片', () => {
       />,
     )
 
-    fireEvent.click(screen.getByRole('checkbox', { name: '记住命令 git status' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: '记住命令 git status · Bash' }))
     fireEvent.click(screen.getByRole('checkbox', { name: '允许该命令使用任意参数（范围较大）' }))
     fireEvent.click(screen.getByRole('button', { name: '批准并记住' }))
     fireEvent.click(screen.getByRole('button', { name: '确认授权' }))

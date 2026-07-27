@@ -28,10 +28,10 @@ describe('estimateContextTokens 行为', () => {
   })
 
   it('按 JSON 长度加开销估算 tool-call 消息', () => {
-    const msg = makeToolCallMsg('tc1', 'bash', { command: 'ls' })
+    const msg = makeToolCallMsg('tc1', 'execute_command', { command: 'ls' })
     const tokens = estimateContextTokens([msg])
     expect(tokens).toBe(
-      Math.ceil('bash'.length / 4)
+      Math.ceil('execute_command'.length / 4)
       + Math.ceil(JSON.stringify({ command: 'ls' }).length / 4)
       + 10
       + 4,
@@ -39,7 +39,7 @@ describe('estimateContextTokens 行为', () => {
   })
 
   it('估算字符串结果的 tool-result 消息', () => {
-    const msg = makeToolResultMsg('tc1', 'bash', 'file listing output', false)
+    const msg = makeToolResultMsg('tc1', 'execute_command', 'file listing output', false)
     const tokens = estimateContextTokens([msg])
     expect(tokens).toBeGreaterThan(0)
   })
@@ -336,8 +336,8 @@ describe('planCompaction 自动触发', () => {
   it('token 预算落在 tool 消息时不从 tool 消息开始保留', () => {
     const messages = [
       makeTextMsg('user', 'old request'),
-      makeToolCallMsg('tc1', 'bash', { command: 'printf old' }),
-      makeToolResultMsg('tc1', 'bash', 'tool output that reaches the budget'),
+      makeToolCallMsg('tc1', 'execute_command', { command: 'printf old' }),
+      makeToolResultMsg('tc1', 'execute_command', 'tool output that reaches the budget'),
       makeTextMsg('user', 'recent request'),
       makeTextMsg('assistant', 'recent answer'),
     ]

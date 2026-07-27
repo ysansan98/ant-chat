@@ -1,6 +1,6 @@
 import type { IMessage } from '@ant-chat/shared'
 import { describe, expect, it } from 'vitest'
-import { buildConversationContextEntries, buildConversationContextMessages } from '../loopContext'
+import { buildConversationContextEntries, buildConversationContextMessages, createLoopSystemPrompt } from '../loopContext'
 
 function textMessage(id: string, role: 'user' | 'assistant', text: string): IMessage {
   return {
@@ -14,6 +14,13 @@ function textMessage(id: string, role: 'user' | 'assistant', text: string): IMes
 }
 
 describe('buildConversationContextMessages 行为', () => {
+  it('系统提示使用平台中立的命令工作目录说明', () => {
+    const prompt = createLoopSystemPrompt('/workspace')
+
+    expect(prompt).toContain('Commands already run in the workspace directory')
+    expect(prompt).not.toContain('Bash commands already run')
+  })
+
   it('替换到最近压缩边界为止的消息并保留后续消息', async () => {
     const messages = [
       textMessage('u1', 'user', 'old user'),

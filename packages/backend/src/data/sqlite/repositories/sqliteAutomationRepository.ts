@@ -234,8 +234,11 @@ function mapAutomation(row: AutomationRow): AutomationDefinition {
 
 /**
  * 解析权限策略，兼容存量数据中的旧字段名。
- * 存量自动化可能使用 allowSkillScripts / allowArbitraryCommands / commandPatterns /
- * allowMcpMutations，新写入使用明确的能力字段。
+ * 字段经历两轮重命名：
+ *   allowArbitraryCommands → allowBashCommands → allowCommandExecution
+ *   commandPatterns → bashCommandPatterns → commandPatterns
+ *   allowSkillScripts → allowSelectedSkillRuntime
+ *   allowMcpMutations → allowMcpTools
  */
 function parsePermissionPolicy(raw: string) {
   const obj = JSON.parse(raw)
@@ -243,18 +246,26 @@ function parsePermissionPolicy(raw: string) {
     obj.allowSelectedSkillRuntime = obj.allowSkillScripts
     delete obj.allowSkillScripts
   }
-  if ('allowArbitraryCommands' in obj && !('allowBashCommands' in obj)) {
-    obj.allowBashCommands = obj.allowArbitraryCommands
-    delete obj.allowArbitraryCommands
-  }
-  if ('commandPatterns' in obj && !('bashCommandPatterns' in obj)) {
-    obj.bashCommandPatterns = obj.commandPatterns
-    delete obj.commandPatterns
-  }
   if ('allowMcpMutations' in obj && !('allowMcpTools' in obj)) {
     obj.allowMcpTools = obj.allowMcpMutations
     delete obj.allowMcpMutations
   }
+  // 命令执行：两个旧名都映射到 allowCommandExecution
+  if ('allowArbitraryCommands' in obj && !('allowCommandExecution' in obj)) {
+    obj.allowCommandExecution = obj.allowArbitraryCommands
+    delete obj.allowArbitraryCommands
+  }
+  if ('allowBashCommands' in obj && !('allowCommandExecution' in obj)) {
+    obj.allowCommandExecution = obj.allowBashCommands
+    delete obj.allowBashCommands
+  }
+  // 命令模式：bashCommandPatterns 是中间态名称
+  if ('bashCommandPatterns' in obj && !('commandPatterns' in obj)) {
+    obj.commandPatterns = obj.bashCommandPatterns
+    delete obj.bashCommandPatterns
+  }
+  // 已删除的字段，静默丢弃
+  delete obj.allowNetwork
   return AutomationPermissionPolicySchema.parse(obj)
 }
 

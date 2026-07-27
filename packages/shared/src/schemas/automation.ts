@@ -11,9 +11,9 @@ export const AutomationPermissionPolicySchema = z.object({
   allowBrowser: z.boolean().default(false),
   allowMcpTools: z.boolean().default(false),
   extraFileRoots: z.array(z.string()).default([]),
-  allowBashCommands: z.boolean().default(false),
-  bashCommandPatterns: z.array(z.string()).default([]),
-})
+  allowCommandExecution: z.boolean().default(false),
+  commandPatterns: z.array(z.string()).default([]),
+}).strict()
 
 export const AutomationInputSchema = z.object({
   name: z.string().trim().min(1),

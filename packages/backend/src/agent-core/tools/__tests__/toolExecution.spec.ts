@@ -60,12 +60,89 @@ function createMockSecretStore(secret: string): NonNullable<AgentRuntimeConfig['
     getProviderApiKey: vi.fn(async () => null),
     deleteProviderApiKey: vi.fn(async () => {}),
     createTurnSecret: vi.fn(async () => ({ kind: 'secret_ref' as const, id: 'unused', scope: 'turn' as const })),
+    resolveTurnSecret: vi.fn(async () => secret),
     resolve: vi.fn(async () => secret),
     clearTurnSecrets: vi.fn(async () => {}),
   }
 }
 
 describe('executeToolStep 行为', () => {
+  it('execute_command 向消息和 Tool span 写入解释器与风险且不泄露 Secret', async () => {
+    const secret = 'command-secret-value'
+    const secretRef = { kind: 'secret_ref' as const, id: 'turn:run-1:secret-1', scope: 'turn' as const }
+    const emitter = createMockEmitter()
+    const logger = createMockLogger()
+    const span = { id: 'command-tool-span', complete: vi.fn(), fail: vi.fn(), cancel: vi.fn() }
+    const startToolCall = vi.fn(() => span)
+    const secretStore = createMockSecretStore(secret)
+    const commandHost = {
+      status: 'available' as const,
+      platform: 'posix' as const,
+      adapter: 'bash' as const,
+      interpreter: 'bash' as const,
+      executablePath: '/bin/bash',
+      environment: { PATH: process.env.PATH ?? '', HOME: process.cwd() },
+    }
+    const registry = await ToolRegistry.create({
+      config: { commandHost, eventEmitter: emitter, logger, secretStore },
+      workspacePath: process.cwd(),
+      mode: 'strict',
+      turnSource: { type: 'interactive' },
+      runId: 'run-1',
+    })
+
+    const result = await executeToolStep({
+      task: createTask({ workspacePath: process.cwd() }),
+      registry,
+      requestedToolCall: {
+        toolName: 'execute_command',
+        input: {
+          command: `${process.execPath} -e "process.stdout.write(process.env.ANT_CHAT_TOKEN || '')"`,
+          secretEnv: { ANT_CHAT_TOKEN: secretRef },
+        },
+      },
+      currentModelText: '',
+      currentToolMessages: [],
+      step: 1,
+      config: {
+        commandHost,
+        eventEmitter: emitter,
+        logger,
+        secretStore,
+        turnRecorder: {
+          startModelRequest: vi.fn(() => span),
+          startToolCall,
+          startPolicyDecision: vi.fn(() => span),
+          recordContextEvent: vi.fn(),
+          finish: vi.fn(),
+        },
+      },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
+    })
+
+    expect(result.toolResultContent).toContain('[secret]')
+    expect(result.toolResultContent).not.toContain(secret)
+    expect(emitter.emitTurnToolCalls).toHaveBeenCalledWith(expect.objectContaining({
+      toolCalls: [
+        expect.objectContaining({
+          toolName: 'execute_command',
+          command: { interpreter: 'bash' },
+        }),
+      ],
+    }))
+    expect(startToolCall).toHaveBeenCalledWith(expect.objectContaining({
+      toolName: 'execute_command',
+      command: expect.objectContaining({
+        interpreter: 'bash',
+        risk: 'requires_approval',
+      }),
+    }), undefined)
+    expect(JSON.stringify({
+      emitted: vi.mocked(emitter.emitTurnToolCalls).mock.calls,
+      completed: span.complete.mock.calls,
+    })).not.toContain(secret)
+  })
+
   it('执行成功工具并返回结果', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()
@@ -230,8 +307,8 @@ describe('executeToolStep 行为', () => {
           allowBrowser: false,
           allowMcpTools: false,
           extraFileRoots: [],
-          allowBashCommands: false,
-          bashCommandPatterns: [],
+          allowCommandExecution: false,
+          commandPatterns: [],
         },
       },
     })
@@ -268,8 +345,8 @@ describe('executeToolStep 行为', () => {
           allowBrowser: false,
           allowMcpTools: false,
           extraFileRoots: [],
-          allowBashCommands: false,
-          bashCommandPatterns: [],
+          allowCommandExecution: false,
+          commandPatterns: [],
         },
       },
     })
@@ -699,7 +776,7 @@ describe('createInvalidToolArgsResult 行为', () => {
       config: { eventEmitter: emitter, logger },
       conversationId: 'conv-1',
       requestedToolCall: {
-        toolName: 'bash',
+        toolName: 'execute_command',
         input: {},
         invalidArgsError: 'command is required',
       },
@@ -723,7 +800,7 @@ describe('createInvalidToolArgsResult 行为', () => {
       conversationId: 'conv-1',
       requestedToolCall: {
         id: 'bad-call-1',
-        toolName: 'bash',
+        toolName: 'execute_command',
         input: {},
         invalidArgsError: 'command is required',
       },
@@ -733,7 +810,7 @@ describe('createInvalidToolArgsResult 行为', () => {
 
     expect(result.toolCallId).toBe('bad-call-1')
     expect(currentToolMessages).toEqual([
-      expect.objectContaining({ id: 'bad-call-1', toolName: 'bash' }),
+      expect.objectContaining({ id: 'bad-call-1', toolName: 'execute_command' }),
     ])
   })
 
@@ -744,7 +821,7 @@ describe('createInvalidToolArgsResult 行为', () => {
     const result = await createInvalidToolArgsResult({
       config: { eventEmitter: emitter, logger },
       conversationId: 'conv-1',
-      requestedToolCall: { toolName: 'bash', input: {} },
+      requestedToolCall: { toolName: 'execute_command', input: {} },
       currentModelText: 'Executing...',
       currentToolMessages: [],
     })
@@ -770,7 +847,7 @@ describe('createInvalidToolArgsResult 行为', () => {
         },
       },
       conversationId: 'conv-1',
-      requestedToolCall: { toolName: 'bash', input: {}, invalidArgsError: 'command is required' },
+      requestedToolCall: { toolName: 'execute_command', input: {}, invalidArgsError: 'command is required' },
       currentModelText: '',
       currentToolMessages: [],
       parentSpanId: 'model-span',

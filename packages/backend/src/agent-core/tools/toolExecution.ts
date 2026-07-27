@@ -5,6 +5,7 @@ import type { ToolAuthorization, ToolCallContext } from './types'
 import { randomUUID } from 'node:crypto'
 import { AGENT_POLICY_BLOCKED, AGENT_TOOL_EXEC_FAILED, VisualizationOutputBlocksSchema } from '@ant-chat/shared'
 import { AgentError } from '../AgentError'
+import { isPreparedCommandState } from '../native-tools/command/types'
 import { cancelObservation, completeObservation, failObservation, startObservationSpan } from '../observation'
 import { createVisualizationToolFailureResult } from './publishVisualizationTool'
 
@@ -67,6 +68,13 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
     serverName: prepared.serverName,
     workspacePath: task.snapshot.workspacePath,
     step,
+    command: isPreparedCommandState(prepared.preparedState)
+      ? {
+          interpreter: prepared.preparedState.interpreter,
+          risk: prepared.preparedState.risk,
+          riskReason: prepared.preparedState.riskReason,
+        }
+      : undefined,
   }
   await emitTurnToolCalls(config, task.snapshot.conversationId, currentModelText, currentToolMessages)
 
@@ -446,6 +454,9 @@ function registerPendingToolCall(
     serverName: prepared.serverName,
     toolName: requestedToolCall.toolName,
     args: prepared.input,
+    command: isPreparedCommandState(prepared.preparedState)
+      ? { interpreter: prepared.preparedState.interpreter }
+      : undefined,
     executeState: 'executing',
   }
   currentToolMessages.push(call)
@@ -460,6 +471,7 @@ function toToolCallContent(tool: McpToolCall): ToolCallContent {
     toolName: tool.toolName,
     args: tool.args,
     serverName: tool.serverName,
+    command: tool.command,
     executeState: tool.executeState === 'await' ? undefined : tool.executeState,
     ...(outputBlocks?.length ? { outputBlocks } : {}),
   }

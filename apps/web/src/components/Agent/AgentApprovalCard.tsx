@@ -20,8 +20,8 @@ const scopeLabels: Record<string, string> = {
 const typeLabels: Record<string, string> = {
   read: '读取',
   write: '写入',
-  bash: '命令',
-  bash_read: '只读命令',
+  command: '命令',
+  command_read: '只读命令',
   browser: '浏览器',
   skill: '技能',
   mcp: 'MCP 工具',
@@ -85,7 +85,7 @@ function AgentApprovalCardContent({
         const candidateIndex = Number(indexStr)
         const candidate = candidates[candidateIndex]
         const selection: ApprovalCandidateSelection = { candidateIndex }
-        if (candidate?.type === 'bash-segment') {
+        if (candidate?.type === 'command-segment') {
           if (state.wholeExecutable) {
             selection.wholeExecutable = true
             selection.adjustedArgvPrefix = []
@@ -108,7 +108,7 @@ function AgentApprovalCardContent({
   const wholeExecutableCommands = Object.entries(candidateStates)
     .filter(([, state]) => state.selected && state.wholeExecutable)
     .map(([index]) => candidates[Number(index)])
-    .filter((candidate): candidate is Extract<ApprovalCandidate, { type: 'bash-segment' }> => candidate?.type === 'bash-segment')
+    .filter((candidate): candidate is Extract<ApprovalCandidate, { type: 'command-segment' }> => candidate?.type === 'command-segment')
     .map(candidate => candidate.executable)
 
   const submitApproval = async () => {
@@ -276,8 +276,8 @@ function CandidateSelector({
   onToggle: () => void
   onChange: (patch: Partial<CandidateState>) => void
 }) {
-  if (candidate.type === 'bash-segment') {
-    const candidateId = `candidate-bash-${index}`
+  if (candidate.type === 'command-segment') {
+    const candidateId = `candidate-command-${index}`
     return (
       <div className="flex flex-col gap-1 rounded-md border bg-muted/20 p-2">
         <div className="flex items-center gap-2">
@@ -290,6 +290,8 @@ function CandidateSelector({
             记住命令
             {' '}
             {candidate.displayCommand}
+            {' · '}
+            {getInterpreterLabel(candidate.interpreter)}
           </Label>
         </div>
         {state.selected && (
@@ -429,18 +431,28 @@ function createCandidateState(candidate: ApprovalCandidate | undefined): Candida
     wholeExecutable: false,
     allowRemainingArgs: false,
     parentDirectory: false,
-    argvPrefixLength: candidate?.type === 'bash-segment' ? candidate.argvPrefix.length : 0,
+    argvPrefixLength: candidate?.type === 'command-segment' ? candidate.argvPrefix.length : 0,
   }
 }
 
 function getCandidateKey(candidate: ApprovalCandidate): string {
   switch (candidate.type) {
-    case 'bash-segment':
-      return `bash-${candidate.segmentIndex}-${candidate.executable}`
+    case 'command-segment':
+      return `command-${candidate.interpreter}-${candidate.segmentIndex}-${candidate.executable}`
     case 'filesystem':
       return `filesystem-${candidate.access}-${candidate.canonicalPath}`
     case 'mcp-tool':
       return `mcp-${candidate.serverName}-${candidate.toolName}`
+  }
+}
+
+function getInterpreterLabel(interpreter: string): string {
+  switch (interpreter) {
+    case 'bash': return 'Bash'
+    case 'powershell7': return 'PowerShell 7'
+    case 'windows-powershell': return 'Windows PowerShell'
+    case 'cmd': return 'CMD'
+    default: return interpreter
   }
 }
 

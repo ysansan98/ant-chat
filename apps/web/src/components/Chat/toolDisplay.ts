@@ -1,4 +1,4 @@
-import type { ToolCallContent } from '@ant-chat/shared'
+import type { CommandInterpreter, ToolCallContent } from '@ant-chat/shared'
 import { DEFAULT_MCP_TOOL_NAME_SEPARATOR } from '@ant-chat/shared'
 
 /**
@@ -64,9 +64,9 @@ export function getToolLabel(toolCall: ToolCallContent): ToolLabel {
       return { primary: `查找 ${str(args.pattern)}` }
     case 'list_dir':
       return { primary: `列出 ${str(args.path) || '.'}` }
-    case 'bash':
+    case 'execute_command':
       // description 由模型填写，说明命令意图；缺省时回退到命令本体
-      return { primary: str(args.description) || str(args.command) || 'bash' }
+      return { primary: str(args.description) || str(args.command) || 'execute_command' }
     case 'browser': {
       const firstArg = Array.isArray(args.args) && typeof args.args[0] === 'string'
         ? ` ${args.args[0]}`
@@ -92,7 +92,7 @@ export function getToolLabel(toolCall: ToolCallContent): ToolLabel {
 
 export type ToolCategory
   = | 'read' | 'edit' | 'write' | 'grep' | 'glob' | 'list'
-    | 'bash' | 'browser' | 'skill' | 'memory' | 'other'
+    | 'command' | 'browser' | 'skill' | 'memory' | 'other'
 
 const CATEGORY_BY_TOOL: Record<string, ToolCategory> = {
   read_file: 'read',
@@ -101,7 +101,7 @@ const CATEGORY_BY_TOOL: Record<string, ToolCategory> = {
   grep_files: 'grep',
   glob_files: 'glob',
   list_dir: 'list',
-  bash: 'bash',
+  execute_command: 'command',
   browser: 'browser',
   use_skill: 'skill',
   install_skill_from_github: 'skill',
@@ -124,27 +124,27 @@ export const TOOL_CATEGORY_SUMMARY: ReadonlyArray<{ category: ToolCategory, form
   { category: 'grep', format: n => `搜索 ${n} 次` },
   { category: 'glob', format: n => `查找 ${n} 次` },
   { category: 'list', format: n => `列目录 ${n} 次` },
-  { category: 'bash', format: n => `运行 ${n} 条命令` },
+  { category: 'command', format: n => `运行 ${n} 条命令` },
   { category: 'browser', format: n => `浏览器操作 ${n} 次` },
   { category: 'skill', format: n => `使用技能 ${n} 次` },
   { category: 'memory', format: n => `记忆操作 ${n} 次` },
   { category: 'other', format: n => `调用工具 ${n} 次` },
 ]
 
-// ---- bash ----
+// ---- command ----
 
-export interface ParsedBashResult {
+export interface ParsedCommandResult {
   /** 剥掉 stdout:/stderr: 标记后按原顺序合并的输出 */
   output: string
   exitCode?: number
 }
 
 /**
- * bash 结果字符串由后端 formatProcessResult 生成：
+ * 命令结果字符串由后端 formatProcessResult 生成：
  * `stdout:\n…\nstderr:\n…\nexitCode=N`（各段可缺省）。
  * 消息列表不区分 stdout/stderr，这里只解析用于展示，后端格式保持不变（模型仍读原文）。
  */
-export function parseBashResult(result: string): ParsedBashResult {
+export function parseCommandResult(result: string): ParsedCommandResult {
   const outputLines: string[] = []
   let exitCode: number | undefined
 
@@ -163,11 +163,11 @@ export function parseBashResult(result: string): ParsedBashResult {
   return { output: outputLines.join('\n').replace(/\n+$/, ''), exitCode }
 }
 
-/** bash 展开体：`$ 命令` 起头，随后合并输出，退出码仅非 0 时展示 */
-export function buildBashSessionText(command: string, result?: string): string {
-  const lines = [`$ ${command}`]
+/** 命令展开体使用实际解释器的提示符，随后合并输出，退出码仅非 0 时展示。 */
+export function buildCommandSessionText(command: string, interpreter: CommandInterpreter, result?: string): string {
+  const lines = [`${getCommandPrompt(interpreter)} ${command}`]
   if (result) {
-    const { output, exitCode } = parseBashResult(result)
+    const { output, exitCode } = parseCommandResult(result)
     if (output) {
       lines.push(output)
     }
@@ -176,6 +176,22 @@ export function buildBashSessionText(command: string, result?: string): string {
     }
   }
   return lines.join('\n')
+}
+
+export function getCommandLanguage(interpreter: CommandInterpreter): 'bash' | 'powershell' | 'batch' {
+  if (interpreter === 'bash')
+    return 'bash'
+  if (interpreter === 'cmd')
+    return 'batch'
+  return 'powershell'
+}
+
+function getCommandPrompt(interpreter: CommandInterpreter): '$' | 'PS>' | '>' {
+  if (interpreter === 'bash')
+    return '$'
+  if (interpreter === 'cmd')
+    return '>'
+  return 'PS>'
 }
 
 // ---- edit_file ----

@@ -4,9 +4,9 @@ import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import type { RuntimeTask } from '../../taskStore'
+import { prepareBashCommand } from '../../native-tools/command/bashCommandAdapter'
 import { TaskStore } from '../../taskStore'
 import { ToolRegistry } from '../../tools/toolRegistry'
-import { parseBashCommand } from '../../native-tools/tools/bashCommandParser'
 import { createToolAuthorization } from '../toolAuthorization'
 
 function createMockEmitter(): IAgentEventEmitter {
@@ -30,7 +30,7 @@ function createTask(overrides: Record<string, unknown> = {}): RuntimeTask {
       taskId: 'task-1',
       conversationId: 'conv-1',
       userMessageId: 'msg-1',
-      workspacePath: '/workspace',
+      workspacePath: process.cwd(),
       mode: 'hybrid',
       status: 'running',
       prompt: 'test',
@@ -54,6 +54,29 @@ function createPrepared() {
   }
 }
 
+function createPreparedCommand(command: string, workspacePath: string) {
+  const state = prepareBashCommand(
+    { command },
+    workspacePath,
+    {
+      status: 'available',
+      platform: 'posix',
+      adapter: 'bash',
+      interpreter: 'bash',
+      executablePath: '/bin/bash',
+      environment: { PATH: process.env.PATH ?? '', HOME: os.homedir() },
+    },
+  )
+  return {
+    ...createPrepared(),
+    toolName: 'execute_command',
+    input: { command },
+    operationType: state.isReadOnly ? 'command_read' as const : 'command' as const,
+    scope: state.risk === 'bottomline_block' ? 'blocked' as const : state.resourceScope,
+    preparedState: state,
+  }
+}
+
 interface ApprovalResult { approved: boolean, reason?: string, selection?: { selections: Array<{ candidateIndex: number }>, scope: 'workspace' | 'global' } }
 
 function createTaskState(waitForApproval: (task: RuntimeTask) => Promise<ApprovalResult>): TaskStore {
@@ -74,6 +97,27 @@ function createRulesProvider(global: ToolApprovalRule[] = [], workspace: ToolApp
   }
 }
 
+function createAutomationTask(commandPatterns: string[] = []): RuntimeTask {
+  return createTask({
+    turnSource: {
+      type: 'automation',
+      automationId: 'automation-1',
+      runId: 'run-1',
+      allowedSkills: [],
+      allowedMcpServers: [],
+      permissionPolicy: {
+        workspaceAccess: 'write',
+        allowSelectedSkillRuntime: false,
+        allowBrowser: false,
+        allowMcpTools: false,
+        extraFileRoots: [],
+        allowCommandExecution: true,
+        commandPatterns,
+      },
+    },
+  })
+}
+
 describe('createToolAuthorization 行为', () => {
   it('自动化只读策略直接阻止写入且不进入交互审批', async () => {
     const waitForApproval = vi.fn(async () => ({ approved: true }))
@@ -91,8 +135,8 @@ describe('createToolAuthorization 行为', () => {
           allowBrowser: false,
           allowMcpTools: false,
           extraFileRoots: [],
-          allowBashCommands: false,
-          bashCommandPatterns: [],
+          allowCommandExecution: false,
+          commandPatterns: [],
         },
       },
     })
@@ -123,8 +167,8 @@ describe('createToolAuthorization 行为', () => {
           allowBrowser: false,
           allowMcpTools: false,
           extraFileRoots: [],
-          allowBashCommands: false,
-          bashCommandPatterns: [],
+          allowCommandExecution: false,
+          commandPatterns: [],
         },
       },
     })
@@ -138,7 +182,7 @@ describe('createToolAuthorization 行为', () => {
     expect(waitForApproval).not.toHaveBeenCalled()
   })
 
-  it('自动化仅在启用 Bash 后允许只读 Bash 探测', async () => {
+  it('自动化仅在启用命令执行后允许只读命令探测', async () => {
     const hook = createToolAuthorization(createTaskState(async () => ({ approved: true })))
     const task = createTask({
       turnSource: {
@@ -153,20 +197,20 @@ describe('createToolAuthorization 行为', () => {
           allowBrowser: false,
           allowMcpTools: false,
           extraFileRoots: [],
-          allowBashCommands: true,
-          bashCommandPatterns: [],
+          allowCommandExecution: true,
+          commandPatterns: [],
         },
       },
     })
 
     await expect(hook({
       task,
-      prepared: { ...createPrepared(), toolName: 'bash', operationType: 'bash_read', input: { command: 'which node && node --version' } },
+      prepared: createPreparedCommand('which node && node --version', process.cwd()),
       config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
     })).resolves.toEqual({ outcome: 'allow' })
   })
 
-  it('自动化未启用 Bash 时阻止只读 Bash 探测', async () => {
+  it('自动化未启用命令执行时阻止只读命令探测', async () => {
     const hook = createToolAuthorization(createTaskState(async () => ({ approved: true })))
     const task = createTask({
       turnSource: {
@@ -181,19 +225,95 @@ describe('createToolAuthorization 行为', () => {
           allowBrowser: false,
           allowMcpTools: false,
           extraFileRoots: [],
-          allowBashCommands: false,
-          bashCommandPatterns: [],
+          allowCommandExecution: false,
+          commandPatterns: [],
         },
       },
     })
 
     const result = await hook({
       task,
-      prepared: { ...createPrepared(), toolName: 'bash', operationType: 'bash_read', input: { command: 'which node && node --version' } },
+      prepared: createPreparedCommand('which node && node --version', process.cwd()),
       config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
     })
 
     expect(result).toEqual(expect.objectContaining({ outcome: 'block', reason: '自动化任务未授权命令执行' }))
+  })
+
+  it('自动化写命令必须匹配已配置的命令模式', async () => {
+    const waitForApproval = vi.fn(async () => ({ approved: true }))
+    const hook = createToolAuthorization(createTaskState(waitForApproval))
+    const allowed = createPreparedCommand('node scripts/build.js', process.cwd())
+    const blocked = createPreparedCommand('node scripts/deploy.js', process.cwd())
+
+    await expect(hook({
+      task: createAutomationTask(['node scripts/build.js']),
+      prepared: allowed,
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+    })).resolves.toEqual({ outcome: 'allow' })
+    await expect(hook({
+      task: createAutomationTask(['node scripts/build.js']),
+      prepared: blocked,
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+    })).resolves.toEqual(expect.objectContaining({ outcome: 'block', reason: '命令不在自动化任务允许范围内' }))
+    expect(waitForApproval).not.toHaveBeenCalled()
+  })
+
+  it('自动化阻止工作区外命令且不进入交互审批', async () => {
+    const waitForApproval = vi.fn(async () => ({ approved: true }))
+    const hook = createToolAuthorization(createTaskState(waitForApproval))
+    const prepared = createPreparedCommand('git status', process.cwd())
+    prepared.scope = 'outside'
+    prepared.preparedState.resourceScope = 'outside'
+
+    await expect(hook({
+      task: createAutomationTask(),
+      prepared,
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+    })).resolves.toEqual(expect.objectContaining({ outcome: 'block', reason: '自动化任务不允许访问工作区外资源' }))
+    expect(waitForApproval).not.toHaveBeenCalled()
+  })
+
+  it('自动化命中显式模式时执行非底线高风险命令且不等待审批', async () => {
+    const waitForApproval = vi.fn(async () => ({ approved: true }))
+    const hook = createToolAuthorization(createTaskState(waitForApproval))
+
+    await expect(hook({
+      task: createAutomationTask(['rm -rf ./dist']),
+      prepared: createPreparedCommand('rm -rf ./dist', process.cwd()),
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+    })).resolves.toEqual({ outcome: 'allow' })
+    expect(waitForApproval).not.toHaveBeenCalled()
+  })
+
+  it('自动化权限策略不能覆盖命令底线', async () => {
+    const waitForApproval = vi.fn(async () => ({ approved: true }))
+    const hook = createToolAuthorization(createTaskState(waitForApproval))
+
+    await expect(hook({
+      task: createAutomationTask(['*']),
+      prepared: createPreparedCommand('rm -rf /', process.cwd()),
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+    })).resolves.toEqual(expect.objectContaining({ outcome: 'block', reason: expect.stringContaining('底线保护') }))
+    expect(waitForApproval).not.toHaveBeenCalled()
+  })
+
+  it('交互高风险命令只允许单次审批且不生成持久规则候选', async () => {
+    let resolveApproval!: (value: ApprovalResult) => void
+    const task = createTask({ mode: 'strict' })
+    const hook = createToolAuthorization(createTaskState(() => new Promise<ApprovalResult>((resolve) => {
+      resolveApproval = resolve
+    })))
+
+    const result = hook({
+      task,
+      prepared: createPreparedCommand('rm -rf ./dist', process.cwd()),
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+    })
+
+    expect(task.snapshot.pendingAction?.approvalCandidates).toBeUndefined()
+    resolveApproval({ approved: true })
+    await expect(result).resolves.toEqual({ outcome: 'allow' })
   })
 
   it('hybrid 模式下 workspace read 返回 allow', async () => {
@@ -238,15 +358,72 @@ describe('createToolAuthorization 行为', () => {
     expect(result).toMatchObject({ outcome: 'block', errorCode: 'AGENT_POLICY_BLOCKED' })
   })
 
+  it('命令底线阻断的 Policy span 保留解释器、初始结论、最终结论和原因', async () => {
+    const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'ant-chat-command-bottomline-'))
+    try {
+      const waitForApproval = vi.fn(async () => ({ approved: true }))
+      const policySpan = { id: 'policy-command', complete: vi.fn(), fail: vi.fn(), cancel: vi.fn() }
+      const startPolicyDecision = vi.fn(() => policySpan)
+      const hook = createToolAuthorization(createTaskState(waitForApproval))
+      const prepared = createPreparedCommand('rm -rf /', workspacePath)
+
+      await expect(hook({
+        task: createTask({ mode: 'full_managed', workspacePath }),
+        prepared,
+        config: {
+          eventEmitter: createMockEmitter(),
+          logger: createMockLogger(),
+          turnRecorder: {
+            startModelRequest: vi.fn(),
+            startToolCall: vi.fn(),
+            startPolicyDecision,
+            recordContextEvent: vi.fn(),
+            finish: vi.fn(),
+          },
+        },
+      })).resolves.toMatchObject({
+        outcome: 'block',
+        errorCode: 'AGENT_POLICY_BLOCKED',
+        reason: expect.stringContaining('底线保护'),
+      })
+
+      expect(startPolicyDecision).toHaveBeenCalledWith(expect.objectContaining({
+        toolName: 'execute_command',
+        interpreter: 'bash',
+        command: {
+          interpreter: 'bash',
+          risk: 'bottomline_block',
+          riskReason: expect.stringContaining('底线保护'),
+        },
+        initialDecision: {
+          outcome: 'block',
+          basis: 'command.bottomline-block',
+        },
+      }), undefined)
+      expect(policySpan.complete).toHaveBeenCalledWith(expect.objectContaining({
+        outcome: 'block',
+        effectiveDecision: {
+          outcome: 'block',
+          basis: 'command.bottomline-block',
+        },
+        reason: expect.stringContaining('底线保护'),
+      }))
+      expect(waitForApproval).not.toHaveBeenCalled()
+    }
+    finally {
+      fs.rmSync(workspacePath, { recursive: true, force: true })
+    }
+  })
+
   it('黑名单优先于白名单和完全访问权限，且仅阻止工具调用', async () => {
     const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'ant-chat-deny-rule-'))
     try {
       const command = 'git status | cat'
-      const parsed = parseBashCommand({ command }, workspacePath)
       const rules = createRulesProvider([
         {
           id: 'allow-git',
-          kind: 'bash-command',
+          kind: 'command',
+          interpreter: 'bash',
           executable: 'git',
           argvPrefix: ['status'],
           allowRemainingArgs: false,
@@ -257,7 +434,8 @@ describe('createToolAuthorization 行为', () => {
         {
           id: 'deny-git',
           effect: 'deny',
-          kind: 'bash-command',
+          kind: 'command',
+          interpreter: 'bash',
           executable: 'git',
           argvPrefix: ['status'],
           allowRemainingArgs: false,
@@ -271,14 +449,7 @@ describe('createToolAuthorization 行为', () => {
 
       const result = await hook({
         task: createTask({ mode: 'full_managed', workspacePath }),
-        prepared: {
-          ...createPrepared(),
-          toolName: 'bash',
-          input: { command },
-          operationType: 'bash_read',
-          scope: 'outside',
-          preparedState: { kind: 'bash', parsed },
-        },
+        prepared: createPreparedCommand(command, workspacePath),
         config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
       })
 
@@ -294,27 +465,19 @@ describe('createToolAuthorization 行为', () => {
     }
   })
 
-  it('复杂 shell 语法即使在完全访问权限模式也必须等待本次审批', async () => {
+  it('完全访问权限直接放行非底线的复杂命令且不进入审批', async () => {
     const workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'ant-chat-shell-approval-'))
     try {
-      const parsed = parseBashCommand({ command: 'git diff | head -20' }, workspacePath)
       const waitForApproval = vi.fn(async () => ({ approved: true }))
       const hook = createToolAuthorization(createTaskState(waitForApproval))
 
       await expect(hook({
         task: createTask({ mode: 'full_managed', workspacePath }),
-        prepared: {
-          ...createPrepared(),
-          toolName: 'bash',
-          input: { command: 'git diff | head -20' },
-          operationType: 'bash',
-          scope: 'outside',
-          preparedState: { kind: 'bash', parsed },
-        },
+        prepared: createPreparedCommand('git diff | head -20', workspacePath),
         config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
       })).resolves.toEqual({ outcome: 'allow' })
 
-      expect(waitForApproval).toHaveBeenCalledTimes(1)
+      expect(waitForApproval).not.toHaveBeenCalled()
     }
     finally {
       fs.rmSync(workspacePath, { recursive: true, force: true })
@@ -493,8 +656,8 @@ describe('createToolAuthorization 行为', () => {
           allowBrowser: false,
           allowMcpTools: false,
           extraFileRoots: [],
-          allowBashCommands: false,
-          bashCommandPatterns: [],
+          allowCommandExecution: false,
+          commandPatterns: [],
         },
       },
     })
@@ -530,8 +693,8 @@ describe('createToolAuthorization 行为', () => {
           allowBrowser: false,
           allowMcpTools: false,
           extraFileRoots: [],
-          allowBashCommands: false,
-          bashCommandPatterns: [],
+          allowCommandExecution: false,
+          commandPatterns: [],
         },
       },
     })
@@ -547,14 +710,14 @@ describe('createToolAuthorization 行为', () => {
     expect(waitForApproval).not.toHaveBeenCalled()
   })
 
-  it('复合 Bash 审批只展示未被规则覆盖的命令段', async () => {
+  it('复合命令审批只展示未被规则覆盖的命令段', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ant-chat-partial-bash-rule-'))
     try {
       const command = 'git checkout main && node scripts/run.js'
-      const parsed = parseBashCommand({ command }, root)
       const rules = createRulesProvider([{
         id: 'allow-git-checkout',
-        kind: 'bash-command',
+        kind: 'command',
+        interpreter: 'bash',
         executable: 'git',
         argvPrefix: ['checkout', 'main'],
         allowRemainingArgs: false,
@@ -571,20 +734,14 @@ describe('createToolAuthorization 行为', () => {
 
       const resultPromise = hook({
         task,
-        prepared: {
-          ...createPrepared(),
-          toolName: 'bash',
-          input: { command },
-          operationType: 'bash',
-          scope: 'workspace',
-          preparedState: { kind: 'bash', parsed },
-        },
+        prepared: createPreparedCommand(command, root),
         config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
       })
 
       expect(task.snapshot.pendingAction?.approvalCandidates?.candidates).toEqual([
         expect.objectContaining({
-          type: 'bash-segment',
+          type: 'command-segment',
+          interpreter: 'bash',
           executable: 'node',
           argvPrefix: ['scripts/run.js'],
         }),
@@ -597,15 +754,42 @@ describe('createToolAuthorization 行为', () => {
     }
   })
 
-  it('复合 Bash 被多条规则共同覆盖时 Trace 记录全部命中规则', async () => {
+  it('bash 命令规则不能授权 Windows 解释器中的同名命令', async () => {
+    const prepared = createPreparedCommand('node scripts/run.js', process.cwd())
+    prepared.preparedState.interpreter = 'powershell7'
+    const waitForApproval = vi.fn(async () => ({ approved: true }))
+    const hook = createToolAuthorization(
+      createTaskState(waitForApproval),
+      createRulesProvider([{
+        id: 'bash-node-rule',
+        kind: 'command',
+        interpreter: 'bash',
+        executable: 'node',
+        argvPrefix: ['scripts/run.js'],
+        allowRemainingArgs: false,
+        resourceScope: 'workspace',
+        createdAt: 0,
+        updatedAt: 0,
+      }]),
+    )
+
+    await expect(hook({
+      task: createTask({ mode: 'strict' }),
+      prepared,
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+    })).resolves.toEqual({ outcome: 'allow' })
+    expect(waitForApproval).toHaveBeenCalledOnce()
+  })
+
+  it('复合命令被多条规则共同覆盖时 Trace 记录全部命中规则', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ant-chat-bash-rule-trace-'))
     try {
       const command = 'git checkout main && node scripts/run.js'
-      const parsed = parseBashCommand({ command }, root)
       const rules = createRulesProvider(
         [{
           id: 'allow-git-checkout',
-          kind: 'bash-command',
+          kind: 'command',
+          interpreter: 'bash',
           executable: 'git',
           argvPrefix: ['checkout', 'main'],
           allowRemainingArgs: false,
@@ -615,7 +799,8 @@ describe('createToolAuthorization 行为', () => {
         }],
         [{
           id: 'allow-node-run',
-          kind: 'bash-command',
+          kind: 'command',
+          interpreter: 'bash',
           executable: 'node',
           argvPrefix: ['scripts/run.js'],
           allowRemainingArgs: false,
@@ -629,14 +814,7 @@ describe('createToolAuthorization 行为', () => {
 
       await expect(hook({
         task: createTask({ mode: 'strict', workspacePath: root }),
-        prepared: {
-          ...createPrepared(),
-          toolName: 'bash',
-          input: { command },
-          operationType: 'bash',
-          scope: 'workspace',
-          preparedState: { kind: 'bash', parsed },
-        },
+        prepared: createPreparedCommand(command, root),
         config: {
           eventEmitter: createMockEmitter(),
           logger: createMockLogger(),
@@ -653,8 +831,8 @@ describe('createToolAuthorization 行为', () => {
       expect(policySpan.complete).toHaveBeenCalledWith(expect.objectContaining({
         effectiveDecision: { outcome: 'allow', basis: 'approval-grant.match' },
         permissionRules: [
-          { ruleId: 'allow-git-checkout', kind: 'bash-command', effect: 'allow', group: 'global' },
-          { ruleId: 'allow-node-run', kind: 'bash-command', effect: 'allow', group: 'workspace' },
+          { ruleId: 'allow-git-checkout', kind: 'command', effect: 'allow', group: 'global' },
+          { ruleId: 'allow-node-run', kind: 'command', effect: 'allow', group: 'workspace' },
         ],
       }))
     }
@@ -782,16 +960,27 @@ describe('createToolAuthorization 行为', () => {
     }
   })
 
-  it('bash 准备态生成的候选可直接匹配规则并执行同一命令', async () => {
+  it('命令准备态生成的候选可直接匹配规则并执行同一命令', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ant-chat-bash-rule-'))
     try {
       const registry = await ToolRegistry.create({
-        config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+        config: {
+          eventEmitter: createMockEmitter(),
+          logger: createMockLogger(),
+          commandHost: {
+            status: 'available',
+            platform: 'posix',
+            adapter: 'bash',
+            interpreter: 'bash',
+            executablePath: '/bin/bash',
+            environment: { PATH: process.env.PATH ?? '', HOME: os.homedir() },
+          },
+        },
         workspacePath: root,
         mode: 'strict',
         turnSource: { type: 'interactive' },
       })
-      const prepared = registry.prepare('bash', { command: 'node -e "console.log(1)"' })
+      const prepared = registry.prepare('execute_command', { command: 'node -e "console.log(1)"' })
       let resolveApproval!: (value: ApprovalResult) => void
       const firstHook = createToolAuthorization(createTaskState(() => new Promise<ApprovalResult>((resolve) => {
         resolveApproval = resolve
@@ -805,19 +994,21 @@ describe('createToolAuthorization 行为', () => {
 
       const candidate = firstTask.snapshot.pendingAction?.approvalCandidates?.candidates[0]
       expect(candidate).toMatchObject({
-        type: 'bash-segment',
+        type: 'command-segment',
+        interpreter: 'bash',
         argvPrefix: ['-e', 'console.log(1)'],
         resourceScope: 'workspace',
       })
-      if (!candidate || candidate.type !== 'bash-segment') {
-        throw new Error('缺少 Bash 审批候选')
+      if (!candidate || candidate.type !== 'command-segment') {
+        throw new Error('缺少命令审批候选')
       }
       resolveApproval({ approved: true })
       await expect(firstResult).resolves.toEqual({ outcome: 'allow' })
 
       const rule: ToolApprovalRule = {
-        id: 'bash-rule-1',
-        kind: 'bash-command',
+        id: 'command-rule-1',
+        kind: 'command',
+        interpreter: candidate.interpreter,
         executable: candidate.executable,
         argvPrefix: [...candidate.argvPrefix],
         allowRemainingArgs: false,
@@ -830,7 +1021,7 @@ describe('createToolAuthorization 行为', () => {
         createTaskState(async () => ({ approved: true })),
         createRulesProvider([rule]),
       )
-      const secondPrepared = registry.prepare('bash', { command: 'node -e "console.log(1)"' })
+      const secondPrepared = registry.prepare('execute_command', { command: 'node -e "console.log(1)"' })
 
       await expect(secondHook({
         task: createTask({ mode: 'strict', workspacePath: root }),

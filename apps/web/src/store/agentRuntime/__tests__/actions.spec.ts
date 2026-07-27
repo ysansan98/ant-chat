@@ -104,7 +104,7 @@ describe('agentRuntime 事件对账', () => {
   it('applyTaskUpdate 在任务不再携带 pendingAction 时清理待审批', () => {
     useAgentRuntimeStore.setState({
       tasks: {},
-      pendingByTask: { t1: { actionId: 'a1', toolName: 'bash', operationType: 'bash', scope: 'workspace', inputPreview: '', createdAt: 1 } },
+      pendingByTask: { t1: { actionId: 'a1', toolName: 'execute_command', operationType: 'command', scope: 'workspace', inputPreview: '', createdAt: 1 } },
       executionPhaseByTurn: {},
       secretRequests: {},
     })
@@ -117,7 +117,7 @@ describe('agentRuntime 事件对账', () => {
   it('applyApprovalRequired 写入待审批项', () => {
     useAgentRuntimeStore.setState({ tasks: {}, pendingByTask: {}, executionPhaseByTurn: {}, secretRequests: {} })
 
-    applyApprovalRequired('t1', { actionId: 'a1', toolName: 'bash', operationType: 'bash', scope: 'workspace', inputPreview: '', createdAt: 1 })
+    applyApprovalRequired('t1', { actionId: 'a1', toolName: 'execute_command', operationType: 'command', scope: 'workspace', inputPreview: '', createdAt: 1 })
 
     expect(useAgentRuntimeStore.getState().pendingByTask.t1?.actionId).toBe('a1')
   })

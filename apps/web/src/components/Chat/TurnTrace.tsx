@@ -24,8 +24,9 @@ import { isNetworkError } from '@/utils/networkError'
 import { VisualizationFrame } from '../Visualization/VisualizationFrame'
 import MessageContent from './MessageContent'
 import {
-  buildBashSessionText,
+  buildCommandSessionText,
   buildEditDiff,
+  getCommandLanguage,
   getLanguageFromPath,
   getToolLabel,
   splitToolName,
@@ -157,10 +158,15 @@ function ToolBody({ item }: { item: ToolRunToolItem }) {
   const { isMcp, shortName } = splitToolName(toolCall)
   const resultText = toResultText(toolResult?.result)
 
-  if (!isMcp && shortName === 'bash') {
-    // 原生 Bash 失败也保留命令会话语义，失败态由标题文字标红表达。
+  if (!isMcp && shortName === 'execute_command' && toolCall.command) {
+    // 命令执行失败也保留终端会话语义，失败态由标题文字标红表达。
     const command = typeof args.command === 'string' ? args.command : ''
-    return <BodyCodeBlock code={buildBashSessionText(command, resultText)} language="bash" />
+    return (
+      <BodyCodeBlock
+        code={buildCommandSessionText(command, toolCall.command.interpreter, resultText)}
+        language={getCommandLanguage(toolCall.command.interpreter)}
+      />
+    )
   }
 
   if (toolResult?.isError) {
@@ -213,7 +219,7 @@ function ToolCallItem({
   const label = getToolLabel(item.toolCall)
   const error = !!item.toolResult?.isError
   const { isMcp, shortName } = splitToolName(item.toolCall)
-  const showTerminalIcon = !isMcp && shortName === 'bash'
+  const showTerminalIcon = !isMcp && shortName === 'execute_command'
 
   return (
     <Collapsible open={open} onOpenChange={() => onToggle(item.id)}>
