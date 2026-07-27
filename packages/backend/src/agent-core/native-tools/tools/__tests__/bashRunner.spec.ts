@@ -176,7 +176,7 @@ describe('preValidateBashScope 行为', () => {
     })
 
     it('cwd 在工作区外', () => {
-      expect(preValidateBashScope({ command: 'ls', cwd: '/Users/ysansan' }, workspacePath)).toBe('outside')
+      expect(preValidateBashScope({ command: 'ls', cwd: os.tmpdir() }, workspacePath)).toBe('outside')
     })
   })
 
