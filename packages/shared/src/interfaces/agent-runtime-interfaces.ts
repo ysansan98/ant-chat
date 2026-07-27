@@ -1,4 +1,4 @@
-import type { AddMessage, LanguageModelUsage, ModelInfo, ProviderConfigSchema, ReasoningEffortLevel, SecretRef, SecretRequest, SecretRequestField, SecretRequestResult, ToolApprovalRule, ToolCallContent, ToolResultContent, UpdateMessageSchema } from '../schemas'
+import type { AddMessage, CommandInterpreter, LanguageModelUsage, ModelInfo, ProviderConfigSchema, ReasoningEffortLevel, SecretRef, SecretRequest, SecretRequestField, SecretRequestResult, ToolApprovalRule, ToolCallContent, ToolResultContent, UpdateMessageSchema } from '../schemas'
 import type { AgentMemoryReader } from './agent-memory'
 import type { AgentMode, AgentPendingAction, AgentTaskSnapshot, AgentTurnSource } from './agent-runtime'
 import type { AgentTool } from './agent-tools'
@@ -262,6 +262,35 @@ export interface AgentBrowserRuntimeConfig {
   proxyUrl?: string
 }
 
+export type AgentCommandHost
+  = | {
+    readonly status: 'available'
+    readonly platform: 'posix'
+    readonly adapter: 'bash'
+    readonly interpreter: 'bash'
+    readonly executablePath: string
+    readonly environment: Readonly<Record<string, string>>
+  }
+  | {
+    readonly status: 'available'
+    readonly platform: 'windows'
+    readonly adapter: 'windows'
+    readonly interpreter: Exclude<CommandInterpreter, 'bash'>
+    readonly executablePath: string
+    readonly environment: Readonly<Record<string, string>>
+  }
+  | {
+    readonly status: 'unavailable'
+    readonly platform: 'posix' | 'windows'
+    readonly candidates: readonly string[]
+    readonly reason: string
+  }
+
+export type AgentCommandHostStatus<T extends AgentCommandHost = AgentCommandHost>
+  = T extends { status: 'available' }
+    ? Omit<T, 'adapter' | 'environment'>
+    : T
+
 // ============================================================
 // Compaction（由 turn 准备阶段的事务协调器调用）
 // ============================================================
@@ -281,8 +310,8 @@ export interface AgentRuntimeHost {
   skillReader?: SkillReader
   mcpClientHub?: RuntimeMcpClientHub
   browser?: AgentBrowserRuntimeConfig
-  /** 受控 shell 环境，例如 Desktop 内置 ant-chat launcher 的 PATH。 */
-  bashEnvironment?: Record<string, string>
+  /** App Runtime 启动时一次性固定的命令宿主。 */
+  commandHost?: AgentCommandHost
   secretStore?: SecretStore
   secretRequester?: SecretRequestController
   /** 加载附件文件数据（用于将 file_id 转换为 base64 数据） */
@@ -320,8 +349,8 @@ export interface AgentRuntimeConfig extends AgentRuntimeOverrides {
   skillReader?: SkillReader
   mcpClientHub?: RuntimeMcpClientHub
   browser?: AgentBrowserRuntimeConfig
-  /** 受控 shell 环境，例如 Desktop 内置 ant-chat launcher 的 PATH。 */
-  bashEnvironment?: Record<string, string>
+  /** App Runtime 启动时一次性固定的命令宿主。 */
+  commandHost?: AgentCommandHost
   secretStore?: SecretStore
   secretRequester?: SecretRequestController
   /** 加载附件文件数据（用于将 file_id 转换为 base64 数据） */

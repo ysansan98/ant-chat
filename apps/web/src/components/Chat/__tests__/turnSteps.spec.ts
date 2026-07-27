@@ -33,7 +33,14 @@ function toolCall(
   state: ToolCallContent['executeState'] = 'completed',
 ): ToolCallContent {
   seq += 1
-  return { type: 'tool-call', toolCallId: `call-${seq}`, toolName, args, executeState: state }
+  return {
+    type: 'tool-call',
+    toolCallId: `call-${seq}`,
+    toolName,
+    args,
+    executeState: state,
+    ...(toolName === 'execute_command' ? { command: { interpreter: 'bash' as const } } : {}),
+  }
 }
 
 function toolResultMessage(call: ToolCallContent, result: string, isError = false): IMessage {
@@ -151,7 +158,7 @@ describe('消息步骤合并', () => {
   })
 
   it('错误内容块会闭合工具组并保留消息状态', () => {
-    const call = toolCall('bash', { command: 'pnpm check' })
+    const call = toolCall('execute_command', { command: 'pnpm check' })
     const steps = stepsOf([
       assistant([call]),
       toolResultMessage(call, 'stdout:\nexitCode=0'),
@@ -185,7 +192,7 @@ describe('消息步骤合并', () => {
 
 describe('工具组执行与错误状态', () => {
   it('工具正在执行或结果未到达时保持活动态，明确完成后不再视为执行中', () => {
-    const executingCall = toolCall('bash', { command: 'ls' }, 'executing')
+    const executingCall = toolCall('execute_command', { command: 'ls' }, 'executing')
     const running = stepsOf([assistant([executingCall])])
     const runA = running[0]
     if (runA.type !== 'tool-run')
@@ -193,14 +200,14 @@ describe('工具组执行与错误状态', () => {
     expect(runA.isExecuting).toBe(true)
 
     // 流式途中 tool-call 尚未携带 executeState 且结果未到达，同样视为执行中
-    const streamingCall: ToolCallContent = { type: 'tool-call', toolCallId: 'call-streaming', toolName: 'bash', args: { command: 'ls' } }
+    const streamingCall: ToolCallContent = { type: 'tool-call', toolCallId: 'call-streaming', toolName: 'execute_command', args: { command: 'ls' }, command: { interpreter: 'bash' } }
     const streaming = stepsOf([assistant([streamingCall])])
     const runB = streaming[0]
     if (runB.type !== 'tool-run')
       throw new Error('预期得到工具组')
     expect(runB.isExecuting).toBe(true)
 
-    const settledCall = toolCall('bash', { command: 'ls' })
+    const settledCall = toolCall('execute_command', { command: 'ls' })
     const settled = stepsOf([assistant([settledCall])])
     const runC = settled[0]
     if (runC.type !== 'tool-run')
@@ -210,7 +217,7 @@ describe('工具组执行与错误状态', () => {
 
   it('任一工具失败时工具组进入错误态', () => {
     const ok = toolCall('read_file', { path: 'a.ts' })
-    const bad = toolCall('bash', { command: 'rm x' })
+    const bad = toolCall('execute_command', { command: 'rm x' })
     const steps = stepsOf([
       assistant([ok, bad]),
       toolResultMessage(ok, 'a'),
@@ -231,7 +238,7 @@ describe('工具组汇总', () => {
       toolCall('read_file', { path: 'a.ts' }),
       toolCall('read_file', { path: 'b.ts' }),
       toolCall('edit_file', { path: 'a.ts', edits: [] }),
-      toolCall('bash', { command: 'ls' }),
+      toolCall('execute_command', { command: 'ls' }),
       toolCall('mcp___do_thing'),
     ]
     const steps = stepsOf([
@@ -257,7 +264,7 @@ describe('工具组展示结构', () => {
   })
 
   it('活动态标题使用末尾思考过程之前的最后一个工具', () => {
-    const call = toolCall('bash', { command: 'ls' })
+    const call = toolCall('execute_command', { command: 'ls' })
     const steps = stepsOf([
       assistant([call]),
       toolResultMessage(call, 'stdout:\nexitCode=0'),

@@ -1,8 +1,11 @@
 import type { AppRpcInput, AppRpcMethod, AppRpcOutput } from '@ant-chat/shared'
+import type { CommandHost } from './agent-core/native-tools/command/types'
 import type { RuntimeCore } from './app-runtime/createRuntimeCore'
 import type { RuntimeActivation } from './app-runtime/runtimeActivation'
 import type { CreateAppRuntimeOptions } from './app-runtime/types'
+import process from 'node:process'
 import { LocalControlServer } from './app-control/localControlServer'
+import { detectCommandHost } from './app-runtime/commandHost'
 import { createRuntimeCore } from './app-runtime/createRuntimeCore'
 import { createRuntimeLifecycle } from './app-runtime/lifecycle'
 import { registerRuntimeModules } from './app-runtime/register-modules'
@@ -32,7 +35,22 @@ export async function activateAppRuntime(options: CreateAppRuntimeOptions): Prom
   let activation: RuntimeActivation | undefined
 
   try {
-    core = createRuntimeCore(options)
+    const commandHost = detectCommandHostSafely(options)
+    core = createRuntimeCore(options, commandHost)
+    if (commandHost.status === 'available') {
+      core.logger.info('命令宿主已固定', {
+        platform: commandHost.platform,
+        interpreter: commandHost.interpreter,
+        executablePath: commandHost.executablePath,
+      })
+    }
+    else {
+      core.logger.warn('命令执行功能不可用', {
+        platform: commandHost.platform,
+        candidates: commandHost.candidates,
+        reason: commandHost.reason,
+      })
+    }
     const modules = registerRuntimeModules(core)
     const routes = new RouteRegistry()
     for (const module of modules.routes) {
@@ -68,5 +86,24 @@ export async function activateAppRuntime(options: CreateAppRuntimeOptions): Prom
       controlServer.releaseReservation()
     }
     throw error
+  }
+}
+
+function detectCommandHostSafely(options: CreateAppRuntimeOptions): CommandHost {
+  try {
+    return (options.commandHostDetector ?? detectCommandHost)({
+      environment: {
+        ...process.env,
+        ...options.commandEnvironment,
+      },
+    })
+  }
+  catch (error) {
+    return {
+      status: 'unavailable',
+      platform: process.platform === 'win32' ? 'windows' : 'posix',
+      candidates: [],
+      reason: `命令宿主探测失败：${error instanceof Error ? error.message : String(error)}`,
+    }
   }
 }

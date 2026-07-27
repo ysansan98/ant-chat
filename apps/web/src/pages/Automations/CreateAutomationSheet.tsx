@@ -384,14 +384,14 @@ export function CreateAutomationSheet(props: {
               <Separator />
               <PermissionSwitch
                 label="允许终端命令"
-                description="关闭时，Agent 无法执行 bash 等终端命令"
-                checked={form.permissionScopes.bashCommands}
-                onCheckedChange={checked => updateForm((draft) => { draft.permissionScopes.bashCommands = checked })}
+                description="关闭时，Agent 无法执行终端命令"
+                checked={form.permissionScopes.commandExecution}
+                onCheckedChange={checked => updateForm((draft) => { draft.permissionScopes.commandExecution = checked })}
               />
-              {form.permissionScopes.bashCommands && (
+              {form.permissionScopes.commandExecution && (
                 <label className="ml-4 flex flex-col gap-2 border-l border-border pl-4 text-sm font-medium">
                   允许的命令模式
-                  <Input value={form.bashCommandPatterns} placeholder="ls *, cat **, git status" aria-label="允许的命令模式" onChange={event => updateForm((draft) => { draft.bashCommandPatterns = event.target.value })} />
+                  <Input value={form.commandPatterns} placeholder="ls *, cat **, git status" aria-label="允许的命令模式" onChange={event => updateForm((draft) => { draft.commandPatterns = event.target.value })} />
                 </label>
               )}
             </div>

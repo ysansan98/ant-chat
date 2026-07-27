@@ -46,10 +46,11 @@ describe('permissions module', () => {
         recursive: false,
       },
     })
-    const bashRule = module.add({
+    const commandRule = module.add({
       scope: 'global',
       rule: {
-        kind: 'bash-command',
+        kind: 'command',
+        interpreter: 'bash',
         executable: 'tool',
         argvPrefix: ['status'],
         allowRemainingArgs: false,
@@ -60,14 +61,15 @@ describe('permissions module', () => {
     expect(filesystemRule).toEqual(expect.objectContaining({
       canonicalPath: path.join(canonicalWorkspacePath, 'source.txt'),
     }))
-    expect(bashRule).toEqual(expect.objectContaining({
+    expect(commandRule).toEqual(expect.objectContaining({
       executable: 'tool',
+      interpreter: 'bash',
     }))
-    expect(bashRule).not.toHaveProperty('executablePath')
+    expect(commandRule).not.toHaveProperty('executablePath')
     expect(store.listAll().workspaces).toHaveProperty(canonicalWorkspacePath)
   })
 
-  it('添加 Bash 规则时也接受可执行文件绝对路径', () => {
+  it('添加命令规则时也接受可执行文件绝对路径', () => {
     const executablePath = path.join(workspacePath, 'tool')
     const executableAlias = path.join(workspacePath, 'tool-alias')
     writeFileSync(executablePath, '#!/bin/sh\n', 'utf8')
@@ -77,7 +79,8 @@ describe('permissions module', () => {
     const rule = module.add({
       scope: 'global',
       rule: {
-        kind: 'bash-command',
+        kind: 'command',
+        interpreter: 'bash',
         executable: executableAlias,
         argvPrefix: [],
         allowRemainingArgs: true,

@@ -315,8 +315,8 @@ function toAutomationInput(command: Extract<AutomationCommand, { action: 'create
       allowBrowser: policy?.allowBrowser ?? false,
       allowMcpTools: policy?.allowMcpTools ?? false,
       extraFileRoots: policy?.extraFileRoots ?? [],
-      allowBashCommands: policy?.allowBashCommands ?? false,
-      bashCommandPatterns: policy?.bashCommandPatterns ?? [],
+      allowCommandExecution: policy?.allowCommandExecution ?? false,
+      commandPatterns: policy?.commandPatterns ?? [],
     },
     enabled: command.enabled ?? true,
   }

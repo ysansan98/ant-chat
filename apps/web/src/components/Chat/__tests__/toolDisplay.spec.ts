@@ -1,13 +1,14 @@
 import type { ToolCallContent } from '@ant-chat/shared'
 import { describe, expect, it } from 'vitest'
 import {
-  buildBashSessionText,
+  buildCommandSessionText,
   buildEditDiff,
+  getCommandLanguage,
   getEditStats,
   getLanguageFromPath,
   getToolCategory,
   getToolLabel,
-  parseBashResult,
+  parseCommandResult,
   splitToolName,
 } from '../toolDisplay'
 
@@ -31,10 +32,10 @@ describe('getToolLabel 内置工具文案', () => {
     expect(getToolLabel(toolCall('glob_files', { pattern: '**/*.ts' })).primary).toBe('查找 **/*.ts')
   })
 
-  it('bash 优先展示 description，缺省时回退到命令本体', () => {
-    expect(getToolLabel(toolCall('bash', { command: 'pnpm install', description: '安装项目依赖' })).primary)
+  it('命令工具优先展示 description，缺省时回退到命令本体', () => {
+    expect(getToolLabel(toolCall('execute_command', { command: 'pnpm install', description: '安装项目依赖' })).primary)
       .toBe('安装项目依赖')
-    expect(getToolLabel(toolCall('bash', { command: 'pnpm install' })).primary).toBe('pnpm install')
+    expect(getToolLabel(toolCall('execute_command', { command: 'pnpm install' })).primary).toBe('pnpm install')
   })
 
   it('browser 展示命令与首个参数', () => {
@@ -96,6 +97,7 @@ describe('getToolCategory', () => {
   it('内置工具映射到对应类别，未知工具归为 other', () => {
     expect(getToolCategory(toolCall('read_file'))).toBe('read')
     expect(getToolCategory(toolCall('edit_file'))).toBe('edit')
+    expect(getToolCategory(toolCall('execute_command'))).toBe('command')
     expect(getToolCategory(toolCall('install_skill_from_github'))).toBe('skill')
     expect(getToolCategory(toolCall('mcp___do_thing'))).toBe('other')
     expect(getToolCategory(toolCall('whatever'))).toBe('other')
@@ -108,7 +110,7 @@ describe('getToolCategory', () => {
     'grep_files',
     'glob_files',
     'list_dir',
-    'bash',
+    'execute_command',
     'browser',
     'use_skill',
     'install_skill_from_github',
@@ -118,32 +120,42 @@ describe('getToolCategory', () => {
   })
 })
 
-describe('parseBashResult', () => {
+describe('parseCommandResult', () => {
   it('剥掉 stdout/stderr 标记行并按原顺序合并输出', () => {
-    const parsed = parseBashResult('stdout:\nline-1\nstderr:\noops\nexitCode=0')
+    const parsed = parseCommandResult('stdout:\nline-1\nstderr:\noops\nexitCode=0')
     expect(parsed.output).toBe('line-1\noops')
     expect(parsed.exitCode).toBe(0)
   })
 
   it('解析非零退出码并去掉尾部多余换行', () => {
-    const parsed = parseBashResult('stdout:\nboom\n\nexitCode=3')
+    const parsed = parseCommandResult('stdout:\nboom\n\nexitCode=3')
     expect(parsed.output).toBe('boom')
     expect(parsed.exitCode).toBe(3)
   })
 })
 
-describe('buildBashSessionText', () => {
+describe('buildCommandSessionText', () => {
   it('无输出时只展示命令行', () => {
-    expect(buildBashSessionText('pwd', 'stdout:\nexitCode=0')).toBe('$ pwd')
+    expect(buildCommandSessionText('pwd', 'bash', 'stdout:\nexitCode=0')).toBe('$ pwd')
   })
 
   it('合并输出展示在命令之后，零退出码不展示', () => {
-    expect(buildBashSessionText('ls', 'stdout:\na.txt\nexitCode=0')).toBe('$ ls\na.txt')
+    expect(buildCommandSessionText('ls', 'bash', 'stdout:\na.txt\nexitCode=0')).toBe('$ ls\na.txt')
   })
 
   it('失败命令保留 exit N 行', () => {
-    expect(buildBashSessionText('ls missing', 'stderr:\nnot found\nexitCode=1'))
+    expect(buildCommandSessionText('ls missing', 'bash', 'stderr:\nnot found\nexitCode=1'))
       .toBe('$ ls missing\nnot found\nexit 1')
+  })
+
+  it.each([
+    ['powershell7', 'PS> Get-ChildItem', 'powershell'],
+    ['windows-powershell', 'PS> Get-ChildItem', 'powershell'],
+    ['cmd', '> dir', 'batch'],
+  ] as const)('%s 使用对应提示符和语法高亮', (interpreter, session, language) => {
+    const command = interpreter === 'cmd' ? 'dir' : 'Get-ChildItem'
+    expect(buildCommandSessionText(command, interpreter)).toBe(session)
+    expect(getCommandLanguage(interpreter)).toBe(language)
   })
 })
 

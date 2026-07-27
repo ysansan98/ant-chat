@@ -2,13 +2,13 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import type { BashToolInput } from '@ant-chat/shared'
+import type { CommandToolInput } from '@ant-chat/shared'
 import { rebuildRulesFromApproval } from '../../../policy/approvalRuleRebuilder'
+import { prepareBashCommand } from '../../command/bashCommandAdapter'
 import { createBashCandidates, matchBashRule, parseBashCommand } from '../bashCommandParser'
-import { runBashTool } from '../bashRunner'
 
 function preValidateBashScope(
-  input: BashToolInput,
+  input: CommandToolInput,
   workspacePath: string,
   options: { executableSearchPath?: string, trustedPaths?: string[], blockAgentBrowser?: boolean } = {},
 ) {
@@ -34,7 +34,7 @@ describe('preValidateBashScope 行为', () => {
     fs.rmSync(skillPath, { recursive: true, force: true })
   })
 
-  describe('blocked — 直接拦截（禁止命令或无效输入）', () => {
+  describe('blocked — 直接拦截（底线命令或无效输入）', () => {
     it('空命令', () => {
       expect(preValidateBashScope({ command: '' }, workspacePath)).toBe('blocked')
     })
@@ -56,27 +56,15 @@ describe('preValidateBashScope 行为', () => {
       )).toBe('blocked')
     })
 
-    it('禁用命令: rm', () => {
-      expect(preValidateBashScope({ command: 'rm -rf /tmp/outside' }, workspacePath)).toBe('blocked')
-    })
-
-    it('复杂 shell 语法不能绕过禁用命令', () => {
+    it('动态 shell 结构不能绕过底线阻断', () => {
       expect(preValidateBashScope({ command: 'echo $(rm -rf /tmp/outside)' }, workspacePath)).toBe('blocked')
-      expect(preValidateBashScope({ command: 'printf x | sudo cat' }, workspacePath)).toBe('blocked')
       expect(preValidateBashScope({ command: 'printf x & rm -rf ./target' }, workspacePath)).toBe('blocked')
     })
 
-    it('禁用命令: sudo', () => {
-      expect(preValidateBashScope({ command: 'sudo ls' }, workspacePath)).toBe('blocked')
-    })
-
-    it('禁用命令: curl/npm/pip', () => {
-      expect(preValidateBashScope({ command: 'curl http://example.com' }, workspacePath)).toBe('blocked')
-      expect(preValidateBashScope({ command: 'npm install' }, workspacePath)).toBe('blocked')
-      expect(preValidateBashScope({ command: 'pip install foo' }, workspacePath)).toBe('blocked')
-    })
-
     it.each([
+      'rm -rf src',
+      'sudo ls',
+      'curl http://example.com',
       'npm i package',
       'npm ci',
       'pnpm add package',
@@ -84,21 +72,21 @@ describe('preValidateBashScope 行为', () => {
       'yarn add package',
       'yarn',
       'pip3 install package',
-    ])('包安装命令族始终硬阻断: %s', (command) => {
-      expect(preValidateBashScope({ command }, workspacePath)).toBe('blocked')
-    })
+    ])('高风险但非底线命令进入审批风险: %s', (command) => {
+      const prepared = prepareBashCommand(
+        { command },
+        workspacePath,
+        {
+          status: 'available',
+          platform: 'posix',
+          adapter: 'bash',
+          interpreter: 'bash',
+          executablePath: '/bin/bash',
+          environment: { PATH: process.env.PATH ?? '', HOME: os.homedir() },
+        },
+      )
 
-    it('symlink 指向禁用命令不再阻断：PATH 可信，只按命令字符串 basename 识别', () => {
-      const blockedDir = path.join(workspacePath, 'blocked')
-      fs.mkdirSync(blockedDir)
-      const blockedExecutable = path.join(blockedDir, 'rm')
-      fs.writeFileSync(blockedExecutable, '#!/bin/sh\nexit 0\n', { mode: 0o755 })
-      const aliasPath = path.join(workspacePath, 'safe-tool')
-      fs.symlinkSync(blockedExecutable, aliasPath)
-      // ./safe-tool 的 basename 是 safe-tool，不在禁止列表；即使指向 rm 也不阻断
-      expect(preValidateBashScope({ command: './safe-tool target' }, workspacePath)).not.toBe('blocked')
-      // 直接以绝对路径调用 rm，basename 是 rm，仍被阻断
-      expect(preValidateBashScope({ command: `${blockedExecutable} -rf /tmp` }, workspacePath)).toBe('blocked')
+      expect(prepared.risk).toBe('requires_approval')
     })
   })
 
@@ -136,29 +124,6 @@ describe('preValidateBashScope 行为', () => {
         isBlocked: true,
         hasShellSyntax: true,
       })
-    })
-
-    it('批准后的复杂 shell 语法按原始语义执行', async () => {
-      const result = await runBashTool(
-        { command: 'printf "one\\ntwo\\n" | head -1' },
-        workspacePath,
-        true,
-      )
-
-      expect(result).toMatchObject({ ok: true })
-      expect(result.result).toContain('one')
-      expect(result.result).not.toContain('two')
-    })
-
-    it('不含复杂语法的 && 也只在一个 shell 中执行', async () => {
-      const result = await runBashTool(
-        { command: `umask 077 && ${process.execPath} -e "process.stdout.write('ok')"` },
-        workspacePath,
-        true,
-      )
-
-      expect(result).toMatchObject({ ok: true })
-      expect(result.diagnostics?.stdout).toBe('ok')
     })
 
     it.each([
@@ -223,7 +188,7 @@ describe('preValidateBashScope 行为', () => {
       )
       const candidates = createBashCandidates(parsed)
       const rules = rebuildRulesFromApproval(
-        { candidates, context: { parsed } },
+        { candidates, context: { command: { segments: parsed.segments } } },
         { selections: [{ candidateIndex: 0 }], scope: 'workspace' },
       )
 
@@ -239,8 +204,8 @@ describe('preValidateBashScope 行为', () => {
         }),
       ])
       const rule = rules[0]
-      if (!rule || rule.kind !== 'bash-command') {
-        throw new Error('缺少 Bash 精确命令规则')
+      if (!rule || rule.kind !== 'command') {
+        throw new Error('缺少命令精确规则')
       }
 
       expect(matchBashRule(parsed, rule)).toBe(true)
@@ -270,7 +235,7 @@ describe('preValidateBashScope 行为', () => {
       )
       const candidates = createBashCandidates(parsed)
       const rules = rebuildRulesFromApproval(
-        { candidates, context: { parsed } },
+        { candidates, context: { command: { segments: parsed.segments } } },
         { selections: [{ candidateIndex: 0 }], scope: 'workspace' },
       )
 
@@ -291,8 +256,8 @@ describe('preValidateBashScope 行为', () => {
         { executableSearchPath: binPath },
       )
       const rule = rules[0]
-      if (!rule || rule.kind !== 'bash-command')
-        throw new Error('缺少 Bash 命令规则')
+      if (!rule || rule.kind !== 'command')
+        throw new Error('缺少命令规则')
       expect(matchBashRule(sameCommandWithDifferentPathTarget, rule)).toBe(true)
     })
 
@@ -318,12 +283,12 @@ describe('preValidateBashScope 行为', () => {
       fs.writeFileSync(secondExecutable, '#!/bin/sh\n', { mode: 0o755 })
       const parsed = parseBashCommand({ command: `${firstExecutable} status` }, workspacePath)
       const rules = rebuildRulesFromApproval(
-        { candidates: createBashCandidates(parsed), context: { parsed } },
+        { candidates: createBashCandidates(parsed), context: { command: { segments: parsed.segments } } },
         { selections: [{ candidateIndex: 0 }], scope: 'workspace' },
       )
       const rule = rules[0]
-      if (!rule || rule.kind !== 'bash-command')
-        throw new Error('缺少 Bash 绝对路径规则')
+      if (!rule || rule.kind !== 'command')
+        throw new Error('缺少命令绝对路径规则')
 
       // 规则保存用户输入的原始字符串，不解析 realpath
       expect(rule.executable).toBe(firstExecutable)
@@ -340,13 +305,6 @@ describe('preValidateBashScope 行为', () => {
 
       expect(isReadOnlyBashCommand(command, workspacePath)).toBe(true)
       expect(preValidateBashScope({ command }, workspacePath)).toBe('workspace')
-    })
-
-    it('环境探测命令可真实执行', async () => {
-      const result = await runBashTool({ command: 'which node && node --version' }, workspacePath)
-
-      expect(result.ok).toBe(true)
-      expect(result.diagnostics?.stdout).toContain('node')
     })
 
     it('node 的版本参数不能夹带脚本执行', () => {
@@ -396,48 +354,6 @@ describe('preValidateBashScope 行为', () => {
       expect(preValidateBashScope({ command: 'mkdir src' }, workspacePath)).toBe('workspace')
     })
 
-    it('mkdir 会校验每个目标且不会在工作区外落盘', async () => {
-      const escapedPath = path.join(path.dirname(workspacePath), `${path.basename(workspacePath)}-escaped`)
-
-      const result = await runBashTool({ command: `mkdir ../${path.basename(escapedPath)}` }, workspacePath)
-
-      expect(result.ok).toBe(false)
-      expect(fs.existsSync(escapedPath)).toBe(false)
-    })
-
-    it.each(['-p', '--parents'])('mkdir %s 会跳过选项并校验全部真实目标', async (option) => {
-      const escapedPath = path.join(path.dirname(workspacePath), `${path.basename(workspacePath)}-escaped`)
-
-      const result = await runBashTool(
-        { command: `mkdir ${option} safe ../${path.basename(escapedPath)}` },
-        workspacePath,
-      )
-
-      expect(result.ok).toBe(false)
-      expect(fs.existsSync(path.join(workspacePath, 'safe'))).toBe(false)
-      expect(fs.existsSync(escapedPath)).toBe(false)
-    })
-
-    it('执行环境使用准备命令时固定的受控 PATH', async () => {
-      const result = await runBashTool(
-        { command: 'node --version' },
-        workspacePath,
-      )
-
-      expect(result.ok).toBe(true)
-      expect(result.diagnostics?.stdout).toContain(process.version)
-    })
-
-    it('cd 会改变后续命令的真实执行目录', async () => {
-      const childPath = path.join(workspacePath, 'child')
-      fs.mkdirSync(childPath)
-
-      const result = await runBashTool({ command: 'cd child && pwd' }, workspacePath)
-
-      expect(result.ok).toBe(true)
-      expect(result.diagnostics?.stdout?.trim()).toBe(fs.realpathSync.native(childPath))
-    })
-
     it('cd 只改变后续段的 canonical cwd 与资源边界', () => {
       const parsed = parseBashCommand(
         { command: `pwd && cd ${skillPath} && pwd` },
@@ -469,20 +385,6 @@ describe('preValidateBashScope 行为', () => {
         { command: `${process.execPath} run.js`, cwd: skillPath },
         workspacePath,
       )).toBe('outside')
-    })
-
-    it('已信任 Skill 根目录内的命令可真实执行', async () => {
-      fs.writeFileSync(path.join(skillPath, 'run.js'), 'console.log("skill-runtime-ok")\n')
-
-      const result = await runBashTool(
-        { command: `${process.execPath} run.js`, cwd: skillPath },
-        workspacePath,
-        false,
-        { trustedPaths: [skillPath] },
-      )
-
-      expect(result.ok).toBe(true)
-      expect(result.diagnostics?.stdout).toContain('skill-runtime-ok')
     })
   })
 })

@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { WorkspaceModule } from '../app-runtime/modules/workspace'
+import type { SystemLogger } from '../systemLogger'
 import type { activateAppRuntime as activateAppRuntimeFn } from '../appRuntime'
 
 vi.mock('keytar', () => ({
@@ -12,6 +13,15 @@ vi.mock('keytar', () => ({
     deletePassword: vi.fn(async () => true),
   },
 }))
+
+function createMockLogger(): SystemLogger {
+  return {
+    debug: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+  }
+}
 
 describe('app runtime', () => {
   let appDataRoot: string
@@ -29,6 +39,101 @@ describe('app runtime', () => {
     await runtime.dispose()
     rmSync(appDataRoot, { force: true, recursive: true })
     vi.clearAllMocks()
+  })
+
+  it('启动时只探测一次并通过 RPC 返回不含环境的可用命令宿主', async () => {
+    await runtime.dispose()
+    const logger = createMockLogger()
+    const commandHostDetector = vi.fn(() => ({
+      status: 'available' as const,
+      platform: 'windows' as const,
+      adapter: 'windows' as const,
+      interpreter: 'powershell7' as const,
+      executablePath: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
+      environment: { PATH: 'controlled', TOKEN: 'secret' },
+    }))
+    const { activateAppRuntime } = await import('../appRuntime')
+
+    runtime = await activateAppRuntime({
+      appDataRoot,
+      commandEnvironment: { PATH: 'controlled' },
+      commandHostDetector,
+      logger,
+    })
+
+    await expect(runtime.invoke('runtime.getCommandHostStatus', undefined)).resolves.toEqual({
+      status: 'available',
+      platform: 'windows',
+      interpreter: 'powershell7',
+      executablePath: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
+    })
+    expect(commandHostDetector).toHaveBeenCalledOnce()
+    expect(commandHostDetector).toHaveBeenCalledWith(expect.objectContaining({
+      environment: expect.objectContaining({ PATH: 'controlled' }),
+    }))
+    expect(logger.info).toHaveBeenCalledTimes(1)
+    expect(logger.info).toHaveBeenCalledWith('命令宿主已固定', {
+      platform: 'windows',
+      interpreter: 'powershell7',
+      executablePath: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
+    })
+    expect(logger.warn).not.toHaveBeenCalled()
+  })
+
+  it('命令宿主不可用时 RPC 返回可行动诊断且启动日志只记录一次', async () => {
+    await runtime.dispose()
+    const logger = createMockLogger()
+    const commandHostDetector = vi.fn(() => ({
+      status: 'unavailable' as const,
+      platform: 'posix' as const,
+      candidates: ['/bin/bash', '/usr/bin/bash'],
+      reason: '未找到可执行的 Bash',
+    }))
+    const { activateAppRuntime } = await import('../appRuntime')
+
+    runtime = await activateAppRuntime({
+      appDataRoot,
+      commandHostDetector,
+      logger,
+    })
+
+    await expect(runtime.invoke('runtime.getCommandHostStatus', undefined)).resolves.toEqual({
+      status: 'unavailable',
+      platform: 'posix',
+      candidates: ['/bin/bash', '/usr/bin/bash'],
+      reason: '未找到可执行的 Bash',
+    })
+    expect(commandHostDetector).toHaveBeenCalledOnce()
+    expect(logger.warn).toHaveBeenCalledTimes(1)
+    expect(logger.warn).toHaveBeenCalledWith('命令执行功能不可用', {
+      platform: 'posix',
+      candidates: ['/bin/bash', '/usr/bin/bash'],
+      reason: '未找到可执行的 Bash',
+    })
+    expect(logger.info).not.toHaveBeenCalled()
+  })
+
+  it('命令宿主探测异常时其余模块仍完成启动', async () => {
+    await runtime.dispose()
+    const logger = createMockLogger()
+    const commandHostDetector = vi.fn(() => {
+      throw new Error('realpath failed')
+    })
+    const { activateAppRuntime } = await import('../appRuntime')
+
+    runtime = await activateAppRuntime({
+      appDataRoot,
+      commandHostDetector,
+      logger,
+    })
+
+    await expect(runtime.invoke('runtime.getCommandHostStatus', undefined)).resolves.toEqual(expect.objectContaining({
+      status: 'unavailable',
+      candidates: [],
+      reason: '命令宿主探测失败：realpath failed',
+    }))
+    expect(runtime.getModule(WorkspaceModule)).toBeDefined()
+    expect(logger.warn).toHaveBeenCalledOnce()
   })
 
   it('createConversation 必传 workspacePath,未传时抛错', async () => {
@@ -263,8 +368,8 @@ describe('app runtime', () => {
           allowBrowser: false,
           allowMcpTools: false,
           extraFileRoots: [],
-          allowBashCommands: false,
-          bashCommandPatterns: [],
+          allowCommandExecution: false,
+          commandPatterns: [],
         },
         schedule: { type: 'once', runAt: Date.now() + 60_000 },
         enabled: true,

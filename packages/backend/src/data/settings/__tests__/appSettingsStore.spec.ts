@@ -78,8 +78,8 @@ describe('appSettingsStore', () => {
         ...DEFAULT_APP_SETTINGS,
         toolApprovalWhitelist: [
           {
-            toolName: 'bash',
-            operationType: 'bash',
+            toolName: 'execute_command',
+            operationType: 'command',
             toolScope: 'workspace',
             pattern: 'git **',
             description: '旧规则',

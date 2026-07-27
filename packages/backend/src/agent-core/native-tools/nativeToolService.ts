@@ -1,4 +1,5 @@
 import type {
+  AgentCommandHost,
   AgentTool,
   AgentToolResult,
   EditFileToolInput,
@@ -12,8 +13,8 @@ import type {
 import type { BrowserSessionState } from './tools/browserSessionManager'
 import os from 'node:os'
 import path from 'node:path'
+import { createCommandTool } from './command/commandTool'
 import { createPathPolicyByMode } from './pathPolicy'
-import { createBashTool } from './tools/bashTool'
 import { createBrowserTool } from './tools/browserTool'
 import { createEditFileTool, editFile } from './tools/editFileTool'
 import { createGlobFilesTool, globFiles } from './tools/globFilesTool'
@@ -30,7 +31,7 @@ interface NativeToolServiceOptions {
     proxyUrl?: string
   }
   browserSession?: BrowserSessionState
-  bashEnvironment?: Record<string, string>
+  commandHost?: AgentCommandHost
   secretStore?: SecretStore
   runId?: string
 }
@@ -60,13 +61,14 @@ export class NativeToolService {
       createGrepFilesTool(policy, this.unrestricted),
       createWriteFileTool(policy, this.workspacePath, this.unrestricted),
       createEditFileTool(policy, this.workspacePath, this.unrestricted),
-      createBashTool(this.workspacePath, this.unrestricted, {
-        blockAgentBrowser: Boolean(this.options.browser),
-        bashEnvironment: this.options.bashEnvironment,
-        secretStore: this.options.secretStore,
-        runId: this.options.runId,
-        trustedPaths: this.options.trustedPaths ?? [],
-      }),
+      ...(this.options.commandHost?.status === 'available'
+        ? [createCommandTool(this.workspacePath, this.unrestricted, this.options.commandHost, {
+            blockAgentBrowser: Boolean(this.options.browser),
+            secretStore: this.options.secretStore,
+            runId: this.options.runId,
+            trustedPaths: this.options.trustedPaths ?? [],
+          })]
+        : []),
       ...(this.options.browser
         ? [createBrowserTool(this.workspacePath, this.options.browser, browserSession)]
         : []),

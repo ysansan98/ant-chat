@@ -11,7 +11,7 @@ export function canonicalizePermissionRuleInput(
   const input = ToolApprovalRuleInputSchema.parse(value)
   let canonical: ToolApprovalRuleInput
   switch (input.kind) {
-    case 'bash-command': {
+    case 'command': {
       const executable = input.executable.trim()
       canonical = {
         ...input,

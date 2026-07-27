@@ -1,4 +1,4 @@
-import type { ToolApprovalRule, ToolApprovalRuleInput } from '@ant-chat/shared'
+import type { CommandInterpreter, ToolApprovalRule, ToolApprovalRuleInput } from '@ant-chat/shared'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -30,6 +30,7 @@ interface RuleEditorState {
   workspacePath: string
   kind: RuleKind
   effect: 'allow' | 'deny'
+  interpreter: CommandInterpreter
   executable: string
   argvText: string
   allowRemainingArgs: boolean
@@ -302,7 +303,7 @@ function RuleEditorDialog({
   const [error, setError] = useState('')
   const [wholeExecutableConfirmOpen, setWholeExecutableConfirmOpen] = useState(false)
   const [directoryPickerOpen, setDirectoryPickerOpen] = useState(false)
-  const wholeExecutable = form.kind === 'bash-command'
+  const wholeExecutable = form.kind === 'command'
     && parseArgv(form.argvText).length === 0
     && form.allowRemainingArgs
 
@@ -358,7 +359,7 @@ function RuleEditorDialog({
                 disabled={Boolean(editing)}
                 onChange={event => updateForm({ kind: event.target.value as RuleKind })}
               >
-                <option value="bash-command">Bash 命令</option>
+                <option value="command">命令</option>
                 <option value="filesystem">文件系统</option>
                 <option value="mcp-tool">MCP 工具</option>
               </select>
@@ -411,8 +412,21 @@ function RuleEditorDialog({
               </FormField>
             )}
 
-            {form.kind === 'bash-command' && (
+            {form.kind === 'command' && (
               <>
+                <FormField label="解释器" htmlFor="permission-interpreter">
+                  <select
+                    id="permission-interpreter"
+                    className={selectClassName}
+                    value={form.interpreter}
+                    onChange={event => updateForm({ interpreter: event.target.value as CommandInterpreter })}
+                  >
+                    <option value="bash">Bash</option>
+                    <option value="powershell7">PowerShell 7</option>
+                    <option value="windows-powershell">Windows PowerShell</option>
+                    <option value="cmd">CMD</option>
+                  </select>
+                </FormField>
                 <FormField
                   label="命令"
                   htmlFor="permission-executable"
@@ -636,8 +650,9 @@ function createEditorState(editing: EditingRule | null, defaultWorkspacePath = '
   const base: RuleEditorState = {
     scope: editing?.scope ?? 'global',
     workspacePath: editing?.workspacePath ?? defaultWorkspacePath,
-    kind: editing?.rule.kind ?? 'bash-command',
+    kind: editing?.rule.kind ?? 'command',
     effect: editing?.rule.effect ?? 'allow',
+    interpreter: 'bash',
     executable: '',
     argvText: '',
     allowRemainingArgs: false,
@@ -653,9 +668,10 @@ function createEditorState(editing: EditingRule | null, defaultWorkspacePath = '
     return base
 
   switch (editing.rule.kind) {
-    case 'bash-command':
+    case 'command':
       return {
         ...base,
+        interpreter: editing.rule.interpreter,
         executable: editing.rule.executable,
         argvText: editing.rule.argvPrefix.join('\n'),
         allowRemainingArgs: editing.rule.allowRemainingArgs,
@@ -680,7 +696,7 @@ function createEditorState(editing: EditingRule | null, defaultWorkspacePath = '
 function validateEditor(form: RuleEditorState): string | null {
   if (form.scope === 'workspace' && !form.workspacePath)
     return '请选择工作区'
-  if (form.kind === 'bash-command' && !form.executable.trim())
+  if (form.kind === 'command' && !form.executable.trim())
     return '请输入命令'
   if (form.kind === 'filesystem' && !form.canonicalPath.trim())
     return '请输入文件或目录路径'
@@ -691,10 +707,11 @@ function validateEditor(form: RuleEditorState): string | null {
 
 function buildRuleInput(form: RuleEditorState): ToolApprovalRuleInput {
   switch (form.kind) {
-    case 'bash-command':
+    case 'command':
       return {
-        kind: 'bash-command',
+        kind: 'command',
         effect: form.effect,
+        interpreter: form.interpreter,
         executable: form.executable.trim(),
         argvPrefix: parseArgv(form.argvText),
         allowRemainingArgs: form.allowRemainingArgs,
@@ -725,8 +742,8 @@ function parseArgv(value: string): string[] {
 
 function getRuleTypeLabel(kind: ToolApprovalRule['kind']): string {
   switch (kind) {
-    case 'bash-command':
-      return 'Bash 命令'
+    case 'command':
+      return '命令'
     case 'filesystem':
       return '文件系统'
     case 'mcp-tool':
@@ -736,10 +753,10 @@ function getRuleTypeLabel(kind: ToolApprovalRule['kind']): string {
 
 function getRuleLabel(rule: ToolApprovalRule): string {
   switch (rule.kind) {
-    case 'bash-command': {
+    case 'command': {
       const parts = [rule.executable, ...rule.argvPrefix]
       const suffix = rule.allowRemainingArgs ? ' [可追加任意数量参数]' : ''
-      return `${parts.join(' ')}${suffix}`
+      return `${getInterpreterLabel(rule.interpreter)} · ${parts.join(' ')}${suffix}`
     }
     case 'filesystem': {
       const access = rule.access === 'read' ? '读取' : '写入'
@@ -749,6 +766,15 @@ function getRuleLabel(rule: ToolApprovalRule): string {
     }
     case 'mcp-tool':
       return `${rule.serverName} → ${rule.toolName}`
+  }
+}
+
+function getInterpreterLabel(interpreter: CommandInterpreter): string {
+  switch (interpreter) {
+    case 'bash': return 'Bash'
+    case 'powershell7': return 'PowerShell 7'
+    case 'windows-powershell': return 'Windows PowerShell'
+    case 'cmd': return 'CMD'
   }
 }
 

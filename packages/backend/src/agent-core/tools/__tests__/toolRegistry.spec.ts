@@ -1,4 +1,4 @@
-import type { AgentRuntimeConfig, AgentTool, IAgentEventEmitter, RuntimeMcpClientHub, SecretRef, SkillManifest, SkillReader } from '@ant-chat/shared'
+import type { AgentCommandHost, AgentRuntimeConfig, AgentTool, CommandInterpreter, IAgentEventEmitter, RuntimeMcpClientHub, SecretRef, SkillManifest, SkillReader } from '@ant-chat/shared'
 import { DEFAULT_MCP_TOOL_NAME_SEPARATOR } from '@ant-chat/shared'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
@@ -38,7 +38,7 @@ describe('toolRegistry Skill 白名单', () => {
     }
   }
 
-  function createConfig(): AgentRuntimeConfig {
+  function createConfig(commandHost: AgentCommandHost = createCommandHost('bash')): AgentRuntimeConfig {
     const eventEmitter: IAgentEventEmitter = {
       emitTaskUpdated: vi.fn(),
       emitApprovalRequired: vi.fn(),
@@ -47,8 +47,93 @@ describe('toolRegistry Skill 白名单', () => {
       emitTurnToolCalls: vi.fn(),
       emitTurnFinished: vi.fn(),
     }
-    return { eventEmitter, skillReader: createSkillReader() }
+    return { commandHost, eventEmitter, skillReader: createSkillReader() }
   }
+
+  function createCommandHost(interpreter: CommandInterpreter): Extract<AgentCommandHost, { status: 'available' }> {
+    if (interpreter === 'bash') {
+      return {
+        status: 'available',
+        platform: 'posix',
+        adapter: 'bash',
+        interpreter,
+        executablePath: '/bin/bash',
+        environment: { PATH: process.env.PATH ?? '', HOME: workspacePath },
+      }
+    }
+    return {
+      status: 'available',
+      platform: 'windows',
+      adapter: 'windows',
+      interpreter,
+      executablePath: `C:\\tools\\${interpreter}.exe`,
+      environment: { PATH: 'C:\\tools', SystemRoot: 'C:\\Windows', ComSpec: 'C:\\Windows\\System32\\cmd.exe' },
+    }
+  }
+
+  it.each([
+    ['bash', '当前解释器：Bash。', '$NAME'],
+    ['powershell7', '当前解释器：PowerShell 7（pwsh.exe）。', '$env:NAME'],
+    ['windows-powershell', '当前解释器：Windows PowerShell（powershell.exe）。', '$env:NAME'],
+    ['cmd', '当前解释器：CMD（cmd.exe）。', '%NAME%'],
+  ] as const)('$interpreter 宿主只注册统一命令工具并给出对应语法说明', async (interpreter, title, syntax) => {
+    const registry = await ToolRegistry.create({
+      config: createConfig(createCommandHost(interpreter)),
+      workspacePath,
+      mode: 'strict',
+      turnSource: { type: 'interactive' },
+    })
+    const tools = registry.listTools()
+    const commandTools = tools.filter(tool => tool.name === 'execute_command')
+
+    expect(commandTools).toHaveLength(1)
+    expect(tools.some(tool => tool.name === 'bash' || tool.name === 'windows_command')).toBe(false)
+    expect(commandTools[0]?.description).toContain(title)
+    expect(commandTools[0]?.description).toContain(syntax)
+  })
+
+  it('bash 与 Windows adapter 对模型暴露完全相同的 input schema', async () => {
+    const registries = await Promise.all(
+      (['bash', 'powershell7', 'windows-powershell', 'cmd'] as const).map(interpreter => ToolRegistry.create({
+        config: createConfig(createCommandHost(interpreter)),
+        workspacePath,
+        mode: 'strict',
+        turnSource: { type: 'interactive' },
+      })),
+    )
+    const schemas = registries.map(registry =>
+      registry.listTools().find(tool => tool.name === 'execute_command')?.inputSchema,
+    )
+
+    expect(schemas.every(schema => schema !== undefined)).toBe(true)
+    expect(schemas.slice(1)).toEqual(schemas.slice(1).map(() => schemas[0]))
+    expect(schemas[0]).toMatchObject({
+      required: ['command'],
+      properties: {
+        command: expect.any(Object),
+        description: expect.any(Object),
+        cwd: expect.any(Object),
+        timeoutMs: expect.any(Object),
+        secretEnv: expect.any(Object),
+      },
+    })
+  })
+
+  it('命令宿主不可用时不向当前 Turn 注册命令工具', async () => {
+    const registry = await ToolRegistry.create({
+      config: createConfig({
+        status: 'unavailable',
+        platform: 'windows',
+        candidates: ['pwsh.exe', 'powershell.exe', 'cmd.exe'],
+        reason: '未找到可用解释器',
+      }),
+      workspacePath,
+      mode: 'strict',
+      turnSource: { type: 'interactive' },
+    })
+
+    expect(registry.listTools().some(tool => tool.name === 'execute_command')).toBe(false)
+  })
 
   it('自动化运行只注入选中的 Skill，并在创建 Turn 时固化内容', async () => {
     const config = createConfig()
@@ -68,8 +153,8 @@ describe('toolRegistry Skill 白名单', () => {
           allowBrowser: false,
           allowMcpTools: false,
           extraFileRoots: [],
-          allowBashCommands: false,
-          bashCommandPatterns: [],
+          allowCommandExecution: false,
+          commandPatterns: [],
         },
       },
     })
@@ -105,8 +190,8 @@ describe('toolRegistry Skill 白名单', () => {
           allowBrowser: false,
           allowMcpTools: false,
           extraFileRoots: [],
-          allowBashCommands: false,
-          bashCommandPatterns: [],
+          allowCommandExecution: false,
+          commandPatterns: [],
         },
       },
     })
@@ -131,8 +216,8 @@ describe('toolRegistry Skill 白名单', () => {
           allowBrowser: false,
           allowMcpTools: false,
           extraFileRoots: [],
-          allowBashCommands: false,
-          bashCommandPatterns: [],
+          allowCommandExecution: false,
+          commandPatterns: [],
         },
       },
     })
@@ -158,8 +243,8 @@ describe('toolRegistry Skill 白名单', () => {
           allowBrowser: false,
           allowMcpTools: false,
           extraFileRoots: [],
-          allowBashCommands: false,
-          bashCommandPatterns: [],
+          allowCommandExecution: false,
+          commandPatterns: [],
         },
       },
     })
@@ -194,7 +279,7 @@ describe('toolRegistry Skill 白名单', () => {
     })
 
     expect(registry.prepare('read_file', { path: path.join(skillsRoot, 'review', 'SKILL.md') }).scope).toBe('outside')
-    expect(registry.prepare('bash', { command: `node ${path.join(skillsRoot, 'review', 'scripts', 'run.js')}` }).scope).toBe('outside')
+    expect(registry.prepare('execute_command', { command: `node ${path.join(skillsRoot, 'review', 'scripts', 'run.js')}` }).scope).toBe('outside')
   })
 
   it('普通交互 Turn 不注册 ant_chat 工具', async () => {
@@ -226,8 +311,8 @@ describe('toolRegistry Skill 白名单', () => {
         allowBrowser,
         allowMcpTools: false,
         extraFileRoots: [],
-        allowBashCommands: false,
-        bashCommandPatterns: [],
+        allowCommandExecution: false,
+        commandPatterns: [],
       },
     })
 
@@ -238,7 +323,7 @@ describe('toolRegistry Skill 白名单', () => {
     expect(allowedRegistry.listTools().some(tool => tool.name === 'browser')).toBe(true)
   })
 
-  it('普通交互 Turn 将严格只读 Bash 标记为 bash_read', async () => {
+  it('普通交互 Turn 将严格只读命令标记为 command_read', async () => {
     const registry = await ToolRegistry.create({
       config: createConfig(),
       mode: 'hybrid',
@@ -246,17 +331,17 @@ describe('toolRegistry Skill 白名单', () => {
       workspacePath,
     })
 
-    expect(registry.prepare('bash', { command: 'which node && node --version' })).toMatchObject({
-      operationType: 'bash_read',
+    expect(registry.prepare('execute_command', { command: 'which node && node --version' })).toMatchObject({
+      operationType: 'command_read',
       scope: 'workspace',
     })
-    expect(registry.prepare('bash', { command: 'node -v --run build' })).toMatchObject({
-      operationType: 'bash',
+    expect(registry.prepare('execute_command', { command: 'node -v --run build' })).toMatchObject({
+      operationType: 'command',
       scope: 'workspace',
     })
   })
 
-  it('bash 输入校验失败时不进入 canonical prepare', async () => {
+  it('命令输入校验失败时不进入 canonical prepare', async () => {
     const registry = await ToolRegistry.create({
       config: createConfig(),
       mode: 'hybrid',
@@ -264,35 +349,55 @@ describe('toolRegistry Skill 白名单', () => {
       workspacePath,
     })
 
-    expect(() => registry.prepare('bash', {})).not.toThrow()
-    expect(registry.prepare('bash', {})).toMatchObject({
+    expect(() => registry.prepare('execute_command', {})).not.toThrow()
+    expect(registry.prepare('execute_command', {})).toMatchObject({
       validationError: 'command 必须是非空字符串',
       scope: 'blocked',
       preparedState: undefined,
     })
   })
 
-  it('bash 只公开 secretEnv，拒绝旧 env、字符串秘密和 PATH', async () => {
+  it('命令工具只公开 secretEnv，拒绝旧 env、字符串秘密和 PATH', async () => {
     const registry = await ToolRegistry.create({
       config: createConfig(),
       mode: 'hybrid',
       turnSource: { type: 'interactive' },
       workspacePath,
     })
-    const bash = registry.listTools().find(tool => tool.name === 'bash')
+    const commandTool = registry.listTools().find(tool => tool.name === 'execute_command')
     const secretRef: SecretRef = { kind: 'secret_ref', id: 'turn:run-1:secret-1', scope: 'turn' }
 
-    expect(bash?.inputSchema.properties).toHaveProperty('secretEnv')
-    expect(bash?.inputSchema.properties).not.toHaveProperty('env')
-    expect(registry.prepare('bash', { command: 'printf ok', env: { TOKEN: secretRef } }).validationError)
+    expect(commandTool?.inputSchema.properties).toHaveProperty('secretEnv')
+    expect(commandTool?.inputSchema.properties).not.toHaveProperty('env')
+    expect(registry.prepare('execute_command', { command: 'printf ok', env: { TOKEN: secretRef } }).validationError)
       .toContain('env')
-    expect(registry.prepare('bash', { command: 'printf ok', secretEnv: { TOKEN: 'literal-secret' } }).validationError)
+    expect(registry.prepare('execute_command', { command: 'printf ok', secretEnv: { TOKEN: 'literal-secret' } }).validationError)
       .toContain('SecretRef')
-    expect(registry.prepare('bash', { command: 'printf ok', secretEnv: { PATH: secretRef } }).validationError)
+    expect(registry.prepare('execute_command', { command: 'printf ok', secretEnv: { PATH: secretRef } }).validationError)
       .toContain('PATH')
   })
 
-  it('只解析 bash secretEnv，并在执行结果中脱敏真实秘密', async () => {
+  it('秘密请求只指导模型使用平台中立的命令工具', async () => {
+    const registry = await ToolRegistry.create({
+      config: {
+        ...createConfig(),
+        secretRequester: {
+          requestSecret: vi.fn(),
+          resolveSecretRequest: vi.fn(),
+          rejectSecretRequest: vi.fn(),
+        },
+      },
+      mode: 'hybrid',
+      turnSource: { type: 'interactive' },
+      workspacePath,
+    })
+    const requestSecret = registry.listTools().find(tool => tool.name === 'requestSecret')
+
+    expect(requestSecret?.description).toContain('execute_command.secretEnv')
+    expect(requestSecret?.description).not.toContain('bash.secretEnv')
+  })
+
+  it('只解析命令工具的 secretEnv，并在执行结果中脱敏真实秘密', async () => {
     const secret = 'registry-secret-value'
     const secretRef: SecretRef = { kind: 'secret_ref', id: 'turn:run-1:secret-1', scope: 'turn' }
     const secretStore: NonNullable<AgentRuntimeConfig['secretStore']> = {
@@ -312,7 +417,7 @@ describe('toolRegistry Skill 白名单', () => {
       runId: 'run-1',
     })
 
-    const prepared = registry.prepare('bash', {
+    const prepared = registry.prepare('execute_command', {
       command: `${process.execPath} -e "process.stdout.write(process.env.ANT_CHAT_TOKEN || '')"`,
       secretEnv: { ANT_CHAT_TOKEN: secretRef },
     })
@@ -325,7 +430,7 @@ describe('toolRegistry Skill 白名单', () => {
     expect(JSON.stringify(result)).not.toContain(secret)
   })
 
-  it('bash 拒绝解析其他 Turn 的 SecretRef', async () => {
+  it('命令工具拒绝解析其他 Turn 的 SecretRef', async () => {
     const secretRef: SecretRef = { kind: 'secret_ref', id: 'turn:run-2:secret-1', scope: 'turn' }
     const secretStore: NonNullable<AgentRuntimeConfig['secretStore']> = {
       saveProviderApiKey: vi.fn(),
@@ -344,7 +449,7 @@ describe('toolRegistry Skill 白名单', () => {
       runId: 'run-1',
     })
 
-    const result = await registry.prepare('bash', {
+    const result = await registry.prepare('execute_command', {
       command: 'printf ok',
       secretEnv: { TOKEN: secretRef },
     }).execute()
@@ -353,7 +458,7 @@ describe('toolRegistry Skill 白名单', () => {
     expect(secretStore.resolveTurnSecret).toHaveBeenCalledWith(secretRef, 'run-1')
   })
 
-  it('非 bash 工具收到 SecretRef 时不由 ToolRegistry 解析', async () => {
+  it('非命令工具收到 SecretRef 时不由 ToolRegistry 解析', async () => {
     const secretRef: SecretRef = { kind: 'secret_ref', id: 'secret-1', scope: 'turn' }
     const execute = vi.fn(async () => ({ ok: true, result: 'ok' }))
     const tool: AgentTool = {
@@ -414,8 +519,8 @@ describe('toolRegistry Skill 白名单', () => {
         allowBrowser: false,
         allowMcpTools,
         extraFileRoots: [],
-        allowBashCommands: false,
-        bashCommandPatterns: [],
+        allowCommandExecution: false,
+        commandPatterns: [],
       },
     })
     const config = { ...createConfig(), mcpClientHub }

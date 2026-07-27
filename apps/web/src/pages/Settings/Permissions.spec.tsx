@@ -28,7 +28,8 @@ const bashRule: ToolApprovalRule = {
   id: 'bash-1',
   createdAt: 1,
   updatedAt: 1,
-  kind: 'bash-command',
+  kind: 'command',
+  interpreter: 'bash',
   executable: 'git',
   argvPrefix: ['status'],
   allowRemainingArgs: false,
@@ -65,7 +66,7 @@ describe('权限管理页', () => {
     expect(permissionsApi.list).toHaveBeenCalledTimes(2)
   })
 
-  it('添加 Bash 规则时只提交结构化能力字段', async () => {
+  it('添加命令规则时提交解释器和结构化能力字段', async () => {
     vi.mocked(permissionsApi.list).mockResolvedValue({ global: [], workspaces: {} })
     vi.mocked(permissionsApi.add).mockResolvedValue({
       ...bashRule,
@@ -85,15 +86,16 @@ describe('权限管理页', () => {
       scope: 'global',
       workspacePath: undefined,
       rule: {
-        kind: 'bash-command',
+        kind: 'command',
         effect: 'allow',
+        interpreter: 'bash',
         executable: 'git',
         argvPrefix: ['show', 'HEAD'],
         allowRemainingArgs: true,
         resourceScope: 'workspace',
       },
     }))
-    expect(await screen.findByText('git show HEAD [可追加任意数量参数]')).toBeInTheDocument()
+    expect(await screen.findByText('Bash · git show HEAD [可追加任意数量参数]')).toBeInTheDocument()
   })
 
   it('审批命令经过 PATH shim 时仍展示用户授权的命令名', async () => {
@@ -108,9 +110,9 @@ describe('权限管理页', () => {
 
     render(<PermissionsPage />)
 
-    expect(await screen.findByText('node /skills/example/run.js')).toBeInTheDocument()
+    expect(await screen.findByText('Bash · node /skills/example/run.js')).toBeInTheDocument()
     expect(screen.queryByText('nub /skills/example/run.js')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '编辑规则：node /skills/example/run.js' }))
+    fireEvent.click(screen.getByRole('button', { name: '编辑规则：Bash · node /skills/example/run.js' }))
     expect(screen.getByRole('textbox', { name: '命令' })).toHaveValue('node')
   })
 
@@ -197,9 +199,9 @@ describe('权限管理页', () => {
     vi.mocked(permissionsApi.list).mockResolvedValue({ global: [bashRule], workspaces: {} })
     vi.mocked(permissionsApi.update).mockResolvedValue({ ...bashRule, argvPrefix: ['show'] })
     render(<PermissionsPage />)
-    await screen.findByText('git status')
+    await screen.findByText('Bash · git status')
 
-    fireEvent.click(screen.getByRole('button', { name: '编辑规则：git status' }))
+    fireEvent.click(screen.getByRole('button', { name: '编辑规则：Bash · git status' }))
     fireEvent.change(screen.getByRole('textbox', { name: '固定参数' }), { target: { value: 'show' } })
     fireEvent.click(screen.getByRole('button', { name: '保存规则' }))
 
@@ -208,15 +210,16 @@ describe('权限管理页', () => {
       scope: 'global',
       workspacePath: undefined,
       rule: {
-        kind: 'bash-command',
+        kind: 'command',
         effect: 'allow',
+        interpreter: 'bash',
         executable: 'git',
         argvPrefix: ['show'],
         allowRemainingArgs: false,
         resourceScope: 'workspace',
       },
     }))
-    expect(await screen.findByText('git show')).toBeInTheDocument()
+    expect(await screen.findByText('Bash · git show')).toBeInTheDocument()
   })
 
   it('保存失败时保留表单内容并允许重试', async () => {
@@ -260,7 +263,7 @@ describe('权限管理页', () => {
 
     await waitFor(() => expect(permissionsApi.add).toHaveBeenCalledWith(expect.objectContaining({
       rule: expect.objectContaining({
-        kind: 'bash-command',
+        kind: 'command',
         argvPrefix: [],
         allowRemainingArgs: true,
       }),
@@ -291,19 +294,19 @@ describe('权限管理页', () => {
       .mockResolvedValueOnce({ ...bashRule, argvPrefix: ['show'] })
       .mockResolvedValueOnce({ ...bashRule, argvPrefix: ['log'] })
     render(<PermissionsPage />)
-    await screen.findByText('git status')
+    await screen.findByText('Bash · git status')
 
-    fireEvent.click(screen.getByRole('button', { name: '编辑规则：git status' }))
+    fireEvent.click(screen.getByRole('button', { name: '编辑规则：Bash · git status' }))
     fireEvent.change(screen.getByRole('textbox', { name: '固定参数' }), { target: { value: 'show' } })
     fireEvent.click(screen.getByRole('button', { name: '保存规则' }))
-    await screen.findByText('git show')
+    await screen.findByText('Bash · git show')
 
-    fireEvent.click(screen.getByRole('button', { name: '编辑规则：git show' }))
+    fireEvent.click(screen.getByRole('button', { name: '编辑规则：Bash · git show' }))
     expect(screen.getByRole('button', { name: '保存规则' })).toBeEnabled()
     fireEvent.change(screen.getByRole('textbox', { name: '固定参数' }), { target: { value: 'log' } })
     fireEvent.click(screen.getByRole('button', { name: '保存规则' }))
 
-    expect(await screen.findByText('git log')).toBeInTheDocument()
+    expect(await screen.findByText('Bash · git log')).toBeInTheDocument()
     expect(permissionsApi.update).toHaveBeenCalledTimes(2)
   })
 })

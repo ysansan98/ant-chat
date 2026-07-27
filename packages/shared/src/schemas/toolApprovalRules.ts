@@ -1,10 +1,13 @@
+import type { CommandInterpreter } from './command'
+
 import { z } from 'zod'
+import { CommandInterpreterSchema } from './command'
 
 /**
  * 权限规则：用户在交互审批或"权限"页面显式保存的结构化授权。
  *
  * 规则只能满足基础策略的 require_approval，不能覆盖系统阻断，
- * 也不参与 Automation。按全局或 canonical 工作区分组，并按 Bash、文件系统或 MCP 表达可复用边界。
+ * 也不参与 Automation。按全局或 canonical 工作区分组，并按命令、文件系统或 MCP 表达可复用边界。
  *
  * 详见 docs/adr/0001-tool-approval-rules.md。
  */
@@ -20,10 +23,11 @@ export const RuleBaseSchema = z.object({
   effect: z.enum(['allow', 'deny']).optional(),
 }).strict()
 
-// ---- Bash 命令规则 ----
+// ---- 命令规则 ----
 
-export const BashCommandRuleSchema = RuleBaseSchema.extend({
-  kind: z.literal('bash-command'),
+export const CommandRuleSchema = RuleBaseSchema.extend({
+  kind: z.literal('command'),
+  interpreter: CommandInterpreterSchema,
   /** PATH/相对命令保留原文；绝对路径命令保存 canonical 路径 */
   executable: z.string().min(1),
   /** 固定前缀参数（不含可执行文件本身） */
@@ -56,7 +60,7 @@ export const McpToolRuleSchema = RuleBaseSchema.extend({
 // ---- 封闭规则联合 ----
 
 export const ToolApprovalRuleSchema = z.discriminatedUnion('kind', [
-  BashCommandRuleSchema,
+  CommandRuleSchema,
   FilesystemRuleSchema,
   McpToolRuleSchema,
 ]).superRefine((rule, context) => {
@@ -71,7 +75,7 @@ export const ToolApprovalRuleSchema = z.discriminatedUnion('kind', [
 })
 
 export type ToolApprovalRule = z.infer<typeof ToolApprovalRuleSchema>
-export type BashCommandRule = z.infer<typeof BashCommandRuleSchema>
+export type CommandRule = z.infer<typeof CommandRuleSchema>
 export type FilesystemRule = z.infer<typeof FilesystemRuleSchema>
 export type McpToolRule = z.infer<typeof McpToolRuleSchema>
 
@@ -79,7 +83,7 @@ export type RuleKind = ToolApprovalRule['kind']
 
 // ---- 权限管理输入 ----
 
-const BashCommandRuleInputSchema = BashCommandRuleSchema.omit({
+const CommandRuleInputSchema = CommandRuleSchema.omit({
   id: true,
   createdAt: true,
   updatedAt: true,
@@ -99,7 +103,7 @@ const McpToolRuleInputSchema = McpToolRuleSchema.omit({
 
 /** 管理页只能提交规则能力，持久化身份和时间戳由后端生成。 */
 export const ToolApprovalRuleInputSchema = z.discriminatedUnion('kind', [
-  BashCommandRuleInputSchema,
+  CommandRuleInputSchema,
   FilesystemRuleInputSchema,
   McpToolRuleInputSchema,
 ]).superRefine((rule, context) => {
@@ -153,8 +157,10 @@ export const PERMISSIONS_SCHEMA_VERSION = 1
  * 前端只提交对候选的选择（索引和调整），后端从 pending action 重建最终规则并校验。
  */
 
-export interface BashSegmentCandidate {
-  type: 'bash-segment'
+export interface CommandSegmentCandidate {
+  type: 'command-segment'
+  /** 命令实际使用的解释器，持久规则只匹配相同解释器。 */
+  interpreter: CommandInterpreter
   /** 该段在命令中的序号 */
   segmentIndex: number
   /** 用户实际看到并授权的命令名或路径 */
@@ -188,7 +194,7 @@ export interface McpToolCandidate {
   riskWarning: string
 }
 
-export type ApprovalCandidate = BashSegmentCandidate | FilesystemCandidate | McpToolCandidate
+export type ApprovalCandidate = CommandSegmentCandidate | FilesystemCandidate | McpToolCandidate
 
 /**
  * 用户对候选的选择：提交候选索引和可能的调整。
@@ -197,11 +203,11 @@ export type ApprovalCandidate = BashSegmentCandidate | FilesystemCandidate | Mcp
 export interface ApprovalCandidateSelection {
   /** 候选在 candidates 数组中的索引 */
   candidateIndex: number
-  /** Bash: 调整后的 argvPrefix（可选，仅 bash-segment 候选） */
+  /** 命令: 调整后的 argvPrefix（可选，仅 command-segment 候选） */
   adjustedArgvPrefix?: string[]
-  /** Bash: 固定参数之后是否允许零个或任意多个参数 */
+  /** 命令: 固定参数之后是否允许零个或任意多个参数 */
   allowRemainingArgs?: boolean
-  /** Bash: 是否选择整个可执行文件（需二次确认） */
+  /** 命令: 是否选择整个可执行文件（需二次确认） */
   wholeExecutable?: boolean
   /** 文件: 是否选择父目录递归读取 */
   parentDirectory?: boolean

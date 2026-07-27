@@ -21,6 +21,7 @@ import type {
   RejectPendingActionOptions,
 } from './agent-runtime'
 import type { AgentTurnResult, StartAgentTurnOptions } from './agent-runtime-electron'
+import type { AgentCommandHostStatus } from './agent-runtime-interfaces'
 import type { ArchivedConversationWorkspaceResult } from './archived-conversations'
 import type { AutomationDefinition, AutomationInput, AutomationRun, UpdateAutomationInput } from './automation'
 import type { RunBuiltinCommandParams, RunBuiltinCommandResult } from './builtin-command'
@@ -40,12 +41,16 @@ export interface AppRuntimeCapabilities {
   nativeFilePicker: boolean
 }
 
+export type CommandHostStatus = AgentCommandHostStatus
+
 export interface RpcEndpoint<TInput, TOutput> {
   input: TInput
   output: TOutput
 }
 
 export interface AppRpcContract {
+  'runtime.getCommandHostStatus': RpcEndpoint<undefined, CommandHostStatus>
+
   'chat.createConversationsTitle': RpcEndpoint<handleInitConversationTitleOptions, IConversations>
   'chat.getConversations': RpcEndpoint<{ pageIndex: number, pageSize: number }, { data: IConversations[], total: number }>
   'chat.getWorkspaceConversations': RpcEndpoint<{ workspacePath: string, pageIndex: number, pageSize: number }, { data: IConversations[], total: number }>

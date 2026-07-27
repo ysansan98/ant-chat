@@ -94,6 +94,7 @@ function ToolCallDetail({ view }: { view: ToolCallEvidenceView }) {
       <div className="flex flex-wrap gap-1.5">
         {view.serverName && <Badge variant="outline">{view.serverName}</Badge>}
         {view.operationType && <Badge variant="outline">{view.operationType}</Badge>}
+        {view.interpreter && <Badge variant="outline">{view.interpreter}</Badge>}
         {view.scope && <Badge variant="outline">{view.scope}</Badge>}
       </div>
       {view.errorText && <ErrorBlock text={view.errorText} />}
@@ -103,6 +104,7 @@ function ToolCallDetail({ view }: { view: ToolCallEvidenceView }) {
           <KeyValueList items={[
             ...(view.serverName ? [{ label: '服务', value: view.serverName }] : []),
             ...(view.operationType ? [{ label: '操作类型', value: view.operationType }] : []),
+            ...(view.interpreter ? [{ label: '解释器', value: view.interpreter }] : []),
             ...(view.scope ? [{ label: '作用范围', value: view.scope }] : []),
             ...(view.workspacePath ? [{ label: '工作目录', value: <code className="break-all">{view.workspacePath}</code> }] : []),
             ...(view.step != null ? [{ label: '步骤序号', value: String(view.step) }] : []),
@@ -141,6 +143,7 @@ function PolicyDecisionDetail({ view }: { view: PolicyDecisionView }) {
   const toolTags = [
     view.toolName,
     view.operationType,
+    view.interpreter,
     view.scope,
   ].filter(Boolean)
 

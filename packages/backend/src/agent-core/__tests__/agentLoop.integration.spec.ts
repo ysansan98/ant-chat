@@ -224,4 +224,64 @@ describe('agentLoop 与 aimock 集成', () => {
     expect(emitter.emitTurnFinished).toHaveBeenCalled()
     expect(logger.info).not.toHaveBeenCalled()
   })
+
+  it('真实模型请求只收到统一的 execute_command 命令工具', { timeout: 15000 }, async () => {
+    aimock().llm.reset()
+    let requestedToolNames: string[] = []
+    aimock().llm.on({
+      predicate: (request) => {
+        const body = request as {
+          messages?: Array<{ content?: unknown }>
+          tools?: Array<{ function?: { name?: string } }>
+        }
+        requestedToolNames = (body.tools ?? [])
+          .map(tool => tool.function?.name)
+          .filter((name): name is string => Boolean(name))
+        return getAllMessageText(request).includes('capture command tools')
+      },
+    }, {
+      content: '命令工具检查完成。',
+    })
+
+    const emitter = createMockEmitter()
+    const logger = createMockLogger()
+    const commandHost = {
+      status: 'available' as const,
+      platform: 'posix' as const,
+      adapter: 'bash' as const,
+      interpreter: 'bash' as const,
+      executablePath: '/bin/bash',
+      environment: { PATH: process.env.PATH ?? '', HOME: workspacePath },
+    }
+    const registry = await ToolRegistry.create({
+      config: { commandHost, eventEmitter: emitter, logger },
+      workspacePath,
+      mode: 'hybrid',
+      turnSource: { type: 'interactive' },
+    })
+    const runtime = new AgentRuntime({ commandHost, eventEmitter: emitter, logger })
+
+    await runtime.startPreparedTask({
+      conversationId: 'conv-command-tools',
+      userMessageId: 'msg-command-tools',
+      workspacePath,
+      mode: 'hybrid',
+      userText: 'capture command tools',
+      messages: [
+        { role: 'user', content: [{ type: 'text', text: 'capture command tools' }] },
+      ],
+      registry,
+      systemPrompt: '',
+      aiProvider: createAimockAIProvider(aimock().url),
+      modelName: 'gpt-4o-mini',
+      providerName: 'aimock',
+      providerId: 'aimock',
+      apiMode: 'openai',
+    })
+
+    await vi.waitFor(() => expect(emitter.emitTurnFinished).toHaveBeenCalled(), { timeout: 12000 })
+    expect(requestedToolNames.filter(name => name === 'execute_command')).toHaveLength(1)
+    expect(requestedToolNames).not.toContain('bash')
+    expect(requestedToolNames).not.toContain('windows_command')
+  })
 })

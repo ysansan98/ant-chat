@@ -48,7 +48,7 @@ export class ToolRegistry {
     const nativeTools = filterNativeToolsForTurn(getNativeToolService(workspacePath, unrestricted, {
       trustedPaths,
       browser: config.browser,
-      bashEnvironment: config.bashEnvironment,
+      commandHost: config.commandHost,
       browserSession,
       secretStore: config.secretStore,
       runId,
@@ -58,7 +58,7 @@ export class ToolRegistry {
       : filterNativeToolsForTurn(getNativeToolService(workspacePath, true, {
           trustedPaths,
           browser: config.browser,
-          bashEnvironment: config.bashEnvironment,
+          commandHost: config.commandHost,
           browserSession,
           secretStore: config.secretStore,
           runId,
@@ -212,7 +212,7 @@ function createRequestSecretTool(): AgentTool {
       '向用户请求当前任务临时使用的敏感信息。',
       '当工具需要密码、token、验证码、账号密码等一个或多个敏感字段时使用。',
       '单字段可传 label；多字段传 fields，例如 [{ key: "username", label: "账号" }, { key: "password", label: "密码" }]。',
-      '此工具不会返回真实值，只返回 SecretRef 或 secretRefs；后续只能把当前 Turn 的 SecretRef 传给 bash.secretEnv。',
+      '此工具不会返回真实值，只返回 SecretRef 或 secretRefs；后续只能把当前 Turn 的 SecretRef 传给 execute_command.secretEnv。',
     ].join('\n'),
     inputSchema: {
       type: 'object',

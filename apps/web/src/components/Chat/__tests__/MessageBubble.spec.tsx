@@ -29,7 +29,14 @@ function createToolCall(
   state: ToolCallContent['executeState'] = 'completed',
 ): ToolCallContent {
   seq += 1
-  return { type: 'tool-call', toolCallId: `call-${seq}`, toolName, args, executeState: state }
+  return {
+    type: 'tool-call',
+    toolCallId: `call-${seq}`,
+    toolName,
+    args,
+    executeState: state,
+    ...(toolName === 'execute_command' ? { command: { interpreter: 'bash' as const } } : {}),
+  }
 }
 
 function createToolResult(call: ToolCallContent, result: string, isError = false): IMessage {
@@ -128,7 +135,7 @@ describe('消息气泡', () => {
 
   it('连续工具闭合后外层标题展示汇总，展开后可见每个工具', () => {
     const read = createToolCall('read_file', { path: 'README.md' })
-    const bash = createToolCall('bash', { command: 'pnpm check' })
+    const bash = createToolCall('execute_command', { command: 'pnpm check' })
     renderBubble([
       createAssistantMessage('tool-step', [read, bash]),
       createToolResult(read, '已读取 README'),
@@ -147,7 +154,7 @@ describe('消息气泡', () => {
 
   it('连续工具执行中时标题展示最新工具文案，完成后切换为汇总', () => {
     const read = createToolCall('read_file', { path: 'README.md' })
-    const bash = createToolCall('bash', { command: 'pnpm check' }, 'executing')
+    const bash = createToolCall('execute_command', { command: 'pnpm check' }, 'executing')
     const runningMessages = [
       createAssistantMessage('tool-step', [read, bash]),
       createToolResult(read, '已读取 README'),
@@ -185,8 +192,8 @@ describe('消息气泡', () => {
     expect(screen.getByRole('button', { name: '读取 README.md，执行中' })).toBeInTheDocument()
   })
 
-  it('提供用途说明的 Bash 在标题展示说明，展开体展示命令会话块', () => {
-    const bash = createToolCall('bash', { command: 'pnpm install', description: '安装项目依赖' })
+  it('提供用途说明的命令在标题展示说明，展开体展示终端会话块', () => {
+    const bash = createToolCall('execute_command', { command: 'pnpm install', description: '安装项目依赖' })
     const { container } = renderBubble([
       createAssistantMessage('tool-step', [bash]),
       createToolResult(bash, 'stdout:\nadded 10 packages\nexitCode=0'),
@@ -203,8 +210,8 @@ describe('消息气泡', () => {
     expect(container.textContent).not.toContain('stdout:')
   })
 
-  it('执行失败的 Bash 在展开体保留退出码且不露出标准错误标记行', () => {
-    const bash = createToolCall('bash', { command: 'ls missing' })
+  it('执行失败的命令在展开体保留退出码且不露出标准错误标记行', () => {
+    const bash = createToolCall('execute_command', { command: 'ls missing' })
     const { container } = renderBubble([
       createAssistantMessage('tool-step', [bash]),
       createToolResult(bash, 'stderr:\nnot found\nexitCode=1', true),
@@ -215,6 +222,23 @@ describe('消息气泡', () => {
 
     expect(container.textContent).toContain('exit 1')
     expect(container.textContent).not.toContain('stderr:')
+  })
+
+  it('powerShell 命令按解释器元数据展示终端提示符', () => {
+    const command = {
+      ...createToolCall('execute_command', { command: 'Get-ChildItem' }),
+      command: { interpreter: 'powershell7' as const },
+    }
+    const { container } = renderBubble([
+      createAssistantMessage('tool-step', [command]),
+      createToolResult(command, 'stdout:\nREADME.md\nexitCode=0'),
+      createAssistantMessage('final', [{ type: 'text', text: '完成' }]),
+    ])
+
+    fireEvent.click(screen.getByText('Get-ChildItem'))
+
+    expect(container.textContent).toContain('PS> Get-ChildItem')
+    expect(screen.getByRole('img', { name: '终端' })).toBeInTheDocument()
   })
 
   it('编辑文件工具的标题展示增删行统计，展开后展示差异', () => {
@@ -351,7 +375,7 @@ describe('消息气泡', () => {
     vi.setSystemTime(11_000)
 
     const first = createAssistantMessage('tool-call', [
-      createToolCall('bash', { command: 'pnpm check' }, 'executing'),
+      createToolCall('execute_command', { command: 'pnpm check' }, 'executing'),
     ])
     first.createdAt = 1_000
     const second = createAssistantMessage('answer-1', [{ type: 'text', text: '处理中' }], 'typing')

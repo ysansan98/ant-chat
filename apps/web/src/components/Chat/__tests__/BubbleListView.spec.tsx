@@ -53,8 +53,9 @@ describe('bubbleList', () => {
     const assistantMessage = createMessage('tool-call', 'assistant', [{
       type: 'tool-call',
       toolCallId: 'call-1',
-      toolName: 'bash',
+      toolName: 'execute_command',
       args: { command: 'pnpm check' },
+      command: { interpreter: 'bash' },
       executeState: 'executing',
     }], 'success')
     assistantMessage.turnId = undefined
@@ -99,8 +100,9 @@ describe('bubbleList', () => {
       createMessage('tool-call', 'assistant', [{
         type: 'tool-call',
         toolCallId: 'call-1',
-        toolName: 'bash',
+        toolName: 'execute_command',
         args: { command: 'pnpm check' },
+        command: { interpreter: 'bash' },
         executeState: 'executing',
       }], 'success'),
       createMessage('answer-1', 'assistant', [{ type: 'text', text: '处理中' }], 'typing'),

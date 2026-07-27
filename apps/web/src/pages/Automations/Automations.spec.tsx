@@ -41,8 +41,8 @@ const automation = {
     allowBrowser: false,
     allowMcpTools: false,
     extraFileRoots: [],
-    allowBashCommands: false,
-    bashCommandPatterns: [],
+    allowCommandExecution: false,
+    commandPatterns: [],
   },
   schedule: { type: 'cron' as const, expression: '0 9 * * *', timezone: 'Asia/Shanghai' },
   enabled: true,
@@ -147,6 +147,22 @@ describe('automationsPage', () => {
 
     expect(await screen.findByText('/workspace/project')).toBeInTheDocument()
     expect(screen.getByRole('switch', { name: /允许浏览器操作/ })).not.toBeChecked()
+  })
+
+  it('创建任务时使用平台中立的命令权限配置', async () => {
+    renderPage()
+    await screen.findAllByText('每日检查')
+
+    fireEvent.click(screen.getByRole('button', { name: '新建自动化' }))
+
+    const commandSwitch = await screen.findByRole('switch', { name: /允许终端命令/ })
+    expect(commandSwitch).not.toBeChecked()
+    expect(screen.queryByLabelText('允许的命令模式')).not.toBeInTheDocument()
+
+    fireEvent.click(commandSwitch)
+
+    expect(screen.getByLabelText('允许的命令模式')).toBeInTheDocument()
+    expect(screen.queryByText(/bash 等终端命令/i)).not.toBeInTheDocument()
   })
 
   it('创建任务时计划标签明确标识当前选项', async () => {

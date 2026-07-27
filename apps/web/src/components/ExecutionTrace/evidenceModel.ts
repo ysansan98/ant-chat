@@ -86,6 +86,7 @@ export interface ToolCallEvidenceView extends SpanTiming {
   toolName?: string
   serverName?: string
   operationType?: string
+  interpreter?: string
   scope?: string
   workspacePath?: string
   step?: number
@@ -104,6 +105,7 @@ export interface PolicyDecisionView extends SpanTiming {
   type: 'policy-decision'
   toolName?: string
   operationType?: string
+  interpreter?: string
   scope?: string
   policy?: string
   /** 判定依据 key（backend decidePolicy/decideAutomationPolicy 发出），policyBasisLabel 转中文 */
@@ -223,7 +225,8 @@ const policyBasisLabels: Record<PolicyBasis, string> = {
   'workspace.read': '工作区内只读操作默认允许',
   'hybrid.write': '自动审查模式：允许工作区内写入',
   'default.require-approval': '当前权限模式要求人工审批',
-  'bash.syntax.require-approval': '复杂 shell 或秘密注入需要本次人工审批',
+  'command.risk.require-approval': '高风险命令需要本次人工审批',
+  'command.bottomline-block': '命令触及不可覆盖的系统保护边界',
   'approval-rule.deny-match': '已命中用户配置的黑名单规则',
   'approval.rule-read-failed': '权限规则读取失败，已按安全策略降级',
   'approval-grant.match': '已命中用户记住的授权规则',
@@ -238,14 +241,14 @@ const policyBasisLabels: Record<PolicyBasis, string> = {
   'automation.write.allow': '自动化策略授予工作区写权限',
   'automation.write.blocked': '自动化任务仅有工作区读取权限',
   'automation.skill.allow': '自动化策略允许 Skill 调用',
-  'automation.bash-read.allow': '自动化策略授权命令执行',
-  'automation.bash-read.blocked': '自动化任务未授权命令执行',
+  'automation.command-read.allow': '自动化策略授权命令执行',
+  'automation.command-read.blocked': '自动化任务未授权命令执行',
   'automation.mcp.allow': '自动化策略允许调用所选 MCP 工具',
   'automation.mcp.blocked': '自动化任务未授权 MCP 工具',
-  'automation.bash.allow': '自动化策略允许全部命令',
-  'automation.bash.blocked': '自动化任务未授权命令执行',
-  'automation.bash.pattern-match': '命令命中自动化允许范围',
-  'automation.bash.pattern-blocked': '命令不在自动化任务允许范围内',
+  'automation.command.allow': '自动化策略允许全部命令',
+  'automation.command.blocked': '自动化任务未授权命令执行',
+  'automation.command.pattern-match': '命令命中自动化允许范围',
+  'automation.command.pattern-blocked': '命令不在自动化任务允许范围内',
   'automation.unsupported': '自动化任务不支持该操作类型',
 }
 
@@ -331,6 +334,7 @@ function parseToolCall(timing: SpanTiming, input: unknown, output: unknown, erro
     toolName: asString(request?.toolName),
     serverName: asString(request?.serverName),
     operationType: asString(request?.operationType),
+    interpreter: asString(request?.interpreter) ?? asString(asRecord(request?.command)?.interpreter),
     scope: asString(request?.scope),
     workspacePath: asString(request?.workspacePath),
     step: asNumber(request?.step),
@@ -371,6 +375,7 @@ function parsePolicyDecision(timing: SpanTiming, input: unknown, output: unknown
     ...timing,
     toolName: asString(request?.toolName),
     operationType: asString(request?.operationType),
+    interpreter: asString(request?.interpreter) ?? asString(asRecord(request?.command)?.interpreter),
     scope: asString(request?.scope),
     policy: asString(request?.policy),
     basis: asString(effectiveDecision?.basis) ?? initialBasis,

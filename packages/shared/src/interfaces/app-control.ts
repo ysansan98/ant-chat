@@ -22,9 +22,9 @@ const AutomationPermissionPolicyCommandSchema = z.object({
   allowSkillScripts: z.boolean().optional(),
   allowMcpTools: z.boolean().optional(),
   extraFileRoots: z.array(z.string()).optional(),
-  allowBashCommands: z.boolean().optional(),
-  bashCommandPatterns: z.array(z.string()).optional(),
-})
+  allowCommandExecution: z.boolean().optional(),
+  commandPatterns: z.array(z.string()).optional(),
+}).strict()
 
 const SettingsShowCommandSchema = z.object({ type: z.literal('settings'), action: z.literal('show') })
 const SettingsThemeSetCommandSchema = z.object({

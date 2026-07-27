@@ -11,7 +11,7 @@ export interface PermissionFormState {
   selectedSkillRuntime: boolean
   browser: boolean
   mcpTools: boolean
-  bashCommands: boolean
+  commandExecution: boolean
 }
 
 /** 表单状态全集 */
@@ -31,7 +31,7 @@ export interface AutomationFormState {
   selectedMcps: string[]
   permissionScopes: PermissionFormState
   extraFileRoots: string
-  bashCommandPatterns: string
+  commandPatterns: string
 }
 
 const DEFAULT_PERMISSION_SCOPES: PermissionFormState = {
@@ -39,7 +39,7 @@ const DEFAULT_PERMISSION_SCOPES: PermissionFormState = {
   selectedSkillRuntime: true,
   browser: false,
   mcpTools: false,
-  bashCommands: false,
+  commandExecution: false,
 }
 
 /** 一次性执行的默认时间：下一小时的整点 */
@@ -66,7 +66,7 @@ function createDefaultFormState(): AutomationFormState {
     selectedMcps: [],
     permissionScopes: { ...DEFAULT_PERMISSION_SCOPES },
     extraFileRoots: '',
-    bashCommandPatterns: '',
+    commandPatterns: '',
   }
 }
 
@@ -111,9 +111,9 @@ export function useAutomationForm(opts: {
       draft.permissionScopes.selectedSkillRuntime = policy.allowSelectedSkillRuntime
       draft.permissionScopes.browser = policy.allowBrowser
       draft.permissionScopes.mcpTools = policy.allowMcpTools
-      draft.permissionScopes.bashCommands = policy.allowBashCommands
+      draft.permissionScopes.commandExecution = policy.allowCommandExecution
       draft.extraFileRoots = policy.extraFileRoots.join(', ')
-      draft.bashCommandPatterns = policy.bashCommandPatterns.join(', ')
+      draft.commandPatterns = policy.commandPatterns.join(', ')
 
       if (def.schedule.type === 'once') {
         draft.mode = 'once'
@@ -212,8 +212,8 @@ export function useAutomationForm(opts: {
         allowBrowser: form.permissionScopes.browser,
         allowMcpTools: form.permissionScopes.mcpTools,
         extraFileRoots: splitCommaList(form.extraFileRoots),
-        allowBashCommands: form.permissionScopes.bashCommands,
-        bashCommandPatterns: splitCommaList(form.bashCommandPatterns),
+        allowCommandExecution: form.permissionScopes.commandExecution,
+        commandPatterns: splitCommaList(form.commandPatterns),
       },
       schedule: form.mode === 'cron'
         ? { type: 'cron' as const, expression: cron, timezone: 'Asia/Shanghai' }

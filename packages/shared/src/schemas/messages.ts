@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { CommandMetadataSchema } from './command'
 import { VisualizationBlockSchema, VisualizationOutputBlocksSchema } from './visualization'
 
 // 文本内容
@@ -35,6 +36,8 @@ export const ToolCallContentSchema = z.object({
   toolName: z.string(),
   args: z.record(z.string(), z.unknown()),
   serverName: z.string().optional(),
+  /** 命令工具的结构化解释器身份，供展示和 Trace 使用。 */
+  command: CommandMetadataSchema.optional(),
   executeState: z.enum(['executing', 'completed']).optional(),
   /** 仅限 agent loop 内部 transport，持久化前由 session emitter 剥离。 */
   outputBlocks: VisualizationOutputBlocksSchema.shape.outputBlocks.optional(),
@@ -188,6 +191,7 @@ export const McpToolCallSchema = z.object({
   serverName: z.string(),
   toolName: z.string(),
   args: z.record(z.string(), z.unknown()),
+  command: CommandMetadataSchema.optional(),
   executeState: z.enum(['await', 'executing', 'completed']),
   result: McpToolResultSchema.optional(),
   outputBlocks: VisualizationOutputBlocksSchema.shape.outputBlocks.optional(),

@@ -37,5 +37,5 @@ _Avoid_: 消息历史、调试打印、运行状态
 _Avoid_: 可观测字段、原始日志字段
 
 **Permission Rule（权限规则）**:
-用户在交互审批或“权限”页面显式保存的结构化 allow/deny 能力规则；deny 规则优先阻止当前工具调用，allow 规则只能满足基础策略的 `require_approval`。规则按全局或 canonical 工作区分组，并按 Bash、文件系统或 MCP 表达可复用边界。
+用户在交互审批或“权限”页面显式保存的结构化 allow/deny 能力规则；deny 规则优先阻止当前工具调用，allow 规则只能满足基础策略的 `require_approval`。规则按全局或 canonical 工作区分组，并按带解释器身份的命令、文件系统或 MCP 表达可复用边界。
 _Avoid_: 工具白名单、命令白名单、审批豁免

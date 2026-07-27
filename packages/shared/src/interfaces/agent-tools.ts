@@ -1,6 +1,6 @@
 import type { SecretRef } from '../schemas'
 
-export type ToolOperationType = 'read' | 'write' | 'bash' | 'bash_read' | 'browser' | 'skill' | 'mcp'
+export type ToolOperationType = 'read' | 'write' | 'command' | 'command_read' | 'browser' | 'skill' | 'mcp'
 export type ToolScope = 'workspace' | 'outside' | 'external' | 'blocked'
 export type AgentToolInput = Record<string, unknown>
 
@@ -37,7 +37,7 @@ export interface AgentTool {
   truncateResult?: boolean
 }
 
-export interface BashToolInput {
+export interface CommandToolInput {
   command: string
   /** 一句话说明命令目的，仅用于 UI 展示（消息列表工具 header），执行路径不读取 */
   description?: string
