@@ -1,7 +1,7 @@
 import type { AppRpcInput } from '@ant-chat/shared'
 import type { createConversationTitleGenerator } from '../../../agent-runtime'
 import type { ConversationLifecycle } from '../../../conversations/conversationLifecycle'
-import type { RuntimeCore } from '../../createRuntimeCore'
+import type { ConversationRepository, MessageRepository, WorkspaceService } from '../../../data'
 import type { RuntimeModuleMethods } from '../../routeRegistry'
 import path from 'node:path'
 import { AddMessage, UpdateMessageSchema } from '@ant-chat/shared'
@@ -10,7 +10,9 @@ import { Method, Module } from '../../decorators'
 @Module('chat')
 export class ChatModule implements RuntimeModuleMethods<'chat'> {
   constructor(
-    private readonly core: Pick<RuntimeCore, 'data'>,
+    private readonly conversationRepository: ConversationRepository,
+    private readonly messageRepository: MessageRepository,
+    private readonly workspaceService: WorkspaceService,
     private readonly conversationLifecycle: ConversationLifecycle,
     private readonly titleGenerator: ReturnType<typeof createConversationTitleGenerator>,
   ) {}
@@ -29,12 +31,12 @@ export class ChatModule implements RuntimeModuleMethods<'chat'> {
 
   @Method()
   getConversations(input: AppRpcInput<'chat.getConversations'>) {
-    return this.core.data.conversationRepository.list(input.pageIndex, input.pageSize, undefined, false)
+    return this.conversationRepository.list(input.pageIndex, input.pageSize, undefined, false)
   }
 
   @Method()
   getWorkspaceConversations(input: AppRpcInput<'chat.getWorkspaceConversations'>) {
-    return this.core.data.conversationRepository.list(input.pageIndex, input.pageSize, input.workspacePath, false)
+    return this.conversationRepository.list(input.pageIndex, input.pageSize, input.workspacePath, false)
   }
 
   @Method()
@@ -42,18 +44,18 @@ export class ChatModule implements RuntimeModuleMethods<'chat'> {
     const query = input.query?.trim() ?? ''
     const pageSize = Math.min(Math.max(input.pageSize, 1), 100)
     const [allWorkspaces, matchedWorkspaces] = await Promise.all([
-      this.core.data.conversationRepository.listArchivedWorkspaces(),
+      this.conversationRepository.listArchivedWorkspaces(),
       query
-        ? this.core.data.conversationRepository.listArchivedWorkspaces(query)
+        ? this.conversationRepository.listArchivedWorkspaces(query)
         : Promise.resolve(null),
     ])
     const matched = matchedWorkspaces ?? allWorkspaces
     const totalByPath = new Map(allWorkspaces.map(workspace => [workspace.workspacePath, workspace.total]))
-    const configuredWorkspaces = this.core.data.workspaceService.listWorkspaces().workspaces
+    const configuredWorkspaces = this.workspaceService.listWorkspaces().workspaces
     const configuredByPath = new Map(configuredWorkspaces.map((workspace, index) => [workspace.path, { ...workspace, index }]))
 
     const workspaces = await Promise.all(matched.map(async (workspace) => {
-      const page = await this.core.data.conversationRepository.listArchived(0, pageSize, workspace.workspacePath, query)
+      const page = await this.conversationRepository.listArchived(0, pageSize, workspace.workspacePath, query)
       const configured = workspace.workspacePath === null ? undefined : configuredByPath.get(workspace.workspacePath)
       return {
         workspacePath: workspace.workspacePath,
@@ -62,7 +64,7 @@ export class ChatModule implements RuntimeModuleMethods<'chat'> {
           : configured?.displayName ?? path.basename(workspace.workspacePath),
         total: totalByPath.get(workspace.workspacePath) ?? workspace.total,
         matchedTotal: workspace.total,
-        available: workspace.workspacePath !== null && this.core.data.workspaceService.isWorkspaceAvailable(workspace.workspacePath),
+        available: workspace.workspacePath !== null && this.workspaceService.isWorkspaceAvailable(workspace.workspacePath),
         conversations: page.data,
         order: configured?.index,
       }
@@ -92,7 +94,7 @@ export class ChatModule implements RuntimeModuleMethods<'chat'> {
 
   @Method()
   getArchivedConversations(input: AppRpcInput<'chat.getArchivedConversations'>) {
-    return this.core.data.conversationRepository.listArchived(
+    return this.conversationRepository.listArchived(
       input.pageIndex,
       input.pageSize,
       input.workspacePath,
@@ -153,38 +155,38 @@ export class ChatModule implements RuntimeModuleMethods<'chat'> {
 
   @Method()
   getMessagesByConvId(input: AppRpcInput<'chat.getMessagesByConvId'>) {
-    return this.core.data.messageRepository.listByConversation(input.convId)
+    return this.messageRepository.listByConversation(input.convId)
   }
 
   @Method()
   getMessageById(input: AppRpcInput<'chat.getMessageById'>) {
-    return requireValue(this.core.data.messageRepository.getById(input.id), `Message not found: ${input.id}`)
+    return requireValue(this.messageRepository.getById(input.id), `Message not found: ${input.id}`)
   }
 
   @Method()
   addMessage(input: AppRpcInput<'chat.addMessage'>) {
     rejectClientVisualization(input.message.content)
-    return this.core.data.messageRepository.create(AddMessage.parse(input.message))
+    return this.messageRepository.create(AddMessage.parse(input.message))
   }
 
   @Method()
   async updateMessage(input: AppRpcInput<'chat.updateMessage'>) {
-    const existing = await this.core.data.messageRepository.getById(input.message.id)
+    const existing = await this.messageRepository.getById(input.message.id)
     if (input.message.content !== undefined) {
       assertClientVisualizationUpdate(existing.content, input.message.content)
     }
-    return this.core.data.messageRepository.update(UpdateMessageSchema.parse(input.message))
+    return this.messageRepository.update(UpdateMessageSchema.parse(input.message))
   }
 
   @Method()
   async deleteMessage(input: AppRpcInput<'chat.deleteMessage'>) {
-    await this.core.data.messageRepository.delete(input.id)
+    await this.messageRepository.delete(input.id)
     return null
   }
 
   @Method()
   async batchDeleteMessages(input: AppRpcInput<'chat.batchDeleteMessages'>) {
-    await this.core.data.messageRepository.batchDelete(input.ids)
+    await this.messageRepository.batchDelete(input.ids)
     return null
   }
 }

@@ -1,6 +1,8 @@
 import type { AIProviderFactory, AppRpcInput, CreateProviderConfigSchema, UpdateProviderConfigSchema } from '@ant-chat/shared'
+import type { ProviderSettingsRepository } from '../../../data'
+import type { RuntimeEventBus } from '../../../events'
 import type { KeychainSecretStore } from '../../../secretStore'
-import type { RuntimeCore } from '../../createRuntimeCore'
+import type { SystemLogger } from '../../../systemLogger'
 import type { RuntimeModuleMethods } from '../../routeRegistry'
 import { randomUUID } from 'node:crypto'
 import { createProvider } from '../../../agent-core'
@@ -12,93 +14,98 @@ export class ProviderModule implements RuntimeModuleMethods<'provider'> {
   readonly aiProviderFactory: AIProviderFactory
   private readonly modelsDevImporter: ReturnType<typeof createModelsDevImporter>
 
-  constructor(private readonly core: Pick<RuntimeCore, 'data' | 'events' | 'logger' | 'secretStore'>) {
-    this.modelsDevImporter = createModelsDevImporter(core.data)
+  constructor(
+    private readonly providerSettingsRepository: ProviderSettingsRepository,
+    private readonly secretStore: KeychainSecretStore,
+    private readonly events: RuntimeEventBus,
+    private readonly logger: SystemLogger,
+  ) {
+    this.modelsDevImporter = createModelsDevImporter(providerSettingsRepository)
     this.aiProviderFactory = async ({ provider }) => {
-      const apiKey = await resolveProviderApiKey(core.secretStore, provider)
-      return await createProvider({ ...provider, apiKey }, { logger: core.logger })
+      const apiKey = await resolveProviderApiKey(secretStore, provider)
+      return await createProvider({ ...provider, apiKey }, { logger })
     }
   }
 
   async initialize() {
-    const migratedSecrets = await this.core.data.providerSettingsRepository.migratePlaintextApiKeys(this.core.secretStore)
+    const migratedSecrets = await this.providerSettingsRepository.migratePlaintextApiKeys(this.secretStore)
     if (migratedSecrets) {
-      this.core.events.emit('provider:changed', {})
+      this.events.emit('provider:changed', {})
     }
   }
 
   @Method()
   listProviders(_input?: AppRpcInput<'provider.listProviders'>) {
-    return this.core.data.providerSettingsRepository.listProviders()
+    return this.providerSettingsRepository.listProviders()
   }
 
   @Method()
   async createProvider(input: AppRpcInput<'provider.createProvider'>) {
-    const config = await prepareCreateProviderConfig(this.core.secretStore, input.config)
-    const provider = this.core.data.providerSettingsRepository.createProvider(config)
-    this.core.events.emit('provider:changed', { providerId: provider.id })
+    const config = await prepareCreateProviderConfig(this.secretStore, input.config)
+    const provider = this.providerSettingsRepository.createProvider(config)
+    this.events.emit('provider:changed', { providerId: provider.id })
     return provider
   }
 
   @Method()
   async updateProvider(input: AppRpcInput<'provider.updateProvider'>) {
-    const config = await prepareProviderSecret(this.core.secretStore, input.config)
-    const provider = this.core.data.providerSettingsRepository.updateProvider(config)
-    this.core.events.emit('provider:changed', { providerId: provider.id })
+    const config = await prepareProviderSecret(this.secretStore, input.config)
+    const provider = this.providerSettingsRepository.updateProvider(config)
+    this.events.emit('provider:changed', { providerId: provider.id })
     return provider
   }
 
   @Method()
   async deleteProvider(input: AppRpcInput<'provider.deleteProvider'>) {
-    this.core.data.providerSettingsRepository.deleteProvider(input.id)
-    await this.core.secretStore.deleteProviderApiKey(input.id)
-    this.core.events.emit('provider:changed', { providerId: input.id })
+    this.providerSettingsRepository.deleteProvider(input.id)
+    await this.secretStore.deleteProviderApiKey(input.id)
+    this.events.emit('provider:changed', { providerId: input.id })
     return null
   }
 
   @Method()
   getProviderById(input: AppRpcInput<'provider.getProviderById'>) {
     return requireValue(
-      this.core.data.providerSettingsRepository.getProviderById(input.id),
+      this.providerSettingsRepository.getProviderById(input.id),
       `Provider not found: ${input.id}`,
     )
   }
 
   @Method()
   getAllAbvailableModels(_input: AppRpcInput<'provider.getAllAbvailableModels'>) {
-    return this.core.data.providerSettingsRepository.getAllAvailableModels()
+    return this.providerSettingsRepository.getAllAvailableModels()
   }
 
   @Method()
   listProviderModels(input: AppRpcInput<'provider.listProviderModels'>) {
-    return this.core.data.providerSettingsRepository.listProviderModels(input.id)
+    return this.providerSettingsRepository.listProviderModels(input.id)
   }
 
   @Method()
   setModelEnabledStatus(input: AppRpcInput<'provider.setModelEnabledStatus'>) {
-    const model = this.core.data.providerSettingsRepository.setModelEnabledStatus(input.id, input.status)
-    this.core.events.emit('provider:changed', { providerId: model.providerId })
+    const model = this.providerSettingsRepository.setModelEnabledStatus(input.id, input.status)
+    this.events.emit('provider:changed', { providerId: model.providerId })
     return model
   }
 
   @Method()
   createProviderModel(input: AppRpcInput<'provider.createProviderModel'>) {
-    const model = this.core.data.providerSettingsRepository.createProviderModel(input.config)
-    this.core.events.emit('provider:changed', { providerId: model.providerId })
+    const model = this.providerSettingsRepository.createProviderModel(input.config)
+    this.events.emit('provider:changed', { providerId: model.providerId })
     return model
   }
 
   @Method()
   deleteProviderModel(input: AppRpcInput<'provider.deleteProviderModel'>) {
-    this.core.data.providerSettingsRepository.deleteProviderModel(input.id)
-    this.core.events.emit('provider:changed', {})
+    this.providerSettingsRepository.deleteProviderModel(input.id)
+    this.events.emit('provider:changed', {})
     return null
   }
 
   @Method()
   getModel(input: AppRpcInput<'provider.getModel'>) {
     return requireValue(
-      this.core.data.providerSettingsRepository.getModel(input.providerId, input.modelId),
+      this.providerSettingsRepository.getModel(input.providerId, input.modelId),
       `Provider model not found: ${input.providerId}/${input.modelId}`,
     )
   }
@@ -116,7 +123,7 @@ export class ProviderModule implements RuntimeModuleMethods<'provider'> {
   @Method()
   async importModelsDevModels(input: AppRpcInput<'provider.importModelsDevModels'>) {
     const result = await this.modelsDevImporter.importModelsDevModels(input.providerId)
-    this.core.events.emit('provider:changed', { providerId: input.providerId })
+    this.events.emit('provider:changed', { providerId: input.providerId })
     return result
   }
 }

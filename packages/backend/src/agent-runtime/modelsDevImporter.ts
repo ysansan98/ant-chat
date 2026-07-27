@@ -1,5 +1,5 @@
 import type { ReasoningEffortLevel } from '@ant-chat/shared'
-import type { AppDataContext } from '../data'
+import type { ProviderSettingsRepository } from '../data'
 import { getModelsDevModelsByProviderId, getModelsDevProviders } from './modelsDev'
 
 export interface ImportModelsDevModelsResult {
@@ -15,14 +15,14 @@ export interface ModelsDevImporter {
   importModelsDevModels: (providerId: string) => Promise<ImportModelsDevModelsResult>
 }
 
-export function createModelsDevImporter(appDataContext: AppDataContext): ModelsDevImporter {
+export function createModelsDevImporter(providerSettingsRepository: ProviderSettingsRepository): ModelsDevImporter {
   return {
     getModelsDevProviders,
     getModelsDevModelsByProviderId,
 
     async importModelsDevModels(providerId: string): Promise<ImportModelsDevModelsResult> {
       const models = await getModelsDevModelsByProviderId(providerId)
-      const provider = appDataContext.providerSettingsRepository.getProviderSettingsById(providerId)
+      const provider = providerSettingsRepository.getProviderSettingsById(providerId)
       const existingModelSet = new Set(provider ? Object.keys(provider.models) : [])
       const added: string[] = []
       const skipped: string[] = []
@@ -43,7 +43,7 @@ export function createModelsDevImporter(appDataContext: AppDataContext): ModelsD
         }
 
         try {
-          appDataContext.providerSettingsRepository.createProviderModel({
+          providerSettingsRepository.createProviderModel({
             providerId,
             model: model.model,
             name: model.name,

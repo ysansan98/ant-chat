@@ -24,7 +24,9 @@ export interface RegisteredRuntimeModules {
 }
 
 export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModules {
-  const provider = new ProviderModule(core)
+  const { data, events, logger, secretStore } = core
+
+  const provider = new ProviderModule(data.providerSettingsRepository, secretStore, events, logger)
   const skills = new SkillsModule(core)
   const mcp = new McpModule(core)
   const agent = new AgentModule(core, {
@@ -32,12 +34,18 @@ export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModu
     mcpClientHub: mcp.clientHub,
     skills: skills.service,
   })
-  const chat = new ChatModule(core, agent.conversationLifecycle, agent.titleGenerator)
-  const settings = new SettingsModule(core)
-  const workspace = new WorkspaceModule(core)
-  const permissions = new PermissionsModule(core)
+  const chat = new ChatModule(
+    data.conversationRepository,
+    data.messageRepository,
+    data.workspaceService,
+    agent.conversationLifecycle,
+    agent.titleGenerator,
+  )
+  const settings = new SettingsModule(data.settingsRepository, events)
+  const workspace = new WorkspaceModule(data.workspaceService, data.permissionsFileStore, events)
+  const permissions = new PermissionsModule(data.permissionsFileStore)
   const runtimeStatus = new RuntimeStatusModule(core)
-  const automation = new AutomationModule(core, {
+  const automation = new AutomationModule(data.automationRepository, events, logger, {
     startTurn: agent.turnService.startTurn,
     cancelTask: taskId => agent.runtime.cancelTask({ taskId }),
   })

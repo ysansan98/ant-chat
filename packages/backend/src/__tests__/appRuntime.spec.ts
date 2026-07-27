@@ -293,14 +293,10 @@ describe('app runtime', () => {
     })
     const workspaceModule = runtime.getModule(WorkspaceModule)
     const permissionsFileStore = (workspaceModule as unknown as {
-      core: {
-        data: {
-          permissionsFileStore: {
-            clearWorkspace: (path: string) => void
-          }
-        }
+      permissionsFileStore: {
+        clearWorkspace: (path: string) => void
       }
-    }).core.data.permissionsFileStore
+    }).permissionsFileStore
     vi.spyOn(permissionsFileStore, 'clearWorkspace').mockImplementationOnce(() => {
       throw new Error('permissions cleanup failed')
     })

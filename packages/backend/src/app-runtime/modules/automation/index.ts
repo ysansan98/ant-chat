@@ -1,6 +1,8 @@
 import type { AppRpcInput } from '@ant-chat/shared'
 import type { AgentTurnService } from '../../../agent-runtime'
-import type { RuntimeCore } from '../../createRuntimeCore'
+import type { AutomationRepository } from '../../../data'
+import type { RuntimeEventBus } from '../../../events'
+import type { SystemLogger } from '../../../systemLogger'
 import type { RuntimeModuleMethods } from '../../routeRegistry'
 import { createAutomationRuntime } from '../../../automations'
 import { Method, Module } from '../../decorators'
@@ -10,18 +12,20 @@ export class AutomationModule implements RuntimeModuleMethods<'automation'> {
   private readonly runtime: ReturnType<typeof createAutomationRuntime>
 
   constructor(
-    core: Pick<RuntimeCore, 'data' | 'events' | 'logger'>,
+    automationRepository: AutomationRepository,
+    events: RuntimeEventBus,
+    logger: SystemLogger,
     dependencies: {
       startTurn: AgentTurnService['startTurn']
       cancelTask: (taskId: string) => void
     },
   ) {
     this.runtime = createAutomationRuntime({
-      repository: core.data.automationRepository,
+      repository: automationRepository,
       startTurn: dependencies.startTurn,
       cancelTask: dependencies.cancelTask,
-      events: core.events,
-      logger: core.logger,
+      events,
+      logger,
     })
   }
 

@@ -16,17 +16,13 @@ describe('会话归档运行状态保护', () => {
     const isWorkspaceAvailable = vi.fn()
     const module = new ChatModule(
       {
-        data: {
-          conversationRepository: {
-            listArchivedWorkspaces: vi.fn().mockResolvedValue([{ workspacePath: null, total: 1 }]),
-            listArchived,
-          },
-          workspaceService: {
-            listWorkspaces: vi.fn().mockReturnValue({ workspaces: [] }),
-            isWorkspaceAvailable,
-          },
-        },
-        events: { emit: vi.fn() },
+        listArchivedWorkspaces: vi.fn().mockResolvedValue([{ workspacePath: null, total: 1 }]),
+        listArchived,
+      } as never,
+      {} as never,
+      {
+        listWorkspaces: vi.fn().mockReturnValue({ workspaces: [] }),
+        isWorkspaceAvailable,
       } as never,
       {} as never,
       {} as never,

@@ -1,9 +1,14 @@
 import type { AddConversationsSchema, AddMessage, AgentTaskSnapshot, IConversations, ILogger, IMessage, UpdateConversationsSchema, VisualizationBlock } from '@ant-chat/shared'
-import type { AppDataContext } from '../data'
+import type { ConversationRepository, MessageRepository, WorkspaceService } from '../data'
 import type { RuntimeEventBus } from '../events'
 import { randomUUID } from 'node:crypto'
 
-type ConversationData = Pick<AppDataContext, 'conversationRepository' | 'messageRepository' | 'workspaceService' | 'loadAttachmentData'>
+interface ConversationDependencies {
+  conversationRepository: Pick<ConversationRepository, 'getById' | 'create' | 'update' | 'list' | 'setArchived' | 'delete' | 'deleteArchived' | 'deleteByWorkspace' | 'deleteArchivedByWorkspace' | 'deleteAllArchived' | 'listArchived' | 'listArchivedWorkspaces'>
+  messageRepository: Pick<MessageRepository, 'listByConversation' | 'create' | 'getById'>
+  workspaceService: Pick<WorkspaceService, 'isWorkspaceAvailable' | 'listWorkspaces' | 'addWorkspace' | 'removeWorkspace'>
+  loadAttachmentData: (fileId: string) => Promise<string | null>
+}
 
 export interface ConversationLifecycle {
   get: (id: string) => Promise<IConversations>
@@ -26,7 +31,7 @@ export interface ConversationCreation {
 }
 
 export function createConversationLifecycle(options: {
-  data: ConversationData
+  data: ConversationDependencies
   events: Pick<RuntimeEventBus, 'emit'>
   runtime: {
     closeConversation: (conversationId: string) => Promise<void> | void
@@ -246,7 +251,7 @@ async function copyMessage(
   forkConversationId: string,
   messageIdMap: Map<string, string>,
   toolCallIdMap: Map<string, string>,
-  data: Pick<ConversationData, 'loadAttachmentData'>,
+  data: Pick<ConversationDependencies, 'loadAttachmentData'>,
   randomId: () => string,
 ): Promise<AddMessage> {
   const content = await Promise.all((message.content as unknown[]).map(async (block) => {

@@ -1,5 +1,6 @@
 import type { AppRpcInput } from '@ant-chat/shared'
-import type { RuntimeCore } from '../../createRuntimeCore'
+import type { GeneralSettingsRepository } from '../../../data/settings'
+import type { RuntimeEventBus } from '../../../events'
 import type { RuntimeModuleMethods } from '../../routeRegistry'
 import { NetworkProxyManager } from '../../../networkProxy'
 import { Method, Module } from '../../decorators'
@@ -8,10 +9,13 @@ import { Method, Module } from '../../decorators'
 export class SettingsModule implements RuntimeModuleMethods<'settings'> {
   private readonly networkProxy = new NetworkProxyManager()
 
-  constructor(private readonly core: Pick<RuntimeCore, 'data' | 'events'>) {}
+  constructor(
+    private readonly settingsRepository: GeneralSettingsRepository,
+    private readonly events: RuntimeEventBus,
+  ) {}
 
   async initialize() {
-    const settings = await this.core.data.settingsRepository.getGeneralSettings()
+    const settings = await this.settingsRepository.getGeneralSettings()
     await this.networkProxy.apply(settings.proxySettings)
   }
 
@@ -21,23 +25,23 @@ export class SettingsModule implements RuntimeModuleMethods<'settings'> {
 
   @Method()
   getSettings(_input?: AppRpcInput<'settings.getSettings'>) {
-    return this.core.data.settingsRepository.getGeneralSettings()
+    return this.settingsRepository.getGeneralSettings()
   }
 
   @Method()
   async updateSettings(input: AppRpcInput<'settings.updateSettings'>) {
     const { updates } = input
     if (!updates.proxySettings) {
-      const settings = await this.core.data.settingsRepository.updateGeneralSettings(updates)
-      this.core.events.emit('settings:updated', { keys: Object.keys(updates) })
+      const settings = await this.settingsRepository.updateGeneralSettings(updates)
+      this.events.emit('settings:updated', { keys: Object.keys(updates) })
       return settings
     }
 
-    const currentSettings = await this.core.data.settingsRepository.getGeneralSettings()
+    const currentSettings = await this.settingsRepository.getGeneralSettings()
     await this.networkProxy.apply(updates.proxySettings)
     try {
-      const settings = await this.core.data.settingsRepository.updateGeneralSettings(updates)
-      this.core.events.emit('settings:updated', { keys: Object.keys(updates) })
+      const settings = await this.settingsRepository.updateGeneralSettings(updates)
+      this.events.emit('settings:updated', { keys: Object.keys(updates) })
       return settings
     }
     catch (persistError) {
@@ -53,9 +57,9 @@ export class SettingsModule implements RuntimeModuleMethods<'settings'> {
 
   @Method()
   async resetSettings(_input: AppRpcInput<'settings.resetSettings'>) {
-    const settings = await this.core.data.settingsRepository.resetGeneralSettings()
+    const settings = await this.settingsRepository.resetGeneralSettings()
     await this.networkProxy.apply(settings.proxySettings)
-    this.core.events.emit('settings:updated', { keys: ['all'] })
+    this.events.emit('settings:updated', { keys: ['all'] })
     return settings
   }
 

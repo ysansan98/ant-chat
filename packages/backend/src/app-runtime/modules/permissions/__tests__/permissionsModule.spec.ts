@@ -1,7 +1,7 @@
 import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { PermissionsFileStore } from '../../../../data/permissions'
 import { PermissionsModule } from '..'
 
@@ -16,10 +16,7 @@ describe('permissions module', () => {
     workspacePath = path.join(dir, 'workspace')
     mkdirSync(workspacePath)
     store = new PermissionsFileStore(path.join(dir, 'permissions.json'))
-    module = new PermissionsModule({
-      data: { permissionsFileStore: store },
-      logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
-    } as never)
+    module = new PermissionsModule(store)
   })
 
   afterEach(() => {
