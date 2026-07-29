@@ -931,7 +931,7 @@ export function PromptInput({
         ref={formRef}
         {...props}
       >
-        <InputGroup className="overflow-hidden rounded-4xl px-2 pt-2">{children}</InputGroup>
+        <InputGroup className="overflow-hidden rounded-xl px-2 pt-2">{children}</InputGroup>
       </form>
     </>
   )

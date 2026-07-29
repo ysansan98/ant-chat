@@ -65,7 +65,7 @@ function Sender({ disabled = false, ...props }: SenderProps) {
       className="mx-auto w-full max-w-(--chat-width)"
     >
       {!hasMessage && (
-        <h1 className="mb-3 py-3 text-center text-2xl text-balance text-muted-foreground md:text-4xl">
+        <h1 className="mb-3 py-3 text-center text-xl text-balance text-muted-foreground">
           <TypingEffect text="有什么可以帮忙的？" />
         </h1>
       )}
@@ -96,7 +96,7 @@ function Sender({ disabled = false, ...props }: SenderProps) {
       />
 
       {(notice || workspace.error) && (
-        <div className="mt-2 text-xs text-red-500">{notice || workspace.error}</div>
+        <div className="mt-2 text-xs text-destructive">{notice || workspace.error}</div>
       )}
     </div>
   )

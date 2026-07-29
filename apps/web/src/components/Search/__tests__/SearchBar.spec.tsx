@@ -15,7 +15,7 @@ describe('searchBar', () => {
     expect(screen.getByTestId('search-panel')).toHaveClass(
       'w-[calc(100%-1.5rem)]',
       'max-w-lg',
-      'rounded-2xl',
+      'rounded-xl',
     )
     expect(screen.getByTestId('search-panel')).not.toHaveClass('inset-0')
   })

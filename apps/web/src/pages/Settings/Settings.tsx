@@ -60,7 +60,7 @@ export default function SettingsPage() {
             <div>
               <ArrowLeft className="size-[1em]" />
             </div>
-            <div className="text-[13px]">
+            <div className="text-sm">
               返回工作区
             </div>
           </div>
@@ -92,7 +92,7 @@ export default function SettingsPage() {
                 <div>
                   {item.icon}
                 </div>
-                <div className="text-[13px]">
+                <div className="text-sm">
                   {item.name}
                 </div>
               </div>

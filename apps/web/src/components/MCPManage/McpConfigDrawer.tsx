@@ -394,7 +394,7 @@ function PreviewMcpToolItem({ item }: { item: McpTool }) {
         </div>
         <ChevronRight className={`shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`} />
       </div>
-      <div className={`grid transition-all ${expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+      <div className={`grid transition-[grid-template-rows] ${expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
         <div className="overflow-hidden">
           <PreviewMcpToolParams item={item} />
         </div>
@@ -416,7 +416,7 @@ function PreviewMcpToolParams({ item }: { item: McpTool }) {
           <div key={key}>
             <span>
               {key}
-              <span className="text-red-500">{item.inputSchema.required?.includes(key) ? '*' : ''}</span>
+              <span className="text-destructive">{item.inputSchema.required?.includes(key) ? '*' : ''}</span>
             </span>
             <div className="flex items-center gap-2">
               <Badge variant="outline">{String(value.type ?? '')}</Badge>

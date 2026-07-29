@@ -11,8 +11,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@workspace/ui/components/alert-dialog'
+import { Spinner } from '@workspace/ui/components/spinner'
 import { cn } from '@workspace/ui/lib/utils'
-import { Loader2Icon, ShieldAlertIcon } from 'lucide-react'
+import { ShieldAlertIcon } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { submitVisualizationFollowUp } from '@/store/pendingMessages'
 import { clampFrameHeight, getInitialFrameHeight, getVisualizationTheme, loadVisualizationArtifact, validateFollowUpRequest } from './bridge'
@@ -160,9 +161,8 @@ export function VisualizationFrame({ block, conversationId, messageId, onFollowU
 
   if (state.status === 'loading') {
     return (
-      <div className={cn('flex min-h-24 items-center gap-2 text-sm text-muted-foreground', className)} role="status">
-        <Loader2Icon className="size-4 animate-spin" />
-        正在加载可视化
+      <div className={cn('flex items-center justify-center py-4', className)}>
+        <Spinner />
       </div>
     )
   }

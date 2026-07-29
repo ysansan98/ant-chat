@@ -46,7 +46,7 @@ export function SenderComposer({
 }: SenderComposerProps) {
   const { textareaRef, draft, onChange, onClick, onKeyDown, onKeyUp, onScroll } = referenceInput
   return (
-    <div className="overflow-hidden rounded-4xl bg-secondary shadow-2xl">
+    <div className="overflow-hidden rounded-xl bg-secondary">
       <PendingMessageQueue
         conversationId={conversationId}
         canInject={canInjectPendingMessage}
@@ -57,7 +57,7 @@ export function SenderComposer({
 
       <PromptInput
         accept={fileAccept}
-        className="rounded-4xl bg-background"
+        className="rounded-xl bg-background"
         data-testid="chat-input-form"
         maxFileSize={5 * 1024 * 1024}
         multiple

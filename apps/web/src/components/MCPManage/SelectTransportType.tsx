@@ -12,7 +12,7 @@ const options = [
 
 export function SelectTransportType({ value, onChange }: SelectTransportTypeProps) {
   return (
-    <div className="flex justify-around">
+    <div className="flex justify-around gap-3">
       {
         options.map(item => (
           <div
@@ -20,7 +20,7 @@ export function SelectTransportType({ value, onChange }: SelectTransportTypeProp
             role="button"
             tabIndex={0}
             className={`
-              relative w-[48%] rounded-xl border border-solid p-3 transition-colors
+              relative w-1/2 rounded-xl border border-solid p-3 transition-colors
               ${value === item.id ? 'border-primary' : 'border-(--border-color)'}
               cursor-pointer
               hover:border-primary
@@ -39,7 +39,7 @@ export function SelectTransportType({ value, onChange }: SelectTransportTypeProp
               <div className="items-start">
                 {item.icon}
               </div>
-              <div className="text-base font-bold">
+              <div className="text-base font-semibold">
                 <div>{item.name}</div>
                 <div className={`
                   mt-0.5 text-xs font-normal text-muted-foreground
@@ -53,7 +53,7 @@ export function SelectTransportType({ value, onChange }: SelectTransportTypeProp
               {
                 item.features.map(t => (
                   <div key={t} className="flex items-center gap-2 text-xs">
-                    <span className="text-green-500">
+                    <span className="text-emerald-700 dark:text-emerald-400">
                       <Check className="size-4" />
                     </span>
                     {t}

@@ -73,7 +73,7 @@ export function AppearanceSettings() {
       <div className="flex flex-col gap-6">
         {/* 明暗模式（保留卡片式选择器 —— 3 个视觉效果差异大的选项） */}
         <section>
-          <h3 className="mb-2 text-[13px] font-semibold text-muted-foreground">明暗模式</h3>
+          <h3 className="mb-2 text-xs font-semibold text-muted-foreground">明暗模式</h3>
           <div className="flex flex-wrap gap-3">
             {modeOptions.map(option => (
               <button
@@ -83,7 +83,7 @@ export function AppearanceSettings() {
                   flex cursor-pointer flex-col items-center gap-2 rounded-xl border px-6 py-4
                   text-sm transition-colors duration-150
                   ${appearance.mode === option.id
-                ? 'border-ring bg-accent/10 shadow-sm'
+                ? 'border-ring bg-accent/10'
                 : 'border-border hover:border-ring/50 hover:bg-muted/30'
               }
                 `}
@@ -103,7 +103,7 @@ export function AppearanceSettings() {
 
         {/* 亮色主题（单选 radio 行） */}
         <section>
-          <h3 className="mb-2 text-[13px] font-semibold text-muted-foreground">亮色主题</h3>
+          <h3 className="mb-2 text-xs font-semibold text-muted-foreground">亮色主题</h3>
           <div className="overflow-hidden rounded-xl border border-border bg-card">
             {themeOptions.map((theme) => {
               const selected = appearance.lightThemeId === theme.id
@@ -118,7 +118,7 @@ export function AppearanceSettings() {
                   `}
                   onClick={() => handleLightThemeChange(theme.id)}
                 >
-                  <span className="flex items-center gap-2 text-[13px]">
+                  <span className="flex items-center gap-2 text-sm">
                     {theme.colors && (
                       <span className="flex -space-x-1">
                         {theme.colors.map(c => <ThemePreviewDot key={c} color={c} />)}
@@ -126,7 +126,7 @@ export function AppearanceSettings() {
                     )}
                     <span className={selected ? 'font-medium' : ''}>{theme.label}</span>
                     {theme.subtitle
-                      ? <span className="text-[10px] text-muted-foreground">{theme.subtitle}</span>
+                      ? <span className="text-[11px] text-muted-foreground">{theme.subtitle}</span>
                       : null}
                   </span>
                   <RadioIndicator selected={selected} />
@@ -138,7 +138,7 @@ export function AppearanceSettings() {
 
         {/* 暗色主题（单选 radio 行） */}
         <section>
-          <h3 className="mb-2 text-[13px] font-semibold text-muted-foreground">暗色主题</h3>
+          <h3 className="mb-2 text-xs font-semibold text-muted-foreground">暗色主题</h3>
           <div className="overflow-hidden rounded-xl border border-border bg-card">
             {themeOptions.map((theme) => {
               const selected = appearance.darkThemeId === theme.id
@@ -153,7 +153,7 @@ export function AppearanceSettings() {
                   `}
                   onClick={() => handleDarkThemeChange(theme.id)}
                 >
-                  <span className="flex items-center gap-2 text-[13px]">
+                  <span className="flex items-center gap-2 text-sm">
                     {theme.colors && (
                       <span className="flex -space-x-1">
                         {theme.colors.map(c => <ThemePreviewDot key={c} color={c} />)}
@@ -161,7 +161,7 @@ export function AppearanceSettings() {
                     )}
                     <span className={selected ? 'font-medium' : ''}>{theme.label}</span>
                     {theme.subtitle
-                      ? <span className="text-[10px] text-muted-foreground">{theme.subtitle}</span>
+                      ? <span className="text-[11px] text-muted-foreground">{theme.subtitle}</span>
                       : null}
                   </span>
                   <RadioIndicator selected={selected} />

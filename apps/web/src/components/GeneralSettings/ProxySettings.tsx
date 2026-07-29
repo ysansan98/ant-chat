@@ -117,7 +117,7 @@ export function CustomProxyUrl() {
       }
       {
         testResult !== null && (
-          <span className={testResult ? 'text-emerald-600' : 'text-destructive'}>
+          <span className={testResult ? 'text-emerald-700 dark:text-emerald-400' : 'text-destructive'}>
             {testResult ? '✓' : '✗'}
           </span>
         )

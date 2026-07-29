@@ -230,7 +230,7 @@ function ToolCallItem({
         <HeaderLabel text={label.primary} active={active || item.isExecuting} error={error} />
         {label.diff && (
           <span className="shrink-0 text-xs tabular-nums">
-            <span className="text-green-600">
+            <span className="text-emerald-700 dark:text-emerald-400">
               +
               {label.diff.added}
             </span>

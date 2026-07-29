@@ -2,6 +2,7 @@ import type { AgentMemoryFiles } from '@ant-chat/shared'
 import { Button } from '@workspace/ui/components/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@workspace/ui/components/card'
 import { Input } from '@workspace/ui/components/input'
+import { Spinner } from '@workspace/ui/components/spinner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@workspace/ui/components/tabs'
 import { Textarea } from '@workspace/ui/components/textarea'
 import { PlusIcon, RotateCcwIcon, SaveIcon, Trash2Icon } from 'lucide-react'
@@ -101,7 +102,14 @@ export function MemorySettings() {
   return (
     <SettingsPageLayout
       title="记忆"
-      description={state.status === 'ready' ? state.data.memoryRootPath : '正在加载...'}
+      description={state.status === 'ready'
+        ? state.data.memoryRootPath
+        : (
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Spinner className="size-3" />
+              正在加载...
+            </span>
+          )}
       actions={(
         <>
           <Button
@@ -165,7 +173,7 @@ export function MemorySettings() {
               <Textarea
                 value={soulMarkdown}
                 disabled={disabled}
-                className="h-[calc(100vh-240px)] resize-none font-mono text-[13px]/5"
+                className="h-[calc(100vh-240px)] resize-none font-mono text-xs/5"
                 onChange={event => setSoulMarkdown(event.target.value)}
               />
             </CardContent>

@@ -37,7 +37,7 @@ function ModelRequestDetail({ view }: { view: ModelRequestView }) {
     <div className="space-y-4">
       <StatGrid items={stats} />
       {view.errorText && <ErrorBlock text={view.errorText} />}
-      {view.pending && !view.errorText && <p className="text-xs text-amber-600">模型请求缺少结束记录</p>}
+      {view.pending && !view.errorText && <p className="text-xs text-amber-700 dark:text-amber-400">模型请求缺少结束记录</p>}
       {(view.responseText != null || view.toolCalls.length > 0 || view.usage) && (
         <Section title="响应">
           <div className="space-y-3">
@@ -98,7 +98,7 @@ function ToolCallDetail({ view }: { view: ToolCallEvidenceView }) {
         {view.scope && <Badge variant="outline">{view.scope}</Badge>}
       </div>
       {view.errorText && <ErrorBlock text={view.errorText} />}
-      {view.pending && <p className="text-xs text-amber-600">工具调用缺少结束记录</p>}
+      {view.pending && <p className="text-xs text-amber-700 dark:text-amber-400">工具调用缺少结束记录</p>}
       <Section title="输入 · 工具调用准备">
         <div className="space-y-3">
           <KeyValueList items={[

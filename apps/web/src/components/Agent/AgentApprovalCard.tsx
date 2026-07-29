@@ -361,7 +361,7 @@ function CandidateSelector({
               </label>
             )}
             {state.wholeExecutable && (
-              <div className="flex items-center gap-1 text-xs text-orange-500">
+              <div className="flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400">
                 <AlertTriangle />
                 提交时还需独立确认该高风险授权
               </div>
@@ -420,7 +420,7 @@ function CandidateSelector({
           </Label>
         </div>
         {state.selected && (
-          <div className="ml-6 flex items-center gap-1 text-xs text-orange-500">
+          <div className="ml-6 flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400">
             <AlertTriangle />
             {candidate.riskWarning}
           </div>
@@ -462,7 +462,7 @@ function CandidateSelector({
                 />
               </label>
             )}
-            <div className="flex items-center gap-1 text-xs text-orange-500">
+            <div className="flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400">
               <AlertTriangle />
               {candidate.riskWarning}
             </div>

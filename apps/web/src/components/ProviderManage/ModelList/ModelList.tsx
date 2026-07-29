@@ -127,10 +127,10 @@ export function ModelList({ providerId }: ModelListProps) {
               >
                 {item.isEnabled
                   ? (
-                      <CheckCircle className="size-4 text-green-500" />
+                      <CheckCircle className="size-4 text-emerald-700 dark:text-emerald-400" />
                     )
                   : (
-                      <MinusCircle className="size-4 text-red-500" />
+                      <MinusCircle className="size-4 text-destructive" />
                     )}
               </Button>
             </div>

@@ -48,7 +48,7 @@ export function SearchBar({ onItemClick, onClose }: SearchBarProps) {
         data-testid="search-panel"
         className={`
           absolute top-3 left-1/2 flex max-h-[min(34rem,calc(100dvh-1.5rem))] w-[calc(100%-1.5rem)]
-          max-w-lg -translate-x-1/2 flex-col overflow-hidden rounded-2xl bg-background shadow-lg
+          max-w-lg -translate-x-1/2 flex-col overflow-hidden rounded-xl bg-background shadow-lg
           sm:top-12
         `}
       >

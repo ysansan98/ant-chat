@@ -36,7 +36,7 @@ function ModelRequestOverview({ view }: { view: ModelRequestView }) {
     <div className="space-y-3">
       <StatGrid items={stats} />
       {view.errorText && <ErrorBlock text={view.errorText} />}
-      {view.pending && !view.errorText && <p className="text-xs text-amber-600">模型请求缺少结束记录</p>}
+      {view.pending && !view.errorText && <p className="text-xs text-amber-700 dark:text-amber-400">模型请求缺少结束记录</p>}
       {view.responseText && (
         <Section title="回复">
           <div className="rounded-lg bg-muted/60 p-3">
@@ -75,7 +75,7 @@ function ToolCallOverview({ view }: { view: ToolCallEvidenceView }) {
         {view.scope && <Badge variant="outline">{view.scope}</Badge>}
       </div>
       {view.errorText && <ErrorBlock text={view.errorText} />}
-      {view.pending && <p className="text-xs text-amber-600">工具调用缺少结束记录</p>}
+      {view.pending && <p className="text-xs text-amber-700 dark:text-amber-400">工具调用缺少结束记录</p>}
       {view.outputText && (
         <Section title="输出">
           <div className="rounded-lg bg-muted/60 p-3">
@@ -123,11 +123,11 @@ function DecisionBanner({ view }: { view: PolicyDecisionView }) {
   const config = status === 'allow'
     ? { icon: ShieldCheckIcon, label: view.permissionRules.length > 0 ? '允许执行（命中权限规则）' : '允许执行', className: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' }
     : status === 'block'
-      ? { icon: ShieldXIcon, label: '已阻止', className: 'border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-400' }
+      ? { icon: ShieldXIcon, label: '已阻止', className: 'border-destructive/30 bg-destructive/10 text-destructive' }
       : view.outcome === 'allow'
         ? { icon: ShieldCheckIcon, label: '审批后放行', className: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' }
         : view.outcome === 'block'
-          ? { icon: ShieldXIcon, label: '审批已拒绝', className: 'border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-400' }
+          ? { icon: ShieldXIcon, label: '审批已拒绝', className: 'border-destructive/30 bg-destructive/10 text-destructive' }
           : { icon: ShieldAlertIcon, label: '需要审批', className: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400' }
   const Icon = config.icon
   return (

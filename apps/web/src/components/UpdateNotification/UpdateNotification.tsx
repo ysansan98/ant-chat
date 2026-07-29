@@ -89,14 +89,14 @@ export function UpdateNotification({ updateInfo, visible, onClose }: UpdateNotif
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <AlertTriangle className="text-blue-500" />
+            <AlertTriangle className="text-primary" />
             发现新版本
           </DialogTitle>
         </DialogHeader>
         <div className="py-2">
           {/* 版本信息 */}
           <div className="mb-6">
-            <h4 className="mb-2 text-lg font-bold">
+            <h4 className="mb-2 text-xl font-semibold">
               版本
               {' '}
               {updateInfo.version}
@@ -116,7 +116,7 @@ export function UpdateNotification({ updateInfo, visible, onClose }: UpdateNotif
           {/* 更新日志 */}
           {updateInfo.releaseNotes && (
             <div className="mb-6">
-              <h5 className="mb-3 font-bold">
+              <h5 className="mb-3 font-semibold">
                 更新内容
               </h5>
               <div className="max-h-60 overflow-y-auto rounded-sm border bg-muted p-3">
@@ -132,7 +132,7 @@ export function UpdateNotification({ updateInfo, visible, onClose }: UpdateNotif
           {/* 下载进度 */}
           {isDownloading && downloadProgress && (
             <div className="mb-6">
-              <h5 className="mb-3 font-bold">
+              <h5 className="mb-3 font-semibold">
                 下载进度
               </h5>
               <Progress value={Math.round(downloadProgress.percent)} />
@@ -188,8 +188,8 @@ export function UpdateNotification({ updateInfo, visible, onClose }: UpdateNotif
 
           {/* 提示信息 */}
           {isDownloaded && (
-            <div className="mt-4 rounded-sm border border-green-200 bg-green-50 p-3">
-              <p className="text-sm text-green-600">
+            <div className="mt-4 rounded-sm border border-emerald-500/30 bg-emerald-500/10 p-3">
+              <p className="text-sm text-emerald-700 dark:text-emerald-400">
                 更新已下载完成，重启应用后将自动安装新版本。
               </p>
             </div>

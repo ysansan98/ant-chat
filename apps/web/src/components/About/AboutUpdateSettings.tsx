@@ -94,9 +94,9 @@ export function AboutUpdateSettings() {
       <Card size="sm" className="w-full">
         <CardContent className="flex items-center justify-between">
           <div className="flex items-center gap-1">
-            <CheckCircle className="size-4 text-green-500" />
+            <CheckCircle className="size-4 text-emerald-700 dark:text-emerald-400" />
             <span className="">当前版本</span>
-            <span className="font-bold">{currentVersion}</span>
+            <span className="font-semibold">{currentVersion}</span>
           </div>
           <Button
             onClick={handleCheckUpdate}

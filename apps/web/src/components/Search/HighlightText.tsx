@@ -34,7 +34,7 @@ interface HighlightTextProps {
 export function HighlightText({
   text,
   keywords,
-  highlightClassName = 'bg-yellow-200 dark:bg-yellow-800 text-yellow-900 dark:text-yellow-100',
+  highlightClassName = 'bg-selection text-selection-foreground',
   className = '',
   ignoreCase = true,
   renderHighlight,

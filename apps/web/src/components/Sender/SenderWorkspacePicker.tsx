@@ -1,7 +1,5 @@
 import type { SenderWorkspaceController } from './useSenderWorkspace'
-import {
-  PromptInputButton,
-} from '@workspace/ui/components/ai-elements/prompt-input'
+import { Button } from '@workspace/ui/components/button'
 import {
   Popover,
   PopoverContent,
@@ -21,7 +19,7 @@ export function SenderWorkspacePicker({
   const disabled = loading || !canSelect
 
   return (
-    <div className="mx-auto flex w-[95%] items-center rounded-t-3xl bg-secondary/50 px-3 py-1">
+    <div className="mx-auto flex w-[95%] items-center rounded-t-xl bg-secondary/50 px-3 py-1">
       <Popover
         open={canSelect ? pickerOpen : false}
         onOpenChange={(next) => {
@@ -31,8 +29,7 @@ export function SenderWorkspacePicker({
         }}
       >
         <PopoverTrigger render={(
-          <PromptInputButton
-            type="button"
+          <Button
             variant="ghost"
             data-testid="workspace-switcher"
             disabled={loading}
@@ -47,7 +44,7 @@ export function SenderWorkspacePicker({
             <FolderOpenIcon className="size-4 shrink-0" />
             <span className="truncate max-sm:hidden">{displayName}</span>
             <ChevronDown className="size-3.5" />
-          </PromptInputButton>
+          </Button>
         )}
         />
         <PopoverContent align="start" className="w-64 p-1">

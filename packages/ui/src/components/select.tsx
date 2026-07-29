@@ -1,5 +1,3 @@
-'use client'
-
 import { Select as SelectPrimitive } from '@base-ui/react/select'
 import { cn } from '@workspace/ui/lib/utils'
 

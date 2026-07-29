@@ -9,7 +9,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Button } from '@workspace/ui/components/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@workspace/ui/components/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@workspace/ui/components/dropdown-menu'
+import { EmptyState } from '@workspace/ui/components/empty-state'
 import { Input } from '@workspace/ui/components/input'
+import { Spinner } from '@workspace/ui/components/spinner'
 import {
   Tooltip,
   TooltipContent,
@@ -263,7 +265,7 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
         </div>
 
         {panelError
-          ? <div className="mt-2 px-2 text-xs text-red-500">{panelError}</div>
+          ? <div className="mt-2 px-2 text-xs text-destructive">{panelError}</div>
           : null}
 
         <div className="mt-2 min-h-0 flex-1 overflow-y-auto pr-1">
@@ -319,9 +321,7 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
                 </DragDropContext>
               )
             : (
-                <div className="px-3 py-8 text-center text-sm text-sidebar-foreground/60">
-                  暂无工作区
-                </div>
+                <EmptyState title="暂无工作区" />
               )}
         </div>
 
@@ -451,7 +451,7 @@ function WorkspacePanel({
             <div className="pl-0">
               {state?.loading
                 ? (
-                    <div className="px-3 py-2 text-sm text-sidebar-foreground/60">加载中...</div>
+                    <div className="flex justify-center py-2"><Spinner /></div>
                   )
                 : state?.data?.length
                   ? (
@@ -467,7 +467,7 @@ function WorkspacePanel({
                       ))
                     )
                   : (
-                      <div className="px-3 py-2 text-sm text-sidebar-foreground/60">暂无会话</div>
+                      <EmptyState title="暂无会话" />
                     )}
               {state && state.total > 5
                 ? (
@@ -565,7 +565,7 @@ function ConversationListItem({ conversation, active, running, completed, onOpen
       <div
         className={`
           group/conversation mt-1 flex w-full items-center rounded-md px-2 py-1.5
-          text-[14px] transition-colors duration-150 hover:bg-sidebar-accent
+          text-sm transition-colors duration-150 hover:bg-sidebar-accent
           hover:text-sidebar-accent-foreground
           ${active
       ? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
@@ -581,7 +581,7 @@ function ConversationListItem({ conversation, active, running, completed, onOpen
         </button>
         <div className="relative flex h-full w-14 shrink-0 items-center justify-end">
           {status === 'running'
-            ? <LoaderCircleIcon className="size-3.5 animate-spin text-blue-500" />
+            ? <LoaderCircleIcon className="size-3.5 animate-spin text-primary" />
             : status === 'completed'
               ? <span className="size-1.5 rounded-full bg-emerald-500" />
               : <span className="text-[11px] text-sidebar-foreground/60 tabular-nums transition-[opacity,transform,filter] duration-150 group-hover/conversation:pointer-events-none group-hover/conversation:scale-25 group-hover/conversation:opacity-0 group-hover/conversation:blur-xs">{formatRelativeTime(conversation.updatedAt)}</span>}

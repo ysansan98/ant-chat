@@ -206,7 +206,7 @@ export function Attachment({
           variant === 'inline' && [
             'flex h-8 cursor-pointer items-center gap-1.5 select-none',
             'rounded-md border border-border px-1.5',
-            'text-sm font-medium transition-all',
+            'text-sm font-medium transition-colors',
             'hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50',
           ],
           variant === 'list' && [

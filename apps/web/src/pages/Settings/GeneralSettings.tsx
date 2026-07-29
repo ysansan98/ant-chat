@@ -31,7 +31,7 @@ export function GeneralSettings() {
       <div className="flex flex-col gap-6">
         {/* 对话 */}
         <section>
-          <h3 className="mb-2 text-[13px] font-semibold text-muted-foreground">对话</h3>
+          <h3 className="mb-2 text-xs font-semibold text-muted-foreground">对话</h3>
           <div className="overflow-hidden rounded-xl border border-border bg-card">
             <GeneralSettingsRow
               title="自动生成标题"
@@ -55,7 +55,7 @@ export function GeneralSettings() {
         </section>
 
         <section>
-          <h3 className="mb-2 text-[13px] font-semibold text-muted-foreground">开发者工具</h3>
+          <h3 className="mb-2 text-xs font-semibold text-muted-foreground">开发者工具</h3>
           <div className="overflow-hidden rounded-xl border border-border bg-card">
             <GeneralSettingsRow
               title="Agent Observability"
@@ -95,7 +95,7 @@ export function GeneralSettings() {
 
         {/* 网络 */}
         <section>
-          <h3 className="mb-2 text-[13px] font-semibold text-muted-foreground">网络</h3>
+          <h3 className="mb-2 text-xs font-semibold text-muted-foreground">网络</h3>
           <div className="overflow-hidden rounded-xl border border-border bg-card">
             <GeneralSettingsRow
               title="网络代理"

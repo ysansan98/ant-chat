@@ -11,6 +11,7 @@ import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel } from '@
 import { Input } from '@workspace/ui/components/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/components/select'
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@workspace/ui/components/sheet'
+import { Spinner } from '@workspace/ui/components/spinner'
 import { Textarea } from '@workspace/ui/components/textarea'
 import { AlertTriangle, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -177,7 +178,7 @@ export function PermissionsPage() {
         添加规则
       </Button>
 
-      {loading && <div role="status" className="text-sm text-muted-foreground">正在加载权限规则…</div>}
+      {loading && <div className="flex items-center justify-center py-4"><Spinner /></div>}
 
       {!loading && loadError && (
         <Alert variant="destructive">
@@ -312,6 +313,13 @@ function RuleRow({ rule, onEdit, onDelete }: { rule: ToolApprovalRule, onEdit: (
   )
 }
 
+const kindOptions = [
+  { value: 'command', label: '命令' },
+  { value: 'filesystem', label: '文件系统' },
+  { value: 'mcp-tool', label: 'MCP 工具' },
+  { value: 'browser', label: '浏览器' },
+]
+
 function RuleEditorDialog({
   open,
   editing,
@@ -377,26 +385,27 @@ function RuleEditorDialog({
             </SheetDescription>
           </SheetHeader>
 
-          <div className="flex-1 overflow-y-auto px-1">
+          <div className="flex-1 overflow-y-auto px-3">
             <FieldGroup>
-
               <Field>
                 <FieldLabel htmlFor="permission-rule-kind">规则类型</FieldLabel>
                 <Select
                   value={form.kind}
                   disabled={Boolean(editing)}
                   onValueChange={value => updateForm({ kind: value as RuleKind })}
+                  items={kindOptions}
                 >
                   <SelectTrigger id="permission-rule-kind" className="w-full">
-                    <SelectValue>
-                      {value => (value ? selectLabels[value as string] ?? value : null)}
-                    </SelectValue>
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="command">命令</SelectItem>
-                    <SelectItem value="filesystem">文件系统</SelectItem>
-                    <SelectItem value="mcp-tool">MCP 工具</SelectItem>
-                    <SelectItem value="browser">浏览器</SelectItem>
+                    {
+                      kindOptions.map(item => (
+                        <SelectItem key={item.value} value={item.value}>
+                          {item.label}
+                        </SelectItem>
+                      ))
+                    }
                   </SelectContent>
                 </Select>
               </Field>

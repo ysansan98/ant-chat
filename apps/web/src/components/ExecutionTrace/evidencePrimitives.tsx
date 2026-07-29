@@ -12,7 +12,7 @@ import { spanStatusLabel, spanStatusTone } from './evidenceModel'
 
 const toneClasses = {
   success: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400',
-  danger: 'border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-400',
+  danger: 'border-destructive/30 bg-destructive/10 text-destructive',
   warning: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400',
   muted: 'border-border bg-muted text-muted-foreground',
 } as const
@@ -78,7 +78,7 @@ export function CopyButton({ text, label, className }: { text: () => string, lab
   }
   return (
     <Button type="button" variant="ghost" size="icon-xs" aria-label={label ?? '复制'} onClick={() => void copy()} className={className}>
-      {copied ? <CheckIcon className="size-3.5 text-emerald-600" /> : <CopyIcon className="size-3.5" />}
+      {copied ? <CheckIcon className="size-3.5 text-emerald-700 dark:text-emerald-400" /> : <CopyIcon className="size-3.5" />}
     </Button>
   )
 }
@@ -108,7 +108,7 @@ export function ExpandableText({ text, limit = 280, className }: { text: string,
 
 export function ErrorBlock({ text }: { text: string }) {
   return (
-    <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 text-xs/relaxed break-all whitespace-pre-wrap text-red-700 dark:text-red-400">
+    <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs/relaxed break-all whitespace-pre-wrap text-destructive">
       {text}
     </div>
   )
@@ -161,7 +161,7 @@ function MessageBlock({ block }: { block: MessageBlockView }) {
   }
   if (block.type === 'tool-result') {
     return (
-      <div className={cn('rounded-md p-2 text-xs', block.isError ? 'bg-red-500/10' : 'bg-muted/60')}>
+      <div className={cn('rounded-md p-2 text-xs', block.isError ? 'bg-destructive/10' : 'bg-muted/60')}>
         <span className="font-medium">
           工具结果：
           {block.toolName ?? '未知工具'}

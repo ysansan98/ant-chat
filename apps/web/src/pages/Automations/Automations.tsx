@@ -156,11 +156,11 @@ export function AutomationsPage() {
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-5 py-8 md:px-10 md:py-12">
         <header className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
           <div className="flex max-w-2xl flex-col gap-2">
-            <div className="flex items-center gap-2 text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase">
+            <div className="flex items-center gap-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
               <Sparkles aria-hidden="true" />
               自动化
             </div>
-            <h1 className="font-heading text-2xl/tight font-semibold tracking-tight md:text-3xl">
+            <h1 className="font-heading text-xl font-semibold tracking-tight">
               让重复工作按时发生
             </h1>
             <p className="text-sm/6 text-muted-foreground md:text-base">
@@ -182,7 +182,7 @@ export function AutomationsPage() {
         <section className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="font-heading text-lg font-semibold">任务</h2>
+              <h2 className="font-heading text-xl font-semibold">任务</h2>
               <p className="text-sm text-muted-foreground">
                 {automations.length}
                 {' '}
@@ -197,7 +197,7 @@ export function AutomationsPage() {
 
           <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,22rem),1fr))] gap-3">
             {automations.map(item => (
-              <Card key={item.id} size="sm" className="transition-shadow hover:shadow-md">
+              <Card key={item.id} size="sm" className="transition-colors">
                 <CardHeader>
                   <div className="min-w-0">
                     <CardTitle className="truncate">{item.name}</CardTitle>

@@ -3,7 +3,9 @@ import type { ToolDefinitionView } from './evidenceModel'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@workspace/ui/components/collapsible'
+import { EmptyState } from '@workspace/ui/components/empty-state'
 import { Sheet, SheetContent } from '@workspace/ui/components/sheet'
+import { Spinner } from '@workspace/ui/components/spinner'
 import { cn } from '@workspace/ui/lib/utils'
 import { ActivityIcon, AlertTriangleIcon, ChevronRightIcon, LoaderIcon, XIcon } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
@@ -238,10 +240,10 @@ function TraceContent({ conversationId, isOpen, focusTurnId, onClose }: Executio
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="space-y-3 p-3">
-          {loading && summaries.length === 0 && <EmptyState>正在读取 Trace…</EmptyState>}
-          {error && <EmptyState tone="warning">{error}</EmptyState>}
-          {!loading && !error && !conversationId && <EmptyState>请先选择会话</EmptyState>}
-          {!loading && !error && conversationId && summaries.length === 0 && <EmptyState>此会话没有已采集的 Trace</EmptyState>}
+          {loading && summaries.length === 0 && <div className="flex justify-center py-4"><Spinner /></div>}
+          {error && <EmptyState title={error} />}
+          {!loading && !error && !conversationId && <EmptyState title="请先选择会话" />}
+          {!loading && !error && conversationId && summaries.length === 0 && <EmptyState title="此会话没有已采集的 Trace" />}
           {summaries.map(summary => (
             <TurnCard
               key={summary.turnId}
@@ -357,7 +359,7 @@ function TurnCard(props: {
             {summary.errorSummary && <p className="mt-1 text-xs text-destructive">{summary.errorSummary}</p>}
           </div>
           {summary.completeness === 'incomplete' && (
-            <span className="inline-flex items-center gap-1 text-xs text-amber-600">
+            <span className="inline-flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400">
               <AlertTriangleIcon className="size-3.5" />
               Trace 不完整
             </span>
@@ -371,7 +373,7 @@ function TurnCard(props: {
             <TurnContextSection turnContext={turnContext} />
           )}
           {props.timelineError && <p className="py-4 text-center text-xs text-destructive">{props.timelineError}</p>}
-          {!props.timelineError && timeline === undefined && <p className="py-4 text-center text-xs text-muted-foreground">正在加载时间线…</p>}
+          {!props.timelineError && timeline === undefined && <div className="flex justify-center py-4"><Spinner /></div>}
           {timeline === null && <p className="py-4 text-center text-xs text-muted-foreground">Trace 已过期</p>}
           {!props.timelineError && timeline && <Waterfall timeline={timeline} selectedRecordId={props.selectedRecordId} onInspect={props.onInspect} />}
         </div>
@@ -426,7 +428,7 @@ function Waterfall({ timeline, selectedRecordId, onInspect }: {
                 style={{ left: `${left}%`, width: `${width}%` }}
               />
               <span className="relative z-1 flex h-full items-center gap-1.5 px-2">
-                <span className="shrink-0 rounded-sm bg-background/70 px-1 py-0.5 text-[10px] leading-none font-medium">
+                <span className="shrink-0 rounded-sm bg-background/70 px-1 py-0.5 text-[11px] leading-none font-medium">
                   {itemLabels[item.kind]}
                 </span>
                 {item.type === 'span' && item.summary && (
@@ -502,10 +504,6 @@ function TurnContextSection({ turnContext }: { turnContext: TurnContext }) {
   )
 }
 
-function EmptyState({ children, tone }: { children: React.ReactNode, tone?: 'warning' }) {
-  return <div className={cn('rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground', tone === 'warning' && 'border-amber-500/40 text-amber-700')}>{children}</div>
-}
-
 function ResizeHandle({ width, onWidthChange }: { width: number, onWidthChange: (width: number) => void }) {
   function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
     const startX = event.clientX
@@ -539,12 +537,12 @@ function formatOffset(ms: number): string {
 
 function waterfallColor(kind: AgentTurnTimelineItem['kind']): string {
   if (kind === 'model-request')
-    return 'bg-indigo-500/45'
+    return 'bg-chart-1/45'
   if (kind === 'policy-decision')
-    return 'bg-amber-500/45'
+    return 'bg-chart-4/45'
   if (kind === 'tool-call')
-    return 'bg-cyan-500/45'
-  return 'bg-violet-500/45'
+    return 'bg-chart-2/45'
+  return 'bg-chart-5/45'
 }
 
 function toTraceError(error: unknown): string {

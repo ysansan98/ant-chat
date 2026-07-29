@@ -35,7 +35,7 @@ export function SelectModel() {
       onReasoningEffortChange={value => setAssistantReasoningEffort(value)}
       className={`
         flex h-8 w-52 cursor-default items-center justify-between gap-2 rounded-md
-        border border-input bg-transparent px-3 py-1 text-sm shadow-sm
+        border border-input bg-transparent px-3 py-1 text-sm
         outline-hidden
         hover:bg-accent
       `}

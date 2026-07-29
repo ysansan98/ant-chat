@@ -50,7 +50,7 @@ function JsonContainer({ label, value, depth, expandDepth }: { label?: string, v
     <div className="min-w-0">
       <button
         type="button"
-        className="flex w-full min-w-0 items-baseline gap-1.5 rounded-sm text-left hover:bg-white/5"
+        className="flex w-full min-w-0 items-baseline gap-1.5 rounded-sm text-left hover:bg-accent"
         onClick={() => setOpen(current => !current)}
         aria-expanded={open}
       >
@@ -75,7 +75,7 @@ function JsonContainer({ label, value, depth, expandDepth }: { label?: string, v
 
 function JsonKey({ label }: { label: string }) {
   return (
-    <span className="shrink-0 text-sky-700 dark:text-sky-300">
+    <span className="shrink-0 text-chart-2">
       {label}
       :
     </span>
@@ -86,9 +86,9 @@ function JsonPrimitive({ value }: { value: unknown }) {
   if (typeof value === 'string')
     return <JsonString value={value} />
   if (typeof value === 'number')
-    return <span className="break-all text-violet-700 dark:text-violet-300">{String(value)}</span>
+    return <span className="break-all text-chart-5">{String(value)}</span>
   if (typeof value === 'boolean')
-    return <span className="text-amber-700 dark:text-amber-300">{String(value)}</span>
+    return <span className="text-chart-4">{String(value)}</span>
   if (value === null)
     return <span className="text-muted-foreground">null</span>
   if (value === undefined)
@@ -101,7 +101,7 @@ function JsonString({ value }: { value: string }) {
   const long = value.length > LONG_STRING_LIMIT
   const shown = long && !open ? `${value.slice(0, LONG_STRING_LIMIT)}…` : value
   return (
-    <span className="min-w-0 break-all whitespace-pre-wrap text-emerald-700 dark:text-emerald-300">
+    <span className="min-w-0 break-all whitespace-pre-wrap text-chart-3">
       "
       {shown}
       "

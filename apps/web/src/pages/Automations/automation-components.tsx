@@ -223,7 +223,7 @@ export function CapabilityPicker(props: {
         <div className="border-t border-border/70 p-3">
           {props.options.length > 0
             ? <MultiChoiceGrid options={props.options} selected={props.selected} onToggle={props.onToggle} />
-            : <p className="py-3 text-center text-sm text-muted-foreground">暂无可用项</p>}
+            : <EmptyState title="暂无可用项" />}
           {hasOrphaned && (
             <div className="mt-3 border-t border-border/50 pt-3">
               <p className="mb-2 text-xs font-medium text-muted-foreground">不可用（skill 已删除或禁用）</p>

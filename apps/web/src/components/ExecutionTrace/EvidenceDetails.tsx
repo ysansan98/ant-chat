@@ -35,7 +35,7 @@ export function EvidenceDetails({ selection, evidence, error, onClose }: {
   const durationMs = selection.item.type === 'span' ? selection.item.durationMs : undefined
 
   return (
-    <section className="flex max-h-[52%] min-h-44 shrink-0 flex-col border-t border-border bg-background" aria-label="步骤证据">
+    <section className="flex max-h-1/2 min-h-44 shrink-0 flex-col border-t border-border bg-background" aria-label="步骤证据">
       <header className="flex items-center gap-2 px-3 pt-2.5">
         <h3 className="shrink-0 text-sm font-semibold">{itemLabels[selection.item.kind]}</h3>
         {selection.item.type === 'span' && <StatusBadge status={status} pending={pending} />}

@@ -57,7 +57,7 @@ export function ModelControlPanel({ value, onChange, reasoningEffort, onReasonin
           max-sm:pl-0
         `}
       >
-        <div className="flex max-w-30 items-center truncate text-xs font-medium max-sm:hidden">
+        <div className="flex items-center truncate text-xs font-medium max-sm:hidden">
           <span className="truncate">{currentModelInfo?.name}</span>
           <ChevronDown className="size-3.5" />
         </div>

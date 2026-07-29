@@ -137,7 +137,7 @@ export function CreateAutomationSheet(props: {
                     })
                   }}
                   options={props.contextOptions.modelGroups}
-                  className="flex h-9 w-full cursor-default items-center justify-between rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm outline-hidden hover:bg-accent"
+                  className="flex h-9 w-full cursor-default items-center justify-between rounded-md border border-input bg-transparent px-3 py-1 text-sm outline-hidden hover:bg-accent"
                 >
                   <span className="truncate">{modelDisplayName}</span>
                   <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
@@ -301,7 +301,7 @@ export function CreateAutomationSheet(props: {
 
             <div className="rounded-xl border border-border/70 bg-muted/40 p-4">
               <p className="text-xs font-medium text-muted-foreground">下一次执行</p>
-              <p className="mt-1 font-heading text-lg font-semibold">
+              <p className="mt-1 font-heading text-xl font-semibold">
                 {form.mode === 'cron'
                   ? describeNextRun(form.repeatKind, form.time, form.selectedWeekdays, form.monthDay)
                   : formatDateTime(form.onceAt)}

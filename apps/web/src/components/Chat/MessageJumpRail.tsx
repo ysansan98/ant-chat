@@ -79,7 +79,7 @@ export function MessageJumpRail({
                     aria-label={`跳转到用户消息 ${index + 1}`}
                     aria-current={isActive ? 'true' : undefined}
                     className={cn(
-                      'block rounded-full border transition-all duration-200',
+                      'block rounded-full border transition-colors duration-200',
                       'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
                       isActive
                         ? 'size-2 border-primary bg-primary'

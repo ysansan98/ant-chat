@@ -21,7 +21,7 @@ export function SidebarNavItem({ icon, label, active, dataTestId, disabled, onCl
       data-testid={dataTestId}
       disabled={disabled}
       className={`
-        flex h-9 items-center justify-start gap-1 rounded-md px-3 text-[14px] font-medium
+        flex h-9 items-center justify-start gap-1 rounded-md px-3 text-sm font-medium
         text-sidebar-foreground/70
         hover:bg-sidebar-accent hover:text-sidebar-accent-foreground
         ${activeClass}

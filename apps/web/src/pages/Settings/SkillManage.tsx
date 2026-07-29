@@ -4,6 +4,7 @@ import { Button } from '@workspace/ui/components/button'
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@workspace/ui/components/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@workspace/ui/components/dialog'
 import { Input } from '@workspace/ui/components/input'
+import { Spinner } from '@workspace/ui/components/spinner'
 import { Switch } from '@workspace/ui/components/switch'
 import { ArchiveIcon, GitBranchIcon, RefreshCwIcon, Trash2Icon } from 'lucide-react'
 import React from 'react'
@@ -71,7 +72,12 @@ export default function SkillManage() {
   return (
     <SettingsPageLayout
       title="Skill 设置"
-      description={state.data.rootPath || '正在加载...'}
+      description={state.data.rootPath || (
+        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Spinner className="size-3" />
+          正在加载...
+        </span>
+      )}
       actions={(
         <>
           <Button

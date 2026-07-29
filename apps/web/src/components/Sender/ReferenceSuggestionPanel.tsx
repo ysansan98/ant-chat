@@ -210,7 +210,7 @@ export function ReferenceSuggestionPanel({
                     onSelectCommand(cmd)
                   }}
                 >
-                  <ZapIcon className="mt-0.5 text-amber-500" />
+                  <ZapIcon className="mt-0.5 text-amber-700 dark:text-amber-400" />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm">
                       /

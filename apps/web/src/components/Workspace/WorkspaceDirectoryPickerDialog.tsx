@@ -7,6 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@workspace/ui/components/dialog'
+import { EmptyState } from '@workspace/ui/components/empty-state'
 import { Input } from '@workspace/ui/components/input'
 import {
   ChevronRightIcon,
@@ -259,9 +260,7 @@ export function WorkspaceDirectoryPickerDialog({
                     ))
                   )
                 : (
-                    <div className="py-8 text-center text-sm text-muted-foreground">
-                      {filter ? '无匹配目录' : '暂无目录'}
-                    </div>
+                    <EmptyState title={filter ? '无匹配目录' : '暂无目录'} />
                   )}
           </div>
 
@@ -310,7 +309,7 @@ export function WorkspaceDirectoryPickerDialog({
 
           {/* Error display */}
           {error && (
-            <div className="shrink-0 text-sm text-red-500">{error}</div>
+            <div className="shrink-0 text-sm text-destructive">{error}</div>
           )}
         </div>
 

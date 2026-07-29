@@ -35,7 +35,7 @@
     "nanoid": "catalog:",
     "next-themes": "^0.4.6",
     "react": "catalog:",
-    "shadcn": "^4.5.0",
+    "shadcn": "^4.16.0",
     "shiki": "^4.0.2",
     "sonner": "catalog:",
     "streamdown": "^2.5.0",
