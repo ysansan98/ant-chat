@@ -222,6 +222,39 @@ describe('审批卡片', () => {
     }))
   })
 
+  it('记住 browser_navigate 时提交域名限制', async () => {
+    const onApprove = vi.fn(async () => {})
+    render(
+      <AgentApprovalCard
+        pending={createPending({
+          toolName: 'browser_navigate',
+          operationType: 'browser',
+          scope: 'external',
+          approvalCandidates: {
+            candidates: [{
+              type: 'browser',
+              toolName: 'browser_navigate',
+              urlPattern: 'github.com',
+              riskWarning: '测试',
+            }],
+            context: {},
+          },
+        })}
+        onApprove={onApprove}
+        onReject={vi.fn()}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('checkbox', { name: '记住此浏览器工具（browser_navigate · github.com）' }))
+    fireEvent.change(screen.getByRole('textbox', { name: '限制域名' }), { target: { value: '*.github.com' } })
+    fireEvent.click(screen.getByRole('button', { name: '批准并记住' }))
+
+    await waitFor(() => expect(onApprove).toHaveBeenCalledWith({
+      selections: [{ candidateIndex: 0, adjustedUrlPattern: '*.github.com' }],
+      scope: 'workspace',
+    }))
+  })
+
   it('拒绝按钮把决定交还审批事务 owner', () => {
     const onReject = vi.fn()
     render(

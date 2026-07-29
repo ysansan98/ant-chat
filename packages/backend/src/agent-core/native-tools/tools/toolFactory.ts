@@ -71,6 +71,8 @@ export function createNativeTool(options: CreateNativeToolOptions): PreparedNati
 }
 
 function getToolOperationType(name: string): ToolOperationType {
+  if (name.startsWith('browser_'))
+    return 'browser'
   switch (name) {
     case 'read_file': case 'list_dir': case 'glob_files': case 'grep_files':
       return 'read'
@@ -78,8 +80,6 @@ function getToolOperationType(name: string): ToolOperationType {
       return 'write'
     case 'execute_command':
       return 'command'
-    case 'browser':
-      return 'browser'
     default:
       return 'read'
   }

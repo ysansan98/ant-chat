@@ -504,7 +504,7 @@ describe('createToolAuthorization 行为', () => {
     // browser 工具只允许 external/outside scope，workspace scope 是资源域不一致 → 即使 full_managed 也阻断
     await expect(hook({
       task: createTask({ mode: 'full_managed' }),
-      prepared: { ...createPrepared(), toolName: 'browser', operationType: 'browser', scope: 'workspace' },
+      prepared: { ...createPrepared(), toolName: 'browser_navigate', operationType: 'browser', scope: 'workspace' },
       config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
     })).resolves.toMatchObject({ outcome: 'block', errorCode: 'AGENT_POLICY_BLOCKED' })
   })
@@ -1256,7 +1256,7 @@ describe('createToolAuthorization 行为', () => {
     await resultPromise
   })
 
-  it('browser 和未知工具不生成持久规则候选', async () => {
+  it('browser 工具能生成持久规则候选，未知工具不生成', async () => {
     let resolveApproval!: (value: ApprovalResult) => void
     const waitForApproval = vi.fn().mockImplementation(() => {
       return new Promise<ApprovalResult>((resolve) => {
@@ -1271,14 +1271,52 @@ describe('createToolAuthorization 行为', () => {
 
     const resultPromise = hook({
       task,
-      prepared: { ...createPrepared(), toolName: 'browser', operationType: 'browser', scope: 'external', input: { command: 'navigate' } },
+      prepared: { ...createPrepared(), toolName: 'browser_navigate', operationType: 'browser', scope: 'external', input: { url: 'https://github.com' } },
       config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
     })
 
-    // Browser 不生成候选
-    expect(task.snapshot.pendingAction?.approvalCandidates).toBeUndefined()
+    // browser 工具现在生成候选
+    expect(task.snapshot.pendingAction?.approvalCandidates).toBeDefined()
+    expect(task.snapshot.pendingAction?.approvalCandidates?.candidates).toHaveLength(1)
+    expect(task.snapshot.pendingAction?.approvalCandidates?.candidates[0]).toMatchObject({
+      type: 'browser',
+      toolName: 'browser_navigate',
+    })
 
     resolveApproval({ approved: true })
     await resultPromise
+  })
+
+  it('browser_navigate 按域名匹配 allow 和 deny 规则', async () => {
+    const allowRule: ToolApprovalRule = {
+      id: 'browser-allow',
+      createdAt: 1,
+      updatedAt: 1,
+      effect: 'allow',
+      kind: 'browser',
+      toolName: 'browser_navigate',
+      urlPattern: '*.github.com',
+    }
+    const denyRule: ToolApprovalRule = {
+      ...allowRule,
+      id: 'browser-deny',
+      effect: 'deny',
+      urlPattern: 'admin.github.com',
+    }
+    const waitForApproval = vi.fn(async () => ({ approved: true }))
+    const hook = createToolAuthorization(createTaskState(waitForApproval), createRulesProvider([allowRule, denyRule]))
+
+    await expect(hook({
+      task: createTask({ mode: 'strict' }),
+      prepared: { ...createPrepared(), toolName: 'browser_navigate', operationType: 'browser', scope: 'external', input: { url: 'https://docs.github.com/path' } },
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+    })).resolves.toEqual({ outcome: 'allow' })
+
+    await expect(hook({
+      task: createTask({ mode: 'strict' }),
+      prepared: { ...createPrepared(), toolName: 'browser_navigate', operationType: 'browser', scope: 'external', input: { url: 'https://admin.github.com/settings' } },
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+    })).resolves.toMatchObject({ outcome: 'block', errorCode: 'AGENT_POLICY_BLOCKED' })
+    expect(waitForApproval).not.toHaveBeenCalled()
   })
 })

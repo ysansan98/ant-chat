@@ -73,6 +73,28 @@ export function getToolLabel(toolCall: ToolCallContent): ToolLabel {
         : ''
       return { primary: `浏览器 ${str(args.command)}${firstArg}`.trim() }
     }
+    case 'browser_navigate':
+      return { primary: `打开 ${str(args.url)}` }
+    case 'browser_back':
+      return { primary: '浏览器后退' }
+    case 'browser_reload':
+      return { primary: '刷新页面' }
+    case 'browser_close':
+      return { primary: '关闭浏览器' }
+    case 'browser_snapshot':
+      return { primary: '页面快照' }
+    case 'browser_click':
+      return { primary: `点击 ${str(args.ref) || str(args.selector) || '元素'}` }
+    case 'browser_type':
+      return { primary: `输入 ${str(args.text) || ''}` }
+    case 'browser_press':
+      return { primary: `按键 ${str(args.key)}` }
+    case 'browser_scroll':
+      return { primary: `滚动 ${str(args.direction) || `${args.amount || '300'}px`}` }
+    case 'browser_dialog':
+      return { primary: `对话框 ${str(args.action)}${args.text ? ` ${str(args.text)}` : ''}` }
+    case 'browser_eval':
+      return { primary: `执行 JS` }
     case 'use_skill':
       return { primary: `使用技能 ${str(args.name)}` }
     case 'install_skill_from_github':
@@ -112,6 +134,9 @@ export function getToolCategory(toolCall: ToolCallContent): ToolCategory {
   const { isMcp, shortName } = splitToolName(toolCall)
   if (isMcp) {
     return 'other'
+  }
+  if (shortName.startsWith('browser_')) {
+    return 'browser'
   }
   return CATEGORY_BY_TOOL[shortName] ?? 'other'
 }

@@ -1,4 +1,5 @@
 import type { CommandInterpreter, ToolApprovalRule, ToolApprovalRuleInput } from '@ant-chat/shared'
+import { ToolApprovalRuleInputSchema } from '@ant-chat/shared'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
@@ -6,8 +7,10 @@ import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle }
 import { Checkbox } from '@workspace/ui/components/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@workspace/ui/components/dialog'
 import { EmptyState } from '@workspace/ui/components/empty-state'
+import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel } from '@workspace/ui/components/field'
 import { Input } from '@workspace/ui/components/input'
-import { Label } from '@workspace/ui/components/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/components/select'
+import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@workspace/ui/components/sheet'
 import { Textarea } from '@workspace/ui/components/textarea'
 import { AlertTriangle, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -40,6 +43,8 @@ interface RuleEditorState {
   canonicalPath: string
   serverName: string
   toolName: string
+  /** browser 规则的 URL 模式 */
+  urlPattern: string
 }
 
 interface EditingRule {
@@ -49,7 +54,21 @@ interface EditingRule {
 }
 
 const EMPTY_DATA: PermissionData = { global: [], workspaces: {} }
-const selectClassName = 'h-8 w-full rounded-lg border border-input bg-background px-2.5 text-sm text-foreground'
+
+/** Select 组件的值到中文展示标签的映射 */
+const selectLabels: Record<string, string> = {
+  'command': '命令',
+  'filesystem': '文件系统',
+  'mcp-tool': 'MCP 工具',
+  'browser': '浏览器',
+  'allow': '允许：命中后跳过审批',
+  'deny': '黑名单：命中后直接阻止',
+  'global': '全局',
+  'file': '精确文件',
+  'directory': '目录递归读取',
+  'read': '读取',
+  'write': '写入',
+}
 
 export function PermissionsPage() {
   const [data, setData] = useState<PermissionData>(EMPTY_DATA)
@@ -60,6 +79,7 @@ export function PermissionsPage() {
   const [editing, setEditing] = useState<EditingRule | null>(null)
   const [editorSession, setEditorSession] = useState(0)
   const workspaceData = useWorkspaceStore(state => state.workspaceData)
+  const refreshWorkspaces = useWorkspaceStore(state => state.refresh)
   const workspacePaths = useMemo(
     () => workspaceData?.workspaces.map(workspace => workspace.path) ?? [],
     [workspaceData],
@@ -82,6 +102,13 @@ export function PermissionsPage() {
   useEffect(() => {
     void refresh()
   }, [refresh])
+
+  // 如果工作区数据未加载，主动触发刷新
+  useEffect(() => {
+    if (!workspaceData) {
+      void refreshWorkspaces()
+    }
+  }, [workspaceData, refreshWorkspaces])
 
   function openAddEditor() {
     setEditing(null)
@@ -145,8 +172,8 @@ export function PermissionsPage() {
       description="管理 Agent 工具规则。允许规则可跳过审批；黑名单规则命中后会直接阻止该次调用。"
       variant="wide"
     >
-      <Button className="self-start" onClick={openAddEditor}>
-        <Plus data-icon="inline-start" />
+      <Button className="flex items-center self-start" onClick={openAddEditor}>
+        <Plus data-icon="inline-start size-3" />
         添加规则
       </Button>
 
@@ -341,218 +368,287 @@ function RuleEditorDialog({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-lg" showCloseButton={!submitting}>
-          <DialogHeader>
-            <DialogTitle>{editing ? '编辑权限规则' : '添加权限规则'}</DialogTitle>
-            <DialogDescription>
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent side="right" showCloseButton={!submitting} className="sm:max-w-lg">
+          <SheetHeader>
+            <SheetTitle>{editing ? '编辑权限规则' : '添加权限规则'}</SheetTitle>
+            <SheetDescription>
               只填写结构化能力边界。规则身份和时间由后端生成，不支持原始 JSON 或 glob。
-            </DialogDescription>
-          </DialogHeader>
+            </SheetDescription>
+          </SheetHeader>
 
-          <div className="flex max-h-[60vh] flex-col gap-3 overflow-y-auto pr-1">
-            <FormField label="规则类型" htmlFor="permission-rule-kind">
-              <select
-                id="permission-rule-kind"
-                className={selectClassName}
-                value={form.kind}
-                disabled={Boolean(editing)}
-                onChange={event => updateForm({ kind: event.target.value as RuleKind })}
-              >
-                <option value="command">命令</option>
-                <option value="filesystem">文件系统</option>
-                <option value="mcp-tool">MCP 工具</option>
-              </select>
-            </FormField>
+          <div className="flex-1 overflow-y-auto px-1">
+            <FieldGroup>
 
-            <FormField label="规则效果" htmlFor="permission-rule-effect">
-              <select
-                id="permission-rule-effect"
-                className={selectClassName}
-                value={form.effect}
-                onChange={event => updateForm({ effect: event.target.value as 'allow' | 'deny' })}
-              >
-                <option value="allow">允许：命中后跳过审批</option>
-                <option value="deny">黑名单：命中后直接阻止</option>
-              </select>
-              {form.effect === 'deny' && <p className="text-xs text-muted-foreground">黑名单优先于所有允许规则，不会中断后续 Agent 对话。</p>}
-            </FormField>
-
-            <FormField label="生效分组" htmlFor="permission-rule-scope">
-              <select
-                id="permission-rule-scope"
-                className={selectClassName}
-                value={form.scope}
-                disabled={Boolean(editing)}
-                onChange={event => updateForm({ scope: event.target.value as RuleScope })}
-              >
-                <option value="global">全局</option>
-                <option value="workspace">指定工作区</option>
-              </select>
-            </FormField>
-
-            {form.scope === 'workspace' && (
-              <FormField label="工作区路径" htmlFor="permission-workspace-path">
-                <select
-                  id="permission-workspace-path"
-                  className={selectClassName}
-                  value={form.workspacePath}
+              <Field>
+                <FieldLabel htmlFor="permission-rule-kind">规则类型</FieldLabel>
+                <Select
+                  value={form.kind}
                   disabled={Boolean(editing)}
-                  onChange={event => updateForm({ workspacePath: event.target.value })}
+                  onValueChange={value => updateForm({ kind: value as RuleKind })}
                 >
-                  {workspacePaths.length === 0 && <option value="">暂无工作区</option>}
-                  {workspacePaths.map(path => <option key={path} value={path}>{path}</option>)}
-                  {editing?.workspacePath && !workspacePaths.includes(editing.workspacePath) && (
-                    <option value={editing.workspacePath}>
-                      {editing.workspacePath}
-                      （未添加）
-                    </option>
-                  )}
-                </select>
-              </FormField>
-            )}
+                  <SelectTrigger id="permission-rule-kind" className="w-full">
+                    <SelectValue>
+                      {value => (value ? selectLabels[value as string] ?? value : null)}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="command">命令</SelectItem>
+                    <SelectItem value="filesystem">文件系统</SelectItem>
+                    <SelectItem value="mcp-tool">MCP 工具</SelectItem>
+                    <SelectItem value="browser">浏览器</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
 
-            {form.kind === 'command' && (
-              <>
-                <FormField label="解释器" htmlFor="permission-interpreter">
-                  <select
-                    id="permission-interpreter"
-                    className={selectClassName}
-                    value={form.interpreter}
-                    onChange={event => updateForm({ interpreter: event.target.value as CommandInterpreter })}
-                  >
-                    <option value="bash">Bash</option>
-                    <option value="powershell7">PowerShell 7</option>
-                    <option value="windows-powershell">Windows PowerShell</option>
-                    <option value="cmd">CMD</option>
-                  </select>
-                </FormField>
-                <FormField
-                  label="命令"
-                  htmlFor="permission-executable"
-                  description="可直接填写 PATH 中的命令名，例如 git、node；也可以填写绝对路径。"
+              <Field>
+                <FieldLabel htmlFor="permission-rule-effect">规则效果</FieldLabel>
+                <Select
+                  value={form.effect}
+                  onValueChange={value => updateForm({ effect: value as 'allow' | 'deny' })}
                 >
-                  <Input
-                    id="permission-executable"
-                    value={form.executable}
-                    placeholder="git"
-                    onChange={event => updateForm({ executable: event.target.value })}
-                  />
-                </FormField>
-                <FormField
-                  label="固定参数"
-                  htmlFor="permission-argv-prefix"
-                  description="每行一个参数，所有固定参数都必须出现且顺序一致。留空并允许追加任意参数时表示允许该命令使用任意参数。"
-                >
-                  <Textarea
-                    id="permission-argv-prefix"
-                    value={form.argvText}
-                    placeholder={'show\nHEAD'}
-                    onChange={event => updateForm({ argvText: event.target.value })}
-                  />
-                </FormField>
-                <FormField label="资源范围" htmlFor="permission-resource-scope">
-                  <select
-                    id="permission-resource-scope"
-                    className={selectClassName}
-                    value={form.resourceScope}
-                    onChange={event => updateForm({ resourceScope: event.target.value as 'workspace' | 'outside' })}
-                  >
-                    <option value="workspace">当前工作区路径参数</option>
-                    <option value="outside">工作区外路径参数</option>
-                  </select>
-                </FormField>
-                <label className="flex items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={form.allowRemainingArgs}
-                    onCheckedChange={checked => updateForm({ allowRemainingArgs: Boolean(checked) })}
-                  />
-                  允许在固定参数后追加任意数量参数
-                </label>
-                <p className="text-xs text-muted-foreground">
-                  {form.allowRemainingArgs
-                    ? '固定参数必须完全一致；其后参数可以没有，也可以追加任意多个。'
-                    : '仅允许参数与当前规则完全一致。'}
-                </p>
-                {wholeExecutable && (
-                  <Alert variant="destructive">
-                    <AlertTriangle />
-                    <AlertTitle>命令任意参数授权</AlertTitle>
-                    <AlertDescription>保存时需要在独立步骤确认允许该命令使用任意参数运行。</AlertDescription>
-                  </Alert>
+                  <SelectTrigger id="permission-rule-effect" className="w-full">
+                    <SelectValue>
+                      {value => (value ? selectLabels[value as string] ?? value : null)}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="allow">允许：命中后跳过审批</SelectItem>
+                    <SelectItem value="deny">黑名单：命中后直接阻止</SelectItem>
+                  </SelectContent>
+                </Select>
+                {form.effect === 'deny' && (
+                  <FieldDescription>黑名单优先于所有允许规则，不会中断后续 Agent 对话。</FieldDescription>
                 )}
-              </>
-            )}
+              </Field>
 
-            {form.kind === 'filesystem' && (
-              <>
-                <FormField label="目标类型" htmlFor="permission-target-type">
-                  <select
-                    id="permission-target-type"
-                    className={selectClassName}
-                    value={form.targetType}
-                    onChange={(event) => {
-                      const targetType = event.target.value as 'file' | 'directory'
-                      updateForm({ targetType, access: targetType === 'directory' ? 'read' : form.access })
-                    }}
-                  >
-                    <option value="file">精确文件</option>
-                    <option value="directory">目录递归读取</option>
-                  </select>
-                </FormField>
-                <FormField label="访问能力" htmlFor="permission-access">
-                  <select
-                    id="permission-access"
-                    className={selectClassName}
-                    value={form.targetType === 'directory' ? 'read' : form.access}
-                    disabled={form.targetType === 'directory'}
-                    onChange={event => updateForm({ access: event.target.value as 'read' | 'write' })}
-                  >
-                    <option value="read">读取</option>
-                    <option value="write">写入</option>
-                  </select>
-                </FormField>
-                <FormField label="文件或目录路径" htmlFor="permission-canonical-path">
-                  <div className="flex gap-2">
-                    <Input
-                      id="permission-canonical-path"
-                      value={form.canonicalPath}
-                      placeholder="/workspace/app/docs"
-                      readOnly={form.targetType === 'directory'}
-                      onChange={event => updateForm({ canonicalPath: event.target.value })}
-                    />
-                    {form.targetType === 'directory' && (
-                      <Button type="button" variant="outline" onClick={() => setDirectoryPickerOpen(true)}>
-                        选择目录
-                      </Button>
+              <Field>
+                <FieldLabel htmlFor="permission-rule-scope">生效范围</FieldLabel>
+                <FieldDescription>控制该规则在哪些工作区中生效。</FieldDescription>
+                <Select
+                  value={form.scope === 'global' ? 'global' : form.workspacePath}
+                  disabled={Boolean(editing)}
+                  onValueChange={(value) => {
+                    if (!value || value === 'global') {
+                      updateForm({ scope: 'global', workspacePath: '' })
+                    }
+                    else {
+                      updateForm({ scope: 'workspace', workspacePath: value })
+                    }
+                  }}
+                >
+                  <SelectTrigger id="permission-rule-scope" className="w-full">
+                    <SelectValue placeholder="选择生效范围">
+                      {value => (value ? (value === 'global' ? '全局' : value) : null)}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="global">全局 · 对所有工作区生效</SelectItem>
+                    {workspacePaths.map(path => <SelectItem key={path} value={path}>{path}</SelectItem>)}
+                    {editing?.workspacePath && editing.scope === 'workspace' && !workspacePaths.includes(editing.workspacePath) && (
+                      <SelectItem value={editing.workspacePath}>
+                        {editing.workspacePath}
+                        （未添加）
+                      </SelectItem>
                     )}
-                  </div>
-                </FormField>
-                {form.targetType === 'directory' && (
-                  <p className="text-xs text-muted-foreground">目录规则固定为递归读取；不支持目录写入。</p>
-                )}
-              </>
-            )}
+                  </SelectContent>
+                </Select>
+              </Field>
 
-            {form.kind === 'mcp-tool' && (
-              <>
-                <FormField label="MCP 服务器名称" htmlFor="permission-mcp-server">
-                  <Input
-                    id="permission-mcp-server"
-                    value={form.serverName}
-                    onChange={event => updateForm({ serverName: event.target.value })}
-                  />
-                </FormField>
-                <FormField label="MCP 工具名称" htmlFor="permission-mcp-tool">
-                  <Input
-                    id="permission-mcp-tool"
-                    value={form.toolName}
-                    onChange={event => updateForm({ toolName: event.target.value })}
-                  />
-                </FormField>
-                <p className="text-xs text-muted-foreground">保存后会允许该服务器工具使用任意输入参数。</p>
-              </>
-            )}
+              {form.kind === 'command' && (
+                <>
+                  <Field>
+                    <FieldContent>
+                      <FieldLabel htmlFor="permission-executable">命令</FieldLabel>
+                      <FieldDescription>
+                        解释器由系统自动检测，当前为 Bash。可直接填写 PATH 中的命令名，例如 git、node；也可以填写绝对路径。
+                      </FieldDescription>
+                    </FieldContent>
+                    <Input
+                      id="permission-executable"
+                      value={form.executable}
+                      placeholder="git"
+                      onChange={event => updateForm({ executable: event.target.value })}
+                    />
+                  </Field>
+
+                  <Field>
+                    <FieldContent>
+                      <FieldLabel htmlFor="permission-argv-prefix">固定参数</FieldLabel>
+                      <FieldDescription>
+                        每行一个参数，所有固定参数都必须出现且顺序一致。留空并允许追加任意参数时表示允许该命令使用任意参数。
+                      </FieldDescription>
+                    </FieldContent>
+                    <Textarea
+                      id="permission-argv-prefix"
+                      value={form.argvText}
+                      placeholder={'show\nHEAD'}
+                      onChange={event => updateForm({ argvText: event.target.value })}
+                    />
+                  </Field>
+
+                  <Field>
+                    <FieldLabel htmlFor="permission-resource-scope">资源范围</FieldLabel>
+                    <FieldDescription>控制该命令能否访问工作区外的文件路径。</FieldDescription>
+                    <Select
+                      value={form.resourceScope}
+                      onValueChange={value => updateForm({ resourceScope: value as 'workspace' | 'outside' })}
+                    >
+                      <SelectTrigger id="permission-resource-scope" className="w-full">
+                        <SelectValue>
+                          {value => (value ? (value === 'workspace' ? '仅限工作区内文件' : '允许访问工作区外文件') : null)}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="workspace">仅限工作区内文件</SelectItem>
+                        <SelectItem value="outside">允许访问工作区外文件</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+
+                  <Field>
+                    <FieldLabel>
+                      <Checkbox
+                        checked={form.allowRemainingArgs}
+                        onCheckedChange={checked => updateForm({ allowRemainingArgs: Boolean(checked) })}
+                      />
+                      允许在固定参数后追加任意数量参数
+                    </FieldLabel>
+                    <FieldDescription>
+                      {form.allowRemainingArgs
+                        ? '固定参数必须完全一致；其后参数可以没有，也可以追加任意多个。'
+                        : '仅允许参数与当前规则完全一致。'}
+                    </FieldDescription>
+                  </Field>
+
+                  {wholeExecutable && (
+                    <Alert variant="destructive">
+                      <AlertTriangle />
+                      <AlertTitle>命令任意参数授权</AlertTitle>
+                      <AlertDescription>保存时需要在独立步骤确认允许该命令使用任意参数运行。</AlertDescription>
+                    </Alert>
+                  )}
+                </>
+              )}
+
+              {form.kind === 'filesystem' && (
+                <>
+                  <Field>
+                    <FieldLabel htmlFor="permission-target-type">目标类型</FieldLabel>
+                    <Select
+                      value={form.targetType}
+                      onValueChange={(value) => {
+                        const targetType = value as 'file' | 'directory'
+                        updateForm({ targetType, access: targetType === 'directory' ? 'read' : form.access })
+                      }}
+                    >
+                      <SelectTrigger id="permission-target-type" className="w-full">
+                        <SelectValue>
+                          {value => (value ? selectLabels[value as string] ?? value : null)}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="file">精确文件</SelectItem>
+                        <SelectItem value="directory">目录递归读取</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+
+                  <Field>
+                    <FieldLabel htmlFor="permission-access">访问能力</FieldLabel>
+                    <Select
+                      value={form.targetType === 'directory' ? 'read' : form.access}
+                      disabled={form.targetType === 'directory'}
+                      onValueChange={value => updateForm({ access: value as 'read' | 'write' })}
+                    >
+                      <SelectTrigger id="permission-access" className="w-full">
+                        <SelectValue>
+                          {value => (value ? selectLabels[value as string] ?? value : null)}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="read">读取</SelectItem>
+                        <SelectItem value="write">写入</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+
+                  <Field>
+                    <FieldLabel htmlFor="permission-canonical-path">文件或目录路径</FieldLabel>
+                    <div className="flex gap-2">
+                      <Input
+                        id="permission-canonical-path"
+                        value={form.canonicalPath}
+                        placeholder="/workspace/app/docs"
+                        readOnly={form.targetType === 'directory'}
+                        onChange={event => updateForm({ canonicalPath: event.target.value })}
+                      />
+                      {form.targetType === 'directory' && (
+                        <Button type="button" variant="outline" onClick={() => setDirectoryPickerOpen(true)}>
+                          选择目录
+                        </Button>
+                      )}
+                    </div>
+                    {form.targetType === 'directory' && (
+                      <FieldDescription>目录规则固定为递归读取；不支持目录写入。</FieldDescription>
+                    )}
+                  </Field>
+                </>
+              )}
+
+              {form.kind === 'mcp-tool' && (
+                <>
+                  <Field>
+                    <FieldLabel htmlFor="permission-mcp-server">MCP 服务器名称</FieldLabel>
+                    <Input
+                      id="permission-mcp-server"
+                      value={form.serverName}
+                      onChange={event => updateForm({ serverName: event.target.value })}
+                    />
+                  </Field>
+
+                  <Field>
+                    <FieldLabel htmlFor="permission-mcp-tool">MCP 工具名称</FieldLabel>
+                    <Input
+                      id="permission-mcp-tool"
+                      value={form.toolName}
+                      onChange={event => updateForm({ toolName: event.target.value })}
+                    />
+                  </Field>
+
+                  <FieldDescription>保存后会允许该服务器工具使用任意输入参数。</FieldDescription>
+                </>
+              )}
+
+              {form.kind === 'browser' && (
+                <>
+                  <Field>
+                    <FieldLabel htmlFor="permission-browser-tool">浏览器工具名称</FieldLabel>
+                    <Input
+                      id="permission-browser-tool"
+                      value={form.toolName}
+                      placeholder="browser_navigate"
+                      onChange={event => updateForm({ toolName: event.target.value })}
+                    />
+                  </Field>
+
+                  <Field>
+                    <FieldContent>
+                      <FieldLabel htmlFor="permission-browser-url-pattern">限制域名</FieldLabel>
+                      <FieldDescription>
+                        仅 browser_navigate 使用；留空表示允许该工具访问任意域名。可使用 *.github.com 匹配子域名。
+                      </FieldDescription>
+                    </FieldContent>
+                    <Input
+                      id="permission-browser-url-pattern"
+                      value={form.urlPattern}
+                      placeholder="github.com"
+                      onChange={event => updateForm({ urlPattern: event.target.value })}
+                    />
+                  </Field>
+                </>
+              )}
+            </FieldGroup>
 
             {error && !wholeExecutableConfirmOpen && (
               <Alert variant="destructive">
@@ -563,14 +659,14 @@ function RuleEditorDialog({
             )}
           </div>
 
-          <DialogFooter>
+          <SheetFooter>
             <Button variant="outline" disabled={submitting} onClick={() => onOpenChange(false)}>取消</Button>
             <Button disabled={submitting} onClick={() => void handleSubmit()}>
               {submitting ? '保存中…' : error ? '重试保存' : '保存规则'}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       <WorkspaceDirectoryPickerDialog
         open={directoryPickerOpen}
@@ -626,26 +722,6 @@ function RuleEditorDialog({
   )
 }
 
-function FormField({
-  label,
-  htmlFor,
-  description,
-  children,
-}: {
-  label: string
-  htmlFor: string
-  description?: string
-  children: React.ReactNode
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <Label htmlFor={htmlFor}>{label}</Label>
-      {children}
-      {description && <p className="text-xs text-muted-foreground">{description}</p>}
-    </div>
-  )
-}
-
 function createEditorState(editing: EditingRule | null, defaultWorkspacePath = ''): RuleEditorState {
   const base: RuleEditorState = {
     scope: editing?.scope ?? 'global',
@@ -662,6 +738,7 @@ function createEditorState(editing: EditingRule | null, defaultWorkspacePath = '
     canonicalPath: '',
     serverName: '',
     toolName: '',
+    urlPattern: '',
   }
 
   if (!editing)
@@ -690,18 +767,25 @@ function createEditorState(editing: EditingRule | null, defaultWorkspacePath = '
         serverName: editing.rule.serverName,
         toolName: editing.rule.toolName,
       }
+    case 'browser':
+      return {
+        ...base,
+        toolName: editing.rule.toolName,
+        urlPattern: editing.rule.urlPattern ?? '',
+      }
   }
 }
 
 function validateEditor(form: RuleEditorState): string | null {
+  // 编辑器级别的验证（scope/workspacePath 不在 ToolApprovalRuleInput 中）
   if (form.scope === 'workspace' && !form.workspacePath)
     return '请选择工作区'
-  if (form.kind === 'command' && !form.executable.trim())
-    return '请输入命令'
-  if (form.kind === 'filesystem' && !form.canonicalPath.trim())
-    return '请输入文件或目录路径'
-  if (form.kind === 'mcp-tool' && (!form.serverName.trim() || !form.toolName.trim()))
-    return '请输入 MCP 服务器名称和工具名称'
+
+  // 使用 zod schema 验证规则输入
+  const result = ToolApprovalRuleInputSchema.safeParse(buildRuleInput(form))
+  if (!result.success) {
+    return result.error.issues[0]?.message ?? '表单验证失败'
+  }
   return null
 }
 
@@ -733,6 +817,13 @@ function buildRuleInput(form: RuleEditorState): ToolApprovalRuleInput {
         serverName: form.serverName.trim(),
         toolName: form.toolName.trim(),
       }
+    case 'browser':
+      return {
+        kind: 'browser',
+        effect: form.effect,
+        toolName: form.toolName.trim(),
+        urlPattern: form.urlPattern.trim() || undefined,
+      }
   }
 }
 
@@ -748,6 +839,8 @@ function getRuleTypeLabel(kind: ToolApprovalRule['kind']): string {
       return '文件系统'
     case 'mcp-tool':
       return 'MCP 工具'
+    case 'browser':
+      return '浏览器'
   }
 }
 
@@ -766,6 +859,8 @@ function getRuleLabel(rule: ToolApprovalRule): string {
     }
     case 'mcp-tool':
       return `${rule.serverName} → ${rule.toolName}`
+    case 'browser':
+      return `${rule.toolName}${rule.urlPattern ? ` (${rule.urlPattern})` : ''}`
   }
 }
 

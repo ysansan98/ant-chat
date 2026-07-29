@@ -1,10 +1,19 @@
 import type { ToolApprovalRule } from '@ant-chat/shared'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import permissionsApi from '@/api/permissionsApi'
 import workspaceApi from '@/api/workspaceApi'
 import { useWorkspaceStore } from '@/store/workspace'
 import { PermissionsPage } from './Permissions'
+
+/** 模拟 base-ui Select 组件的选择交互 */
+async function selectOption(triggerLabel: string, optionLabel: string) {
+  const trigger = screen.getByRole('combobox', { name: triggerLabel })
+  await userEvent.click(trigger)
+  const option = await screen.findByRole('option', { name: optionLabel })
+  await userEvent.click(option)
+}
 
 vi.mock('@/api/permissionsApi', () => ({
   default: {
@@ -139,9 +148,9 @@ describe('权限管理页', () => {
     await screen.findByText('暂无权限规则')
 
     fireEvent.click(screen.getByRole('button', { name: '添加规则' }))
-    fireEvent.change(screen.getByRole('combobox', { name: '规则类型' }), { target: { value: 'filesystem' } })
-    fireEvent.change(screen.getByRole('combobox', { name: '生效分组' }), { target: { value: 'workspace' } })
-    fireEvent.change(screen.getByRole('combobox', { name: '目标类型' }), { target: { value: 'directory' } })
+    await selectOption('规则类型', '文件系统')
+    await selectOption('生效范围', '/workspace/app')
+    await selectOption('目标类型', '目录递归读取')
     fireEvent.click(screen.getByRole('button', { name: '选择目录' }))
     expect(await screen.findByRole('dialog', { name: '选择权限目录' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'docs' }))
@@ -179,7 +188,7 @@ describe('权限管理页', () => {
     await screen.findByText('暂无权限规则')
 
     fireEvent.click(screen.getByRole('button', { name: '添加规则' }))
-    fireEvent.change(screen.getByRole('combobox', { name: '规则类型' }), { target: { value: 'mcp-tool' } })
+    await selectOption('规则类型', 'MCP 工具')
     fireEvent.change(screen.getByRole('textbox', { name: 'MCP 服务器名称' }), { target: { value: 'github' } })
     fireEvent.change(screen.getByRole('textbox', { name: 'MCP 工具名称' }), { target: { value: 'create_issue' } })
     fireEvent.click(screen.getByRole('button', { name: '保存规则' }))
@@ -193,6 +202,37 @@ describe('权限管理页', () => {
       },
     })))
     expect(await screen.findByText('github → create_issue')).toBeInTheDocument()
+  })
+
+  it('添加 browser 规则时提交工具名和域名限制', async () => {
+    const browserRule: ToolApprovalRule = {
+      id: 'browser-1',
+      createdAt: 1,
+      updatedAt: 1,
+      kind: 'browser',
+      toolName: 'browser_navigate',
+      urlPattern: '*.github.com',
+    }
+    vi.mocked(permissionsApi.list).mockResolvedValue({ global: [], workspaces: {} })
+    vi.mocked(permissionsApi.add).mockResolvedValue(browserRule)
+    render(<PermissionsPage />)
+    await screen.findByText('暂无权限规则')
+
+    fireEvent.click(screen.getByRole('button', { name: '添加规则' }))
+    await selectOption('规则类型', '浏览器')
+    fireEvent.change(screen.getByRole('textbox', { name: '浏览器工具名称' }), { target: { value: 'browser_navigate' } })
+    fireEvent.change(screen.getByRole('textbox', { name: '限制域名' }), { target: { value: '*.github.com' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存规则' }))
+
+    await waitFor(() => expect(permissionsApi.add).toHaveBeenCalledWith(expect.objectContaining({
+      rule: {
+        kind: 'browser',
+        effect: 'allow',
+        toolName: 'browser_navigate',
+        urlPattern: '*.github.com',
+      },
+    })))
+    expect(await screen.findByText('browser_navigate (*.github.com)')).toBeInTheDocument()
   })
 
   it('编辑规则时保留稳定身份并只提交新的能力字段', async () => {
@@ -279,7 +319,7 @@ describe('权限管理页', () => {
     fireEvent.click(screen.getByRole('button', { name: '添加规则' }))
     fireEvent.change(screen.getByRole('textbox', { name: '命令' }), { target: { value: 'git' } })
     fireEvent.change(screen.getByRole('textbox', { name: '固定参数' }), { target: { value: 'push' } })
-    fireEvent.change(screen.getByRole('combobox', { name: '规则效果' }), { target: { value: 'deny' } })
+    await selectOption('规则效果', '黑名单：命中后直接阻止')
     fireEvent.click(screen.getByRole('button', { name: '保存规则' }))
 
     await waitFor(() => expect(permissionsApi.add).toHaveBeenCalledWith(expect.objectContaining({

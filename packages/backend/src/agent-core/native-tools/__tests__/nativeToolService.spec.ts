@@ -119,14 +119,14 @@ describe('native tool service 行为', () => {
         artifactsPath: '/tmp/artifacts',
       },
     })
-    const browser = service.getTools().find(tool => tool.name === 'browser')
+    const browserNavigate = service.getTools().find(tool => tool.name === 'browser_navigate')
 
-    expect(browser).toMatchObject({
-      name: 'browser',
+    expect(browserNavigate).toMatchObject({
+      name: 'browser_navigate',
       operationType: 'browser',
     })
-    expect(browser?.inferScope({ command: 'open', args: ['https://example.com'] })).toBe('external')
-    expect(browser?.inferScope({ command: 'open', args: ['--profile', 'Default', 'https://example.com'] })).toBe('outside')
+    expect(browserNavigate?.inferScope({ url: 'https://example.com' })).toBe('external')
+    expect(browserNavigate?.inferScope({ url: 'https://example.com', headed: true, profile: 'Default' })).toBe('outside')
   })
 
   it('tool execute 遇到越界路径返回 AGENT_POLICY_BLOCKED', async () => {

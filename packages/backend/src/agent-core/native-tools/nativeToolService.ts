@@ -15,7 +15,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { createCommandTool } from './command/commandTool'
 import { createPathPolicyByMode } from './pathPolicy'
-import { createBrowserTool } from './tools/browserTool'
+import { createBrowserBackTool, createBrowserClickTool, createBrowserCloseTool, createBrowserDialogTool, createBrowserEvalTool, createBrowserNavigateTool, createBrowserPressTool, createBrowserReloadTool, createBrowserScrollTool, createBrowserSnapshotTool, createBrowserTypeTool } from './tools/browserTool'
 import { createEditFileTool, editFile } from './tools/editFileTool'
 import { createGlobFilesTool, globFiles } from './tools/globFilesTool'
 import { createGrepFilesTool, grepFiles } from './tools/grepFilesTool'
@@ -54,6 +54,13 @@ export class NativeToolService {
       profile: undefined,
       queue: Promise.resolve(),
     }
+    const browserFactoryOptions = this.options.browser
+      ? {
+          workspacePath: this.workspacePath,
+          config: this.options.browser,
+          state: browserSession,
+        }
+      : undefined
     return [
       createReadFileTool(policy, this.unrestricted),
       createListDirTool(policy, this.unrestricted),
@@ -69,8 +76,20 @@ export class NativeToolService {
             trustedPaths: this.options.trustedPaths ?? [],
           })]
         : []),
-      ...(this.options.browser
-        ? [createBrowserTool(this.workspacePath, this.options.browser, browserSession)]
+      ...(browserFactoryOptions
+        ? [
+            createBrowserNavigateTool(browserFactoryOptions),
+            createBrowserBackTool(browserFactoryOptions),
+            createBrowserReloadTool(browserFactoryOptions),
+            createBrowserCloseTool(browserFactoryOptions),
+            createBrowserSnapshotTool(browserFactoryOptions),
+            createBrowserClickTool(browserFactoryOptions),
+            createBrowserTypeTool(browserFactoryOptions),
+            createBrowserPressTool(browserFactoryOptions),
+            createBrowserScrollTool(browserFactoryOptions),
+            createBrowserDialogTool(browserFactoryOptions),
+            createBrowserEvalTool(browserFactoryOptions),
+          ]
         : []),
     ]
   }

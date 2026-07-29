@@ -1,4 +1,4 @@
-import type { AgentErrorCode, AgentMode, AgentPendingAction, ApprovalCandidate, ApprovalGrantCandidates, CommandRule, FilesystemRule, McpToolRule, PolicyBasis, ToolApprovalRule, ToolOperationType, ToolScope } from '@ant-chat/shared'
+import type { AgentErrorCode, AgentMode, AgentPendingAction, ApprovalCandidate, ApprovalGrantCandidates, BrowserRule, CommandRule, FilesystemRule, McpToolRule, PolicyBasis, ToolApprovalRule, ToolOperationType, ToolScope } from '@ant-chat/shared'
 import type { PreparedCommandSegment, PreparedCommandState } from '../native-tools/command/types'
 import type { TaskStore } from '../taskStore'
 import type { PreparedToolCall } from '../tools/toolRegistry'
@@ -274,7 +274,12 @@ function matchRulesAgainstToolCall(
     return matched ? [matched] : []
   }
 
-  // Browser 和未知工具不生成持久规则候选
+  if (prepared.operationType === 'browser') {
+    const matched = matchBrowserRules(rules, prepared)
+    return matched ? [matched] : []
+  }
+
+  // 未知工具不生成持久规则候选
   return []
 }
 
@@ -289,7 +294,10 @@ function describePermissionRule(rule: ToolApprovalRule): string {
   if (rule.kind === 'filesystem') {
     return `${rule.access === 'read' ? '读取' : '写入'} ${rule.canonicalPath}`
   }
-  return `${rule.serverName} → ${rule.toolName}`
+  if (rule.kind === 'mcp-tool') {
+    return `${rule.serverName} → ${rule.toolName}`
+  }
+  return `${rule.toolName}${rule.urlPattern ? ` (${rule.urlPattern})` : ''}`
 }
 
 function matchCommandRules(
@@ -360,6 +368,47 @@ function matchMcpRules(
   )
 }
 
+function matchBrowserRules(
+  rules: ToolApprovalRule[],
+  prepared: PreparedToolCall,
+): BrowserRule | undefined {
+  const browserRules = rules.filter((rule): rule is BrowserRule => rule.kind === 'browser')
+  if (browserRules.length === 0) {
+    return undefined
+  }
+  return browserRules.find((rule) => {
+    if (rule.toolName !== prepared.toolName)
+      return false
+    if (!rule.urlPattern)
+      return true
+    const host = extractBrowserHostname(prepared)
+    if (!host)
+      return false
+    return globToRegex(rule.urlPattern).test(host)
+  })
+}
+
+function extractUrlFromBrowserInput(prepared: PreparedToolCall): string | undefined {
+  if (prepared.toolName === 'browser_navigate') {
+    const url = prepared.input.url
+    if (typeof url === 'string' && url.trim())
+      return url.trim()
+  }
+  return undefined
+}
+
+function extractBrowserHostname(prepared: PreparedToolCall): string | undefined {
+  const url = extractUrlFromBrowserInput(prepared)
+  if (!url)
+    return undefined
+  try {
+    return new URL(url).hostname
+  }
+  catch {
+    return undefined
+  }
+}
+
 // ---- 候选生成 ----
 
 function createApprovalCandidates(
@@ -422,7 +471,19 @@ function createApprovalCandidates(
     return { candidates: [candidate], context: { serverName: prepared.serverName, toolName: prepared.originalToolName } }
   }
 
-  // Browser 和未知工具不生成持久规则候选
+  if (prepared.operationType === 'browser') {
+    const url = extractUrlFromBrowserInput(prepared)
+    const urlPattern = extractBrowserHostname(prepared)
+    const candidate: ApprovalCandidate = {
+      type: 'browser',
+      toolName: prepared.toolName,
+      urlPattern,
+      riskWarning: `授权后，${prepared.toolName} 工具可以操作浏览器页面。${urlPattern ? ` 当前限制域名为 ${urlPattern}，可调整。` : ''}`,
+    }
+    return { candidates: [candidate], context: { toolName: prepared.toolName, url } }
+  }
+
+  // 未知工具不生成持久规则候选
   return null
 }
 

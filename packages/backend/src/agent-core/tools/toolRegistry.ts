@@ -167,7 +167,7 @@ export class ToolRegistry {
 function filterNativeToolsForTurn(tools: AgentTool[], turnSource?: AgentTurnSource): AgentTool[] {
   if (turnSource?.type !== 'automation' || turnSource.permissionPolicy.allowBrowser)
     return tools
-  return tools.filter(tool => tool.name !== 'browser')
+  return tools.filter(tool => !tool.name.startsWith('browser_'))
 }
 
 async function resolveAutomationTrustedPaths(skillReader: SkillReader | null, turnSource: AutomationTurnSource): Promise<string[]> {

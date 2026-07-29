@@ -32,6 +32,13 @@ export function canonicalizePermissionRuleInput(
         toolName: input.toolName.trim(),
       }
       break
+    case 'browser':
+      canonical = {
+        ...input,
+        toolName: input.toolName.trim(),
+        urlPattern: input.urlPattern?.trim() || undefined,
+      }
+      break
   }
   return ToolApprovalRuleInputSchema.parse(canonical)
 }

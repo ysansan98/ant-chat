@@ -317,10 +317,10 @@ describe('toolRegistry Skill 白名单', () => {
     })
 
     const deniedRegistry = await ToolRegistry.create({ config, mode: 'hybrid', turnSource: createTurnSource(false), workspacePath })
-    expect(deniedRegistry.listTools().some(tool => tool.name === 'browser')).toBe(false)
+    expect(deniedRegistry.listTools().some(tool => tool.name.startsWith('browser_'))).toBe(false)
 
     const allowedRegistry = await ToolRegistry.create({ config, mode: 'hybrid', turnSource: createTurnSource(true), workspacePath })
-    expect(allowedRegistry.listTools().some(tool => tool.name === 'browser')).toBe(true)
+    expect(allowedRegistry.listTools().some(tool => tool.name.startsWith('browser_'))).toBe(true)
   })
 
   it('普通交互 Turn 将严格只读命令标记为 command_read', async () => {

@@ -57,12 +57,23 @@ export const McpToolRuleSchema = RuleBaseSchema.extend({
   toolName: z.string().min(1),
 })
 
+// ---- Browser 工具规则 ----
+
+export const BrowserRuleSchema = RuleBaseSchema.extend({
+  kind: z.literal('browser'),
+  /** 精确匹配的 browser 工具名（如 browser_navigate、browser_eval），不支持通配 */
+  toolName: z.string().min(1),
+  /** 可选，只对带 url 参数的工具（browser_navigate）生效；留空匹配任意 URL */
+  urlPattern: z.string().optional(),
+})
+
 // ---- 封闭规则联合 ----
 
 export const ToolApprovalRuleSchema = z.discriminatedUnion('kind', [
   CommandRuleSchema,
   FilesystemRuleSchema,
   McpToolRuleSchema,
+  BrowserRuleSchema,
 ]).superRefine((rule, context) => {
   const message = getFilesystemConstraintError(rule)
   if (message) {
@@ -78,6 +89,7 @@ export type ToolApprovalRule = z.infer<typeof ToolApprovalRuleSchema>
 export type CommandRule = z.infer<typeof CommandRuleSchema>
 export type FilesystemRule = z.infer<typeof FilesystemRuleSchema>
 export type McpToolRule = z.infer<typeof McpToolRuleSchema>
+export type BrowserRule = z.infer<typeof BrowserRuleSchema>
 
 export type RuleKind = ToolApprovalRule['kind']
 
@@ -101,11 +113,18 @@ const McpToolRuleInputSchema = McpToolRuleSchema.omit({
   updatedAt: true,
 }).strict()
 
+const BrowserRuleInputSchema = BrowserRuleSchema.omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).strict()
+
 /** 管理页只能提交规则能力，持久化身份和时间戳由后端生成。 */
 export const ToolApprovalRuleInputSchema = z.discriminatedUnion('kind', [
   CommandRuleInputSchema,
   FilesystemRuleInputSchema,
   McpToolRuleInputSchema,
+  BrowserRuleInputSchema,
 ]).superRefine((rule, context) => {
   const message = getFilesystemConstraintError(rule)
   if (message) {
@@ -194,7 +213,16 @@ export interface McpToolCandidate {
   riskWarning: string
 }
 
-export type ApprovalCandidate = CommandSegmentCandidate | FilesystemCandidate | McpToolCandidate
+export interface BrowserCandidate {
+  type: 'browser'
+  toolName: string
+  /** 建议的 urlPattern（若有 url），默认为 URL 的 host */
+  urlPattern?: string
+  /** browser 任意参数授权的风险提示文案 */
+  riskWarning: string
+}
+
+export type ApprovalCandidate = CommandSegmentCandidate | FilesystemCandidate | McpToolCandidate | BrowserCandidate
 
 /**
  * 用户对候选的选择：提交候选索引和可能的调整。
@@ -211,6 +239,8 @@ export interface ApprovalCandidateSelection {
   wholeExecutable?: boolean
   /** 文件: 是否选择父目录递归读取 */
   parentDirectory?: boolean
+  /** browser: 调整后的 urlPattern（可选，仅 browser 候选） */
+  adjustedUrlPattern?: string
 }
 
 // ---- 审批输入 ----

@@ -33,6 +33,8 @@ interface CandidateState {
   allowRemainingArgs: boolean
   parentDirectory: boolean
   argvPrefixLength: number
+  /** browser 候选：调整后的 urlPattern */
+  adjustedUrlPattern?: string
 }
 
 interface AgentApprovalCardProps {
@@ -101,6 +103,11 @@ function AgentApprovalCardContent({
             selection.parentDirectory = true
           }
         }
+        if (candidate?.type === 'browser') {
+          if (state.adjustedUrlPattern !== undefined) {
+            selection.adjustedUrlPattern = state.adjustedUrlPattern
+          }
+        }
         return selection
       })
   }, [candidateStates, candidates])
@@ -141,7 +148,7 @@ function AgentApprovalCardContent({
   const scopeLabel = scopeLabels[pending.scope] || pending.scope
   const typeLabel = typeLabels[pending.operationType] || pending.operationType
 
-  const showRemember = hasCandidates && pending.operationType !== 'browser'
+  const showRemember = hasCandidates
 
   return (
     <Card size="sm" className="text-xs" data-testid="agent-approval-card">
@@ -422,6 +429,49 @@ function CandidateSelector({
     )
   }
 
+  if (candidate.type === 'browser') {
+    const candidateId = `candidate-browser-${index}`
+    return (
+      <div className="flex flex-col gap-1 rounded-md border bg-muted/20 p-2">
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id={candidateId}
+            checked={state.selected}
+            onCheckedChange={() => onToggle()}
+          />
+          <Label htmlFor={candidateId} className="cursor-pointer text-xs">
+            记住此浏览器工具（
+            {candidate.toolName}
+            {candidate.urlPattern ? ` · ${candidate.urlPattern}` : ''}
+            ）
+          </Label>
+        </div>
+        {state.selected && (
+          <div className="ml-6 flex flex-col gap-1">
+            {candidate.urlPattern && (
+              <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+                限制域名
+                <input
+                  type="text"
+                  className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground"
+                  value={state.adjustedUrlPattern ?? candidate.urlPattern}
+                  onChange={(event) => {
+                    onChange({ adjustedUrlPattern: event.target.value })
+                  }}
+                  placeholder={candidate.urlPattern}
+                />
+              </label>
+            )}
+            <div className="flex items-center gap-1 text-xs text-orange-500">
+              <AlertTriangle />
+              {candidate.riskWarning}
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return null
 }
 
@@ -443,6 +493,8 @@ function getCandidateKey(candidate: ApprovalCandidate): string {
       return `filesystem-${candidate.access}-${candidate.canonicalPath}`
     case 'mcp-tool':
       return `mcp-${candidate.serverName}-${candidate.toolName}`
+    case 'browser':
+      return `browser-${candidate.toolName}-${candidate.urlPattern ?? ''}`
   }
 }
 

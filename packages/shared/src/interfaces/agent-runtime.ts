@@ -1,4 +1,4 @@
-import type { ApprovalGrantCandidates } from '../schemas/toolApprovalRules'
+import type { ApprovalGrantCandidates, ApprovalSelectionInput } from '../schemas/toolApprovalRules'
 import type { ToolOperationType, ToolScope } from './agent-tools'
 import type { AutomationPermissionPolicy } from './automation'
 
@@ -84,16 +84,7 @@ export interface ApprovePendingActionOptions {
   taskId: string
   actionId: string
   /** 用户对后端候选项的选择；空数组或 undefined = 仅本次允许，不持久化 */
-  selection?: {
-    selections: Array<{
-      candidateIndex: number
-      adjustedArgvPrefix?: string[]
-      allowRemainingArgs?: boolean
-      wholeExecutable?: boolean
-      parentDirectory?: boolean
-    }>
-    scope: 'workspace' | 'global'
-  }
+  selection?: ApprovalSelectionInput
 }
 
 export interface RejectPendingActionOptions {

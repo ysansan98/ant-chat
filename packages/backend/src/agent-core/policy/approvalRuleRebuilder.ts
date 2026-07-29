@@ -1,4 +1,4 @@
-import type { ApprovalCandidate, ApprovalGrantCandidates, CommandRule, FilesystemRule, McpToolRule, ToolApprovalRule } from '@ant-chat/shared'
+import type { ApprovalCandidate, ApprovalCandidateSelection, ApprovalGrantCandidates, ApprovalSelectionInput, BrowserRule, CommandRule, FilesystemRule, McpToolRule, ToolApprovalRule } from '@ant-chat/shared'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 
@@ -13,16 +13,7 @@ import path from 'node:path'
  */
 export function rebuildRulesFromApproval(
   grant: ApprovalGrantCandidates,
-  selection: {
-    selections: Array<{
-      candidateIndex: number
-      adjustedArgvPrefix?: string[]
-      allowRemainingArgs?: boolean
-      wholeExecutable?: boolean
-      parentDirectory?: boolean
-    }>
-    scope: 'workspace' | 'global'
-  },
+  selection: ApprovalSelectionInput,
 ): ToolApprovalRule[] {
   const rules: ToolApprovalRule[] = []
 
@@ -43,12 +34,7 @@ export function rebuildRulesFromApproval(
 
 function rebuildSingleRule(
   candidate: ApprovalCandidate,
-  selection: {
-    adjustedArgvPrefix?: string[]
-    allowRemainingArgs?: boolean
-    wholeExecutable?: boolean
-    parentDirectory?: boolean
-  },
+  selection: ApprovalCandidateSelection,
   context: Record<string, unknown>,
 ): ToolApprovalRule | null {
   if (candidate.type === 'command-segment') {
@@ -61,6 +47,10 @@ function rebuildSingleRule(
 
   if (candidate.type === 'mcp-tool') {
     return rebuildMcpRule(candidate)
+  }
+
+  if (candidate.type === 'browser') {
+    return rebuildBrowserRule(candidate, selection)
   }
 
   return null
@@ -190,6 +180,22 @@ function rebuildMcpRule(
     kind: 'mcp-tool',
     serverName: candidate.serverName,
     toolName: candidate.toolName,
+    createdAt: now,
+    updatedAt: now,
+  }
+}
+
+function rebuildBrowserRule(
+  candidate: Extract<ApprovalCandidate, { type: 'browser' }>,
+  selection: ApprovalCandidateSelection,
+): BrowserRule {
+  const now = Date.now()
+  return {
+    id: randomUUID(),
+    effect: 'allow',
+    kind: 'browser',
+    toolName: candidate.toolName,
+    urlPattern: selection.adjustedUrlPattern?.trim() || candidate.urlPattern,
     createdAt: now,
     updatedAt: now,
   }

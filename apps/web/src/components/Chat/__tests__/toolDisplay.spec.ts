@@ -38,10 +38,12 @@ describe('getToolLabel 内置工具文案', () => {
     expect(getToolLabel(toolCall('execute_command', { command: 'pnpm install' })).primary).toBe('pnpm install')
   })
 
-  it('browser 展示命令与首个参数', () => {
-    expect(getToolLabel(toolCall('browser', { command: 'navigate', args: ['https://a.com'] })).primary)
-      .toBe('浏览器 navigate https://a.com')
-    expect(getToolLabel(toolCall('browser', { command: 'snapshot' })).primary).toBe('浏览器 snapshot')
+  it('browser 工具展示对应操作', () => {
+    expect(getToolLabel(toolCall('browser_navigate', { url: 'https://a.com' })).primary)
+      .toBe('打开 https://a.com')
+    expect(getToolLabel(toolCall('browser_snapshot')).primary).toBe('页面快照')
+    expect(getToolLabel(toolCall('browser_click', { ref: '@e3' })).primary).toBe('点击 @e3')
+    expect(getToolLabel(toolCall('browser_eval')).primary).toBe('执行 JS')
   })
 
   it('技能与记忆工具展示名称', () => {
@@ -111,7 +113,9 @@ describe('getToolCategory', () => {
     'glob_files',
     'list_dir',
     'execute_command',
-    'browser',
+    'browser_navigate',
+    'browser_snapshot',
+    'browser_click',
     'use_skill',
     'install_skill_from_github',
     'memory',
