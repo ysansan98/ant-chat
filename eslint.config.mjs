@@ -57,17 +57,15 @@ export default antfu(
       ...tailwindcss.configs['recommended-warn'].rules,
       ...tailwindcss.configs['recommended-error'].rules,
 
-      // 关闭换行规则，看着不舒服
+      // 关闭换行规则
       'better-tailwindcss/enforce-consistent-line-wrapping': 'off',
 
       // 忽略自定义 class 白名单
       'better-tailwindcss/no-unknown-classes': [
-        'warn',
+        'error',
         {
           detectComponentClasses: true,
           ignore: [
-            'antd-css-var',
-            'ant-.*',
             'mermaid-container',
             'app-region-drag',
             'app-region-no-drag',
@@ -108,7 +106,7 @@ export default antfu(
     },
   },
   {
-    files: ['packages/ui/src/components/ai-elements/**/*.{ts,tsx}'],
+    files: ['packages/ui/**/*.{ts,tsx}'],
     rules: {
       'react-refresh/only-export-components': 'off',
       'react-hooks/refs': 'off',
