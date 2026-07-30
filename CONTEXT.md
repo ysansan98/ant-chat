@@ -39,3 +39,29 @@ _Avoid_: 可观测字段、原始日志字段
 **Permission Rule（权限规则）**:
 用户在交互审批或“权限”页面显式保存的结构化 allow/deny 能力规则；deny 规则优先阻止当前工具调用，allow 规则只能满足基础策略的 `require_approval`。规则按全局或 canonical 工作区分组，并按带解释器身份的命令、文件系统、MCP 或浏览器工具表达可复用边界。
 _Avoid_: 工具白名单、命令白名单、审批豁免
+
+## 消息频道领域
+
+**消息频道（Channel）**：把一个外部 IM 平台的私聊消息接入本地 Agent，并把该 Turn 的结果投递回原入口的传输能力。
+_Avoid_: 外部用户系统、远程账号系统
+
+**频道账号（Channel Account）**：本机连接到某个平台的一个 Bot 或 iLink 身份，以及该连接的默认工作区和启用状态。
+_Avoid_: 本地用户账号、租户
+
+**频道会话（Channel Session）**：一个频道账号与一个外部 1v1 私聊之间的持久路由状态，指向当前本地 Conversation。
+_Avoid_: Conversation、频道连接
+
+**频道配对（Channel Pairing）**：电脑所有者批准某个外部消息身份使用本机频道账号的过程；它不创建本地账号。
+_Avoid_: 登录、注册、用户绑定
+
+**Conversation 来源（Conversation Source）**：Conversation 首次创建时的入口类型；它不决定后续 Turn 的回复目标。
+_Avoid_: 当前入口、回复渠道
+
+**Turn 来源（Turn Origin）**：某个 Agent Turn 实际由 Web/Desktop、飞书或微信发起的事实，并决定该 Turn 的结果投递目标。
+_Avoid_: Conversation 来源
+
+**频道投递（Channel Delivery）**：根据 Turn 来源，把已持久化的消息、状态和审批提示投递到对应 IM 私聊的模块。
+_Avoid_: Agent Runtime 内置平台发送
+
+**频道 receipt**：记录外部消息接收或回复投递状态的幂等事实，用于去重和重试；不承载 Conversation 内容。
+_Avoid_: 消息副本、Conversation
