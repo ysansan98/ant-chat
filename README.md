@@ -6,9 +6,9 @@
 
 本地优先的 AI Agent 客户端，支持多模型、工作区工具、MCP、技能和桌面/Web 双端运行。
 
-[![CI](https://github.com/whitexie/ant-chat/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/whitexie/ant-chat/actions/workflows/ci.yml)
+[![CI](https://github.com/ysansan98/ant-chat/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ysansan98/ant-chat/actions/workflows/ci.yml)
 
-[下载应用](https://github.com/whitexie/ant-chat/releases) · [快速开始](#快速开始) · [开发](#开发)
+[下载应用](https://github.com/ysansan98/ant-chat/releases) · [快速开始](#快速开始) · [开发](#开发)
 
 </div>
 
@@ -66,7 +66,7 @@ ant-chat settings show --json
 - Python 3.x，用于编译 `better-sqlite3` 等原生依赖
 
 ```bash
-git clone https://github.com/whitexie/ant-chat.git
+git clone https://github.com/ysansan98/ant-chat.git
 cd ant-chat
 pnpm install
 ```
@@ -149,6 +149,18 @@ ant-chat/
 - UI 变更附截图或录屏。
 - 配置、数据结构或运行方式变化需要写清楚迁移影响。
 - 版本发布相关变更使用 Changesets：`pnpm changeset`。
+
+## 代码签名策略
+
+Windows 安装包计划使用 SignPath Foundation 进行代码签名：
+
+> Free code signing provided by SignPath.io, certificate by SignPath Foundation
+
+- 提交者、维护者和评审者：由 [ant-chat 仓库维护团队](https://github.com/ysansan98/ant-chat/graphs/contributors)负责源代码和构建配置。
+- 签名批准者：由仓库所有者或维护者在 SignPath 中逐次审批发布签名请求。
+- 隐私：This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.
+
+签名只覆盖本仓库源代码构建的 Ant Chat 发布产物，不签名第三方软件或外部二进制文件。
 
 ## 许可证
 
