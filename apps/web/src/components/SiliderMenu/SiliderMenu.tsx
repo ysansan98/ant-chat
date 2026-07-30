@@ -43,13 +43,13 @@ export function SliderMenu({ mobile = false, onNavigate }: SliderMenuProps) {
     <aside
       className={cn(
         'flex h-full shrink-0 flex-col text-sm text-sidebar-foreground',
-        mobile ? 'w-full' : 'w-(--conversationWidth) py-2 pl-2',
+        mobile ? 'w-full' : 'w-(--conversationWidth)',
       )}
     >
       <div
         className={cn(
           'flex min-h-0 flex-1 flex-col bg-sidebar px-2 pb-3',
-          mobile ? 'rounded-xl pt-10' : 'rounded-xl pt-8',
+          mobile ? 'pt-10' : 'pt-8',
         )}
       >
         <div className="flex flex-col gap-1 py-2">

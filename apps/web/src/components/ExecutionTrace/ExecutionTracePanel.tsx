@@ -331,15 +331,15 @@ function TurnCard(props: {
   }
   return (
     <Collapsible open={props.open} onOpenChange={props.onToggle} className="overflow-hidden rounded-xl border border-border bg-card">
-      <div className="flex items-center gap-3 p-3">
+      <div className="flex items-center gap-2 p-2">
         <CollapsibleTrigger render={(
           <button type="button" className="flex min-w-0 flex-1 items-center gap-3 text-left" />
         )}
         >
-          <ChevronRightIcon className={cn('size-4 shrink-0 text-muted-foreground transition-transform', props.open && 'rotate-90')} />
+          <ChevronRightIcon className={cn('size-4 shrink-0 text-muted-foreground transition-transform', props.open ? 'rotate-90' : '')} />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-medium">
+              <span className="text-sm font-medium">
                 Turn
                 {' '}
                 {summary.turnId}
