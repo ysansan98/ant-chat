@@ -1,6 +1,6 @@
 import { ArchiveIcon, ArrowLeft, Cable, Crown, Info, MessageCircle, NotebookTabsIcon, Palette, SettingsIcon, ShieldIcon, SparklesIcon } from 'lucide-react'
 import { Outlet, useLocation, useNavigate } from 'react-router'
-import { ipc, isElectronMacOS, isElectronRuntime } from '@/utils/ipc-bus'
+import { isElectronMacOS } from '@/utils/ipc-bus'
 
 export default function SettingsPage() {
   const navigrate = useNavigate()
@@ -20,17 +20,12 @@ export default function SettingsPage() {
   ]
 
   /**
-   * 返回工作区。
-   * Web 端同窗口跳转 /chat；桌面端设置窗口通过 IPC 聚焦主窗口并关闭自身。
+   * 返回工作区：同窗口路由跳转到聊天页。
    */
   // macOS 原生窗口控件（红绿灯）占据顶部空间，需要更大的顶部内边距
   const topPadding = isElectronMacOS() ? 'pt-12' : 'pt-2'
 
   function backToWorkspace() {
-    if (isElectronRuntime()) {
-      void ipc.app.focusMainWindow()
-      return
-    }
     navigrate('/chat')
   }
 
@@ -41,13 +36,13 @@ export default function SettingsPage() {
         className={`h-full w-50 border-r border-(--border-color) px-2 ${topPadding} pb-2`}
       >
         {/* 返回工作区按钮 */}
-        <div className="mb-3">
+        <div className="mb-1">
           <div
             role="button"
             tabIndex={0}
             data-testid="settings-nav-back-workspace"
             className="
-              flex h-10 cursor-pointer items-center gap-3 rounded-md px-4
+              flex h-8 cursor-pointer items-center gap-3 rounded-md px-4
               hover:bg-(--hover-bg-color)
             "
             onClick={backToWorkspace}

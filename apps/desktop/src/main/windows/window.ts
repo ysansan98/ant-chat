@@ -1,9 +1,9 @@
 import type { BrowserWindow } from 'electron'
 import { app, Menu } from 'electron'
 import { isDev, isMacOS } from '../utils/env'
+import { sendToRenderer } from '../utils/ipc-events'
 import { logger } from '../utils/logger'
 import { BaseWindow } from './base-window'
-import { openSettingsWindow } from './settings-window'
 
 let mainWindow: null | BrowserWindow = null
 
@@ -46,9 +46,10 @@ export class MainWindow extends BaseWindow {
                 label: 'Settings...',
                 accelerator: 'Command+,',
                 click: () => {
-                  openSettingsWindow().catch((error) => {
-                    logger.error('Failed to open settings window:', error)
-                  })
+                  // 设置页已合并进主窗口路由，菜单仅通知渲染进程在窗口内跳转
+                  if (this.window) {
+                    sendToRenderer(this.window.webContents, 'app:navigate', '/settings')
+                  }
                 },
               },
               { type: 'separator' },

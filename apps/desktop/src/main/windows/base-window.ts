@@ -5,7 +5,7 @@ import { isDev, isMacOS, isWindows } from '../utils/env'
 import { logger } from '../utils/logger'
 
 export interface BaseWindowOptions {
-  type: 'main' | 'settings'
+  type: 'main'
   width: number
   height: number
   hash?: string
@@ -60,7 +60,6 @@ export abstract class BaseWindow {
 
     if (isDev && process.env.ELECTRON_RENDERER_URL) {
       const rendererUrl = new URL(process.env.ELECTRON_RENDERER_URL)
-      rendererUrl.searchParams.set('window', this.options.type)
       if (this.options.hash) {
         rendererUrl.hash = this.options.hash
       }
@@ -76,7 +75,6 @@ export abstract class BaseWindow {
       logger.info('生产环境加载文件', webDistPath)
       this.window.loadFile(webDistPath, {
         hash: this.options.hash,
-        query: { window: this.options.type },
       })
     }
 

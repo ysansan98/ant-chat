@@ -17,10 +17,6 @@ import { PermissionsPage } from '@/pages/Settings/Permissions'
 import ProviderManage from '@/pages/Settings/ProviderManage'
 import SettingsPage from '@/pages/Settings/Settings'
 import SkillManage from '@/pages/Settings/SkillManage'
-import SettingsApp from '@/SettingsApp'
-
-const windowType = new URLSearchParams(window.location.search).get('window')
-const isSettingsWindow = windowType === 'settings'
 
 const settingsRoute = {
   path: 'settings',
@@ -40,42 +36,28 @@ const settingsRoute = {
   ],
 }
 
-const router = createHashRouter(
-  isSettingsWindow
-    ? [
-        {
-          path: '/',
-          Component: SettingsApp,
-          children: [
-            {
-              index: true,
-              element: <Navigate to="/settings" replace />,
-            },
-            settingsRoute,
-          ],
-        },
-      ]
-    : [
-        {
-          path: '/',
-          Component: AntChatApp,
-          children: [
-            {
-              index: true,
-              element: <Navigate to="/chat" replace />,
-            },
-            {
-              path: 'chat',
-              Component: ChatLayout,
-              children: [
-                { index: true, Component: ChatPage },
-                { path: 'automations', Component: AutomationsPage },
-              ],
-            },
-            settingsRoute,
-          ],
-        },
-      ],
-)
+// 设置页与聊天页共享主窗口布局：桌面端不再使用独立设置窗口，
+// 由主进程菜单或侧边栏入口在窗口内路由跳转到 /settings。
+const router = createHashRouter([
+  {
+    path: '/',
+    Component: AntChatApp,
+    children: [
+      {
+        index: true,
+        element: <Navigate to="/chat" replace />,
+      },
+      {
+        path: 'chat',
+        Component: ChatLayout,
+        children: [
+          { index: true, Component: ChatPage },
+          { path: 'automations', Component: AutomationsPage },
+        ],
+      },
+      settingsRoute,
+    ],
+  },
+])
 
 export default router

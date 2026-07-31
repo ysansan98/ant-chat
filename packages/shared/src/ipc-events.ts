@@ -100,6 +100,10 @@ export const APP_RENDERER_EVENT_NAMES = [
  * Electron 专用事件
  */
 export interface ElectronOnlyEvents {
+  /**
+   * 主进程（如 macOS 应用菜单 Cmd+,）请求渲染进程在窗口内导航到指定路由路径。
+   */
+  'app:navigate': string
   'common:Notification': NotificationOption
   'update:update-status-changed': { status: UpdateStatus, updateInfo: UpdateInfo | null }
   'update:update-available': { status: UpdateStatus, updateInfo: UpdateInfo | null }

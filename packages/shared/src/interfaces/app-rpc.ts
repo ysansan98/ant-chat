@@ -196,16 +196,12 @@ export interface AppIpcServices {
     minimizeWindow: () => Promise<void>
     maximizeOrRestoreWindow: () => Promise<void>
     quitApp: () => Promise<void>
-    focusMainWindow: () => Promise<void>
   }
   runtime: {
     call: <TMethod extends AppRpcMethod>(
       method: TMethod,
       input: AppRpcInput<TMethod>,
     ) => Promise<IpcResponse<AppRpcOutput<TMethod>>>
-  }
-  settings: {
-    openSettingsWindow: () => Promise<IpcResponse<void>>
   }
   skills: {
     importSkillFromZip: () => Promise<IpcResponse<SkillManifest | null>>

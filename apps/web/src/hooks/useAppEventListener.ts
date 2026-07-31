@@ -1,5 +1,6 @@
 import type { NotificationOption } from '@ant-chat/shared'
 import { useEffect } from 'react'
+import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { getAppEventSubscriptions } from '@/api/transports/appEventSubscriptions'
 import { emitAutomationChanged, emitAutomationRunChanged } from '@/constants/automationEvents'
@@ -12,7 +13,12 @@ import { updateMessageActionV2 } from '@/store/messages'
 import { drainPendingMessages } from '@/store/pendingMessages'
 import { useWorkspaceStore } from '@/store/workspace'
 
+/**
+ * 订阅渲染进程收到的全部应用事件，统一分发到 store 更新与路由导航。
+ * 依赖 Router 上下文（app:navigate 需要 useNavigate），仅应在路由壳组件内调用。
+ */
 export function useAppEventListener() {
+  const navigate = useNavigate()
   useEffect(() => {
     const eventSubscriptions = getAppEventSubscriptions()
     const handle = (notif: NotificationOption) => {
@@ -81,11 +87,15 @@ export function useAppEventListener() {
       eventSubscriptions.subscribe('workspace:changed', () => {
         void useWorkspaceStore.getState().refresh()
       }),
+      // macOS 应用菜单「设置」(Cmd+,) 由主进程发 app:navigate，在窗口内路由跳转
+      eventSubscriptions.subscribe('app:navigate', (path) => {
+        navigate(path)
+      }),
     ]
 
     return () => {
       for (const unsubscribe of unsubscribes)
         unsubscribe()
     }
-  }, [])
+  }, [navigate])
 }

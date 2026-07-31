@@ -191,18 +191,18 @@ describe('gui ui flow', () => {
     })
   })
 
-  it('opens the settings window from chat and keeps new chat available', async () => {
-    vi.mocked(window.electron.ipcRenderer.invoke).mockResolvedValue({ success: true, data: null })
+  it('navigates to settings from chat and returns via back-to-workspace', async () => {
     renderGui('/')
 
     expect(await screen.findByTestId('chat-input')).toBeInTheDocument()
 
     fireEvent.click(screen.getByTestId('sidebar-settings'))
-    await waitFor(() => {
-      expect(window.electron.ipcRenderer.invoke).toHaveBeenCalled()
-    })
 
-    fireEvent.click(screen.getByTestId('sidebar-new-chat'))
+    expect(await screen.findByTestId('settings-general-page')).toBeInTheDocument()
+    // 设置页为全宽路由，侧边栏随 chat 布局卸载
+    expect(screen.queryByTestId('sidebar-new-chat')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('settings-nav-back-workspace'))
     expect(await screen.findByTestId('chat-input')).toBeInTheDocument()
   })
 

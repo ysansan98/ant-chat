@@ -8,7 +8,6 @@ import {
 import { useLocation, useNavigate } from 'react-router'
 import { useMessagesStore } from '@/store/messages'
 import { clearConversationSession } from '@/store/workspaceSession'
-import { ipc, isElectronRuntime, unwrapIpcResponse } from '@/utils/ipc-bus'
 import { WorkspacePanels } from '../Workspace/WorkspacePanels'
 import { SidebarNavItem } from './SliderMenuItem'
 
@@ -28,13 +27,7 @@ export function SliderMenu({ mobile = false, onNavigate }: SliderMenuProps) {
     onNavigate?.()
   }
 
-  async function openSettings() {
-    if (isElectronRuntime()) {
-      void unwrapIpcResponse(await ipc.settings.openSettingsWindow())
-      onNavigate?.()
-      return
-    }
-
+  function openSettings() {
     navigate('/settings')
     onNavigate?.()
   }
