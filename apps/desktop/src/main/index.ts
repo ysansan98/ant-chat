@@ -68,16 +68,23 @@ else {
 
     void disposeDesktopAppRuntime().finally(() => {
       clearTimeout(forceQuitTimeout)
+
+      // dispose 完成后再次进入退出序列。Electron 在 quit 时会等待每个窗口的
+      // renderer 完成关闭握手；Ctrl+C 等信号会先销毁 renderer 进程，握手
+      // 永不完成导致 quit 挂起（进程存活、窗口已关）。Electron 不提供该握手
+      // 的超时 API，这里用兜底定时器保证进程尽快退出——正常退出路径（Cmd+Q）
+      // 的窗口握手在毫秒级完成并触发 will-quit 清除定时器，不会被误伤。
+      const quitHangTimeout = setTimeout(() => {
+        logger.warn('退出序列挂起，强制退出')
+        app.exit(0)
+      }, 1500)
+      app.once('will-quit', () => clearTimeout(quitHangTimeout))
       app.quit()
     })
   })
 
-  // 处理进程信号：关闭终端时 shell 发送 SIGHUP，Electron 默认不响应，进程会变成孤儿
-  const handleTerminationSignal = (signal: string) => {
-    logger.info(`收到 ${signal} 信号，退出应用`)
-    app.quit()
-  }
-  process.on('SIGHUP', handleTerminationSignal)
-  process.on('SIGTERM', handleTerminationSignal)
-  process.on('SIGINT', handleTerminationSignal)
+  // 注意：不要在 Electron 主进程里依赖 process.on('SIGINT'/'SIGTERM'/'SIGHUP')。
+  // Electron 40 实测这些 Node 信号处理器不会执行——Chromium 在浏览器进程层拦截
+  // 信号并转换为应用退出序列（before-quit → 关窗 → will-quit → quit），
+  // 因此信号触发的退出会自动走上面的 before-quit 流程。
 }

@@ -16,6 +16,11 @@ export function getAppRuntime(): AppRuntime {
   return runtimeHost.get()
 }
 
+/** 是否已进入退出流程（dispose 已开始）。关闭中的 RPC 失败属于预期噪音。 */
+export function isDesktopAppRuntimeShuttingDown(): boolean {
+  return runtimeHost.isShuttingDown()
+}
+
 export function activateDesktopAppRuntime(): Promise<AppRuntime> {
   return runtimeHost.activate()
 }

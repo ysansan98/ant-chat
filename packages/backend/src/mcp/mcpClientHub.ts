@@ -222,6 +222,8 @@ export class McpConnectionManager {
   /** OAuth 回调地址，由宿主（Electron 主进程）启动 localhost 服务器后设置 */
   private oAuthRedirectUrl: string | undefined
   private readonly oauthStateByServerName = new Map<string, string>()
+  /** 正在主动关闭的连接（dispose/删除/替换），其 onclose 属于预期行为，不应记为错误 */
+  private readonly closingConnections = new Set<string>()
 
   constructor(
     private readonly logger?: ILogger,
@@ -372,7 +374,13 @@ export class McpConnectionManager {
     }
 
     transport.onclose = async () => {
-      this.logger?.error(`Transport closed for "${name}".`)
+      if (this.closingConnections.has(name)) {
+        // 主动关闭（deleteConnection / 应用退出 dispose），不是传输错误
+        this.logger?.info(`Transport closed for "${name}" (主动关闭)`)
+      }
+      else {
+        this.logger?.error(`Transport closed for "${name}".`)
+      }
       const connection = this.connections.find(conn => conn.server.name === name)
       if (connection) {
         connection.server.status = 'disconnected'
@@ -560,6 +568,8 @@ export class McpConnectionManager {
       const connection = this.connections[index]
       this.connections.splice(index, 1)
 
+      // 标记主动关闭，onclose 回调据此降级日志级别
+      this.closingConnections.add(name)
       try {
         await connection.transport.close()
         await connection.client.close()
@@ -568,6 +578,9 @@ export class McpConnectionManager {
       catch (error) {
         this.logger?.error(`Failed to close transport for ${name}:`, error)
         return false
+      }
+      finally {
+        this.closingConnections.delete(name)
       }
     }
 

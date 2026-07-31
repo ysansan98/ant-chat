@@ -39,4 +39,14 @@ describe('runtime host', () => {
     expect(runtime.dispose).toHaveBeenCalledOnce()
     expect(() => host.get()).toThrow('尚未完成激活')
   })
+
+  it('dispose 开始后 isShuttingDown 为 true，用于区分尚未激活与正在关闭', async () => {
+    const host = createRuntimeHost(async () => ({ dispose: vi.fn(async () => {}) }), vi.fn())
+    expect(host.isShuttingDown()).toBe(false)
+
+    const disposing = host.dispose()
+    expect(host.isShuttingDown()).toBe(true)
+    await disposing
+    expect(host.isShuttingDown()).toBe(true)
+  })
 })

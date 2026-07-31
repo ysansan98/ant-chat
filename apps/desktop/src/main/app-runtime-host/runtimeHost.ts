@@ -4,6 +4,8 @@ export interface HostRuntime {
 
 export interface RuntimeHost<TRuntime extends HostRuntime> {
   get: () => TRuntime
+  /** 是否已进入关闭流程（dispose 已开始）。用于区分「尚未激活」与「正在关闭」。 */
+  isShuttingDown: () => boolean
   activate: () => Promise<TRuntime>
   dispose: () => Promise<void>
 }
@@ -15,12 +17,16 @@ export function createRuntimeHost<TRuntime extends HostRuntime>(
 ): RuntimeHost<TRuntime> {
   let runtime: TRuntime | null = null
   let activation: Promise<TRuntime> | null = null
+  let shuttingDown = false
 
   return {
     get(): TRuntime {
       if (!runtime)
         throw new Error('AppRuntime 尚未完成激活')
       return runtime
+    },
+    isShuttingDown(): boolean {
+      return shuttingDown
     },
     activate(): Promise<TRuntime> {
       if (runtime)
@@ -37,6 +43,7 @@ export function createRuntimeHost<TRuntime extends HostRuntime>(
       return activation
     },
     async dispose(): Promise<void> {
+      shuttingDown = true
       if (activation) {
         try {
           await activation

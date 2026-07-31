@@ -4,12 +4,41 @@ import { McpConnectionManager, McpOAuthProvider } from '../mcpClientHub'
 import { McpOAuthCredentialStore } from '../oauthCredentialStore'
 import { DEFAULT_MCP_TIMEOUT_SECONDS, resolveMcpToolTimeoutMs } from '../schema'
 
+vi.mock('@modelcontextprotocol/client', () => ({
+  Client: class {
+    connect = vi.fn(async () => {})
+    close = vi.fn(async () => {})
+    listTools = vi.fn(async () => ({ tools: [] }))
+    callTool = vi.fn(async () => ({ content: [] }))
+  },
+  StreamableHTTPClientTransport: class {
+    onerror: ((error: Error) => void) | undefined
+    onclose: (() => void) | undefined
+    constructor(public url: URL) {}
+    async start() {}
+    async close() {
+      this.onclose?.()
+    }
+  },
+  SSEClientTransport: class {},
+  UnauthorizedError: class extends Error {},
+}))
+
 function createMockLogger(): ILogger {
   return {
     error: vi.fn(),
     info: vi.fn(),
     warn: vi.fn(),
   }
+}
+
+function createHttpConfig(url = 'https://mcp.example.com/mcp') {
+  return {
+    transportType: 'streamable-http',
+    url,
+    headers: {},
+    authType: 'none',
+  } as never
 }
 
 describe('resolveMcpToolTimeoutMs', () => {
@@ -51,6 +80,28 @@ describe('mcpClientHub 日志行为', () => {
       'Failed to close transport for broken-server:',
       expect.any(Error),
     )
+  })
+
+  it('主动删除连接触发 onclose 时只记 info，不记 error', async () => {
+    const logger = createMockLogger()
+    const hub = new McpConnectionManager(logger)
+    await hub.connectToServer('closing-server', createHttpConfig())
+
+    await hub.deleteConnection('closing-server')
+
+    expect(logger.error).not.toHaveBeenCalled()
+    expect(logger.info).toHaveBeenCalledWith('Transport closed for "closing-server" (主动关闭)')
+  })
+
+  it('非主动关闭触发 onclose 时记 error', async () => {
+    const logger = createMockLogger()
+    const hub = new McpConnectionManager(logger)
+    await hub.connectToServer('dropped-server', createHttpConfig())
+
+    const connection = hub.connections.find(conn => conn.server.name === 'dropped-server')!
+    ;(connection.transport as unknown as { onclose?: () => void }).onclose?.()
+
+    expect(logger.error).toHaveBeenCalledWith('Transport closed for "dropped-server".')
   })
 })
 
