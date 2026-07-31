@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -36,6 +36,7 @@ describe('mcp settings repository', () => {
       transportType: 'stdio',
       command: 'node',
     }))
+    expect(created.serverId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
     expect(repository.getMcpConfigByServerName('local')).toEqual(created)
 
     const updated = repository.replaceMcpConfig('local', {
@@ -49,12 +50,67 @@ describe('mcp settings repository', () => {
     })
     expect(updated).toEqual(expect.objectContaining({
       serverName: 'local',
+      serverId: created.serverId,
       command: 'bun',
       args: ['server.js'],
     }))
 
     expect(repository.deleteMcpConfig('local')).toBe(true)
     expect(repository.getMcpConfigs()).toEqual([])
+  })
+
+  it('迁移旧版 sse 配置后持久化为明确的 Streamable HTTP 语义', () => {
+    const filePath = path.join(dir, 'legacy-mcp.json')
+    writeFileSync(filePath, JSON.stringify({
+      schemaVersion: 1,
+      data: {
+        servers: {
+          remote: {
+            serverName: 'remote',
+            icon: 'R',
+            transportType: 'sse',
+            url: 'https://mcp.example.com',
+          },
+        },
+      },
+    }), 'utf8')
+
+    const legacyRepository = new McpSettingsRepository(new McpSettingsStore({ filePath }))
+
+    expect(legacyRepository.getMcpConfigByServerName('remote')).toEqual(expect.objectContaining({
+      serverName: 'remote',
+      serverId: expect.stringMatching(/^[0-9a-f-]{36}$/i),
+      transportType: 'streamable-http',
+      url: 'https://mcp.example.com',
+    }))
+    expect(JSON.parse(readFileSync(filePath, 'utf8'))).toEqual(expect.objectContaining({
+      schemaVersion: 2,
+      data: expect.objectContaining({
+        servers: expect.objectContaining({
+          remote: expect.objectContaining({ transportType: 'streamable-http' }),
+        }),
+      }),
+    }))
+  })
+
+  it('重命名 server 时保留稳定身份', () => {
+    const created = repository.addMcpConfig({
+      serverName: 'before',
+      icon: 'B',
+      transportType: 'streamable-http',
+      url: 'https://mcp.example.com',
+    })
+
+    const renamed = repository.replaceMcpConfig('before', {
+      serverName: 'after',
+      icon: 'A',
+      transportType: 'streamable-http',
+      url: 'https://mcp.example.com',
+    })
+
+    expect(renamed.serverId).toBe(created.serverId)
+    expect(repository.getMcpConfigByServerId(created.serverId)).toEqual(renamed)
+    expect(repository.getMcpConfigByServerName('before')).toBeNull()
   })
 
   it('resets invalid existing MCP settings when requested', () => {

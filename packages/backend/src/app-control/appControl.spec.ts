@@ -146,7 +146,7 @@ describe('appControl 行为', () => {
     mcp.getConfigByServerName.mockReturnValue({
       headers: { Authorization: 'Bearer secret' },
       serverName: 'demo',
-      transportType: 'sse',
+      transportType: 'streamable-http',
       url: 'https://example.com/mcp',
     })
     mcp.getConnections.mockReturnValue([{
@@ -162,7 +162,7 @@ describe('appControl 行为', () => {
       type: 'mcp',
     })).resolves.toEqual({
       mcpServer: {
-        config: 'sse',
+        config: 'streamable-http',
         name: 'demo',
         status: 'connected',
         tools: [{ name: 'search' }],

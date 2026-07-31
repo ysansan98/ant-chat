@@ -8,11 +8,13 @@ import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 import { EmptyState } from '@workspace/ui/components/empty-state'
 import { Input } from '@workspace/ui/components/input'
+import { Label } from '@workspace/ui/components/label'
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from '@workspace/ui/components/sheet'
+import { Switch } from '@workspace/ui/components/switch'
 import { ChevronRight, Search } from 'lucide-react'
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
-import { testMcpServer } from '@/api/mcpApi'
+import { getMcpTestResult, testMcpServer } from '@/api/mcpApi'
 import { KeyValueList } from '@/components/Common/KeyValueList'
 import { EmojiPickerHoc } from '@/components/EmojiPiker'
 import { QuickImport } from './QuickImport'
@@ -30,7 +32,7 @@ interface McpConfigDrawerProps {
 interface McpConfigForm {
   serverName: string
   icon: string
-  transportType: 'stdio' | 'sse' | ''
+  transportType: 'stdio' | 'streamable-http' | ''
   command?: string
   args?: string
   env?: KeyValueItem[]
@@ -38,6 +40,8 @@ interface McpConfigForm {
   url?: string
   description?: string | null
   timeout?: number
+  /** 是否启用 OAuth 认证 */
+  authType?: 'none' | 'oauth'
 }
 
 export default function McpConfigDrawer({ open, mode, defaultValues, renamePermissionRuleCount = 0, onClose, onSave }: McpConfigDrawerProps) {
@@ -45,7 +49,7 @@ export default function McpConfigDrawer({ open, mode, defaultValues, renamePermi
     ? {
         serverName: defaultValues.serverName,
         icon: defaultValues.icon,
-        transportType: defaultValues.transportType as 'stdio' | 'sse',
+        transportType: defaultValues.transportType as 'stdio' | 'streamable-http',
         command: (defaultValues as Record<string, unknown>).command as string | undefined,
         args: Array.isArray((defaultValues as Record<string, unknown>).args)
           ? ((defaultValues as Record<string, unknown>).args as string[]).join(',')
@@ -54,7 +58,8 @@ export default function McpConfigDrawer({ open, mode, defaultValues, renamePermi
         description: defaultValues.description,
         timeout: defaultValues.timeout,
         env: defaultValues.transportType === 'stdio' ? objectToArray((defaultValues as Record<string, unknown>).env as Record<string, unknown> || {}) : [],
-        headers: defaultValues.transportType === 'sse' ? objectToArray((defaultValues as Record<string, unknown>).headers as Record<string, unknown> || {}) : [],
+        headers: defaultValues.transportType === 'streamable-http' ? objectToArray((defaultValues as Record<string, unknown>).headers as Record<string, unknown> || {}) : [],
+        authType: (defaultValues as Record<string, unknown>).authType as 'none' | 'oauth' | undefined ?? 'none',
       }
     : {
         icon: '⚒️',
@@ -65,16 +70,18 @@ export default function McpConfigDrawer({ open, mode, defaultValues, renamePermi
         env: [],
         headers: [],
         transportType: '' as const,
+        authType: 'none',
       }
 
-  const { register, handleSubmit, reset, setValue, watch, control } = useForm<McpConfigForm>({
+  const { register, handleSubmit, reset, setValue, watch, control, getValues } = useForm<McpConfigForm>({
     defaultValues: _defaultValues,
   })
 
   const [previewConfig, setPreviewConfig] = useState<McpConfigSchema | null>(null)
   const [previewTools, setPreviewTools] = useState<McpTool[]>([])
-  const [connectState, setConnectState] = useState<'connecting' | 'error' | 'success' | ''>('')
+  const [connectState, setConnectState] = useState<'connecting' | 'error' | 'success' | 'oauth' | ''>('')
   const [connectError, setConnectError] = useState('')
+  const oauthAttemptIdRef = useRef<string | undefined>(undefined)
 
   const transportType = useWatch({ control, name: 'transportType' })
 
@@ -83,8 +90,48 @@ export default function McpConfigDrawer({ open, mode, defaultValues, renamePermi
     setPreviewTools([])
     setConnectState('')
     setConnectError('')
+    oauthAttemptIdRef.current = undefined
     reset()
   }
+
+  // OAuth 回调由桌面本地 callback host 消费；前端只按 attemptId 查询最终结果。
+  const oauthPollRef = useRef<ReturnType<typeof setInterval>>(undefined)
+  const pollTestServer = useCallback(async () => {
+    const attemptId = oauthAttemptIdRef.current
+    if (!attemptId)
+      return
+    try {
+      const result = await getMcpTestResult(attemptId)
+      if (!result.oauthRequired && !result.error) {
+        const form = getValues()
+        const config = toAddMcpConfig(form)
+        setPreviewConfig(config as McpConfigSchema)
+        setPreviewTools(result.tools)
+        setConnectState('success')
+        oauthAttemptIdRef.current = undefined
+      }
+      else if (result.error && !result.oauthRequired) {
+        setConnectError(result.error)
+        setConnectState('error')
+        oauthAttemptIdRef.current = undefined
+      }
+      // oauthRequired still true → keep polling
+    }
+    catch (error) {
+      setConnectError(error instanceof Error ? error.message : String(error))
+      setConnectState('error')
+    }
+  }, [getValues])
+
+  useEffect(() => {
+    if (connectState === 'oauth') {
+      oauthPollRef.current = setInterval(pollTestServer, 2000)
+    }
+    else {
+      clearInterval(oauthPollRef.current)
+    }
+    return () => clearInterval(oauthPollRef.current)
+  }, [connectState, pollTestServer])
 
   const onSubmit = async (config: McpConfigForm) => {
     let finalConfig: AddMcpConfigSchema | UpdateMcpConfigSchema
@@ -107,11 +154,12 @@ export default function McpConfigDrawer({ open, mode, defaultValues, renamePermi
         : {
             serverName: config.serverName,
             icon: config.icon,
-            transportType: 'sse' as const,
+            transportType: 'streamable-http' as const,
             url: config.url,
             headers: config.headers ? envArrayToObject(config.headers) : config.headers,
             description: config.description,
             timeout: config.timeout,
+            authType: config.authType === 'oauth' ? 'oauth' : undefined,
           }
 
       finalConfig = UpdateMcpConfigSchema.parse(updateConfig)
@@ -129,16 +177,13 @@ export default function McpConfigDrawer({ open, mode, defaultValues, renamePermi
       }}
     >
       <SheetContent
-        side="right"
-        className="
-          flex flex-col
-          gap-0 p-0 data-[side=right]:w-[90vw] data-[side=right]:sm:max-w-[90vw]
-        "
+        side="bottom"
+        className="h-[calc(100vh-40px)]"
       >
-        <SheetHeader className="border-b px-4 py-3">
+        <SheetHeader>
           <SheetTitle>{mode === 'add' ? '添加MCP服务器' : '更新MCP服务器'}</SheetTitle>
         </SheetHeader>
-        <div className="flex w-[90vw] max-w-[90vw] flex-1 overflow-hidden">
+        <div className="flex flex-1 overflow-hidden">
           <div className="w-[55vw] shrink-0 overflow-y-auto px-2 pt-5">
             <QuickImport onImport={(e) => {
               if (e.transportType === 'stdio') {
@@ -151,7 +196,7 @@ export default function McpConfigDrawer({ open, mode, defaultValues, renamePermi
               }
               else {
                 setValue('serverName', e.serverName)
-                setValue('transportType', 'sse')
+                setValue('transportType', 'streamable-http')
                 setValue('url', e.url)
                 setValue('headers', objectToArray(e.headers))
                 setValue('icon', e.icon)
@@ -170,8 +215,8 @@ export default function McpConfigDrawer({ open, mode, defaultValues, renamePermi
                 <div className="flex flex-col gap-1">
                   <FormItemLabel name="MCP服务类型" tag="transportType" />
                   <SelectTransportType
-                    value={transportType as 'stdio' | 'sse' | undefined}
-                    onChange={v => setValue('transportType', v as 'stdio' | 'sse')}
+                    value={transportType as 'stdio' | 'streamable-http' | undefined}
+                    onChange={v => setValue('transportType', v as 'stdio' | 'streamable-http')}
                   />
                 </div>
 
@@ -201,7 +246,7 @@ export default function McpConfigDrawer({ open, mode, defaultValues, renamePermi
                   />
                 </div>
 
-                {transportType === 'sse'
+                {transportType === 'streamable-http'
                   ? (
                       <>
                         <div className="flex flex-col gap-1">
@@ -214,6 +259,17 @@ export default function McpConfigDrawer({ open, mode, defaultValues, renamePermi
                           value={watch('headers')}
                           onChange={v => setValue('headers', v)}
                         />
+
+                        {/* OAuth 认证 */}
+                        <div className="flex items-center justify-between gap-2 rounded-md border p-3">
+                          <Label className="text-sm font-medium">OAuth 认证</Label>
+                          <Switch
+                            checked={watch('authType') === 'oauth'}
+                            onCheckedChange={(checked) => {
+                              setValue('authType', checked ? 'oauth' : 'none')
+                            }}
+                          />
+                        </div>
                       </>
                     )
                   : transportType === 'stdio'
@@ -240,6 +296,14 @@ export default function McpConfigDrawer({ open, mode, defaultValues, renamePermi
                         </>
                       )
                     : null}
+                {connectState === 'oauth'
+                  ? (
+                      <Alert>
+                        <AlertTitle>请在浏览器中完成 OAuth 授权</AlertTitle>
+                        <AlertDescription>授权完成后将自动获取工具列表</AlertDescription>
+                      </Alert>
+                    )
+                  : null}
                 {connectState === 'error' && connectError
                   ? (
                       <Alert variant="destructive">
@@ -253,7 +317,7 @@ export default function McpConfigDrawer({ open, mode, defaultValues, renamePermi
                   <Button
                     type="button"
                     variant="outline"
-                    disabled={connectState === 'connecting'}
+                    disabled={connectState === 'connecting' || connectState === 'oauth'}
                     onClick={async () => {
                       setConnectError('')
                       setPreviewTools([])
@@ -265,6 +329,13 @@ export default function McpConfigDrawer({ open, mode, defaultValues, renamePermi
                       try {
                         const config = toAddMcpConfig(form)
                         const result = await testMcpServer(config)
+
+                        if (result.oauthRequired && result.attemptId) {
+                          oauthAttemptIdRef.current = result.attemptId
+                          setConnectState('oauth')
+                          return
+                        }
+
                         if (result.error)
                           throw new Error(result.error)
                         setPreviewConfig(config as McpConfigSchema)
@@ -444,11 +515,12 @@ function toAddMcpConfig(config: McpConfigForm): AddMcpConfigSchema {
     : {
         serverName: config.serverName,
         icon: config.icon,
-        transportType: 'sse',
+        transportType: 'streamable-http',
         url: config.url || '',
         headers: envArrayToObject(config.headers),
         description: config.description,
         timeout: config.timeout,
+        authType: config.authType === 'oauth' ? 'oauth' : undefined,
       })
 }
 

@@ -24,6 +24,7 @@ vi.mock('@/api/permissionsApi', () => ({
 }))
 
 const config: McpConfigSchema = {
+  serverId: '00000000-0000-4000-8000-000000000001',
   serverName: 'github',
   icon: '🐙',
   transportType: 'stdio',

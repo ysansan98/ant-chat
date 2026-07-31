@@ -1,12 +1,12 @@
 import { Cable, Check, CheckCircle, Terminal } from 'lucide-react'
 
 interface SelectTransportTypeProps {
-  value?: 'stdio' | 'sse'
+  value?: 'stdio' | 'streamable-http'
   onChange?: (e: string) => void
 }
 
 const options = [
-  { id: 'sse', icon: <Cable className="size-5" />, name: 'Streamable HTTP', descript: '基于流式 HTTP 的通信协议', features: ['连接远程MCP服务器，无需额外安装配置'] },
+  { id: 'streamable-http', icon: <Cable className="size-5" />, name: 'Streamable HTTP', descript: '基于流式 HTTP 的通信协议', features: ['连接远程MCP服务器，无需额外安装配置'] },
   { id: 'stdio', icon: <Terminal className="size-5" />, name: 'STDIO', descript: '基于标准输入输出的通信协议', features: ['更低的通信延迟，适合本地执行', '需要在本地安装运行MCP服务器'] },
 ]
 

@@ -1,6 +1,6 @@
 import type { AgentTurnSummary, AIProviderFactory, AppRpcInput, IAgentEventEmitter } from '@ant-chat/shared'
 import type { SkillManagementService } from '../../../agent-runtime'
-import type { MCPClientHub } from '../../../mcp'
+import type { McpConnectionManager } from '../../../mcp'
 import type { RuntimeCore } from '../../createRuntimeCore'
 import type { RuntimeModuleMethods } from '../../routeRegistry'
 import path from 'node:path'
@@ -17,7 +17,7 @@ import { Method, Module } from '../../decorators'
 
 export interface AgentModuleDependencies {
   aiProviderFactory: AIProviderFactory
-  mcpClientHub: MCPClientHub
+  mcpClientHub: McpConnectionManager
   skills: SkillManagementService
 }
 

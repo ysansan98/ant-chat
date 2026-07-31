@@ -119,7 +119,7 @@ describe('ant-chat CLI 命令', () => {
       'mcp',
       'install',
       '--name=remote',
-      '--transport-type=sse',
+      '--transport-type=streamable-http',
       '--url=https://example.com/mcp',
       '--headers-from-env=Authorization=ANT_CHAT_TEST_MCP_AUTHORIZATION',
     ], { json: true })

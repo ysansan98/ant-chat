@@ -5,7 +5,7 @@ import type { RuntimeEventBus } from '../events'
 import type { AppRuntimePaths } from '../paths'
 import type { KeychainSecretStore } from '../secretStore'
 import type { SystemLogger } from '../systemLogger'
-import type { CreateAppRuntimeOptions } from './types'
+import type { CreateAppRuntimeOptions, OAuthCallbackHost } from './types'
 import { createAgentBrowserPaths } from '../agentBrowser'
 import { createAppDataContext } from '../data'
 import { openAppDataDatabase } from '../database'
@@ -27,6 +27,7 @@ export interface RuntimeCore {
   paths: AppRuntimePaths
   secretStore: KeychainSecretStore
   commandHost: CommandHost
+  oauthCallbackHost?: OAuthCallbackHost
 }
 
 export function createRuntimeCore(options: CreateAppRuntimeOptions, commandHost: CommandHost): RuntimeCore {
@@ -52,5 +53,6 @@ export function createRuntimeCore(options: CreateAppRuntimeOptions, commandHost:
     paths,
     secretStore: new KeychainSecretStoreImpl(),
     commandHost,
+    oauthCallbackHost: options.oauthCallbackHost,
   }
 }

@@ -52,6 +52,10 @@ export function testMcpServer(config: AddMcpConfigSchema): Promise<McpServerTest
   return getAppRpcClient().call('mcp.testServer', { config })
 }
 
+export function getMcpTestResult(attemptId: string): Promise<McpServerTestResult> {
+  return getAppRpcClient().call('mcp.getTestResult', { attemptId })
+}
+
 export function getAllAvailableToolsList(): Promise<McpTool[]> {
   return getAppRpcClient().call('mcp.getAllAvailableToolsList', undefined)
 }

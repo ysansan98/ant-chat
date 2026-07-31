@@ -39,7 +39,7 @@ export type McpConnection = Pick<McpServer, 'name' | 'config' | 'status' | 'tool
 export interface McpServerLifecycleResult {
   serverName: string
   status: McpServer['status']
-  transportType: 'stdio' | 'sse'
+  transportType: 'stdio' | 'streamable-http'
   error?: string
   /** 失败发生时，新配置是否已经持久化。 */
   configSaved?: boolean
@@ -49,6 +49,9 @@ export interface McpServerTestResult {
   serverName: string
   tools: McpTool[]
   error?: string
+  /** OAuth 授权需要时返回 attemptId；回调只由本地 callback host 接收。 */
+  oauthRequired?: boolean
+  attemptId?: string
 }
 
 export interface TextResult {

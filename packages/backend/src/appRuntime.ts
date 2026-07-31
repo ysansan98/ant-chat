@@ -12,7 +12,7 @@ import { registerRuntimeModules } from './app-runtime/register-modules'
 import { RouteRegistry } from './app-runtime/routeRegistry'
 import { createRuntimeActivation } from './app-runtime/runtimeActivation'
 
-export type { CreateAppRuntimeOptions } from './app-runtime/types'
+export type { CreateAppRuntimeOptions, OAuthCallbackHandler, OAuthCallbackHost } from './app-runtime/types'
 
 export interface AppRuntime {
   events: RuntimeCore['events']

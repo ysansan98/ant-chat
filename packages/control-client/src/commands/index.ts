@@ -255,8 +255,8 @@ function parseMcp(args: string[]): AppControlCommand {
         throw new Error('--name or --server-name is required')
       }
       const transportType = parsed.transportType ?? 'stdio'
-      if (transportType !== 'stdio' && transportType !== 'sse') {
-        throw new Error('--transport-type must be stdio or sse')
+      if (transportType !== 'stdio' && transportType !== 'streamable-http') {
+        throw new Error('--transport-type must be stdio or streamable-http')
       }
       const icon = parsed.icon
       const description = parsed.description
@@ -281,7 +281,7 @@ function parseMcp(args: string[]): AppControlCommand {
         }
       }
       if (!parsed.url)
-        throw new Error('--url is required for sse transport')
+        throw new Error('--url is required for streamable-http transport')
       return {
         type: 'mcp',
         action: 'install',
@@ -304,8 +304,8 @@ function parseMcp(args: string[]): AppControlCommand {
       const name = rest[0]
       const parsed = parseNamedArgs(rest.slice(1))
       const transportType = parsed.transportType
-      if (transportType !== undefined && transportType !== 'stdio' && transportType !== 'sse') {
-        throw new Error('--transport-type must be stdio or sse')
+      if (transportType !== undefined && transportType !== 'stdio' && transportType !== 'streamable-http') {
+        throw new Error('--transport-type must be stdio or streamable-http')
       }
       return {
         type: 'mcp',

@@ -98,7 +98,7 @@ describe('消息气泡', () => {
       sha256: '0'.repeat(64),
     }], 'success')])
 
-    expect(screen.getByRole('status')).toHaveTextContent('正在加载可视化')
+    expect(screen.getByRole('status')).toHaveAttribute('aria-label', 'Loading')
   })
 
   it('过程性短文本与最终回答都直接内联展示，不再折叠进执行过程面板', () => {

@@ -1,5 +1,6 @@
 import type { AddMcpConfigSchema, McpConfigSchema } from '@ant-chat/shared'
 import type { McpSettingsStore } from './mcpSettingsStore'
+import { randomUUID } from 'node:crypto'
 import { AddMcpConfigSchema as AddMcpConfigValidator } from '@ant-chat/shared'
 
 export class McpSettingsRepository {
@@ -13,8 +14,12 @@ export class McpSettingsRepository {
     return this.store.read().servers[serverName] ?? null
   }
 
+  getMcpConfigByServerId(serverId: string): McpConfigSchema | null {
+    return this.getMcpConfigs().find(config => config.serverId === serverId) ?? null
+  }
+
   addMcpConfig(config: AddMcpConfigSchema): McpConfigSchema {
-    const data = AddMcpConfigValidator.parse(config)
+    const data = { ...AddMcpConfigValidator.parse(config), serverId: randomUUID() }
     this.store.update((settings) => {
       if (settings.servers[data.serverName]) {
         throw new Error(`MCP server 已存在：${data.serverName}`)
@@ -31,10 +36,12 @@ export class McpSettingsRepository {
   }
 
   replaceMcpConfig(serverName: string, config: AddMcpConfigSchema): McpConfigSchema {
-    const data = AddMcpConfigValidator.parse(config)
+    const input = AddMcpConfigValidator.parse(config)
+    const current = this.getMcpConfigByServerName(serverName)
+    if (!current)
+      throw new Error(`MCP server 不存在：${serverName}`)
+    const data = { ...input, serverId: current.serverId }
     this.store.update((settings) => {
-      if (!settings.servers[serverName])
-        throw new Error(`MCP server 不存在：${serverName}`)
       if (serverName !== data.serverName && settings.servers[data.serverName])
         throw new Error(`MCP server 已存在：${data.serverName}`)
 

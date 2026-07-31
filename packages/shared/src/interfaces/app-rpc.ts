@@ -126,6 +126,7 @@ export interface AppRpcContract {
   'mcp.startServer': RpcEndpoint<{ serverName: string }, McpServerLifecycleResult>
   'mcp.stopServer': RpcEndpoint<{ serverName: string }, McpServerLifecycleResult>
   'mcp.testServer': RpcEndpoint<{ config: AddMcpConfigSchema }, McpServerTestResult>
+  'mcp.getTestResult': RpcEndpoint<{ attemptId: string }, McpServerTestResult>
   'mcp.getConnections': RpcEndpoint<undefined, McpConnection[]>
   'mcp.getAllAvailableToolsList': RpcEndpoint<undefined, McpTool[]>
   'mcp.callTool': RpcEndpoint<{ serverName: string, toolName: string, toolArguments?: Record<string, unknown> }, McpToolCallResponse>

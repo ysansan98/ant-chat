@@ -28,8 +28,8 @@ export class ProviderModule implements RuntimeModuleMethods<'provider'> {
   }
 
   async initialize() {
-    const migratedSecrets = await this.providerSettingsRepository.migratePlaintextApiKeys(this.secretStore)
-    if (migratedSecrets) {
+    const migratedCount = await this.providerSettingsRepository.migratePlaintextApiKeys(this.secretStore)
+    if (migratedCount > 0) {
       this.events.emit('provider:changed', {})
     }
   }

@@ -90,7 +90,7 @@ export function QuickImport({ onImport }: QuickImportProps) {
 interface ServerJson {
   mcpServers: {
     [key: string]: {
-      transportType?: 'sse' | 'stdio'
+      transportType?: 'streamable-http' | 'stdio'
       command?: string
       args?: string[]
       env?: Record<string, string | number | boolean>
@@ -115,7 +115,7 @@ function parseMcpServerJsonText(text: string): AddMcpConfigSchema {
   const options = { ...config, icon: '🛠️', serverName, transportType: 'stdio' }
 
   if (config.url) {
-    options.transportType = 'sse'
+    options.transportType = 'streamable-http'
   }
   return AddMcpConfigSchema.parse(options)
 }

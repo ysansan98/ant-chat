@@ -18,7 +18,7 @@ export function McpConfigActions({ item, status, onTriggerAction }: McpConfigAct
   const [deleteOpen, setDeleteOpen] = useState(false)
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center">
       {
         status === 'connected' && (
           <Button
@@ -29,7 +29,7 @@ export function McpConfigActions({ item, status, onTriggerAction }: McpConfigAct
               onTriggerAction?.('stop', item)
             }}
           >
-            <PauseCircle />
+            <PauseCircle className="size-4" />
           </Button>
         )
       }
@@ -43,7 +43,7 @@ export function McpConfigActions({ item, status, onTriggerAction }: McpConfigAct
               onTriggerAction?.('start', item)
             }}
           >
-            <PlayCircle />
+            <PlayCircle className="size-4" />
           </Button>
         )
       }
@@ -55,7 +55,7 @@ export function McpConfigActions({ item, status, onTriggerAction }: McpConfigAct
           onTriggerAction?.('edit', item)
         }}
       >
-        <Pencil />
+        <Pencil className="size-4" />
       </Button>
       {
         status === 'disconnected' && (
@@ -66,7 +66,7 @@ export function McpConfigActions({ item, status, onTriggerAction }: McpConfigAct
               aria-label={`删除服务器：${item.serverName}`}
               onClick={() => setDeleteOpen(true)}
             >
-              <Trash2 />
+              <Trash2 className="size-4" />
             </Button>
             <McpDeleteDialog
               item={item}

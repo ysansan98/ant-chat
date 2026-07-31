@@ -104,11 +104,11 @@ const McpInstallStdioCommandSchema = z.object({
   description: z.string().optional(),
   timeout: z.number().positive().optional(),
 })
-const McpInstallSseCommandSchema = z.object({
+const McpInstallStreamableHttpCommandSchema = z.object({
   type: z.literal('mcp'),
   action: z.literal('install'),
   serverName: NonEmptyStringSchema,
-  transportType: z.literal('sse'),
+  transportType: z.literal('streamable-http'),
   url: z.string().url(),
   headers: OptionalRecordOfStringsSchema,
   icon: z.string().optional(),
@@ -119,7 +119,7 @@ const McpEditCommandSchema = z.object({
   type: z.literal('mcp'),
   action: z.literal('edit'),
   serverName: NonEmptyStringSchema,
-  transportType: z.enum(['stdio', 'sse']).optional(),
+  transportType: z.enum(['stdio', 'streamable-http']).optional(),
   command: z.string().optional(),
   args: z.array(z.string()).optional(),
   env: OptionalRecordOfStringsSchema,
@@ -188,7 +188,7 @@ export const AppControlCommandSchema = z.union([
   McpListCommandSchema,
   McpGetCommandSchema,
   McpInstallStdioCommandSchema,
-  McpInstallSseCommandSchema,
+  McpInstallStreamableHttpCommandSchema,
   McpEditCommandSchema,
   McpDeleteCommandSchema,
   McpStartCommandSchema,

@@ -71,7 +71,7 @@ export interface AppRendererEvents {
   'agent:secret-requested': { request: SecretRequest }
   'workspace:changed': Record<string, never>
   'settings:updated': { keys: string[] }
-  'mcp:status-changed': { serverName: string, status: 'connected' | 'disconnected', error?: string }
+  'mcp:status-changed': { serverName: string, status: 'connected' | 'connecting' | 'disconnected', error?: string }
   'mcp:changed': { serverName?: string }
   'provider:changed': { providerId?: string }
   'automation:changed': { automation: AutomationDefinition }

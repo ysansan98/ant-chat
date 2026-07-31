@@ -4,10 +4,13 @@ import process from 'node:process'
 import { activateAppRuntime } from '@ant-chat/backend'
 import { resolveAppDataRoot } from '@ant-chat/shared'
 import { attachAppRuntimeEvents } from '@main/app-runtime-host/electronAppRuntimeEvents'
+import { startOAuthCallbackServer } from '@main/app-runtime-host/oauthCallbackServer'
 import { app } from 'electron'
 import { createRuntimeHost } from './runtimeHost'
 
 const runtimeHost = createRuntimeHost(createDesktopAppRuntime, attachAppRuntimeEvents)
+
+let stopOAuthServer: (() => void) | undefined
 
 export function getAppRuntime(): AppRuntime {
   return runtimeHost.get()
@@ -18,16 +21,28 @@ export function activateDesktopAppRuntime(): Promise<AppRuntime> {
 }
 
 export function disposeDesktopAppRuntime(): Promise<void> {
-  return runtimeHost.dispose()
+  const stop = stopOAuthServer
+  stopOAuthServer = undefined
+  return Promise.resolve(stop?.()).then(() => runtimeHost.dispose())
 }
 
-function createDesktopAppRuntime(): Promise<AppRuntime> {
-  return activateAppRuntime({
-    appDataRoot: resolveAppDataRoot(),
-    commandEnvironment: {
-      PATH: [resolveBundledCliDirectory(), process.env.PATH].filter(Boolean).join(path.delimiter),
-    },
-  })
+async function createDesktopAppRuntime(): Promise<AppRuntime> {
+  const oauthCallbackServer = await startOAuthCallbackServer()
+  stopOAuthServer = () => oauthCallbackServer.dispose()
+  try {
+    return await activateAppRuntime({
+      appDataRoot: resolveAppDataRoot(),
+      commandEnvironment: {
+        PATH: [resolveBundledCliDirectory(), process.env.PATH].filter(Boolean).join(path.delimiter),
+      },
+      oauthCallbackHost: oauthCallbackServer.host,
+    })
+  }
+  catch (error) {
+    stopOAuthServer = undefined
+    await oauthCallbackServer.dispose()
+    throw error
+  }
 }
 
 function resolveBundledCliDirectory(): string {

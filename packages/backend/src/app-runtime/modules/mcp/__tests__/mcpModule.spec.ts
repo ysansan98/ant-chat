@@ -7,6 +7,7 @@ import { McpSettingsRepository, McpSettingsStore } from '../../../../data/mcp'
 import { PermissionsFileStore } from '../../../../data/permissions'
 import { RuntimeEventBus } from '../../../../events'
 import { McpModule } from '..'
+import { McpConnectionManager } from '../../../../mcp'
 
 interface TestConnection {
   server: McpServer
@@ -49,6 +50,7 @@ class FakeMcpClientHub {
       },
     })
     this.statusCallbacks.forEach(callback => callback(name, 'connected'))
+    return true
   }
 
   async deleteConnection(name: string) {
@@ -73,6 +75,14 @@ class FakeMcpClientHub {
   async fetchToolsList(): Promise<McpTool[]> {
     return []
   }
+
+  getPendingOAuthUrl(_name: string): string | undefined {
+    return undefined
+  }
+
+  getOAuthRedirectUrl(): string | undefined {
+    return 'http://localhost:9999/callback'
+  }
 }
 
 describe('mcp module 生命周期', () => {
@@ -93,6 +103,7 @@ describe('mcp module 生命周期', () => {
       data: { mcpSettingsRepository: repository, permissionsFileStore },
       events,
       logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
+      paths: { mcpSettingsFile: path.join(dir, 'mcp.json') },
     } as never, hub as never)
   })
 
@@ -112,7 +123,7 @@ describe('mcp module 生命周期', () => {
       transportType: 'stdio',
     })
 
-    expect(repository.getMcpConfigByServerName('demo')).toEqual(stdioConfig('demo'))
+    expect(repository.getMcpConfigByServerName('demo')).toEqual(expect.objectContaining({ serverName: 'demo', transportType: 'stdio' }))
     expect(hub.connections.map(connection => connection.server.name)).toEqual(['demo'])
     expect(changed).toEqual([{ serverName: 'demo' }])
     expect(statuses).toEqual([{ serverName: 'demo', status: 'connected' }])
@@ -131,7 +142,7 @@ describe('mcp module 生命周期', () => {
       transportType: 'stdio',
     })
 
-    expect(repository.getMcpConfigByServerName('demo')).toEqual(stdioConfig('demo'))
+    expect(repository.getMcpConfigByServerName('demo')).toEqual(expect.objectContaining({ serverName: 'demo', transportType: 'stdio' }))
     expect(statuses).toEqual([{
       error: 'connection refused',
       serverName: 'demo',
@@ -154,7 +165,7 @@ describe('mcp module 生命周期', () => {
       transportType: 'stdio',
     })
 
-    expect(repository.getMcpConfigByServerName('demo')).toEqual(stdioConfig('demo'))
+    expect(repository.getMcpConfigByServerName('demo')).toEqual(expect.objectContaining({ serverName: 'demo', transportType: 'stdio' }))
   })
 
   it('编辑运行中 server 时由 module 完成重命名、配置替换和重连', async () => {
@@ -171,7 +182,7 @@ describe('mcp module 生命周期', () => {
     })).resolves.toEqual({ serverName: 'after', status: 'connected', transportType: 'stdio' })
 
     expect(repository.getMcpConfigByServerName('before')).toBeNull()
-    expect(repository.getMcpConfigByServerName('after')).toEqual({ ...stdioConfig('after'), command: 'bun' })
+    expect(repository.getMcpConfigByServerName('after')).toEqual(expect.objectContaining({ serverName: 'after', command: 'bun' }))
     expect(hub.connections.map(connection => connection.server.name)).toEqual(['after'])
     expect(permissionsFileStore.listAll().global).toEqual([
       expect.objectContaining({ kind: 'mcp-tool', serverName: 'after', toolName: 'inspect' }),
@@ -220,7 +231,7 @@ describe('mcp module 生命周期', () => {
       updates: { serverName: 'after' },
     })).rejects.toThrow('MCP 重命名事务失败：permissions write failed')
 
-    expect(repository.getMcpConfigByServerName('before')).toEqual(stdioConfig('before'))
+    expect(repository.getMcpConfigByServerName('before')).toEqual(expect.objectContaining({ serverName: 'before', transportType: 'stdio' }))
     expect(repository.getMcpConfigByServerName('after')).toBeNull()
     expect(permissionsFileStore.listAll().global).toEqual([
       expect.objectContaining({ serverName: 'before', toolName: 'inspect' }),
@@ -244,7 +255,7 @@ describe('mcp module 生命周期', () => {
       deletePermissionRules: true,
     })).rejects.toThrow('删除 MCP server 事务失败：permissions delete failed')
 
-    expect(repository.getMcpConfigByServerName('demo')).toEqual(stdioConfig('demo'))
+    expect(repository.getMcpConfigByServerName('demo')).toEqual(expect.objectContaining({ serverName: 'demo', transportType: 'stdio' }))
     expect(permissionsFileStore.countMcpServerRules('demo')).toBe(1)
     expect(hub.connections.map(connection => connection.server.name)).toEqual(['demo'])
   })
@@ -260,7 +271,7 @@ describe('mcp module 生命周期', () => {
       updates: { command: 'bun' },
     })).rejects.toThrow('settings write failed')
 
-    expect(repository.getMcpConfigByServerName('demo')).toEqual(stdioConfig('demo'))
+    expect(repository.getMcpConfigByServerName('demo')).toEqual(expect.objectContaining({ serverName: 'demo', transportType: 'stdio' }))
     expect(hub.connections).toEqual([
       expect.objectContaining({
         server: expect.objectContaining({ name: 'demo', status: 'connected' }),
@@ -278,11 +289,13 @@ describe('mcp module 生命周期', () => {
     probeHub.connectToServer = vi.fn(async (name, config) => {
       await connectProbe(name, config)
       probeHub.connections[0].server.tools = previewTools
+      return true
     })
     module = new McpModule({
       data: { mcpSettingsRepository: repository, permissionsFileStore },
       events,
       logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
+      paths: { mcpSettingsFile: path.join(dir, 'mcp.json') },
     } as never, hub as never, () => probeHub as never)
 
     await expect(module.testServer({ config: stdioConfig('preview') })).resolves.toEqual({
@@ -294,6 +307,75 @@ describe('mcp module 生命周期', () => {
     expect(hub.connections).toEqual([])
     expect(probeHub.connections).toEqual([])
   })
+
+  it('oauth 测试仅通过本地 callback host 完成，不暴露回调参数 RPC', async () => {
+    let oauthCompleted = false
+    let preparedState = ''
+    let callbackHandler: ((params: URLSearchParams) => Promise<void>) | undefined
+
+    // mock McpConnectionManager 的实例方法
+    async function mockConnect(this: McpConnectionManager, name: string, config: McpConfigSchema) {
+      if (!oauthCompleted && 'authType' in config && config.authType === 'oauth') {
+        return false
+      }
+      this.connections.push({
+        client: {} as never,
+        server: { config: JSON.stringify(config), name, status: 'connected' as const, tools: [{ name: 'tool1', inputSchema: { type: 'object' as const, properties: {}, required: [] } }] },
+        transport: {} as never,
+      })
+      return true
+    }
+    vi.spyOn(McpConnectionManager.prototype, 'connectToServer').mockImplementation(mockConnect)
+    vi.spyOn(McpConnectionManager.prototype, 'finishOAuthAuth').mockImplementation(async function mockFinish(this: McpConnectionManager, name: string) {
+      oauthCompleted = true
+      const existingConn = this.connections.find(c => c.server.name === name)
+      const config = existingConn
+        ? JSON.parse(existingConn.server.config) as McpConfigSchema
+        : { serverId: crypto.randomUUID(), serverName: name, icon: '', transportType: 'streamable-http' as const, url: 'https://mcp.example.com' }
+      return mockConnect.call(this, name, config)
+    })
+    vi.spyOn(McpConnectionManager.prototype, 'deleteConnection').mockImplementation(async () => true)
+    vi.spyOn(McpConnectionManager.prototype, 'prepareOAuthState').mockImplementation((_name, state) => {
+      preparedState = state
+    })
+    vi.spyOn(McpConnectionManager.prototype, 'getPendingOAuthUrl').mockImplementation(() => `https://auth.example.com/authorize?state=${preparedState}`)
+    vi.spyOn(McpConnectionManager.prototype, 'fetchToolsList').mockImplementation(async () => [{ name: 'tool1', inputSchema: { type: 'object' as const, properties: {}, required: [] } }])
+
+    module = new McpModule({
+      data: { mcpSettingsRepository: repository, permissionsFileStore },
+      events,
+      logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
+      oauthCallbackHost: {
+        redirectUrl: 'http://localhost:9999/callback',
+        openAuthorization: vi.fn(),
+        setCallbackHandler(handler: (params: URLSearchParams) => Promise<void>) {
+          callbackHandler = handler
+        },
+      },
+      secretStore: {},
+    } as never, hub as never)
+
+    const oauthConfig: McpConfigSchema = {
+      serverId: crypto.randomUUID(),
+      serverName: 'oauth-server',
+      icon: '🔑',
+      transportType: 'streamable-http',
+      url: 'https://mcp.example.com',
+      authType: 'oauth',
+    }
+
+    // 阶段1：测试连接 → 返回 oauthRequired
+    const result1 = await module.testServer({ config: oauthConfig })
+    expect(result1.oauthRequired).toBe(true)
+    expect(result1.attemptId).toBeTruthy()
+    expect(result1.tools).toEqual([])
+
+    // 阶段2：浏览器回调只进入 host；前端没有 state/code 传递能力。
+    await callbackHandler!(new URLSearchParams({ code: '123', state: preparedState }))
+    const result2 = await module.getTestResult({ attemptId: result1.attemptId! })
+    expect(result2.error).toBeUndefined()
+    expect(result2.tools).toEqual([{ name: 'tool1', inputSchema: { type: 'object', properties: {}, required: [] } }])
+  })
 })
 
 function stdioConfig(serverName: string): McpConfigSchema {
@@ -302,6 +384,7 @@ function stdioConfig(serverName: string): McpConfigSchema {
     command: 'node',
     description: '测试 server',
     icon: 'terminal',
+    serverId: crypto.randomUUID(),
     serverName,
     transportType: 'stdio',
   }

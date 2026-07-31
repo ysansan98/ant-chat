@@ -1,20 +1,24 @@
 import { z } from 'zod'
 
 export const BaseMcpConfig = z.object({
+  /** 持久化身份；显示名、配置 key 和权限展示都不得承担该职责。 */
+  serverId: z.uuid({ error: 'serverId 必须是有效 UUID' }),
   serverName: z.string({ error: 'serverName 是必填项' }),
   icon: z.string(),
   description: z.string().optional().nullable(),
   timeout: z.number().optional(),
-  transportType: z.enum(['stdio', 'sse']),
+  transportType: z.enum(['stdio', 'streamable-http']),
 })
 
-export const SSEMcpConfig = BaseMcpConfig.extend({
-  transportType: z.literal('sse'),
+export const StreamableHttpMcpConfig = BaseMcpConfig.extend({
+  transportType: z.literal('streamable-http'),
   url: z.url({ error: 'url格式错误' }),
   headers: z.record(z.string(), z.string()).optional(),
+  /** 认证类型：不传或 'none' 表示无需认证，'oauth' 表示使用 OAuth 2.0 */
+  authType: z.enum(['none', 'oauth']).optional(),
 })
 
-export type SSEMcpConfig = z.infer<typeof SSEMcpConfig>
+export type StreamableHttpMcpConfig = z.infer<typeof StreamableHttpMcpConfig>
 
 export const StdioMcpConfig = BaseMcpConfig.extend({
   transportType: z.literal('stdio'),
@@ -26,12 +30,12 @@ export const StdioMcpConfig = BaseMcpConfig.extend({
 export type StdioMcpConfig = z.infer<typeof StdioMcpConfig>
 
 export const AddMcpConfigSchema = z.discriminatedUnion('transportType', [
-  SSEMcpConfig,
-  StdioMcpConfig,
+  StreamableHttpMcpConfig.omit({ serverId: true }),
+  StdioMcpConfig.omit({ serverId: true }),
 ])
 export type AddMcpConfigSchema = z.infer<typeof AddMcpConfigSchema>
 
-export const McpConfigSchema = z.discriminatedUnion('transportType', [SSEMcpConfig, StdioMcpConfig])
+export const McpConfigSchema = z.discriminatedUnion('transportType', [StreamableHttpMcpConfig, StdioMcpConfig])
 export type McpConfigSchema = z.infer<typeof McpConfigSchema>
 
 export const McpSettingsSchema = z.object({
@@ -41,8 +45,8 @@ export const McpSettingsSchema = z.object({
 export type McpSettingsSchema = z.infer<typeof McpSettingsSchema>
 
 export const UpdateMcpConfigSchema = z.discriminatedUnion('transportType', [
-  SSEMcpConfig.partial().extend({ serverName: z.string(), transportType: z.literal('sse') }),
-  StdioMcpConfig.partial().extend({ serverName: z.string(), transportType: z.literal('stdio') }),
+  StreamableHttpMcpConfig.omit({ serverId: true }).partial().extend({ serverName: z.string(), transportType: z.literal('streamable-http') }),
+  StdioMcpConfig.omit({ serverId: true }).partial().extend({ serverName: z.string(), transportType: z.literal('stdio') }),
 ])
 
 export type UpdateMcpConfigSchema = z.infer<typeof UpdateMcpConfigSchema>
@@ -53,10 +57,11 @@ export interface McpServerEditPatch {
   icon?: string
   description?: string | null
   timeout?: number
-  transportType?: 'stdio' | 'sse'
+  transportType?: 'stdio' | 'streamable-http'
   command?: string
   args?: string[]
   env?: Record<string, unknown>
   url?: string
   headers?: Record<string, string>
+  authType?: 'none' | 'oauth'
 }

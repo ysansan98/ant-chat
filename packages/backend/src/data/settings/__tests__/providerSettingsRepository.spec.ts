@@ -1,8 +1,8 @@
-import type { AppSettingsState, SecretRef, SecretStore } from '@ant-chat/shared'
+import type { AppSettingsState } from '@ant-chat/shared'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppSettingsStore } from '../appSettingsStore'
 import { ProviderSettingsRepository } from '../providerSettingsRepository'
 
@@ -65,6 +65,20 @@ describe('provider settings repository', () => {
         ],
       }),
     ])
+  })
+
+  it('将旧版明文 API Key 写入安全存储后才移除 settings.json 中的值', async () => {
+    const saveProviderApiKey = vi.fn(async ({ providerId }: { providerId: string, apiKey: string }) => ({
+      kind: 'secret_ref' as const,
+      id: `provider:${providerId}:api_key`,
+      scope: 'persistent' as const,
+    }))
+
+    await expect(repository.migratePlaintextApiKeys({ saveProviderApiKey })).resolves.toBe(1)
+    expect(saveProviderApiKey).toHaveBeenCalledWith({ providerId: 'provider-1', apiKey: 'key' })
+    const provider = repository.getProviderSettingsById('provider-1')!
+    expect(provider.apiKey).toBeUndefined()
+    expect(provider.apiKeySecretId).toBe('provider:provider-1:api_key')
   })
 
   it('adds models and rejects duplicates in the same provider', () => {
@@ -223,32 +237,5 @@ describe('provider settings repository', () => {
       expect(repo.resolveModel('provider-b', 'a-only-model')).toBeNull()
       expect(repo.getModel('provider-b', 'a-only-model')).toBeNull()
     })
-  })
-
-  it('迁移明文 provider API Key 后删除配置里的 apiKey', async () => {
-    const saved = new Map<string, string>()
-    const secretStore: SecretStore = {
-      saveProviderApiKey: async ({ providerId, apiKey }) => {
-        saved.set(providerId, apiKey)
-        return { kind: 'secret_ref', id: `provider:${providerId}:api_key`, scope: 'persistent' }
-      },
-      getProviderApiKey: async providerId => saved.get(providerId) ?? null,
-      deleteProviderApiKey: async (providerId) => {
-        saved.delete(providerId)
-      },
-      createTurnSecret: async (): Promise<SecretRef> => ({ kind: 'secret_ref', id: 'turn:run-1:secret-1', scope: 'turn' }),
-      resolve: async () => null,
-      clearTurnSecrets: async () => {},
-    }
-
-    await expect(repository.migratePlaintextApiKeys(secretStore)).resolves.toBe(true)
-
-    const provider = repository.getProviderSettingsById('provider-1')
-    expect(provider).toEqual(expect.objectContaining({
-      id: 'provider-1',
-      apiKeySecretId: 'provider:provider-1:api_key',
-    }))
-    expect(provider).not.toHaveProperty('apiKey')
-    expect(saved.get('provider-1')).toBe('key')
   })
 })

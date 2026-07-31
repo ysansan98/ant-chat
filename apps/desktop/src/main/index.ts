@@ -4,8 +4,6 @@ import { resolveAppDataRoot } from '@ant-chat/shared'
 import { app } from 'electron'
 import { activateDesktopAppRuntime, disposeDesktopAppRuntime } from './app-runtime-host/appRuntime'
 import { UpdateService } from './domains/update/updateService'
-import { installDevTools } from './plugins/devtools'
-import { isDev } from './utils/env'
 import { logger } from './utils/logger'
 import { MainWindow } from './windows/window'
 import './bridge'
@@ -30,11 +28,6 @@ if (cliMarkerIndex !== -1) {
 }
 else {
   void app.whenReady().then(async () => {
-    // 安装开发工具扩展
-    if (isDev) {
-      installDevTools()
-    }
-
     await activateDesktopAppRuntime()
 
     const mainWindow = new MainWindow()
@@ -66,6 +59,25 @@ else {
 
     event.preventDefault()
     isRuntimeDisposed = true
-    void disposeDesktopAppRuntime().finally(() => app.quit())
+
+    // 设置超时兜底，防止 disposeDesktopAppRuntime 永不 resolve 导致进程卡死
+    const forceQuitTimeout = setTimeout(() => {
+      logger.warn('disposeDesktopAppRuntime 超时，强制退出')
+      app.exit(1)
+    }, 5000)
+
+    void disposeDesktopAppRuntime().finally(() => {
+      clearTimeout(forceQuitTimeout)
+      app.quit()
+    })
   })
+
+  // 处理进程信号：关闭终端时 shell 发送 SIGHUP，Electron 默认不响应，进程会变成孤儿
+  const handleTerminationSignal = (signal: string) => {
+    logger.info(`收到 ${signal} 信号，退出应用`)
+    app.quit()
+  }
+  process.on('SIGHUP', handleTerminationSignal)
+  process.on('SIGTERM', handleTerminationSignal)
+  process.on('SIGINT', handleTerminationSignal)
 }

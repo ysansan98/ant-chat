@@ -232,6 +232,10 @@ export interface SecretStore {
   saveProviderApiKey: (input: { providerId: string, apiKey: string }) => Promise<SecretRef>
   getProviderApiKey: (providerId: string) => Promise<string | null>
   deleteProviderApiKey: (providerId: string) => Promise<void>
+  /** MCP OAuth 认证资料仅允许由宿主机的安全存储保存。 */
+  saveMcpOAuthCredential: (input: { endpoint: string, issuer: string, value: string }) => Promise<void>
+  getMcpOAuthCredential: (input: { endpoint: string, issuer: string }) => Promise<string | null>
+  deleteMcpOAuthCredential: (input: { endpoint: string, issuer: string }) => Promise<void>
   createTurnSecret: (input: { runId: string, label: string, value: string }) => Promise<SecretRef>
   /** 仅解析属于指定 Turn 的临时 SecretRef；不得回退到通用 resolve。 */
   resolveTurnSecret?: (ref: SecretRef, runId: string) => Promise<string | null>

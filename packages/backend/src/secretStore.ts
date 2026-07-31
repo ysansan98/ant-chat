@@ -1,5 +1,5 @@
 import type { SecretRef, SecretStore } from '@ant-chat/shared'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import keytar from 'keytar'
 
 const SERVICE_NAME = 'ant-chat'
@@ -29,6 +29,18 @@ export class KeychainSecretStore implements SecretStore {
 
   async deleteChannelCredential(channelAccountId: string): Promise<void> {
     await keytar.deletePassword(SERVICE_NAME, `channel:${channelAccountId}:credential`)
+  }
+
+  async saveMcpOAuthCredential(input: { endpoint: string, issuer: string, value: string }): Promise<void> {
+    await keytar.setPassword(SERVICE_NAME, getMcpOAuthCredentialId(input.endpoint, input.issuer), input.value)
+  }
+
+  async getMcpOAuthCredential(input: { endpoint: string, issuer: string }): Promise<string | null> {
+    return await keytar.getPassword(SERVICE_NAME, getMcpOAuthCredentialId(input.endpoint, input.issuer))
+  }
+
+  async deleteMcpOAuthCredential(input: { endpoint: string, issuer: string }): Promise<void> {
+    await keytar.deletePassword(SERVICE_NAME, getMcpOAuthCredentialId(input.endpoint, input.issuer))
   }
 
   async createTurnSecret(input: { runId: string, label: string, value: string }): Promise<SecretRef> {
@@ -61,4 +73,37 @@ export class KeychainSecretStore implements SecretStore {
 
 export function getProviderApiKeyId(providerId: string): string {
   return `provider:${providerId}:api_key`
+}
+
+/**
+ * OAuth 凭据与显示名无关。使用规范化 endpoint 和 issuer 的摘要，既避免路径注入，
+ * 也让重命名 MCP server 不会丢失登录态。
+ */
+export function getMcpOAuthCredentialId(endpoint: string, issuer: string): string {
+  const scope = `${normalizeMcpEndpoint(endpoint)}\u0000${normalizeIssuer(issuer)}`
+  return `mcp:oauth:${createHash('sha256').update(scope).digest('hex')}`
+}
+
+function normalizeMcpEndpoint(endpoint: string): string {
+  const url = new URL(endpoint)
+  url.hash = ''
+  url.username = ''
+  url.password = ''
+  url.hostname = url.hostname.toLowerCase()
+  if ((url.protocol === 'https:' && url.port === '443') || (url.protocol === 'http:' && url.port === '80')) {
+    url.port = ''
+  }
+  return url.toString()
+}
+
+function normalizeIssuer(issuer: string): string {
+  const url = new URL(issuer)
+  url.hash = ''
+  url.username = ''
+  url.password = ''
+  url.hostname = url.hostname.toLowerCase()
+  if ((url.protocol === 'https:' && url.port === '443') || (url.protocol === 'http:' && url.port === '80')) {
+    url.port = ''
+  }
+  return url.toString()
 }
