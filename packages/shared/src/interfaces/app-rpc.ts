@@ -50,7 +50,7 @@ export interface RpcEndpoint<TInput, TOutput> {
 
 export interface AppRpcContract {
   'channel.list': RpcEndpoint<undefined, import('./channels').ChannelAccountView[]>
-  'channel.setup': RpcEndpoint<{ channelType: import('./channels').ChannelType, displayName: string, defaultWorkspacePath: string }, import('./channels').ChannelSetupResult>
+  'channel.setup': RpcEndpoint<{ channelType: import('./channels').ChannelType, displayName: string, defaultWorkspacePath: string, appId?: string, channelAccountId?: string }, import('./channels').ChannelSetupResult>
   'channel.getSetupStatus': RpcEndpoint<{ setupId: string }, import('./channels').ChannelSetupResult>
   'channel.disconnect': RpcEndpoint<{ id: string }, import('./channels').ChannelAccountView>
   'channel.listPairingRequests': RpcEndpoint<{ channelAccountId: string }, import('./channels').ChannelPairing[]>

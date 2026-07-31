@@ -4,6 +4,9 @@ import { z } from 'zod'
 export const ChannelTypeSchema = z.enum(['feishu', 'weixin'])
 export type ChannelType = z.infer<typeof ChannelTypeSchema>
 
+/** 频道配置会话的模式：创建新应用，或对已有应用重新扫码授权。 */
+export type ChannelSetupMode = 'create' | 'reauth'
+
 export const ConversationSourceTypeSchema = z.enum(['local', 'feishu', 'weixin', 'wecom'])
 export type ConversationSourceType = z.infer<typeof ConversationSourceTypeSchema>
 
@@ -45,6 +48,8 @@ export type ChannelAccountView = Omit<ChannelAccount, 'credentialRef'> & { hasCr
 export interface ChannelSetupResult {
   setupId: string
   channelType: ChannelType
+  /** 本次配置会话的模式：创建新应用，或对已有应用重新扫码授权。 */
+  mode: ChannelSetupMode
   status: 'awaiting_scan' | 'polling' | 'completed' | 'failed' | 'expired'
   verificationUrl?: string
   expiresAt?: number

@@ -1,8 +1,10 @@
+import type { ChannelSetupMode } from '@ant-chat/shared'
 import { randomUUID } from 'node:crypto'
 import * as lark from '@larksuiteoapi/node-sdk'
 
 export interface FeishuSetupState {
   setupId: string
+  mode: ChannelSetupMode
   status: 'awaiting_scan' | 'polling' | 'completed' | 'failed' | 'expired'
   verificationUrl?: string
   expiresAt?: number
@@ -14,15 +16,22 @@ export class FeishuAppRegistration {
   private readonly states = new Map<string, FeishuSetupState>()
   private readonly controllers = new Map<string, AbortController>()
 
-  start(input: { appName: string, onCompleted: (result: { clientId: string, clientSecret: string }) => Promise<void> }): FeishuSetupState {
+  start(input: {
+    appName: string
+    /** 传入已有应用 ID（cli_xxx）时走重新授权流程：确认页展示 addons 变更 diff，用户扫码后更新该应用配置。 */
+    appId?: string
+    onCompleted: (result: { clientId: string, clientSecret: string }) => Promise<void>
+  }): FeishuSetupState {
     const setupId = randomUUID()
-    const state: FeishuSetupState = { setupId, status: 'awaiting_scan' }
+    const state: FeishuSetupState = { setupId, mode: input.appId ? 'reauth' : 'create', status: 'awaiting_scan' }
     this.states.set(setupId, state)
     const controller = new AbortController()
     this.controllers.set(setupId, controller)
     void lark.registerApp({
       signal: controller.signal,
-      createOnly: true,
+      // 创建新应用时锁定 createOnly，防止误绑已有应用覆盖其配置；重新授权时移除该限制并把 appId 带给确认页。
+      createOnly: input.appId ? undefined : true,
+      appId: input.appId,
       source: 'ant-chat',
       appPreset: { name: input.appName, desc: 'Ant Chat 消息频道' },
       addons: {

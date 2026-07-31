@@ -2,9 +2,9 @@ import type { ChannelAccountView, ChannelType } from '@ant-chat/shared'
 import { getAppRpcClient } from './transports/appRpc'
 
 export const listChannels = () => getAppRpcClient().call('channel.list', undefined)
-export const setupChannel = (input: { channelType: ChannelType, displayName: string, defaultWorkspacePath: string }) => getAppRpcClient().call('channel.setup', input)
+export const setupChannel = (input: { channelType: ChannelType, displayName: string, defaultWorkspacePath: string, appId?: string, channelAccountId?: string }) => getAppRpcClient().call('channel.setup', input)
 export const disconnectChannel = (id: string) => getAppRpcClient().call('channel.disconnect', { id })
-export const createChannel = (input: { channelType: ChannelType, displayName: string, defaultWorkspacePath: string }) => getAppRpcClient().call('channel.setup', input)
+export const createChannel = (input: { channelType: ChannelType, displayName: string, defaultWorkspacePath: string, appId?: string, channelAccountId?: string }) => getAppRpcClient().call('channel.setup', input)
 export const getChannelSetupStatus = (setupId: string) => getAppRpcClient().call('channel.getSetupStatus', { setupId })
 export const updateChannel = (input: { id: string, displayName?: string, credential?: string, defaultWorkspacePath?: string | null }) => getAppRpcClient().call('channel.update', input)
 export const deleteChannel = (id: string) => getAppRpcClient().call('channel.delete', { id })

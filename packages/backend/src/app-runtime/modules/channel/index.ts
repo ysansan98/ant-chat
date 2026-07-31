@@ -81,28 +81,59 @@ export class ChannelModule implements RuntimeModuleMethods<'channel'>, RuntimeMo
   async setup(input: AppRpcInput<'channel.setup'>): Promise<ChannelSetupResult> {
     if (input.channelType !== 'feishu')
       throw new Error('个人微信扫码接入尚未完成')
-    const account = await this.createAccount({ ...input, credential: undefined })
+
+    // channel_accounts.channel_type 有唯一索引：每种平台只允许一个频道。
+    // 已有频道时引导用户在卡片上重新授权或删除重建，避免撞唯一约束后抛底层 SQL 错误。
+    const existing = input.channelAccountId
+      ? await this.core.data.channelAccountRepository.getById(input.channelAccountId)
+      : await this.core.data.channelAccountRepository.getByType(input.channelType)
+    if (!input.channelAccountId && existing)
+      throw new Error(`已存在${input.channelType === 'feishu' ? '飞书' : '微信'}频道「${existing.displayName}」。每种平台只支持一个频道，请在该频道上点击「重新授权」，或删除后重新添加。`)
+    if (existing && existing.channelType !== input.channelType)
+      throw new Error('频道与应用平台不匹配，请重新发起。')
+
+    // 重新授权已有频道时，应用 ID 从已保存凭证读取，避免把凭据内容暴露给前端。
+    let appId = input.appId
+    if (existing) {
+      const credential = existing.credentialRef
+        ? await this.core.secretStore.resolve({ kind: 'secret_ref', id: existing.credentialRef, scope: 'persistent' })
+        : null
+      appId = credential ? (JSON.parse(credential) as { appId?: string }).appId : undefined
+      if (!appId)
+        throw new Error('该频道的凭证不完整，无法重新授权，请删除后重新添加。')
+    }
+
+    const account = existing ?? await this.createAccount({ channelType: input.channelType, displayName: input.displayName, defaultWorkspacePath: input.defaultWorkspacePath })
     const setup = this.feishuRegistration.start({
       appName: input.displayName,
+      appId,
       onCompleted: async ({ clientId, clientSecret }) => {
         const credential = await this.core.secretStore.saveChannelCredential({ channelAccountId: account.id, value: JSON.stringify({ appId: clientId, appSecret: clientSecret }) })
-        // 扫码授权已经完成接入，默认直接启用；用户只在设置页主动停用时关闭它。
-        const configured = await this.core.data.channelAccountRepository.upsert({ ...account, credentialRef: credential.id, enabled: true, status: 'configured', updatedAt: Date.now() })
+        // 新建频道默认直接启用；重新授权保持用户当前的启用状态。
+        const configured = await this.core.data.channelAccountRepository.upsert({
+          ...account,
+          displayName: input.displayName.trim(),
+          defaultWorkspacePath: input.defaultWorkspacePath,
+          credentialRef: credential.id,
+          enabled: existing ? account.enabled : true,
+          status: 'configured',
+          updatedAt: Date.now(),
+        })
         const connector = this.connectors.get('feishu')
-        if (connector) {
+        if (connector && configured.enabled) {
           try {
             await this.startAccount(configured, connector)
             await this.core.data.channelAccountRepository.updateStatus(account.id, 'connected')
           }
           catch (error) {
             await this.core.data.channelAccountRepository.updateStatus(account.id, 'degraded', error instanceof Error ? error.message : String(error))
-            this.core.logger.warn('飞书扫码完成，但 WebSocket 启动失败', { error })
+            this.core.logger.warn(existing ? '飞书重新授权完成，但 WebSocket 启动失败' : '飞书扫码完成，但 WebSocket 启动失败', { error })
           }
         }
       },
     })
     this.setupAccounts.set(setup.setupId, account.id)
-    return { setupId: setup.setupId, channelType: 'feishu', status: setup.status, verificationUrl: setup.verificationUrl, expiresAt: setup.expiresAt }
+    return { setupId: setup.setupId, channelType: 'feishu', mode: setup.mode, status: setup.status, verificationUrl: setup.verificationUrl, expiresAt: setup.expiresAt }
   }
 
   @Method()
