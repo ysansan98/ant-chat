@@ -16,6 +16,8 @@ export abstract class BaseWindow {
   protected window: BrowserWindow | null = null
   private readonly options: BaseWindowOptions
   private static preloadPath: string | null = null
+  /** 首次页面加载的开始时间戳；记录首次加载耗时后置 0 */
+  private firstLoadStartedAt = 0
 
   constructor(options: BaseWindowOptions) {
     this.options = options
@@ -39,6 +41,7 @@ export abstract class BaseWindow {
     const preload = BaseWindow.preloadPath!
     logger.debug('preload path => ', preload)
 
+    this.firstLoadStartedAt = Date.now()
     this.window = new BrowserWindow({
       width: this.options.width,
       height: this.options.height,
@@ -88,6 +91,16 @@ export abstract class BaseWindow {
     }
 
     this.setupNavigationHandlers(window)
+
+    // 首次加载耗时统计：did-finish-load 在首次加载完成时触发一次
+    // （含加载失败后错误页完成的情况），刷新页面不会重复统计
+    window.webContents.on('did-finish-load', () => {
+      if (this.firstLoadStartedAt === 0)
+        return
+      const duration = Date.now() - this.firstLoadStartedAt
+      this.firstLoadStartedAt = 0
+      logger.info(`窗口 ${this.options.type} 首次加载完成，耗时 ${duration}ms`)
+    })
 
     window.on('closed', () => {
       this.window = null
