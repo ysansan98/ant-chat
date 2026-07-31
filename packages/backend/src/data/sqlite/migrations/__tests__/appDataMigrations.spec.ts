@@ -37,6 +37,10 @@ describe('app-data SQLite 迁移', () => {
       'automations',
       'conversations',
       'messages',
+      'channel_accounts',
+      'channel_pairings',
+      'channel_sessions',
+      'channel_message_receipts',
     ]))
     expect(history).toEqual([
       { version: 1, name: '初始化 app-data schema' },
@@ -44,7 +48,21 @@ describe('app-data SQLite 迁移', () => {
       { version: 3, name: '重命名自动化 selected 字段为 allowed' },
       { version: 4, name: '分离会话指令并迁移输出 token 字段' },
       { version: 5, name: '关联自动化运行与 Agent Turn' },
+      { version: 6, name: '增加消息频道数据模型' },
+      { version: 7, name: '约束频道出站消息与平台消息一一对应' },
+      { version: 8, name: '增加消息频道权限模式' },
     ])
+  })
+
+  it('为旧数据库增加频道来源、入口和幂等表', () => {
+    runSqliteMigrations(sqlite, createAppDataMigrations({ attachmentsRootPath }))
+
+    const conversationColumns = sqlite.prepare('PRAGMA table_info(conversations)').all() as Array<{ name: string }>
+    const messageColumns = sqlite.prepare('PRAGMA table_info(messages)').all() as Array<{ name: string }>
+    expect(conversationColumns.map(column => column.name)).toEqual(expect.arrayContaining(['source_type', 'source_channel_account_id', 'source_external_chat_id']))
+    expect(messageColumns.map(column => column.name)).toEqual(expect.arrayContaining(['origin_type', 'origin_channel_account_id', 'origin_external_chat_id']))
+    expect((sqlite.prepare('PRAGMA table_info(channel_accounts)').all() as Array<{ name: string }>).map(column => column.name)).toContain('permission_mode')
+    expect(sqlite.prepare('SELECT sql FROM sqlite_master WHERE name = \'channel_message_receipts\'').get()).toEqual(expect.objectContaining({ sql: expect.stringContaining('UNIQUE (channel_account_id, external_message_id, direction, part_index)') }))
   })
 
   it('无版本记录的旧数据库通过首个版本迁移到当前表结构', () => {
@@ -85,7 +103,7 @@ describe('app-data SQLite 迁移', () => {
     expect(messageColumnNames).not.toEqual(expect.arrayContaining(['images', 'attachments']))
     const conversationColumns = sqlite.prepare('PRAGMA table_info(conversations)').all() as Array<{ name: string }>
     expect(conversationColumns.map(column => column.name)).toContain('archived')
-    expect(sqlite.prepare('SELECT version FROM app_data_migrations').all()).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }])
+    expect(sqlite.prepare('SELECT version FROM app_data_migrations').all()).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }, { version: 7 }, { version: 8 }])
   })
 
   // ===== 测试：version 3 → 4 迁移 =====

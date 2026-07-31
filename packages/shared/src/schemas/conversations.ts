@@ -51,6 +51,9 @@ export const ConversationsSchema = z.object({
   updatedAt: z.number(),
   archived: z.boolean().default(false).optional(),
   settings: ConversationsSettingsSchema,
+  sourceType: z.enum(['local', 'feishu', 'weixin', 'wecom']).optional(),
+  sourceChannelAccountId: z.string().nullable().optional(),
+  sourceExternalChatId: z.string().nullable().optional(),
 })
 
 export type ConversationsSchema = z.infer<typeof ConversationsSchema>

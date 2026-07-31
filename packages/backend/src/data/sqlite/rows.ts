@@ -23,6 +23,9 @@ export interface ConversationRow {
   updated_at: number
   archived?: number
   settings: string
+  source_type?: string
+  source_channel_account_id?: string | null
+  source_external_chat_id?: string | null
 }
 
 export interface MessageRow {
@@ -39,6 +42,9 @@ export interface MessageRow {
   event_type: string | null
   compacted_through_message_id: string | null
   duration_ms: number | null
+  origin_type?: string
+  origin_channel_account_id?: string | null
+  origin_external_chat_id?: string | null
 }
 
 export function mapConversationRow(row: ConversationRow): IConversations {
@@ -51,6 +57,9 @@ export function mapConversationRow(row: ConversationRow): IConversations {
     updatedAt: row.updated_at,
     archived: row.archived === 1,
     settings: parseConversationSettings(row.settings),
+    sourceType: (row.source_type ?? 'local') as IConversations['sourceType'],
+    sourceChannelAccountId: row.source_channel_account_id ?? null,
+    sourceExternalChatId: row.source_external_chat_id ?? null,
   }
 }
 
@@ -69,6 +78,9 @@ export function mapMessageRow(row: MessageRow): IMessage {
     eventType: row.event_type ?? undefined,
     compactedThroughMessageId: row.compacted_through_message_id ?? undefined,
     durationMs: row.duration_ms ?? undefined,
+    originType: (row.origin_type ?? 'local') as IMessage['originType'],
+    originChannelAccountId: row.origin_channel_account_id ?? null,
+    originExternalChatId: row.origin_external_chat_id ?? null,
   }
 }
 

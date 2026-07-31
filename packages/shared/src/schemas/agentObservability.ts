@@ -13,6 +13,13 @@ export const AgentTurnSourceSchema = z.discriminatedUnion('type', [
     allowedMcpServers: z.array(z.string()),
     permissionPolicy: AutomationPermissionPolicySchema,
   }),
+  z.object({
+    type: z.literal('channel'),
+    channelType: z.enum(['feishu', 'weixin']),
+    channelAccountId: z.string().min(1),
+    externalChatId: z.string().min(1),
+    externalMessageId: z.string().min(1),
+  }),
 ])
 export const AgentTurnStatusSchema = z.enum(['success', 'failed', 'cancelled', 'interrupted'])
 export const AgentTurnLifecycleSchema = z.enum(['collecting', 'completed'])

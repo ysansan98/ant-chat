@@ -12,7 +12,10 @@ export function initializeAppDataSchema(db: AppDataDatabase): void {
       created_at integer NOT NULL,
       updated_at integer NOT NULL,
       archived integer NOT NULL DEFAULT 0,
-      settings text NOT NULL
+      settings text NOT NULL,
+      source_type text NOT NULL DEFAULT 'local',
+      source_channel_account_id text,
+      source_external_chat_id text
     );
 
     CREATE INDEX IF NOT EXISTS idx_conversations_workspace_path_updated_at
@@ -35,6 +38,9 @@ export function initializeAppDataSchema(db: AppDataDatabase): void {
       event_type text DEFAULT NULL,
       compacted_through_message_id text DEFAULT NULL,
       duration_ms integer DEFAULT NULL
+      ,origin_type text NOT NULL DEFAULT 'local'
+      ,origin_channel_account_id text
+      ,origin_external_chat_id text
     );
 
     CREATE TABLE IF NOT EXISTS attachments (
@@ -85,5 +91,63 @@ export function initializeAppDataSchema(db: AppDataDatabase): void {
 
     CREATE INDEX IF NOT EXISTS idx_automation_runs_automation_started
       ON automation_runs (automation_id, started_at DESC);
+
+    CREATE TABLE IF NOT EXISTS channel_accounts (
+      id text PRIMARY KEY NOT NULL,
+      channel_type text NOT NULL,
+      display_name text NOT NULL,
+      credential_ref text NOT NULL,
+      default_workspace_path text,
+      permission_mode text NOT NULL DEFAULT 'hybrid',
+      enabled integer NOT NULL DEFAULT 0,
+      status text NOT NULL,
+      last_error text,
+      created_at integer NOT NULL,
+      updated_at integer NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_channel_accounts_type ON channel_accounts(channel_type);
+
+    CREATE TABLE IF NOT EXISTS channel_pairings (
+      id text PRIMARY KEY NOT NULL,
+      channel_account_id text NOT NULL REFERENCES channel_accounts(id) ON DELETE CASCADE,
+      external_user_id text NOT NULL,
+      external_display_name text NOT NULL,
+      status text NOT NULL,
+      requested_at integer NOT NULL,
+      expires_at integer,
+      approved_at integer
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_channel_pairings_identity ON channel_pairings(channel_account_id, external_user_id);
+
+    CREATE TABLE IF NOT EXISTS channel_sessions (
+      channel_account_id text NOT NULL REFERENCES channel_accounts(id) ON DELETE CASCADE,
+      external_chat_id text NOT NULL,
+      active_conversation_id text NOT NULL REFERENCES conversations(id),
+      current_workspace_path text NOT NULL,
+      created_at integer NOT NULL,
+      updated_at integer NOT NULL,
+      PRIMARY KEY (channel_account_id, external_chat_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS channel_message_receipts (
+      id text PRIMARY KEY NOT NULL,
+      channel_account_id text NOT NULL,
+      external_chat_id text NOT NULL,
+      external_message_id text NOT NULL,
+      direction text NOT NULL,
+      local_message_id text,
+      status text NOT NULL,
+      part_index integer,
+      part_count integer,
+      last_error text,
+      created_at integer NOT NULL,
+      updated_at integer NOT NULL,
+      UNIQUE (channel_account_id, external_message_id, direction, part_index)
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_channel_receipts_idempotency
+      ON channel_message_receipts (channel_account_id, external_message_id, direction, COALESCE(part_index, -1));
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_channel_receipts_outbound_local_message
+      ON channel_message_receipts (channel_account_id, local_message_id)
+      WHERE direction = 'outbound' AND local_message_id IS NOT NULL;
   `)
 }

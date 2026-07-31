@@ -5,6 +5,7 @@ import type {
   AppControlResultFor,
   AutomationCommand,
   AutomationInput,
+  ChannelCommand,
   McpCommand,
   McpConnection,
   McpListItem,
@@ -36,6 +37,8 @@ export class AppControl {
         return await this.executeMcp(command)
       case 'automation':
         return await this.executeAutomation(command)
+      case 'channel':
+        return await this.executeChannel(command)
     }
   }
 
@@ -237,6 +240,29 @@ export class AppControl {
         return { deleted: true }
       case 'runs':
         return { runs: await this.modules.automation.listRuns({ automationId: command.id }) }
+    }
+  }
+
+  private async executeChannel(command: ChannelCommand): Promise<AppControlResultFor<ChannelCommand>> {
+    if (!this.modules.channel)
+      throw new Error('频道模块不可用')
+    switch (command.action) {
+      case 'list': return { channels: await this.modules.channel.list() }
+      case 'setup': return await this.modules.channel.setup(command)
+      case 'disconnect': return { channel: await this.modules.channel.disconnect({ id: command.id }) }
+      case 'listPairingRequests': return { pairings: await this.modules.channel.listPairingRequests({ channelAccountId: command.channelAccountId }) }
+      case 'rejectPairing': return { pairing: await this.modules.channel.rejectPairing({ id: command.id }) }
+      case 'create': return { channel: await this.modules.channel.create(command) }
+      case 'delete': {
+        await this.modules.channel.delete({ id: command.id })
+        return { deleted: true }
+      }
+      case 'listPairings': return { pairings: await this.modules.channel.listPairings({ channelAccountId: command.channelAccountId }) }
+      case 'approvePairing': return { pairing: await this.modules.channel.approvePairing({ id: command.id }) }
+      case 'revokePairing': return { pairing: await this.modules.channel.revokePairing({ id: command.id }) }
+      case 'getStatus': return this.modules.channel.getStatus({ channelType: command.channelType })
+      case 'enable': return this.modules.channel.enable({ id: command.id })
+      case 'disable': return this.modules.channel.disable({ id: command.id })
     }
   }
 }

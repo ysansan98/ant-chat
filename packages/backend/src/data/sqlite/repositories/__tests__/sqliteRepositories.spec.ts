@@ -13,6 +13,7 @@ import { mapConversationRow } from '../../rows'
 import { SqliteConversationRepository } from '../sqliteConversationRepository'
 import { SqliteMessageRepository } from '../sqliteMessageRepository'
 import { createConversationLifecycle } from '../../../../conversations/conversationLifecycle'
+import { SqliteChannelAccountRepository, SqliteChannelPairingRepository, SqliteChannelReceiptRepository, SqliteChannelSessionRepository } from '../sqliteChannelRepositories'
 
 describe('sqlite message repository', () => {
   it('lists conversation messages by creation time and insertion order', async () => {
@@ -109,6 +110,26 @@ describe('sqlite repositories', () => {
     expect(message.convId).toBe(conversation.id)
     expect(message.content).toEqual([{ type: 'text', text: 'hello' }])
     expect(messages).toEqual([expect.objectContaining({ id: message.id, convId: conversation.id })])
+  })
+
+  it('保存频道账号、配对、Session，并对 receipt 的外部事件和分段保持幂等', async () => {
+    const accountRepository = new SqliteChannelAccountRepository(sqlite)
+    const pairingRepository = new SqliteChannelPairingRepository(sqlite)
+    const sessionRepository = new SqliteChannelSessionRepository(sqlite)
+    const receiptRepository = new SqliteChannelReceiptRepository(sqlite)
+    const conversationRepository = new SqliteConversationRepository(sqlite)
+    const conversation = await conversationRepository.create({ title: '频道会话', workspacePath: '/workspace', createdAt: 1, updatedAt: 1, conversationInstructions: '', settings: { modelId: 'm', providerId: '', temperature: 0.7, maxOutputTokens: 1024 }, sourceType: 'feishu', sourceChannelAccountId: 'account-1', sourceExternalChatId: 'chat-1' })
+    await accountRepository.upsert({ id: 'account-1', channelType: 'feishu', displayName: '飞书', credentialRef: 'secret-ref', defaultWorkspacePath: '/workspace', permissionMode: 'full_managed', enabled: true, status: 'configured', createdAt: 1, updatedAt: 1 })
+    await pairingRepository.upsert({ id: 'pair-1', channelAccountId: 'account-1', externalUserId: 'user-1', externalDisplayName: '用户', status: 'authorized', requestedAt: 1, approvedAt: 2 })
+    await sessionRepository.upsert({ channelAccountId: 'account-1', externalChatId: 'chat-1', activeConversationId: conversation.id, currentWorkspacePath: '/workspace', createdAt: 1, updatedAt: 2 })
+    const first = await receiptRepository.create({ channelAccountId: 'account-1', externalChatId: 'chat-1', externalMessageId: 'external-1', direction: 'inbound', status: 'received' })
+    expect(await receiptRepository.get('account-1', 'external-1', 'inbound')).toEqual(first)
+    await expect(receiptRepository.create({ channelAccountId: 'account-1', externalChatId: 'chat-1', externalMessageId: 'external-1', direction: 'inbound', status: 'received' })).rejects.toThrow()
+    expect(await pairingRepository.get('account-1', 'user-1')).toEqual(expect.objectContaining({ status: 'authorized' }))
+    expect(await accountRepository.getById('account-1')).toEqual(expect.objectContaining({ permissionMode: 'full_managed' }))
+    await accountRepository.updatePermissionMode('account-1', 'strict')
+    expect(await accountRepository.getById('account-1')).toEqual(expect.objectContaining({ permissionMode: 'strict' }))
+    expect(await sessionRepository.get('account-1', 'chat-1')).toEqual(expect.objectContaining({ activeConversationId: conversation.id }))
   })
 
   it('归档后从普通列表隐藏，并可按工作区搜索和恢复', async () => {

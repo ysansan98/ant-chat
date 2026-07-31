@@ -7,7 +7,7 @@ import { AppSettingsStore, createModelCatalog, GeneralSettingsRepository, Provid
 import { WorkspaceService } from '../workspace'
 import { createAppDataMigrations, runSqliteMigrations } from './migrations'
 import { SqliteMessageSearchQuery } from './queries'
-import { SqliteAutomationRepository, SqliteConversationRepository, SqliteMessageRepository } from './repositories'
+import { SqliteAutomationRepository, SqliteChannelAccountRepository, SqliteChannelPairingRepository, SqliteChannelReceiptRepository, SqliteChannelSessionRepository, SqliteConversationRepository, SqliteMessageRepository } from './repositories'
 
 export interface CreateAppDataContextOptions {
   db: AppDataDatabase
@@ -35,6 +35,10 @@ export function createAppDataContext(options: CreateAppDataContextOptions) {
     automationRepository: new SqliteAutomationRepository(db),
     conversationRepository,
     messageRepository,
+    channelAccountRepository: new SqliteChannelAccountRepository(db),
+    channelPairingRepository: new SqliteChannelPairingRepository(db),
+    channelSessionRepository: new SqliteChannelSessionRepository(db),
+    channelReceiptRepository: new SqliteChannelReceiptRepository(db),
     messageSearchQuery: new SqliteMessageSearchQuery(db),
     loadAttachmentData: messageRepository.loadAttachmentData.bind(messageRepository),
     settingsRepository: new GeneralSettingsRepository({

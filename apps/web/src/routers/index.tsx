@@ -9,6 +9,7 @@ import { ChatPage } from '@/pages/Chat'
 import { About } from '@/pages/Settings/About'
 import { AppearanceSettings } from '@/pages/Settings/AppearanceSettings'
 import { ArchivedConversations } from '@/pages/Settings/ArchivedConversations'
+import { ChannelsPage } from '@/pages/Settings/Channels'
 import { GeneralSettings } from '@/pages/Settings/GeneralSettings'
 import MCPManage from '@/pages/Settings/MCPManage'
 import { MemorySettings } from '@/pages/Settings/Memory'
@@ -30,6 +31,7 @@ const settingsRoute = {
     { path: 'appearance', Component: AppearanceSettings },
     { path: 'memory', Component: MemorySettings },
     { path: 'permissions', Component: PermissionsPage },
+    { path: 'channels', Component: ChannelsPage },
     { path: 'provider', Component: ProviderManage },
     { path: 'mcp', Component: MCPManage },
     { path: 'skills', Component: SkillManage },

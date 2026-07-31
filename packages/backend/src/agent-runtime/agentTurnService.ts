@@ -92,13 +92,22 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
         : conversation.settings.reasoningEffort
       let userMessage: IMessage | undefined
       try {
-        userMessage = await appDataContext.messageRepository.create({
-          convId: conversation.id,
-          role: 'user',
-          status: 'success',
-          content: options.messageContent,
-          turnId: undefined,
-        })
+        userMessage = options.userMessageId
+          ? await appDataContext.messageRepository.getById(options.userMessageId)
+          : await appDataContext.messageRepository.create({
+              convId: conversation.id,
+              role: 'user',
+              status: 'success',
+              content: options.messageContent,
+              turnId: undefined,
+              ...(options.turnSource?.type === 'channel'
+                ? {
+                    originType: options.turnSource.channelType,
+                    originChannelAccountId: options.turnSource.channelAccountId,
+                    originExternalChatId: options.turnSource.externalChatId,
+                  }
+                : {}),
+            })
         const result = await runtime.startSessionTask({
           messageContent: options.messageContent,
           conversationId: conversation.id,
@@ -138,6 +147,7 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
           appDataContext,
           creation,
           userMessageId: userMessage?.id,
+          preserveUserMessage: options.turnSource?.type === 'channel',
           logger,
         })
         throw error
@@ -211,15 +221,20 @@ async function rollbackStartedTurn(params: {
   appDataContext: AppDataContext
   creation?: ConversationCreation
   userMessageId?: string
+  preserveUserMessage?: boolean
   logger?: ILogger
 }) {
-  const { appDataContext, creation, userMessageId, logger } = params
+  const { appDataContext, creation, userMessageId, preserveUserMessage, logger } = params
   try {
     if (creation) {
       await creation.rollback()
       return
     }
 
+    if (userMessageId && preserveUserMessage) {
+      // 频道入站先完成持久化，启动失败必须保留 user Message 供同一 external event 重试。
+      return
+    }
     if (userMessageId) {
       await appDataContext.messageRepository.delete(userMessageId)
     }

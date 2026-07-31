@@ -2,8 +2,10 @@ import type { RuntimeCore } from './createRuntimeCore'
 import type { RegisteredRoute } from './routeRegistry'
 import type { RuntimeModule } from './runtimeModule'
 import { AppControl } from '../app-control/appControl'
+import { createFeishuTransport, FeishuConnector } from '../channels/feishu'
 import { AgentModule } from './modules/agent'
 import { AutomationModule } from './modules/automation'
+import { ChannelModule } from './modules/channel'
 import { ChatModule } from './modules/chat'
 import { CommandsModule } from './modules/commands'
 import { createDataRoutes } from './modules/dataRoutes'
@@ -34,6 +36,7 @@ export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModu
     mcpClientHub: mcp.clientHub,
     skills: skills.service,
   })
+  const channel = new ChannelModule(core, agent, [new FeishuConnector(credential => createFeishuTransport(credential, logger), logger)])
   const chat = new ChatModule(
     data.conversationRepository,
     data.messageRepository,
@@ -56,11 +59,11 @@ export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModu
     conversationLifecycle: agent.conversationLifecycle,
   })
 
-  const appControl = new AppControl({ settings, provider, mcp, automation })
+  const appControl = new AppControl({ settings, provider, mcp, automation, channel })
 
   return {
-    routes: [chat, settings, provider, mcp, skills, workspace, permissions, runtimeStatus, agent, automation, commands],
-    lifecycle: [workspace, skills, provider, settings, mcp, agent, automation],
+    routes: [chat, settings, provider, mcp, skills, workspace, permissions, runtimeStatus, agent, automation, commands, channel],
+    lifecycle: [workspace, skills, provider, settings, mcp, agent, automation, channel],
     routeBindings: createDataRoutes(core),
     appControl,
   }

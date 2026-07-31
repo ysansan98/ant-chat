@@ -18,7 +18,7 @@ export class ProviderModule implements RuntimeModuleMethods<'provider'> {
     private readonly providerSettingsRepository: ProviderSettingsRepository,
     private readonly secretStore: KeychainSecretStore,
     private readonly events: RuntimeEventBus,
-    private readonly logger: SystemLogger,
+    logger: SystemLogger,
   ) {
     this.modelsDevImporter = createModelsDevImporter(providerSettingsRepository)
     this.aiProviderFactory = async ({ provider }) => {

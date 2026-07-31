@@ -5,6 +5,7 @@
 
 import type { ProviderConfigSchema } from '../schemas/providerConfig'
 import type { AutomationDefinition, AutomationRun } from './automation'
+import type { ChannelAccountView } from './channels'
 import type { GeneralSettingsState } from './generalSettings'
 import type { McpConnection } from './mcp'
 import { z } from 'zod'
@@ -156,6 +157,18 @@ const AutomationDeleteCommandSchema = z.object({
   force: z.boolean().optional(),
 })
 
+const ChannelListCommandSchema = z.object({ type: z.literal('channel'), action: z.literal('list') })
+const ChannelSetupCommandSchema = z.object({ type: z.literal('channel'), action: z.literal('setup'), channelType: z.enum(['feishu', 'weixin']), displayName: NonEmptyStringSchema, defaultWorkspacePath: NonEmptyStringSchema })
+const ChannelDisconnectCommandSchema = z.object({ type: z.literal('channel'), action: z.literal('disconnect'), id: NonEmptyStringSchema })
+const ChannelPairingRequestsCommandSchema = z.object({ type: z.literal('channel'), action: z.literal('listPairingRequests'), channelAccountId: NonEmptyStringSchema })
+const ChannelRejectPairingCommandSchema = z.object({ type: z.literal('channel'), action: z.literal('rejectPairing'), id: NonEmptyStringSchema })
+const ChannelCreateCommandSchema = z.object({ type: z.literal('channel'), action: z.literal('create'), channelType: z.enum(['feishu', 'weixin']), displayName: NonEmptyStringSchema, credential: NonEmptyStringSchema, defaultWorkspacePath: NonEmptyStringSchema })
+const ChannelDeleteCommandSchema = z.object({ type: z.literal('channel'), action: z.literal('delete'), id: NonEmptyStringSchema })
+const ChannelPairingListCommandSchema = z.object({ type: z.literal('channel'), action: z.literal('listPairings'), channelAccountId: NonEmptyStringSchema })
+const ChannelPairingUpdateCommandSchema = z.object({ type: z.literal('channel'), action: z.enum(['approvePairing', 'revokePairing']), id: NonEmptyStringSchema })
+const ChannelStatusCommandSchema = z.object({ type: z.literal('channel'), action: z.literal('getStatus'), channelType: z.enum(['feishu', 'weixin']) })
+const ChannelToggleCommandSchema = z.object({ type: z.literal('channel'), action: z.enum(['enable', 'disable']), id: NonEmptyStringSchema })
+
 export const AppControlCommandSchema = z.union([
   SettingsShowCommandSchema,
   SettingsThemeSetCommandSchema,
@@ -185,6 +198,17 @@ export const AppControlCommandSchema = z.union([
   AutomationRunsCommandSchema,
   AutomationCreateCommandSchema,
   AutomationDeleteCommandSchema,
+  ChannelListCommandSchema,
+  ChannelSetupCommandSchema,
+  ChannelDisconnectCommandSchema,
+  ChannelPairingRequestsCommandSchema,
+  ChannelRejectPairingCommandSchema,
+  ChannelCreateCommandSchema,
+  ChannelDeleteCommandSchema,
+  ChannelPairingListCommandSchema,
+  ChannelPairingUpdateCommandSchema,
+  ChannelStatusCommandSchema,
+  ChannelToggleCommandSchema,
 ])
 
 export type AppControlCommand = z.infer<typeof AppControlCommandSchema>
@@ -192,6 +216,7 @@ export type SettingsCommand = Extract<AppControlCommand, { type: 'settings' }>
 export type ProviderCommand = Extract<AppControlCommand, { type: 'provider' }>
 export type McpCommand = Extract<AppControlCommand, { type: 'mcp' }>
 export type AutomationCommand = Extract<AppControlCommand, { type: 'automation' }>
+export type ChannelCommand = Extract<AppControlCommand, { type: 'channel' }>
 
 export interface AppControlResultMap {
   'settings:show': { settings: GeneralSettingsState }
@@ -221,6 +246,19 @@ export interface AppControlResultMap {
   'automation:create': { automation: AutomationDefinition }
   'automation:delete': { deleted: boolean }
   'automation:runs': { runs: AutomationRun[] }
+  'channel:list': { channels: ChannelAccountView[] }
+  'channel:setup': import('./channels').ChannelSetupResult
+  'channel:disconnect': { channel: import('./channels').ChannelAccountView }
+  'channel:listPairingRequests': { pairings: import('./channels').ChannelPairing[] }
+  'channel:rejectPairing': { pairing: import('./channels').ChannelPairing }
+  'channel:create': { channel: ChannelAccountView }
+  'channel:delete': { deleted: boolean }
+  'channel:listPairings': { pairings: import('./channels').ChannelPairing[] }
+  'channel:approvePairing': { pairing: import('./channels').ChannelPairing }
+  'channel:revokePairing': { pairing: import('./channels').ChannelPairing }
+  'channel:getStatus': { status: string, lastError?: string }
+  'channel:enable': { id: string, enabled: boolean, status: string }
+  'channel:disable': { id: string, enabled: boolean, status: string }
 }
 
 type CommandKey<TCommand extends AppControlCommand> = TCommand extends {

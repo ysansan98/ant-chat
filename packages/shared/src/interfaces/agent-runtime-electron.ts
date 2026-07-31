@@ -6,6 +6,8 @@ import type { IConversations, IMessageContent } from './db-types'
  * App transport input for starting an agent turn.
  */
 export interface StartAgentTurnOptions {
+  /** 频道入站重试时复用已持久化的初始 user Message。 */
+  userMessageId?: string
   conversationId?: string
   messageContent: IMessageContent
   turnSource?: AgentTurnSource

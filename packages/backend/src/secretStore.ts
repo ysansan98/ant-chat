@@ -21,6 +21,16 @@ export class KeychainSecretStore implements SecretStore {
     await keytar.deletePassword(SERVICE_NAME, getProviderApiKeyId(providerId))
   }
 
+  async saveChannelCredential(input: { channelAccountId: string, value: string }): Promise<{ kind: 'secret_ref', id: string, scope: 'persistent' }> {
+    const id = `channel:${input.channelAccountId}:credential`
+    await keytar.setPassword(SERVICE_NAME, id, input.value)
+    return { kind: 'secret_ref', id, scope: 'persistent' }
+  }
+
+  async deleteChannelCredential(channelAccountId: string): Promise<void> {
+    await keytar.deletePassword(SERVICE_NAME, `channel:${channelAccountId}:credential`)
+  }
+
   async createTurnSecret(input: { runId: string, label: string, value: string }): Promise<SecretRef> {
     const id = `turn:${input.runId}:${randomUUID()}`
     this.turnSecrets.set(id, input.value)

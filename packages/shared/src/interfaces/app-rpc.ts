@@ -49,6 +49,21 @@ export interface RpcEndpoint<TInput, TOutput> {
 }
 
 export interface AppRpcContract {
+  'channel.list': RpcEndpoint<undefined, import('./channels').ChannelAccountView[]>
+  'channel.setup': RpcEndpoint<{ channelType: import('./channels').ChannelType, displayName: string, defaultWorkspacePath: string }, import('./channels').ChannelSetupResult>
+  'channel.getSetupStatus': RpcEndpoint<{ setupId: string }, import('./channels').ChannelSetupResult>
+  'channel.disconnect': RpcEndpoint<{ id: string }, import('./channels').ChannelAccountView>
+  'channel.listPairingRequests': RpcEndpoint<{ channelAccountId: string }, import('./channels').ChannelPairing[]>
+  'channel.rejectPairing': RpcEndpoint<{ id: string }, import('./channels').ChannelPairing>
+  'channel.create': RpcEndpoint<{ channelType: import('./channels').ChannelType, displayName: string, credential: string, defaultWorkspacePath: string }, import('./channels').ChannelAccountView>
+  'channel.update': RpcEndpoint<{ id: string, displayName?: string, credential?: string, defaultWorkspacePath?: string | null }, import('./channels').ChannelAccountView>
+  'channel.delete': RpcEndpoint<{ id: string }, null>
+  'channel.listPairings': RpcEndpoint<{ channelAccountId: string }, import('./channels').ChannelPairing[]>
+  'channel.approvePairing': RpcEndpoint<{ id: string }, import('./channels').ChannelPairing>
+  'channel.revokePairing': RpcEndpoint<{ id: string }, import('./channels').ChannelPairing>
+  'channel.getStatus': RpcEndpoint<{ channelType: import('./channels').ChannelType }, { status: import('./channels').ChannelAccountStatus, lastError?: string }>
+  'channel.enable': RpcEndpoint<{ id: string }, { id: string, enabled: boolean, status: import('./channels').ChannelAccountStatus }>
+  'channel.disable': RpcEndpoint<{ id: string }, { id: string, enabled: boolean, status: import('./channels').ChannelAccountStatus }>
   'runtime.getCommandHostStatus': RpcEndpoint<undefined, CommandHostStatus>
 
   'chat.createConversationsTitle': RpcEndpoint<handleInitConversationTitleOptions, IConversations>

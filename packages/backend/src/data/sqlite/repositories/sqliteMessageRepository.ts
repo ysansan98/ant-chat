@@ -41,7 +41,10 @@ const MESSAGE_COLUMNS = `
   turn_id,
   event_type,
   compacted_through_message_id,
-  duration_ms
+  duration_ms,
+  origin_type,
+  origin_channel_account_id,
+  origin_external_chat_id
 `
 
 export class SqliteMessageRepository implements MessageRepository {
@@ -106,9 +109,12 @@ export class SqliteMessageRepository implements MessageRepository {
             turn_id,
             event_type,
             compacted_through_message_id,
-            duration_ms
+            duration_ms,
+            origin_type,
+            origin_channel_account_id,
+            origin_external_chat_id
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           RETURNING ${MESSAGE_COLUMNS}
         `).get(
           id,
@@ -124,6 +130,9 @@ export class SqliteMessageRepository implements MessageRepository {
           'eventType' in message ? message.eventType ?? null : null,
           'compactedThroughMessageId' in message ? message.compactedThroughMessageId ?? null : null,
           null,
+          'originType' in message ? message.originType : 'local',
+          'originChannelAccountId' in message ? message.originChannelAccountId ?? null : null,
+          'originExternalChatId' in message ? message.originExternalChatId ?? null : null,
         )
       })
 
@@ -205,6 +214,18 @@ export class SqliteMessageRepository implements MessageRepository {
     if (message.durationMs !== undefined) {
       fields.push('duration_ms = ?')
       params.push(message.durationMs)
+    }
+    if (message.originType !== undefined) {
+      fields.push('origin_type = ?')
+      params.push(message.originType)
+    }
+    if (message.originChannelAccountId !== undefined) {
+      fields.push('origin_channel_account_id = ?')
+      params.push(message.originChannelAccountId ?? null)
+    }
+    if (message.originExternalChatId !== undefined) {
+      fields.push('origin_external_chat_id = ?')
+      params.push(message.originExternalChatId ?? null)
     }
 
     if (fields.length === 0) {

@@ -38,6 +38,9 @@ export interface IMessageBase {
   convId: string
   createdAt: Timestamp
   turnId?: string
+  originType?: 'local' | 'feishu' | 'weixin'
+  originChannelAccountId?: string | null
+  originExternalChatId?: string | null
 }
 
 // 用户消息
@@ -99,6 +102,9 @@ export interface IMessage {
   turnId?: string
   /** Last persisted message represented by a compaction summary. */
   compactedThroughMessageId?: string
+  originType?: 'local' | 'feishu' | 'weixin'
+  originChannelAccountId?: string | null
+  originExternalChatId?: string | null
 }
 
 // 消息内容

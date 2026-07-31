@@ -14,6 +14,14 @@ export type AgentTurnSource
       allowedMcpServers: string[]
       permissionPolicy: AutomationPermissionPolicy
     }
+    | {
+      type: 'channel'
+      channelType: 'feishu' | 'weixin'
+      channelAccountId: string
+      externalUserId: string
+      externalChatId: string
+      externalMessageId: string
+    }
 
 export type AgentTaskStatus
   = | 'running'

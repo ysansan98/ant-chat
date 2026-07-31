@@ -3,6 +3,11 @@ import type {
   AutomationDefinition,
   AutomationInput,
   AutomationRun,
+  ChannelAccountStatus,
+  ChannelAccountView,
+  ChannelPairing,
+  ChannelSetupResult,
+  ChannelType,
   CreateProviderConfigSchema,
   GeneralSettingsState,
   McpConfigSchema,
@@ -30,6 +35,23 @@ export interface ControlPlaneModules {
   provider: ProviderControlPlane
   mcp: McpControlPlane
   automation: AutomationControlPlane
+  channel?: ChannelControlPlane
+}
+
+export interface ChannelControlPlane {
+  list: () => Promise<ChannelAccountView[]>
+  getStatus: (input: { channelType: ChannelType }) => { status: ChannelAccountStatus, lastError?: string }
+  enable: (input: { id: string }) => Promise<{ id: string, enabled: boolean, status: ChannelAccountStatus }>
+  disable: (input: { id: string }) => Promise<{ id: string, enabled: boolean, status: ChannelAccountStatus }>
+  setup: (input: { channelType: ChannelType, displayName: string, defaultWorkspacePath: string }) => Promise<ChannelSetupResult>
+  disconnect: (input: { id: string }) => Promise<ChannelAccountView>
+  listPairingRequests: (input: { channelAccountId: string }) => Promise<ChannelPairing[]>
+  rejectPairing: (input: { id: string }) => Promise<ChannelPairing>
+  create: (input: { channelType: ChannelType, displayName: string, credential: string, defaultWorkspacePath: string }) => Promise<ChannelAccountView>
+  delete: (input: { id: string }) => Promise<null>
+  listPairings: (input: { channelAccountId: string }) => Promise<ChannelPairing[]>
+  approvePairing: (input: { id: string }) => Promise<ChannelPairing>
+  revokePairing: (input: { id: string }) => Promise<ChannelPairing>
 }
 
 export interface SettingsControlPlane {

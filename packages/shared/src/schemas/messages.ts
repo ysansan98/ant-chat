@@ -205,6 +205,9 @@ const BaseMessage = z.object({
   content: MessageContentSchema,
   createAt: z.number(),
   turnId: z.string().optional(),
+  originType: z.enum(['local', 'feishu', 'weixin']).optional(),
+  originChannelAccountId: z.string().nullable().optional(),
+  originExternalChatId: z.string().nullable().optional(),
 })
 
 export const UserMessage = BaseMessage.extend({

@@ -96,5 +96,84 @@ export function createAppDataMigrations(
         }
       },
     },
+    {
+      version: 6,
+      name: '增加消息频道数据模型',
+      migrate(db) {
+        const conversationColumns = new Set((db.prepare('PRAGMA table_info(conversations)').all() as Array<{ name: string }>).map(column => column.name))
+        const messageColumns = new Set((db.prepare('PRAGMA table_info(messages)').all() as Array<{ name: string }>).map(column => column.name))
+        const hasMessagesTable = Boolean(db.prepare('SELECT 1 AS present FROM sqlite_master WHERE type = \'table\' AND name = \'messages\'').get())
+        if (!conversationColumns.has('source_type'))
+          db.exec('ALTER TABLE conversations ADD COLUMN source_type text NOT NULL DEFAULT \'local\'')
+        if (!conversationColumns.has('source_channel_account_id'))
+          db.exec('ALTER TABLE conversations ADD COLUMN source_channel_account_id text')
+        if (!conversationColumns.has('source_external_chat_id'))
+          db.exec('ALTER TABLE conversations ADD COLUMN source_external_chat_id text')
+        if (hasMessagesTable && !messageColumns.has('origin_type'))
+          db.exec('ALTER TABLE messages ADD COLUMN origin_type text NOT NULL DEFAULT \'local\'')
+        if (hasMessagesTable && !messageColumns.has('origin_channel_account_id'))
+          db.exec('ALTER TABLE messages ADD COLUMN origin_channel_account_id text')
+        if (hasMessagesTable && !messageColumns.has('origin_external_chat_id'))
+          db.exec('ALTER TABLE messages ADD COLUMN origin_external_chat_id text')
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS channel_accounts (
+            id text PRIMARY KEY NOT NULL, channel_type text NOT NULL, display_name text NOT NULL,
+            credential_ref text NOT NULL, default_workspace_path text, enabled integer NOT NULL DEFAULT 0,
+            status text NOT NULL, last_error text, created_at integer NOT NULL, updated_at integer NOT NULL
+          );
+          CREATE UNIQUE INDEX IF NOT EXISTS idx_channel_accounts_type ON channel_accounts(channel_type);
+          CREATE TABLE IF NOT EXISTS channel_pairings (
+            id text PRIMARY KEY NOT NULL, channel_account_id text NOT NULL REFERENCES channel_accounts(id) ON DELETE CASCADE,
+            external_user_id text NOT NULL, external_display_name text NOT NULL, status text NOT NULL,
+            requested_at integer NOT NULL, expires_at integer, approved_at integer
+          );
+          CREATE UNIQUE INDEX IF NOT EXISTS idx_channel_pairings_identity ON channel_pairings(channel_account_id, external_user_id);
+          CREATE TABLE IF NOT EXISTS channel_sessions (
+            channel_account_id text NOT NULL REFERENCES channel_accounts(id) ON DELETE CASCADE,
+            external_chat_id text NOT NULL, active_conversation_id text NOT NULL REFERENCES conversations(id),
+            current_workspace_path text NOT NULL, created_at integer NOT NULL, updated_at integer NOT NULL,
+            PRIMARY KEY (channel_account_id, external_chat_id)
+          );
+          CREATE TABLE IF NOT EXISTS channel_message_receipts (
+            id text PRIMARY KEY NOT NULL, channel_account_id text NOT NULL, external_chat_id text NOT NULL,
+            external_message_id text NOT NULL, direction text NOT NULL, local_message_id text, status text NOT NULL,
+            part_index integer, part_count integer, last_error text, created_at integer NOT NULL, updated_at integer NOT NULL,
+            UNIQUE (channel_account_id, external_message_id, direction, part_index)
+          );
+          CREATE UNIQUE INDEX IF NOT EXISTS idx_channel_receipts_idempotency
+            ON channel_message_receipts (channel_account_id, external_message_id, direction, COALESCE(part_index, -1));
+        `)
+      },
+    },
+    {
+      version: 7,
+      name: '约束频道出站消息与平台消息一一对应',
+      migrate(db) {
+        db.exec(`
+          DELETE FROM channel_message_receipts
+          WHERE direction = 'outbound'
+            AND local_message_id IS NOT NULL
+            AND id NOT IN (
+              SELECT MIN(id)
+              FROM channel_message_receipts
+              WHERE direction = 'outbound' AND local_message_id IS NOT NULL
+              GROUP BY channel_account_id, local_message_id
+            );
+          CREATE UNIQUE INDEX IF NOT EXISTS idx_channel_receipts_outbound_local_message
+            ON channel_message_receipts (channel_account_id, local_message_id)
+            WHERE direction = 'outbound' AND local_message_id IS NOT NULL;
+        `)
+      },
+    },
+    {
+      version: 8,
+      name: '增加消息频道权限模式',
+      migrate(db) {
+        const columns = db.prepare('PRAGMA table_info(channel_accounts)').all() as Array<{ name: string }>
+        if (!columns.some(column => column.name === 'permission_mode')) {
+          db.exec('ALTER TABLE channel_accounts ADD COLUMN permission_mode text NOT NULL DEFAULT \'hybrid\'')
+        }
+      },
+    },
   ]
 }

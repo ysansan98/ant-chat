@@ -18,7 +18,10 @@ const CONVERSATION_COLUMNS = `
   created_at,
   updated_at,
   archived,
-  settings
+  settings,
+  source_type,
+  source_channel_account_id,
+  source_external_chat_id
 `
 
 export class SqliteConversationRepository implements ConversationRepository {
@@ -104,8 +107,8 @@ export class SqliteConversationRepository implements ConversationRepository {
     const parsed = AddConversationInput.parse(conversation)
     const id = `conv-${nanoid()}`
     const result = this.db.prepare<unknown[], ConversationRow>(`
-      INSERT INTO conversations (id, workspace_path, title, conversation_instructions, created_at, updated_at, archived, settings)
-      VALUES (?, ?, ?, ?, ?, ?, 0, ?)
+      INSERT INTO conversations (id, workspace_path, title, conversation_instructions, created_at, updated_at, archived, settings, source_type, source_channel_account_id, source_external_chat_id)
+      VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
       RETURNING ${CONVERSATION_COLUMNS}
     `).get(
       id,
@@ -115,6 +118,9 @@ export class SqliteConversationRepository implements ConversationRepository {
       parsed.createdAt,
       parsed.updatedAt,
       stringifyJson(parsed.settings),
+      parsed.sourceType ?? 'local',
+      parsed.sourceChannelAccountId ?? null,
+      parsed.sourceExternalChatId ?? null,
     )
 
     if (!result) {
@@ -152,6 +158,18 @@ export class SqliteConversationRepository implements ConversationRepository {
     if (data.settings !== undefined) {
       fields.push('settings = ?')
       params.push(stringifyJson(data.settings))
+    }
+    if (data.sourceType !== undefined) {
+      fields.push('source_type = ?')
+      params.push(data.sourceType)
+    }
+    if (data.sourceChannelAccountId !== undefined) {
+      fields.push('source_channel_account_id = ?')
+      params.push(data.sourceChannelAccountId ?? null)
+    }
+    if (data.sourceExternalChatId !== undefined) {
+      fields.push('source_external_chat_id = ?')
+      params.push(data.sourceExternalChatId ?? null)
     }
 
     if (fields.length === 0) {
