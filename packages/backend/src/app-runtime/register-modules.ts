@@ -1,4 +1,6 @@
+import type { SkillManifest } from '@ant-chat/shared'
 import type { RuntimeCore } from './createRuntimeCore'
+import type { ChannelAgentDependencies } from './modules/channel'
 import type { RegisteredRoute } from './routeRegistry'
 import type { RuntimeModule } from './runtimeModule'
 import { AppControl } from '../app-control/appControl'
@@ -23,6 +25,10 @@ export interface RegisteredRuntimeModules {
   /** 纯转发的数据访问路由（memory / search / files），声明式绑定到 app-data。 */
   routeBindings: RegisteredRoute[]
   appControl: AppControl
+  /** 宿主专用能力；不注册为普通 AppRpc，避免扩大 Web 文件访问面。 */
+  skills: {
+    importSkillFromZip: (filePath: string) => Promise<SkillManifest>
+  }
 }
 
 export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModules {
@@ -36,7 +42,17 @@ export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModu
     mcpClientHub: mcp.clientHub,
     skills: skills.service,
   })
-  const channel = new ChannelModule(core, agent, [new FeishuConnector(credential => createFeishuTransport(credential, logger), logger)])
+  const listActiveTasks = (conversationId?: string) => agent.listActiveTasks({ conversationId })
+  const channelAgent: ChannelAgentDependencies = {
+    turnService: agent.turnService,
+    updateConversation: input => agent.conversationLifecycle.update(input),
+    listActiveTasks,
+    cancelTask: options => agent.cancelTask(options),
+    approvePendingAction: options => agent.approvePendingAction({ options }),
+    rejectPendingAction: options => agent.rejectPendingAction({ options }),
+    rejectSecretRequest: options => agent.rejectSecretRequest({ options }),
+  }
+  const channel = new ChannelModule(core, channelAgent, [new FeishuConnector(credential => createFeishuTransport(credential, logger), logger)])
   const chat = new ChatModule(
     data.conversationRepository,
     data.messageRepository,
@@ -53,7 +69,7 @@ export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModu
     cancelTask: taskId => agent.runtime.cancelTask({ taskId }),
   })
   const commands = new CommandsModule(core, {
-    agentRuntime: agent.runtime,
+    listActiveTasks,
     aiProviderFactory: provider.aiProviderFactory,
     eventEmitter: agent.eventEmitter,
     conversationLifecycle: agent.conversationLifecycle,
@@ -66,5 +82,8 @@ export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModu
     lifecycle: [workspace, skills, provider, settings, mcp, agent, automation, channel],
     routeBindings: createDataRoutes(core),
     appControl,
+    skills: {
+      importSkillFromZip: filePath => skills.importSkillFromZip(filePath),
+    },
   }
 }

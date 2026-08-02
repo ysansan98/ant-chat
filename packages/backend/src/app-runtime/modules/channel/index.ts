@@ -1,15 +1,25 @@
 /* eslint-disable style/max-statements-per-line */
 
-import type { AppRpcInput, ChannelAccount, ChannelAccountView, ChannelSetupResult, ChannelType } from '@ant-chat/shared'
+import type { AgentTaskSnapshot, ApprovePendingActionOptions, AppRpcInput, CancelTaskOptions, ChannelAccount, ChannelAccountView, ChannelSetupResult, ChannelType, ConversationsSettingsSchema, RejectPendingActionOptions } from '@ant-chat/shared'
+import type { AgentTurnService } from '../../../agent-runtime/agentTurnService'
 import type { ChannelActionEvent, ChannelActionResult, ChannelConnector } from '../../../channels'
 import type { RuntimeCore } from '../../createRuntimeCore'
 import type { RuntimeModuleMethods } from '../../routeRegistry'
 import type { RuntimeModule } from '../../runtimeModule'
-import type { AgentModule } from '../agent'
 import { randomUUID } from 'node:crypto'
 import { ChannelDelivery, ChannelRuntime } from '../../../channels'
 import { FeishuAppRegistration } from '../../../channels/feishu'
 import { Method, Module } from '../../decorators'
+
+export interface ChannelAgentDependencies {
+  turnService: Pick<AgentTurnService, 'startTurn'>
+  updateConversation: (input: { id: string, settings: ConversationsSettingsSchema }) => Promise<unknown>
+  listActiveTasks: (conversationId?: string) => AgentTaskSnapshot[]
+  cancelTask: (options: CancelTaskOptions) => void
+  approvePendingAction: (options: ApprovePendingActionOptions) => void
+  rejectPendingAction: (options: RejectPendingActionOptions) => void
+  rejectSecretRequest: (options: { requestId: string, reason?: string }) => void
+}
 
 @Module('channel')
 export class ChannelModule implements RuntimeModuleMethods<'channel'>, RuntimeModule {
@@ -18,14 +28,14 @@ export class ChannelModule implements RuntimeModuleMethods<'channel'>, RuntimeMo
   private readonly connectors: Map<ChannelType, ChannelConnector>
   private readonly feishuRegistration = new FeishuAppRegistration()
   private readonly setupAccounts = new Map<string, string>()
-  constructor(private readonly core: RuntimeCore, private readonly agent: AgentModule, connectors: ChannelConnector[] = []) {
+  constructor(private readonly core: Pick<RuntimeCore, 'data' | 'events' | 'logger' | 'secretStore'>, private readonly agent: ChannelAgentDependencies, connectors: ChannelConnector[] = []) {
     this.connectors = new Map(connectors.map(connector => [connector.type, connector]))
     this.runtime = new ChannelRuntime({
       data: core.data,
       turnService: agent.turnService,
-      updateConversation: input => agent.conversationLifecycle.update(input),
+      updateConversation: agent.updateConversation,
       stopTask: async (conversationId) => {
-        const task = agent.listActiveTasks({ conversationId })
+        const task = agent.listActiveTasks(conversationId)
           .find(item => ['running', 'awaiting_approval'].includes(item.status))
         if (!task)
           throw new Error('当前会话没有正在执行的任务。')
@@ -39,16 +49,16 @@ export class ChannelModule implements RuntimeModuleMethods<'channel'>, RuntimeMo
         temperature: model.temperature,
         maxOutputTokens: model.maxOutputTokens,
       }))),
-      listActiveTasks: conversationId => agent.listActiveTasks({ conversationId }).filter(task => task.status === 'awaiting_approval').map(task => ({ taskId: task.taskId, status: task.status, pendingAction: task.pendingAction })),
+      listActiveTasks: conversationId => agent.listActiveTasks(conversationId).filter(task => task.status === 'awaiting_approval').map(task => ({ taskId: task.taskId, status: task.status, pendingAction: task.pendingAction })),
       approvePending: async (conversationId) => {
-        const task = agent.listActiveTasks({ conversationId }).find(item => item.status === 'awaiting_approval' && item.pendingAction)
+        const task = agent.listActiveTasks(conversationId).find(item => item.status === 'awaiting_approval' && item.pendingAction)
         if (task?.pendingAction)
-          agent.approvePendingAction({ options: { taskId: task.taskId, actionId: task.pendingAction.actionId } })
+          agent.approvePendingAction({ taskId: task.taskId, actionId: task.pendingAction.actionId })
       },
       denyPending: async (conversationId) => {
-        const task = agent.listActiveTasks({ conversationId }).find(item => item.status === 'awaiting_approval' && item.pendingAction)
+        const task = agent.listActiveTasks(conversationId).find(item => item.status === 'awaiting_approval' && item.pendingAction)
         if (task?.pendingAction)
-          agent.rejectPendingAction({ options: { taskId: task.taskId, actionId: task.pendingAction.actionId, reason: '通过消息频道拒绝' } })
+          agent.rejectPendingAction({ taskId: task.taskId, actionId: task.pendingAction.actionId, reason: '通过消息频道拒绝' })
       },
     })
     this.delivery = new ChannelDelivery({ events: core.events, data: core.data, connectors: this.connectors })
@@ -314,7 +324,7 @@ export class ChannelModule implements RuntimeModuleMethods<'channel'>, RuntimeMo
         if (task.userMessageId !== action.executionId)
           return { status: 'error', message: '敏感信息请求与当前任务不匹配。' }
         this.claimAction(event)
-        this.agent.rejectSecretRequest({ options: { requestId: action.requestId, reason: '用户通过飞书拒绝提供敏感信息' } })
+        this.agent.rejectSecretRequest({ requestId: action.requestId, reason: '用户通过飞书拒绝提供敏感信息' })
         message = '已拒绝提供敏感信息。'
       }
       else if (action.kind === 'task.cancel') {
@@ -329,11 +339,11 @@ export class ChannelModule implements RuntimeModuleMethods<'channel'>, RuntimeMo
           return { status: 'error', message: '审批操作已处理或已过期。' }
         this.claimAction(event)
         if (action.kind === 'approval.approve') {
-          this.agent.approvePendingAction({ options: { taskId: action.taskId, actionId: action.actionId } })
+          this.agent.approvePendingAction({ taskId: action.taskId, actionId: action.actionId })
           message = '已批准，本次任务将继续执行。'
         }
         else {
-          this.agent.rejectPendingAction({ options: { taskId: action.taskId, actionId: action.actionId, reason: '用户通过飞书拒绝' } })
+          this.agent.rejectPendingAction({ taskId: action.taskId, actionId: action.actionId, reason: '用户通过飞书拒绝' })
           message = '已拒绝该操作。'
         }
       }
@@ -360,7 +370,7 @@ export class ChannelModule implements RuntimeModuleMethods<'channel'>, RuntimeMo
   }
 
   private requireActionTask(conversationId: string, taskIdOrExecutionId: string, event: ChannelActionEvent) {
-    const task = this.agent.listActiveTasks({ conversationId }).find(item => item.taskId === taskIdOrExecutionId || item.userMessageId === taskIdOrExecutionId)
+    const task = this.agent.listActiveTasks(conversationId).find(item => item.taskId === taskIdOrExecutionId || item.userMessageId === taskIdOrExecutionId)
     if (!task || task.turnSource?.type !== 'channel'
       || task.turnSource.channelAccountId !== event.channelAccountId
       || task.turnSource.externalUserId !== event.externalUserId

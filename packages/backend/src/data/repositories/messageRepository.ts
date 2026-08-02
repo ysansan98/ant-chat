@@ -7,4 +7,6 @@ export interface MessageRepository {
   update: (message: UpdateMessageSchema) => Promise<IMessage>
   delete: (id: string) => Promise<boolean>
   batchDelete: (ids: string[]) => Promise<boolean>
+  loadAttachmentData: (fileId: string) => Promise<string | null>
+  loadVisualizationData: (input: { conversationId: string, messageId: string, fileId: string }) => Promise<string | null>
 }

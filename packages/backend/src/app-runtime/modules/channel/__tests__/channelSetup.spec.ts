@@ -101,7 +101,7 @@ describe('channel module 频道配置（扫码创建 / 重新授权）', () => {
       secretStore,
     } as never, {
       turnService: { startTurn },
-      conversationLifecycle: { update: vi.fn() },
+      updateConversation: vi.fn(),
       listActiveTasks: vi.fn(() => [] as AgentTaskSnapshot[]),
       approvePendingAction: vi.fn(),
       cancelTask: vi.fn(),

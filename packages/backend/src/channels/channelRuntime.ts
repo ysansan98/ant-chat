@@ -4,7 +4,7 @@ import type { AddMessage, AgentMode, AgentRuntimeStartTaskResult, ChannelAccount
 import type { AgentTurnService } from '../agent-runtime/agentTurnService'
 import type { AppDataContext } from '../data'
 import type { ChannelCommand } from './channelCommandParser'
-import { canonicalizeWorkspacePath } from '../data/permissions'
+import { canonicalizeWorkspacePath } from '../workspace/workspaceIdentity'
 import { parseChannelInput } from './channelCommandParser'
 
 export interface ChannelInboundEvent {
