@@ -48,6 +48,7 @@ export class ToolRegistry {
     const nativeTools = filterNativeToolsForTurn(getNativeToolService(workspacePath, unrestricted, {
       trustedPaths,
       browser: config.browser,
+      browserAuthState: config.browserAuthState,
       commandHost: config.commandHost,
       browserSession,
       secretStore: config.secretStore,
@@ -58,6 +59,7 @@ export class ToolRegistry {
       : filterNativeToolsForTurn(getNativeToolService(workspacePath, true, {
           trustedPaths,
           browser: config.browser,
+          browserAuthState: config.browserAuthState,
           commandHost: config.commandHost,
           browserSession,
           secretStore: config.secretStore,

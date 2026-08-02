@@ -9,6 +9,7 @@ import { ChatPage } from '@/pages/Chat'
 import { About } from '@/pages/Settings/About'
 import { AppearanceSettings } from '@/pages/Settings/AppearanceSettings'
 import { ArchivedConversations } from '@/pages/Settings/ArchivedConversations'
+import { BrowserProfilesSettings } from '@/pages/Settings/BrowserProfiles'
 import { ChannelsPage } from '@/pages/Settings/Channels'
 import { GeneralSettings } from '@/pages/Settings/GeneralSettings'
 import MCPManage from '@/pages/Settings/MCPManage'
@@ -25,6 +26,7 @@ const settingsRoute = {
     { index: true, element: <Navigate to="./general" replace /> },
     { path: 'general', Component: GeneralSettings },
     { path: 'appearance', Component: AppearanceSettings },
+    { path: 'browser', Component: BrowserProfilesSettings },
     { path: 'memory', Component: MemorySettings },
     { path: 'permissions', Component: PermissionsPage },
     { path: 'channels', Component: ChannelsPage },

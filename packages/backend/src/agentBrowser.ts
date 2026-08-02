@@ -6,10 +6,29 @@ export interface AgentBrowserPaths {
   artifactsPath: string
 }
 
-export function createAgentBrowserPaths(homeDir: string = os.homedir()): AgentBrowserPaths {
-  const root = path.join(homeDir, '.ant-chat', 'browser')
+export interface BrowserIdentityPaths extends AgentBrowserPaths {
+  root: string
+  sessionsPath: string
+  identityPath: string
+  authStatePath: string
+}
+
+export function createAgentBrowserPaths(appDataRoot: string = path.join(os.homedir(), '.ant-chat')): AgentBrowserPaths {
+  const root = path.join(appDataRoot, 'browser')
   return {
     profilePath: path.join(root, 'profile'),
     artifactsPath: path.join(root, 'artifacts'),
+  }
+}
+
+export function createBrowserIdentityPaths(appDataRoot: string = path.join(os.homedir(), '.ant-chat')): BrowserIdentityPaths {
+  const browserPaths = createAgentBrowserPaths(appDataRoot)
+  const root = path.dirname(browserPaths.profilePath)
+  return {
+    root,
+    ...browserPaths,
+    sessionsPath: path.join(root, 'sessions'),
+    identityPath: path.join(root, 'identity.json'),
+    authStatePath: path.join(root, 'auth-state.enc'),
   }
 }

@@ -4,7 +4,7 @@ import { createAgentBrowserPaths } from '../agentBrowser'
 
 describe('agentBrowser paths', () => {
   it('uses one global Ant Chat profile and artifacts directory', () => {
-    expect(createAgentBrowserPaths('/home/user')).toEqual({
+    expect(createAgentBrowserPaths(path.join('/home/user', '.ant-chat'))).toEqual({
       profilePath: path.join('/home/user', '.ant-chat', 'browser', 'profile'),
       artifactsPath: path.join('/home/user', '.ant-chat', 'browser', 'artifacts'),
     })

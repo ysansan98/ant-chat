@@ -1,5 +1,6 @@
 import type {
   AgentBrowserRuntimeConfig,
+  BrowserAuthStateProvider,
   BrowserBackInput,
   BrowserClickInput,
   BrowserCloseInput,
@@ -22,6 +23,7 @@ interface BrowserToolFactoryOptions {
   workspacePath: string
   config: AgentBrowserRuntimeConfig
   state: BrowserSessionState
+  authStateProvider?: BrowserAuthStateProvider
 }
 
 /**
@@ -54,6 +56,7 @@ async function executeMapped(
     workspacePath: options.workspacePath,
     proxyUrl: options.config.proxyUrl,
     state: options.state,
+    authStateProvider: options.authStateProvider,
   })
 }
 

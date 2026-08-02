@@ -1,5 +1,6 @@
-export { createAgentBrowserPaths } from './agentBrowser'
-export type { AgentBrowserPaths } from './agentBrowser'
+export { createAgentBrowserPaths, createBrowserIdentityPaths } from './agentBrowser'
+export type { AgentBrowserPaths, BrowserIdentityPaths } from './agentBrowser'
+export { BrowserProfilesModule } from './app-runtime/modules/browserProfiles'
 export { McpModule } from './app-runtime/modules/mcp'
 export { SkillsModule } from './app-runtime/modules/skills'
 export { activateAppRuntime } from './appRuntime'

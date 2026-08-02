@@ -5,6 +5,7 @@ import { AppControl } from '../app-control/appControl'
 import { createFeishuTransport, FeishuConnector } from '../channels/feishu'
 import { AgentModule } from './modules/agent'
 import { AutomationModule } from './modules/automation'
+import { BrowserProfilesModule } from './modules/browserProfiles'
 import { ChannelModule } from './modules/channel'
 import { ChatModule } from './modules/chat'
 import { CommandsModule } from './modules/commands'
@@ -29,6 +30,7 @@ export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModu
   const { data, events, logger, secretStore } = core
 
   const provider = new ProviderModule(data.providerSettingsRepository, secretStore, events, logger)
+  const browserProfiles = new BrowserProfilesModule(core.browserIdentity)
   const skills = new SkillsModule(core)
   const mcp = new McpModule(core)
   const agent = new AgentModule(core, {
@@ -62,8 +64,8 @@ export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModu
   const appControl = new AppControl({ settings, provider, mcp, automation, channel })
 
   return {
-    routes: [chat, settings, provider, mcp, skills, workspace, permissions, runtimeStatus, agent, automation, commands, channel],
-    lifecycle: [workspace, skills, provider, settings, mcp, agent, automation, channel],
+    routes: [chat, settings, provider, mcp, skills, workspace, permissions, runtimeStatus, browserProfiles, agent, automation, commands, channel],
+    lifecycle: [browserProfiles, workspace, skills, provider, settings, mcp, agent, automation, channel],
     routeBindings: createDataRoutes(core),
     appControl,
   }

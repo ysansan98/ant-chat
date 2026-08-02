@@ -24,7 +24,7 @@ let stdin = ''
 process.stdin.setEncoding('utf8')
 process.stdin.on('data', chunk => stdin += chunk)
 process.stdin.on('end', () => {
-  fs.appendFileSync(process.env.INVOCATIONS_PATH, JSON.stringify({ args: process.argv.slice(2), stdin, proxy: process.env.AGENT_BROWSER_PROXY, idle: process.env.AGENT_BROWSER_IDLE_TIMEOUT_MS, socket: process.env.AGENT_BROWSER_SOCKET_DIR }) + '\\n')
+  fs.appendFileSync(process.env.INVOCATIONS_PATH, JSON.stringify({ args: process.argv.slice(2), stdin, proxy: process.env.AGENT_BROWSER_PROXY, idle: process.env.AGENT_BROWSER_IDLE_TIMEOUT_MS, socket: process.env.AGENT_BROWSER_SOCKET_DIR, state: process.env.AGENT_BROWSER_STATE, key: process.env.AGENT_BROWSER_ENCRYPTION_KEY }) + '\\n')
   const delay = Number(process.env.DELAY_MS || 0)
   setTimeout(() => process.stdout.write('ok'), delay)
 })
@@ -92,6 +92,50 @@ process.stdin.on('end', () => {
       'get',
       'title',
     ])
+  })
+
+  it('从内部认证状态 provider 注入 state 和加密密钥', async () => {
+    const statePath = path.join(root, 'auth-state.enc')
+    const result = await runBrowserTool({ command: 'get title' }, {
+      profilePath,
+      artifactsPath,
+      state: {
+        sessionName: 'auth-session',
+        socketPath: path.join(root, 'socket'),
+        profilePath,
+        headed: false,
+        started: false,
+        authState: { statePath, encryptionKey: 'a'.repeat(64) },
+        queue: Promise.resolve(),
+      },
+      env: { PATH: browserPath(), INVOCATIONS_PATH: invocationsPath },
+    })
+
+    expect(result).toMatchObject({ ok: true })
+    const invocation = JSON.parse(fs.readFileSync(invocationsPath, 'utf8').trim())
+    expect(invocation.state).toBe(statePath)
+    expect(invocation.key).toBe('a'.repeat(64))
+  })
+
+  it('显式系统 Profile 不混入应用托管认证状态', async () => {
+    await runBrowserTool({ command: 'open', args: ['https://example.com', '--profile', 'Default'] }, {
+      profilePath,
+      artifactsPath,
+      state: {
+        sessionName: 'system-profile-session',
+        socketPath: path.join(root, 'socket-system'),
+        profilePath,
+        headed: false,
+        started: false,
+        authState: { statePath: path.join(root, 'auth-state.enc'), encryptionKey: 'b'.repeat(64) },
+        queue: Promise.resolve(),
+      },
+      env: { PATH: browserPath(), INVOCATIONS_PATH: invocationsPath },
+    })
+
+    const invocation = JSON.parse(fs.readFileSync(invocationsPath, 'utf8').trim())
+    expect(invocation.state).toBeUndefined()
+    expect(invocation.key).toBeUndefined()
   })
 
   it('agent-browser 和 npx 都不可用时返回安装错误', async () => {

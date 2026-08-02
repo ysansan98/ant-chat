@@ -1,4 +1,4 @@
-import type { AgentToolResult, BrowserToolInput } from '@ant-chat/shared'
+import type { AgentToolResult, BrowserAuthStateProvider, BrowserToolInput } from '@ant-chat/shared'
 import type { BrowserSessionState } from './browserSessionManager'
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
@@ -99,6 +99,7 @@ export interface BrowserRunnerOptions {
   env?: NodeJS.ProcessEnv
   proxyUrl?: string
   state?: BrowserSessionState
+  authStateProvider?: BrowserAuthStateProvider
 }
 
 interface BrowserCommand {
@@ -209,9 +210,10 @@ async function executeBrowserTool(
   }
 
   const state = options.state!
-  await fs.promises.mkdir(state.profilePath, { recursive: true })
+  await fs.promises.mkdir(state.profilePath, { recursive: true, mode: 0o700 })
+  await fs.promises.chmod(state.profilePath, 0o700)
   await fs.promises.mkdir(state.socketPath, { recursive: true, mode: 0o700 })
-  await fs.promises.mkdir(options.artifactsPath, { recursive: true })
+  await fs.promises.mkdir(options.artifactsPath, { recursive: true, mode: 0o700 })
 
   const command = normalizeCommand(input.command)
   const { globalArgs, commandArgs } = extractGlobalArgs(input.args ?? [])
@@ -238,7 +240,8 @@ async function executeBrowserTool(
     ...command.split(' '),
     ...normalizeOutputPaths(command, commandArgs, options.workspacePath),
   ]
-  const env = createBrowserEnv(options, state.socketPath)
+  // 显式系统 Profile 是 outside 能力，不得把应用托管状态混入用户原始 Profile。
+  const env = createBrowserEnv(options, state.socketPath, explicitProfileIndex < 0)
   const timeoutMs = Math.min(input.timeoutMs ?? DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS)
 
   return await new Promise((resolve) => {
@@ -422,13 +425,14 @@ function extractGlobalArgs(args: string[]): { globalArgs: string[], commandArgs:
   return { globalArgs, commandArgs }
 }
 
-function createBrowserEnv(options: BrowserRunnerOptions, socketPath?: string): NodeJS.ProcessEnv {
+function createBrowserEnv(options: BrowserRunnerOptions, socketPath?: string, includeAuthState = true): NodeJS.ProcessEnv {
   const source = {
     ...process.env,
     ...options.env,
   }
   const proxy = options.proxyUrl
     ?? (source.HTTPS_PROXY || source.HTTP_PROXY || source.https_proxy || source.http_proxy)
+  const authState = includeAuthState ? options.state?.authState ?? options.authStateProvider?.getState() : undefined
   return {
     ...source,
     AGENT_BROWSER_CONTENT_BOUNDARIES: '1',
@@ -437,6 +441,12 @@ function createBrowserEnv(options: BrowserRunnerOptions, socketPath?: string): N
     AGENT_BROWSER_SCREENSHOT_DIR: options.artifactsPath,
     ...(socketPath ? { AGENT_BROWSER_SOCKET_DIR: socketPath } : {}),
     ...(proxy ? { AGENT_BROWSER_PROXY: proxy } : {}),
+    ...(authState
+      ? {
+          AGENT_BROWSER_STATE: authState.statePath,
+          AGENT_BROWSER_ENCRYPTION_KEY: authState.encryptionKey,
+        }
+      : {}),
   }
 }
 

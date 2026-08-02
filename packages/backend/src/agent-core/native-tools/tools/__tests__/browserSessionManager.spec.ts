@@ -61,6 +61,27 @@ describe('browserSessionManager 行为', () => {
     expect(next.profilePath).toBe(first.profilePath)
   })
 
+  it('认证状态 generation 变化后创建新会话并保留旧 Profile', () => {
+    let generation = 0
+    const provider = {
+      getGeneration: () => generation,
+      getState: () => ({ statePath: `/tmp/state-${generation}`, encryptionKey: 'a'.repeat(64) }),
+    }
+    const manager = new BrowserSessionManager({
+      profilePath: path.join(root, 'profile'),
+      artifactsPath: path.join(root, 'artifacts'),
+    }, provider)
+    const first = manager.get('conv-1')
+    generation = 1
+
+    const next = manager.get('conv-1')
+
+    expect(next).not.toBe(first)
+    expect(next.authGeneration).toBe(1)
+    expect(next.authState?.statePath).toBe('/tmp/state-1')
+    expect(next.profilePath).not.toBe(first.profilePath)
+  })
+
   function createManager() {
     return new BrowserSessionManager({
       profilePath: path.join(root, 'profile'),

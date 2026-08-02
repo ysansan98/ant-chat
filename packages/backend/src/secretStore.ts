@@ -43,6 +43,18 @@ export class KeychainSecretStore implements SecretStore {
     await keytar.deletePassword(SERVICE_NAME, getMcpOAuthCredentialId(input.endpoint, input.issuer))
   }
 
+  async getBrowserAuthStateKey(): Promise<string | null> {
+    return await keytar.getPassword(SERVICE_NAME, 'browser:auth-state-key')
+  }
+
+  async saveBrowserAuthStateKey(key: string): Promise<void> {
+    await keytar.setPassword(SERVICE_NAME, 'browser:auth-state-key', key)
+  }
+
+  async deleteBrowserAuthStateKey(): Promise<void> {
+    await keytar.deletePassword(SERVICE_NAME, 'browser:auth-state-key')
+  }
+
   async createTurnSecret(input: { runId: string, label: string, value: string }): Promise<SecretRef> {
     const id = `turn:${input.runId}:${randomUUID()}`
     this.turnSecrets.set(id, input.value)
