@@ -246,10 +246,8 @@ export class BrowserIdentityStore implements BrowserAuthStateProvider {
 
     const startedAt = Date.now()
     const processHandle = this.spawnBrowser(source.executablePath, [
-      '--user-data-dir',
-      source.userDataDir,
-      '--profile-directory',
-      source.profileDirectory,
+      `--user-data-dir=${source.userDataDir}`,
+      `--profile-directory=${source.profileDirectory}`,
       '--remote-debugging-address=127.0.0.1',
       '--remote-debugging-port=0',
       '--headless=new',

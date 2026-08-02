@@ -115,7 +115,7 @@ describe('browserIdentityStore 行为', () => {
       discoverSources: async () => [source],
       runStateSave: async ({ statePath }) => fs.writeFileSync(statePath, 'encrypted-state'),
       spawnBrowser: ((_command: string, args: string[]) => {
-        const userDataDir = args[args.indexOf('--user-data-dir') + 1]
+        const userDataDir = args.find(arg => arg.startsWith('--user-data-dir='))!.slice('--user-data-dir='.length)
         fs.writeFileSync(path.join(userDataDir, 'DevToolsActivePort'), '9222\n/devtools/browser/test\n')
         const child = new EventEmitter() as EventEmitter & { exitCode: number | null, signalCode: NodeJS.Signals | null, kill: () => boolean }
         child.exitCode = null
