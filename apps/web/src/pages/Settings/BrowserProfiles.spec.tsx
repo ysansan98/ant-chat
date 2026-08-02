@@ -1,3 +1,4 @@
+import type { BrowserIdentityStatus } from '@ant-chat/shared'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { browserProfilesApi } from '@/api/browserProfilesApi'
@@ -30,12 +31,31 @@ describe('浏览器设置页', () => {
   it('显示发现的 Profile，并可选择导入', async () => {
     render(<BrowserProfilesSettings />)
 
-    await waitFor(() => expect(screen.getByText('选择一个已发现的 Chrome、Edge、Chromium 或 Brave Profile 开始导入。')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('选择一个已发现的 Chrome、Edge、Chromium 或 Brave Profile 导入 Cookies。')).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: '选择浏览器 Profile' }))
     fireEvent.click(await screen.findByRole('button', { name: /Chrome 工作账号/ }))
 
     await waitFor(() => expect(browserProfilesApi.importSource).toHaveBeenCalledWith('chrome-work'))
     expect(await screen.findByText('已导入')).toBeInTheDocument()
+  })
+
+  it('导入进行中显示明确的 loading 状态', async () => {
+    let resolveImport!: (status: BrowserIdentityStatus) => void
+    vi.mocked(browserProfilesApi.importSource).mockReturnValueOnce(new Promise((resolve) => {
+      resolveImport = resolve
+    }))
+
+    render(<BrowserProfilesSettings />)
+
+    await waitFor(() => expect(screen.getByText('选择一个已发现的 Chrome、Edge、Chromium 或 Brave Profile 导入 Cookies。')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: '选择浏览器 Profile' }))
+    fireEvent.click(await screen.findByRole('button', { name: /Chrome 工作账号/ }))
+
+    expect(screen.getByRole('status')).toHaveTextContent('正在导入浏览器 Cookies，请稍候')
+    expect(screen.getByRole('button', { name: /Chrome 工作账号/ })).toBeDisabled()
+
+    resolveImport({ imported: true, browserName: 'Chrome', profileName: '工作账号', importedAt: 1, sourceAvailable: true })
+    await waitFor(() => expect(screen.getByText('已导入')).toBeInTheDocument())
   })
 
   it('导入失败后保留当前来源展示', async () => {

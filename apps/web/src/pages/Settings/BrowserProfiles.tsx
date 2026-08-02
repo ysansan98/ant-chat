@@ -38,11 +38,11 @@ export function BrowserProfilesSettings() {
       const nextStatus = await browserProfilesApi.importSource(sourceId)
       setStatus(nextStatus)
       setSourceDialogOpen(false)
-      toast.success('浏览器登录状态已更新')
+      toast.success('浏览器 Cookies 已更新')
     }
     catch (error) {
       // 失败时只展示错误，不清空旧状态；后端导入本身也是事务性的。
-      toast.error(error instanceof Error ? error.message : '导入浏览器登录状态失败')
+      toast.error(error instanceof Error ? error.message : '导入浏览器 Cookies 失败')
       await refresh().catch(() => {})
     }
     finally {
@@ -55,10 +55,10 @@ export function BrowserProfilesSettings() {
     try {
       await browserProfilesApi.clear()
       setStatus({ imported: false })
-      toast.success('浏览器登录状态已清除')
+      toast.success('浏览器 Cookies 已清除')
     }
     catch (error) {
-      toast.error(error instanceof Error ? error.message : '清除浏览器登录状态失败')
+      toast.error(error instanceof Error ? error.message : '清除浏览器 Cookies 失败')
     }
     finally {
       setWorking(false)
@@ -72,11 +72,11 @@ export function BrowserProfilesSettings() {
       if (nextStatus) {
         setStatus(nextStatus)
         setSourceDialogOpen(false)
-        toast.success('浏览器登录状态已导入')
+        toast.success('浏览器 Cookies 已导入')
       }
     }
     catch (error) {
-      toast.error(error instanceof Error ? error.message : '导入浏览器登录状态失败')
+      toast.error(error instanceof Error ? error.message : '导入浏览器 Cookies 失败')
       await refresh().catch(() => {})
     }
     finally {
@@ -87,7 +87,7 @@ export function BrowserProfilesSettings() {
   return (
     <SettingsPageLayout
       title="浏览器"
-      description="导入本机浏览器的登录状态，让 Browser 工具在受控的应用会话中继续使用。"
+      description="只导入本机浏览器 Cookies，让 Browser 工具在受控的应用会话中继续使用。"
       variant="wide"
     >
       {loading
@@ -108,7 +108,7 @@ export function BrowserProfilesSettings() {
                         <Globe2 className="size-4 text-primary" />
                         应用浏览器身份
                       </CardTitle>
-                      <CardDescription>只保存认证状态快照，不会删除或写回源浏览器数据。</CardDescription>
+                      <CardDescription>只读取 Cookies 并保存应用自己的加密副本，不会删除或写回源浏览器数据。</CardDescription>
                     </div>
                     {status?.imported
                       ? (
@@ -146,7 +146,7 @@ export function BrowserProfilesSettings() {
                       )
                     : (
                         <div className="flex flex-col gap-4">
-                          <p className="text-sm text-muted-foreground">选择一个已发现的 Chrome、Edge、Chromium 或 Brave Profile 开始导入。</p>
+                          <p className="text-sm text-muted-foreground">选择一个已发现的 Chrome、Edge、Chromium 或 Brave Profile 导入 Cookies。</p>
                           <Button className="w-fit" onClick={() => setSourceDialogOpen(true)}>
                             <FolderOpen />
                             选择浏览器 Profile
@@ -159,21 +159,29 @@ export function BrowserProfilesSettings() {
               <Card className="bg-muted/30">
                 <CardContent className="flex gap-3 pt-5 text-sm text-muted-foreground">
                   <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" />
-                  <p>不会导入密码、历史记录、扩展、完整 IndexedDB 或 Service Worker。导入的认证状态只会由 Browser 工具和已明确允许 Browser 的自动化任务使用，并继续受网站访问规则约束。</p>
+                  <p>只导入 Cookies，不导入密码、历史记录、扩展、localStorage、IndexedDB 或 Service Worker。导入的 Cookies 只会由 Browser 工具和已明确允许 Browser 的自动化任务使用，并继续受网站访问规则约束。</p>
                 </CardContent>
               </Card>
             </div>
           )}
 
       <Dialog open={sourceDialogOpen} onOpenChange={setSourceDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg" aria-busy={working}>
           <DialogHeader>
             <DialogTitle>选择浏览器 Profile</DialogTitle>
-            <DialogDescription>应用只读取登录状态并生成自己的加密快照，源浏览器数据不会被清除。</DialogDescription>
+            <DialogDescription>应用只读取 Cookies 并生成自己的加密副本，源浏览器数据不会被清除。</DialogDescription>
           </DialogHeader>
+          {working
+            ? (
+                <div role="status" aria-live="polite" className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                  <Spinner aria-hidden="true" />
+                  正在导入浏览器 Cookies，请稍候…
+                </div>
+              )
+            : null}
           <div className="flex max-h-72 flex-col gap-2 overflow-y-auto">
             {sources.length === 0
-              ? <p className="py-4 text-sm text-muted-foreground">没有发现可用的浏览器 Profile。请确认浏览器已安装，或使用手动选择。</p>
+              ? <p className="py-4 text-sm text-muted-foreground">没有发现可用的浏览器 Profile。请确认本机仍保留浏览器数据，或使用手动选择。</p>
               : sources.map(source => (
                   <button
                     key={source.sourceId}

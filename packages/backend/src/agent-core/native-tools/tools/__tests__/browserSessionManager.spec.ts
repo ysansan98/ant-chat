@@ -65,7 +65,7 @@ describe('browserSessionManager 行为', () => {
     let generation = 0
     const provider = {
       getGeneration: () => generation,
-      getState: () => ({ statePath: `/tmp/state-${generation}`, encryptionKey: 'a'.repeat(64) }),
+      getCookies: () => [{ name: `sid-${generation}`, value: 'secret', domain: '.example.com', path: '/', secure: true, httpOnly: true }],
     }
     const manager = new BrowserSessionManager({
       profilePath: path.join(root, 'profile'),
@@ -78,7 +78,7 @@ describe('browserSessionManager 行为', () => {
 
     expect(next).not.toBe(first)
     expect(next.authGeneration).toBe(1)
-    expect(next.authState?.statePath).toBe('/tmp/state-1')
+    expect(next.authCookies?.[0]?.name).toBe('sid-1')
     expect(next.profilePath).not.toBe(first.profilePath)
   })
 

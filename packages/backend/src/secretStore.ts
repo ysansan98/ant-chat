@@ -43,16 +43,16 @@ export class KeychainSecretStore implements SecretStore {
     await keytar.deletePassword(SERVICE_NAME, getMcpOAuthCredentialId(input.endpoint, input.issuer))
   }
 
-  async getBrowserAuthStateKey(): Promise<string | null> {
-    return await keytar.getPassword(SERVICE_NAME, 'browser:auth-state-key')
+  async getBrowserCookieEncryptionKey(): Promise<string | null> {
+    return await keytar.getPassword(SERVICE_NAME, 'browser:cookie-encryption-key')
   }
 
-  async saveBrowserAuthStateKey(key: string): Promise<void> {
-    await keytar.setPassword(SERVICE_NAME, 'browser:auth-state-key', key)
+  async saveBrowserCookieEncryptionKey(key: string): Promise<void> {
+    await keytar.setPassword(SERVICE_NAME, 'browser:cookie-encryption-key', key)
   }
 
-  async deleteBrowserAuthStateKey(): Promise<void> {
-    await keytar.deletePassword(SERVICE_NAME, 'browser:auth-state-key')
+  async deleteBrowserCookieEncryptionKey(): Promise<void> {
+    await keytar.deletePassword(SERVICE_NAME, 'browser:cookie-encryption-key')
   }
 
   async createTurnSecret(input: { runId: string, label: string, value: string }): Promise<SecretRef> {

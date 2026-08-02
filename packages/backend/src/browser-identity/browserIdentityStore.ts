@@ -1,19 +1,20 @@
-import type { BrowserAuthStateProvider, BrowserIdentityStatus, BrowserProfileSourceView } from '@ant-chat/shared'
+import type { BrowserAuthStateProvider, BrowserCookie, BrowserIdentityStatus, BrowserProfileSourceView } from '@ant-chat/shared'
 import type { BrowserIdentityPaths } from '../agentBrowser'
 import type { SystemLogger } from '../systemLogger'
+import type { BrowserCookieImportResult } from './browserCookieImporter'
 import type { BrowserProfileSource } from './browserProfileDiscovery'
-import { spawn } from 'node:child_process'
-import { randomBytes, randomUUID } from 'node:crypto'
+import { Buffer } from 'node:buffer'
+import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from 'node:crypto'
 import fs from 'node:fs'
-import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
+import { BrowserCookieImportError, importBrowserCookies } from './browserCookieImporter'
 import { discoverBrowserProfiles, inspectBrowserDirectory } from './browserProfileDiscovery'
 
 interface BrowserAuthStateKeyStore {
-  getBrowserAuthStateKey: () => Promise<string | null>
-  saveBrowserAuthStateKey: (key: string) => Promise<void>
-  deleteBrowserAuthStateKey: () => Promise<void>
+  getBrowserCookieEncryptionKey: () => Promise<string | null>
+  saveBrowserCookieEncryptionKey: (key: string) => Promise<void>
+  deleteBrowserCookieEncryptionKey: () => Promise<void>
 }
 
 interface StoredBrowserIdentity {
@@ -29,33 +30,38 @@ interface StoredBrowserIdentity {
   generation: number
 }
 
+interface EncryptedCookieFile {
+  version: 1
+  nonce: string
+  tag: string
+  ciphertext: string
+}
+
 export interface BrowserIdentityStoreOptions {
   paths: BrowserIdentityPaths
   keyStore: BrowserAuthStateKeyStore
   logger?: Pick<SystemLogger, 'info' | 'warn' | 'error'>
-  commandEnvironment?: NodeJS.ProcessEnv
   discovery?: Parameters<typeof discoverBrowserProfiles>[0]
   discoverSources?: () => Promise<BrowserProfileSource[]>
   now?: () => number
-  spawnBrowser?: typeof spawn
-  runStateSave?: (input: { endpoint: string, statePath: string, encryptionKey: string, env: NodeJS.ProcessEnv }) => Promise<void>
+  importCookies?: (source: BrowserProfileSource) => Promise<BrowserCookieImportResult>
 }
 
-const IMPORT_TIMEOUT_MS = 30_000
 export class BrowserIdentityStore implements BrowserAuthStateProvider {
   private current: StoredBrowserIdentity | null = null
   private encryptionKey: string | null = null
+  private cookies: BrowserCookie[] | null = null
   private initialized = false
   private generation = 0
   private lastError: string | undefined
   private operation: Promise<unknown> = Promise.resolve()
 
   private readonly now: () => number
-  private readonly spawnBrowser: typeof spawn
+  private readonly importCookies: (source: BrowserProfileSource) => Promise<BrowserCookieImportResult>
 
   constructor(private readonly options: BrowserIdentityStoreOptions) {
     this.now = options.now ?? Date.now
-    this.spawnBrowser = options.spawnBrowser ?? spawn
+    this.importCookies = options.importCookies ?? (source => importBrowserCookies(source))
   }
 
   async initialize(): Promise<void> {
@@ -70,31 +76,35 @@ export class BrowserIdentityStore implements BrowserAuthStateProvider {
         }
         this.current = value as StoredBrowserIdentity
         this.generation = Number.isInteger(value.generation) ? value.generation! : 0
-        this.encryptionKey = await this.options.keyStore.getBrowserAuthStateKey()
-        const generationStatePath = this.getGenerationStatePath(this.generation)
+        this.encryptionKey = await this.options.keyStore.getBrowserCookieEncryptionKey()
         if (!this.encryptionKey) {
-          this.lastError = '应用托管的浏览器登录状态不可用，请重新导入。'
+          this.lastError = '应用托管的浏览器 Cookies 不可用，请重新导入。'
         }
-        else if (!fs.existsSync(generationStatePath) && fs.existsSync(this.options.paths.authStatePath)) {
-          await this.snapshotCurrentState(this.generation)
-        }
-        else if (!fs.existsSync(generationStatePath)) {
-          this.lastError = '应用托管的浏览器登录状态不可用，请重新导入。'
+        else {
+          const cookiePath = this.getGenerationCookiePath(this.generation)
+          try {
+            this.cookies = await readEncryptedCookies(cookiePath, this.encryptionKey)
+          }
+          catch {
+            this.lastError = fs.existsSync(this.options.paths.cookiesPath)
+              ? '应用托管的浏览器 Cookies 已损坏，请重新导入。'
+              : '旧版登录状态不再兼容，请重新导入 Cookies。'
+          }
         }
       }
       catch {
         this.current = null
-        this.lastError = '浏览器登录状态记录损坏，请重新导入。'
+        this.cookies = null
+        this.lastError = '浏览器身份记录损坏，请重新导入 Cookies。'
       }
     }
     this.initialized = true
   }
 
-  getState(): { statePath: string, encryptionKey: string } | null {
-    const statePath = this.getGenerationStatePath(this.generation)
-    if (!this.initialized || !this.current || !this.encryptionKey || !fs.existsSync(statePath))
+  getCookies(): BrowserCookie[] | null {
+    if (!this.initialized || !this.current || !this.encryptionKey || !this.cookies)
       return null
-    return { statePath, encryptionKey: this.encryptionKey }
+    return this.cookies.map(cookie => ({ ...cookie }))
   }
 
   getGeneration(): number {
@@ -103,7 +113,7 @@ export class BrowserIdentityStore implements BrowserAuthStateProvider {
 
   async getStatus(): Promise<BrowserIdentityStatus> {
     const state = this.current
-    if (!state || !this.getState()) {
+    if (!state || !this.getCookies()) {
       return {
         imported: false,
         error: this.lastError,
@@ -143,23 +153,24 @@ export class BrowserIdentityStore implements BrowserAuthStateProvider {
   }
 
   async importFromDirectory(directory: string): Promise<BrowserIdentityStatus> {
-    return await this.runExclusive(async () => this.importRecord(await inspectBrowserDirectory(directory, this.options.discovery)))
-  }
-
-  private async discoverSourceRecords(): Promise<BrowserProfileSource[]> {
-    return await (this.options.discoverSources?.() ?? discoverBrowserProfiles(this.options.discovery))
+    return await this.runExclusive(async () => {
+      try {
+        return await this.importRecord(await inspectBrowserDirectory(directory, this.options.discovery))
+      }
+      catch (error) {
+        if (error instanceof BrowserIdentityError)
+          throw error
+        throw new BrowserIdentityError('SOURCE_INVALID', error instanceof Error ? error.message : '选择的目录不是有效的浏览器 Profile。', error)
+      }
+    })
   }
 
   async clear(): Promise<void> {
     await this.runExclusive(async () => {
-      await this.options.keyStore.deleteBrowserAuthStateKey()
-      await Promise.all([
-        fs.promises.rm(this.options.paths.authStatePath, { force: true }),
-        fs.promises.rm(this.options.paths.identityPath, { force: true }),
-        this.removeGenerationStates(),
-      ])
+      await this.clearPersistedState()
       this.current = null
       this.encryptionKey = null
+      this.cookies = null
       this.lastError = undefined
       this.generation++
     })
@@ -175,150 +186,45 @@ export class BrowserIdentityStore implements BrowserAuthStateProvider {
   private async importRecord(source: BrowserProfileSource): Promise<BrowserIdentityStatus> {
     this.lastError = undefined
     try {
+      const result = await this.importCookies(source)
       const encryptionKey = this.encryptionKey ?? await this.createEncryptionKey()
-      const temporaryRoot = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'ant-chat-browser-import-'))
-      await fs.promises.chmod(temporaryRoot, 0o700)
-      try {
-        const usedExistingCdp = await this.tryExistingCdp(source, temporaryRoot, encryptionKey)
-        const statePath = path.join(temporaryRoot, 'auth-state.enc')
-        if (!usedExistingCdp) {
-          await this.importFromSourceProfile(source, statePath, encryptionKey)
-        }
-        await fs.promises.chmod(statePath, 0o600)
-        await this.persist(source, encryptionKey, statePath)
+      await this.persist(source, encryptionKey, result.cookies)
+      if (result.failedCount > 0) {
+        this.lastError = `已导入 ${result.cookies.length} 个 Cookies，另有 ${result.failedCount} 个无法解密。`
       }
-      finally {
-        await fs.promises.rm(temporaryRoot, { recursive: true, force: true })
-      }
-      this.lastError = undefined
+      this.options.logger?.info('浏览器 Cookies 导入完成', {
+        browser: source.browserName,
+        profile: source.profileName,
+        cookieCount: result.cookies.length,
+        failedCount: result.failedCount,
+      })
       return await this.getStatus()
     }
     catch (error) {
-      this.lastError = error instanceof BrowserIdentityError ? error.message : '浏览器登录状态导入失败，请重试。'
-      this.options.logger?.warn('浏览器登录状态导入失败', {
+      this.lastError = error instanceof BrowserIdentityError || error instanceof BrowserCookieImportError
+        ? error.message
+        : '浏览器 Cookies 导入失败，请重试。'
+      this.options.logger?.warn('浏览器 Cookies 导入失败', {
         browser: source.browserName,
         profile: source.profileName,
-        errorType: error instanceof BrowserIdentityError ? error.code : 'unknown',
+        errorType: error instanceof BrowserIdentityError || error instanceof BrowserCookieImportError ? error.code : 'unknown',
       })
       throw error instanceof BrowserIdentityError
         ? error
-        : new BrowserIdentityError('IMPORT_FAILED', this.lastError, error)
+        : new BrowserIdentityError(error instanceof BrowserCookieImportError ? error.code : 'IMPORT_FAILED', this.lastError, error)
     }
   }
 
   private async createEncryptionKey(): Promise<string> {
-    const existing = await this.options.keyStore.getBrowserAuthStateKey()
+    const existing = await this.options.keyStore.getBrowserCookieEncryptionKey()
     if (existing)
       return existing
     const key = randomBytes(32).toString('hex')
-    await this.options.keyStore.saveBrowserAuthStateKey(key)
+    await this.options.keyStore.saveBrowserCookieEncryptionKey(key)
     return key
   }
 
-  private async tryExistingCdp(source: BrowserProfileSource, temporaryRoot: string, encryptionKey: string): Promise<boolean> {
-    const endpoint = await readDevToolsEndpoint(source.userDataDir)
-    if (!endpoint)
-      return false
-    try {
-      await this.runStateSave({ endpoint, statePath: path.join(temporaryRoot, 'auth-state.enc'), encryptionKey })
-      return true
-    }
-    catch (error) {
-      if (hasBrowserLock(source.userDataDir)) {
-        throw new BrowserIdentityError('CDP_UNAVAILABLE', '源浏览器正在运行，但无法连接调试接口。请完全退出浏览器后重试。', error)
-      }
-      return false
-    }
-  }
-
-  /**
-   * 关闭源浏览器时仍由它自己打开原 Profile 并通过 CDP 导出。
-   * 不能把 Cookies 数据库复制到临时目录：Chromium 的 App-Bound 加密可能绑定
-   * 原始 Profile 和浏览器进程，复制后既可能失效，也会扩大敏感数据接触面。
-   */
-  private async importFromSourceProfile(source: BrowserProfileSource, statePath: string, encryptionKey: string): Promise<void> {
-    if (!source.executablePath) {
-      throw new BrowserIdentityError('BROWSER_UNAVAILABLE', `找不到${source.browserName}可执行文件，请关闭浏览器后重试或使用手动选择。`)
-    }
-    if (hasBrowserLock(source.userDataDir)) {
-      throw new BrowserIdentityError('SOURCE_RUNNING', '源浏览器正在运行。请完全退出源浏览器后再更新导入。')
-    }
-
-    const startedAt = Date.now()
-    const processHandle = this.spawnBrowser(source.executablePath, [
-      `--user-data-dir=${source.userDataDir}`,
-      `--profile-directory=${source.profileDirectory}`,
-      '--remote-debugging-address=127.0.0.1',
-      '--remote-debugging-port=0',
-      '--headless=new',
-      '--no-first-run',
-      '--no-default-browser-check',
-      'about:blank',
-    ], { detached: process.platform !== 'win32', stdio: 'ignore', env: { ...process.env, ...this.options.commandEnvironment } })
-    try {
-      const endpoint = await waitForDevToolsEndpoint(source.userDataDir, startedAt)
-      await this.runStateSave({ endpoint, statePath, encryptionKey })
-    }
-    catch (error) {
-      if (error instanceof BrowserIdentityError)
-        throw error
-      throw new BrowserIdentityError('DECRYPT_FAILED', '无法解密源浏览器登录状态。请先关闭浏览器，确认该 Profile 能正常打开后重试。', error)
-    }
-    finally {
-      await terminateProcess(processHandle)
-    }
-  }
-
-  private async runStateSave(input: { endpoint: string, statePath: string, encryptionKey: string }): Promise<void> {
-    if (this.options.runStateSave) {
-      await this.options.runStateSave({ ...input, env: this.buildCommandEnvironment(input.encryptionKey) })
-      return
-    }
-    const command = resolveAgentBrowserCommand(this.buildCommandEnvironment(input.encryptionKey))
-    if (!command)
-      throw new BrowserIdentityError('AGENT_BROWSER_UNAVAILABLE', '未找到 agent-browser。请安装 agent-browser 后重试。')
-
-    await new Promise<void>((resolve, reject) => {
-      const child = spawn(command.executablePath, [
-        ...command.executableArgs,
-        '--cdp',
-        input.endpoint,
-        'state',
-        'save',
-        input.statePath,
-      ], { env: this.buildCommandEnvironment(input.encryptionKey), stdio: ['ignore', 'pipe', 'pipe'] })
-      let stderr = ''
-      child.stderr?.on('data', (chunk) => {
-        stderr += String(chunk)
-      })
-      const timer = setTimeout(() => {
-        child.kill('SIGTERM')
-        reject(new BrowserIdentityError('STATE_SAVE_TIMEOUT', '导出浏览器登录状态超时，请确认源浏览器已关闭后重试。'))
-      }, IMPORT_TIMEOUT_MS)
-      child.once('error', () => {
-        clearTimeout(timer)
-        reject(new BrowserIdentityError('STATE_SAVE_FAILED', 'agent-browser 无法连接源浏览器。', new Error(stderr)))
-      })
-      child.once('exit', (code) => {
-        clearTimeout(timer)
-        if (code === 0 && fs.existsSync(input.statePath)) {
-          resolve()
-          return
-        }
-        reject(new BrowserIdentityError('STATE_SAVE_FAILED', 'agent-browser 无法导出浏览器登录状态。请确认浏览器可以正常打开后重试。', new Error(stderr)))
-      })
-    })
-  }
-
-  private buildCommandEnvironment(encryptionKey: string): NodeJS.ProcessEnv {
-    return {
-      ...process.env,
-      ...this.options.commandEnvironment,
-      AGENT_BROWSER_ENCRYPTION_KEY: encryptionKey,
-    }
-  }
-
-  private async persist(source: BrowserProfileSource, encryptionKey: string, statePath: string): Promise<void> {
+  private async persist(source: BrowserProfileSource, encryptionKey: string, cookies: BrowserCookie[]): Promise<void> {
     const importedAt = this.now()
     const nextGeneration = this.generation + 1
     const metadata: StoredBrowserIdentity = {
@@ -334,62 +240,94 @@ export class BrowserIdentityStore implements BrowserAuthStateProvider {
       generation: nextGeneration,
     }
     const identityTemp = `${this.options.paths.identityPath}.tmp-${randomUUID()}`
-    const nextGenerationStatePath = this.getGenerationStatePath(nextGeneration)
-    const generationStateTemp = `${nextGenerationStatePath}.tmp-${randomUUID()}`
+    const nextCookiePath = this.getGenerationCookiePath(nextGeneration)
+    const nextCookieTemp = `${nextCookiePath}.tmp-${randomUUID()}`
     await fs.promises.writeFile(identityTemp, JSON.stringify(metadata, null, 2), { mode: 0o600 })
     try {
-      await fs.promises.copyFile(statePath, generationStateTemp)
-      await fs.promises.chmod(generationStateTemp, 0o600)
-      await fs.promises.rename(generationStateTemp, nextGenerationStatePath)
+      await writeEncryptedCookies(nextCookieTemp, encryptionKey, cookies)
+      await fs.promises.rename(nextCookieTemp, nextCookiePath)
       await replaceFile(this.options.paths.identityPath, identityTemp)
     }
     catch (error) {
-      await fs.promises.rm(generationStateTemp, { force: true })
-      await fs.promises.rm(nextGenerationStatePath, { force: true })
+      await fs.promises.rm(nextCookieTemp, { force: true })
+      await fs.promises.rm(nextCookiePath, { force: true })
       throw error
     }
     finally {
       await fs.promises.rm(identityTemp, { force: true })
     }
+
     this.current = metadata
     this.encryptionKey = encryptionKey
+    this.cookies = cookies.map(cookie => ({ ...cookie }))
     this.generation = nextGeneration
+
+    // 这是当前版本的便捷索引；真正保证旧 Turn 隔离的是 generation 文件和 identity 指针。
+    const currentCookieTemp = `${this.options.paths.cookiesPath}.tmp-${randomUUID()}`
     try {
-      const currentStateTemp = `${this.options.paths.authStatePath}.tmp-${randomUUID()}`
-      await fs.promises.copyFile(nextGenerationStatePath, currentStateTemp)
-      await fs.promises.chmod(currentStateTemp, 0o600)
-      await replaceFile(this.options.paths.authStatePath, currentStateTemp)
+      await fs.promises.copyFile(nextCookiePath, currentCookieTemp)
+      await fs.promises.chmod(currentCookieTemp, 0o600)
+      await replaceFile(this.options.paths.cookiesPath, currentCookieTemp)
     }
     catch {
-      this.options.logger?.warn('浏览器当前状态索引更新失败', {
+      await fs.promises.rm(currentCookieTemp, { force: true })
+      this.options.logger?.warn('浏览器当前 Cookies 索引更新失败', {
         browser: source.browserName,
         profile: source.profileName,
-        errorType: 'current-state-index',
+        errorType: 'current-cookie-index',
       })
     }
-    this.options.logger?.info('浏览器登录状态导入完成', {
-      browser: source.browserName,
-      profile: source.profileName,
-      stateCount: 'unknown',
-    })
   }
 
-  private getGenerationStatePath(generation: number): string {
-    return path.join(this.options.paths.root, `auth-state.g${generation}.enc`)
+  private async discoverSourceRecords(): Promise<BrowserProfileSource[]> {
+    return await (this.options.discoverSources?.() ?? discoverBrowserProfiles(this.options.discovery))
   }
 
-  private async snapshotCurrentState(generation: number): Promise<void> {
-    const generationPath = this.getGenerationStatePath(generation)
-    await fs.promises.rm(generationPath, { force: true })
-    await fs.promises.copyFile(this.options.paths.authStatePath, generationPath)
-    await fs.promises.chmod(generationPath, 0o600)
+  private getGenerationCookiePath(generation: number): string {
+    return path.join(this.options.paths.root, `cookies.g${generation}.enc`)
   }
 
-  private async removeGenerationStates(): Promise<void> {
+  private async clearPersistedState(): Promise<void> {
+    const backupRoot = await fs.promises.mkdtemp(path.join(this.options.paths.root, `.clear-${randomUUID()}-`))
+    await fs.promises.chmod(backupRoot, 0o700)
+    const targets = await this.getManagedFilePaths()
+    const moved: Array<{ targetPath: string, backupPath: string }> = []
+    let keyDeleted = false
+    try {
+      for (const targetPath of targets) {
+        if (!fs.existsSync(targetPath))
+          continue
+        const backupPath = path.join(backupRoot, path.basename(targetPath))
+        await fs.promises.rename(targetPath, backupPath)
+        moved.push({ targetPath, backupPath })
+      }
+      await this.options.keyStore.deleteBrowserCookieEncryptionKey()
+      keyDeleted = true
+    }
+    catch (error) {
+      if (!keyDeleted) {
+        for (const { targetPath, backupPath } of [...moved].reverse()) {
+          await fs.promises.rename(backupPath, targetPath).catch(() => {})
+        }
+      }
+      throw error
+    }
+    finally {
+      await fs.promises.rm(backupRoot, { recursive: true, force: true }).catch(() => {
+        this.options.logger?.warn('浏览器 Cookies 清理临时目录失败', { errorType: 'clear-temp-cleanup' })
+      })
+    }
+  }
+
+  private async getManagedFilePaths(): Promise<string[]> {
     const entries = await fs.promises.readdir(this.options.paths.root).catch(() => [])
-    await Promise.all(entries
-      .filter(entry => /^auth-state\.g\d+\.enc$/.test(entry))
-      .map(entry => fs.promises.rm(path.join(this.options.paths.root, entry), { force: true })))
+    return [
+      this.options.paths.identityPath,
+      this.options.paths.cookiesPath,
+      ...entries
+        .filter(entry => /^cookies\.g\d+\.enc$/.test(entry))
+        .map(entry => path.join(this.options.paths.root, entry)),
+    ]
   }
 }
 
@@ -403,20 +341,74 @@ export class BrowserIdentityError extends Error {
 }
 
 function toSource(identity: StoredBrowserIdentity): BrowserProfileSource {
-  return { ...identity, available: Boolean(identity.executablePath) }
+  return { ...identity, available: process.platform === 'darwin' }
 }
 
 async function isSourceAvailable(identity: StoredBrowserIdentity): Promise<boolean> {
-  const profile = await fs.promises.stat(path.join(identity.userDataDir, identity.profileDirectory)).catch(() => null)
-  if (!profile?.isDirectory() || !identity.executablePath)
+  if (process.platform !== 'darwin')
     return false
-  try {
-    await fs.promises.access(identity.executablePath, process.platform === 'win32' ? fs.constants.F_OK : fs.constants.X_OK)
-    return true
-  }
-  catch {
+  const profilePath = path.join(identity.userDataDir, identity.profileDirectory)
+  const profile = await fs.promises.stat(profilePath).catch(() => null)
+  if (!profile?.isDirectory())
     return false
+  for (const cookiePath of [path.join(profilePath, 'Network', 'Cookies'), path.join(profilePath, 'Cookies')]) {
+    const cookieStat = await fs.promises.stat(cookiePath).catch(() => null)
+    if (cookieStat?.isFile())
+      return true
   }
+  return false
+}
+
+async function writeEncryptedCookies(filePath: string, encryptionKey: string, cookies: BrowserCookie[]): Promise<void> {
+  const key = deriveEncryptionKey(encryptionKey)
+  const nonce = randomBytes(12)
+  const cipher = createCipheriv('aes-256-gcm', key, nonce)
+  const plaintext = Buffer.from(JSON.stringify({ version: 1, cookies }), 'utf8')
+  const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()])
+  const payload: EncryptedCookieFile = {
+    version: 1,
+    nonce: nonce.toString('base64'),
+    tag: cipher.getAuthTag().toString('base64'),
+    ciphertext: ciphertext.toString('base64'),
+  }
+  await fs.promises.writeFile(filePath, JSON.stringify(payload), { mode: 0o600 })
+  await fs.promises.chmod(filePath, 0o600)
+}
+
+async function readEncryptedCookies(filePath: string, encryptionKey: string): Promise<BrowserCookie[]> {
+  const value = JSON.parse(await fs.promises.readFile(filePath, 'utf8')) as Partial<EncryptedCookieFile>
+  if (value.version !== 1 || !value.nonce || !value.tag || !value.ciphertext)
+    throw new Error('cookie envelope schema')
+  const decipher = createDecipheriv('aes-256-gcm', deriveEncryptionKey(encryptionKey), Buffer.from(value.nonce, 'base64'))
+  decipher.setAuthTag(Buffer.from(value.tag, 'base64'))
+  const plaintext = Buffer.concat([
+    decipher.update(Buffer.from(value.ciphertext, 'base64')),
+    decipher.final(),
+  ])
+  const parsed = JSON.parse(plaintext.toString('utf8')) as { version?: number, cookies?: unknown }
+  if (parsed.version !== 1 || !Array.isArray(parsed.cookies) || !parsed.cookies.every(isBrowserCookie))
+    throw new Error('cookie payload schema')
+  return parsed.cookies
+}
+
+function deriveEncryptionKey(value: string): Buffer {
+  if (/^[0-9a-f]{64}$/i.test(value))
+    return Buffer.from(value, 'hex')
+  return createHash('sha256').update(value).digest()
+}
+
+function isBrowserCookie(value: unknown): value is BrowserCookie {
+  if (!value || typeof value !== 'object')
+    return false
+  const cookie = value as Partial<BrowserCookie>
+  return typeof cookie.name === 'string'
+    && typeof cookie.value === 'string'
+    && typeof cookie.domain === 'string'
+    && typeof cookie.path === 'string'
+    && typeof cookie.secure === 'boolean'
+    && typeof cookie.httpOnly === 'boolean'
+    && (cookie.sameSite === undefined || cookie.sameSite === 'Strict' || cookie.sameSite === 'Lax' || cookie.sameSite === 'None')
+    && (cookie.expires === undefined || typeof cookie.expires === 'number')
 }
 
 async function replaceFile(targetPath: string, temporaryPath: string): Promise<void> {
@@ -435,84 +427,4 @@ async function replaceFile(targetPath: string, temporaryPath: string): Promise<v
       await fs.promises.rename(backupPath, targetPath).catch(() => {})
     throw error
   }
-}
-
-async function readDevToolsEndpoint(userDataDir: string): Promise<string | null> {
-  const content = await fs.promises.readFile(path.join(userDataDir, 'DevToolsActivePort'), 'utf8').catch(() => null)
-  const port = content?.split(/\r?\n/)[0]?.trim()
-  return port && /^\d+$/.test(port) ? `127.0.0.1:${port}` : null
-}
-
-async function waitForDevToolsEndpoint(userDataDir: string, notBefore?: number): Promise<string> {
-  const deadline = Date.now() + IMPORT_TIMEOUT_MS
-  while (Date.now() < deadline) {
-    const endpoint = await readDevToolsEndpoint(userDataDir)
-    const endpointFile = await fs.promises.stat(path.join(userDataDir, 'DevToolsActivePort')).catch(() => null)
-    if (endpoint && (!notBefore || (endpointFile?.mtimeMs ?? 0) >= notBefore))
-      return endpoint
-    await new Promise(resolve => setTimeout(resolve, 100))
-  }
-  throw new BrowserIdentityError('CDP_TIMEOUT', '源浏览器启动调试接口超时，请确认浏览器安装正常后重试。')
-}
-
-function hasBrowserLock(userDataDir: string): boolean {
-  return ['SingletonLock', 'SingletonCookie', 'SingletonSocket'].some(name => fs.existsSync(path.join(userDataDir, name)))
-}
-
-async function terminateProcess(child: ReturnType<typeof spawn>): Promise<void> {
-  if (child.exitCode !== null || child.signalCode !== null)
-    return
-  await new Promise<void>((resolve) => {
-    let timer: NodeJS.Timeout
-    child.once('exit', () => {
-      clearTimeout(timer)
-      resolve()
-    })
-    timer = setTimeout(() => {
-      signalProcess(child, 'SIGKILL')
-      resolve()
-    }, 2_000)
-    signalProcess(child, 'SIGTERM')
-  })
-}
-
-function signalProcess(child: ReturnType<typeof spawn>, signal: NodeJS.Signals): void {
-  if (process.platform !== 'win32' && child.pid) {
-    try {
-      process.kill(-child.pid, signal)
-      return
-    }
-    catch {}
-  }
-  child.kill(signal)
-}
-
-interface AgentBrowserCommand {
-  executablePath: string
-  executableArgs: string[]
-}
-
-function resolveAgentBrowserCommand(env: NodeJS.ProcessEnv): AgentBrowserCommand | null {
-  const pathValue = env.PATH ?? ''
-  const direct = findExecutableOnPath('agent-browser', pathValue)
-  if (direct)
-    return { executablePath: direct, executableArgs: [] }
-  const npx = findExecutableOnPath('npx', pathValue)
-  return npx ? { executablePath: npx, executableArgs: ['agent-browser'] } : null
-}
-
-function findExecutableOnPath(name: string, pathValue: string): string | undefined {
-  const names = process.platform === 'win32' ? [`${name}.cmd`, `${name}.exe`, name] : [name]
-  for (const directory of pathValue.split(path.delimiter).filter(Boolean)) {
-    for (const executableName of names) {
-      const candidate = path.join(directory, executableName)
-      try {
-        fs.accessSync(candidate, process.platform === 'win32' ? fs.constants.F_OK : fs.constants.X_OK)
-        if (fs.statSync(candidate).isFile())
-          return candidate
-      }
-      catch {}
-    }
-  }
-  return undefined
 }

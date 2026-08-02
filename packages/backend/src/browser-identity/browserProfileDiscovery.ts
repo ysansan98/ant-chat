@@ -20,6 +20,7 @@ export interface BrowserProfileDiscoveryOptions {
 }
 
 interface BrowserCandidate {
+  platform: NodeJS.Platform
   kind: BrowserProfileKind
   browserName: string
   userDataDir: string
@@ -72,7 +73,7 @@ export async function inspectBrowserDirectory(directory: string, options: Browse
     profileDirectory,
     executablePath,
     profileName,
-  })
+  }, options.platform ?? process.platform)
 }
 
 async function readProfiles(candidate: BrowserCandidate): Promise<BrowserProfileSource[]> {
@@ -110,7 +111,7 @@ async function readProfiles(candidate: BrowserCandidate): Promise<BrowserProfile
       profileDirectory,
       executablePath,
       profileName,
-    }))
+    }, candidate.platform))
   }
   return sources
 }
@@ -126,41 +127,41 @@ function getCandidates(options: BrowserProfileDiscoveryOptions): BrowserCandidat
 
   if (platform === 'darwin') {
     candidates.push(
-      createCandidate('chrome', 'Chrome', api.join(homeDir, 'Library/Application Support/Google/Chrome'), ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome']),
-      createCandidate('edge', 'Edge', api.join(homeDir, 'Library/Application Support/Microsoft Edge'), ['/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge']),
-      createCandidate('chromium', 'Chromium', api.join(homeDir, 'Library/Application Support/Chromium'), ['/Applications/Chromium.app/Contents/MacOS/Chromium']),
-      createCandidate('brave', 'Brave', api.join(homeDir, 'Library/Application Support/BraveSoftware/Brave-Browser'), ['/Applications/Brave Browser.app/Contents/MacOS/Brave Browser']),
+      createCandidate('chrome', 'Chrome', api.join(homeDir, 'Library/Application Support/Google/Chrome'), ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'], platform),
+      createCandidate('edge', 'Edge', api.join(homeDir, 'Library/Application Support/Microsoft Edge'), ['/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge'], platform),
+      createCandidate('chromium', 'Chromium', api.join(homeDir, 'Library/Application Support/Chromium'), ['/Applications/Chromium.app/Contents/MacOS/Chromium'], platform),
+      createCandidate('brave', 'Brave', api.join(homeDir, 'Library/Application Support/BraveSoftware/Brave-Browser'), ['/Applications/Brave Browser.app/Contents/MacOS/Brave Browser'], platform),
     )
   }
   else if (platform === 'win32') {
     candidates.push(
-      createCandidate('chrome', 'Chrome', api.join(localAppData, 'Google/Chrome/User Data'), [api.join(localAppData, 'Google/Chrome/Application/chrome.exe')]),
-      createCandidate('edge', 'Edge', api.join(localAppData, 'Microsoft/Edge/User Data'), [api.join(localAppData, 'Microsoft/Edge/Application/msedge.exe')]),
-      createCandidate('chromium', 'Chromium', api.join(localAppData, 'Chromium/User Data'), [api.join(localAppData, 'Chromium/Application/chrome.exe')]),
-      createCandidate('brave', 'Brave', api.join(localAppData, 'BraveSoftware/Brave-Browser/User Data'), [api.join(localAppData, 'BraveSoftware/Brave-Browser/Application/brave.exe')]),
+      createCandidate('chrome', 'Chrome', api.join(localAppData, 'Google/Chrome/User Data'), [api.join(localAppData, 'Google/Chrome/Application/chrome.exe')], platform),
+      createCandidate('edge', 'Edge', api.join(localAppData, 'Microsoft/Edge/User Data'), [api.join(localAppData, 'Microsoft/Edge/Application/msedge.exe')], platform),
+      createCandidate('chromium', 'Chromium', api.join(localAppData, 'Chromium/User Data'), [api.join(localAppData, 'Chromium/Application/chrome.exe')], platform),
+      createCandidate('brave', 'Brave', api.join(localAppData, 'BraveSoftware/Brave-Browser/User Data'), [api.join(localAppData, 'BraveSoftware/Brave-Browser/Application/brave.exe')], platform),
     )
   }
   else {
     candidates.push(
-      createCandidate('chrome', 'Chrome', api.join(homeDir, '.config/google-chrome'), ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable']),
-      createCandidate('edge', 'Edge', api.join(homeDir, '.config/microsoft-edge'), ['/usr/bin/microsoft-edge', '/usr/bin/microsoft-edge-stable']),
-      createCandidate('chromium', 'Chromium', api.join(homeDir, '.config/chromium'), ['/usr/bin/chromium', '/usr/bin/chromium-browser']),
-      createCandidate('brave', 'Brave', api.join(homeDir, '.config/BraveSoftware/Brave-Browser'), ['/usr/bin/brave-browser', '/usr/bin/brave-browser-stable']),
+      createCandidate('chrome', 'Chrome', api.join(homeDir, '.config/google-chrome'), ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable'], platform),
+      createCandidate('edge', 'Edge', api.join(homeDir, '.config/microsoft-edge'), ['/usr/bin/microsoft-edge', '/usr/bin/microsoft-edge-stable'], platform),
+      createCandidate('chromium', 'Chromium', api.join(homeDir, '.config/chromium'), ['/usr/bin/chromium', '/usr/bin/chromium-browser'], platform),
+      createCandidate('brave', 'Brave', api.join(homeDir, '.config/BraveSoftware/Brave-Browser'), ['/usr/bin/brave-browser', '/usr/bin/brave-browser-stable'], platform),
     )
   }
 
   for (const directory of options.extraDirectories ?? []) {
-    candidates.push(createCandidate(inferBrowserKind(directory), 'Chromium', directory, []))
+    candidates.push(createCandidate(inferBrowserKind(directory), 'Chromium', directory, [], platform))
   }
   // Windows 的 APPDATA 仍被部分 Chromium 发行版使用，保留这两个已知位置。
   if (platform === 'win32') {
-    candidates.push(createCandidate('chrome', 'Chrome', api.join(appData, 'Google/Chrome/User Data'), []))
+    candidates.push(createCandidate('chrome', 'Chrome', api.join(appData, 'Google/Chrome/User Data'), [], platform))
   }
   return candidates
 }
 
-function createCandidate(kind: BrowserProfileKind, browserName: string, userDataDir: string, executableCandidates: string[]): BrowserCandidate {
-  return { kind, browserName, userDataDir, executableCandidates }
+function createCandidate(kind: BrowserProfileKind, browserName: string, userDataDir: string, executableCandidates: string[], platform: NodeJS.Platform): BrowserCandidate {
+  return { kind, browserName, userDataDir, executableCandidates, platform }
 }
 
 function getBrowserDefinition(kind: BrowserProfileKind, platform: NodeJS.Platform = process.platform, homeDir: string = os.homedir(), env: NodeJS.ProcessEnv = process.env): { browserName: string, executableCandidates: string[] } {
@@ -198,7 +199,7 @@ function getBrowserDefinition(kind: BrowserProfileKind, platform: NodeJS.Platfor
   }
 }
 
-function createSource(input: Omit<BrowserProfileSource, 'sourceId' | 'available'>): BrowserProfileSource {
+function createSource(input: Omit<BrowserProfileSource, 'sourceId' | 'available'>, platform: NodeJS.Platform): BrowserProfileSource {
   const sourceId = createHash('sha256')
     .update(`${input.kind}\0${path.resolve(input.userDataDir)}\0${input.profileDirectory}`)
     .digest('hex')
@@ -206,7 +207,8 @@ function createSource(input: Omit<BrowserProfileSource, 'sourceId' | 'available'
   return {
     ...input,
     sourceId,
-    available: Boolean(input.executablePath),
+    // 首版解密器只支持 macOS Chromium Safe Storage；浏览器程序本身可以已被卸载。
+    available: platform === 'darwin',
   }
 }
 

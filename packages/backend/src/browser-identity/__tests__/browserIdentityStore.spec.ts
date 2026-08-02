@@ -1,9 +1,9 @@
+import type { BrowserCookie } from '@ant-chat/shared'
 import type { BrowserIdentityStoreOptions } from '../browserIdentityStore'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { EventEmitter } from 'node:events'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { createBrowserIdentityPaths } from '../../agentBrowser'
 import { BrowserIdentityStore } from '../browserIdentityStore'
 import type { BrowserProfileSource } from '../browserProfileDiscovery'
@@ -12,12 +12,11 @@ describe('browserIdentityStore 行为', () => {
   const roots: string[] = []
 
   afterEach(() => {
-    vi.restoreAllMocks()
     for (const root of roots.splice(0))
       fs.rmSync(root, { recursive: true, force: true })
   })
 
-  it('导入成功后只持久化加密状态和来源元数据', async () => {
+  it('导入成功后只持久化加密 Cookies 和来源元数据', async () => {
     const fixture = createFixture()
     const store = new BrowserIdentityStore(fixture.options)
     await store.initialize()
@@ -28,57 +27,104 @@ describe('browserIdentityStore 行为', () => {
     expect(await store.listSources()).toEqual([
       { sourceId: 'fixture-source', browserName: 'Chromium', profileName: 'Default', available: true },
     ])
-    expect(store.getState()).toMatchObject({ statePath: expect.stringContaining('auth-state.g1.enc'), encryptionKey: expect.any(String) })
-    expect(fs.readFileSync(fixture.paths.authStatePath, 'utf8')).toBe('encrypted-state')
+    expect(store.getCookies()).toEqual(fixture.cookies)
+    expect(fs.readFileSync(fixture.paths.cookiesPath, 'utf8')).not.toContain('cookie-secret')
     const metadata = JSON.parse(fs.readFileSync(fixture.paths.identityPath, 'utf8')) as Record<string, unknown>
     expect(metadata).toMatchObject({ version: 1, profileDirectory: 'Default' })
     expect(metadata).toHaveProperty('sourceId')
   })
 
-  it('新导入失败时保留旧状态并记录错误', async () => {
+  it('应用重启后从加密 Cookies 恢复运行时 provider', async () => {
+    const fixture = createFixture()
+    const store = new BrowserIdentityStore(fixture.options)
+    await store.initialize()
+    await store.importSource(fixture.source.sourceId)
+
+    const restored = new BrowserIdentityStore(fixture.options)
+    await restored.initialize()
+
+    expect(restored.getCookies()).toEqual(fixture.cookies)
+    expect((await restored.getStatus()).imported).toBe(true)
+  })
+
+  it('新导入失败时保留旧 Cookies 和来源记录', async () => {
     const fixture = createFixture()
     let fail = false
     const options: BrowserIdentityStoreOptions = {
       ...fixture.options,
-      runStateSave: async ({ statePath }) => {
+      importCookies: async () => {
         if (fail)
-          throw new Error('模拟导出失败')
-        fs.writeFileSync(statePath, 'old-encrypted-state')
+          throw new Error('模拟读取失败')
+        return { cookies: fixture.cookies, failedCount: 0 }
       },
     }
     const store = new BrowserIdentityStore(options)
     await store.initialize()
     await store.importSource(fixture.source.sourceId)
     const oldMetadata = fs.readFileSync(fixture.paths.identityPath, 'utf8')
+    const oldCookies = fs.readFileSync(fixture.paths.cookiesPath, 'utf8')
     fail = true
 
-    await expect(store.importSource(fixture.source.sourceId)).rejects.toThrow('无法解密源浏览器登录状态')
-    expect(fs.readFileSync(fixture.paths.authStatePath, 'utf8')).toBe('old-encrypted-state')
+    await expect(store.importSource(fixture.source.sourceId)).rejects.toThrow('浏览器 Cookies 导入失败')
+    expect(store.getCookies()).toEqual(fixture.cookies)
+    expect(fs.readFileSync(fixture.paths.cookiesPath, 'utf8')).toBe(oldCookies)
     expect(fs.readFileSync(fixture.paths.identityPath, 'utf8')).toBe(oldMetadata)
     expect((await store.getStatus()).imported).toBe(true)
-    expect((await store.getStatus()).error).toContain('无法解密')
+    expect((await store.getStatus()).error).toContain('浏览器 Cookies 导入失败')
   })
 
-  it('成功更新后为新旧 Turn 保留不可变的 generation 状态文件', async () => {
+  it('更新导入后按 generation 保存新旧 Cookies 快照', async () => {
     const fixture = createFixture()
-    let stateNumber = 0
+    let importNumber = 0
     const options: BrowserIdentityStoreOptions = {
       ...fixture.options,
-      runStateSave: async ({ statePath }) => {
-        stateNumber++
-        fs.writeFileSync(statePath, `encrypted-state-${stateNumber}`)
+      importCookies: async () => {
+        importNumber++
+        return {
+          cookies: [{ ...fixture.cookies[0]!, value: `cookie-${importNumber}` }],
+          failedCount: 0,
+        }
       },
     }
     const store = new BrowserIdentityStore(options)
     await store.initialize()
     await store.importSource(fixture.source.sourceId)
-    const oldState = store.getState()!
     await store.importSource(fixture.source.sourceId)
-    const newState = store.getState()!
 
-    expect(newState.statePath).not.toBe(oldState.statePath)
-    expect(fs.readFileSync(oldState.statePath, 'utf8')).toBe('encrypted-state-1')
-    expect(fs.readFileSync(newState.statePath, 'utf8')).toBe('encrypted-state-2')
+    expect(store.getCookies()?.[0]?.value).toBe('cookie-2')
+    expect(fs.existsSync(path.join(fixture.paths.root, 'cookies.g1.enc'))).toBe(true)
+    expect(fs.existsSync(path.join(fixture.paths.root, 'cookies.g2.enc'))).toBe(true)
+    expect(fs.readFileSync(path.join(fixture.paths.root, 'cookies.g1.enc'), 'utf8')).not.toBe(fs.readFileSync(path.join(fixture.paths.root, 'cookies.g2.enc'), 'utf8'))
+  })
+
+  it('清除时只删除应用托管 Cookies，不触碰源 Profile', async () => {
+    const fixture = createFixture()
+    const store = new BrowserIdentityStore(fixture.options)
+    await store.initialize()
+    await store.importSource(fixture.source.sourceId)
+
+    await store.clear()
+
+    expect(store.getCookies()).toBeNull()
+    expect((await store.getStatus()).imported).toBe(false)
+    expect(fs.existsSync(fixture.paths.cookiesPath)).toBe(false)
+    expect(fs.existsSync(path.join(fixture.source.userDataDir, fixture.source.profileDirectory, 'Cookies'))).toBe(true)
+  })
+
+  it('清除失败时恢复应用托管文件和运行时 Cookies', async () => {
+    const fixture = createFixture()
+    const store = new BrowserIdentityStore(fixture.options)
+    await store.initialize()
+    await store.importSource(fixture.source.sourceId)
+    const identity = fs.readFileSync(fixture.paths.identityPath, 'utf8')
+    const cookies = fs.readFileSync(fixture.paths.cookiesPath, 'utf8')
+    fixture.keyStore.failDelete = true
+
+    await expect(store.clear()).rejects.toThrow('模拟清除失败')
+
+    expect(store.getCookies()).toEqual(fixture.cookies)
+    expect(fs.readFileSync(fixture.paths.identityPath, 'utf8')).toBe(identity)
+    expect(fs.readFileSync(fixture.paths.cookiesPath, 'utf8')).toBe(cookies)
   })
 
   function createFixture() {
@@ -88,16 +134,18 @@ describe('browserIdentityStore 行为', () => {
     const profilePath = path.join(sourceRoot, 'Default')
     fs.mkdirSync(profilePath, { recursive: true })
     fs.writeFileSync(path.join(sourceRoot, 'Local State'), JSON.stringify({ profile: { info_cache: { Default: { name: 'Default' } } } }))
-    fs.writeFileSync(path.join(profilePath, 'Cookies'), 'cookie-db')
-    const executablePath = path.join(root, 'chromium')
-    fs.writeFileSync(executablePath, '#!/bin/sh\nexit 0\n')
-    fs.chmodSync(executablePath, 0o755)
+    fs.writeFileSync(path.join(profilePath, 'Cookies'), 'source-cookie-db')
     const paths = createBrowserIdentityPaths(root)
     const keyStore = {
       key: null as string | null,
-      getBrowserAuthStateKey: async () => keyStore.key,
-      saveBrowserAuthStateKey: async (key: string) => { keyStore.key = key },
-      deleteBrowserAuthStateKey: async () => { keyStore.key = null },
+      failDelete: false,
+      getBrowserCookieEncryptionKey: async () => keyStore.key,
+      saveBrowserCookieEncryptionKey: async (key: string) => { keyStore.key = key },
+      deleteBrowserCookieEncryptionKey: async () => {
+        if (keyStore.failDelete)
+          throw new Error('模拟清除失败')
+        keyStore.key = null
+      },
     }
     const source: BrowserProfileSource = {
       sourceId: 'fixture-source',
@@ -106,28 +154,24 @@ describe('browserIdentityStore 行为', () => {
       profileName: 'Default',
       userDataDir: sourceRoot,
       profileDirectory: 'Default',
-      executablePath,
+      executablePath: '',
       available: true,
     }
+    const cookies: BrowserCookie[] = [{
+      name: 'sid',
+      value: 'cookie-secret',
+      domain: '.example.com',
+      path: '/',
+      secure: true,
+      httpOnly: true,
+      sameSite: 'Lax',
+    }]
     const options: BrowserIdentityStoreOptions = {
       paths,
       keyStore,
       discoverSources: async () => [source],
-      runStateSave: async ({ statePath }) => fs.writeFileSync(statePath, 'encrypted-state'),
-      spawnBrowser: ((_command: string, args: string[]) => {
-        const userDataDir = args.find(arg => arg.startsWith('--user-data-dir='))!.slice('--user-data-dir='.length)
-        fs.writeFileSync(path.join(userDataDir, 'DevToolsActivePort'), '9222\n/devtools/browser/test\n')
-        const child = new EventEmitter() as EventEmitter & { exitCode: number | null, signalCode: NodeJS.Signals | null, kill: () => boolean }
-        child.exitCode = null
-        child.signalCode = null
-        child.kill = () => {
-          child.exitCode = 0
-          child.emit('exit', 0, null)
-          return true
-        }
-        return child as never
-      }) as unknown as BrowserIdentityStoreOptions['spawnBrowser'],
+      importCookies: async () => ({ cookies, failedCount: 0 }),
     }
-    return { options, paths, profilePath, source }
+    return { options, paths, source, cookies, keyStore }
   }
 })

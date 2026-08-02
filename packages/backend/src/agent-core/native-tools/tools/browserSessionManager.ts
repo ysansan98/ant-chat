@@ -1,4 +1,4 @@
-import type { AgentBrowserRuntimeConfig, BrowserAuthStateProvider } from '@ant-chat/shared'
+import type { AgentBrowserRuntimeConfig, BrowserAuthStateProvider, BrowserCookie } from '@ant-chat/shared'
 import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -14,7 +14,8 @@ export interface BrowserSessionState {
   started: boolean
   profile?: string
   authGeneration?: number
-  authState?: { statePath: string, encryptionKey: string }
+  authCookies?: BrowserCookie[]
+  authCookieDomains?: Set<string>
   queue: Promise<void>
 }
 
@@ -50,7 +51,8 @@ export class BrowserSessionManager {
       started: false,
       profile: undefined,
       authGeneration: generation,
-      authState: this.authStateProvider?.getState() ?? undefined,
+      authCookies: this.authStateProvider?.getCookies() ?? undefined,
+      authCookieDomains: new Set(),
       queue: Promise.resolve(),
     }
     this.sessions.set(conversationId, state)

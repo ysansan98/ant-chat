@@ -56,7 +56,6 @@ export function createRuntimeCore(options: CreateAppRuntimeOptions, commandHost:
       paths: browserIdentityPaths,
       keyStore: secretStore,
       logger,
-      commandEnvironment: options.commandEnvironment,
     }),
     data,
     db,

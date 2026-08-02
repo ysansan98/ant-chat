@@ -22,6 +22,6 @@ export class BrowserProfilesIpcService extends IpcService {
       if (result.canceled || result.filePaths.length === 0)
         return null
       return getAppRuntime().getModule(BrowserProfilesModule).importFromDirectory(result.filePaths[0])
-    }, '导入浏览器登录状态失败')
+    }, '导入浏览器 Cookies 失败')
   }
 }

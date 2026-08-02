@@ -30,8 +30,8 @@ describe('浏览器 Profile 自动发现', () => {
     const first = sources.find(source => source.profileName === '工作账号')!
     const second = sources.find(source => source.profileName === '个人账号')!
 
-    expect(first).toMatchObject({ browserName: 'Chromium', profileName: '工作账号', available: false })
-    expect(second).toMatchObject({ browserName: 'Chromium', profileName: '个人账号', available: false })
+    expect(first).toMatchObject({ browserName: 'Chromium', profileName: '工作账号', available: true })
+    expect(second).toMatchObject({ browserName: 'Chromium', profileName: '个人账号', available: true })
     expect(first.sourceId).toMatch(/^[a-f0-9]{24}$/)
   })
 
@@ -42,7 +42,8 @@ describe('浏览器 Profile 自动发现', () => {
     fs.mkdirSync(path.join(root, 'Default'), { recursive: true })
     fs.mkdirSync(path.join(root, 'Not a Profile'), { recursive: true })
 
-    await expect(discoverBrowserProfiles({ extraDirectories: [root] })).resolves.toEqual([
+    const sources = await discoverBrowserProfiles({ extraDirectories: [root] })
+    expect(sources.filter(source => source.userDataDir === root)).toEqual([
       expect.objectContaining({ profileName: 'Default' }),
     ])
   })
@@ -78,5 +79,15 @@ describe('浏览器 Profile 自动发现', () => {
     const source = await inspectBrowserDirectory(profilePath, { env: { PATH: root } })
 
     expect(source).toMatchObject({ browserName: 'Chromium', profileDirectory: 'Profile 1', executablePath: executable, available: true })
+  })
+
+  it('在当前版本不支持的平台标记来源不可用', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ant-chat-discovery-'))
+    roots.push(root)
+    fs.mkdirSync(path.join(root, 'Default'), { recursive: true })
+
+    const source = await inspectBrowserDirectory(root, { platform: 'linux' })
+
+    expect(source.available).toBe(false)
   })
 })

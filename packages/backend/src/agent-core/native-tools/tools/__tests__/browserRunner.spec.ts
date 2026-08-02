@@ -23,8 +23,15 @@ const fs = require('node:fs')
 let stdin = ''
 process.stdin.setEncoding('utf8')
 process.stdin.on('data', chunk => stdin += chunk)
-process.stdin.on('end', () => {
-  fs.appendFileSync(process.env.INVOCATIONS_PATH, JSON.stringify({ args: process.argv.slice(2), stdin, proxy: process.env.AGENT_BROWSER_PROXY, idle: process.env.AGENT_BROWSER_IDLE_TIMEOUT_MS, socket: process.env.AGENT_BROWSER_SOCKET_DIR, state: process.env.AGENT_BROWSER_STATE, key: process.env.AGENT_BROWSER_ENCRYPTION_KEY }) + '\\n')
+  process.stdin.on('end', () => {
+  const args = process.argv.slice(2)
+  const stateIndex = args.indexOf('state')
+  const statePath = stateIndex >= 0 && args[stateIndex + 1] === 'load' ? args[stateIndex + 2] : process.env.AGENT_BROWSER_STATE
+  if (process.env.FAIL_STATE_LOAD === '1' && args.includes('batch')) {
+    process.stderr.write('state load failed')
+    process.exit(17)
+  }
+  fs.appendFileSync(process.env.INVOCATIONS_PATH, JSON.stringify({ args, stdin, proxy: process.env.AGENT_BROWSER_PROXY, idle: process.env.AGENT_BROWSER_IDLE_TIMEOUT_MS, socket: process.env.AGENT_BROWSER_SOCKET_DIR, state: process.env.AGENT_BROWSER_STATE, key: process.env.AGENT_BROWSER_ENCRYPTION_KEY, stateFileContent: statePath ? fs.readFileSync(statePath, 'utf8') : undefined, stateFileExists: statePath ? fs.existsSync(statePath) : undefined }) + '\\n')
   const delay = Number(process.env.DELAY_MS || 0)
   setTimeout(() => process.stdout.write('ok'), delay)
 })
@@ -94,9 +101,9 @@ process.stdin.on('end', () => {
     ])
   })
 
-  it('从内部认证状态 provider 注入 state 和加密密钥', async () => {
-    const statePath = path.join(root, 'auth-state.enc')
-    const result = await runBrowserTool({ command: 'get title' }, {
+  it('从内部 Cookies provider 通过 batch 注入完整 Cookie 属性', async () => {
+    const cookie = { name: 'sid', value: 'secret', domain: '.example.com', path: '/', secure: true, httpOnly: true, sameSite: 'Lax' as const }
+    const result = await runBrowserTool({ command: 'open', args: ['https://example.com'] }, {
       profilePath,
       artifactsPath,
       state: {
@@ -105,16 +112,112 @@ process.stdin.on('end', () => {
         profilePath,
         headed: false,
         started: false,
-        authState: { statePath, encryptionKey: 'a'.repeat(64) },
+        authCookies: [cookie],
         queue: Promise.resolve(),
       },
       env: { PATH: browserPath(), INVOCATIONS_PATH: invocationsPath },
     })
 
     expect(result).toMatchObject({ ok: true })
-    const invocation = JSON.parse(fs.readFileSync(invocationsPath, 'utf8').trim())
-    expect(invocation.state).toBe(statePath)
-    expect(invocation.key).toBe('a'.repeat(64))
+    const invocations = fs.readFileSync(invocationsPath, 'utf8').trim().split('\n').map(line => JSON.parse(line))
+    expect(invocations[1].args).toEqual([
+      '--profile',
+      profilePath,
+      '--session',
+      'auth-session',
+      'batch',
+      '--bail',
+    ])
+    const batch = JSON.parse(invocations[1].stdin)
+    expect(batch).toEqual([
+      ['cookies', 'set', 'sid', 'secret', '--domain', '.example.com', '--path', '/', '--httpOnly', '--secure', '--sameSite', 'Lax'],
+    ])
+    expect(invocations[1].state).toBeUndefined()
+    expect(invocations[1].stateFileContent).toBeUndefined()
+    expect(invocations[1].stateFileExists).toBeUndefined()
+    expect(invocations[1].key).toBeUndefined()
+  })
+
+  it('打开新的域名时只懒注入该域名的 Cookies', async () => {
+    const state: BrowserSessionState = {
+      sessionName: 'multi-domain-session',
+      socketPath: path.join(root, 'socket-multi-domain'),
+      profilePath,
+      headed: false,
+      started: false,
+      authCookies: [
+        { name: 'first', value: 'one', domain: '.example.com', path: '/', secure: false, httpOnly: false },
+        { name: 'second', value: 'two', domain: '.other.example', path: '/', secure: false, httpOnly: false },
+      ],
+      authCookieDomains: new Set(),
+      queue: Promise.resolve(),
+    }
+    const options = {
+      profilePath,
+      artifactsPath,
+      state,
+      env: { PATH: browserPath(), INVOCATIONS_PATH: invocationsPath },
+    }
+
+    await expect(runBrowserTool({ command: 'open', args: ['https://example.com'] }, options)).resolves.toMatchObject({ ok: true })
+    await expect(runBrowserTool({ command: 'open', args: ['https://app.other.example'] }, options)).resolves.toMatchObject({ ok: true })
+
+    const invocations = fs.readFileSync(invocationsPath, 'utf8').trim().split('\n').map(line => JSON.parse(line))
+    expect(JSON.parse(invocations[1].stdin)).toEqual([
+      ['cookies', 'set', 'first', 'one', '--domain', '.example.com', '--path', '/'],
+    ])
+    expect(JSON.parse(invocations[5].stdin)).toEqual([
+      ['cookies', 'set', 'second', 'two', '--domain', '.other.example', '--path', '/'],
+    ])
+  })
+
+  it('cookies 注入失败时返回 agent-browser 的错误输出和退出码', async () => {
+    const result = await runBrowserTool({ command: 'open', args: ['https://example.com'] }, {
+      profilePath,
+      artifactsPath,
+      state: {
+        sessionName: 'auth-session',
+        socketPath: path.join(root, 'socket-failure'),
+        profilePath,
+        headed: false,
+        started: false,
+        authCookies: [{ name: 'sid', value: 'secret', domain: '.example.com', path: '/', secure: true, httpOnly: true }],
+        queue: Promise.resolve(),
+      },
+      env: {
+        PATH: browserPath(),
+        INVOCATIONS_PATH: invocationsPath,
+        FAIL_STATE_LOAD: '1',
+      },
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      result: expect.stringContaining('state load failed'),
+      diagnostics: { stderr: 'state load failed', exitCode: 17 },
+    })
+  })
+
+  it('cookies 注入超时后等待 agent-browser 退出并清理临时资源', async () => {
+    const state = {
+      sessionName: 'timeout-session',
+      socketPath: path.join(root, 'socket-timeout'),
+      profilePath,
+      headed: false,
+      started: false,
+      authCookies: [{ name: 'sid', value: 'secret', domain: '.example.com', path: '/', secure: true, httpOnly: true }],
+      queue: Promise.resolve(),
+    }
+
+    const result = await runBrowserTool({ command: 'open', args: ['https://example.com'], timeoutMs: 10 }, {
+      profilePath,
+      artifactsPath,
+      state,
+      env: { PATH: browserPath(), INVOCATIONS_PATH: invocationsPath, DELAY_MS: '1000' },
+    })
+
+    expect(result).toMatchObject({ ok: false, result: expect.stringContaining('AGENT_BROWSER_TIMEOUT') })
+    expect(fs.readdirSync(state.socketPath).filter(entry => entry.startsWith('.browser-state-'))).toEqual([])
   })
 
   it('显式系统 Profile 不混入应用托管认证状态', async () => {
@@ -127,7 +230,7 @@ process.stdin.on('end', () => {
         profilePath,
         headed: false,
         started: false,
-        authState: { statePath: path.join(root, 'auth-state.enc'), encryptionKey: 'b'.repeat(64) },
+        authCookies: [{ name: 'sid', value: 'secret', domain: '.example.com', path: '/', secure: true, httpOnly: true }],
         queue: Promise.resolve(),
       },
       env: { PATH: browserPath(), INVOCATIONS_PATH: invocationsPath },
@@ -136,6 +239,69 @@ process.stdin.on('end', () => {
     const invocation = JSON.parse(fs.readFileSync(invocationsPath, 'utf8').trim())
     expect(invocation.state).toBeUndefined()
     expect(invocation.key).toBeUndefined()
+    expect(invocation.args).not.toContain('cookies')
+  })
+
+  it('显式系统 Profile 会保持在 outside 会话，不被后续命令切回应用 Cookies', async () => {
+    const state = {
+      sessionName: 'system-profile-session',
+      socketPath: path.join(root, 'socket-system-persistent'),
+      profilePath,
+      headed: false,
+      started: false,
+      authCookies: [{ name: 'sid', value: 'secret', domain: '.example.com', path: '/', secure: true, httpOnly: true }],
+      queue: Promise.resolve(),
+    }
+    const options = {
+      profilePath,
+      artifactsPath,
+      state,
+      env: { PATH: browserPath(), INVOCATIONS_PATH: invocationsPath },
+    }
+
+    await runBrowserTool({ command: 'open', args: ['https://example.com', '--profile', 'Default'] }, options)
+    await runBrowserTool({ command: 'get title' }, options)
+
+    const invocations = fs.readFileSync(invocationsPath, 'utf8').trim().split('\n').map(line => JSON.parse(line))
+    expect(invocations).toHaveLength(2)
+    expect(invocations[0].args).toContain('Default')
+    expect(invocations[1].args).toEqual([
+      '--profile',
+      'Default',
+      '--session',
+      'system-profile-session',
+      'get',
+      'title',
+    ])
+    expect(invocations[0].stateFileContent).toBeUndefined()
+    expect(invocations[1].stateFileContent).toBeUndefined()
+  })
+
+  it('使用已创建的会话状态，不迟到读取 provider 的新 Cookies', async () => {
+    const state = {
+      sessionName: 'snapshot-session',
+      socketPath: path.join(root, 'socket-snapshot'),
+      profilePath,
+      headed: false,
+      started: false,
+      authCookies: undefined,
+      queue: Promise.resolve(),
+    }
+    const result = await runBrowserTool({ command: 'get title' }, {
+      profilePath,
+      artifactsPath,
+      state,
+      authStateProvider: {
+        getCookies: () => [{ name: 'late', value: 'secret', domain: '.example.com', path: '/', secure: true, httpOnly: true }],
+        getGeneration: () => 1,
+      },
+      env: { PATH: browserPath(), INVOCATIONS_PATH: invocationsPath },
+    })
+
+    expect(result).toMatchObject({ ok: true })
+    const invocation = JSON.parse(fs.readFileSync(invocationsPath, 'utf8').trim())
+    expect(invocation.stateFileContent).toBeUndefined()
+    expect(state.authCookies).toBeUndefined()
   })
 
   it('agent-browser 和 npx 都不可用时返回安装错误', async () => {

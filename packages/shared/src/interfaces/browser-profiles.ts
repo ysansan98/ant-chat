@@ -1,8 +1,18 @@
-/**
- * 浏览器身份导入后的运行时认证状态。密钥只在主进程内部流转，不进入 RPC 或模型输入。
- */
+/** 应用托管的浏览器 Cookie。值只在主进程内部流转，不进入 RPC 或模型输入。 */
+export interface BrowserCookie {
+  name: string
+  value: string
+  domain: string
+  path: string
+  secure: boolean
+  httpOnly: boolean
+  sameSite?: 'Strict' | 'Lax' | 'None'
+  expires?: number
+}
+
+/** 浏览器身份导入后的运行时 Cookie provider。 */
 export interface BrowserAuthStateProvider {
-  getState: () => { statePath: string, encryptionKey: string } | null
+  getCookies: () => BrowserCookie[] | null
   getGeneration: () => number
 }
 

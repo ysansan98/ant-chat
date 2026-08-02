@@ -56,7 +56,7 @@ export class NativeToolService {
       profile: undefined,
       queue: Promise.resolve(),
       authGeneration: this.options.browserAuthState?.getGeneration() ?? 0,
-      authState: this.options.browserAuthState?.getState() ?? undefined,
+      authCookies: this.options.browserAuthState?.getCookies() ?? undefined,
     }
     const browserFactoryOptions = this.options.browser
       ? {

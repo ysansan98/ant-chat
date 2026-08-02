@@ -10,7 +10,7 @@ export interface BrowserIdentityPaths extends AgentBrowserPaths {
   root: string
   sessionsPath: string
   identityPath: string
-  authStatePath: string
+  cookiesPath: string
 }
 
 export function createAgentBrowserPaths(appDataRoot: string = path.join(os.homedir(), '.ant-chat')): AgentBrowserPaths {
@@ -29,6 +29,6 @@ export function createBrowserIdentityPaths(appDataRoot: string = path.join(os.ho
     ...browserPaths,
     sessionsPath: path.join(root, 'sessions'),
     identityPath: path.join(root, 'identity.json'),
-    authStatePath: path.join(root, 'auth-state.enc'),
+    cookiesPath: path.join(root, 'cookies.enc'),
   }
 }
