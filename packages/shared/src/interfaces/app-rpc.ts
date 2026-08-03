@@ -25,6 +25,7 @@ import type { AgentTurnResult, StartAgentTurnOptions } from './agent-runtime-ele
 import type { AgentCommandHostStatus } from './agent-runtime-interfaces'
 import type { ArchivedConversationWorkspaceResult } from './archived-conversations'
 import type { AutomationDefinition, AutomationInput, AutomationRun, UpdateAutomationInput } from './automation'
+import type { BrowserIdentityStatus, BrowserProfileSourceView } from './browser-profiles'
 import type { RunBuiltinCommandParams, RunBuiltinCommandResult } from './builtin-command'
 import type { handleInitConversationTitleOptions } from './conversation-title'
 import type { IConversations, IMessage } from './db-types'
@@ -66,6 +67,11 @@ export interface AppRpcContract {
   'channel.enable': RpcEndpoint<{ id: string }, { id: string, enabled: boolean, status: import('./channels').ChannelAccountStatus }>
   'channel.disable': RpcEndpoint<{ id: string }, { id: string, enabled: boolean, status: import('./channels').ChannelAccountStatus }>
   'runtime.getCommandHostStatus': RpcEndpoint<undefined, CommandHostStatus>
+
+  'browserProfiles.getStatus': RpcEndpoint<undefined, BrowserIdentityStatus>
+  'browserProfiles.listSources': RpcEndpoint<undefined, BrowserProfileSourceView[]>
+  'browserProfiles.import': RpcEndpoint<{ sourceId?: string }, BrowserIdentityStatus>
+  'browserProfiles.clear': RpcEndpoint<undefined, null>
 
   'chat.createConversationsTitle': RpcEndpoint<handleInitConversationTitleOptions, IConversations>
   'chat.getConversations': RpcEndpoint<{ pageIndex: number, pageSize: number }, { data: IConversations[], total: number }>
@@ -207,6 +213,9 @@ export interface AppIpcServices {
   }
   skills: {
     importSkillFromZip: () => Promise<IpcResponse<SkillManifest | null>>
+  }
+  browserProfiles: {
+    importFromDirectory: () => Promise<IpcResponse<BrowserIdentityStatus | null>>
   }
   update: {
     getCurrentVersion: () => Promise<IpcResponse<string>>

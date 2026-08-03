@@ -36,7 +36,7 @@ owner。
 - `scope` 表示资源域：`workspace`、本机工作区外 `outside`、远程服务 `external`、
   不可覆盖的 `blocked`。
 - MCP `ToolAnnotations` 只用于展示提示，不能决定是否放行工具。
-- Browser 普通网页操作属于 `external`；复用系统 Chrome Profile 属于 `outside`。
+- Browser 普通网页操作属于 `external`；应用托管的浏览器认证状态随 Browser 的 `external` 访问使用；复用系统原始 Chrome Profile 属于 `outside`。
 
 ### 3. Tool Authorization 拥有唯一策略裁决
 
@@ -45,7 +45,7 @@ owner。
   规则只能满足 `require_approval`，各工具的匹配粒度由 ADR-0001 定义。
 - 自动化策略是穷举的，不回退到交互审批：
   - MCP 工具需要 `allowMcpTools`，并且只注入用户选中的服务。
-  - Browser 需要 `allowBrowser`；系统 Chrome Profile 始终拒绝。
+  - Browser 需要 `allowBrowser`；开启后默认携带应用托管认证状态，系统原始 Chrome Profile 始终拒绝。
   - 文件、平台中立命令和 Skill 继续使用各自已有的显式权限。
 
 ### 4. Agent Loop 和 Automation Runtime 拥有各自终态
@@ -62,6 +62,7 @@ owner。
 
 - MCP 工具不依据远端 `readOnlyHint` 自动扩大权限。
 - 自动化 Browser 默认关闭。
+- 应用托管认证状态不改变 Browser 的默认关闭状态；只有已经开启 `allowBrowser` 的自动化才会携带它。
 - 自动化不允许复用系统 Chrome Profile。
 - 未知操作类型、无策略、`blocked` 和未覆盖能力均拒绝。
 - 记忆授权不能覆盖系统拒绝或自动化策略。

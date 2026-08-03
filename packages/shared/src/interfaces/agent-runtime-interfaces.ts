@@ -2,6 +2,7 @@ import type { AddMessage, CommandInterpreter, LanguageModelUsage, ModelInfo, Pro
 import type { AgentMemoryReader } from './agent-memory'
 import type { AgentMode, AgentPendingAction, AgentTaskSnapshot, AgentTurnSource } from './agent-runtime'
 import type { AgentTool } from './agent-tools'
+import type { BrowserAuthStateProvider } from './browser-profiles'
 import type { IConversations, IMessage, IMessageContent } from './db-types'
 import type { McpServer, McpToolCallResponse } from './mcp'
 import type { ImportSkillFromGithubOptions, SkillManifest } from './skill'
@@ -314,6 +315,7 @@ export interface AgentRuntimeHost {
   skillReader?: SkillReader
   mcpClientHub?: RuntimeMcpClientHub
   browser?: AgentBrowserRuntimeConfig
+  browserAuthState?: BrowserAuthStateProvider
   /** App Runtime 启动时一次性固定的命令宿主。 */
   commandHost?: AgentCommandHost
   secretStore?: SecretStore
@@ -353,6 +355,7 @@ export interface AgentRuntimeConfig extends AgentRuntimeOverrides {
   skillReader?: SkillReader
   mcpClientHub?: RuntimeMcpClientHub
   browser?: AgentBrowserRuntimeConfig
+  browserAuthState?: BrowserAuthStateProvider
   /** App Runtime 启动时一次性固定的命令宿主。 */
   commandHost?: AgentCommandHost
   secretStore?: SecretStore

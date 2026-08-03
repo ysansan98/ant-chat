@@ -1,4 +1,5 @@
-import type { AgentToolResult, BrowserToolInput } from '@ant-chat/shared'
+import type { AgentToolResult, BrowserAuthStateProvider, BrowserCookie, BrowserToolInput } from '@ant-chat/shared'
+import type { Buffer } from 'node:buffer'
 import type { BrowserSessionState } from './browserSessionManager'
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
@@ -99,6 +100,7 @@ export interface BrowserRunnerOptions {
   env?: NodeJS.ProcessEnv
   proxyUrl?: string
   state?: BrowserSessionState
+  authStateProvider?: BrowserAuthStateProvider
 }
 
 interface BrowserCommand {
@@ -176,6 +178,17 @@ export async function runBrowserTool(
   }
 
   const state = options.state ?? createDirectSessionState(options.profilePath)
+  if (state.invalidated && normalizeCommand(input.command) !== 'close') {
+    return {
+      ok: false,
+      result: 'Browser 会话已因登录状态清除而失效，请重新开始当前 Browser 会话。',
+    }
+  }
+  // 会话状态由 BrowserSessionManager 在 Turn 创建时快照认证 Cookies。只有未传入
+  // 会话状态的底层直接调用才在这里捕获 provider，避免旧 Turn 迟到读取新 generation。
+  if (!options.state && state.authCookies === undefined) {
+    state.authCookies = options.authStateProvider?.getCookies() ?? undefined
+  }
   const previous = state.queue
   let release: () => void = () => {}
   state.queue = new Promise<void>((resolve) => {
@@ -209,9 +222,10 @@ async function executeBrowserTool(
   }
 
   const state = options.state!
-  await fs.promises.mkdir(state.profilePath, { recursive: true })
+  await fs.promises.mkdir(state.profilePath, { recursive: true, mode: 0o700 })
+  await fs.promises.chmod(state.profilePath, 0o700)
   await fs.promises.mkdir(state.socketPath, { recursive: true, mode: 0o700 })
-  await fs.promises.mkdir(options.artifactsPath, { recursive: true })
+  await fs.promises.mkdir(options.artifactsPath, { recursive: true, mode: 0o700 })
 
   const command = normalizeCommand(input.command)
   const { globalArgs, commandArgs } = extractGlobalArgs(input.args ?? [])
@@ -223,6 +237,7 @@ async function executeBrowserTool(
   if (explicitProfileIndex >= 0) {
     state.profile = globalArgs[explicitProfileIndex + 1]
   }
+  const usesManagedProfile = explicitProfileIndex < 0 && !state.profile
   const profileArgs = explicitProfileIndex < 0
     ? ['--profile', state.profile ?? state.profilePath]
     : []
@@ -238,10 +253,24 @@ async function executeBrowserTool(
     ...command.split(' '),
     ...normalizeOutputPaths(command, commandArgs, options.workspacePath),
   ]
+  // 显式系统 Profile 是 outside 能力，不得把应用托管状态混入用户原始 Profile。
   const env = createBrowserEnv(options, state.socketPath)
   const timeoutMs = Math.min(input.timeoutMs ?? DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS)
 
-  return await new Promise((resolve) => {
+  const initialUrl = command === 'open' ? commandArgs.find(arg => !arg.startsWith('-')) : undefined
+  const cookieDomain = initialUrl ? getCookieDomain(initialUrl) : undefined
+  const cookiesForDomain = cookieDomain && state.authCookies
+    ? state.authCookies.filter(cookie => cookieMatchesHost(cookie, cookieDomain))
+    : []
+  const domainAlreadySeeded = cookieDomain ? state.authCookieDomains?.has(cookieDomain) : false
+  if (usesManagedProfile && command !== 'close' && state.authCookies && state.authCookies.length > 0 && !domainAlreadySeeded && (cookiesForDomain.length > 0 || !initialUrl)) {
+    const importResult = await seedManagedCookies(browserCommand, state, options, env, timeoutMs, initialUrl, cookieDomain, cookiesForDomain)
+    if (importResult) {
+      return { ...importResult, diagnostics: { ...importResult.diagnostics, durationMs: Date.now() - startedAt } }
+    }
+  }
+
+  const result = await new Promise<AgentToolResult>((resolve) => {
     const outputId = randomUUID()
     const stdoutPath = path.join(state.socketPath, `.stdout-${outputId}`)
     const stderrPath = path.join(state.socketPath, `.stderr-${outputId}`)
@@ -257,11 +286,15 @@ async function executeBrowserTool(
     fs.closeSync(stderrFd)
     let timedOut = false
     let settled = false
+    let killTimer: NodeJS.Timeout | undefined
 
     const finish = (result: AgentToolResult) => {
       if (settled)
         return
       settled = true
+      if (killTimer) {
+        clearTimeout(killTimer)
+      }
       fs.rmSync(stdoutPath, { force: true })
       fs.rmSync(stderrPath, { force: true })
       resolve(result)
@@ -269,6 +302,9 @@ async function executeBrowserTool(
     const timer = setTimeout(() => {
       timedOut = true
       child.kill('SIGTERM')
+      killTimer = setTimeout(() => {
+        child.kill('SIGKILL')
+      }, 2_000)
     }, timeoutMs)
 
     child.on('error', (error) => {
@@ -330,6 +366,14 @@ async function executeBrowserTool(
       })
     })
   })
+  if (!result.ok || command === 'close' || !usesManagedProfile || !state.authCookies?.length) {
+    return result
+  }
+
+  const syncResult = await syncManagedCookiesAfterNavigation(browserCommand, state, options, env, timeoutMs)
+  return syncResult
+    ? { ...syncResult, diagnostics: { ...syncResult.diagnostics, durationMs: Date.now() - startedAt } }
+    : result
 }
 
 function formatProcessResult(stdout: string, stderr: string, exitCode?: number): string {
@@ -440,6 +484,233 @@ function createBrowserEnv(options: BrowserRunnerOptions, socketPath?: string): N
   }
 }
 
+async function seedManagedCookies(
+  browserCommand: BrowserCommand,
+  state: BrowserSessionState,
+  options: BrowserRunnerOptions,
+  env: NodeJS.ProcessEnv,
+  timeoutMs: number,
+  initialUrl?: string,
+  cookieDomain?: string,
+  cookies: BrowserCookie[] = [],
+  navigateToUrl = true,
+): Promise<AgentToolResult | null> {
+  // agent-browser 禁止 `--profile` 与 storage state 同时使用；首次注入先打开目标页，
+  // 跨域补注入则复用当前页面，只通过同一 Profile daemon 的 batch 设置 Cookies 并刷新。
+  if (!state.started && !initialUrl) {
+    return {
+      ok: false,
+      result: 'Browser tool failed: 应用托管 Cookies 需要先打开目标 URL。',
+      diagnostics: {},
+    }
+  }
+  if (!initialUrl || !cookieDomain || cookies.length === 0)
+    return null
+  const commandPrefix = [
+    ...browserCommand.executableArgs,
+    '--profile',
+    state.profilePath,
+    '--session',
+    state.sessionName,
+    ...(state.headed ? ['--headed'] : []),
+  ]
+  if (navigateToUrl && initialUrl) {
+    const opened = await runBrowserProcess(browserCommand.executablePath, [...commandPrefix, 'open', initialUrl], {
+      cwd: options.workspacePath,
+      env,
+      input: '',
+      timeoutMs,
+    })
+    if (opened.timedOut || opened.error || opened.exitCode !== 0) {
+      return formatCookieProcessFailure(opened, '打开目标 URL 以注入 Cookies')
+    }
+  }
+  const processResult = await runBrowserProcess(browserCommand.executablePath, [...commandPrefix, 'batch', '--bail'], {
+    cwd: options.workspacePath,
+    env,
+    input: JSON.stringify(cookies.map(cookieToBatchCommand)),
+    timeoutMs,
+  })
+  if (processResult.timedOut || processResult.error || processResult.exitCode !== 0) {
+    return formatCookieProcessFailure(processResult, '写入应用托管 Cookies')
+  }
+  if (initialUrl) {
+    const reloaded = await runBrowserProcess(browserCommand.executablePath, [...commandPrefix, 'reload'], {
+      cwd: options.workspacePath,
+      env,
+      input: '',
+      timeoutMs,
+    })
+    if (reloaded.timedOut || reloaded.error || reloaded.exitCode !== 0) {
+      return formatCookieProcessFailure(reloaded, '刷新页面以应用 Cookies')
+    }
+  }
+  state.authCookieDomains ??= new Set()
+  state.authCookieDomains.add(cookieDomain)
+  return null
+}
+
+async function syncManagedCookiesAfterNavigation(
+  browserCommand: BrowserCommand,
+  state: BrowserSessionState,
+  options: BrowserRunnerOptions,
+  env: NodeJS.ProcessEnv,
+  timeoutMs: number,
+): Promise<AgentToolResult | null> {
+  if (state.invalidated || !state.started)
+    return null
+
+  const currentUrl = await readCurrentBrowserUrl(browserCommand, state, options, env, timeoutMs)
+  const cookieDomain = currentUrl ? getCookieDomain(currentUrl) : undefined
+  const cookiesForDomain = cookieDomain && state.authCookies
+    ? state.authCookies.filter(cookie => cookieMatchesHost(cookie, cookieDomain))
+    : []
+  if (!cookieDomain || cookiesForDomain.length === 0 || state.authCookieDomains?.has(cookieDomain))
+    return null
+
+  return await seedManagedCookies(
+    browserCommand,
+    state,
+    options,
+    env,
+    timeoutMs,
+    currentUrl,
+    cookieDomain,
+    cookiesForDomain,
+    false,
+  )
+}
+
+async function readCurrentBrowserUrl(
+  browserCommand: BrowserCommand,
+  state: BrowserSessionState,
+  options: BrowserRunnerOptions,
+  env: NodeJS.ProcessEnv,
+  timeoutMs: number,
+): Promise<string | undefined> {
+  const commandPrefix = [
+    ...browserCommand.executableArgs,
+    '--profile',
+    state.profilePath,
+    '--session',
+    state.sessionName,
+    ...(state.headed ? ['--headed'] : []),
+  ]
+  const processResult = await runBrowserProcess(browserCommand.executablePath, [...commandPrefix, 'get', 'url'], {
+    cwd: options.workspacePath,
+    env,
+    input: '',
+    timeoutMs,
+  })
+  if (processResult.timedOut || processResult.error || processResult.exitCode !== 0)
+    return undefined
+
+  const lines = removeDaemonOptionWarnings(processResult.stdout)
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(Boolean)
+  for (let index = lines.length - 1; index >= 0; index--) {
+    if (isHttpUrl(lines[index]!))
+      return lines[index]
+  }
+  return undefined
+}
+
+function formatCookieProcessFailure(processResult: BrowserProcessResult, action: string): AgentToolResult {
+  const stdout = removeDaemonOptionWarnings(processResult.stdout)
+  const stderr = removeDaemonOptionWarnings(processResult.stderr)
+  const details = processResult.error?.message
+    || formatProcessResult(stdout, stderr, processResult.exitCode ?? undefined)
+    || 'agent-browser cookie setup failed'
+  return {
+    ok: false,
+    result: [
+      `Browser tool failed: ${action}失败。`,
+      processResult.timedOut ? 'AGENT_BROWSER_TIMEOUT' : details,
+    ].join('\n'),
+    diagnostics: {
+      stdout,
+      stderr,
+      exitCode: processResult.exitCode ?? undefined,
+      durationMs: 0,
+    },
+  }
+}
+
+function cookieToBatchCommand(cookie: BrowserCookie): string[] {
+  return [
+    'cookies',
+    'set',
+    cookie.name,
+    cookie.value,
+    '--domain',
+    cookie.domain,
+    '--path',
+    cookie.path,
+    ...(cookie.httpOnly ? ['--httpOnly'] : []),
+    ...(cookie.secure ? ['--secure'] : []),
+    ...(cookie.sameSite ? ['--sameSite', cookie.sameSite] : []),
+    ...(cookie.expires !== undefined && cookie.expires > 0 ? ['--expires', String(Math.floor(cookie.expires))] : []),
+  ]
+}
+
+interface BrowserProcessResult {
+  exitCode: number | null
+  stdout: string
+  stderr: string
+  timedOut: boolean
+  error?: Error
+}
+
+async function runBrowserProcess(
+  executablePath: string,
+  args: string[],
+  options: { cwd?: string, env: NodeJS.ProcessEnv, input: string, timeoutMs: number },
+): Promise<BrowserProcessResult> {
+  return await new Promise((resolve) => {
+    const child = spawn(executablePath, args, {
+      cwd: options.cwd,
+      shell: false,
+      env: options.env,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
+    let stdout = ''
+    let stderr = ''
+    let settled = false
+    let timedOut = false
+    const append = (current: string, chunk: Buffer | string) => {
+      const next = current + chunk.toString()
+      return next.length > MAX_OUTPUT_CHARS ? next.slice(0, MAX_OUTPUT_CHARS) : next
+    }
+    let timer: NodeJS.Timeout | undefined
+    let killTimer: NodeJS.Timeout | undefined
+    const finish = (result: BrowserProcessResult) => {
+      if (settled)
+        return
+      settled = true
+      if (timer)
+        clearTimeout(timer)
+      if (killTimer)
+        clearTimeout(killTimer)
+      resolve(result)
+    }
+    child.stdin?.end(options.input)
+    timer = setTimeout(() => {
+      timedOut = true
+      child.kill('SIGTERM')
+      killTimer = setTimeout(() => child.kill('SIGKILL'), 2_000)
+    }, options.timeoutMs)
+    child.stdout?.on('data', (chunk: Buffer | string) => {
+      stdout = append(stdout, chunk)
+    })
+    child.stderr?.on('data', (chunk: Buffer | string) => {
+      stderr = append(stderr, chunk)
+    })
+    child.once('error', error => finish({ exitCode: null, stdout, stderr, timedOut, error }))
+    child.once('close', exitCode => finish({ exitCode, stdout, stderr, timedOut }))
+  })
+}
+
 function getOutputPaths(command: string, args: string[]): string[] {
   if (PATH_OUTPUT_COMMANDS.has(command)) {
     const pathArg = args.find(arg => !arg.startsWith('-'))
@@ -508,6 +779,21 @@ function isHttpUrl(value: string): boolean {
   }
 }
 
+function getCookieDomain(urlValue: string): string | undefined {
+  try {
+    const url = new URL(urlValue)
+    return url.hostname.toLowerCase()
+  }
+  catch {
+    return undefined
+  }
+}
+
+function cookieMatchesHost(cookie: BrowserCookie, hostname: string): boolean {
+  const domain = cookie.domain.trim().toLowerCase().replace(/^\.+/, '')
+  return Boolean(domain) && (hostname === domain || hostname.endsWith(`.${domain}`))
+}
+
 function removeDaemonOptionWarnings(output: string): string {
   return output
     .split('\n')
@@ -529,6 +815,7 @@ function createDirectSessionState(profilePath: string): BrowserSessionState {
     headed: false,
     started: false,
     profile: undefined,
+    authCookieDomains: new Set(),
     queue: Promise.resolve(),
   }
   directSessions.set(profilePath, state)

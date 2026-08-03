@@ -39,7 +39,7 @@ export class SessionRuntime {
     private readonly config: AgentRuntimeConfig,
     private readonly taskStore: TaskStore,
   ) {
-    this.browserSessions = config.browser ? new BrowserSessionManager(config.browser) : null
+    this.browserSessions = config.browser ? new BrowserSessionManager(config.browser, config.browserAuthState) : null
   }
 
   async prepareTask(options: AgentRuntimeStartTaskOptions): Promise<{ input: RuntimeStartInput, createEventEmitter: (taskId: string) => IAgentEventEmitter, conversation: Awaited<ReturnType<ISessionStore['getConversation']>> }> {

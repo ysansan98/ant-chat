@@ -2,6 +2,7 @@ import type {
   AgentCommandHost,
   AgentTool,
   AgentToolResult,
+  BrowserAuthStateProvider,
   EditFileToolInput,
   GlobFilesToolInput,
   GrepFilesToolInput,
@@ -31,6 +32,7 @@ interface NativeToolServiceOptions {
     proxyUrl?: string
   }
   browserSession?: BrowserSessionState
+  browserAuthState?: BrowserAuthStateProvider
   commandHost?: AgentCommandHost
   secretStore?: SecretStore
   runId?: string
@@ -53,12 +55,15 @@ export class NativeToolService {
       started: false,
       profile: undefined,
       queue: Promise.resolve(),
+      authGeneration: this.options.browserAuthState?.getGeneration() ?? 0,
+      authCookies: this.options.browserAuthState?.getCookies() ?? undefined,
     }
     const browserFactoryOptions = this.options.browser
       ? {
           workspacePath: this.workspacePath,
           config: this.options.browser,
           state: browserSession,
+          authStateProvider: this.options.browserAuthState,
         }
       : undefined
     return [

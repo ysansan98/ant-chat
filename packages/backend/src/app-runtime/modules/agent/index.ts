@@ -54,6 +54,7 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
         skillReader: dependencies.skills,
         mcpClientHub: dependencies.mcpClientHub,
         browser: core.browserPaths,
+        browserAuthState: core.browserIdentity,
         commandHost: core.commandHost,
         loadFileData: core.data.loadAttachmentData,
         getPermissionRules: (workspacePath: string) => core.data.permissionsFileStore.getEffectiveRules(workspacePath),

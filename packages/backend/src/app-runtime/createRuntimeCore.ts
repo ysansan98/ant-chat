@@ -1,12 +1,13 @@
 import type { CommandHost } from '../agent-core/native-tools/command/types'
-import type { AgentBrowserPaths } from '../agentBrowser'
+import type { AgentBrowserPaths, BrowserIdentityPaths } from '../agentBrowser'
 import type { AppDataContext, AppDataDatabase } from '../data'
 import type { RuntimeEventBus } from '../events'
 import type { AppRuntimePaths } from '../paths'
 import type { KeychainSecretStore } from '../secretStore'
 import type { SystemLogger } from '../systemLogger'
 import type { CreateAppRuntimeOptions, OAuthCallbackHost } from './types'
-import { createAgentBrowserPaths } from '../agentBrowser'
+import { createAgentBrowserPaths, createBrowserIdentityPaths } from '../agentBrowser'
+import { BrowserIdentityStore } from '../browser-identity/browserIdentityStore'
 import { createAppDataContext } from '../data'
 import { openAppDataDatabase } from '../database'
 import { RuntimeEventBus as RuntimeEventBusImpl } from '../events'
@@ -20,6 +21,8 @@ export interface RuntimeDatabase extends AppDataDatabase {
 
 export interface RuntimeCore {
   browserPaths: AgentBrowserPaths
+  browserIdentityPaths: BrowserIdentityPaths
+  browserIdentity: BrowserIdentityStore
   data: AppDataContext
   db: RuntimeDatabase
   events: RuntimeEventBus
@@ -44,14 +47,22 @@ export function createRuntimeCore(options: CreateAppRuntimeOptions, commandHost:
     permissionsFilePath: paths.permissionsFile,
   })
 
+  const secretStore = new KeychainSecretStoreImpl()
+  const browserIdentityPaths = createBrowserIdentityPaths(options.appDataRoot)
   return {
-    browserPaths: createAgentBrowserPaths(),
+    browserPaths: createAgentBrowserPaths(options.appDataRoot),
+    browserIdentityPaths,
+    browserIdentity: new BrowserIdentityStore({
+      paths: browserIdentityPaths,
+      keyStore: secretStore,
+      logger,
+    }),
     data,
     db,
     events: new RuntimeEventBusImpl(),
     logger,
     paths,
-    secretStore: new KeychainSecretStoreImpl(),
+    secretStore,
     commandHost,
     oauthCallbackHost: options.oauthCallbackHost,
   }
