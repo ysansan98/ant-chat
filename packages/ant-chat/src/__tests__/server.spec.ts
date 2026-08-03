@@ -160,9 +160,14 @@ function readSseEvent(eventName: string, emit: () => void): Promise<string> {
   return new Promise((resolve, reject) => {
     const req = request(new URL('/api/events', baseUrl), (res) => {
       let body = ''
+      let emitted = false
       res.setEncoding('utf8')
       res.on('data', (chunk) => {
         body += chunk
+        if (!emitted && body.includes(': connected\n\n')) {
+          emitted = true
+          emit()
+        }
         if (!body.includes(`event: ${eventName}`))
           return
         req.destroy()
@@ -172,8 +177,5 @@ function readSseEvent(eventName: string, emit: () => void): Promise<string> {
     })
     req.on('error', error => error.message === 'socket hang up' ? undefined : reject(error))
     req.end()
-    req.once('socket', () => {
-      setTimeout(emit, 10)
-    })
   })
 }
