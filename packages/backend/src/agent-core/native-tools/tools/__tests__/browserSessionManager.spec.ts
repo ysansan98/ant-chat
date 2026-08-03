@@ -82,6 +82,35 @@ describe('browserSessionManager 行为', () => {
     expect(next.profilePath).not.toBe(first.profilePath)
   })
 
+  it('清除认证状态时撤销旧会话并释放 Profile', async () => {
+    let cleared = false
+    let notifyClear: (() => void | Promise<void>) | undefined
+    const provider = {
+      getGeneration: () => 0,
+      getCookies: () => cleared ? null : [{ name: 'sid', value: 'secret', domain: '.example.com', path: '/', secure: true, httpOnly: true }],
+      onClear: (listener: () => void | Promise<void>) => {
+        notifyClear = listener
+        return () => {}
+      },
+    }
+    const manager = new BrowserSessionManager({
+      profilePath: path.join(root, 'profile'),
+      artifactsPath: path.join(root, 'artifacts'),
+    }, provider)
+    const first = manager.get('conv-1')
+    fs.mkdirSync(first.profilePath, { recursive: true })
+
+    cleared = true
+    await notifyClear?.()
+
+    expect(first.invalidated).toBe(true)
+    expect(first.authCookies).toBeUndefined()
+    expect(fs.existsSync(first.profilePath)).toBe(false)
+    const next = manager.get('conv-1')
+    expect(next).not.toBe(first)
+    expect(next.authCookies).toBeUndefined()
+  })
+
   function createManager() {
     return new BrowserSessionManager({
       profilePath: path.join(root, 'profile'),

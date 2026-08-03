@@ -14,6 +14,8 @@ export interface BrowserCookie {
 export interface BrowserAuthStateProvider {
   getCookies: () => BrowserCookie[] | null
   getGeneration: () => number
+  /** 清除应用托管登录态后通知运行中的 Browser 会话撤销自身。 */
+  onClear?: (listener: () => void | Promise<void>) => () => void
 }
 
 export type BrowserProfileKind = 'chrome' | 'edge' | 'chromium' | 'brave'

@@ -55,6 +55,7 @@ export class BrowserIdentityStore implements BrowserAuthStateProvider {
   private generation = 0
   private lastError: string | undefined
   private operation: Promise<unknown> = Promise.resolve()
+  private readonly clearListeners = new Set<() => void | Promise<void>>()
 
   private readonly now: () => number
   private readonly importCookies: (source: BrowserProfileSource) => Promise<BrowserCookieImportResult>
@@ -109,6 +110,11 @@ export class BrowserIdentityStore implements BrowserAuthStateProvider {
 
   getGeneration(): number {
     return this.generation
+  }
+
+  onClear(listener: () => void | Promise<void>): () => void {
+    this.clearListeners.add(listener)
+    return () => this.clearListeners.delete(listener)
   }
 
   async getStatus(): Promise<BrowserIdentityStatus> {
@@ -173,6 +179,7 @@ export class BrowserIdentityStore implements BrowserAuthStateProvider {
       this.cookies = null
       this.lastError = undefined
       this.generation++
+      await Promise.all([...this.clearListeners].map(listener => listener()))
     })
   }
 

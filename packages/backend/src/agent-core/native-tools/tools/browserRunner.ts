@@ -178,6 +178,12 @@ export async function runBrowserTool(
   }
 
   const state = options.state ?? createDirectSessionState(options.profilePath)
+  if (state.invalidated && normalizeCommand(input.command) !== 'close') {
+    return {
+      ok: false,
+      result: 'Browser 会话已因登录状态清除而失效，请重新开始当前 Browser 会话。',
+    }
+  }
   // 会话状态由 BrowserSessionManager 在 Turn 创建时快照认证 Cookies。只有未传入
   // 会话状态的底层直接调用才在这里捕获 provider，避免旧 Turn 迟到读取新 generation。
   if (!options.state && state.authCookies === undefined) {
@@ -264,7 +270,7 @@ async function executeBrowserTool(
     }
   }
 
-  return await new Promise((resolve) => {
+  const result = await new Promise<AgentToolResult>((resolve) => {
     const outputId = randomUUID()
     const stdoutPath = path.join(state.socketPath, `.stdout-${outputId}`)
     const stderrPath = path.join(state.socketPath, `.stderr-${outputId}`)
@@ -360,6 +366,14 @@ async function executeBrowserTool(
       })
     })
   })
+  if (!result.ok || command === 'close' || !usesManagedProfile || !state.authCookies?.length) {
+    return result
+  }
+
+  const syncResult = await syncManagedCookiesAfterNavigation(browserCommand, state, options, env, timeoutMs)
+  return syncResult
+    ? { ...syncResult, diagnostics: { ...syncResult.diagnostics, durationMs: Date.now() - startedAt } }
+    : result
 }
 
 function formatProcessResult(stdout: string, stderr: string, exitCode?: number): string {
@@ -479,9 +493,10 @@ async function seedManagedCookies(
   initialUrl?: string,
   cookieDomain?: string,
   cookies: BrowserCookie[] = [],
+  navigateToUrl = true,
 ): Promise<AgentToolResult | null> {
-  // agent-browser 禁止 `--profile` 与 storage state 同时使用，因此先打开目标页，
-  // 再通过同一 Profile daemon 的 batch 结构化 argv 设置完整 Cookie 属性并刷新页面。
+  // agent-browser 禁止 `--profile` 与 storage state 同时使用；首次注入先打开目标页，
+  // 跨域补注入则复用当前页面，只通过同一 Profile daemon 的 batch 设置 Cookies 并刷新。
   if (!state.started && !initialUrl) {
     return {
       ok: false,
@@ -499,7 +514,7 @@ async function seedManagedCookies(
     state.sessionName,
     ...(state.headed ? ['--headed'] : []),
   ]
-  if (initialUrl) {
+  if (navigateToUrl && initialUrl) {
     const opened = await runBrowserProcess(browserCommand.executablePath, [...commandPrefix, 'open', initialUrl], {
       cwd: options.workspacePath,
       env,
@@ -533,6 +548,72 @@ async function seedManagedCookies(
   state.authCookieDomains ??= new Set()
   state.authCookieDomains.add(cookieDomain)
   return null
+}
+
+async function syncManagedCookiesAfterNavigation(
+  browserCommand: BrowserCommand,
+  state: BrowserSessionState,
+  options: BrowserRunnerOptions,
+  env: NodeJS.ProcessEnv,
+  timeoutMs: number,
+): Promise<AgentToolResult | null> {
+  if (state.invalidated || !state.started)
+    return null
+
+  const currentUrl = await readCurrentBrowserUrl(browserCommand, state, options, env, timeoutMs)
+  const cookieDomain = currentUrl ? getCookieDomain(currentUrl) : undefined
+  const cookiesForDomain = cookieDomain && state.authCookies
+    ? state.authCookies.filter(cookie => cookieMatchesHost(cookie, cookieDomain))
+    : []
+  if (!cookieDomain || cookiesForDomain.length === 0 || state.authCookieDomains?.has(cookieDomain))
+    return null
+
+  return await seedManagedCookies(
+    browserCommand,
+    state,
+    options,
+    env,
+    timeoutMs,
+    currentUrl,
+    cookieDomain,
+    cookiesForDomain,
+    false,
+  )
+}
+
+async function readCurrentBrowserUrl(
+  browserCommand: BrowserCommand,
+  state: BrowserSessionState,
+  options: BrowserRunnerOptions,
+  env: NodeJS.ProcessEnv,
+  timeoutMs: number,
+): Promise<string | undefined> {
+  const commandPrefix = [
+    ...browserCommand.executableArgs,
+    '--profile',
+    state.profilePath,
+    '--session',
+    state.sessionName,
+    ...(state.headed ? ['--headed'] : []),
+  ]
+  const processResult = await runBrowserProcess(browserCommand.executablePath, [...commandPrefix, 'get', 'url'], {
+    cwd: options.workspacePath,
+    env,
+    input: '',
+    timeoutMs,
+  })
+  if (processResult.timedOut || processResult.error || processResult.exitCode !== 0)
+    return undefined
+
+  const lines = removeDaemonOptionWarnings(processResult.stdout)
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(Boolean)
+  for (let index = lines.length - 1; index >= 0; index--) {
+    if (isHttpUrl(lines[index]!))
+      return lines[index]
+  }
+  return undefined
 }
 
 function formatCookieProcessFailure(processResult: BrowserProcessResult, action: string): AgentToolResult {

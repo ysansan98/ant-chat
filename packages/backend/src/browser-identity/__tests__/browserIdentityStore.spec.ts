@@ -102,10 +102,17 @@ describe('browserIdentityStore 行为', () => {
     const store = new BrowserIdentityStore(fixture.options)
     await store.initialize()
     await store.importSource(fixture.source.sourceId)
+    let notified = false
+    const unsubscribe = store.onClear(() => {
+      notified = true
+      expect(store.getCookies()).toBeNull()
+    })
 
     await store.clear()
+    unsubscribe()
 
     expect(store.getCookies()).toBeNull()
+    expect(notified).toBe(true)
     expect((await store.getStatus()).imported).toBe(false)
     expect(fs.existsSync(fixture.paths.cookiesPath)).toBe(false)
     expect(fs.existsSync(path.join(fixture.source.userDataDir, fixture.source.profileDirectory, 'Cookies'))).toBe(true)

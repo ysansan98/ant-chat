@@ -27,13 +27,19 @@ process.stdin.on('data', chunk => stdin += chunk)
   const args = process.argv.slice(2)
   const stateIndex = args.indexOf('state')
   const statePath = stateIndex >= 0 && args[stateIndex + 1] === 'load' ? args[stateIndex + 2] : process.env.AGENT_BROWSER_STATE
+  const sessionIndex = args.indexOf('--session')
+  const commandIndex = sessionIndex >= 0 ? sessionIndex + 2 : -1
+  const command = commandIndex >= 0 ? args[commandIndex] : undefined
   if (process.env.FAIL_STATE_LOAD === '1' && args.includes('batch')) {
     process.stderr.write('state load failed')
     process.exit(17)
   }
   fs.appendFileSync(process.env.INVOCATIONS_PATH, JSON.stringify({ args, stdin, proxy: process.env.AGENT_BROWSER_PROXY, idle: process.env.AGENT_BROWSER_IDLE_TIMEOUT_MS, socket: process.env.AGENT_BROWSER_SOCKET_DIR, state: process.env.AGENT_BROWSER_STATE, key: process.env.AGENT_BROWSER_ENCRYPTION_KEY, stateFileContent: statePath ? fs.readFileSync(statePath, 'utf8') : undefined, stateFileExists: statePath ? fs.existsSync(statePath) : undefined }) + '\\n')
+  const currentUrl = command === 'get' && args[commandIndex + 1] === 'url' && process.env.URL_FILE
+    ? fs.readFileSync(process.env.URL_FILE, 'utf8').trim()
+    : 'ok'
   const delay = Number(process.env.DELAY_MS || 0)
-  setTimeout(() => process.stdout.write('ok'), delay)
+  setTimeout(() => process.stdout.write(currentUrl), delay)
 })
 `)
     fs.chmodSync(agentBrowserPath, 0o755)
@@ -163,12 +169,63 @@ process.stdin.on('data', chunk => stdin += chunk)
     await expect(runBrowserTool({ command: 'open', args: ['https://app.other.example'] }, options)).resolves.toMatchObject({ ok: true })
 
     const invocations = fs.readFileSync(invocationsPath, 'utf8').trim().split('\n').map(line => JSON.parse(line))
-    expect(JSON.parse(invocations[1].stdin)).toEqual([
+    const batchInvocations = invocations.filter(item => item.args.includes('batch'))
+    expect(JSON.parse(batchInvocations[0].stdin)).toEqual([
       ['cookies', 'set', 'first', 'one', '--domain', '.example.com', '--path', '/'],
     ])
-    expect(JSON.parse(invocations[5].stdin)).toEqual([
+    expect(JSON.parse(batchInvocations[1].stdin)).toEqual([
       ['cookies', 'set', 'second', 'two', '--domain', '.other.example', '--path', '/'],
     ])
+  })
+
+  it('实际导航到未注入域名后补注入对应 Cookies', async () => {
+    const urlPath = path.join(root, 'current-url.txt')
+    fs.writeFileSync(urlPath, 'https://login.identity.example/callback')
+    const state: BrowserSessionState = {
+      sessionName: 'redirect-session',
+      socketPath: path.join(root, 'socket-redirect'),
+      profilePath,
+      headed: false,
+      started: true,
+      authCookies: [
+        { name: 'app', value: 'app-secret', domain: '.example.com', path: '/', secure: false, httpOnly: false },
+        { name: 'identity', value: 'identity-secret', domain: '.identity.example', path: '/', secure: true, httpOnly: true },
+      ],
+      authCookieDomains: new Set(['app.example.com']),
+      queue: Promise.resolve(),
+    }
+
+    await expect(runBrowserTool({ command: 'snapshot' }, {
+      profilePath,
+      artifactsPath,
+      state,
+      env: { PATH: browserPath(), INVOCATIONS_PATH: invocationsPath, URL_FILE: urlPath },
+    })).resolves.toMatchObject({ ok: true })
+
+    const invocations = fs.readFileSync(invocationsPath, 'utf8').trim().split('\n').map(line => JSON.parse(line))
+    const batchInvocations = invocations.filter(item => item.args.includes('batch'))
+    expect(batchInvocations).toHaveLength(1)
+    expect(JSON.parse(batchInvocations[0].stdin)).toEqual([
+      ['cookies', 'set', 'identity', 'identity-secret', '--domain', '.identity.example', '--path', '/', '--httpOnly', '--secure'],
+    ])
+    expect(state.authCookieDomains).toContain('login.identity.example')
+  })
+
+  it('清除认证状态后旧会话拒绝继续执行 Browser 命令', async () => {
+    const state = createState()
+    state.invalidated = true
+    state.authCookies = [{ name: 'sid', value: 'secret', domain: '.example.com', path: '/', secure: true, httpOnly: true }]
+
+    await expect(runBrowserTool({ command: 'get title' }, {
+      profilePath,
+      artifactsPath,
+      state,
+      env: { PATH: browserPath(), INVOCATIONS_PATH: invocationsPath },
+    })).resolves.toEqual({
+      ok: false,
+      result: 'Browser 会话已因登录状态清除而失效，请重新开始当前 Browser 会话。',
+    })
+    expect(fs.existsSync(invocationsPath)).toBe(false)
   })
 
   it('cookies 注入失败时返回 agent-browser 的错误输出和退出码', async () => {

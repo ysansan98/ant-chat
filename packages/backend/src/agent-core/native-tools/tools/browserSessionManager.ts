@@ -16,22 +16,27 @@ export interface BrowserSessionState {
   authGeneration?: number
   authCookies?: BrowserCookie[]
   authCookieDomains?: Set<string>
+  /** 清除应用托管登录态后，旧 Turn 不能继续复用该会话。 */
+  invalidated?: boolean
   queue: Promise<void>
 }
 
 export class BrowserSessionManager {
   private readonly sessions = new Map<string, BrowserSessionState>()
   private readonly retiredSessions = new Map<string, BrowserSessionState[]>()
+  private readonly unsubscribeFromClear?: () => void
 
   constructor(
     private readonly config: AgentBrowserRuntimeConfig,
     private readonly authStateProvider?: BrowserAuthStateProvider,
-  ) {}
+  ) {
+    this.unsubscribeFromClear = authStateProvider?.onClear?.(() => this.invalidateAll())
+  }
 
   get(conversationId: string): BrowserSessionState {
     const existing = this.sessions.get(conversationId)
     const generation = this.authStateProvider?.getGeneration() ?? 0
-    if (existing && existing.authGeneration === generation) {
+    if (existing && !existing.invalidated && existing.authGeneration === generation) {
       return existing
     }
 
@@ -69,21 +74,59 @@ export class BrowserSessionManager {
     }
 
     for (const state of states) {
-      await runBrowserTool({ command: 'close' }, {
-        ...this.config,
-        state,
-        authStateProvider: this.authStateProvider,
-      })
-      if (removeProfile) {
-        await fs.promises.rm(path.dirname(state.profilePath), { recursive: true, force: true })
-      }
+      await this.closeState(state, removeProfile)
     }
     this.sessions.delete(conversationId)
     this.retiredSessions.delete(conversationId)
   }
 
   async dispose(): Promise<void> {
+    this.unsubscribeFromClear?.()
     await Promise.all([...new Set([...this.sessions.keys(), ...this.retiredSessions.keys()])].map(conversationId => this.close(conversationId, true)))
+  }
+
+  private async invalidateAll(): Promise<void> {
+    const states = this.getAllStates()
+    for (const state of states) {
+      state.invalidated = true
+      state.authCookies = undefined
+      state.authCookieDomains?.clear()
+    }
+
+    await Promise.all(states.map(state => this.closeState(state, true).catch(() => {})))
+
+    for (const [conversationId, state] of this.sessions) {
+      if (states.includes(state))
+        this.sessions.delete(conversationId)
+    }
+    for (const [conversationId, retired] of this.retiredSessions) {
+      const remaining = retired.filter(state => !states.includes(state))
+      if (remaining.length === 0)
+        this.retiredSessions.delete(conversationId)
+      else
+        this.retiredSessions.set(conversationId, remaining)
+    }
+  }
+
+  private getAllStates(): BrowserSessionState[] {
+    return [...new Set([
+      ...this.sessions.values(),
+      ...[...this.retiredSessions.values()].flat(),
+    ])]
+  }
+
+  private async closeState(state: BrowserSessionState, removeProfile: boolean): Promise<void> {
+    try {
+      await runBrowserTool({ command: 'close' }, {
+        ...this.config,
+        state,
+        authStateProvider: this.authStateProvider,
+      })
+    }
+    finally {
+      if (removeProfile)
+        await fs.promises.rm(path.dirname(state.profilePath), { recursive: true, force: true })
+    }
   }
 }
 
