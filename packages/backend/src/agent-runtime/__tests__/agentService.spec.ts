@@ -81,7 +81,7 @@ const appDataContext = {
     delete: vi.fn(async () => true),
   },
   settingsRepository: {
-    getGeneralSettings: vi.fn(async () => ({ assistantModelId: '', assistantProviderId: '', autoGenerateTitle: true, proxySettings: { mode: 'none', customProxyUrl: '' } })),
+    getGeneralSettings: vi.fn(async () => ({ assistantModelId: '', assistantProviderId: '', defaultModelId: '', defaultProviderId: '', autoGenerateTitle: true, proxySettings: { mode: 'none', customProxyUrl: '' } })),
   },
 } as unknown as AppDataContext
 
@@ -295,6 +295,8 @@ describe('createAgentTurnService 行为', () => {
     vi.mocked(appDataContext.settingsRepository.getGeneralSettings).mockResolvedValueOnce({
       assistantModelId: 'assistant-model-9',
       assistantProviderId: 'provider-1',
+      defaultModelId: '',
+      defaultProviderId: '',
       autoGenerateTitle: true,
       developerTools: { agentObservabilityEnabled: false },
       proxySettings: { mode: 'none', customProxyUrl: '' },

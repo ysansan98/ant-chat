@@ -40,6 +40,22 @@ _Avoid_: 可观测字段、原始日志字段
 用户在交互审批或“权限”页面显式保存的结构化 allow/deny 能力规则；deny 规则优先阻止当前工具调用，allow 规则只能满足基础策略的 `require_approval`。规则按全局或 canonical 工作区分组，并按带解释器身份的命令、文件系统、MCP 或浏览器工具表达可复用边界。
 _Avoid_: 工具白名单、命令白名单、审批豁免
 
+**助手模型（Assistant Model）**:
+ 用户为系统辅助任务配置的全局模型偏好；当前用于自动生成对话标题。它不决定普通对话，也不随 Conversation 切换或普通对话中的模型选择改变。
+_Avoid_: 默认模型、会话模型
+
+**会话模型（Conversation Model）**:
+ 某个 Conversation 实际用于 Agent Turn 的模型；它属于该 Conversation，切换会话时以目标 Conversation 自身的设置为准。
+_Avoid_: 助手模型、默认模型
+
+**最近使用模型（Last-used Model）**:
+ 用户最近一次在普通对话中显式选择的模型，作为新建本地 Conversation 的起始模型；它不覆盖已有 Conversation 的会话模型。没有记录时才使用可用模型列表的第一项。
+_Avoid_: 助手模型、会话模型、自动兜底模型
+
+**显式模型选择（Explicit Model Selection）**:
+ 用户在模型选择器中主动选定模型的行为；自动使用最近使用模型或列表第一项属于兜底，不构成显式选择。
+_Avoid_: 模型解析、模型兜底
+
 ## 消息频道领域
 
 **消息频道（Channel）**：把一个外部 IM 平台的私聊消息接入本地 Agent，并把该 Turn 的结果投递回原入口的传输能力。

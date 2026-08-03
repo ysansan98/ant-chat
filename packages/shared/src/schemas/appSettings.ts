@@ -40,6 +40,9 @@ export const ProviderSettingsSchema = ProviderConfigSchema.omit({
 export const AppSettingsSchema = z.object({
   assistantModelId: z.string(),
   assistantProviderId: z.string().default(''),
+  /** 用户最近一次在普通对话中显式选择的模型，用作新会话起始值。 */
+  defaultModelId: z.string().default(''),
+  defaultProviderId: z.string().default(''),
   autoGenerateTitle: z.boolean().default(false),
   /** 全局默认推理强度档位，创建新会话时使用。未设置时走厂商默认。 */
   reasoningEffort: ReasoningEffortSchema.optional(),

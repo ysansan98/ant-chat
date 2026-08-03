@@ -104,6 +104,8 @@ describe('appSettingsStore', () => {
       const existingSettings: AppSettingsState = {
         assistantModelId: 'test-model',
         assistantProviderId: '',
+        defaultModelId: '',
+        defaultProviderId: '',
         autoGenerateTitle: false,
         developerTools: { agentObservabilityEnabled: false },
         proxySettings: { mode: 'none' },
@@ -148,6 +150,8 @@ describe('appSettingsStore', () => {
       const existingSettings: AppSettingsState = {
         assistantModelId: 'test-model',
         assistantProviderId: '',
+        defaultModelId: '',
+        defaultProviderId: '',
         autoGenerateTitle: false,
         developerTools: { agentObservabilityEnabled: false },
         proxySettings: { mode: 'none' },
@@ -207,6 +211,8 @@ describe('appSettingsStore', () => {
       const existingSettings: AppSettingsState = {
         assistantModelId: 'test-model',
         assistantProviderId: '',
+        defaultModelId: '',
+        defaultProviderId: '',
         autoGenerateTitle: false,
         developerTools: { agentObservabilityEnabled: false },
         proxySettings: { mode: 'none' },

@@ -166,4 +166,34 @@ describe('taskStore 行为', () => {
       expect(task.snapshot.pendingAction).toBeUndefined()
     })
   })
+
+  describe('updateMode 行为', () => {
+    it('更新运行中任务的权限模式并推进 updatedAt', () => {
+      const store = new TaskStore()
+      const task = createTask({ mode: 'strict' })
+      store.reserve(task)
+
+      const returned = store.updateMode(task.snapshot.taskId, 'full_managed')
+
+      expect(returned).toBeDefined()
+      expect(returned!.snapshot).toMatchObject({ taskId: task.snapshot.taskId, mode: 'full_managed' })
+      expect(task.snapshot.mode).toBe('full_managed')
+      expect(task.snapshot.updatedAt).toBeGreaterThan(1000)
+      expect(store.getSnapshot(task.snapshot.taskId)).toMatchObject({ mode: 'full_managed' })
+    })
+
+    it('未知任务返回 undefined 且不抛错', () => {
+      const store = new TaskStore()
+      expect(store.updateMode('missing-task', 'hybrid')).toBeUndefined()
+    })
+
+    it('终态任务不接受权限模式更新', () => {
+      const store = new TaskStore()
+      const task = createTask({ mode: 'strict', status: 'success' })
+      store.reserve(task)
+
+      expect(store.updateMode(task.snapshot.taskId, 'full_managed')).toBeUndefined()
+      expect(task.snapshot.mode).toBe('strict')
+    })
+  })
 })

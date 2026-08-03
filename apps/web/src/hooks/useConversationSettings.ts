@@ -4,6 +4,7 @@ import { has } from 'lodash-es'
 import { useEffect, useRef } from 'react'
 import { useImmer } from 'use-immer'
 import { getConversationByIdAction, updateConversationInstructionsAction, updateConversationsSettingsAction } from '@/store/conversation'
+import { useGeneralSettingsStore } from '@/store/generalSettings'
 import { useMessagesStore } from '@/store/messages'
 
 const DEFAULT_SETTINGS: ConversationsSettingsSchema = {
@@ -15,11 +16,28 @@ const DEFAULT_SETTINGS: ConversationsSettingsSchema = {
   compaction: DEFAULT_COMPACTION_SETTINGS,
 }
 
+function getInitialSettings(
+  conversationSettings: ConversationsSettingsSchema | undefined,
+  defaultModelId: string,
+  defaultProviderId: string,
+): ConversationsSettingsSchema {
+  const hasConversationModel = Boolean(conversationSettings?.modelId)
+  return {
+    ...DEFAULT_SETTINGS,
+    ...conversationSettings,
+    modelId: hasConversationModel ? conversationSettings!.modelId : defaultModelId,
+    providerId: hasConversationModel ? conversationSettings!.providerId : defaultProviderId,
+    compaction: conversationSettings?.compaction || DEFAULT_COMPACTION_SETTINGS,
+  }
+}
+
 export function useConversationSettings() {
   const currentConversationsId = useMessagesStore(state => state.activeConversationsId)
   const conversations = getConversationByIdAction(currentConversationsId)
+  const defaultModelId = useGeneralSettingsStore(state => state.defaultModelId)
+  const defaultProviderId = useGeneralSettingsStore(state => state.defaultProviderId)
 
-  const [settings, _updateSettings] = useImmer(conversations?.settings || { ...DEFAULT_SETTINGS })
+  const [settings, _updateSettings] = useImmer(getInitialSettings(conversations?.settings, defaultModelId, defaultProviderId))
   const [conversationInstructions, _updateConversationInstructions] = useImmer(conversations?.conversationInstructions ?? '')
   const persistedInstructionsRef = useRef({
     conversationId: currentConversationsId,
@@ -84,22 +102,7 @@ export function useConversationSettings() {
 
   useEffect(() => {
     _updateSettings((draft) => {
-      if (conversations?.settings) {
-        draft.modelId = conversations.settings.modelId || ''
-        draft.providerId = conversations.settings.providerId || ''
-        draft.temperature = conversations.settings.temperature ?? 0.7
-        draft.maxOutputTokens = conversations.settings.maxOutputTokens ?? 1000
-        draft.reasoningEffort = conversations.settings.reasoningEffort
-        draft.compaction = conversations.settings.compaction || DEFAULT_COMPACTION_SETTINGS
-      }
-      else {
-        draft.modelId = ''
-        draft.providerId = ''
-        draft.temperature = 0.7
-        draft.maxOutputTokens = 1000
-        draft.reasoningEffort = undefined
-        draft.compaction = DEFAULT_COMPACTION_SETTINGS
-      }
+      Object.assign(draft, getInitialSettings(conversations?.settings, defaultModelId, defaultProviderId))
     })
     const nextInstructions = conversations?.conversationInstructions ?? ''
     _updateConversationInstructions(nextInstructions)
@@ -107,7 +110,7 @@ export function useConversationSettings() {
       conversationId: currentConversationsId,
       value: nextInstructions,
     }
-  }, [currentConversationsId, _updateConversationInstructions, _updateSettings, conversations?.conversationInstructions, conversations?.settings])
+  }, [currentConversationsId, defaultModelId, defaultProviderId, _updateConversationInstructions, _updateSettings, conversations?.conversationInstructions, conversations?.settings])
 
   return {
     settings,

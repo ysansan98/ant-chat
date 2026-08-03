@@ -225,7 +225,9 @@ export class ChannelRuntime {
     if (existing)
       return existing
     const settings = await this.deps.data.settingsRepository.getGeneralSettings()
-    const preferred = this.findModel(settings.assistantProviderId, settings.assistantModelId) ?? this.getModels()[0]
+    // 频道会话拥有自己的模型状态；助手模型只服务于辅助任务（如标题生成），
+    // 不能作为频道新会话的默认模型。频道没有可用会话模型时按频道模型列表兜底。
+    const preferred = this.getModels()[0]
     const conversation = await this.deps.data.conversationRepository.create({ title: 'Untitled', workspacePath: account.defaultWorkspacePath!, createdAt: this.now(), updatedAt: this.now(), conversationInstructions: '', settings: preferred ? toModelConfig(preferred, settings.reasoningEffort) : { modelId: '', providerId: '', temperature: 0.7, maxOutputTokens: 4096, reasoningEffort: settings.reasoningEffort }, sourceType: event.channelType, sourceChannelAccountId: account.id, sourceExternalChatId: event.externalChatId })
     return this.deps.data.channelSessionRepository.upsert({ channelAccountId: account.id, externalChatId: event.externalChatId, activeConversationId: conversation.id, currentWorkspacePath: account.defaultWorkspacePath!, createdAt: this.now(), updatedAt: this.now() })
   }
@@ -237,7 +239,7 @@ export class ChannelRuntime {
     if (this.findModel(conversation.settings.providerId, conversation.settings.modelId))
       return conversation.settings
     const settings = await this.deps.data.settingsRepository.getGeneralSettings()
-    const fallback = this.findModel(settings.assistantProviderId, settings.assistantModelId) ?? this.getModels()[0]
+    const fallback = this.getModels()[0]
     if (!fallback)
       return undefined
     const modelConfig = toModelConfig(fallback, conversation.settings.reasoningEffort ?? settings.reasoningEffort)

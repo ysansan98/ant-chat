@@ -1,4 +1,4 @@
-import type { AgentRuntimeConfig, AgentRuntimeOptions, AgentRuntimeStartTaskOptions, AgentRuntimeStartTaskResult, AgentTaskSnapshot, ApprovePendingActionOptions, CancelTaskOptions, IMessage, RejectPendingActionOptions } from '@ant-chat/shared'
+import type { AgentMode, AgentRuntimeConfig, AgentRuntimeOptions, AgentRuntimeStartTaskOptions, AgentRuntimeStartTaskResult, AgentTaskSnapshot, ApprovePendingActionOptions, CancelTaskOptions, IMessage, RejectPendingActionOptions } from '@ant-chat/shared'
 import type { RuntimeStartInput, RuntimeStartResult } from './session/types'
 import type { ToolAuthorization } from './tools/types'
 import { randomUUID } from 'node:crypto'
@@ -131,6 +131,14 @@ export class AgentRuntime {
   cancelTask(options: CancelTaskOptions): void {
     const task = this.taskStore.cancel(options.taskId)
     void this.config.eventEmitter.emitTaskUpdated(task.snapshot)
+  }
+
+  updateTaskMode(taskId: string, mode: AgentMode): AgentTaskSnapshot | null {
+    const task = this.taskStore.updateMode(taskId, mode)
+    if (!task)
+      return null
+    void this.config.eventEmitter.emitTaskUpdated(task.snapshot)
+    return task.snapshot
   }
 
   async injectSteering(conversationId: string, text: string): Promise<IMessage> {

@@ -545,6 +545,30 @@ describe('createToolAuthorization 行为', () => {
     expect(waitForApproval).not.toHaveBeenCalled()
   })
 
+  it('运行中切换权限模式后，后续未执行的工具调用按新 mode 判定', async () => {
+    const waitForApproval = vi.fn(async () => ({ approved: true }))
+    const hook = createToolAuthorization(createTaskState(waitForApproval))
+    const task = createTask({ mode: 'strict' })
+
+    // 运行中从 strict 切到 full_managed：原本需审批的 workspace write 直接放行
+    task.snapshot.mode = 'full_managed'
+    await expect(hook({
+      task,
+      prepared: { ...createPrepared(), operationType: 'write', scope: 'workspace' },
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+    })).resolves.toEqual({ outcome: 'allow' })
+    expect(waitForApproval).not.toHaveBeenCalled()
+
+    // 再切回 strict：恢复进入审批
+    task.snapshot.mode = 'strict'
+    await hook({
+      task,
+      prepared: { ...createPrepared(), operationType: 'write', scope: 'workspace' },
+      config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
+    })
+    expect(waitForApproval).toHaveBeenCalledTimes(1)
+  })
+
   it('用户拒绝审批时返回 block', async () => {
     const hook = createToolAuthorization(createTaskState(async () => ({ approved: false, reason: '用户拒绝' })))
 

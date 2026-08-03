@@ -30,7 +30,7 @@ export function SelectModel() {
       }}
       options={providers}
       allowUnset={true}
-      unsetLabel="使用默认模型"
+      unsetLabel="使用当前会话模型"
       reasoningEffort={reasoningEffort}
       onReasoningEffortChange={value => setAssistantReasoningEffort(value)}
       className={`
@@ -41,7 +41,7 @@ export function SelectModel() {
       `}
     >
       <span className="truncate">
-        {hasSelection ? selectedModelName : '使用默认模型'}
+        {hasSelection ? selectedModelName : '使用当前会话模型'}
       </span>
       <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
     </ModelSelect>

@@ -12,6 +12,52 @@ export function skipNextSettingsRefresh() {
   _skipNextRefresh = true
 }
 
+let defaultModelSaveQueue = Promise.resolve()
+
+/**
+ * 记录用户在普通对话中显式选择的模型，作为后续新会话的起始模型。
+ *
+ * 这里使用串行队列，避免用户连续切换模型时后返回的请求覆盖最新选择。
+ * 先更新本地状态，让新会话立即看到选择；保存失败且用户没有继续选择时再回滚。
+ */
+export function rememberDefaultModel(modelId: string, providerId: string): Promise<void> {
+  const previous = useGeneralSettingsStore.getState()
+  if (previous.defaultModelId === modelId && previous.defaultProviderId === providerId) {
+    return Promise.resolve()
+  }
+
+  useGeneralSettingsStore.setState({ defaultModelId: modelId, defaultProviderId: providerId })
+
+  const save = async () => {
+    try {
+      const newSettings = await generalSettingsApi.updateSettings({
+        defaultModelId: modelId,
+        defaultProviderId: providerId,
+      })
+      const current = useGeneralSettingsStore.getState()
+      if (current.defaultModelId === modelId && current.defaultProviderId === providerId) {
+        useGeneralSettingsStore.setState({
+          defaultModelId: newSettings.defaultModelId,
+          defaultProviderId: newSettings.defaultProviderId,
+        })
+      }
+    }
+    catch {
+      const current = useGeneralSettingsStore.getState()
+      if (current.defaultModelId === modelId && current.defaultProviderId === providerId) {
+        useGeneralSettingsStore.setState({
+          defaultModelId: previous.defaultModelId,
+          defaultProviderId: previous.defaultProviderId,
+        })
+      }
+      toast.error('最近使用模型保存失败')
+    }
+  }
+
+  defaultModelSaveQueue = defaultModelSaveQueue.then(save, save)
+  return defaultModelSaveQueue
+}
+
 export async function setAutoGenerateTitle(autoGenerateTitle: boolean) {
   useGeneralSettingsStore.setState(produce((state) => {
     state.isLoading = true
