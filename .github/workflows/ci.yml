@@ -40,7 +40,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install ripgrep
-        run: sudo apt-get update && sudo apt-get install -y ripgrep
+        run: sudo apt-get update && sudo apt-get install -y libsecret-1-0 ripgrep
 
       - name: Validate changeset coverage
         if: github.event_name == 'pull_request' && matrix.node-version == 22
