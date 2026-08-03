@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { WorkspaceModule } from '../app-runtime/modules/workspace'
+import { PermissionsFileStore } from '../data/permissions'
 import type { SystemLogger } from '../systemLogger'
 import type { activateAppRuntime as activateAppRuntimeFn } from '../appRuntime'
 
@@ -132,7 +132,9 @@ describe('app runtime', () => {
       candidates: [],
       reason: '命令宿主探测失败：realpath failed',
     }))
-    expect(runtime.getModule(WorkspaceModule)).toBeDefined()
+    await expect(runtime.invoke('workspace.listWorkspaces', undefined)).resolves.toEqual(expect.objectContaining({
+      workspaces: expect.any(Array),
+    }))
     expect(logger.warn).toHaveBeenCalledOnce()
   })
 
@@ -291,13 +293,7 @@ describe('app runtime', () => {
       workspacePath,
       rule: { kind: 'mcp-tool', serverName: 'demo', toolName: 'read' },
     })
-    const workspaceModule = runtime.getModule(WorkspaceModule)
-    const permissionsFileStore = (workspaceModule as unknown as {
-      permissionsFileStore: {
-        clearWorkspace: (path: string) => void
-      }
-    }).permissionsFileStore
-    vi.spyOn(permissionsFileStore, 'clearWorkspace').mockImplementationOnce(() => {
+    vi.spyOn(PermissionsFileStore.prototype, 'clearWorkspace').mockImplementationOnce(() => {
       throw new Error('permissions cleanup failed')
     })
 

@@ -43,15 +43,6 @@ export function canonicalizePermissionRuleInput(
   return ToolApprovalRuleInputSchema.parse(canonical)
 }
 
-export function canonicalizeWorkspacePath(workspacePath: string): string {
-  if (!path.isAbsolute(workspacePath))
-    throw new Error('工作区路径必须是绝对路径')
-  const canonicalPath = path.normalize(fs.realpathSync.native(workspacePath))
-  if (!fs.statSync(canonicalPath).isDirectory())
-    throw new Error('工作区路径必须指向目录')
-  return canonicalPath
-}
-
 function canonicalizeExecutable(executable: string): string {
   // PATH/相对命令原样保存；绝对路径仅验证存在性，不解析 symlink。
   // 详见 executableIdentity.ts 的安全模型说明。

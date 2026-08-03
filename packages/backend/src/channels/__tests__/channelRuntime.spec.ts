@@ -130,6 +130,67 @@ describe('channelRuntime 入站行为', () => {
     })
   })
 
+  it('新频道会话不把助手模型当作默认模型', async () => {
+    const { data, startTurn, updateConversation } = createHarness()
+    const newConversation = {
+      id: 'new-channel-conversation',
+      workspacePath: '/workspace',
+      title: 'Untitled',
+      conversationInstructions: '',
+      createdAt: 1,
+      updatedAt: 1,
+      settings: { modelId: 'channel-model', providerId: 'channel-provider', temperature: 0.4, maxOutputTokens: 8192 },
+      sourceType: 'feishu' as const,
+      sourceChannelAccountId: 'a1',
+      sourceExternalChatId: 'chat-2',
+    }
+    data.channelSessionRepository.get = vi.fn(async () => undefined)
+    data.channelSessionRepository.upsert = vi.fn(async input => input)
+    data.settingsRepository.getGeneralSettings = vi.fn(async () => ({
+      assistantModelId: 'assistant-model',
+      assistantProviderId: 'assistant-provider',
+      defaultModelId: '',
+      defaultProviderId: '',
+      autoGenerateTitle: false,
+      reasoningEffort: undefined,
+      proxySettings: { mode: 'none' as const, customProxyUrl: '' },
+      appearance: { mode: 'system' as const, lightThemeId: 'default', darkThemeId: 'default' },
+      developerTools: { agentObservabilityEnabled: false },
+    }))
+    data.conversationRepository.create = vi.fn(async () => newConversation)
+    data.conversationRepository.getById = vi.fn(async () => newConversation)
+
+    const runtime = new ChannelRuntime({
+      data,
+      turnService: { startTurn },
+      updateConversation,
+      listModels: () => [{
+        modelId: 'channel-model',
+        providerId: 'channel-provider',
+        name: '频道模型',
+        temperature: 0.4,
+        maxOutputTokens: 8192,
+      }],
+    })
+
+    await expect(runtime.handleInbound({
+      channelAccountId: 'a1',
+      channelType: 'feishu',
+      externalUserId: 'u1',
+      externalDisplayName: '用户',
+      externalChatId: 'chat-2',
+      externalMessageId: 'e-channel-model',
+      text: '你好',
+    })).resolves.toMatchObject({ kind: 'turn' })
+
+    expect(data.conversationRepository.create).toHaveBeenCalledWith(expect.objectContaining({
+      settings: expect.objectContaining({ modelId: 'channel-model', providerId: 'channel-provider' }),
+    }))
+    expect(startTurn).toHaveBeenCalledWith(expect.objectContaining({
+      modelConfig: expect.objectContaining({ modelId: 'channel-model', providerId: 'channel-provider' }),
+    }))
+  })
+
   it('/model 按用户可见名称同时保存 provider 和 model', async () => {
     const { data, updateConversation } = createHarness()
     const runtime = new ChannelRuntime({

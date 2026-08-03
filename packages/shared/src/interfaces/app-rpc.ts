@@ -16,6 +16,7 @@ import type { AgentObservabilityEvidence, AgentTurnIdentity, AgentTurnSummary, A
 import type { ToolApprovalRule, ToolApprovalRuleInput } from '../schemas/toolApprovalRules'
 import type { AgentMemoryFiles, UpdateAgentMemoryInput } from './agent-memory'
 import type {
+  AgentMode,
   AgentTaskSnapshot,
   ApprovePendingActionOptions,
   RejectPendingActionOptions,
@@ -155,6 +156,7 @@ export interface AppRpcContract {
   'agent.resolveSecretRequest': RpcEndpoint<{ options: { requestId: string, value?: string, values?: Record<string, string> } }, null>
   'agent.rejectSecretRequest': RpcEndpoint<{ options: { requestId: string, reason?: string } }, null>
   'agent.cancelTask': RpcEndpoint<{ taskId: string }, null>
+  'agent.updateTaskMode': RpcEndpoint<{ taskId: string, mode: AgentMode }, AgentTaskSnapshot | null>
   'agent.injectSteering': RpcEndpoint<{ conversationId: string, text: string }, IMessage>
   'agent.listActiveTasks': RpcEndpoint<{ conversationId?: string } | undefined, AgentTaskSnapshot[]>
 

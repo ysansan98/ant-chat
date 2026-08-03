@@ -2,7 +2,8 @@ import type { AppRpcInput } from '@ant-chat/shared'
 import type { PermissionsFileStore, WorkspaceService } from '../../../data'
 import type { RuntimeEventBus } from '../../../events'
 import type { RuntimeModuleMethods } from '../../routeRegistry'
-import { canonicalizeWorkspacePath, searchWorkspaceFiles } from '../../../data'
+import { searchWorkspaceFiles } from '../../../data'
+import { canonicalizeWorkspacePath } from '../../../workspace/workspaceIdentity'
 import { Method, Module } from '../../decorators'
 
 @Module('workspace')

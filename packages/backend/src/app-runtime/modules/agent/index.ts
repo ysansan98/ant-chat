@@ -144,6 +144,11 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
   }
 
   @Method()
+  updateTaskMode(input: AppRpcInput<'agent.updateTaskMode'>) {
+    return this.runtime.updateTaskMode(input.taskId, input.mode)
+  }
+
+  @Method()
   injectSteering(input: AppRpcInput<'agent.injectSteering'>) {
     return this.runtime.injectSteering(input.conversationId, input.text)
   }

@@ -1,4 +1,4 @@
-import type { AgentPendingAction, AgentTaskSnapshot, ApprovePendingActionOptions, IAgentEventEmitter } from '@ant-chat/shared'
+import type { AgentMode, AgentPendingAction, AgentTaskSnapshot, ApprovePendingActionOptions, IAgentEventEmitter } from '@ant-chat/shared'
 import { AgentError } from './AgentError'
 
 export interface SteeringInput {
@@ -64,6 +64,21 @@ export class TaskStore {
   getSnapshot(taskId: string): AgentTaskSnapshot | undefined {
     const task = this.tasks.get(taskId)
     return task ? { ...task.snapshot } : undefined
+  }
+
+  /**
+   * 更新运行中任务的权限模式。
+   *
+   * 后续未执行的工具调用在授权边界读到新 mode；已执行的不追溯，
+   * 已挂起的审批动作不被自动放行。返回任务供调用方广播快照更新。
+   */
+  updateMode(taskId: string, mode: AgentMode): RuntimeTask | undefined {
+    const task = this.tasks.get(taskId)
+    if (!task || !['running', 'awaiting_approval'].includes(task.snapshot.status))
+      return undefined
+    task.snapshot.mode = mode
+    task.snapshot.updatedAt = Date.now()
+    return task
   }
 
   listActive(conversationId?: string): AgentTaskSnapshot[] {

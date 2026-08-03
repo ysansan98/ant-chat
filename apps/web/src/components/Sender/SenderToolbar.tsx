@@ -14,6 +14,7 @@ import {
   setAgentMode,
   useChatSttingsStore,
 } from '@/store/chatSettings'
+import { rememberDefaultModel } from '@/store/generalSettings'
 import { ModelControlPanel } from './PickerModel'
 import { SenderAddAttachmentButton } from './SenderAttachments'
 import { SenderContextUsageButton } from './SenderContextUsageButton'
@@ -81,8 +82,11 @@ export function SenderToolbar({ fileAccept, contextLength }: SenderToolbarProps)
       <div className="flex items-center gap-1">
         <ModelControlPanel
           value={{ modelId: settings.modelId, providerId: settings.providerId }}
-          onChange={({ modelId, providerId, maxOutputTokens, temperature }) => {
+          onChange={({ modelId, providerId, maxOutputTokens, temperature }, source) => {
             updateSettings({ modelId, providerId, maxOutputTokens, temperature })
+            if (source === 'user') {
+              void rememberDefaultModel(modelId, providerId)
+            }
           }}
           reasoningEffort={settings.reasoningEffort}
           onReasoningEffortChange={value => updateSettings({ reasoningEffort: value })}

@@ -1,4 +1,4 @@
-import type { AppRpcInput, AppRpcMethod, AppRpcOutput } from '@ant-chat/shared'
+import type { AppRpcInput, AppRpcMethod, AppRpcOutput, SkillManifest } from '@ant-chat/shared'
 import type { CommandHost } from './agent-core/native-tools/command/types'
 import type { RuntimeCore } from './app-runtime/createRuntimeCore'
 import type { RuntimeActivation } from './app-runtime/runtimeActivation'
@@ -16,8 +16,9 @@ export type { CreateAppRuntimeOptions, OAuthCallbackHandler, OAuthCallbackHost }
 
 export interface AppRuntime {
   events: RuntimeCore['events']
-  getModule: <TModule>(moduleType: { prototype: TModule }) => TModule
   invoke: <TMethod extends AppRpcMethod>(method: TMethod, input: AppRpcInput<TMethod>) => Promise<AppRpcOutput<TMethod>>
+  /** Desktop 文件选择器使用的宿主专用能力，不进入普通 Web RPC contract。 */
+  importSkillFromZip: (filePath: string) => Promise<SkillManifest>
   dispose: () => Promise<void>
 }
 
@@ -64,10 +65,10 @@ export async function activateAppRuntime(options: CreateAppRuntimeOptions): Prom
 
     const runtime: AppRuntime = {
       events: core.events,
-      getModule: <TModule>(moduleType: { prototype: TModule }) => routes.getModule(moduleType),
       invoke<TMethod extends AppRpcMethod>(method: TMethod, input: AppRpcInput<TMethod>): Promise<AppRpcOutput<TMethod>> {
         return routes.invoke(method, input)
       },
+      importSkillFromZip: modules.skills.importSkillFromZip,
       async dispose(): Promise<void> {
         await activation!.dispose()
       },

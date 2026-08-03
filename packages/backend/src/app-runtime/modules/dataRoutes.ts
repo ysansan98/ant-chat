@@ -22,15 +22,12 @@ function route<TMethod extends AppRpcMethod>(
  */
 export function createDataRoutes(core: Pick<RuntimeCore, 'data'>): RegisteredRoute[] {
   const { memoryManager, messageSearchQuery, messageRepository } = core.data
-  const visualizationRepository = messageRepository as typeof messageRepository & {
-    loadVisualizationData: (input: { conversationId: string, messageId: string, fileId: string }) => Promise<string | null>
-  }
   return [
     route('memory.getMemoryFiles', () => memoryManager.readMemoryFiles()),
     route('memory.updateMemoryFiles', input => memoryManager.updateMemoryFiles(input.input)),
     route('memory.rollbackSoul', () => memoryManager.rollbackSoul()),
     route('search.searchByKeyword', input => messageSearchQuery.searchMessagesByKeyword(input.query)),
     route('files.getAttachmentData', input => messageRepository.loadAttachmentData(input.fileId)),
-    route('visualizations.get', input => visualizationRepository.loadVisualizationData(input)),
+    route('visualizations.get', input => messageRepository.loadVisualizationData(input)),
   ]
 }

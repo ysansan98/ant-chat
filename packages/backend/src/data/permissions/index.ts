@@ -1,2 +1,2 @@
-export * from './canonicalizePermissionInput'
+export { canonicalizePermissionRuleInput } from './canonicalizePermissionInput'
 export * from './permissionsFileStore'

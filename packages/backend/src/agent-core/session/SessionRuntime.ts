@@ -14,7 +14,7 @@ import type { ConversationContextEntry } from '../loop/loopContext'
 import type { TaskStore } from '../taskStore'
 import type { RuntimeStartInput } from './types'
 import { randomUUID } from 'node:crypto'
-import { canonicalizeWorkspacePath } from '../../data/permissions/canonicalizePermissionInput'
+import { canonicalizeWorkspacePath } from '../../workspace/workspaceIdentity'
 import {
   DEFAULT_COMPACTION_SETTINGS,
 } from '../compaction/compaction'

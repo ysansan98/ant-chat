@@ -25,6 +25,8 @@ describe('localControlServer', () => {
           appearance: { darkThemeId: 'default', lightThemeId: 'default', mode: 'system' },
           assistantModelId: 'model-1',
           assistantProviderId: 'provider-1',
+          defaultModelId: '',
+          defaultProviderId: '',
           autoGenerateTitle: true,
           developerTools: { agentObservabilityEnabled: false },
           proxySettings: { mode: 'none' },

@@ -50,6 +50,8 @@ function settings(agentObservabilityEnabled: boolean) {
   return {
     assistantModelId: '',
     assistantProviderId: '',
+    defaultModelId: '',
+    defaultProviderId: '',
     autoGenerateTitle: false,
     reasoningEffort: undefined,
     proxySettings: { mode: 'none' as const, customProxyUrl: '' },

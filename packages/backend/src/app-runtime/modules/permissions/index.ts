@@ -1,7 +1,8 @@
 import type { AppRpcInput } from '@ant-chat/shared'
 import type { PermissionsFileStore } from '../../../data/permissions'
 import type { RuntimeModuleMethods } from '../../routeRegistry'
-import { canonicalizePermissionRuleInput, canonicalizeWorkspacePath } from '../../../data/permissions'
+import { canonicalizePermissionRuleInput } from '../../../data/permissions'
+import { canonicalizeWorkspacePath } from '../../../workspace/workspaceIdentity'
 import { Method, Module } from '../../decorators'
 
 /** 权限管理 RPC 只接收类型化能力输入，规则身份和资源规范化由后端负责。 */

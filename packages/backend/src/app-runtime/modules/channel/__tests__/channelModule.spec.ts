@@ -113,7 +113,7 @@ describe('channel module 平台回包', () => {
       secretStore: { resolve: vi.fn(async () => 'credential') },
     } as never, {
       turnService: { startTurn },
-      conversationLifecycle: { update: updateConversation },
+      updateConversation,
       listActiveTasks: vi.fn(() => activeTasks),
       approvePendingAction,
       cancelTask,
@@ -372,7 +372,8 @@ describe('channel module 平台回包', () => {
     })
     expect(approvalResult).toEqual({ status: 'success', message: '已批准，本次任务将继续执行。' })
     expect(approvePendingAction).toHaveBeenCalledWith({
-      options: { taskId: 'task-approval', actionId: 'approval-1' },
+      taskId: 'task-approval',
+      actionId: 'approval-1',
     })
   })
 })

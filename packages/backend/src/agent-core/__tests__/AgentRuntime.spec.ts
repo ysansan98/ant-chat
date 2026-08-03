@@ -320,6 +320,23 @@ describe('agentRuntime 行为', () => {
       ).rejects.toThrow('AGENT_TASK_ALREADY_RUNNING')
     })
 
+    it('updateTaskMode 更新运行中任务的权限模式并广播快照', async () => {
+      const emitter = createMockEmitter()
+      const runtime = new AgentRuntime({ eventEmitter: emitter, logger: createMockLogger() })
+      const result = await runtime.startPreparedTask(createValidStartInput({ mode: 'strict' }))
+
+      const updated = runtime.updateTaskMode(result.taskId, 'full_managed')
+
+      expect(updated).toMatchObject({ taskId: result.taskId, mode: 'full_managed' })
+      expect(runtime.getTask(result.taskId).mode).toBe('full_managed')
+      expect(emitter.emitTaskUpdated).toHaveBeenCalledWith(expect.objectContaining({ mode: 'full_managed' }))
+    })
+
+    it('updateTaskMode 未知任务返回 null', async () => {
+      const runtime = new AgentRuntime(createConfig())
+      expect(runtime.updateTaskMode('missing-task', 'hybrid')).toBeNull()
+    })
+
     it('通过高层 task 参数读取 session 状态并启动 loop', async () => {
       const store = createSessionStore()
       const config = createSessionConfig({ sessionStore: store })

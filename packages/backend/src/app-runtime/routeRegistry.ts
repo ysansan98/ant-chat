@@ -20,10 +20,8 @@ export type RuntimeModuleMethods<TNamespace extends string> = {
 
 export class RouteRegistry {
   private readonly handlers = new Map<string, RpcHandler>()
-  private readonly modules = new Map<object, object>()
 
   register(instance: object): void {
-    this.modules.set(instance.constructor, instance)
     const { name, methods } = getModuleMetadata(instance)
 
     for (const [propertyKey, methodName] of methods) {
@@ -48,14 +46,6 @@ export class RouteRegistry {
       }
       this.handlers.set(route.method, route.handler)
     }
-  }
-
-  getModule<TModule>(moduleType: { prototype: TModule }): TModule {
-    const module = this.modules.get(moduleType)
-    if (!module) {
-      throw new Error(`运行时模块未注册: ${(moduleType as { name?: string }).name ?? 'unknown'}`)
-    }
-    return module as TModule
   }
 
   has(method: string): boolean {

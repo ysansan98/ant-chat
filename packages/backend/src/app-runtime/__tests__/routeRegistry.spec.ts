@@ -18,7 +18,6 @@ describe('routeRegistry', () => {
     registry.register(settings)
 
     await expect(registry.invoke('settings.getSettings', undefined)).resolves.toEqual({ theme: 'system' })
-    expect(registry.getModule(SettingsModule)).toBe(settings)
   })
 
   it('拒绝重复注册相同路由', () => {

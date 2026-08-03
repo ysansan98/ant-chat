@@ -9,7 +9,10 @@ import { PROVIDER_CHANGED_EVENT } from '@/constants/providerEvents'
 
 interface ModelControlPanelProps {
   value: { modelId: string, providerId: string }
-  onChange?: (info: { modelId: string, providerId: string, maxOutputTokens: number, temperature: number }) => void
+  onChange?: (
+    info: { modelId: string, providerId: string, maxOutputTokens: number, temperature: number },
+    source: 'user' | 'fallback',
+  ) => void
   reasoningEffort?: ReasoningEffortLevel
   onReasoningEffortChange?: (value: ReasoningEffortLevel | undefined) => void
 }
@@ -28,14 +31,15 @@ export function ModelControlPanel({ value, onChange, reasoningEffort, onReasonin
   }, [refresh])
 
   const activeProviderServiceInfo = !value.modelId ? data?.[0] : data?.find(item => item.id === value.providerId)
-  const currentModelInfo = activeProviderServiceInfo?.models.find(model => model.id === value.modelId)
+  const currentModelInfo = activeProviderServiceInfo?.models.find(model => model.id === value.modelId && model.providerId === value.providerId)
+  const fallbackModel = activeProviderServiceInfo?.models[0] ?? data?.[0]?.models[0]
 
   React.useEffect(() => {
-    if (!value.modelId && activeProviderServiceInfo?.models.length) {
-      const firstModel = activeProviderServiceInfo.models[0]
-      onChange?.({ modelId: firstModel.id, providerId: firstModel.providerId, maxOutputTokens: firstModel.maxOutputTokens, temperature: firstModel.temperature })
+    if (currentModelInfo || !fallbackModel) {
+      return
     }
-  }, [activeProviderServiceInfo, onChange, value])
+    onChange?.({ modelId: fallbackModel.id, providerId: fallbackModel.providerId, maxOutputTokens: fallbackModel.maxOutputTokens, temperature: fallbackModel.temperature }, 'fallback')
+  }, [currentModelInfo, fallbackModel, onChange])
 
   return (
     <div
@@ -46,7 +50,7 @@ export function ModelControlPanel({ value, onChange, reasoningEffort, onReasonin
       {/* Model selector - 2-level cascading submenu */}
       <ModelSelect
         value={value}
-        onChange={nextInfo => onChange?.(nextInfo)}
+        onChange={nextInfo => onChange?.(nextInfo, 'user')}
         options={data}
         reasoningEffort={reasoningEffort}
         onReasoningEffortChange={onReasoningEffortChange}

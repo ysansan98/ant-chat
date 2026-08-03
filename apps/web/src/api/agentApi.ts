@@ -1,4 +1,4 @@
-import type { AgentTaskSnapshot, AgentTurnResult, ApprovePendingActionOptions, IMessage, RejectPendingActionOptions, StartAgentTurnOptions } from '@ant-chat/shared'
+import type { AgentMode, AgentTaskSnapshot, AgentTurnResult, ApprovePendingActionOptions, IMessage, RejectPendingActionOptions, StartAgentTurnOptions } from '@ant-chat/shared'
 import { getAppRpcClient } from './transports/appRpc'
 
 async function startTurn(options: StartAgentTurnOptions): Promise<AgentTurnResult> {
@@ -15,6 +15,10 @@ async function rejectPendingAction(options: RejectPendingActionOptions): Promise
 
 async function cancelTask(taskId: string): Promise<null> {
   return getAppRpcClient().call('agent.cancelTask', { taskId })
+}
+
+async function updateTaskMode(taskId: string, mode: AgentMode): Promise<AgentTaskSnapshot | null> {
+  return getAppRpcClient().call('agent.updateTaskMode', { taskId, mode })
 }
 
 async function listActiveTasks(conversationId?: string): Promise<AgentTaskSnapshot[]> {
@@ -38,6 +42,7 @@ export default {
   approvePendingAction,
   rejectPendingAction,
   cancelTask,
+  updateTaskMode,
   injectSteering,
   listActiveTasks,
   resolveSecretRequest,

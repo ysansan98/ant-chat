@@ -3,6 +3,13 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useConversationSettings } from '../useConversationSettings'
 
+const { mockGeneralSettingsState } = vi.hoisted(() => ({
+  mockGeneralSettingsState: {
+    defaultModelId: '',
+    defaultProviderId: '',
+  },
+}))
+
 // Mock dependencies
 vi.mock('@/store/conversation', () => ({
   getConversationByIdAction: vi.fn(),
@@ -12,6 +19,11 @@ vi.mock('@/store/conversation', () => ({
 
 vi.mock('@/store/messages', () => ({
   useMessagesStore: vi.fn(),
+}))
+
+vi.mock('@/store/generalSettings', () => ({
+  useGeneralSettingsStore: (selector: (state: typeof mockGeneralSettingsState) => unknown) =>
+    selector(mockGeneralSettingsState),
 }))
 
 import {
@@ -35,6 +47,7 @@ const defaultCompaction = {
 describe('useConversationSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    Object.assign(mockGeneralSettingsState, { defaultModelId: '', defaultProviderId: '' })
   })
 
   it('should return default settings if no conversation is found', () => {
@@ -76,6 +89,44 @@ describe('useConversationSettings', () => {
       compaction: defaultCompaction,
     })
     expect(result.current.conversationInstructions).toBe('')
+  })
+
+  it('新建会话优先使用最近使用模型', () => {
+    vi.mocked(useMessagesStore).mockReturnValue('')
+    vi.mocked(getConversationByIdAction).mockReturnValue(undefined)
+    Object.assign(mockGeneralSettingsState, { defaultModelId: 'last-model', defaultProviderId: 'last-provider' })
+
+    const { result } = renderHook(() => useConversationSettings())
+
+    expect(result.current.settings).toMatchObject({
+      modelId: 'last-model',
+      providerId: 'last-provider',
+    })
+  })
+
+  it('已有会话模型优先于最近使用模型，空旧设置才回退', () => {
+    vi.mocked(useMessagesStore).mockReturnValue('legacy-conversation')
+    Object.assign(mockGeneralSettingsState, { defaultModelId: 'last-model', defaultProviderId: 'last-provider' })
+    vi.mocked(getConversationByIdAction).mockReturnValue({
+      id: 'legacy-conversation',
+      title: 'Legacy',
+      conversationInstructions: '',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      settings: {
+        modelId: '',
+        providerId: '',
+        temperature: 0.7,
+        maxOutputTokens: 1000,
+      },
+    })
+
+    const { result } = renderHook(() => useConversationSettings())
+
+    expect(result.current.settings).toMatchObject({
+      modelId: 'last-model',
+      providerId: 'last-provider',
+    })
   })
 
   it('保留合法的 temperature 0', () => {
@@ -288,5 +339,114 @@ describe('useConversationSettings', () => {
       maxOutputTokens: 1000,
       compaction: defaultCompaction,
     })
+  })
+
+  it('新会话且未记住默认模型时，起始模型为空（交由 PickerModel 兜底到列表第一个）', () => {
+    mockGeneralSettingsState.defaultModelId = ''
+    mockGeneralSettingsState.defaultProviderId = ''
+    vi.mocked(useMessagesStore).mockReturnValue(() => 'new-conv')
+    vi.mocked(getConversationByIdAction).mockReturnValue({
+      id: 'new-conv',
+      title: 'New',
+      conversationInstructions: '',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      settings: {
+        modelId: '',
+        providerId: '',
+        temperature: 0.7,
+        maxOutputTokens: 1000,
+      },
+    })
+
+    const { result } = renderHook(() => useConversationSettings())
+    expect(result.current.settings.modelId).toBe('')
+    expect(result.current.settings.providerId).toBe('')
+  })
+
+  it('新会话使用记住的默认模型作为起始模型', () => {
+    mockGeneralSettingsState.defaultModelId = 'claude-opus'
+    mockGeneralSettingsState.defaultProviderId = 'anthropic'
+    vi.mocked(useMessagesStore).mockReturnValue(() => 'new-conv-2')
+    vi.mocked(getConversationByIdAction).mockReturnValue({
+      id: 'new-conv-2',
+      title: 'New 2',
+      conversationInstructions: '',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      settings: {
+        modelId: '',
+        providerId: '',
+        temperature: 0.7,
+        maxOutputTokens: 1000,
+      },
+    })
+
+    const { result } = renderHook(() => useConversationSettings())
+    expect(result.current.settings.modelId).toBe('claude-opus')
+    expect(result.current.settings.providerId).toBe('anthropic')
+  })
+
+  it('已存模型的会话优先使用会话自身模型，不受默认模型影响', () => {
+    mockGeneralSettingsState.defaultModelId = 'claude-opus'
+    mockGeneralSettingsState.defaultProviderId = 'anthropic'
+    vi.mocked(useMessagesStore).mockReturnValue(() => 'conv-stored')
+    vi.mocked(getConversationByIdAction).mockReturnValue({
+      id: 'conv-stored',
+      title: 'Stored',
+      conversationInstructions: '',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      settings: {
+        modelId: 'gpt-4',
+        providerId: 'openai',
+        temperature: 0.7,
+        maxOutputTokens: 1000,
+      },
+    })
+
+    const { result } = renderHook(() => useConversationSettings())
+    expect(result.current.settings.modelId).toBe('gpt-4')
+    expect(result.current.settings.providerId).toBe('openai')
+  })
+
+  it('切换到无模型的会话时重新按默认模型播种', () => {
+    mockGeneralSettingsState.defaultModelId = 'claude-opus'
+    mockGeneralSettingsState.defaultProviderId = 'anthropic'
+    let activeId = 'conv-has-model'
+    vi.mocked(useMessagesStore).mockImplementation(cb => cb({
+      activeConversationsId: activeId,
+      messages: [],
+      pendingSteeringByConversation: {},
+      reset(): void {
+        throw new Error('Function not implemented.')
+      },
+    }))
+    vi.mocked(getConversationByIdAction).mockImplementation((id) => {
+      if (id === 'conv-has-model') {
+        return {
+          id: 'conv-has-model',
+          title: 'Has Model',
+          conversationInstructions: '',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          settings: {
+            modelId: 'gpt-4',
+            providerId: 'openai',
+            temperature: 0.7,
+            maxOutputTokens: 1000,
+          },
+        }
+      }
+      return undefined
+    })
+
+    const { result, rerender } = renderHook(() => useConversationSettings())
+    expect(result.current.settings.modelId).toBe('gpt-4')
+
+    activeId = 'conv-no-model'
+    rerender()
+    expect(result.current.settings.modelId).toBe('claude-opus')
+    expect(result.current.settings.providerId).toBe('anthropic')
   })
 })

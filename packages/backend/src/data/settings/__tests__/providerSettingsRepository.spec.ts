@@ -13,6 +13,8 @@ describe('provider settings repository', () => {
   const initialSettings: AppSettingsState = {
     assistantModelId: '',
     assistantProviderId: '',
+    defaultModelId: '',
+    defaultProviderId: '',
     autoGenerateTitle: false,
     developerTools: { agentObservabilityEnabled: false },
     proxySettings: { mode: 'none', customProxyUrl: '' },
@@ -157,6 +159,8 @@ describe('provider settings repository', () => {
     const baseSettings: AppSettingsState = {
       assistantModelId: '',
       assistantProviderId: '',
+      defaultModelId: '',
+      defaultProviderId: '',
       autoGenerateTitle: false,
       developerTools: { agentObservabilityEnabled: false },
       proxySettings: { mode: 'none' },
