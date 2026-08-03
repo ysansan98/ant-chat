@@ -26,7 +26,7 @@ describe('浏览器 Profile 自动发现', () => {
     fs.mkdirSync(path.join(root, 'Default'), { recursive: true })
     fs.mkdirSync(path.join(root, 'Profile 1'), { recursive: true })
 
-    const sources = await discoverBrowserProfiles({ extraDirectories: [root] })
+    const sources = await discoverBrowserProfiles({ platform: 'darwin', extraDirectories: [root] })
     const first = sources.find(source => source.profileName === '工作账号')!
     const second = sources.find(source => source.profileName === '个人账号')!
 
@@ -76,7 +76,7 @@ describe('浏览器 Profile 自动发现', () => {
     fs.writeFileSync(executable, '#!/bin/sh\nexit 0\n')
     fs.chmodSync(executable, 0o755)
 
-    const source = await inspectBrowserDirectory(profilePath, { env: { PATH: root } })
+    const source = await inspectBrowserDirectory(profilePath, { platform: 'darwin', env: { PATH: root } })
 
     expect(source).toMatchObject({ browserName: 'Chromium', profileDirectory: 'Profile 1', executablePath: executable, available: true })
   })
