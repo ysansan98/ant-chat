@@ -1,5 +1,4 @@
 import type { BrowserIdentityStatus, IpcResponse } from '@ant-chat/shared'
-import { BrowserProfilesModule } from '@ant-chat/backend'
 import { getAppRuntime } from '@main/app-runtime-host/appRuntime'
 import { withIpcResponse } from '@main/utils/ipc-response'
 import { getMainWindow } from '@main/windows/window'
@@ -21,7 +20,7 @@ export class BrowserProfilesIpcService extends IpcService {
       })
       if (result.canceled || result.filePaths.length === 0)
         return null
-      return getAppRuntime().getModule(BrowserProfilesModule).importFromDirectory(result.filePaths[0])
+      return getAppRuntime().importBrowserProfileFromDirectory(result.filePaths[0])
     }, '导入浏览器 Cookies 失败')
   }
 }
