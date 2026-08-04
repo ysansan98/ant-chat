@@ -1,5 +1,6 @@
 export { AgentError } from './AgentError'
 export { AgentRuntime, createAgentRuntime } from './AgentRuntime'
+export { CodexAIProvider, CodexAuthSession, CodexBackendClient, CodexOAuthCoordinator } from './ai-providers'
 export { createProvider } from './ai-providers/factory'
 export { createAProvider, MultiProvider } from './ai-providers/multi-provider'
 export type { ProviderFormat } from './ai-providers/types'

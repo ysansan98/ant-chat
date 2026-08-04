@@ -261,8 +261,8 @@ function createHarness(): AgentRuntimeHarness {
     id: 'mock-provider',
     name: 'Mock Provider',
     baseUrl: 'https://llm.example.com',
-    apiKey: 'test-key',
     apiMode: 'openai',
+    integrationId: 'api-key',
     isOfficial: false,
     isEnabled: true,
   })

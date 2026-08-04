@@ -17,6 +17,15 @@ interface ModelControlPanelProps {
   onReasoningEffortChange?: (value: ReasoningEffortLevel | undefined) => void
 }
 
+function getSupportedReasoningEffort(
+  model: AllAvailableModelsSchema['models'][number] | undefined,
+  reasoningEffort: ReasoningEffortLevel | undefined,
+): ReasoningEffortLevel | undefined {
+  return reasoningEffort && model?.capabilities?.reasoningLevels?.includes(reasoningEffort)
+    ? reasoningEffort
+    : undefined
+}
+
 export function ModelControlPanel({ value, onChange, reasoningEffort, onReasoningEffortChange }: ModelControlPanelProps) {
   const { data, refresh } = useRequest<AllAvailableModelsSchema[], []>(providerApi.getAllAbvailableModels)
 
@@ -34,12 +43,19 @@ export function ModelControlPanel({ value, onChange, reasoningEffort, onReasonin
   const currentModelInfo = activeProviderServiceInfo?.models.find(model => model.id === value.modelId && model.providerId === value.providerId)
   const fallbackModel = activeProviderServiceInfo?.models[0] ?? data?.[0]?.models[0]
 
+  const handleModelChange = React.useCallback((nextInfo: { modelId: string, providerId: string, maxOutputTokens: number, temperature: number }, source: 'user' | 'fallback') => {
+    const nextProvider = data?.find(provider => provider.id === nextInfo.providerId)
+    const nextModel = nextProvider?.models.find(model => model.id === nextInfo.modelId)
+    onReasoningEffortChange?.(getSupportedReasoningEffort(nextModel, reasoningEffort))
+    onChange?.(nextInfo, source)
+  }, [data, onChange, onReasoningEffortChange, reasoningEffort])
+
   React.useEffect(() => {
     if (currentModelInfo || !fallbackModel) {
       return
     }
-    onChange?.({ modelId: fallbackModel.id, providerId: fallbackModel.providerId, maxOutputTokens: fallbackModel.maxOutputTokens, temperature: fallbackModel.temperature }, 'fallback')
-  }, [currentModelInfo, fallbackModel, onChange])
+    handleModelChange({ modelId: fallbackModel.id, providerId: fallbackModel.providerId, maxOutputTokens: fallbackModel.maxOutputTokens, temperature: fallbackModel.temperature }, 'fallback')
+  }, [currentModelInfo, fallbackModel, handleModelChange])
 
   return (
     <div
@@ -50,7 +66,7 @@ export function ModelControlPanel({ value, onChange, reasoningEffort, onReasonin
       {/* Model selector - 2-level cascading submenu */}
       <ModelSelect
         value={value}
-        onChange={nextInfo => onChange?.(nextInfo, 'user')}
+        onChange={nextInfo => handleModelChange(nextInfo, 'user')}
         options={data}
         reasoningEffort={reasoningEffort}
         onReasoningEffortChange={onReasoningEffortChange}

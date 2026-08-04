@@ -1,4 +1,4 @@
-import type { ProviderConfigSchema } from '@ant-chat/shared'
+import type { ProviderPublicView } from '@ant-chat/shared'
 import { Button } from '@workspace/ui/components/button'
 import { EmptyState } from '@workspace/ui/components/empty-state'
 import { Switch } from '@workspace/ui/components/switch'
@@ -13,8 +13,9 @@ import { PROVIDER_CHANGED_EVENT } from '@/constants/providerEvents'
 import { SettingsPageLayout } from './SettingsPageLayout'
 
 export default function ProviderManage() {
-  const [activeProvider, setActiveProvider] = React.useState<ProviderConfigSchema | null>(null)
+  const [activeProviderId, setActiveProviderId] = React.useState<string | null>(null)
   const { data, error, refresh, loading } = useRequest(providerApi.listProviders)
+  const activeProvider: ProviderPublicView | null = data?.find(item => item.id === activeProviderId) ?? null
 
   React.useEffect(() => {
     window.addEventListener(PROVIDER_CHANGED_EVENT, refresh)
@@ -63,12 +64,12 @@ export default function ProviderManage() {
                 hover:bg-(--hover-bg-color)
               `}
                 onClick={() => {
-                  setActiveProvider(item)
+                  setActiveProviderId(item.id)
                 }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault()
-                    setActiveProvider(item)
+                    setActiveProviderId(item.id)
                   }
                 }}
               >
@@ -127,7 +128,7 @@ export default function ProviderManage() {
                       return
                     }
 
-                    setActiveProvider(null)
+                    setActiveProviderId(null)
                     refresh()
                   }}
                 />

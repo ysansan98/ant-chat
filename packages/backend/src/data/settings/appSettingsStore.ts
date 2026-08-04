@@ -3,7 +3,7 @@ import { AppSettingsSchema } from '@ant-chat/shared'
 import { JsonFileMigrationError, UnsupportedJsonSchemaVersionError, VersionedJsonFileStore } from '../file'
 import { DEFAULT_APP_SETTINGS } from './defaultAppSettings'
 
-const APP_SETTINGS_SCHEMA_VERSION = 4
+const APP_SETTINGS_SCHEMA_VERSION = 5
 const APP_SETTINGS_MIGRATIONS = [
   {
     version: 1,
@@ -20,6 +20,10 @@ const APP_SETTINGS_MIGRATIONS = [
   {
     version: 4,
     migrate: removeLegacyToolApprovalWhitelist,
+  },
+  {
+    version: 5,
+    migrate: migrateProviderIntegration,
   },
 ] as const
 
@@ -60,6 +64,26 @@ function revokeLegacyToolApprovalWhitelist(value: unknown): unknown {
 function removeLegacyToolApprovalWhitelist(value: unknown): unknown {
   if (isRecord(value))
     delete value.toolApprovalWhitelist
+  return value
+}
+
+/** 将早期把 Codex 产品身份塞进 apiMode 的配置迁移为独立 Integration。 */
+function migrateProviderIntegration(value: unknown): unknown {
+  if (!isRecord(value) || !Array.isArray(value.providers)) {
+    return value
+  }
+  for (const provider of value.providers) {
+    if (!isRecord(provider)) {
+      continue
+    }
+    if (provider.apiMode === 'codex') {
+      provider.apiMode = 'openai'
+      provider.integrationId = 'codex-subscription'
+    }
+    else if (provider.integrationId === undefined) {
+      provider.integrationId = 'api-key'
+    }
+  }
   return value
 }
 

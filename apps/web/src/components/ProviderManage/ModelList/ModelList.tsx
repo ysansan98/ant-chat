@@ -12,7 +12,7 @@ export interface ModelListProps {
 }
 
 export function ModelList({ providerId }: ModelListProps) {
-  const [openAddModal, setAddModal] = React.useState(false)
+  const [openAddModal, setOpenAddModal] = React.useState(false)
   const [isSyncing, setIsSyncing] = React.useState(false)
   const { data, error, refresh, run, mutate } = useRequest(
     providerApi.listProviderModels,
@@ -39,7 +39,7 @@ export function ModelList({ providerId }: ModelListProps) {
         <Button
           size="sm"
           onClick={() => {
-            setAddModal(true)
+            setOpenAddModal(true)
           }}
         >
           <PlusCircle className="size-4" />
@@ -51,23 +51,8 @@ export function ModelList({ providerId }: ModelListProps) {
           onClick={async () => {
             setIsSyncing(true)
             try {
-              const result = await providerApi.importModelsDevModels(providerId)
-              if (result.added.length === 0 && result.skipped.length === 0 && result.errors.length === 0) {
-                toast.info('未发现可同步的模型')
-              }
-              if (result.added.length > 0) {
-                toast.success(`已导入 ${result.added.length} 个模型`)
-              }
-              if (result.skipped.length > 0) {
-                toast.warning(`已存在模型：${result.skipped.join('、')}`)
-              }
-              if (result.duplicates.length > 0) {
-                toast.info(`已忽略重复条目：${result.duplicates.join('、')}`)
-              }
-              if (result.errors.length > 0) {
-                const errorMessage = result.errors.map(item => `${item.model}（${item.reason}）`).join('、')
-                toast.error(`导入失败：${errorMessage}`)
-              }
+              const result = await providerApi.syncModels(providerId)
+              toast.success(`模型同步完成，当前共有 ${result.length} 个模型`)
               refresh()
             }
             catch (e) {
@@ -79,7 +64,7 @@ export function ModelList({ providerId }: ModelListProps) {
           }}
         >
           <RefreshCcw className="size-4" />
-          同步模型列表
+          同步模型
         </Button>
       </div>
       <div className="mt-2 flex max-h-100 flex-col overflow-y-auto rounded-md border border-(--border-color)">
@@ -102,9 +87,10 @@ export function ModelList({ providerId }: ModelListProps) {
                     <Button
                       variant="ghost"
                       size="icon-xs"
+                      aria-label={`删除 ${item.name}`}
                       onClick={async () => {
                         try {
-                          await providerApi.deleteProviderModel(item.id)
+                          await providerApi.deleteProviderModel(providerId, item.id)
                           toast.success('删除成功')
                         }
                         catch (e: unknown) {
@@ -120,8 +106,9 @@ export function ModelList({ providerId }: ModelListProps) {
               <Button
                 variant="ghost"
                 size="icon-xs"
+                aria-label={`${item.isEnabled ? '禁用' : '启用'} ${item.name}`}
                 onClick={async () => {
-                  await providerApi.setModelEnabledStatus(item.id, !item.isEnabled)
+                  await providerApi.setModelEnabledStatus(providerId, item.id, !item.isEnabled)
                   refresh()
                 }}
               >
@@ -141,8 +128,8 @@ export function ModelList({ providerId }: ModelListProps) {
       <AddModelFormModal
         open={openAddModal}
         title="添加模型"
-        onCancel={() => setAddModal(false)}
-        onClose={() => setAddModal(false)}
+        onCancel={() => setOpenAddModal(false)}
+        onClose={() => setOpenAddModal(false)}
         onSave={async (e) => {
           providerApi
             .createProviderModel({
@@ -151,7 +138,7 @@ export function ModelList({ providerId }: ModelListProps) {
             })
             .then(
               (modelInfo) => {
-                setAddModal(false)
+                setOpenAddModal(false)
                 mutate([modelInfo, ...(data ?? [])])
               },
               (err: Error) => {

@@ -45,7 +45,8 @@ export interface IAIStreamChunk {
     id?: string
     serverName?: string
     toolName: string
-    args: Record<string, unknown>
+    /** 已解析的参数对象；厂商无法可靠解析时保留原始文本，由 Runtime 判定为非法参数。 */
+    args: Record<string, unknown> | string
     /** 工具调用执行状态，与消息 schema 的 ToolCallContent.executeState 对齐 */
     executeState?: 'await' | 'executing' | 'completed'
   }>

@@ -26,6 +26,7 @@ describe('provider settings repository', () => {
         baseUrl: 'https://example.com',
         apiKey: 'key',
         apiMode: 'openai',
+        integrationId: 'api-key',
         isOfficial: false,
         isEnabled: true,
         models: {
@@ -83,6 +84,19 @@ describe('provider settings repository', () => {
     expect(provider.apiKeySecretId).toBe('provider:provider-1:api_key')
   })
 
+  it('内部配置只接受当前 Provider 自身的 API Key secret ref audience', () => {
+    expect(() => repository.createProvider({
+      id: 'provider-2',
+      name: 'Provider 2',
+      baseUrl: 'https://example.com',
+      apiMode: 'openai',
+      integrationId: 'api-key',
+      apiKeySecretId: 'provider:provider-2:integration:codex-subscription:credential',
+      isOfficial: false,
+      isEnabled: true,
+    } as never)).toThrow('API Key secret ref audience 不匹配')
+  })
+
   it('adds models and rejects duplicates in the same provider', () => {
     const model = repository.createProviderModel({
       providerId: 'provider-1',
@@ -106,6 +120,90 @@ describe('provider settings repository', () => {
       contextLength: 2048,
       temperature: 0.5,
     })).toThrow('new-model 已存在，不可重复添加')
+  })
+
+  it('同名模型的启停和删除只影响指定 Provider', () => {
+    const scopedRepository = new ProviderSettingsRepository(new AppSettingsStore({
+      filePath: path.join(dir, 'scoped-model-settings.json'),
+      initialSettings: {
+        ...initialSettings,
+        providers: [
+          { ...initialSettings.providers[0], integrationId: 'api-key' },
+          {
+            ...initialSettings.providers[0],
+            id: 'provider-2',
+            name: 'Provider 2',
+            integrationId: 'api-key',
+          },
+        ],
+      },
+    }))
+
+    scopedRepository.setModelEnabledStatus('provider-1', 'test-model', false)
+
+    expect(scopedRepository.getModel('provider-1', 'test-model')?.isEnabled).toBe(false)
+    expect(scopedRepository.getModel('provider-2', 'test-model')?.isEnabled).toBe(true)
+
+    scopedRepository.deleteProviderModel('provider-1', 'test-model')
+
+    expect(scopedRepository.getModel('provider-1', 'test-model')).toBeNull()
+    expect(scopedRepository.getModel('provider-2', 'test-model')).not.toBeNull()
+  })
+
+  it('一次同步保留用户配置、刷新远端元数据，并按首次出现处理重复 ID', () => {
+    const models = repository.syncProviderModels('provider-1', [
+      {
+        id: 'test-model',
+        name: '远端新名称',
+        maxOutputTokens: 8192,
+        contextLength: 32_768,
+        capabilities: { reasoning: true },
+        cost: { input: 1, output: 2 },
+      },
+      {
+        id: 'test-model',
+        name: '重复条目',
+        maxOutputTokens: 1,
+        contextLength: 1,
+      },
+      {
+        id: 'new-model',
+        name: '新模型',
+        maxOutputTokens: 4096,
+        contextLength: 16_384,
+      },
+    ])
+
+    expect(models).toEqual([
+      expect.objectContaining({
+        model: 'test-model',
+        name: 'Test Model',
+        isEnabled: true,
+        temperature: 0.7,
+        maxOutputTokens: 8192,
+        contextLength: 32_768,
+        capabilities: { reasoning: true },
+        cost: { input: 1, output: 2 },
+      }),
+      expect.objectContaining({
+        model: 'new-model',
+        name: '新模型',
+        maxOutputTokens: 4096,
+        contextLength: 16_384,
+      }),
+    ])
+  })
+
+  it('同步输入无法持久化时不留下部分模型', () => {
+    const before = repository.listProviderModels('provider-1')
+
+    expect(() => repository.syncProviderModels('provider-1', [{
+      id: 'broken-model',
+      name: '坏模型',
+      maxOutputTokens: Number.NaN,
+    }])).toThrow()
+
+    expect(repository.listProviderModels('provider-1')).toEqual(before)
   })
 
   it('resets invalid existing settings when requested', () => {
@@ -172,6 +270,7 @@ describe('provider settings repository', () => {
           baseUrl: 'https://a.example.com',
           apiKey: 'key-a',
           apiMode: 'openai',
+          integrationId: 'api-key',
           isOfficial: false,
           isEnabled: true,
           models: {
@@ -185,6 +284,7 @@ describe('provider settings repository', () => {
           baseUrl: 'https://b.example.com',
           apiKey: 'key-b',
           apiMode: 'openai',
+          integrationId: 'api-key',
           isOfficial: false,
           isEnabled: true,
           models: {

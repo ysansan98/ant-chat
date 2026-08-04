@@ -15,6 +15,7 @@ import { createDataRoutes } from './modules/dataRoutes'
 import { McpModule } from './modules/mcp'
 import { PermissionsModule } from './modules/permissions'
 import { ProviderModule } from './modules/provider'
+import { createCodexProviderIntegration } from './modules/provider/codexIntegration'
 import { RuntimeStatusModule } from './modules/runtime'
 import { SettingsModule } from './modules/settings'
 import { SkillsModule } from './modules/skills'
@@ -39,7 +40,15 @@ export interface RegisteredRuntimeModules {
 export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModules {
   const { data, events, logger, secretStore } = core
 
-  const provider = new ProviderModule(data.providerSettingsRepository, secretStore, events, logger)
+  const provider = new ProviderModule(
+    data.providerSettingsRepository,
+    secretStore,
+    events,
+    logger,
+    core.oauthCallbackHost,
+    // 厂商 Integration 在此注册；新增订阅只需追加 entry，不改 Provider 通用流程。
+    [['codex-subscription', createCodexProviderIntegration(secretStore)]],
+  )
   const browserProfiles = new BrowserProfilesModule(core.browserIdentity)
   const skills = new SkillsModule(core)
   const mcp = new McpModule(core)

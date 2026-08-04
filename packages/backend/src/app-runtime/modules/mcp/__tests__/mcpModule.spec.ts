@@ -348,8 +348,9 @@ describe('mcp module 生命周期', () => {
       oauthCallbackHost: {
         redirectUrl: 'http://localhost:9999/callback',
         openAuthorization: vi.fn(),
-        setCallbackHandler(handler: (params: URLSearchParams) => Promise<void>) {
+        subscribeCallback(handler: (params: URLSearchParams) => Promise<void>) {
           callbackHandler = handler
+          return () => {}
         },
       },
       secretStore: {},

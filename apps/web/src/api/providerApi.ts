@@ -1,19 +1,23 @@
-import type { AllAvailableModelsSchema, CreateProviderConfigModelSchema, CreateProviderConfigSchema, ModelsDevImportResult, ModelsDevModel, ModelsDevProvider, ProviderConfigModelSchema, ProviderConfigSchema, UpdateProviderConfigSchema } from '@ant-chat/shared'
+import type { AllAvailableModelsSchema, CreateProviderConfigModelSchema, CreateProviderConfigSchema, ModelsDevProvider, ProviderAuthStatus, ProviderConfigModelSchema, ProviderIntegrationCatalogItem, ProviderPublicView, ProviderUsageStatus, UpdateProviderConfigSchema } from '@ant-chat/shared'
 import { emitProviderChanged } from '@/constants/providerEvents'
 import { getAppRpcClient } from './transports/appRpc'
 
 export const providerApi = {
-  listProviders: async (): Promise<ProviderConfigSchema[]> => {
+  listProviders: async (): Promise<ProviderPublicView[]> => {
     return getAppRpcClient().call('provider.listProviders', undefined)
   },
 
-  createProvider: async (config: CreateProviderConfigSchema): Promise<ProviderConfigSchema> => {
+  listIntegrations: async (): Promise<ProviderIntegrationCatalogItem[]> => {
+    return getAppRpcClient().call('provider.listIntegrations', undefined)
+  },
+
+  createProvider: async (config: CreateProviderConfigSchema): Promise<ProviderPublicView> => {
     const result = await getAppRpcClient().call('provider.createProvider', { config })
     emitProviderChanged()
     return result
   },
 
-  updateProvider: async (config: UpdateProviderConfigSchema): Promise<ProviderConfigSchema> => {
+  updateProvider: async (config: UpdateProviderConfigSchema): Promise<ProviderPublicView> => {
     const result = await getAppRpcClient().call('provider.updateProvider', { config })
     emitProviderChanged()
     return result
@@ -25,7 +29,7 @@ export const providerApi = {
     return result
   },
 
-  getProviderById: async (id: string): Promise<ProviderConfigSchema> => {
+  getProviderById: async (id: string): Promise<ProviderPublicView> => {
     return getAppRpcClient().call('provider.getProviderById', { id })
   },
 
@@ -41,8 +45,8 @@ export const providerApi = {
     return getAppRpcClient().call('provider.listProviderModels', { id })
   },
 
-  setModelEnabledStatus: async (id: string, status: boolean): Promise<ProviderConfigModelSchema> => {
-    const result = await getAppRpcClient().call('provider.setModelEnabledStatus', { id, status })
+  setModelEnabledStatus: async (providerId: string, modelId: string, status: boolean): Promise<ProviderConfigModelSchema> => {
+    const result = await getAppRpcClient().call('provider.setModelEnabledStatus', { providerId, modelId, status })
     emitProviderChanged()
     return result
   },
@@ -53,8 +57,8 @@ export const providerApi = {
     return result
   },
 
-  deleteProviderModel: async (id: string): Promise<null> => {
-    const result = await getAppRpcClient().call('provider.deleteProviderModel', { id })
+  deleteProviderModel: async (providerId: string, modelId: string): Promise<null> => {
+    const result = await getAppRpcClient().call('provider.deleteProviderModel', { providerId, modelId })
     emitProviderChanged()
     return result
   },
@@ -63,12 +67,32 @@ export const providerApi = {
     return getAppRpcClient().call('provider.getModelsDevProviders', undefined)
   },
 
-  getModelsDevModelsByProviderId: async (providerId: string): Promise<ModelsDevModel[]> => {
-    return getAppRpcClient().call('provider.getModelsDevModelsByProviderId', { providerId })
+  syncModels: async (providerId: string): Promise<ProviderConfigModelSchema[]> => {
+    const result = await getAppRpcClient().call('provider.syncModels', { providerId })
+    emitProviderChanged()
+    return result
   },
 
-  importModelsDevModels: async (providerId: string): Promise<ModelsDevImportResult> => {
-    const result = await getAppRpcClient().call('provider.importModelsDevModels', { providerId })
+  startOAuthLogin: async (providerId: string): Promise<{ authorizationUrl: string }> => {
+    return getAppRpcClient().call('provider.startOAuthLogin', { providerId })
+  },
+
+  importLocalAuth: async (providerId: string): Promise<ProviderAuthStatus> => {
+    const result = await getAppRpcClient().call('provider.importLocalAuth', { providerId })
+    emitProviderChanged()
+    return result
+  },
+
+  getAuthStatus: async (providerId: string): Promise<ProviderAuthStatus> => {
+    return getAppRpcClient().call('provider.getAuthStatus', { providerId })
+  },
+
+  getUsage: async (providerId: string): Promise<ProviderUsageStatus> => {
+    return getAppRpcClient().call('provider.getUsage', { providerId })
+  },
+
+  logoutAuth: async (providerId: string): Promise<null> => {
+    const result = await getAppRpcClient().call('provider.logoutAuth', { providerId })
     emitProviderChanged()
     return result
   },
