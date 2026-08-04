@@ -12,10 +12,31 @@ import { ProviderSettingsPanel } from '@/components/ProviderManage/ProviderSetti
 import { PROVIDER_CHANGED_EVENT } from '@/constants/providerEvents'
 import { SettingsPageLayout } from './SettingsPageLayout'
 
+const PROVIDER_LIST_WIDTH_KEY = 'ant-chat.provider-list-width'
+const DEFAULT_PROVIDER_LIST_WIDTH = 200
+const MIN_PROVIDER_LIST_WIDTH = 160
+const MAX_PROVIDER_LIST_WIDTH = 400
+
 export default function ProviderManage() {
   const [activeProviderId, setActiveProviderId] = React.useState<string | null>(null)
+  const [listWidth, setListWidth] = React.useState<number>(() => {
+    if (typeof window === 'undefined')
+      return DEFAULT_PROVIDER_LIST_WIDTH
+    const raw = window.localStorage.getItem(PROVIDER_LIST_WIDTH_KEY)
+    if (raw == null)
+      return DEFAULT_PROVIDER_LIST_WIDTH
+    const stored = Number(raw)
+    if (!Number.isFinite(stored))
+      return DEFAULT_PROVIDER_LIST_WIDTH
+    return Math.max(MIN_PROVIDER_LIST_WIDTH, Math.min(MAX_PROVIDER_LIST_WIDTH, stored))
+  })
   const { data, error, refresh, loading } = useRequest(providerApi.listProviders)
   const activeProvider: ProviderPublicView | null = data?.find(item => item.id === activeProviderId) ?? null
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined')
+      window.localStorage.setItem(PROVIDER_LIST_WIDTH_KEY, String(listWidth))
+  }, [listWidth])
 
   React.useEffect(() => {
     window.addEventListener(PROVIDER_CHANGED_EVENT, refresh)
@@ -49,64 +70,68 @@ export default function ProviderManage() {
     >
       <div className="flex min-h-0 flex-1 overflow-hidden rounded-xl border border-border/70 bg-card/40">
         <div
-          className="flex h-full w-50 shrink-0 flex-col gap-2 overflow-y-auto border-r border-border/70 p-2"
+          className="relative h-full shrink-0 border-r border-border/70"
+          style={{ width: listWidth }}
         >
-          {
-            data?.map(item => (
-              <div
-                key={item.id}
-                role="button"
-                tabIndex={0}
-                className={`
+          <ResizeHandle width={listWidth} onWidthChange={setListWidth} />
+          <div className="flex h-full flex-col gap-2 overflow-y-auto p-2">
+            {
+              data?.map(item => (
+                <div
+                  key={item.id}
+                  role="button"
+                  tabIndex={0}
+                  className={`
                 ${activeProvider?.id === item.id ? 'bg-(--hover-bg-color)' : ''}
                 group flex cursor-pointer items-center justify-between gap-2 rounded-md p-2 px-3
                 select-none
                 hover:bg-(--hover-bg-color)
               `}
-                onClick={() => {
-                  setActiveProviderId(item.id)
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
+                  onClick={() => {
                     setActiveProviderId(item.id)
-                  }
-                }}
-              >
-                <div className="flex items-center gap-2">
-                  <div className="
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      setActiveProviderId(item.id)
+                    }
+                  }}
+                >
+                  <div className="flex min-w-0 items-center gap-2">
+                    <div className="
                   flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-sm bg-white
                 "
-                  >
-                    {(() => {
-                      const content = (
-                        <ProviderLogo id={item.id} name={item.name} size={14} className="size-3.5" />
-                      )
-                      return content || <img src="/logo.svg" alt="" className="size-3.5" draggable={false} />
-                    })()}
-                  </div>
+                    >
+                      {(() => {
+                        const content = (
+                          <ProviderLogo id={item.id} name={item.name} size={14} className="size-3.5" />
+                        )
+                        return content || <img src="/logo.svg" alt="" className="size-3.5" draggable={false} />
+                      })()}
+                    </div>
 
-                  <span className="text-sm font-medium">
-                    {item.name}
-                  </span>
+                    <span className="min-w-0 truncate text-sm font-medium">
+                      {item.name}
+                    </span>
+                  </div>
+                  <Switch
+                    checked={item.isEnabled}
+                    onCheckedChange={async (e) => {
+                      await providerApi.updateProvider({ id: item.id, isEnabled: e })
+                      refresh()
+                    }}
+                    size="sm"
+                  />
                 </div>
-                <Switch
-                  checked={item.isEnabled}
-                  onCheckedChange={async (e) => {
-                    await providerApi.updateProvider({ id: item.id, isEnabled: e })
-                    refresh()
-                  }}
-                  size="sm"
-                />
-              </div>
-            ))
-          }
-          <div className="p-2">
-            <AddCustomProvider
-              onAdd={handleAddProvider}
-              existingProviderIds={data?.map(item => item.id)}
-              loading={loading}
-            />
+              ))
+            }
+            <div className="p-2">
+              <AddCustomProvider
+                onAdd={handleAddProvider}
+                existingProviderIds={data?.map(item => item.id)}
+                loading={loading}
+              />
+            </div>
           </div>
         </div>
         {
@@ -144,4 +169,21 @@ export default function ProviderManage() {
       </div>
     </SettingsPageLayout>
   )
+}
+
+function ResizeHandle({ width, onWidthChange }: { width: number, onWidthChange: (width: number) => void }) {
+  function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    const startX = event.clientX
+    const startWidth = width
+    const move = (next: PointerEvent) => onWidthChange(Math.max(MIN_PROVIDER_LIST_WIDTH, Math.min(MAX_PROVIDER_LIST_WIDTH, startWidth + (next.clientX - startX))))
+    const finish = () => {
+      document.removeEventListener('pointermove', move)
+      document.removeEventListener('pointerup', finish)
+      document.body.style.userSelect = ''
+    }
+    document.body.style.userSelect = 'none'
+    document.addEventListener('pointermove', move)
+    document.addEventListener('pointerup', finish)
+  }
+  return <div className="absolute inset-y-0 -right-1 z-10 w-2 cursor-ew-resize hover:bg-primary/20" onPointerDown={handlePointerDown} />
 }
