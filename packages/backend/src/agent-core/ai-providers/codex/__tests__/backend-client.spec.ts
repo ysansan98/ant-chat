@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Buffer } from 'node:buffer'
-import type { CodexCredentials } from '../codex-auth'
-import { CODEX_AUTH_ISSUER, CodexAuthSession, CodexOAuthCoordinator, parseCodexCliAuth } from '../codex-auth'
-import { CodexBackendClient, CodexBackendError } from '../codex-backend-client'
+import type { CodexCredentials } from '../auth'
+import { CODEX_AUTH_ISSUER, CodexAuthSession, CodexOAuthCoordinator, parseCodexCliAuth } from '../auth'
+import { CodexBackendClient, CodexBackendError } from '../backend-client'
 
 function createCredentialStore(initial?: CodexCredentials) {
   let value = initial ?? null

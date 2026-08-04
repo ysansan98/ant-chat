@@ -1,7 +1,7 @@
 import type { CodexUsageStatus, ProviderAuthStatus, ReasoningEffortLevel } from '@ant-chat/shared'
-import type { CodexAuthSession } from './codex-auth'
+import type { CodexAuthSession } from './auth'
 import { randomUUID } from 'node:crypto'
-import { CODEX_DEFAULT_BASE_URL, CODEX_ORIGINATOR } from './codex-auth'
+import { CODEX_DEFAULT_BASE_URL, CODEX_ORIGINATOR } from './auth'
 
 export interface CodexModelInfo {
   id: string

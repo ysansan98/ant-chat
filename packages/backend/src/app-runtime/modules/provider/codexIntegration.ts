@@ -1,11 +1,8 @@
 import type { ProviderConfigSchema } from '@ant-chat/shared'
-import type { CodexCredentialStore } from '../../../agent-core/ai-providers/codex-auth'
-import type { CodexModelInfo } from '../../../agent-core/ai-providers/codex-backend-client'
+import type { CodexCredentialStore, CodexModelInfo } from '../../../agent-core/ai-providers/codex'
 import type { KeychainSecretStore } from '../../../secretStore'
 import type { ProviderIntegration, ProviderModelDefinition, ProviderModelSource } from './providerIntegration'
-import { CodexAIProvider } from '../../../agent-core/ai-providers/codex-ai-provider'
-import { CODEX_DEFAULT_BASE_URL, CodexAuthSession, CodexOAuthCoordinator, parseCodexCredential, serializeCodexCredential } from '../../../agent-core/ai-providers/codex-auth'
-import { CodexBackendClient } from '../../../agent-core/ai-providers/codex-backend-client'
+import { CODEX_DEFAULT_BASE_URL, CodexAIProvider, CodexAuthSession, CodexBackendClient, CodexOAuthCoordinator, parseCodexCredential, serializeCodexCredential } from '../../../agent-core/ai-providers/codex'
 import { CodexAuthAdapter } from './codexAuthAdapter'
 
 /**

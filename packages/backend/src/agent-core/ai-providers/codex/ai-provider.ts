@@ -1,11 +1,11 @@
 import type { IAIProvider, IAIStreamChunk, LanguageModelUsage, LoopMessage, ReasoningEffortLevel, RuntimeToolDefinition } from '@ant-chat/shared'
 import type { LanguageModelUsage as AISdkUsage, ModelMessage } from 'ai'
-import type { CodexBackendClient } from './codex-backend-client'
+import type { CodexBackendClient } from './backend-client'
 import { createOpenAI } from '@ai-sdk/openai'
 import { dynamicTool, jsonSchema, streamText } from 'ai'
-import { AgentError } from '../AgentError'
-import { CODEX_DEFAULT_BASE_URL } from './codex-auth'
-import { CodexBackendError } from './codex-backend-client'
+import { AgentError } from '../../AgentError'
+import { CODEX_DEFAULT_BASE_URL } from './auth'
+import { CodexBackendError } from './backend-client'
 
 /**
  * Codex subscription 到 Agent Runtime seam 的 AI SDK adapter。

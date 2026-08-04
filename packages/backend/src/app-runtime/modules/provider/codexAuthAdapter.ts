@@ -1,11 +1,11 @@
 import type { ProviderAuthStatus, ProviderConfigSchema } from '@ant-chat/shared'
-import type { CodexAuthSession, CodexOAuthCoordinator } from '../../../agent-core/ai-providers/codex-auth'
+import type { CodexAuthSession, CodexOAuthCoordinator } from '../../../agent-core/ai-providers/codex'
 import type { ProviderAuthAdapter } from './providerIntegration'
 import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import process from 'node:process'
-import { parseCodexCliAuth } from '../../../agent-core/ai-providers/codex-auth'
+import { parseCodexCliAuth } from '../../../agent-core/ai-providers/codex'
 
 export class CodexAuthAdapter implements ProviderAuthAdapter {
   constructor(

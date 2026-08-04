@@ -1,9 +1,9 @@
 import type { IAIStreamChunk } from '@ant-chat/shared'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { CodexCredentials } from '../codex-auth'
-import { CODEX_AUTH_ISSUER, CodexAuthSession } from '../codex-auth'
-import { CodexAIProvider } from '../codex-ai-provider'
-import { CodexBackendClient } from '../codex-backend-client'
+import type { CodexCredentials } from '../auth'
+import { CODEX_AUTH_ISSUER, CodexAuthSession } from '../auth'
+import { CodexAIProvider } from '../ai-provider'
+import { CodexBackendClient } from '../backend-client'
 
 function createCredentialStore(initial?: CodexCredentials) {
   let value = initial ?? null

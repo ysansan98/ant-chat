@@ -1,6 +1,6 @@
 import type { ModelsDevModel, ProviderConfigSchema } from '@ant-chat/shared'
 import { describe, expect, it, vi } from 'vitest'
-import type { CodexBackendClient } from '../../../../agent-core/ai-providers/codex-backend-client'
+import type { CodexBackendClient } from '../../../../agent-core/ai-providers/codex'
 import { createCodexModelSource, createCodexProviderIntegration } from '../codexIntegration'
 import { createModelsDevModelSource } from '../providerIntegration'
 
