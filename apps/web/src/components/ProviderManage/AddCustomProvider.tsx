@@ -1,6 +1,7 @@
 import type { CreateProviderConfigSchema, ProviderFormat, ProviderIntegrationId } from '@ant-chat/shared'
 import { Button } from '@workspace/ui/components/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@workspace/ui/components/dialog'
+import { Field, FieldError, FieldLabel } from '@workspace/ui/components/field'
 import { Input } from '@workspace/ui/components/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@workspace/ui/components/select'
 import { Switch } from '@workspace/ui/components/switch'
@@ -44,7 +45,14 @@ const API_MODE_OPTIONS: Record<ProviderFormat, string> = {
 }
 
 export function AddCustomProvider({ onAdd, existingProviderIds, loading }: AddCustomProviderProps) {
-  const { register, handleSubmit, reset, setValue, watch } = useForm<ProviderFormValues>({
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<ProviderFormValues>({
     defaultValues: DEFAULT_PROVIDER_FORM_VALUES,
   })
 
@@ -114,7 +122,7 @@ export function AddCustomProvider({ onAdd, existingProviderIds, loading }: AddCu
   return (
     <>
       <Button
-        variant="outline"
+        variant="secondary"
         onClick={() => {
           setIsModalOpen(true)
           run()
@@ -122,8 +130,8 @@ export function AddCustomProvider({ onAdd, existingProviderIds, loading }: AddCu
         disabled={loading}
         className="w-full"
       >
-        <Plus className="size-4" />
-        添加自定义提供商
+        <Plus className="size-3.5" />
+        添加
       </Button>
 
       <Dialog
@@ -139,8 +147,8 @@ export function AddCustomProvider({ onAdd, existingProviderIds, loading }: AddCu
             <DialogTitle>添加自定义提供商</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmitForm} className="flex flex-col gap-4 pt-2">
-            <div className="flex flex-col gap-1">
-              <label htmlFor="models-dev-select" className="text-sm font-medium">从 Models.dev 选择</label>
+            <Field>
+              <FieldLabel htmlFor="models-dev-select">从 Models.dev 选择</FieldLabel>
               <Select
                 items={availableModelsDevProviders.map(provider => ({
                   label: `${provider.name} (${provider.id})`,
@@ -164,7 +172,7 @@ export function AddCustomProvider({ onAdd, existingProviderIds, loading }: AddCu
                   setValue('baseUrl', provider.baseUrl)
                 }}
               >
-                <SelectTrigger id="models-dev-select">
+                <SelectTrigger id="models-dev-select" className="w-full">
                   <SelectValue placeholder="选择服务商" />
                 </SelectTrigger>
                 <SelectContent>
@@ -179,41 +187,59 @@ export function AddCustomProvider({ onAdd, existingProviderIds, loading }: AddCu
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </Field>
 
-            <div className="flex flex-col gap-1">
-              <label htmlFor="provider-name" className="text-sm font-medium">提供商名称 *</label>
-              <Input id="provider-name" placeholder="例如：我的自定义 AI" {...register('name', { required: true, minLength: 2, maxLength: 50 })} />
-            </div>
+            <Field>
+              <FieldLabel htmlFor="provider-name">提供商名称 *</FieldLabel>
+              <Input
+                id="provider-name"
+                placeholder="例如：我的自定义 AI"
+                aria-invalid={!!errors.name}
+                {...register('name', {
+                  required: '请输入提供商名称',
+                  minLength: { value: 2, message: '提供商名称至少 2 个字符' },
+                  maxLength: { value: 50, message: '提供商名称最多 50 个字符' },
+                })}
+              />
+              <FieldError errors={[errors.name]} />
+            </Field>
 
             {
               // fixed endpoint（如 Codex 订阅）由 descriptor 固定，提交时自动使用 fixedBaseUrl，无需用户填写也不展示。
               !integrationDescriptor?.fixedBaseUrl && (
-                <div className="flex flex-col gap-1">
-                  <label htmlFor="provider-base-url" className="text-sm font-medium">API 地址 *</label>
+                <Field>
+                  <FieldLabel htmlFor="provider-base-url">API 地址 *</FieldLabel>
                   <Input
                     id="provider-base-url"
                     placeholder="https://api.example.com"
-                    {...register('baseUrl', { required: true })}
+                    aria-invalid={!!errors.baseUrl}
+                    {...register('baseUrl', {
+                      required: '请输入 API 地址',
+                    })}
                   />
-                </div>
+                  <FieldError errors={[errors.baseUrl]} />
+                </Field>
               )
             }
 
             {integrationDescriptor?.authentication === 'api-key' && (
-              <div className="flex flex-col gap-1">
-                <label htmlFor="provider-api-key" className="text-sm font-medium">API Key *</label>
+              <Field>
+                <FieldLabel htmlFor="provider-api-key">API Key *</FieldLabel>
                 <Input
                   id="provider-api-key"
                   type="password"
                   placeholder="输入你的API Key"
-                  {...register('apiKey', { validate: value => integrationDescriptor?.authentication !== 'api-key' || Boolean(value) || '请输入 API Key' })}
+                  aria-invalid={!!errors.apiKey}
+                  {...register('apiKey', {
+                    required: '请输入 API Key',
+                  })}
                 />
-              </div>
+                <FieldError errors={[errors.apiKey]} />
+              </Field>
             )}
 
-            <div className="flex flex-col gap-1">
-              <label htmlFor="provider-api-mode" className="text-sm font-medium">API 模式 *</label>
+            <Field>
+              <FieldLabel htmlFor="provider-api-mode">API 模式 *</FieldLabel>
               <Select
                 items={API_MODE_OPTIONS}
                 value={apiMode}
@@ -224,7 +250,7 @@ export function AddCustomProvider({ onAdd, existingProviderIds, loading }: AddCu
                   }
                 }}
               >
-                <SelectTrigger id="provider-api-mode">
+                <SelectTrigger id="provider-api-mode" className="w-full">
                   <SelectValue placeholder="选择API兼容模式" />
                 </SelectTrigger>
                 <SelectContent>
@@ -234,10 +260,10 @@ export function AddCustomProvider({ onAdd, existingProviderIds, loading }: AddCu
                   <SelectItem value="deepseek">DeepSeek 兼容</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
+            </Field>
 
-            <div className="flex flex-col gap-1">
-              <label htmlFor="provider-integration" className="text-sm font-medium">产品集成 *</label>
+            <Field>
+              <FieldLabel htmlFor="provider-integration">产品集成 *</FieldLabel>
               <Select
                 items={(integrationCatalog ?? []).map(descriptor => ({
                   label: descriptor.label,
@@ -268,16 +294,16 @@ export function AddCustomProvider({ onAdd, existingProviderIds, loading }: AddCu
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </Field>
 
-            <div className="flex items-center justify-between">
-              <label htmlFor="provider-enabled" className="text-sm font-medium">启用状态</label>
+            <Field orientation="horizontal">
+              <FieldLabel htmlFor="provider-enabled">启用状态</FieldLabel>
               <Switch
                 id="provider-enabled"
                 checked={watch('isEnabled')}
                 onCheckedChange={v => setValue('isEnabled', v)}
               />
-            </div>
+            </Field>
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={handleCancel}>
