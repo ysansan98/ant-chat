@@ -41,8 +41,7 @@ export function SliderMenu({ mobile = false, onNavigate }: SliderMenuProps) {
     >
       <div
         className={cn(
-          'flex min-h-0 flex-1 flex-col bg-sidebar px-2 pb-3',
-          mobile ? 'pt-10' : 'pt-8',
+          'flex min-h-0 flex-1 flex-col bg-sidebar px-2 pt-10 pb-3',
         )}
       >
         <div className="flex flex-col gap-1 py-2">
