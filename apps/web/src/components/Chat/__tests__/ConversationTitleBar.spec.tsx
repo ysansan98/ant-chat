@@ -25,8 +25,6 @@ function conversation(): IConversations {
     settings: {
       providerId: 'provider-1',
       modelId: 'model-1',
-      temperature: 0.7,
-      maxOutputTokens: 4096,
     },
   }
 }

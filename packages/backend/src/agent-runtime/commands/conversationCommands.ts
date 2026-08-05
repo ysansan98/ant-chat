@@ -6,7 +6,7 @@ const DEFAULT_TITLE = 'Untitled'
 export async function runNew(params: {
   conversationLifecycle: ConversationLifecycle
   workspacePath: string
-  modelConfig: { modelId: string, providerId: string, temperature: number, maxOutputTokens: number, reasoningEffort?: ReasoningEffortLevel }
+  modelConfig: { modelId: string, providerId: string, reasoningEffort?: ReasoningEffortLevel }
   conversationInstructions?: string
 }): Promise<RunBuiltinCommandResult> {
   const { conversationLifecycle, workspacePath, modelConfig, conversationInstructions } = params
@@ -18,8 +18,6 @@ export async function runNew(params: {
     settings: {
       modelId: modelConfig.modelId,
       providerId: modelConfig.providerId,
-      temperature: modelConfig.temperature,
-      maxOutputTokens: modelConfig.maxOutputTokens,
       reasoningEffort: modelConfig.reasoningEffort,
     },
     createdAt: Date.now(),

@@ -65,8 +65,6 @@ interface SpanTiming {
 export interface ModelRequestView extends SpanTiming {
   type: 'model-request'
   model?: string
-  temperature?: number
-  maxOutputTokens?: number
   reasoningEffort?: string
   systemPrompt?: string
   messages: MessageView[]
@@ -304,8 +302,6 @@ function parseModelRequest(timing: SpanTiming, input: unknown, output: unknown, 
     type: 'model-request',
     ...timing,
     model: asString(settings?.model),
-    temperature: asNumber(settings?.temperature),
-    maxOutputTokens: asNumber(settings?.maxOutputTokens),
     reasoningEffort: asString(settings?.reasoningEffort),
     systemPrompt: asString(settings?.systemPrompt),
     messages: messages.map(parseMessage).filter((message): message is MessageView => message !== undefined),

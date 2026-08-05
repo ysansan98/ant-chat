@@ -162,8 +162,6 @@ export class SessionRuntime {
       providerName: provider.name,
       providerId: provider.id,
       apiMode,
-      temperature: options.modelSettings?.temperature,
-      maxOutputTokens: options.modelSettings?.maxOutputTokens,
       reasoningEffort: options.modelSettings?.reasoningEffort,
       compaction: compactionSettings,
       preTurnContextEvents: preTurnCompaction.contextEvent ? [preTurnCompaction.contextEvent] : undefined,

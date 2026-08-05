@@ -7,7 +7,7 @@ export async function runCompact(params: {
   eventEmitter: IAgentEventEmitter
   conversationId: string
   instruction: string | undefined
-  modelConfig: { modelId: string, temperature: number, maxOutputTokens: number, reasoningEffort?: ReasoningEffortLevel }
+  modelConfig: { modelId: string, reasoningEffort?: ReasoningEffortLevel }
   logger?: ILogger
   aiProviderFactory?: AIProviderFactory
   abortSignal?: AbortSignal

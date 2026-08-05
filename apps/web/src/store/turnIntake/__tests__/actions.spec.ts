@@ -39,8 +39,6 @@ const conversation = {
   settings: {
     modelId: 'model-1',
     providerId: 'provider-1',
-    temperature: 0,
-    maxOutputTokens: 2048,
   },
 }
 
@@ -97,8 +95,6 @@ describe('submitTurnIntake', () => {
       modelConfig: {
         modelId: 'model-1',
         providerId: 'provider-1',
-        temperature: 0,
-        maxOutputTokens: 2048,
         reasoningEffort: undefined,
       },
     })

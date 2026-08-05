@@ -56,44 +56,6 @@ export function ModelParameterSettingsPanel() {
 
       <Separator className="my-4" />
 
-      <h4 className="mb-3 text-sm font-medium text-muted-foreground">模型参数</h4>
-
-      <div className="space-y-4">
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="temperature">Temperature</Label>
-            <span className="text-xs text-muted-foreground tabular-nums">{settings.temperature}</span>
-          </div>
-          <Slider
-            id="temperature"
-            min={0}
-            max={2}
-            step={0.1}
-            value={[settings.temperature]}
-            onValueChange={value => updateSettings({ temperature: getSliderValue(value) })}
-          />
-        </div>
-
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="max-output-tokens">最大输出 Token</Label>
-            <span className="text-xs text-muted-foreground tabular-nums">
-              {`${Math.floor((settings.maxOutputTokens ?? 0) / 1000)}k`}
-            </span>
-          </div>
-          <Slider
-            id="max-output-tokens"
-            min={1000}
-            max={modelInfo?.maxOutputTokens ?? 8000}
-            step={1000}
-            value={[settings.maxOutputTokens]}
-            onValueChange={value => updateSettings({ maxOutputTokens: getSliderValue(value) })}
-          />
-        </div>
-      </div>
-
-      <Separator className="my-4" />
-
       <h4 className="mb-3 text-sm font-medium text-muted-foreground">上下文压缩</h4>
 
       <p className="mb-3 text-xs/relaxed text-muted-foreground">

@@ -39,8 +39,6 @@ export interface ChannelModelOption {
   providerId: string
   name: string
   providerName?: string
-  temperature?: number
-  maxOutputTokens?: number
 }
 
 const permissionModeLabels: Record<AgentMode, string> = {
@@ -228,7 +226,7 @@ export class ChannelRuntime {
     // 频道会话拥有自己的模型状态；助手模型只服务于辅助任务（如标题生成），
     // 不能作为频道新会话的默认模型。频道没有可用会话模型时按频道模型列表兜底。
     const preferred = this.getModels()[0]
-    const conversation = await this.deps.data.conversationRepository.create({ title: 'Untitled', workspacePath: account.defaultWorkspacePath!, createdAt: this.now(), updatedAt: this.now(), conversationInstructions: '', settings: preferred ? toModelConfig(preferred, settings.reasoningEffort) : { modelId: '', providerId: '', temperature: 0.7, maxOutputTokens: 4096, reasoningEffort: settings.reasoningEffort }, sourceType: event.channelType, sourceChannelAccountId: account.id, sourceExternalChatId: event.externalChatId })
+    const conversation = await this.deps.data.conversationRepository.create({ title: 'Untitled', workspacePath: account.defaultWorkspacePath!, createdAt: this.now(), updatedAt: this.now(), conversationInstructions: '', settings: preferred ? toModelConfig(preferred, settings.reasoningEffort) : { modelId: '', providerId: '', reasoningEffort: settings.reasoningEffort }, sourceType: event.channelType, sourceChannelAccountId: account.id, sourceExternalChatId: event.externalChatId })
     return this.deps.data.channelSessionRepository.upsert({ channelAccountId: account.id, externalChatId: event.externalChatId, activeConversationId: conversation.id, currentWorkspacePath: account.defaultWorkspacePath!, createdAt: this.now(), updatedAt: this.now() })
   }
 
@@ -291,7 +289,7 @@ export class ChannelRuntime {
 function sessionCreatedAt(session: { createdAt?: number }): number { return session.createdAt ?? Date.now() }
 
 function toModelConfig(model: ChannelModelOption, reasoningEffort?: StartAgentTurnOptions['modelConfig']['reasoningEffort']): ConversationsSettingsSchema {
-  return { modelId: model.modelId, providerId: model.providerId, temperature: model.temperature ?? 0.7, maxOutputTokens: model.maxOutputTokens ?? 4096, reasoningEffort }
+  return { modelId: model.modelId, providerId: model.providerId, reasoningEffort }
 }
 
 function formatModel(model: ChannelModelOption): string {

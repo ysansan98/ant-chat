@@ -33,7 +33,7 @@ describe('channel module 频道配置（扫码创建 / 重新授权）', () => {
       conversationInstructions: '',
       createdAt: 1,
       updatedAt: 1,
-      settings: { modelId: 'model-1', providerId: 'provider-1', temperature: 0.7, maxOutputTokens: 4096 },
+      settings: { modelId: 'model-1', providerId: 'provider-1' },
       sourceType: 'feishu' as const,
       sourceChannelAccountId: 'a1',
       sourceExternalChatId: 'chat-1',

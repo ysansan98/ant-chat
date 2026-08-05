@@ -10,8 +10,6 @@ import { useMessagesStore } from '@/store/messages'
 const DEFAULT_SETTINGS: ConversationsSettingsSchema = {
   modelId: '',
   providerId: '',
-  temperature: 0.7,
-  maxOutputTokens: 1000,
   reasoningEffort: undefined,
   compaction: DEFAULT_COMPACTION_SETTINGS,
 }
@@ -53,12 +51,6 @@ export function useConversationSettings() {
     }
     if (has(options, 'providerId')) {
       updatedSettings.providerId = options.providerId || ''
-    }
-    if (has(options, 'temperature')) {
-      updatedSettings.temperature = options.temperature
-    }
-    if (has(options, 'maxOutputTokens')) {
-      updatedSettings.maxOutputTokens = options.maxOutputTokens
     }
     if (has(options, 'reasoningEffort')) {
       updatedSettings.reasoningEffort = options.reasoningEffort

@@ -153,7 +153,7 @@ describe('codexAIProvider 行为', () => {
     expect(chunks.at(-1)?.finishReason).toBe('tool-calls')
   })
 
-  it('忽略 maxOutputTokens 和 temperature，但保留 Codex 支持的请求参数', async () => {
+  it('不向 Codex 后端透传 maxOutputTokens / temperature，仅保留支持的请求参数', async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(sse(completed()))
     const { provider } = createProvider(fetchImpl)
 
@@ -161,8 +161,6 @@ describe('codexAIProvider 行为', () => {
       modelSettings: {
         model: 'gpt-5.6-luna',
         systemPrompt: '你是助手',
-        maxOutputTokens: 128,
-        temperature: 0.8,
         reasoningEffort: 'high',
       },
     })

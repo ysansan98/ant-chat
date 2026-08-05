@@ -178,8 +178,6 @@ export function createAutomationRuntime(options: {
         modelConfig: {
           providerId: automation.providerId,
           modelId: automation.modelId,
-          temperature: 0.7,
-          maxOutputTokens: 4096,
         },
       })
       if (cancelledRuns.has(runId) || disposed) {

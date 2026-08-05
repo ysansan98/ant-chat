@@ -5,8 +5,6 @@ import { createContext } from 'react'
 export const DEFAULT_SETTINGS: ConversationsSettingsSchema = {
   modelId: '',
   providerId: '',
-  temperature: 0.7,
-  maxOutputTokens: 1000,
   reasoningEffort: undefined,
   compaction: DEFAULT_COMPACTION_SETTINGS,
 }

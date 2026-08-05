@@ -31,8 +31,6 @@ export interface RuntimeStartInput {
   apiMode: string
 
   // ===== 可选配置 =====
-  temperature?: number
-  maxOutputTokens?: number
   /** 推理强度档位（ai-sdk v7 统一参数）。未设置时由厂商默认决定。 */
   reasoningEffort?: ReasoningEffortLevel
   compaction?: CompactionSettingsSchema

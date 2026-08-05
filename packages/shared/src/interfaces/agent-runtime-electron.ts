@@ -18,8 +18,6 @@ export interface StartAgentTurnOptions {
   modelConfig: {
     modelId: string
     providerId: string
-    temperature?: number
-    maxOutputTokens?: number
     reasoningEffort?: ReasoningEffortLevel
   }
 }

@@ -32,8 +32,6 @@ describe('modelControlPanel', () => {
     await waitFor(() => expect(onChange).toHaveBeenCalledWith({
       modelId: 'model-1',
       providerId: 'provider-1',
-      maxOutputTokens: 4096,
-      temperature: 0.7,
     }, 'fallback'))
   })
 
@@ -83,8 +81,6 @@ describe('modelControlPanel', () => {
     expect(onChange).toHaveBeenCalledWith({
       modelId: 'model-2',
       providerId: 'provider-1',
-      maxOutputTokens: 4096,
-      temperature: 0.7,
     }, 'user')
   })
 
