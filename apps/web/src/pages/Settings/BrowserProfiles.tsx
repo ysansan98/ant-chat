@@ -1,4 +1,5 @@
 import type { BrowserIdentityStatus, BrowserProfileSourceView } from '@ant-chat/shared'
+import { Alert, AlertDescription } from '@workspace/ui/components/alert'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@workspace/ui/components/card'
@@ -9,7 +10,6 @@ import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { browserProfilesApi } from '@/api/browserProfilesApi'
 import { getAppRuntimeCapabilities } from '@/api/transports/appRpc'
-import { SettingsPageLayout } from './SettingsPageLayout'
 
 export function BrowserProfilesSettings() {
   const [status, setStatus] = useState<BrowserIdentityStatus | null>(null)
@@ -85,11 +85,7 @@ export function BrowserProfilesSettings() {
   }
 
   return (
-    <SettingsPageLayout
-      title="浏览器"
-      description="只导入本机浏览器 Cookies，让 Browser 工具在受控的应用会话中继续使用。"
-      variant="wide"
-    >
+    <>
       {loading
         ? (
             <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
@@ -120,7 +116,7 @@ export function BrowserProfilesSettings() {
                       : <Badge variant="outline">未导入</Badge>}
                   </div>
                 </CardHeader>
-                <CardContent className="pt-4">
+                <CardContent className="flex flex-col gap-3">
                   {status?.imported
                     ? (
                         <div className="flex flex-col gap-4">
@@ -153,13 +149,12 @@ export function BrowserProfilesSettings() {
                           </Button>
                         </div>
                       )}
-                </CardContent>
-              </Card>
-
-              <Card className="bg-muted/30">
-                <CardContent className="flex gap-3 text-sm text-muted-foreground">
-                  <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" />
-                  <p>只导入 Cookies，不导入密码、历史记录、扩展、localStorage、IndexedDB 或 Service Worker。导入的 Cookies 只会由 Browser 工具和已明确允许 Browser 的自动化任务使用，并继续受网站访问规则约束。</p>
+                  <Alert>
+                    <ShieldCheck />
+                    <AlertDescription className="text-xs">
+                      只导入 Cookies，不导入密码、历史记录、扩展、localStorage、IndexedDB 或 Service Worker。导入的 Cookies 只会由 Browser 工具和已明确允许 Browser 的自动化任务使用，并继续受网站访问规则约束。
+                    </AlertDescription>
+                  </Alert>
                 </CardContent>
               </Card>
             </div>
@@ -210,7 +205,7 @@ export function BrowserProfilesSettings() {
             : null}
         </DialogContent>
       </Dialog>
-    </SettingsPageLayout>
+    </>
   )
 }
 

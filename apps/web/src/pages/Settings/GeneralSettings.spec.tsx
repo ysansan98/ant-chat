@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { browserProfilesApi } from '@/api/browserProfilesApi'
 import { generalSettingsApi } from '@/api/generalSettingsApi'
 import { observabilityApi } from '@/api/observabilityApi'
 import { useGeneralSettingsStore } from '@/store/generalSettings'
@@ -17,12 +18,28 @@ vi.mock('@/api/generalSettingsApi', () => ({
   },
 }))
 
+vi.mock('@/api/browserProfilesApi', () => ({
+  browserProfilesApi: {
+    getStatus: vi.fn(),
+    listSources: vi.fn(),
+    importSource: vi.fn(),
+    importFromDirectory: vi.fn(),
+    clear: vi.fn(),
+  },
+}))
+
+vi.mock('@/api/transports/appRpc', () => ({
+  getAppRuntimeCapabilities: () => ({ nativeWindow: false, autoUpdate: false, nativeFilePicker: false }),
+}))
+
 describe('generalSettings Agent Observability', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useGeneralSettingsStore.setState(settings(false))
     vi.mocked(generalSettingsApi.updateSettings).mockResolvedValue(settings(true))
     vi.mocked(observabilityApi.clearAll).mockResolvedValue(null)
+    vi.mocked(browserProfilesApi.getStatus).mockResolvedValue({ imported: false })
+    vi.mocked(browserProfilesApi.listSources).mockResolvedValue([])
   })
 
   it('开启后从下一个 Turn 开始采集', async () => {

@@ -9,6 +9,7 @@ import { observabilityApi } from '@/api/observabilityApi'
 import { CustomProxyUrl, ProxySettings as ProxySettingsControl } from '@/components/GeneralSettings/ProxySettings'
 import { SelectModel } from '@/components/GeneralSettings/SelectModel'
 import { setAgentObservabilityEnabled, setAutoGenerateTitle, updateProxySettings, useGeneralSettingsStore } from '@/store/generalSettings'
+import { BrowserProfilesSettings } from './BrowserProfiles'
 import { SettingsPageLayout } from './SettingsPageLayout'
 
 export function GeneralSettings() {
@@ -25,7 +26,7 @@ export function GeneralSettings() {
   return (
     <SettingsPageLayout
       title="通用设置"
-      description="设置助手模型、开发者工具与网络连接方式。"
+      description="设置助手模型、开发者工具、网络连接与浏览器 Cookies。"
       variant="narrow"
     >
       <div className="flex flex-col gap-6">
@@ -113,6 +114,12 @@ export function GeneralSettings() {
               </GeneralSettingsRow>
             )}
           </div>
+        </section>
+
+        {/* 浏览器 */}
+        <section>
+          <h3 className="mb-2 text-xs font-semibold text-muted-foreground">浏览器</h3>
+          <BrowserProfilesSettings />
         </section>
       </div>
     </SettingsPageLayout>
