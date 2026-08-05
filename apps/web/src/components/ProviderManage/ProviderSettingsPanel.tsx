@@ -23,6 +23,16 @@ export function ProviderSettingsPanel({ item, onChange, onDelete }: ProviderSett
   const [authStatus, setAuthStatus] = useState<ProviderAuthStatus | null>(null)
   const [usage, setUsage] = useState<ProviderUsageStatus | null>(null)
   const [authLoading, setAuthLoading] = useState(false)
+  const [prevProviderId, setPrevProviderId] = useState<string | undefined>(item?.id)
+
+  // Provider 切换时（组件复用、不卸载）在渲染期清空 API Key 输入状态：
+  // 否则上一个 Provider 的密钥草稿会串显到下一个 Provider 的输入框，
+  // 并被 onBlur 误保存为当前 Provider 的密钥。
+  if (prevProviderId !== item?.id) {
+    setPrevProviderId(item?.id)
+    setApiKeyValue('')
+    setShowKey(false)
+  }
 
   useEffect(() => {
     let active = true

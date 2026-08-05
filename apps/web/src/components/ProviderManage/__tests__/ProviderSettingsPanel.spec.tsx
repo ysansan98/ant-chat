@@ -82,12 +82,12 @@ describe('providerSettingsPanel 状态隔离', () => {
     const providerA = apiKeyProvider('provider-a')
     const providerB = apiKeyProvider('provider-b')
 
-    const { rerender } = render(<ProviderSettingsPanel key={providerA.id} item={providerA} onChange={onChange} />)
+    const { rerender } = render(<ProviderSettingsPanel item={providerA} onChange={onChange} />)
     const keyInput = screen.getByLabelText('API Key')
     fireEvent.change(keyInput, { target: { value: 'secret-for-a' } })
     expect(keyInput).toHaveValue('secret-for-a')
 
-    rerender(<ProviderSettingsPanel key={providerB.id} item={providerB} onChange={onChange} />)
+    rerender(<ProviderSettingsPanel item={providerB} onChange={onChange} />)
     const keyInputB = screen.getByLabelText('API Key')
     expect(keyInputB).toHaveValue('')
 
