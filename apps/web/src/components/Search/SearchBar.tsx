@@ -1,19 +1,17 @@
 import type { SearchResult } from '@ant-chat/shared'
-import { Button } from '@workspace/ui/components/button'
 import { debounce } from 'lodash-es'
-import { Search, XIcon } from 'lucide-react'
+import { Search } from 'lucide-react'
 import React from 'react'
 import { searchApi } from '@/api/searchApi'
 import { SearchResults } from './SearchResults'
 
 interface SearchBarProps {
   onItemClick: (item: SearchResult, messageId: string) => void
-  onClose: () => void
 }
 
-export function SearchBar({ onItemClick, onClose }: SearchBarProps) {
+export function SearchBar({ onItemClick }: SearchBarProps) {
   const inputRef = React.useRef<HTMLInputElement>(null)
-  const [keywords, setKeyword] = React.useState('')
+  const [keywords, setKeywords] = React.useState('')
   const [items, setItems] = React.useState<SearchResult[]>([])
 
   const debouncedSearch = React.useMemo(
@@ -66,19 +64,9 @@ export function SearchBar({ onItemClick, onClose }: SearchBarProps) {
               placeholder="搜索会话"
               value={keywords}
               autoFocus
-              onChange={e => setKeyword(e.target.value)}
+              onChange={e => setKeywords(e.target.value)}
             />
           </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-lg"
-            aria-label="关闭搜索"
-            className="size-10"
-            onClick={onClose}
-          >
-            <XIcon />
-          </Button>
         </div>
         {
           keywords.length
