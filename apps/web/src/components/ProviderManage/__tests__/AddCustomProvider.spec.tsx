@@ -1,5 +1,5 @@
 import type { CreateProviderConfigSchema } from '@ant-chat/shared'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AddCustomProvider } from '../AddCustomProvider'
@@ -21,9 +21,15 @@ async function selectOption(triggerName: string, optionName: string) {
   await userEvent.click(await screen.findByRole('option', { name: optionName }))
 }
 
+// 列表底部按钮与对话框提交按钮均为「添加」；打开前页面只有外层按钮，
+// 打开后需在 dialog 范围内定位提交按钮以消除歧义。
 async function openDialog() {
-  await userEvent.click(screen.getByRole('button', { name: '添加自定义提供商' }))
+  await userEvent.click(screen.getByRole('button', { name: '添加' }))
   await screen.findByRole('dialog', { name: '添加自定义提供商' })
+}
+
+async function submitForm() {
+  await userEvent.click(within(screen.getByRole('dialog', { name: '添加自定义提供商' })).getByRole('button', { name: '添加' }))
 }
 
 describe('addCustomProvider 产品集成表单', () => {
@@ -66,7 +72,7 @@ describe('addCustomProvider 产品集成表单', () => {
     expect(screen.getByRole('combobox', { name: '产品集成 *' })).toHaveTextContent('API Key')
     expect(screen.getByLabelText('API 地址 *')).toHaveValue('https://api.anthropic.example')
     await userEvent.type(screen.getByLabelText('API Key *'), 'anthropic-key')
-    await userEvent.click(screen.getByRole('button', { name: '添加' }))
+    await submitForm()
 
     await waitFor(() => expect(onAdd).toHaveBeenCalledTimes(1))
     expect(onAdd).toHaveBeenCalledWith({
@@ -97,7 +103,7 @@ describe('addCustomProvider 产品集成表单', () => {
     const nameInput = screen.getByLabelText('提供商名称 *')
     await userEvent.clear(nameInput)
     await userEvent.type(nameInput, '我的 Codex')
-    await userEvent.click(screen.getByRole('button', { name: '添加' }))
+    await submitForm()
 
     await waitFor(() => expect(onAdd).toHaveBeenCalledTimes(1))
     expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({
