@@ -8,7 +8,8 @@ import type {
   McpConfigSchema,
   McpServerEditPatch,
   ProviderConfigModelSchema,
-  ProviderConfigSchema,
+  ProviderIntegrationCatalogItem,
+  ProviderPublicView,
   UpdateConversationsSchema,
   UpdateProviderConfigSchema,
 } from '../schemas'
@@ -27,12 +28,14 @@ import type { ArchivedConversationWorkspaceResult } from './archived-conversatio
 import type { AutomationDefinition, AutomationInput, AutomationRun, UpdateAutomationInput } from './automation'
 import type { BrowserIdentityStatus, BrowserProfileSourceView } from './browser-profiles'
 import type { RunBuiltinCommandParams, RunBuiltinCommandResult } from './builtin-command'
+import type { ProviderUsageStatus } from './codex'
 import type { handleInitConversationTitleOptions } from './conversation-title'
 import type { IConversations, IMessage } from './db-types'
 import type { GeneralSettingsState } from './generalSettings'
 import type { SearchResult } from './global-search'
 import type { McpConnection, McpServerLifecycleResult, McpServerTestResult, McpTool, McpToolCallResponse } from './mcp'
-import type { ModelsDevImportResult, ModelsDevModel, ModelsDevProvider } from './modelsDev'
+import type { ModelsDevProvider } from './modelsDev'
+import type { ProviderAuthStatus } from './providerAuth'
 import type { ImportSkillFromGithubOptions, SetSkillEnabledOptions, SkillIndex, SkillManifest } from './skill'
 import type { UpdateConfig, UpdateInfo, UpdateStatus } from './update'
 import type { ListWorkspacesData, WorkspaceDirectoryListing, WorkspaceFileSearchResult } from './workspace'
@@ -100,20 +103,25 @@ export interface AppRpcContract {
   'settings.resetSettings': RpcEndpoint<undefined, GeneralSettingsState>
   'settings.testProxyConnection': RpcEndpoint<{ proxyUrl: string }, boolean>
 
-  'provider.listProviders': RpcEndpoint<undefined, ProviderConfigSchema[]>
-  'provider.createProvider': RpcEndpoint<{ config: CreateProviderConfigSchema }, ProviderConfigSchema>
-  'provider.updateProvider': RpcEndpoint<{ config: UpdateProviderConfigSchema }, ProviderConfigSchema>
+  'provider.listProviders': RpcEndpoint<undefined, ProviderPublicView[]>
+  'provider.listIntegrations': RpcEndpoint<undefined, ProviderIntegrationCatalogItem[]>
+  'provider.createProvider': RpcEndpoint<{ config: CreateProviderConfigSchema }, ProviderPublicView>
+  'provider.updateProvider': RpcEndpoint<{ config: UpdateProviderConfigSchema }, ProviderPublicView>
   'provider.deleteProvider': RpcEndpoint<{ id: string }, null>
-  'provider.getProviderById': RpcEndpoint<{ id: string }, ProviderConfigSchema>
+  'provider.getProviderById': RpcEndpoint<{ id: string }, ProviderPublicView>
   'provider.getAllAbvailableModels': RpcEndpoint<undefined, AllAvailableModelsSchema[]>
   'provider.listProviderModels': RpcEndpoint<{ id: string }, ProviderConfigModelSchema[]>
-  'provider.setModelEnabledStatus': RpcEndpoint<{ id: string, status: boolean }, ProviderConfigModelSchema>
+  'provider.setModelEnabledStatus': RpcEndpoint<{ providerId: string, modelId: string, status: boolean }, ProviderConfigModelSchema>
   'provider.createProviderModel': RpcEndpoint<{ config: CreateProviderConfigModelSchema }, ProviderConfigModelSchema>
-  'provider.deleteProviderModel': RpcEndpoint<{ id: string }, null>
+  'provider.deleteProviderModel': RpcEndpoint<{ providerId: string, modelId: string }, null>
   'provider.getModel': RpcEndpoint<{ providerId: string, modelId: string }, ProviderConfigModelSchema>
   'provider.getModelsDevProviders': RpcEndpoint<undefined, ModelsDevProvider[]>
-  'provider.getModelsDevModelsByProviderId': RpcEndpoint<{ providerId: string }, ModelsDevModel[]>
-  'provider.importModelsDevModels': RpcEndpoint<{ providerId: string }, ModelsDevImportResult>
+  'provider.syncModels': RpcEndpoint<{ providerId: string }, ProviderConfigModelSchema[]>
+  'provider.startOAuthLogin': RpcEndpoint<{ providerId: string }, { authorizationUrl: string }>
+  'provider.importLocalAuth': RpcEndpoint<{ providerId: string }, ProviderAuthStatus>
+  'provider.getAuthStatus': RpcEndpoint<{ providerId: string }, ProviderAuthStatus>
+  'provider.getUsage': RpcEndpoint<{ providerId: string }, ProviderUsageStatus>
+  'provider.logoutAuth': RpcEndpoint<{ providerId: string }, null>
 
   'skills.listSkills': RpcEndpoint<undefined, SkillIndex>
   'skills.importSkillFromGithub': RpcEndpoint<{ options: ImportSkillFromGithubOptions }, SkillManifest>

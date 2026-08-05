@@ -12,12 +12,14 @@ import { randomUUID } from 'node:crypto'
 import { McpConfigSchema as McpConfigValidator } from '@ant-chat/shared'
 import { McpConnectionManager, McpOAuthCredentialStore, OAuthCoordinator } from '../../../mcp'
 import { Method, Module } from '../../decorators'
+import { registerOAuthCallbackHandler } from '../../types'
 
 @Module('mcp')
 export class McpModule implements RuntimeModuleMethods<'mcp'> {
   readonly clientHub: McpConnectionManager
   private readonly lifecycleOperations = new Set<string>()
   private readonly oauthCoordinator = new OAuthCoordinator()
+  private readonly removeOAuthCallbackHandler: () => void
   /** OAuth 测试连接只按一次性 attempt 关联，不能由可变的 serverName 劫持。 */
   private readonly testSessions = new Map<string, { config: McpConfigSchema, probe: McpConnectionManager, result?: McpServerTestResult }>()
 
@@ -27,13 +29,13 @@ export class McpModule implements RuntimeModuleMethods<'mcp'> {
     private readonly createClientHub: () => McpConnectionManager = () => new McpConnectionManager(core.logger, undefined, new McpOAuthCredentialStore(core.secretStore)),
   ) {
     this.clientHub = clientHub
-    core.oauthCallbackHost?.setCallbackHandler(async (params) => {
+    this.removeOAuthCallbackHandler = registerOAuthCallbackHandler(core.oauthCallbackHost, async (params) => {
       const consumed = this.oauthCoordinator.consumeCallback(params)
       if (!consumed)
-        throw new Error('OAuth 回调不存在、已过期或已被处理。')
+        return false
       if (consumed.attempt.purpose === 'test') {
         await this.finishTestOAuth(consumed.attempt.id, params, consumed.attempt.error)
-        return
+        return true
       }
       const config = this.core.data.mcpSettingsRepository.getMcpConfigByServerId(consumed.attempt.serverId)
       if (!config)
@@ -41,7 +43,7 @@ export class McpModule implements RuntimeModuleMethods<'mcp'> {
       if (consumed.attempt.error) {
         await this.clientHub.deleteConnection(config.serverName).catch(() => false)
         this.emitStatus(config.serverName, 'disconnected', consumed.attempt.error)
-        return
+        return true
       }
       try {
         const connected = await this.clientHub.finishOAuthAuth(config.serverName, params)
@@ -53,6 +55,7 @@ export class McpModule implements RuntimeModuleMethods<'mcp'> {
         this.oauthCoordinator.fail(consumed.attempt.id, error)
         throw error
       }
+      return true
     })
     this.clientHub.addStatusChangeCallback((serverName, status) => {
       if (!this.lifecycleOperations.has(serverName) && status !== 'connecting')
@@ -74,6 +77,7 @@ export class McpModule implements RuntimeModuleMethods<'mcp'> {
   }
 
   async dispose() {
+    this.removeOAuthCallbackHandler()
     await Promise.all([
       ...this.clientHub.connections.map(connection => this.clientHub.deleteConnection(connection.server.name)),
       ...[...this.testSessions.keys()].map(attemptId => this.disposeTestSession(attemptId)),

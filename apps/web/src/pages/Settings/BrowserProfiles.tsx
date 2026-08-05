@@ -133,12 +133,12 @@ export function BrowserProfilesSettings() {
                           {status.error ? <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{status.error}</p> : null}
                           <div className="flex flex-wrap gap-2">
                             <Button size="sm" onClick={() => void importSource()} disabled={working || status.sourceAvailable === false}>
-                              <RefreshCw className={working ? 'animate-spin' : ''} />
+                              <RefreshCw className={`${working ? 'animate-spin' : ''} size-3.5`} />
                               更新导入
                             </Button>
                             <Button size="sm" variant="outline" onClick={() => setSourceDialogOpen(true)} disabled={working}>更换来源</Button>
                             <Button size="sm" variant="destructive" onClick={() => void clearState()} disabled={working}>
-                              <Trash2 />
+                              <Trash2 className="size-3.5" />
                               清除登录状态
                             </Button>
                           </div>
@@ -157,7 +157,7 @@ export function BrowserProfilesSettings() {
               </Card>
 
               <Card className="bg-muted/30">
-                <CardContent className="flex gap-3 pt-5 text-sm text-muted-foreground">
+                <CardContent className="flex gap-3 text-sm text-muted-foreground">
                   <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" />
                   <p>只导入 Cookies，不导入密码、历史记录、扩展、localStorage、IndexedDB 或 Service Worker。导入的 Cookies 只会由 Browser 工具和已明确允许 Browser 的自动化任务使用，并继续受网站访问规则约束。</p>
                 </CardContent>

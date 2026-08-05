@@ -9,11 +9,28 @@ import type { DetectCommandHostOptions } from './commandHost'
  */
 export interface OAuthCallbackHost {
   readonly redirectUrl: string
+  /**
+   * 解析某类 Provider Integration 的 OAuth 回调地址。Codex 这类有固定回调
+   *  约束（OpenAI 只注册 1455/1457 + `/auth/callback`）的会解析到专用端点；
+   *  未提供时调用方回退到 redirectUrl。
+   */
+  resolveOAuthRedirectUrl?: (integrationId: string) => Promise<string>
   openAuthorization: (url: string) => Promise<void>
-  setCallbackHandler: (handler: OAuthCallbackHandler | undefined) => void
+  /** 每个 Runtime owner 独立订阅；disposer 可重复调用且不影响其他 owner。 */
+  subscribeCallback: (handler: OAuthCallbackHandler) => () => void
 }
 
-export type OAuthCallbackHandler = (callbackParams: URLSearchParams) => Promise<void>
+export type OAuthCallbackHandler = (callbackParams: URLSearchParams) => Promise<boolean | void>
+
+export function registerOAuthCallbackHandler(
+  host: OAuthCallbackHost | undefined,
+  handler: OAuthCallbackHandler,
+): () => void {
+  if (!host) {
+    return () => {}
+  }
+  return host.subscribeCallback(handler)
+}
 
 export interface CreateAppRuntimeOptions {
   appDataRoot: string

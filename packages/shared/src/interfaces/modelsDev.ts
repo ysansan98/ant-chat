@@ -34,10 +34,3 @@ export interface ModelsDevModel {
   }
   cost?: ModelsDevModelCost
 }
-
-export interface ModelsDevImportResult {
-  added: string[]
-  skipped: string[]
-  duplicates: string[]
-  errors: { model: string, reason: string }[]
-}

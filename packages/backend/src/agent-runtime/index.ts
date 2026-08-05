@@ -7,7 +7,7 @@ export type { ConversationTitleGenerator, ConversationTitleGeneratorDependencies
 export { getModelsDevModelsByProviderId, getModelsDevProviders } from './modelsDev'
 export type { ModelsDevModel, ModelsDevProvider } from './modelsDev'
 export { createModelsDevImporter } from './modelsDevImporter'
-export type { ImportModelsDevModelsResult, ModelsDevImporter } from './modelsDevImporter'
+export type { ModelsDevImporter } from './modelsDevImporter'
 export { AgentObservability, createAgentObservability } from './observability'
 export type { AgentObservabilityOptions } from './observability'
 export { createAppDataSessionStore } from './sessionStore'

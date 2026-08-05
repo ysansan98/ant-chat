@@ -47,6 +47,20 @@ describe('keychainSecretStore', () => {
     expect(await store.getProviderApiKey('openai')).toBeNull()
   })
 
+  it('按 Provider 和 Integration 隔离保存订阅凭据', async () => {
+    const { KeychainSecretStore, getProviderIntegrationCredentialId } = await import('../secretStore')
+    const store = new KeychainSecretStore()
+    const scope = { providerId: 'codex', integrationId: 'codex-subscription' as const }
+
+    await store.saveProviderIntegrationCredential({ ...scope, value: '{"accessToken":"secret"}' })
+
+    expect(getProviderIntegrationCredentialId(scope)).toBe('provider:codex:integration:codex-subscription:credential')
+    expect(await store.getProviderIntegrationCredential(scope)).toBe('{"accessToken":"secret"}')
+    expect(await store.getProviderIntegrationCredential({ providerId: 'codex', integrationId: 'api-key' })).toBeNull()
+    await store.deleteProviderIntegrationCredential(scope)
+    expect(await store.getProviderIntegrationCredential(scope)).toBeNull()
+  })
+
   it('按 endpoint 和 issuer 隔离保存 MCP OAuth 资料，重命名 server 不会改变凭据作用域', async () => {
     const { KeychainSecretStore } = await import('../secretStore')
     const store = new KeychainSecretStore()

@@ -17,13 +17,71 @@ describe('appSettingsStore', () => {
     rmSync(dir, { recursive: true, force: true })
   })
 
+  it('默认内置服务商列表包含 Codex 订阅', () => {
+    const store = new AppSettingsStore({ filePath: path.join(dir, 'settings.json') })
+
+    expect(store.read().providers).toContainEqual(expect.objectContaining({
+      id: 'codex',
+      name: 'OpenAI Codex',
+      baseUrl: 'https://chatgpt.com/backend-api/codex',
+      apiMode: 'openai',
+      integrationId: 'codex-subscription',
+      isOfficial: true,
+    }))
+  })
+
+  it('把旧版 Codex apiMode 迁移为独立订阅 Integration，并保留 openai wire protocol', () => {
+    const filePath = path.join(dir, 'legacy-codex-settings.json')
+    const codex = DEFAULT_APP_SETTINGS.providers.find(provider => provider.id === 'codex')!
+    const legacyCodex = { ...codex, apiMode: 'codex', integrationId: undefined }
+    writeFileSync(filePath, JSON.stringify({
+      schemaVersion: 4,
+      data: { ...DEFAULT_APP_SETTINGS, providers: [legacyCodex] },
+    }), 'utf8')
+
+    const store = new AppSettingsStore({ filePath })
+
+    expect(store.read().providers[0]).toEqual(expect.objectContaining({
+      apiMode: 'openai',
+      integrationId: 'codex-subscription',
+    }))
+  })
+
+  it('旧 settings 中运行时派生的 capabilities 字段被剥离且不再写回', () => {
+    const filePath = path.join(dir, 'stale-capabilities.json')
+    const codex = DEFAULT_APP_SETTINGS.providers.find(provider => provider.id === 'codex')!
+    writeFileSync(filePath, JSON.stringify({
+      schemaVersion: 5,
+      data: {
+        ...DEFAULT_APP_SETTINGS,
+        providers: [{
+          ...codex,
+          capabilities: {
+            authentication: 'oauth',
+            modelSource: 'provider',
+            localAuthImport: true,
+            usage: 'quota',
+            endpoint: 'fixed',
+            fixedBaseUrl: 'https://chatgpt.com/backend-api/codex',
+          },
+        }],
+      },
+    }), 'utf8')
+
+    const store = new AppSettingsStore({ filePath })
+
+    expect(store.read().providers[0]).not.toHaveProperty('capabilities')
+    const persisted = JSON.parse(readFileSync(filePath, 'utf8')) as { data: { providers: Array<Record<string, unknown>> } }
+    expect(persisted.data.providers[0]).not.toHaveProperty('capabilities')
+  })
+
   it('自动重置开启时也拒绝覆盖更高版本的设置文件', () => {
     const filePath = path.join(dir, 'future-settings.json')
-    const original = JSON.stringify({ schemaVersion: 5, data: DEFAULT_APP_SETTINGS })
+    const original = JSON.stringify({ schemaVersion: 6, data: DEFAULT_APP_SETTINGS })
     writeFileSync(filePath, original, 'utf8')
 
     expect(() => new AppSettingsStore({ filePath, resetInvalidFile: true }))
-      .toThrow('文件 schema 版本 5 高于当前支持的 4')
+      .toThrow('文件 schema 版本 6 高于当前支持的 5')
     expect(readFileSync(filePath, 'utf8')).toBe(original)
   })
 
@@ -65,7 +123,7 @@ describe('appSettingsStore', () => {
       schemaVersion: number
       data: { providers: Array<{ models: Record<string, Record<string, unknown>> }> }
     }
-    expect(persisted.schemaVersion).toBe(4)
+    expect(persisted.schemaVersion).toBe(5)
     expect(persisted.data.providers[0].models['legacy-model']).not.toHaveProperty('maxTokens')
     expect(persisted.data.providers[0].models['already-migrated-model']).not.toHaveProperty('maxTokens')
   })
@@ -93,7 +151,7 @@ describe('appSettingsStore', () => {
       schemaVersion: number
       data: Record<string, unknown>
     }
-    expect(persisted.schemaVersion).toBe(4)
+    expect(persisted.schemaVersion).toBe(5)
     expect(persisted.data).not.toHaveProperty('toolApprovalWhitelist')
     expect(readFileSync(filePath, 'utf8')).not.toContain('permissions')
   })
@@ -117,6 +175,7 @@ describe('appSettingsStore', () => {
             baseUrl: 'https://example.com',
             apiKey: 'key',
             apiMode: 'openai',
+            integrationId: 'api-key',
             isOfficial: false,
             isEnabled: true,
             models: {},
@@ -163,6 +222,7 @@ describe('appSettingsStore', () => {
             baseUrl: 'https://custom-url.com',
             apiKey: 'custom-key',
             apiMode: 'openai',
+            integrationId: 'api-key',
             isOfficial: true,
             isEnabled: true, // User enabled it
             models: {

@@ -1,5 +1,4 @@
-import type { AIProviderFactory, IConversations, IMessage, ProviderConfigSchema, UpdateConversationsSchema } from '@ant-chat/shared'
-import type { MultiProvider } from '../agent-core'
+import type { AIProviderFactory, IAIProvider, IConversations, IMessage, ProviderConfigSchema, UpdateConversationsSchema } from '@ant-chat/shared'
 import type { MessageRepository, ProviderSettingsRepository } from '../data'
 import { createProvider } from '../agent-core'
 
@@ -34,7 +33,7 @@ export interface ConversationTitleGeneratorDependencies {
 export function createConversationTitleGenerator(
   deps: ConversationTitleGeneratorDependencies,
 ): ConversationTitleGenerator {
-  let aiProvider: MultiProvider | null = null
+  let aiProvider: IAIProvider | null = null
 
   async function initializeProvider(providerId: string) {
     const provider = deps.providerSettingsRepository.getProviderById(providerId)
@@ -42,7 +41,7 @@ export function createConversationTitleGenerator(
       throw new Error('Provider not found')
     }
     aiProvider = deps.aiProviderFactory
-      ? await deps.aiProviderFactory({ model: { id: '', model: '', name: '', providerId: provider.id, contextLength: 0 }, provider }) as MultiProvider
+      ? await deps.aiProviderFactory({ model: { id: '', model: '', name: '', providerId: provider.id, contextLength: 0 }, provider })
       : await createProvider(provider as ProviderConfigSchema)
   }
 
@@ -68,9 +67,14 @@ export function createConversationTitleGenerator(
         throw new Error('AI provider not set')
       }
 
-      const title = await aiProvider.createConversationTitle({
-        context,
-        model: modelInfo.model,
+      const { text: title } = await aiProvider.complete({
+        messages: [{ role: 'user', content: context }],
+        modelSettings: {
+          model: modelInfo.model,
+          systemPrompt: '',
+          maxOutputTokens: 80,
+        },
+        abortSignal: new AbortController().signal,
       })
 
       return deps.updateConversation({ id: conversationsId, title })

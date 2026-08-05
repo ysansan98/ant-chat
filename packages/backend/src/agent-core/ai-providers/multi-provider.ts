@@ -43,7 +43,7 @@ const PROVIDER_FACTORIES = {
  * - 流消费遍历 result.stream（类型化 TextStreamPart），usage 以 result.usage 为单一来源。
  */
 export class MultiProvider {
-  private client: DeepSeekProvider | OpenAIProvider | GoogleProvider | AnthropicProvider
+  private client?: DeepSeekProvider | OpenAIProvider | GoogleProvider | AnthropicProvider
   private format: ProviderFormat
   private logger: ProviderLogger
 
@@ -68,7 +68,7 @@ export class MultiProvider {
 
   constructor(options: {
     baseUrl: string
-    apiKey: string
+    apiKey?: string
     format?: ProviderFormat
     logger?: ILogger
   }) {
@@ -78,7 +78,7 @@ export class MultiProvider {
     this.logger.info(`Initialized with ${this.format} format for ${options.baseUrl}`)
     this.logger.info(`Using proxy: ${process.env.HTTP_PROXY || 'none'}`)
 
-    // 验证必要参数
+    // 验证兼容协议提供商的必要参数
     if (!options.apiKey || options.apiKey.trim() === '') {
       const errorMsg = `API Key is required for ${this.format} provider. Please check the provider configuration.`
       this.logger.error(errorMsg)
@@ -91,7 +91,8 @@ export class MultiProvider {
       throw new Error(errorMsg)
     }
 
-    this.client = PROVIDER_FACTORIES[this.format]({
+    const factory = PROVIDER_FACTORIES[this.format]
+    this.client = factory({
       apiKey: options.apiKey,
       baseURL: options.baseUrl,
     })
@@ -101,7 +102,10 @@ export class MultiProvider {
    * 创建模型客户端。OpenAI 走 Chat Completions（.chat），其余走统一的 .languageModel。
    */
   private createModelClient(model: string): LanguageModel {
-    if (this.format === 'openai' && 'chat' in this.client) {
+    if (!this.client) {
+      throw new Error('AI provider client is not initialized.')
+    }
+    if (this.format === 'openai' && this.client && 'chat' in this.client) {
       return this.client.chat(model)
     }
 

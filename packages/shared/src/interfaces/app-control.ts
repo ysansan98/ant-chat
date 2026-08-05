@@ -10,6 +10,7 @@ import type { GeneralSettingsState } from './generalSettings'
 import type { McpConnection } from './mcp'
 import { z } from 'zod'
 import { AutomationScheduleSchema } from '../schemas/automation'
+import { ProviderIntegrationIdSchema } from '../schemas/providerConfig'
 
 const NonEmptyStringSchema = z.string().trim().min(1)
 const ProviderApiModeSchema = z.enum(['openai', 'anthropic', 'google', 'deepseek'])
@@ -63,6 +64,7 @@ const ProviderCreateCommandSchema = z.object({
   name: NonEmptyStringSchema,
   baseUrl: z.string().url(),
   apiMode: ProviderApiModeSchema,
+  integrationId: ProviderIntegrationIdSchema,
   apiKey: z.string().optional(),
   isOfficial: z.boolean().optional(),
   isEnabled: z.boolean().optional(),
@@ -74,6 +76,7 @@ const ProviderUpdateCommandSchema = z.object({
   name: NonEmptyStringSchema.optional(),
   baseUrl: z.string().url().optional(),
   apiMode: ProviderApiModeSchema.optional(),
+  integrationId: ProviderIntegrationIdSchema.optional(),
   apiKey: z.string().optional(),
   isOfficial: z.boolean().optional(),
   isEnabled: z.boolean().optional(),
@@ -277,6 +280,7 @@ export interface ProviderListItem {
   name: string
   baseUrl: string
   apiMode: ProviderConfigSchema['apiMode']
+  integrationId?: ProviderConfigSchema['integrationId']
   hasApiKey: boolean
   isOfficial: boolean
   isEnabled: boolean

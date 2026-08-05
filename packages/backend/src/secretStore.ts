@@ -1,4 +1,4 @@
-import type { SecretRef, SecretStore } from '@ant-chat/shared'
+import type { ProviderIntegrationId, SecretRef, SecretStore } from '@ant-chat/shared'
 import { createHash, randomUUID } from 'node:crypto'
 import keytar from 'keytar'
 
@@ -19,6 +19,19 @@ export class KeychainSecretStore implements SecretStore {
 
   async deleteProviderApiKey(providerId: string): Promise<void> {
     await keytar.deletePassword(SERVICE_NAME, getProviderApiKeyId(providerId))
+  }
+
+  /** Integration 凭据只保存到 Keychain；命名空间绑定 Provider 和 Integration audience。 */
+  async saveProviderIntegrationCredential(input: ProviderIntegrationCredentialScope & { value: string }): Promise<void> {
+    await keytar.setPassword(SERVICE_NAME, getProviderIntegrationCredentialId(input), input.value)
+  }
+
+  async getProviderIntegrationCredential(input: ProviderIntegrationCredentialScope): Promise<string | null> {
+    return await keytar.getPassword(SERVICE_NAME, getProviderIntegrationCredentialId(input))
+  }
+
+  async deleteProviderIntegrationCredential(input: ProviderIntegrationCredentialScope): Promise<void> {
+    await keytar.deletePassword(SERVICE_NAME, getProviderIntegrationCredentialId(input))
   }
 
   async saveChannelCredential(input: { channelAccountId: string, value: string }): Promise<{ kind: 'secret_ref', id: string, scope: 'persistent' }> {
@@ -85,6 +98,15 @@ export class KeychainSecretStore implements SecretStore {
 
 export function getProviderApiKeyId(providerId: string): string {
   return `provider:${providerId}:api_key`
+}
+
+export interface ProviderIntegrationCredentialScope {
+  providerId: string
+  integrationId: ProviderIntegrationId
+}
+
+export function getProviderIntegrationCredentialId(input: ProviderIntegrationCredentialScope): string {
+  return `provider:${input.providerId}:integration:${input.integrationId}:credential`
 }
 
 /**

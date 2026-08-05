@@ -157,6 +157,7 @@ function parseProvider(args: string[]): AppControlCommand {
         name: parsed.name as string,
         baseUrl: parsed.baseUrl as string,
         apiMode: parsed.apiMode as 'openai' | 'anthropic' | 'google' | 'deepseek',
+        integrationId: 'api-key',
         apiKey: parsed.apiKey ?? readEnvOption(parsed.apiKeyEnv, '--api-key-env'),
         isOfficial: parsed.isOfficial === 'true',
         isEnabled: parsed.isEnabled !== 'false',
