@@ -326,8 +326,6 @@ function createHarness(): AgentRuntimeHarness {
         modelConfig: {
           modelId: TEST_MODEL_ID,
           providerId: 'mock-provider',
-          temperature: 0,
-          maxOutputTokens: 4096,
         },
       })
     },

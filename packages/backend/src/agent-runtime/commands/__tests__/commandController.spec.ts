@@ -78,7 +78,7 @@ describe('commandController 任务守卫', () => {
         id: 'compact',
         conversationId: 'conv-1',
         workspacePath: '',
-        modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+        modelConfig: { modelId: 'test-model', providerId: 'test-provider' },
         conversationInstructions: '',
       }),
     ).rejects.toThrow('Agent task is running')
@@ -93,7 +93,7 @@ describe('commandController 任务守卫', () => {
         id: 'fork',
         conversationId: 'conv-1',
         workspacePath: '',
-        modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+        modelConfig: { modelId: 'test-model', providerId: 'test-provider' },
         conversationInstructions: '',
       }),
     ).rejects.toThrow('Agent task is running')
@@ -107,7 +107,7 @@ describe('commandController 任务守卫', () => {
     const result = await cc.runBuiltinCommand({
       id: 'new',
       workspacePath: '/ws',
-      modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096, reasoningEffort: 'high' },
+      modelConfig: { modelId: 'test-model', providerId: 'test-provider', reasoningEffort: 'high' },
       conversationInstructions: '请使用中文回答',
     })
     expect(result.status).toBe('success')
@@ -139,7 +139,7 @@ describe('commandController 任务守卫', () => {
       id: 'compact',
       conversationId: 'conv-1',
       workspacePath: '',
-      modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+      modelConfig: { modelId: 'test-model', providerId: 'test-provider' },
       conversationInstructions: '',
     })
 
@@ -157,7 +157,7 @@ describe('commandController 任务守卫', () => {
       cc.runBuiltinCommand({
         id: 'unknown-cmd',
         workspacePath: '',
-        modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+        modelConfig: { modelId: 'test-model', providerId: 'test-provider' },
         conversationInstructions: '',
       }),
     ).rejects.toThrow('Unknown built-in command')
@@ -184,7 +184,7 @@ describe('commandController 命令并发', () => {
       id: 'compact',
       conversationId: 'conv-1',
       workspacePath: '',
-      modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+      modelConfig: { modelId: 'test-model', providerId: 'test-provider' },
       conversationInstructions: '',
     })
 
@@ -195,7 +195,7 @@ describe('commandController 命令并发', () => {
         id: 'compact',
         conversationId: 'conv-1',
         workspacePath: '',
-        modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+        modelConfig: { modelId: 'test-model', providerId: 'test-provider' },
         conversationInstructions: '',
       }),
     ).rejects.toThrow('already running')
@@ -220,14 +220,14 @@ describe('commandController 命令并发', () => {
         id: 'compact',
         conversationId: 'conv-1',
         workspacePath: '',
-        modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+        modelConfig: { modelId: 'test-model', providerId: 'test-provider' },
         conversationInstructions: '',
       }),
       cc.runBuiltinCommand({
         id: 'compact',
         conversationId: 'conv-2',
         workspacePath: '',
-        modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+        modelConfig: { modelId: 'test-model', providerId: 'test-provider' },
         conversationInstructions: '',
       }),
     ])
@@ -286,7 +286,7 @@ describe('compact 命令错误和取消', () => {
       id: 'compact',
       conversationId: 'conv-1',
       workspacePath: '',
-      modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+      modelConfig: { modelId: 'test-model', providerId: 'test-provider' },
       conversationInstructions: '',
     })
 
@@ -311,7 +311,7 @@ describe('compact 命令错误和取消', () => {
       id: 'compact',
       conversationId: 'conv-1',
       workspacePath: '',
-      modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+      modelConfig: { modelId: 'test-model', providerId: 'test-provider' },
       conversationInstructions: '',
     })
 
@@ -337,7 +337,7 @@ describe('compact 命令错误和取消', () => {
       id: 'compact',
       conversationId: 'conv-1',
       workspacePath: '',
-      modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+      modelConfig: { modelId: 'test-model', providerId: 'test-provider' },
       conversationInstructions: '',
     })
 
@@ -366,7 +366,7 @@ describe('compact 命令错误和取消', () => {
       id: 'compact',
       conversationId: 'conv-1',
       workspacePath: '',
-      modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+      modelConfig: { modelId: 'test-model', providerId: 'test-provider' },
       conversationInstructions: '',
     })
 
@@ -424,7 +424,7 @@ describe('compact 命令错误和取消', () => {
       id: 'compact',
       conversationId: 'conv-1',
       workspacePath: '',
-      modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+      modelConfig: { modelId: 'test-model', providerId: 'test-provider' },
       conversationInstructions: '',
     })
 
@@ -469,7 +469,7 @@ describe('compact 命令错误和取消', () => {
       id: 'compact',
       conversationId: 'conv-1',
       workspacePath: '',
-      modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+      modelConfig: { modelId: 'test-model', providerId: 'test-provider' },
       conversationInstructions: '',
     })
 
@@ -547,7 +547,7 @@ describe('compact 命令错误和取消', () => {
       id: 'compact',
       conversationId: 'conv-1',
       workspacePath: '',
-      modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+      modelConfig: { modelId: 'test-model', providerId: 'test-provider' },
       conversationInstructions: '',
     })
 
@@ -603,7 +603,7 @@ describe('fork 命令', () => {
       id: 'fork',
       conversationId: 'conv-1',
       workspacePath: '/ws',
-      modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+      modelConfig: { modelId: 'test-model', providerId: 'test-provider' },
       conversationInstructions: '',
     })
 
@@ -670,7 +670,7 @@ describe('fork 命令', () => {
       id: 'fork',
       conversationId: 'conv-1',
       workspacePath: '/ws',
-      modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+      modelConfig: { modelId: 'test-model', providerId: 'test-provider' },
       conversationInstructions: '',
     })
 
@@ -712,7 +712,7 @@ describe('fork 命令', () => {
       id: 'fork',
       conversationId: 'conv-1',
       workspacePath: '/ws',
-      modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+      modelConfig: { modelId: 'test-model', providerId: 'test-provider' },
       conversationInstructions: '',
     })
 
@@ -723,7 +723,7 @@ describe('fork 命令', () => {
         id: 'fork',
         conversationId: 'conv-1',
         workspacePath: '/ws',
-        modelConfig: { modelId: 'test-model', providerId: 'test-provider', temperature: 0, maxOutputTokens: 4096 },
+        modelConfig: { modelId: 'test-model', providerId: 'test-provider' },
         conversationInstructions: '',
       }),
     ).rejects.toThrow('already running')

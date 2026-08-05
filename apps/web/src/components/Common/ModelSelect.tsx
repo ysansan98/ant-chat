@@ -22,7 +22,7 @@ export interface ModelSelectValue {
 
 export interface ModelSelectProps {
   value: ModelSelectValue
-  onChange?: (value: ModelSelectValue & { maxOutputTokens: number, temperature: number }) => void
+  onChange?: (value: ModelSelectValue) => void
   options?: AllAvailableModelsSchema[]
   /** DropdownMenuTrigger 的 className */
   className?: string
@@ -91,7 +91,7 @@ export function ModelSelect({
                   <DropdownMenuItem
                     key={model.id}
                     onClick={() => {
-                      onChange?.({ modelId: model.id, providerId: model.providerId, maxOutputTokens: model.maxOutputTokens, temperature: model.temperature })
+                      onChange?.({ modelId: model.id, providerId: model.providerId })
                     }}
                   >
                     <span className="">{model.name}</span>
@@ -105,7 +105,7 @@ export function ModelSelect({
         {allowUnset && (
           <DropdownMenuItem
             onClick={() => {
-              onChange?.({ modelId: '', providerId: '', maxOutputTokens: 0, temperature: 0 })
+              onChange?.({ modelId: '', providerId: '' })
             }}
           >
             <span className="text-muted-foreground">{unsetLabel}</span>

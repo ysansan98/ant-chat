@@ -190,8 +190,6 @@ export class MultiProvider {
     messages: any[]
     modelSettings: {
       model: string
-      temperature?: number
-      maxOutputTokens?: number
       systemPrompt: string
       reasoningEffort?: ReasoningEffortLevel
     }
@@ -204,7 +202,7 @@ export class MultiProvider {
     abortSignal?: AbortSignal
   }): AsyncGenerator<IAIStreamChunk> {
     const { messages, modelSettings, abortSignal, tools } = options
-    const { model, temperature, maxOutputTokens, systemPrompt, reasoningEffort } = modelSettings
+    const { model, systemPrompt, reasoningEffort } = modelSettings
 
     // 构建 AI SDK 格式的消息（系统提示已通过 instructions 传入，不在此构造）
     const aiSdkMessages = this.transformToAISdkMessages(messages)
@@ -224,8 +222,6 @@ export class MultiProvider {
       // v7：系统提示走 instructions，不再塞进 messages
       instructions: systemPrompt || undefined,
       messages: aiSdkMessages,
-      temperature,
-      maxOutputTokens,
       // v7：统一推理强度参数；未设置时不传，走厂商默认
       ...(reasoningEffort ? { reasoning: reasoningEffort } : {}),
       tools: aiTools,

@@ -76,8 +76,6 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
           settings: {
             modelId: options.modelConfig.modelId,
             providerId: options.modelConfig.providerId,
-            temperature: options.modelConfig.temperature ?? 0.7,
-            maxOutputTokens: options.modelConfig.maxOutputTokens ?? 4096,
             reasoningEffort: options.modelConfig.reasoningEffort,
           },
         })
@@ -119,8 +117,6 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
           mode: options.mode ?? 'hybrid',
           turnSource: options.turnSource,
           modelSettings: {
-            temperature: options.modelConfig.temperature,
-            maxOutputTokens: options.modelConfig.maxOutputTokens,
             reasoningEffort,
           },
         })

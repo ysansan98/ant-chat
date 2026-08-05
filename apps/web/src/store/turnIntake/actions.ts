@@ -131,8 +131,6 @@ async function runCommand(
       modelConfig: {
         modelId: options.settings.modelId,
         providerId: options.settings.providerId || '',
-        temperature: options.settings.temperature ?? 0.7,
-        maxOutputTokens: options.settings.maxOutputTokens ?? 4096,
         reasoningEffort: options.settings.reasoningEffort,
       },
       workspacePath: options.workspacePath,
@@ -193,8 +191,6 @@ function toStartTurnOptions(options: SubmitTurnIntakeOptions): StartAgentTurnOpt
     modelConfig: {
       modelId: options.settings.modelId,
       providerId: options.settings.providerId,
-      temperature: options.settings.temperature,
-      maxOutputTokens: options.settings.maxOutputTokens,
       reasoningEffort: options.settings.reasoningEffort,
     },
   }

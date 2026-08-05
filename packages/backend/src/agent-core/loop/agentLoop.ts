@@ -25,8 +25,6 @@ export async function runAgentLoop(input: {
     modelName,
     providerName,
     providerId,
-    temperature,
-    maxOutputTokens,
     reasoningEffort,
   } = options
 
@@ -64,8 +62,6 @@ export async function runAgentLoop(input: {
 
       const modelSettings = {
         model: modelName,
-        temperature,
-        maxOutputTokens,
         systemPrompt,
         reasoningEffort,
       }

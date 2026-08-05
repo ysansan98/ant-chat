@@ -45,8 +45,6 @@ const conversation = {
   settings: {
     modelId: 'model-1',
     providerId: 'provider-1',
-    temperature: 0.2,
-    maxOutputTokens: 2048,
   },
 }
 const userMessage = {
@@ -125,8 +123,6 @@ describe('createAgentTurnService 行为', () => {
       modelConfig: {
         modelId: 'model-1',
         providerId: 'provider-1',
-        temperature: 0.2,
-        maxOutputTokens: 2048,
       },
     })
 
@@ -138,8 +134,6 @@ describe('createAgentTurnService 行为', () => {
       settings: {
         modelId: 'model-1',
         providerId: 'provider-1',
-        temperature: 0.2,
-        maxOutputTokens: 2048,
       },
     }))
     expect(appDataContext.messageRepository.create).toHaveBeenCalledWith({
@@ -159,8 +153,7 @@ describe('createAgentTurnService 行为', () => {
       aiProvider,
       mode: 'hybrid',
       modelSettings: {
-        temperature: 0.2,
-        maxOutputTokens: 2048,
+        reasoningEffort: undefined,
       },
     })
   })
@@ -177,8 +170,6 @@ describe('createAgentTurnService 行为', () => {
       modelConfig: {
         modelId: 'model-1',
         providerId: 'provider-1',
-        temperature: 0.2,
-        maxOutputTokens: 2048,
       },
     })).rejects.toThrow('AGENT_TASK_ALREADY_RUNNING')
 
@@ -198,8 +189,6 @@ describe('createAgentTurnService 行为', () => {
       modelConfig: {
         modelId: 'model-1',
         providerId: 'provider-1',
-        temperature: 0.2,
-        maxOutputTokens: 2048,
       },
     })).rejects.toThrow('runtime start failed')
 
@@ -222,8 +211,6 @@ describe('createAgentTurnService 行为', () => {
       modelConfig: {
         modelId: 'model-1',
         providerId: 'provider-1',
-        temperature: 0.2,
-        maxOutputTokens: 2048,
       },
     })
 
@@ -252,8 +239,6 @@ describe('createAgentTurnService 行为', () => {
       modelConfig: {
         modelId: 'model-1',
         providerId: 'provider-1',
-        temperature: 0.2,
-        maxOutputTokens: 2048,
       },
     })).rejects.toThrow('missing api key')
 
@@ -280,8 +265,6 @@ describe('createAgentTurnService 行为', () => {
       modelConfig: {
         modelId: 'model-1',
         providerId: 'provider-1',
-        temperature: 0.2,
-        maxOutputTokens: 2048,
       },
     })
     await new Promise(resolve => setTimeout(resolve, 0))
@@ -319,8 +302,6 @@ describe('createAgentTurnService 行为', () => {
       modelConfig: {
         modelId: 'model-1',
         providerId: 'provider-1',
-        temperature: 0.2,
-        maxOutputTokens: 2048,
       },
     })
     await new Promise(resolve => setTimeout(resolve, 0))
@@ -348,8 +329,6 @@ describe('createAgentTurnService 行为', () => {
       modelConfig: {
         modelId: 'model-1',
         providerId: 'provider-1',
-        temperature: 0.2,
-        maxOutputTokens: 2048,
       },
     })
     await new Promise(resolve => setTimeout(resolve, 0))
@@ -367,8 +346,6 @@ describe('createAgentTurnService 行为', () => {
       modelConfig: {
         modelId: 'model-1',
         providerId: 'provider-1',
-        temperature: 0.2,
-        maxOutputTokens: 2048,
       },
     } as any)).rejects.toThrow('workspacePath is required')
   })
@@ -383,8 +360,6 @@ describe('createAgentTurnService 行为', () => {
       modelConfig: {
         modelId: 'model-1',
         providerId: 'provider-1',
-        temperature: 0.2,
-        maxOutputTokens: 2048,
       },
     })
 
@@ -404,8 +379,6 @@ describe('createAgentTurnService 行为', () => {
       modelConfig: {
         modelId: 'model-1',
         providerId: 'provider-1',
-        temperature: 0.2,
-        maxOutputTokens: 2048,
       },
     })
 
@@ -425,8 +398,6 @@ describe('createAgentTurnService 行为', () => {
       modelConfig: {
         modelId: 'model-1',
         providerId: 'provider-1',
-        temperature: 0.2,
-        maxOutputTokens: 2048,
         reasoningEffort: 'high',
       },
     })
@@ -464,8 +435,6 @@ describe('createAgentTurnService 行为', () => {
       modelConfig: {
         modelId: 'model-1',
         providerId: 'provider-1',
-        temperature: 0.2,
-        maxOutputTokens: 2048,
         reasoningEffort: 'low',
       },
     })
@@ -484,8 +453,6 @@ describe('createAgentTurnService 行为', () => {
       modelConfig: {
         modelId: 'model-1',
         providerId: 'provider-1',
-        temperature: 0.2,
-        maxOutputTokens: 2048,
       },
     })
 
@@ -507,8 +474,6 @@ describe('createAgentTurnService 行为', () => {
       modelConfig: {
         modelId: 'model-1',
         providerId: 'provider-1',
-        temperature: 0.2,
-        maxOutputTokens: 2048,
       },
     })
 
@@ -533,8 +498,6 @@ describe('createAgentTurnService 行为', () => {
       modelConfig: {
         modelId: 'model-1',
         providerId: 'provider-1',
-        temperature: 0.2,
-        maxOutputTokens: 2048,
       },
     })
 

@@ -131,8 +131,6 @@ describe('agentRuntime RPC 转发与远程对账', () => {
       modelConfig: {
         modelId: 'model-1',
         providerId: 'provider-1',
-        temperature: 0.7,
-        maxOutputTokens: 1024,
       },
     })
     expect(created.taskId).toBe('t1')

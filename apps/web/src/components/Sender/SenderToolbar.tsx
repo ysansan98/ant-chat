@@ -82,8 +82,8 @@ export function SenderToolbar({ fileAccept, contextLength }: SenderToolbarProps)
       <div className="flex items-center gap-1">
         <ModelControlPanel
           value={{ modelId: settings.modelId, providerId: settings.providerId }}
-          onChange={({ modelId, providerId, maxOutputTokens, temperature }, source) => {
-            updateSettings({ modelId, providerId, maxOutputTokens, temperature })
+          onChange={({ modelId, providerId }, source) => {
+            updateSettings({ modelId, providerId })
             if (source === 'user') {
               void rememberDefaultModel(modelId, providerId)
             }

@@ -10,7 +10,7 @@ import { PROVIDER_CHANGED_EVENT } from '@/constants/providerEvents'
 interface ModelControlPanelProps {
   value: { modelId: string, providerId: string }
   onChange?: (
-    info: { modelId: string, providerId: string, maxOutputTokens: number, temperature: number },
+    info: { modelId: string, providerId: string },
     source: 'user' | 'fallback',
   ) => void
   reasoningEffort?: ReasoningEffortLevel
@@ -43,7 +43,7 @@ export function ModelControlPanel({ value, onChange, reasoningEffort, onReasonin
   const currentModelInfo = activeProviderServiceInfo?.models.find(model => model.id === value.modelId && model.providerId === value.providerId)
   const fallbackModel = activeProviderServiceInfo?.models[0] ?? data?.[0]?.models[0]
 
-  const handleModelChange = React.useCallback((nextInfo: { modelId: string, providerId: string, maxOutputTokens: number, temperature: number }, source: 'user' | 'fallback') => {
+  const handleModelChange = React.useCallback((nextInfo: { modelId: string, providerId: string }, source: 'user' | 'fallback') => {
     const nextProvider = data?.find(provider => provider.id === nextInfo.providerId)
     const nextModel = nextProvider?.models.find(model => model.id === nextInfo.modelId)
     onReasoningEffortChange?.(getSupportedReasoningEffort(nextModel, reasoningEffort))
@@ -54,7 +54,7 @@ export function ModelControlPanel({ value, onChange, reasoningEffort, onReasonin
     if (currentModelInfo || !fallbackModel) {
       return
     }
-    handleModelChange({ modelId: fallbackModel.id, providerId: fallbackModel.providerId, maxOutputTokens: fallbackModel.maxOutputTokens, temperature: fallbackModel.temperature }, 'fallback')
+    handleModelChange({ modelId: fallbackModel.id, providerId: fallbackModel.providerId }, 'fallback')
   }, [currentModelInfo, fallbackModel, handleModelChange])
 
   return (

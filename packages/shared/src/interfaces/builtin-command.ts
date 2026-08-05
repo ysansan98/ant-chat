@@ -55,8 +55,6 @@ export interface RunBuiltinCommandParams {
   modelConfig: {
     modelId: string
     providerId: string
-    temperature: number
-    maxOutputTokens: number
     reasoningEffort?: ReasoningEffortLevel
   }
   /** 仅 /new 时消费 */

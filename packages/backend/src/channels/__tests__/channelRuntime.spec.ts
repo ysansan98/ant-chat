@@ -4,7 +4,7 @@ import { ChannelRuntime } from '../channelRuntime'
 
 function createHarness() {
   const account = { id: 'a1', channelType: 'feishu' as const, displayName: '飞书', credentialRef: 'ref', defaultWorkspacePath: '/workspace', permissionMode: 'hybrid' as const, enabled: true, status: 'connected' as const, createdAt: 1, updatedAt: 1 }
-  const conversation = { id: 'c1', workspacePath: '/workspace', title: 'Untitled', conversationInstructions: '', createdAt: 1, updatedAt: 1, settings: { modelId: 'm1', providerId: 'p1', temperature: 0.7, maxOutputTokens: 1024 }, sourceType: 'feishu' as const, sourceChannelAccountId: 'a1', sourceExternalChatId: 'chat-1' }
+  const conversation = { id: 'c1', workspacePath: '/workspace', title: 'Untitled', conversationInstructions: '', createdAt: 1, updatedAt: 1, settings: { modelId: 'm1', providerId: 'p1' }, sourceType: 'feishu' as const, sourceChannelAccountId: 'a1', sourceExternalChatId: 'chat-1' }
   const data = {
     channelAccountRepository: {
       getById: vi.fn(async () => account),
@@ -86,7 +86,7 @@ describe('channelRuntime 入站行为', () => {
       conversationInstructions: '',
       createdAt: 1,
       updatedAt: 1,
-      settings: { modelId: '', providerId: '', temperature: 0.7, maxOutputTokens: 4096 },
+      settings: { modelId: '', providerId: '' },
       sourceType: 'feishu' as const,
       sourceChannelAccountId: 'a1',
       sourceExternalChatId: 'chat-1',
@@ -104,8 +104,6 @@ describe('channelRuntime 入站行为', () => {
         modelId: 'model-1',
         providerId: 'provider-1',
         name: '可用模型',
-        temperature: 0.3,
-        maxOutputTokens: 8192,
       }],
     })
 
@@ -123,8 +121,6 @@ describe('channelRuntime 入站行为', () => {
       settings: {
         modelId: 'model-1',
         providerId: 'provider-1',
-        temperature: 0.3,
-        maxOutputTokens: 8192,
         reasoningEffort: undefined,
       },
     })
@@ -139,7 +135,7 @@ describe('channelRuntime 入站行为', () => {
       conversationInstructions: '',
       createdAt: 1,
       updatedAt: 1,
-      settings: { modelId: 'channel-model', providerId: 'channel-provider', temperature: 0.4, maxOutputTokens: 8192 },
+      settings: { modelId: 'channel-model', providerId: 'channel-provider' },
       sourceType: 'feishu' as const,
       sourceChannelAccountId: 'a1',
       sourceExternalChatId: 'chat-2',
@@ -168,8 +164,6 @@ describe('channelRuntime 入站行为', () => {
         modelId: 'channel-model',
         providerId: 'channel-provider',
         name: '频道模型',
-        temperature: 0.4,
-        maxOutputTokens: 8192,
       }],
     })
 
@@ -202,8 +196,6 @@ describe('channelRuntime 入站行为', () => {
         providerId: 'provider-2',
         name: '模型二',
         providerName: '服务二',
-        temperature: 0.2,
-        maxOutputTokens: 16384,
       }],
     })
 
@@ -225,8 +217,6 @@ describe('channelRuntime 入站行为', () => {
       settings: {
         modelId: 'model-2',
         providerId: 'provider-2',
-        temperature: 0.2,
-        maxOutputTokens: 16384,
         reasoningEffort: undefined,
       },
     })

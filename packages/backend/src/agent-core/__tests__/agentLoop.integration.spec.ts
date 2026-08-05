@@ -55,8 +55,6 @@ function createAimockAIProvider(baseUrl: string): IAIProvider {
           }
         }) as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         tools: openaiTools?.length ? openaiTools : undefined,
-        temperature: opts.modelSettings.temperature ?? 0,
-        max_tokens: opts.modelSettings.maxOutputTokens ?? 1024,
       })
 
       const choice = completion.choices?.[0]

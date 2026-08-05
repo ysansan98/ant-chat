@@ -66,8 +66,6 @@ function createSessionStore(overrides: Partial<ISessionStore> = {}): ISessionSto
     settings: {
       modelId: 'model-1',
       providerId: 'provider-1',
-      temperature: 0.7,
-      maxOutputTokens: 1024,
     },
   }
   const userMessage = {
@@ -344,10 +342,6 @@ describe('agentRuntime 行为', () => {
 
       const result = await runtime.startSessionTask(createValidSessionStartInput({
         messageContent: [{ type: 'text', text: ' inspect project ' }],
-        modelSettings: {
-          temperature: 0.7,
-          maxOutputTokens: 1024,
-        },
       }))
 
       expect(store.getConversation).toHaveBeenCalledWith('conv-session')
@@ -523,8 +517,6 @@ describe('agentRuntime 行为', () => {
         settings: {
           modelId: 'model-1',
           providerId: 'provider-1',
-          temperature: 0.7,
-          maxOutputTokens: 1024,
           compaction: { enabled: true, thresholdPercent: 70, keepRecentTokens: 16 },
         },
       }
@@ -659,8 +651,6 @@ describe('agentRuntime 行为', () => {
         settings: {
           modelId: 'model-1',
           providerId: 'provider-1',
-          temperature: 0.7,
-          maxOutputTokens: 1024,
           compaction: { enabled: true, thresholdPercent: 70, keepRecentTokens: 8 },
         },
       }
@@ -714,8 +704,6 @@ describe('agentRuntime 行为', () => {
         settings: {
           modelId: 'model-1',
           providerId: 'provider-1',
-          temperature: 0.7,
-          maxOutputTokens: 1024,
           compaction: { enabled: true, thresholdPercent: 70, keepRecentTokens: 8 },
         },
       }
@@ -776,8 +764,6 @@ describe('agentRuntime 行为', () => {
         settings: {
           modelId: 'model-1',
           providerId: 'provider-1',
-          temperature: 0.7,
-          maxOutputTokens: 1024,
           compaction: { enabled: true, thresholdPercent: 70, keepRecentTokens: 8 },
         },
       }

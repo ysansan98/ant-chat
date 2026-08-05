@@ -26,8 +26,6 @@ function conversation(id: string, updatedAt: number, archived = false): IConvers
     settings: {
       modelId: '',
       providerId: '',
-      temperature: 0.7,
-      maxOutputTokens: 1000,
     },
   }
 }

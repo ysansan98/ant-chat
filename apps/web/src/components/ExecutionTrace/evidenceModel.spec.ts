@@ -11,7 +11,7 @@ describe('parseEvidence · model-request', () => {
           { role: 'assistant', content: [{ type: 'text', text: '您好' }, { type: 'tool-call', toolCallId: 'c1', toolName: 'read', args: { path: '/a' } }] },
           { role: 'tool', content: [{ type: 'tool-result', toolCallId: 'c1', toolName: 'read', result: '文件内容' }] },
         ],
-        modelSettings: { model: 'gpt-4o', temperature: 0.7, maxOutputTokens: 4096, systemPrompt: '你是助手', reasoningEffort: 'high' },
+        modelSettings: { model: 'gpt-4o', systemPrompt: '你是助手', reasoningEffort: 'high' },
         tools: [{ name: 'read', serverName: 'native', description: '读取文件', inputSchema: { type: 'object', properties: {}, required: [] } }],
       }),
       spanCompleted('model-request', 'success', {
@@ -27,7 +27,6 @@ describe('parseEvidence · model-request', () => {
     if (view.type !== 'model-request')
       return
     expect(view.model).toBe('gpt-4o')
-    expect(view.temperature).toBe(0.7)
     expect(view.reasoningEffort).toBe('high')
     expect(view.systemPrompt).toBe('你是助手')
     expect(view.messages).toHaveLength(3)

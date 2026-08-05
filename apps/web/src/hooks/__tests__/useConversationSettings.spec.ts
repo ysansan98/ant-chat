@@ -58,8 +58,6 @@ describe('useConversationSettings', () => {
     expect(result.current.settings).toEqual({
       modelId: '',
       providerId: '',
-      temperature: 0.7,
-      maxOutputTokens: 1000,
       compaction: defaultCompaction,
     })
   })
@@ -75,8 +73,6 @@ describe('useConversationSettings', () => {
       settings: {
         modelId: 'gpt-3',
         providerId: '',
-        temperature: 0.5,
-        maxOutputTokens: 500,
       },
     })
 
@@ -84,8 +80,6 @@ describe('useConversationSettings', () => {
     expect(result.current.settings).toEqual({
       modelId: 'gpt-3',
       providerId: '',
-      temperature: 0.5,
-      maxOutputTokens: 500,
       compaction: defaultCompaction,
     })
     expect(result.current.conversationInstructions).toBe('')
@@ -116,8 +110,6 @@ describe('useConversationSettings', () => {
       settings: {
         modelId: '',
         providerId: '',
-        temperature: 0.7,
-        maxOutputTokens: 1000,
       },
     })
 
@@ -127,28 +119,6 @@ describe('useConversationSettings', () => {
       modelId: 'last-model',
       providerId: 'last-provider',
     })
-  })
-
-  it('保留合法的 temperature 0', () => {
-    vi.mocked(useMessagesStore).mockReturnValue('conv-zero')
-    vi.mocked(getConversationByIdAction).mockReturnValue({
-      id: 'conv-zero',
-      title: 'Test Conversation',
-      conversationInstructions: '保持简洁',
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      settings: {
-        modelId: 'gpt-3',
-        providerId: '',
-        temperature: 0,
-        maxOutputTokens: 500,
-      },
-    })
-
-    const { result } = renderHook(() => useConversationSettings())
-
-    expect(result.current.settings.temperature).toBe(0)
-    expect(result.current.conversationInstructions).toBe('保持简洁')
   })
 
   it('输入会话指令时立即更新本地值，提交时再持久化顶层字段', async () => {
@@ -162,8 +132,6 @@ describe('useConversationSettings', () => {
       settings: {
         modelId: 'gpt-3',
         providerId: '',
-        temperature: 0.5,
-        maxOutputTokens: 500,
       },
     })
 
@@ -193,8 +161,6 @@ describe('useConversationSettings', () => {
       settings: {
         modelId: 'gpt-3',
         providerId: '',
-        temperature: 0.5,
-        maxOutputTokens: 500,
       },
     }
     vi.mocked(getConversationByIdAction).mockReturnValue(conversation)
@@ -237,8 +203,6 @@ describe('useConversationSettings', () => {
       settings: {
         modelId: 'gpt-3',
         providerId: '',
-        temperature: 0.5,
-        maxOutputTokens: 500,
       },
     })
 
@@ -246,17 +210,13 @@ describe('useConversationSettings', () => {
     await act(async () => {
       await result.current.updateSettings({
         modelId: 'gpt-4',
-        temperature: 0.9,
       })
     })
 
     expect(updateConversationsSettingsAction).toHaveBeenCalledWith('conv3', {
       modelId: 'gpt-4',
-      temperature: 0.9,
     })
     expect(result.current.settings.modelId).toBe('gpt-4')
-    expect(result.current.settings.temperature).toBe(0.9)
-    expect(result.current.settings.maxOutputTokens).toBe(500)
   })
 
   it('should persist the compaction token retention target', async () => {
@@ -270,8 +230,6 @@ describe('useConversationSettings', () => {
       settings: {
         modelId: 'gpt-3',
         providerId: '',
-        temperature: 0.7,
-        maxOutputTokens: 4096,
         compaction: defaultCompaction,
       },
     })
@@ -318,8 +276,6 @@ describe('useConversationSettings', () => {
           settings: {
             modelId: 'gpt-3',
             providerId: '',
-            temperature: 0.6,
-            maxOutputTokens: 800,
           },
         }
       }
@@ -335,8 +291,6 @@ describe('useConversationSettings', () => {
     expect(result.current.settings).toEqual({
       modelId: '',
       providerId: '',
-      temperature: 0.7,
-      maxOutputTokens: 1000,
       compaction: defaultCompaction,
     })
   })
@@ -354,8 +308,6 @@ describe('useConversationSettings', () => {
       settings: {
         modelId: '',
         providerId: '',
-        temperature: 0.7,
-        maxOutputTokens: 1000,
       },
     })
 
@@ -377,8 +329,6 @@ describe('useConversationSettings', () => {
       settings: {
         modelId: '',
         providerId: '',
-        temperature: 0.7,
-        maxOutputTokens: 1000,
       },
     })
 
@@ -400,8 +350,6 @@ describe('useConversationSettings', () => {
       settings: {
         modelId: 'gpt-4',
         providerId: 'openai',
-        temperature: 0.7,
-        maxOutputTokens: 1000,
       },
     })
 
@@ -433,8 +381,6 @@ describe('useConversationSettings', () => {
           settings: {
             modelId: 'gpt-4',
             providerId: 'openai',
-            temperature: 0.7,
-            maxOutputTokens: 1000,
           },
         }
       }

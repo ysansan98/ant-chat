@@ -46,8 +46,6 @@ export class ChannelModule implements RuntimeModuleMethods<'channel'>, RuntimeMo
         providerId: model.providerId,
         name: model.name,
         providerName: provider.name,
-        temperature: model.temperature,
-        maxOutputTokens: model.maxOutputTokens,
       }))),
       listActiveTasks: conversationId => agent.listActiveTasks(conversationId).filter(task => task.status === 'awaiting_approval').map(task => ({ taskId: task.taskId, status: task.status, pendingAction: task.pendingAction })),
       approvePending: async (conversationId) => {
