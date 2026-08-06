@@ -397,10 +397,17 @@ describe('toolRegistry Skill 白名单', () => {
     expect(requestSecret?.description).not.toContain('bash.secretEnv')
   })
 
-  it('注入 messageSearch/memoryCatalog 后暴露五个搜索与记忆工具，且不再有 memory 工具', async () => {
+  it('注入 messageSearch/memoryCatalog/memoryReader 后暴露五个搜索记忆工具与 memory 快照工具', async () => {
     const registry = await ToolRegistry.create({
       config: {
         ...createConfig(),
+        memoryReader: {
+          readUserMemory: vi.fn(),
+          readMemory: vi.fn(),
+          readSoul: vi.fn(),
+          editMemory: vi.fn(),
+          updateSoul: vi.fn(),
+        },
         messageSearch: { search: vi.fn(), getThread: vi.fn(), getTurn: vi.fn() },
         memoryCatalog: { search: vi.fn(), propose: vi.fn(), approve: vi.fn(), archive: vi.fn() },
       },
@@ -411,20 +418,26 @@ describe('toolRegistry Skill 白名单', () => {
     const names = registry.listTools().map(tool => tool.name)
 
     expect(names).toEqual(expect.arrayContaining([
+      'memory',
       'search_messages',
       'get_thread',
       'get_turn',
       'search_memories',
       'propose_memory',
     ]))
-    // agent 不再直接编辑 USER/MEMORY.md（长期记忆只允许用户确认后写入）
-    expect(names).not.toContain('memory')
   })
 
-  it('自动化 turn 执行 propose_memory 时被拒绝', async () => {
+  it('自动化 turn 执行 propose_memory 时被拒绝，且不获得 memory 快照工具', async () => {
     const registry = await ToolRegistry.create({
       config: {
         ...createConfig(),
+        memoryReader: {
+          readUserMemory: vi.fn(),
+          readMemory: vi.fn(),
+          readSoul: vi.fn(),
+          editMemory: vi.fn(),
+          updateSoul: vi.fn(),
+        },
         memoryCatalog: { search: vi.fn(), propose: vi.fn(), approve: vi.fn(), archive: vi.fn() },
       },
       mode: 'hybrid',
@@ -446,6 +459,8 @@ describe('toolRegistry Skill 白名单', () => {
       },
       workspacePath,
     })
+
+    expect(registry.listTools().map(tool => tool.name)).not.toContain('memory')
 
     const prepared = registry.prepare('propose_memory', {
       title: 't',
