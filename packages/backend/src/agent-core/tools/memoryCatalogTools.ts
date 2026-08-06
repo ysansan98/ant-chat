@@ -35,7 +35,8 @@ function createSearchMemoriesTool(catalog: MemoryCatalogPort, workspacePath: str
     serverName: 'agent-loop',
     description: [
       '搜索当前工作区已批准的人工长期记忆（仅 active，不返回待批准与已归档）。',
-      '记忆是用户确认后的结论层；检索结果可作为回答依据，但不能替代搜索原始消息证据。',
+      '记忆是 prior notes 而非最终权威（可能过时）：命中后必须用 search_messages 或 get_turn 回溯原始消息证据核对，原始消息才是一手证据。',
+      '回答概念、结论、设计史等语义类问题时，建议同时调用本工具与 search_messages：记忆按批准摘要索引，消息全文可能直接命中原文，两者互补。',
     ].join('\n'),
     inputSchema: {
       type: 'object',

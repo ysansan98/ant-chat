@@ -28,7 +28,7 @@ function createSearchMessagesTool(search: MessageSearchPort, workspacePath: stri
       '返回命中消息的 message_id / conversation_id / ordinal / 文本与工具调用文本。',
       '可用 tool_name / server_name 精确过滤调过指定工具的消息（来自结构化 tool 事实）。',
       '用 context_radius 展开命中消息在会话中的上下文窗口；用 cursor 翻页。',
-      '验证结论前用 get_turn 或 get_thread 深入查看完整上下文。',
+      '回答概念、结论、设计史等语义类问题时，可与 search_memories 同时调用：记忆层给结论、本工具给原始证据，命中后用 get_turn 或 get_thread 深入验证。',
     ].join('\n'),
     inputSchema: {
       type: 'object',
