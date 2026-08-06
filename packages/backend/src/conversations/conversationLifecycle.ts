@@ -100,6 +100,16 @@ export function createConversationLifecycle(options: {
     })
 
     try {
+      const messageIdMap = new Map<string, string>()
+      const toolCallIdMap = new Map<string, string>()
+      for (const message of sourceMessages) {
+        const copied = await copyMessage(message, forkConversation.id, messageIdMap, toolCallIdMap, options.data, randomId)
+        const created = await options.data.messageRepository.create(copied)
+        messageIdMap.set(message.id, created.id)
+      }
+
+      // fork 事件必须最后写入：保留源消息 created_at 后，事件时间戳晚于全部复制消息，
+      // 即使同一毫秒完成也因 rowid 靠后而排在会话末尾。
       await options.data.messageRepository.create({
         convId: forkConversation.id,
         role: 'event',
@@ -109,15 +119,8 @@ export function createConversationLifecycle(options: {
           text: `分叉自：${sourceConversation.title}（${sourceConversation.id}）`,
         }],
         eventType: 'fork',
+        createdAt: timestamp,
       })
-
-      const messageIdMap = new Map<string, string>()
-      const toolCallIdMap = new Map<string, string>()
-      for (const message of sourceMessages) {
-        const copied = await copyMessage(message, forkConversation.id, messageIdMap, toolCallIdMap, options.data, randomId)
-        const created = await options.data.messageRepository.create(copied)
-        messageIdMap.set(message.id, created.id)
-      }
     }
     catch (error) {
       // conversation delete 通过 repository transaction 级联清理消息和已落盘的 attachment，
@@ -253,7 +256,7 @@ async function copyMessage(
   toolCallIdMap: Map<string, string>,
   data: Pick<ConversationDependencies, 'loadAttachmentData'>,
   randomId: () => string,
-): Promise<AddMessage> {
+): Promise<AddMessage & { createdAt: number }> {
   const content = await Promise.all((message.content as unknown[]).map(async (block) => {
     if (isVisualizationBlock(block)) {
       const artifact = await data.loadAttachmentData(block.source.file_id)
@@ -275,12 +278,13 @@ async function copyMessage(
   const base = {
     convId: forkConversationId,
     content,
+    createdAt: message.createdAt,
     turnId: message.turnId ? (messageIdMap.get(message.turnId) ?? message.turnId) : undefined,
   }
 
   switch (message.role) {
     case 'user':
-      return { ...base, role: 'user', status: 'success' } as AddMessage
+      return { ...base, role: 'user', status: 'success' } as AddMessage & { createdAt: number }
     case 'assistant':
       return {
         ...base,
@@ -290,9 +294,9 @@ async function copyMessage(
         reasoningContent: message.reasoningContent,
         usage: message.usage,
         durationMs: message.durationMs,
-      } as AddMessage
+      } as AddMessage & { createdAt: number }
     case 'tool':
-      return { ...base, role: 'tool', status: message.status === 'error' ? 'error' : 'success' } as AddMessage
+      return { ...base, role: 'tool', status: message.status === 'error' ? 'error' : 'success' } as AddMessage & { createdAt: number }
     case 'event':
       if (message.status !== 'success' && message.status !== 'loading' && message.status !== 'error') {
         throw new Error(`无效的事件消息状态：${message.status}`)
@@ -307,7 +311,7 @@ async function copyMessage(
         compactedThroughMessageId: message.compactedThroughMessageId
           ? messageIdMap.get(message.compactedThroughMessageId)
           : undefined,
-      } as AddMessage
+      } as AddMessage & { createdAt: number }
   }
 }
 

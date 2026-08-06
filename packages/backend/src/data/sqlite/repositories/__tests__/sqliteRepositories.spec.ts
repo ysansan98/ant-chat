@@ -704,7 +704,7 @@ describe('sqlite repositories', () => {
       sha256: createHash('sha256').update(bytes).digest('hex'),
       data: bytes.toString('base64'),
     }
-    await messageRepository.create({ convId: sourceConversation.id, role: 'user', status: 'success', content: [block] })
+    const sourceMessage = await messageRepository.create({ convId: sourceConversation.id, role: 'user', status: 'success', content: [block] })
 
     const appDataContext = {
       conversationRepository,
@@ -718,6 +718,10 @@ describe('sqlite repositories', () => {
     })
     const forkConversation = await lifecycle.fork({ sourceConversationId: sourceConversation.id, workspacePath: '/workspace' })
     const forkMessages = await messageRepository.listByConversation(forkConversation.id)
+
+    expect(forkMessages[0]).toEqual(expect.objectContaining({ role: 'user', createdAt: sourceMessage.createdAt }))
+    expect(forkMessages[forkMessages.length - 1]).toEqual(expect.objectContaining({ role: 'event', eventType: 'fork' }))
+
     const forkMessage = forkMessages.find(message => message.content.some(content => content.type === 'visualization'))!
     const forkBlock = forkMessage.content.find(content => content.type === 'visualization') as { source: { file_id: string } }
 

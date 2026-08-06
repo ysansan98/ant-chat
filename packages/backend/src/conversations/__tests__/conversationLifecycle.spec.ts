@@ -247,6 +247,41 @@ describe('conversationLifecycle', () => {
     await expect(lifecycle.fork({ sourceConversationId: source.id, workspacePath: '/workspace' })).resolves.toEqual(fork)
     expect(deleteTrace).not.toHaveBeenCalled()
   })
+
+  it('fork 保留源消息 created_at，并把 fork 事件消息写在末尾', async () => {
+    const source = conversation({ id: 'source', title: '源会话' })
+    const fork = conversation({ id: 'fork', title: '源会话 副本' })
+    const sourceMessages = [
+      { id: 'm1', role: 'user', content: [{ type: 'text', text: 'a' }], createdAt: 10 },
+      { id: 'm2', role: 'assistant', content: [{ type: 'text', text: 'b' }], createdAt: 20 },
+    ] as IMessage[]
+    const create = vi.fn(async input => ({ ...input, id: 'msg-1' }))
+    const lifecycle = createConversationLifecycle({
+      data: {
+        conversationRepository: {
+          getById: vi.fn(async () => source),
+          create: vi.fn(async () => fork),
+        },
+        messageRepository: {
+          listByConversation: vi.fn(async () => sourceMessages),
+          create,
+        },
+        loadAttachmentData: vi.fn(),
+        workspaceService: {},
+      } as never,
+      events: new RuntimeEventBus(),
+      runtime: { closeConversation: vi.fn(), listActiveTasks: vi.fn(() => []) },
+      now: () => 100,
+    })
+
+    await lifecycle.fork({ sourceConversationId: source.id, workspacePath: '/workspace' })
+
+    const calls = create.mock.calls.map(call => call[0])
+    expect(calls).toHaveLength(3)
+    expect(calls[0]).toEqual(expect.objectContaining({ role: 'user', createdAt: 10 }))
+    expect(calls[1]).toEqual(expect.objectContaining({ role: 'assistant', createdAt: 20 }))
+    expect(calls[2]).toEqual(expect.objectContaining({ role: 'event', eventType: 'fork', createdAt: 100 }))
+  })
 })
 
 function conversation(overrides: Partial<IConversations>): IConversations {

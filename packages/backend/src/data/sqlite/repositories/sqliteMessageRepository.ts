@@ -81,7 +81,7 @@ export class SqliteMessageRepository implements MessageRepository {
     return mapPersistedMessageRow(result)
   }
 
-  async create(message: AddMessage, options?: { id?: string }): Promise<IMessage> {
+  async create(message: AddMessage & { createdAt?: number }, options?: { id?: string }): Promise<IMessage> {
     await this.conversations.getById(message.convId)
 
     const id = options?.id ?? `msg-${nanoid()}`
@@ -121,7 +121,7 @@ export class SqliteMessageRepository implements MessageRepository {
           message.convId,
           message.role,
           stringifyJson(content),
-          Date.now(),
+          message.createdAt ?? Date.now(),
           message.status,
           'reasoningContent' in message ? message.reasoningContent ?? null : null,
           'modelInfo' in message ? stringifyNullableJson(message.modelInfo) : null,
