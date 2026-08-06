@@ -1,5 +1,7 @@
+import type { AppDataDatabase } from '../types'
 import type { SqliteMigration } from './runMigrations'
 import path from 'node:path'
+import { MessageSearchIndex } from '../messageSearchIndex'
 import { initializeAppDataSchema } from '../schema'
 import { migrateAddCompactionBoundary, migrateAddDurationMs, migrateMessageAttachments, rebuildMessagesTable } from './migrateAttachments'
 
@@ -175,5 +177,132 @@ export function createAppDataMigrations(
         }
       },
     },
+    {
+      version: 9,
+      name: '消息搜索投影、FTS 与长期记忆目录',
+      migrate(db) {
+        // messages 表缺失时（异常的历史状态）跳过消息索引部分，不阻塞其他迁移
+        const hasMessagesTable = Boolean(db.prepare(`
+          SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'messages'
+        `).get())
+        if (hasMessagesTable) {
+          migrateMessageSearchIndex(db)
+        }
+        migrateMemoryCatalogTables(db)
+      },
+    },
   ]
+}
+
+function migrateMessageSearchIndex(db: AppDataDatabase): void {
+  // 1. ordinal：会话内稳定排序键（消息 ID 是随机值，不能用于窗口排序）
+  const messageColumns = new Set((db.prepare('PRAGMA table_info(messages)').all() as Array<{ name: string }>).map(column => column.name))
+  if (!messageColumns.has('ordinal')) {
+    db.exec('ALTER TABLE messages ADD COLUMN ordinal integer')
+  }
+  // 历史回填：按 created_at, rowid 在同一会话内分配递增 ordinal
+  db.exec(`
+    CREATE TEMP TABLE _migration_msg_ordinals AS
+      SELECT id, ROW_NUMBER() OVER (PARTITION BY conv_id ORDER BY created_at, rowid) AS ordinal
+      FROM messages;
+    UPDATE messages
+      SET ordinal = (SELECT ordinal FROM _migration_msg_ordinals WHERE _migration_msg_ordinals.id = messages.id)
+      WHERE ordinal IS NULL;
+    DROP TABLE _migration_msg_ordinals;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_conversation_ordinal
+      ON messages(conv_id, ordinal);
+  `)
+
+  // 2. 搜索投影 + 结构化 tool 事实（派生读模型，不改动 messages.content JSON 语义）
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS message_search_documents (
+      message_id TEXT PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,
+      conversation_id TEXT NOT NULL,
+      ordinal INTEGER NOT NULL,
+      role TEXT NOT NULL,
+      status TEXT NOT NULL,
+      text TEXT NOT NULL,
+      tool_text TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX IF NOT EXISTS idx_message_search_documents_conversation_ordinal
+      ON message_search_documents(conversation_id, ordinal);
+    CREATE TABLE IF NOT EXISTS message_tool_facts (
+      message_id TEXT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+      tool_call_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      tool_name TEXT NOT NULL,
+      server_name TEXT,
+      args_text TEXT NOT NULL DEFAULT '',
+      result_text TEXT NOT NULL DEFAULT '',
+      PRIMARY KEY (message_id, tool_call_id, kind)
+    );
+    CREATE INDEX IF NOT EXISTS idx_message_tool_facts_tool
+      ON message_tool_facts(tool_name, server_name);
+    CREATE TABLE IF NOT EXISTS message_search_meta (
+      key TEXT PRIMARY KEY NOT NULL,
+      value TEXT NOT NULL
+    );
+  `)
+
+  // 3. standalone FTS5 表：先探测 bundled SQLite 的 FTS5/trigram 支持，
+  //    不支持则显式降级为 LIKE（记录在 message_search_meta，查询侧读取）
+  const fts5 = tryCreateFtsTable(db, `
+    CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts_unicode
+    USING fts5(message_id UNINDEXED, text, tool_text, tokenize='unicode61')
+  `)
+  db.prepare('INSERT OR REPLACE INTO message_search_meta (key, value) VALUES (?, ?)').run('fts5', fts5 ? '1' : '0')
+  const ftsTrigram = fts5 && tryCreateFtsTable(db, `
+    CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts_trigram
+    USING fts5(message_id UNINDEXED, text, tool_text, tokenize='trigram')
+  `)
+  db.prepare('INSERT OR REPLACE INTO message_search_meta (key, value) VALUES (?, ?)').run('fts_trigram', ftsTrigram ? '1' : '0')
+
+  // 4. 历史回填：与运行时维护共用同一抽取实现
+  new MessageSearchIndex(db).rebuild()
+}
+
+function migrateMemoryCatalogTables(db: AppDataDatabase): void {
+  // 长期记忆目录：pending 由 agent 提议，批准后写 Markdown 并激活
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS memories (
+      id TEXT PRIMARY KEY NOT NULL,
+      workspace_key TEXT NOT NULL,
+      workspace_path TEXT NOT NULL,
+      title TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      body_content TEXT NOT NULL DEFAULT '',
+      body_path TEXT NOT NULL DEFAULT '',
+      body_sha256 TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      approved_at INTEGER,
+      archived_at INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS idx_memories_workspace_status
+      ON memories(workspace_key, status);
+    CREATE TABLE IF NOT EXISTS memory_evidence (
+      memory_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+      message_id TEXT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+      PRIMARY KEY (memory_id, message_id)
+    );
+  `)
+  // memories FTS 表跟随消息 FTS 的能力探测结果创建；不可用时记忆搜索显式降级为 LIKE
+  tryCreateFtsTable(db, `
+    CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts_trigram
+    USING fts5(memory_id UNINDEXED, title, summary, tokenize='trigram')
+  `)
+}
+
+/**
+ * 尝试创建 FTS 虚拟表。FTS5 或 tokenizer 不可用时返回 false，
+ * 上层必须显式降级（记录能力位），不能静默得到空搜索结果。
+ */
+function tryCreateFtsTable(db: AppDataDatabase, sql: string): boolean {
+  try {
+    db.exec(sql)
+    return true
+  }
+  catch {
+    return false
+  }
 }

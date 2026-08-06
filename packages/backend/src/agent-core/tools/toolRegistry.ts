@@ -6,6 +6,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { getNativeToolService } from '../native-tools/nativeToolService'
 import { createMcpTools } from './mcpToolAdapter'
+import { createMemoryCatalogTools } from './memoryCatalogTools'
+import { createMessageSearchTools } from './messageSearchTools'
 import { createPublishVisualizationTool } from './publishVisualizationTool'
 
 export interface PreparedToolCall {
@@ -68,10 +70,17 @@ export class ToolRegistry {
     const skillTools = skillReader
       ? await makeSkillTools(skillReader, turnSource)
       : []
-    // 自动化能力在 Turn 创建时固定；记忆修改等交互能力不进入该能力集合。
-    const agentLoopTools = config.memoryReader && turnSource?.type !== 'automation'
-      ? [createMemoryTool(config.memoryReader)]
-      : []
+    // 自动化能力在 Turn 创建时固定；记忆修改等交互能力不进入自动化能力集合。
+    const agentLoopTools: AgentTool[] = []
+    if (config.memoryReader && turnSource?.type !== 'automation') {
+      agentLoopTools.push(createMemoryTool(config.memoryReader))
+    }
+    if (config.messageSearch) {
+      agentLoopTools.push(...createMessageSearchTools(config.messageSearch, workspacePath))
+    }
+    if (config.memoryCatalog) {
+      agentLoopTools.push(...createMemoryCatalogTools(config.memoryCatalog, { workspacePath, turnSource }))
+    }
     if (config.secretRequester) {
       agentLoopTools.push(createRequestSecretTool())
     }
@@ -268,27 +277,35 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
+/**
+ * 全局 prompt 快照记忆（USER.md / MEMORY.md）的编辑工具。
+ *
+ * 与 MemoryCatalog（propose_memory → 用户批准）是两层：本工具写的是
+ * 每轮注入的全局快照（短、稳定、无证据链），不是人工批准的结论层。
+ * agent 主动维护的是 MEMORY.md（agent personal notes）；USER.md 用于用户偏好。
+ * 自动化 turn 不获得本工具。
+ */
 function createMemoryTool(memoryReader: NonNullable<AgentRuntimeConfig['memoryReader']>): AgentTool {
   return {
     name: 'memory',
     source: 'skill',
     serverName: 'agent-loop',
     description: [
-      'Edit persistent agent memory files using add, replace, or remove.',
-      'Use target="memory" for the agent personal notes: durable environment facts, project conventions, and tool behavior.',
-      'Use target="user" for the user memory: durable preferences, communication style, and habits.',
-      'Save compact facts that will still matter later and reduce future user steering.',
-      'Write memories as declarative facts, not instructions. Example: "User prefers concise responses", not "Always respond concisely".',
-      'Do not use this tool for temporary task progress, session outcomes, completed-work logs, chat summaries, stale identifiers, file contents, secrets, or SOUL.md. SOUL.md defines the agent identity and is edited only by the user.',
-      'Updates are written to disk. The system prompt uses the conversation-start USER.md/MEMORY.md snapshot, and this tool returns the latest entries after each successful edit.',
+      '编辑全局记忆快照（USER.md / MEMORY.md），支持 add / replace / remove。',
+      'target="memory" 用于 agent 个人笔记：持久的环境事实、项目约定、工具行为（本套记忆就是让 agent 主动记忆的）。',
+      'target="user" 用于用户记忆：持久偏好、沟通风格、习惯。',
+      '写声明式事实而非指令，例如「用户偏好简洁回答」，而不是「总是简洁回答」。',
+      '不要用于：临时任务进度、会话结果、已完成工作日志、聊天摘要、过期标识符、文件内容、密钥，以及 SOUL.md（身份策略仅用户可编辑）。',
+      '需要人工批准的项目结论、设计决策、证据链请用 propose_memory（存 MemoryCatalog，批准后才生效）；不要把结论堆进全局快照。',
+      '写入即落盘；system prompt 使用会话开始时的 USER.md/MEMORY.md 快照，本工具每次编辑后返回最新条目。',
     ].join('\n'),
     inputSchema: {
       type: 'object',
       properties: {
-        target: { type: 'string', enum: ['memory', 'user'], description: 'File to edit: memory edits MEMORY.md, user edits USER.md.' },
-        action: { type: 'string', enum: ['add', 'replace', 'remove'], description: 'Edit action.' },
-        content: { type: 'string', description: 'Required for add and replace. For replace, this becomes the full replacement entry.' },
-        old_text: { type: 'string', description: 'Required for replace and remove. Used only to locate the entry by substring match.' },
+        target: { type: 'string', enum: ['memory', 'user'], description: '编辑目标：memory 编辑 MEMORY.md，user 编辑 USER.md。' },
+        action: { type: 'string', enum: ['add', 'replace', 'remove'], description: '编辑动作。' },
+        content: { type: 'string', description: 'add 与 replace 必填；replace 时作为整条替换内容。' },
+        old_text: { type: 'string', description: 'replace 与 remove 必填；仅用于按子串定位条目。' },
       },
       required: ['target', 'action'],
     },

@@ -6,6 +6,8 @@ export interface AppRuntimePaths {
   settingsFile: string
   mcpSettingsFile: string
   memoryRoot: string
+  /** 长期记忆目录（人工批准的结论层）：memories/<workspace-key>/<memory-id>.md */
+  memoriesRoot: string
   workspaceSettingsFile: string
   attachmentsRoot: string
   skillsRoot: string
@@ -23,6 +25,7 @@ export function createAppRuntimePaths(root: string): AppRuntimePaths {
     settingsFile: path.join(root, 'settings.json'),
     mcpSettingsFile: path.join(root, 'mcp.json'),
     memoryRoot: path.join(root, 'agent-memory'),
+    memoriesRoot: path.join(root, 'memories'),
     workspaceSettingsFile: path.join(root, 'workspace.json'),
     attachmentsRoot: path.join(root, 'attachments'),
     skillsRoot: path.join(root, 'skills'),

@@ -21,11 +21,15 @@ function route<TMethod extends AppRpcMethod>(
  * 让路由表一目了然，新增同类转发只需加一行配置。
  */
 export function createDataRoutes(core: Pick<RuntimeCore, 'data'>): RegisteredRoute[] {
-  const { memoryManager, messageSearchQuery, messageRepository } = core.data
+  const { memoryManager, memoryCatalog, messageSearchQuery, messageRepository } = core.data
   return [
     route('memory.getMemoryFiles', () => memoryManager.readMemoryFiles()),
     route('memory.updateMemoryFiles', input => memoryManager.updateMemoryFiles(input.input)),
     route('memory.rollbackSoul', () => memoryManager.rollbackSoul()),
+    route('memoryCatalog.list', input => memoryCatalog.listMemories(input ?? {})),
+    route('memoryCatalog.getBody', input => memoryCatalog.getMemoryBody(input.memoryId)),
+    route('memoryCatalog.approve', input => memoryCatalog.approve({ memoryId: input.memoryId })),
+    route('memoryCatalog.archive', input => memoryCatalog.archive({ memoryId: input.memoryId })),
     route('search.searchByKeyword', input => messageSearchQuery.searchMessagesByKeyword(input.query)),
     route('files.getAttachmentData', input => messageRepository.loadAttachmentData(input.fileId)),
     route('visualizations.get', input => messageRepository.loadVisualizationData(input)),

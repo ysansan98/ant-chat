@@ -397,6 +397,83 @@ describe('toolRegistry Skill 白名单', () => {
     expect(requestSecret?.description).not.toContain('bash.secretEnv')
   })
 
+  it('注入 messageSearch/memoryCatalog/memoryReader 后暴露五个搜索记忆工具与 memory 快照工具', async () => {
+    const registry = await ToolRegistry.create({
+      config: {
+        ...createConfig(),
+        memoryReader: {
+          readUserMemory: vi.fn(),
+          readMemory: vi.fn(),
+          readSoul: vi.fn(),
+          editMemory: vi.fn(),
+          updateSoul: vi.fn(),
+        },
+        messageSearch: { search: vi.fn(), getThread: vi.fn(), getTurn: vi.fn() },
+        memoryCatalog: { search: vi.fn(), propose: vi.fn(), approve: vi.fn(), archive: vi.fn() },
+      },
+      mode: 'hybrid',
+      turnSource: { type: 'interactive' },
+      workspacePath,
+    })
+    const names = registry.listTools().map(tool => tool.name)
+
+    expect(names).toEqual(expect.arrayContaining([
+      'memory',
+      'search_messages',
+      'get_thread',
+      'get_turn',
+      'search_memories',
+      'propose_memory',
+    ]))
+  })
+
+  it('自动化 turn 执行 propose_memory 时被拒绝，且不获得 memory 快照工具', async () => {
+    const registry = await ToolRegistry.create({
+      config: {
+        ...createConfig(),
+        memoryReader: {
+          readUserMemory: vi.fn(),
+          readMemory: vi.fn(),
+          readSoul: vi.fn(),
+          editMemory: vi.fn(),
+          updateSoul: vi.fn(),
+        },
+        memoryCatalog: { search: vi.fn(), propose: vi.fn(), approve: vi.fn(), archive: vi.fn() },
+      },
+      mode: 'hybrid',
+      turnSource: {
+        type: 'automation',
+        automationId: 'auto-1',
+        runId: 'run-1',
+        allowedSkills: [],
+        allowedMcpServers: [],
+        permissionPolicy: {
+          workspaceAccess: 'read',
+          allowBrowser: false,
+          allowMcpTools: false,
+          extraFileRoots: [],
+          allowSelectedSkillRuntime: false,
+          allowCommandExecution: false,
+          commandPatterns: [],
+        },
+      },
+      workspacePath,
+    })
+
+    expect(registry.listTools().map(tool => tool.name)).not.toContain('memory')
+
+    const prepared = registry.prepare('propose_memory', {
+      title: 't',
+      summary: 's',
+      body: 'b',
+      evidence_message_ids: ['m-1'],
+    })
+    const result = await prepared.execute()
+
+    expect(result.ok).toBe(false)
+    expect(result.result).toContain('自动化')
+  })
+
   it('只解析命令工具的 secretEnv，并在执行结果中脱敏真实秘密', async () => {
     const secret = 'registry-secret-value'
     const secretRef: SecretRef = { kind: 'secret_ref', id: 'turn:run-1:secret-1', scope: 'turn' }

@@ -13,6 +13,7 @@ import { ChannelsPage } from '@/pages/Settings/Channels'
 import { GeneralSettings } from '@/pages/Settings/GeneralSettings'
 import MCPManage from '@/pages/Settings/MCPManage'
 import { MemorySettings } from '@/pages/Settings/Memory'
+import { MemoryCatalogSettings } from '@/pages/Settings/MemoryCatalog'
 import { PermissionsPage } from '@/pages/Settings/Permissions'
 import ProviderManage from '@/pages/Settings/ProviderManage'
 import SettingsPage from '@/pages/Settings/Settings'
@@ -26,6 +27,7 @@ const settingsRoute = {
     { path: 'general', Component: GeneralSettings },
     { path: 'appearance', Component: AppearanceSettings },
     { path: 'memory', Component: MemorySettings },
+    { path: 'memory-catalog', Component: MemoryCatalogSettings },
     { path: 'permissions', Component: PermissionsPage },
     { path: 'channels', Component: ChannelsPage },
     { path: 'provider', Component: ProviderManage },

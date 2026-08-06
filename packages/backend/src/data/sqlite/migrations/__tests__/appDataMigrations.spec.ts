@@ -41,6 +41,11 @@ describe('app-data SQLite 迁移', () => {
       'channel_pairings',
       'channel_sessions',
       'channel_message_receipts',
+      'message_search_documents',
+      'message_tool_facts',
+      'message_search_meta',
+      'memories',
+      'memory_evidence',
     ]))
     expect(history).toEqual([
       { version: 1, name: '初始化 app-data schema' },
@@ -51,6 +56,7 @@ describe('app-data SQLite 迁移', () => {
       { version: 6, name: '增加消息频道数据模型' },
       { version: 7, name: '约束频道出站消息与平台消息一一对应' },
       { version: 8, name: '增加消息频道权限模式' },
+      { version: 9, name: '消息搜索投影、FTS 与长期记忆目录' },
     ])
   })
 
@@ -103,7 +109,93 @@ describe('app-data SQLite 迁移', () => {
     expect(messageColumnNames).not.toEqual(expect.arrayContaining(['images', 'attachments']))
     const conversationColumns = sqlite.prepare('PRAGMA table_info(conversations)').all() as Array<{ name: string }>
     expect(conversationColumns.map(column => column.name)).toContain('archived')
-    expect(sqlite.prepare('SELECT version FROM app_data_migrations').all()).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }, { version: 7 }, { version: 8 }])
+    expect(sqlite.prepare('SELECT version FROM app_data_migrations').all()).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }, { version: 7 }, { version: 8 }, { version: 9 }])
+  })
+
+  // ===== 测试：version 8 → 9 迁移 =====
+
+  describe('version 8→9 迁移', () => {
+    it('为历史消息回填 ordinal、投影与 FTS，并记录 FTS 能力', () => {
+      // 模拟 v8 数据库：先跑全量迁移，再插入旧格式消息，重建后再验证 v9 幂等
+      runSqliteMigrations(sqlite, createAppDataMigrations({ attachmentsRootPath }))
+      sqlite.prepare(`
+        INSERT INTO conversations (id, workspace_path, title, created_at, updated_at, archived, settings)
+        VALUES ('conv-legacy', '/ws', '旧会话', 1, 1, 0, '{}')
+      `).run()
+      sqlite.prepare(`
+        INSERT INTO messages (id, conv_id, role, content, created_at, status)
+        VALUES ('m-l1', 'conv-legacy', 'user', ?, 100, 'success')
+      `).run(JSON.stringify([{ type: 'text', text: 'legacy english evidence searchable text' }]))
+      sqlite.prepare(`
+        INSERT INTO messages (id, conv_id, role, content, created_at, status)
+        VALUES ('m-l2', 'conv-legacy', 'user', ?, 200, 'success')
+      `).run(JSON.stringify([{ type: 'text', text: '中文长词检索目标' }]))
+      sqlite.prepare(`
+        INSERT INTO messages (id, conv_id, role, content, created_at, status)
+        VALUES ('m-l3', 'conv-legacy', 'assistant', ?, 300, 'success')
+      `).run(JSON.stringify([{ type: 'tool-call', toolCallId: 'c1', toolName: 'read_file', args: { path: '/etc/hosts' } }]))
+
+      // 模拟 v8 → v9 升级：清空迁移历史到 v8，重建
+      sqlite.prepare('DELETE FROM app_data_migrations WHERE version > 8').run()
+      sqlite.prepare('DELETE FROM message_search_documents').run()
+      sqlite.prepare('DELETE FROM message_tool_facts').run()
+      runSqliteMigrations(sqlite, createAppDataMigrations({ attachmentsRootPath }))
+
+      // ordinal 按 created_at 回填
+      const ordinals = sqlite.prepare(`
+        SELECT id, ordinal FROM messages WHERE conv_id = 'conv-legacy' ORDER BY ordinal
+      `).all() as Array<{ id: string, ordinal: number }>
+      expect(ordinals.map(row => row.id)).toEqual(['m-l1', 'm-l2', 'm-l3'])
+
+      // 投影与 FTS 回填；event 不进入
+      expect(sqlite.prepare('SELECT COUNT(*) AS count FROM message_search_documents').get()).toEqual({ count: 3 })
+      expect(sqlite.prepare('SELECT COUNT(*) AS count FROM message_tool_facts').get()).toEqual({ count: 1 })
+      expect(sqlite.prepare('SELECT COUNT(*) AS count FROM messages_fts_unicode').get()).toEqual({ count: 3 })
+      expect(sqlite.prepare('SELECT COUNT(*) AS count FROM messages_fts_trigram').get()).toEqual({ count: 3 })
+
+      // 英文多 token 短语在 unicode61 FTS 可命中
+      const englishHit = sqlite.prepare(`
+        SELECT message_id FROM messages_fts_unicode WHERE messages_fts_unicode MATCH '"evidence searchable"'
+      `).get() as { message_id: string }
+      expect(englishHit.message_id).toBe('m-l1')
+
+      // 中文长词在 trigram FTS 可命中
+      const cjkHit = sqlite.prepare(`
+        SELECT message_id FROM messages_fts_trigram WHERE messages_fts_trigram MATCH '"中文长词检索目标"'
+      `).get() as { message_id: string }
+      expect(cjkHit.message_id).toBe('m-l2')
+
+      // 能力位显式记录
+      expect(sqlite.prepare('SELECT value FROM message_search_meta WHERE key = \'fts5\'').get()).toEqual({ value: '1' })
+      expect(sqlite.prepare('SELECT value FROM message_search_meta WHERE key = \'fts_trigram\'').get()).toEqual({ value: '1' })
+
+      // 唯一索引保证 (conv_id, ordinal) 唯一
+      const dup = sqlite.prepare(`
+        SELECT COUNT(*) AS count FROM (
+          SELECT conv_id, ordinal FROM messages GROUP BY conv_id, ordinal HAVING COUNT(*) > 1
+        )
+      `).get() as { count: number }
+      expect(dup.count).toBe(0)
+    })
+
+    it('再次运行迁移不重复回填', () => {
+      runSqliteMigrations(sqlite, createAppDataMigrations({ attachmentsRootPath }))
+      sqlite.prepare(`
+        INSERT INTO conversations (id, workspace_path, title, created_at, updated_at, archived, settings)
+        VALUES ('conv-idem', '/ws', '幂等', 1, 1, 0, '{}')
+      `).run()
+      sqlite.prepare(`
+        INSERT INTO messages (id, conv_id, role, content, created_at, status)
+        VALUES ('m-i1', 'conv-idem', 'user', ?, 1, 'success')
+      `).run(JSON.stringify([{ type: 'text', text: '幂等检查文本' }]))
+
+      const before = sqlite.prepare('SELECT COUNT(*) AS count FROM message_search_documents').get() as { count: number }
+      runSqliteMigrations(sqlite, createAppDataMigrations({ attachmentsRootPath }))
+      const after = sqlite.prepare('SELECT COUNT(*) AS count FROM message_search_documents').get() as { count: number }
+      expect(after.count).toBe(before.count)
+      const applied = sqlite.prepare('SELECT COUNT(*) AS count FROM app_data_migrations WHERE version = 9').get() as { count: number }
+      expect(applied.count).toBe(1)
+    })
   })
 
   // ===== 测试：version 3 → 4 迁移 =====

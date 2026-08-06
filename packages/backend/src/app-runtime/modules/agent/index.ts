@@ -51,6 +51,8 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
         agentObservability: this.observability,
         sessionStore: createAppDataSessionStore(core.data),
         memoryReader: core.data.memoryManager,
+        messageSearch: core.data.messageSearch,
+        memoryCatalog: core.data.memoryCatalog,
         skillReader: dependencies.skills,
         mcpClientHub: dependencies.mcpClientHub,
         browser: core.browserPaths,

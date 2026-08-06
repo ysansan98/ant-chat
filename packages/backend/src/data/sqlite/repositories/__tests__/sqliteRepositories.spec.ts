@@ -6,8 +6,8 @@ import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createAppDataMigrations, runSqliteMigrations } from '../../migrations'
 import { getAttachmentFilePath } from '../../attachmentFiles'
-import { initializeAppDataSchema } from '../../schema'
 import { SqliteMessageSearchQuery } from '../../queries'
 import { mapConversationRow } from '../../rows'
 import { SqliteConversationRepository } from '../sqliteConversationRepository'
@@ -17,10 +17,10 @@ import { SqliteChannelAccountRepository, SqliteChannelPairingRepository, SqliteC
 
 describe('sqlite message repository', () => {
   it('lists conversation messages by creation time and insertion order', async () => {
-    let preparedSql = ''
+    const preparedSqls: string[] = []
     const all = vi.fn(() => [])
     const prepare = vi.fn((sql: string) => {
-      preparedSql = sql
+      preparedSqls.push(sql)
       return { all }
     })
     const repository = new SqliteMessageRepository({
@@ -29,8 +29,9 @@ describe('sqlite message repository', () => {
 
     await repository.listByConversation('conv-1')
 
-    expect(prepare).toHaveBeenCalledOnce()
-    expect(preparedSql.replace(/\s+/g, ' ').trim())
+    const listSql = preparedSqls.find(sql => sql.includes('ORDER BY created_at ASC'))
+    expect(preparedSqls.length).toBeGreaterThan(0)
+    expect(listSql?.replace(/\s+/g, ' ').trim())
       .toContain('WHERE conv_id = ? ORDER BY created_at ASC, rowid ASC')
     expect(all).toHaveBeenCalledWith('conv-1')
   })
@@ -70,8 +71,10 @@ describe('sqlite repositories', () => {
   beforeEach(() => {
     const BetterSqlite = loadBetterSqlite()
     sqlite = new BetterSqlite(':memory:')
-    initializeAppDataSchema(sqlite)
     attachmentsRoot = mkdtempSync(path.join(tmpdir(), 'ant-chat-repository-attachments-'))
+    // 生产环境在 repository 使用前必跑全量 migration；测试库同样走完整迁移，
+    // 保证 ordinal / 搜索投影等派生表存在
+    runSqliteMigrations(sqlite, createAppDataMigrations({ attachmentsRootPath: attachmentsRoot }))
   })
 
   afterEach(() => {
