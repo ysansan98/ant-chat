@@ -31,7 +31,7 @@ Rules:
 - Do not omit failing checks or unverified work.
 - Do not include commentary before or after the summary.`
 
-const MAX_SUMMARY_TOKENS = 3200
+const MAX_SUMMARY_TOKENS = 16384
 
 export function createCompactionStrategy(reasoningEffort?: ReasoningEffortLevel): CompactionStrategy {
   return {
