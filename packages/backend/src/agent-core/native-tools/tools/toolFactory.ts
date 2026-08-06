@@ -5,8 +5,8 @@ export interface NativeToolPreparation {
   scope: ToolScope
   operationType?: ToolOperationType
   state?: unknown
-  execute: (input: Record<string, unknown>) => Promise<AgentToolResult>
-  executeRelaxed?: (input: Record<string, unknown>) => Promise<AgentToolResult>
+  execute: (input: Record<string, unknown>, abortSignal?: AbortSignal) => Promise<AgentToolResult>
+  executeRelaxed?: (input: Record<string, unknown>, abortSignal?: AbortSignal) => Promise<AgentToolResult>
 }
 
 export interface PreparedNativeTool extends AgentTool {
@@ -60,9 +60,9 @@ export function createNativeTool(options: CreateNativeToolOptions): PreparedNati
           const preparation = options.prepare!(input)
           return {
             ...preparation,
-            execute: preparedInput => executeSafely(() => preparation.execute(preparedInput)),
+            execute: (preparedInput, abortSignal) => executeSafely(() => preparation.execute(preparedInput, abortSignal)),
             executeRelaxed: preparation.executeRelaxed
-              ? preparedInput => executeSafely(() => preparation.executeRelaxed!(preparedInput))
+              ? (preparedInput, abortSignal) => executeSafely(() => preparation.executeRelaxed!(preparedInput, abortSignal))
               : undefined,
           }
         }
