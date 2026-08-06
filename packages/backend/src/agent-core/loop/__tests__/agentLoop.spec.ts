@@ -577,4 +577,83 @@ describe('runAgentLoop 行为', () => {
       toolName: 'read_file',
     }), 'model-span-1')
   })
+
+  it('命令工具执行中取消时补写 tool-result 并立即终止 turn', async () => {
+    let markExecuteStarted: () => void
+    const executeStarted = new Promise<void>((resolve) => {
+      markExecuteStarted = resolve
+    })
+    // 模拟 runPreparedCommand：仅在取消信号触发时结束
+    const hangingCommandTool = {
+      name: 'execute_command',
+      source: 'native',
+      description: 'Runs a command',
+      inputSchema: {
+        type: 'object' as const,
+        properties: { command: { type: 'string' } },
+        required: ['command'],
+      },
+      operationType: 'command' as const,
+      inferScope: () => 'workspace' as const,
+      execute: async () => ({ ok: false, result: 'unused' }),
+      prepare: () => ({
+        scope: 'workspace' as const,
+        operationType: 'command' as const,
+        state: {},
+        execute: (_input: Record<string, unknown>, abortSignal?: AbortSignal) => new Promise((resolve) => {
+          markExecuteStarted()
+          if (abortSignal?.aborted)
+            resolve({ ok: false, result: '任务已取消。' })
+          else
+            abortSignal?.addEventListener('abort', () => resolve({ ok: false, result: '任务已取消。' }), { once: true })
+        }),
+      }),
+    }
+    const aiProvider: IAIProvider = {
+      async* streamModel() {
+        yield makeToolCallChunk('execute_command', { command: 'sleep 3600' }, 'cmd-1')
+      },
+      complete: vi.fn().mockResolvedValue({ text: 'mock' }),
+    }
+    const { taskId, options } = createBaseInput({
+      aiProvider,
+      registry: new ToolRegistry([hangingCommandTool as unknown as AgentTool]),
+    })
+    const task = createTask(taskId, options.conversationId)
+    const { execution, finish } = createExecution(task)
+    const emitterWithToolResults = {
+      ...emitter,
+      emitTurnToolResults: vi.fn(),
+    }
+
+    const loop = runAgentLoop({
+      execution,
+      options,
+      config: { eventEmitter: emitterWithToolResults, logger },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
+    })
+
+    await executeStarted
+    task.abortController.abort()
+    await loop
+
+    expect(task.snapshot.status).toBe('cancelled')
+    expect(finish).toHaveBeenCalledTimes(1)
+    expect(emitterWithToolResults.emitTurnFinished).toHaveBeenCalledWith(expect.objectContaining({ status: 'cancel' }))
+    // 取消必须落 tool-call 终态和 cancelled tool-result，不能停留在 executing
+    const toolCalls = vi.mocked(emitterWithToolResults.emitTurnToolCalls).mock.calls.at(-1)?.[0] as {
+      toolCalls: Array<{ executeState?: string }>
+    }
+    expect(toolCalls?.toolCalls[0]).toMatchObject({ executeState: 'completed' })
+    expect(emitterWithToolResults.emitTurnToolResults).toHaveBeenCalledWith(expect.objectContaining({
+      results: [
+        expect.objectContaining({
+          type: 'tool-result',
+          toolCallId: 'cmd-1',
+          result: '任务已取消。',
+          isError: true,
+        }),
+      ],
+    }))
+  })
 })

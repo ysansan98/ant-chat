@@ -518,9 +518,11 @@ describe('executeToolStep 行为', () => {
     expect(emitter.emitTurnToolCalls).toHaveBeenCalledTimes(2)
   })
 
-  it('工具执行期间任务中止时取消 Tool span 并向 loop 抛出取消', async () => {
+  it('工具执行期间任务中止时取消 Tool span 并补写取消终态', async () => {
     const span = { id: 'tool-span', complete: vi.fn(), fail: vi.fn(), cancel: vi.fn() }
     const task = createTask()
+    const emitter = createMockEmitter()
+    const currentToolMessages: McpToolCall[] = []
     const tool = createReadTool({
       execute: async () => {
         task.abortController.abort()
@@ -528,15 +530,15 @@ describe('executeToolStep 行为', () => {
       },
     })
 
-    await expect(executeToolStep({
+    const result = await executeToolStep({
       task,
       registry: new ToolRegistry([tool]),
       requestedToolCall: { toolName: 'read_file', input: { path: 'test.txt' } },
       currentModelText: '',
-      currentToolMessages: [],
+      currentToolMessages,
       step: 1,
       config: {
-        eventEmitter: createMockEmitter(),
+        eventEmitter: emitter,
         logger: createMockLogger(),
         turnRecorder: {
           startModelRequest: vi.fn(() => span),
@@ -548,11 +550,17 @@ describe('executeToolStep 行为', () => {
       },
       beforeToolExecute: async () => ({ outcome: 'allow' }),
       abortSignal: task.abortController.signal,
-    })).rejects.toMatchObject({ code: 'AGENT_CANCELLED' })
+    })
 
     expect(span.cancel).toHaveBeenCalledWith(expect.objectContaining({ name: 'AbortError' }))
     expect(span.fail).not.toHaveBeenCalled()
     expect(span.complete).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ isError: true, toolResultContent: '任务已取消。' })
+    // 执行中的取消也必须补写 tool 终态，避免消息表永久停留在 executing
+    const finalCall = vi.mocked(emitter.emitTurnToolCalls).mock.calls.at(-1)?.[0] as {
+      toolCalls: Array<{ executeState?: string }>
+    }
+    expect(finalCall?.toolCalls[0]).toMatchObject({ executeState: 'completed' })
   })
 
   it('失败结果只注入工具返回的 result，不做执行层包装', async () => {

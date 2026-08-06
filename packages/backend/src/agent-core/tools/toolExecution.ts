@@ -124,9 +124,16 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
   catch (error) {
     if (isToolExecutionCancelled(error, task, options.abortSignal)) {
       cancelObservation(toolSpan, error, config.logger)
-      throw error instanceof AgentError && error.code === 'AGENT_CANCELLED'
-        ? error
-        : new AgentError('AGENT_CANCELLED', '任务已取消')
+      // 执行中的取消按执行前取消同一路径补写 tool 终态并返回，
+      // loop 才能写入 tool-result 消息，并在下一轮顶部通过 abort 检查终止 turn；
+      // 直接 throw 会让消息表永久停留在 executing、且没有 tool-result。
+      return finalizeToolStep(currentToolCall, {
+        kind: 'error',
+        status: 'cancelled',
+        error: 'AGENT_CANCELLED',
+        toolResultText: '任务已取消。',
+        lastToolCallContext: preparation.lastToolCallContext,
+      }, task.snapshot.conversationId, config, currentModelText, currentToolMessages)
     }
     throw error
   }
@@ -226,7 +233,7 @@ async function executePreparedTool(
   try {
     result = prepared.toolName === 'requestSecret'
       ? await executeRequestSecret(prepared, task, config)
-      : await prepared.execute()
+      : await prepared.execute(abortSignal)
   }
   catch (error) {
     if (isToolExecutionCancelled(error, task, abortSignal))

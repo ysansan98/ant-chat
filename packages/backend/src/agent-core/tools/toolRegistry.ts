@@ -20,7 +20,7 @@ export interface PreparedToolCall {
   validationError?: string
   /** 工具在 prepare 阶段固定的私有状态；只有 owning tool 与授权层解释。 */
   preparedState?: unknown
-  execute: () => Promise<AgentToolResult>
+  execute: (abortSignal?: AbortSignal) => Promise<AgentToolResult>
   truncateResult?: boolean
 }
 
@@ -129,9 +129,9 @@ export class ToolRegistry {
     const operationType = toolPreparation?.operationType ?? tool.operationType
 
     const resolvedTool = scope === 'outside' ? (this.relaxedTools.get(toolName) ?? tool) : tool
-    const executePrepared = toolPreparation
+    const executePrepared: ((input: Record<string, unknown>, abortSignal?: AbortSignal) => Promise<AgentToolResult>) | undefined = toolPreparation
       ? scope === 'outside' && this.relaxedTools.has(toolName)
-        ? (toolPreparation.executeRelaxed ?? resolvedTool.execute.bind(resolvedTool))
+        ? (toolPreparation.executeRelaxed ?? (input => resolvedTool.execute(input)))
         : toolPreparation.execute
       : undefined
 
@@ -145,8 +145,8 @@ export class ToolRegistry {
       scope,
       validationError,
       preparedState: toolPreparation?.state,
-      execute: async () => executePrepared
-        ? executePrepared(input)
+      execute: async (abortSignal?: AbortSignal) => executePrepared
+        ? executePrepared(input, abortSignal)
         : resolvedTool.execute(input),
       truncateResult: tool.truncateResult,
     }

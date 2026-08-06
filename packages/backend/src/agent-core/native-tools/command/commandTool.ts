@@ -74,8 +74,8 @@ export function createCommandTool(
         scope: prepared.risk === 'bottomline_block' ? 'blocked' : prepared.resourceScope,
         operationType: prepared.isReadOnly ? 'command_read' : 'command',
         state: prepared,
-        execute: () => executeCommand(prepared, unrestricted, options.secretStore, options.runId),
-        executeRelaxed: () => executeCommand(prepared, true, options.secretStore, options.runId),
+        execute: (_input, abortSignal) => executeCommand(prepared, unrestricted, options.secretStore, options.runId, abortSignal),
+        executeRelaxed: (_input, abortSignal) => executeCommand(prepared, true, options.secretStore, options.runId, abortSignal),
       }
     },
   })
@@ -151,6 +151,7 @@ async function executeCommand(
   unrestricted: boolean,
   secretStore?: SecretStore,
   runId?: string,
+  abortSignal?: AbortSignal,
 ): Promise<AgentToolResult> {
   const resolvedSecrets: Record<string, string> = {}
   for (const [key, ref] of Object.entries(prepared.input.secretEnv || {})) {
@@ -161,7 +162,7 @@ async function executeCommand(
       return { ok: false, result: `SecretRef 已失效或不存在：${ref.id}` }
     resolvedSecrets[key] = value
   }
-  const result = await runPreparedCommand(prepared, unrestricted, { secretEnv: resolvedSecrets })
+  const result = await runPreparedCommand(prepared, unrestricted, { secretEnv: resolvedSecrets, abortSignal })
   return redactSecrets(result, Object.values(resolvedSecrets))
 }
 
