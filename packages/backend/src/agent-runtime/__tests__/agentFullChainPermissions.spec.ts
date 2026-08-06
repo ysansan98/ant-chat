@@ -253,6 +253,7 @@ function createHarness(): AgentRuntimeHarness {
     settingsFilePath: path.join(rootPath, 'settings.json'),
     mcpSettingsFilePath: path.join(rootPath, 'mcp-settings.json'),
     memoryRootPath: path.join(rootPath, 'memory'),
+    memoriesRootPath: path.join(rootPath, 'memories'),
     workspaceSettingsFilePath: path.join(rootPath, 'workspaces.json'),
     attachmentsRootPath: path.join(rootPath, 'attachments'),
     permissionsFilePath: path.join(rootPath, 'permissions.json'),

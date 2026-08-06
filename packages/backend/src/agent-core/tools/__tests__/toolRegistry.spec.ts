@@ -397,6 +397,68 @@ describe('toolRegistry Skill 白名单', () => {
     expect(requestSecret?.description).not.toContain('bash.secretEnv')
   })
 
+  it('注入 messageSearch/memoryCatalog 后暴露五个搜索与记忆工具，且不再有 memory 工具', async () => {
+    const registry = await ToolRegistry.create({
+      config: {
+        ...createConfig(),
+        messageSearch: { search: vi.fn(), getThread: vi.fn(), getTurn: vi.fn() },
+        memoryCatalog: { search: vi.fn(), propose: vi.fn(), approve: vi.fn(), archive: vi.fn() },
+      },
+      mode: 'hybrid',
+      turnSource: { type: 'interactive' },
+      workspacePath,
+    })
+    const names = registry.listTools().map(tool => tool.name)
+
+    expect(names).toEqual(expect.arrayContaining([
+      'search_messages',
+      'get_thread',
+      'get_turn',
+      'search_memories',
+      'propose_memory',
+    ]))
+    // agent 不再直接编辑 USER/MEMORY.md（长期记忆只允许用户确认后写入）
+    expect(names).not.toContain('memory')
+  })
+
+  it('自动化 turn 执行 propose_memory 时被拒绝', async () => {
+    const registry = await ToolRegistry.create({
+      config: {
+        ...createConfig(),
+        memoryCatalog: { search: vi.fn(), propose: vi.fn(), approve: vi.fn(), archive: vi.fn() },
+      },
+      mode: 'hybrid',
+      turnSource: {
+        type: 'automation',
+        automationId: 'auto-1',
+        runId: 'run-1',
+        allowedSkills: [],
+        allowedMcpServers: [],
+        permissionPolicy: {
+          workspaceAccess: 'read',
+          allowBrowser: false,
+          allowMcpTools: false,
+          extraFileRoots: [],
+          allowSelectedSkillRuntime: false,
+          allowCommandExecution: false,
+          commandPatterns: [],
+        },
+      },
+      workspacePath,
+    })
+
+    const prepared = registry.prepare('propose_memory', {
+      title: 't',
+      summary: 's',
+      body: 'b',
+      evidence_message_ids: ['m-1'],
+    })
+    const result = await prepared.execute()
+
+    expect(result.ok).toBe(false)
+    expect(result.result).toContain('自动化')
+  })
+
   it('只解析命令工具的 secretEnv，并在执行结果中脱敏真实秘密', async () => {
     const secret = 'registry-secret-value'
     const secretRef: SecretRef = { kind: 'secret_ref', id: 'turn:run-1:secret-1', scope: 'turn' }

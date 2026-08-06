@@ -5,6 +5,8 @@ import type { AgentTool } from './agent-tools'
 import type { BrowserAuthStateProvider } from './browser-profiles'
 import type { IConversations, IMessage, IMessageContent } from './db-types'
 import type { McpServer, McpToolCallResponse } from './mcp'
+import type { MemoryCatalogPort } from './memory-catalog'
+import type { MessageSearchPort } from './message-search'
 import type { ImportSkillFromGithubOptions, SkillManifest } from './skill'
 
 // ============================================================
@@ -311,6 +313,10 @@ export interface AgentRuntimeHost {
   agentObservability?: AgentObservabilityPort
   sessionStore: ISessionStore
   memoryReader?: AgentMemoryReader
+  /** Agent 专用消息搜索（search_messages/get_thread/get_turn 工具后端）。 */
+  messageSearch?: MessageSearchPort
+  /** 人工批准的长期记忆目录（search_memories/propose_memory 工具后端）。 */
+  memoryCatalog?: MemoryCatalogPort
   skillReader?: SkillReader
   mcpClientHub?: RuntimeMcpClientHub
   browser?: AgentBrowserRuntimeConfig
@@ -347,6 +353,10 @@ export interface AgentRuntimeConfig extends AgentRuntimeOverrides {
   turnRecorder?: AgentTurnRecorder
   sessionStore?: ISessionStore
   memoryReader?: AgentMemoryReader
+  /** Agent 专用消息搜索（search_messages/get_thread/get_turn 工具后端）。 */
+  messageSearch?: MessageSearchPort
+  /** 人工批准的长期记忆目录（search_memories/propose_memory 工具后端）。 */
+  memoryCatalog?: MemoryCatalogPort
   /** 读取权限规则（全局 + 指定工作区） */
   getPermissionRules?: (workspacePath: string) => { global: ToolApprovalRule[], workspace: ToolApprovalRule[] }
   /** 原子保存一组规则到指定分组；全部成功或全部不保存 */

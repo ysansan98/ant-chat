@@ -6,6 +6,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { getNativeToolService } from '../native-tools/nativeToolService'
 import { createMcpTools } from './mcpToolAdapter'
+import { createMemoryCatalogTools } from './memoryCatalogTools'
+import { createMessageSearchTools } from './messageSearchTools'
 import { createPublishVisualizationTool } from './publishVisualizationTool'
 
 export interface PreparedToolCall {
@@ -68,10 +70,14 @@ export class ToolRegistry {
     const skillTools = skillReader
       ? await makeSkillTools(skillReader, turnSource)
       : []
-    // 自动化能力在 Turn 创建时固定；记忆修改等交互能力不进入该能力集合。
-    const agentLoopTools = config.memoryReader && turnSource?.type !== 'automation'
-      ? [createMemoryTool(config.memoryReader)]
-      : []
+    // 自动化能力在 Turn 创建时固定；propose_memory 等交互能力在工具内按 turn 来源拒绝。
+    const agentLoopTools: AgentTool[] = []
+    if (config.messageSearch) {
+      agentLoopTools.push(...createMessageSearchTools(config.messageSearch, workspacePath))
+    }
+    if (config.memoryCatalog) {
+      agentLoopTools.push(...createMemoryCatalogTools(config.memoryCatalog, { workspacePath, turnSource }))
+    }
     if (config.secretRequester) {
       agentLoopTools.push(createRequestSecretTool())
     }
@@ -266,64 +272,6 @@ function createRequestSecretTool(): AgentTool {
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-}
-
-function createMemoryTool(memoryReader: NonNullable<AgentRuntimeConfig['memoryReader']>): AgentTool {
-  return {
-    name: 'memory',
-    source: 'skill',
-    serverName: 'agent-loop',
-    description: [
-      'Edit persistent agent memory files using add, replace, or remove.',
-      'Use target="memory" for the agent personal notes: durable environment facts, project conventions, and tool behavior.',
-      'Use target="user" for the user memory: durable preferences, communication style, and habits.',
-      'Save compact facts that will still matter later and reduce future user steering.',
-      'Write memories as declarative facts, not instructions. Example: "User prefers concise responses", not "Always respond concisely".',
-      'Do not use this tool for temporary task progress, session outcomes, completed-work logs, chat summaries, stale identifiers, file contents, secrets, or SOUL.md. SOUL.md defines the agent identity and is edited only by the user.',
-      'Updates are written to disk. The system prompt uses the conversation-start USER.md/MEMORY.md snapshot, and this tool returns the latest entries after each successful edit.',
-    ].join('\n'),
-    inputSchema: {
-      type: 'object',
-      properties: {
-        target: { type: 'string', enum: ['memory', 'user'], description: 'File to edit: memory edits MEMORY.md, user edits USER.md.' },
-        action: { type: 'string', enum: ['add', 'replace', 'remove'], description: 'Edit action.' },
-        content: { type: 'string', description: 'Required for add and replace. For replace, this becomes the full replacement entry.' },
-        old_text: { type: 'string', description: 'Required for replace and remove. Used only to locate the entry by substring match.' },
-      },
-      required: ['target', 'action'],
-    },
-    operationType: 'skill',
-    inferScope: () => 'workspace',
-    validateInput: (input) => {
-      if (input.target !== 'memory' && input.target !== 'user') {
-        return 'target must be "memory" or "user"'
-      }
-      if (input.action !== 'add' && input.action !== 'replace' && input.action !== 'remove') {
-        return 'action must be "add", "replace", or "remove"'
-      }
-      if (input.action === 'add' && typeof input.content !== 'string') {
-        return 'content is required for add'
-      }
-      if (input.action === 'replace' && (typeof input.old_text !== 'string' || typeof input.content !== 'string')) {
-        return 'old_text and content are required for replace'
-      }
-      if (input.action === 'remove' && typeof input.old_text !== 'string') {
-        return 'old_text is required for remove'
-      }
-      return null
-    },
-    execute: async input => ({
-      ok: true,
-      result: JSON.stringify(
-        await memoryReader.editMemory({
-          target: input.target as 'memory' | 'user',
-          action: input.action as 'add' | 'replace' | 'remove',
-          content: typeof input.content === 'string' ? input.content : undefined,
-          old_text: typeof input.old_text === 'string' ? input.old_text : undefined,
-        }),
-      ),
-    }),
-  }
 }
 
 function safeInferScope(tool: AgentTool, input: Record<string, unknown>): ToolScope {

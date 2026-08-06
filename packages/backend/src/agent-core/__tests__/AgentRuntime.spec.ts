@@ -466,18 +466,8 @@ describe('agentRuntime 行为', () => {
       expect(lastCall?.[0].options.systemPrompt).toContain('Use pnpm check.')
       expect(lastCall?.[0].options.systemPrompt).not.toContain('visible in later tasks')
       const registry = lastCall?.[0].options.registry
-      expect(registry?.listTools()).toEqual(expect.arrayContaining([
-        expect.objectContaining({
-          name: 'memory',
-          description: expect.stringContaining('target="user"'),
-        }),
-      ]))
-      expect(registry?.listTools()).toEqual(expect.arrayContaining([
-        expect.objectContaining({
-          name: 'memory',
-          description: expect.stringContaining('declarative facts'),
-        }),
-      ]))
+      // agent 不再直接编辑 USER/MEMORY.md：长期记忆只允许用户确认后写入
+      expect(registry?.listTools().map(tool => tool.name)).not.toContain('memory')
       expect(runAgentLoop).toHaveBeenCalledWith(expect.objectContaining({
         options: expect.objectContaining({
           messages: expect.arrayContaining([

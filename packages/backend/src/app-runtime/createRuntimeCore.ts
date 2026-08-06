@@ -42,6 +42,7 @@ export function createRuntimeCore(options: CreateAppRuntimeOptions, commandHost:
     settingsFilePath: paths.settingsFile,
     mcpSettingsFilePath: paths.mcpSettingsFile,
     memoryRootPath: paths.memoryRoot,
+    memoriesRootPath: paths.memoriesRoot,
     workspaceSettingsFilePath: paths.workspaceSettingsFile,
     attachmentsRootPath: paths.attachmentsRoot,
     permissionsFilePath: paths.permissionsFile,

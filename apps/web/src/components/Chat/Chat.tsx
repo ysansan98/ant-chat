@@ -53,6 +53,7 @@ export default function Chat() {
 
   const [searchParams, setSearchParams] = useSearchParams()
   const initialTraceTurnId = searchParams.get('traceTurnId') ?? undefined
+  const initialJumpMessageId = searchParams.get('jumpToMessage') ?? undefined
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(Boolean(initialTraceTurnId))
   const [focusedTraceTurnId, setFocusedTraceTurnId] = useState<string | undefined>(initialTraceTurnId)
   const [commandRunning, setCommandRunning] = useState(false)
@@ -96,10 +97,12 @@ export default function Chat() {
 
   useEffect(() => {
     const turnId = searchParams.get('traceTurnId')
-    if (!turnId)
+    const jumpToMessage = searchParams.get('jumpToMessage')
+    if (!turnId && !jumpToMessage)
       return
     const next = new URLSearchParams(searchParams)
     next.delete('traceTurnId')
+    next.delete('jumpToMessage')
     setSearchParams(next, { replace: true })
   }, [searchParams, setSearchParams])
 
@@ -184,6 +187,7 @@ export default function Chat() {
                 <BubbleList
                   key={currentConversations?.id}
                   messages={messages}
+                  initialJumpMessageId={initialJumpMessageId}
                 />
               </Suspense>
             </div>

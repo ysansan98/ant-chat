@@ -1,4 +1,4 @@
-import { ArchiveIcon, ArrowLeft, Cable, Crown, Info, MessageCircle, NotebookTabsIcon, Palette, SettingsIcon, ShieldIcon, SparklesIcon } from 'lucide-react'
+import { ArchiveIcon, ArrowLeft, BookMarkedIcon, Cable, Crown, Info, MessageCircle, NotebookTabsIcon, Palette, SettingsIcon, ShieldIcon, SparklesIcon } from 'lucide-react'
 import { Outlet, useLocation, useNavigate } from 'react-router'
 import { isElectronMacOS } from '@/utils/ipc-bus'
 
@@ -10,6 +10,7 @@ export default function SettingsPage() {
     { id: 'general', name: '通用设置', icon: <SettingsIcon className="size-[1em]" /> },
     { id: 'appearance', name: '外观', icon: <Palette className="size-[1em]" /> },
     { id: 'memory', name: '记忆', icon: <NotebookTabsIcon className="size-[1em]" /> },
+    { id: 'memory-catalog', name: '长期记忆', icon: <BookMarkedIcon className="size-[1em]" /> },
     { id: 'permissions', name: '权限', icon: <ShieldIcon className="size-[1em]" /> },
     { id: 'channels', name: '消息频道', icon: <MessageCircle className="size-[1em]" /> },
     { id: 'provider', name: 'AI服务商设置', icon: <Crown className="size-[1em]" /> },

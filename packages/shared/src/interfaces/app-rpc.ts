@@ -34,6 +34,7 @@ import type { IConversations, IMessage } from './db-types'
 import type { GeneralSettingsState } from './generalSettings'
 import type { SearchResult } from './global-search'
 import type { McpConnection, McpServerLifecycleResult, McpServerTestResult, McpTool, McpToolCallResponse } from './mcp'
+import type { MemoryCatalogListEntry, MemoryRecord } from './memory-catalog'
 import type { ModelsDevProvider } from './modelsDev'
 import type { ProviderAuthStatus } from './providerAuth'
 import type { ImportSkillFromGithubOptions, SetSkillEnabledOptions, SkillIndex, SkillManifest } from './skill'
@@ -132,6 +133,11 @@ export interface AppRpcContract {
   'memory.getMemoryFiles': RpcEndpoint<undefined, AgentMemoryFiles>
   'memory.updateMemoryFiles': RpcEndpoint<{ input: UpdateAgentMemoryInput }, AgentMemoryFiles>
   'memory.rollbackSoul': RpcEndpoint<undefined, AgentMemoryFiles>
+
+  'memoryCatalog.list': RpcEndpoint<{ status?: MemoryRecord['status'] } | undefined, MemoryCatalogListEntry[]>
+  'memoryCatalog.getBody': RpcEndpoint<{ memoryId: string }, string>
+  'memoryCatalog.approve': RpcEndpoint<{ memoryId: string }, MemoryRecord>
+  'memoryCatalog.archive': RpcEndpoint<{ memoryId: string }, MemoryRecord>
 
   'mcp.getConfigs': RpcEndpoint<undefined, McpConfigSchema[]>
   'mcp.getConfigByServerName': RpcEndpoint<{ serverName: string }, McpConfigSchema>

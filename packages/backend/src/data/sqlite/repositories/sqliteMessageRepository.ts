@@ -9,6 +9,7 @@ import path from 'node:path'
 import { validateVisualizationHtmlFragment, VISUALIZATION_LIMITS } from '@ant-chat/shared'
 import { nanoid } from 'nanoid'
 import { getAttachmentFileCandidates, getAttachmentFilePath } from '../attachmentFiles'
+import { MessageSearchIndex } from '../messageSearchIndex'
 import { decodeAttachmentData } from '../migrations/migrateAttachments'
 import { mapMessageRow, stringifyJson } from '../rows'
 import { SqliteConversationRepository } from './sqliteConversationRepository'
@@ -49,12 +50,14 @@ const MESSAGE_COLUMNS = `
 
 export class SqliteMessageRepository implements MessageRepository {
   private readonly conversations: SqliteConversationRepository
+  private readonly searchIndex: MessageSearchIndex
 
   constructor(
     private readonly db: AppDataDatabase,
     private readonly options: SqliteMessageRepositoryOptions = {},
   ) {
     this.conversations = new SqliteConversationRepository(db)
+    this.searchIndex = new MessageSearchIndex(db)
   }
 
   async listByConversation(conversationId: string): Promise<IMessage[]> {
@@ -95,7 +98,7 @@ export class SqliteMessageRepository implements MessageRepository {
         for (const staged of stagedFiles) {
           committedFiles.add(staged.fileId)
         }
-        return this.db.prepare<unknown[], MessageRow>(`
+        const result = this.db.prepare<unknown[], MessageRow>(`
           INSERT INTO messages (
             id,
             conv_id,
@@ -112,9 +115,13 @@ export class SqliteMessageRepository implements MessageRepository {
             duration_ms,
             origin_type,
             origin_channel_account_id,
-            origin_external_chat_id
+            origin_external_chat_id,
+            ordinal
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, (
+            -- 单步原子分配：先查后插的两步法在并发事务下可能读到相同 MAX 值
+            SELECT COALESCE(MAX(ordinal), 0) + 1 FROM messages WHERE conv_id = ?
+          ))
           RETURNING ${MESSAGE_COLUMNS}
         `).get(
           id,
@@ -133,7 +140,13 @@ export class SqliteMessageRepository implements MessageRepository {
           'originType' in message ? message.originType : 'local',
           'originChannelAccountId' in message ? message.originChannelAccountId ?? null : null,
           'originExternalChatId' in message ? message.originExternalChatId ?? null : null,
+          message.convId,
         )
+        if (result) {
+          // 搜索投影与 FTS 与消息写入同事务维护，保证索引一致
+          this.searchIndex.upsertMessage(result.id)
+        }
+        return result
       })
 
       const result = createMessage()
@@ -173,6 +186,11 @@ export class SqliteMessageRepository implements MessageRepository {
     if (message.convId !== undefined) {
       fields.push('conv_id = ?')
       params.push(message.convId)
+      if (message.convId !== existing.convId) {
+        // 会话变更时在新会话内分配新 ordinal（旧会话保留空洞，不影响排序语义）
+        fields.push('ordinal = (SELECT COALESCE(MAX(ordinal), 0) + 1 FROM messages WHERE conv_id = ?)')
+        params.push(message.convId)
+      }
     }
     if (message.role !== undefined) {
       fields.push('role = ?')
@@ -274,6 +292,11 @@ export class SqliteMessageRepository implements MessageRepository {
           WHERE id = ?
         `).run(Date.now(), result.conv_id)
 
+        // 内容或角色变化时重算搜索投影；保持不变则跳过（避免无谓的索引写放大）
+        if (message.content !== undefined || message.role !== undefined) {
+          this.searchIndex.upsertMessage(result.id)
+        }
+
         return result
       })
 
@@ -295,6 +318,7 @@ export class SqliteMessageRepository implements MessageRepository {
     let filesToRemove: string[] = []
     const deleteMessage = this.db.transaction(() => {
       this.db.prepare('DELETE FROM messages WHERE id = ?').run(id)
+      this.searchIndex.deleteMessage(id)
       filesToRemove = this.findUnreferencedAttachmentFileIds(fileIds, [id])
       this.deleteAttachmentRows(filesToRemove)
     })
@@ -311,6 +335,7 @@ export class SqliteMessageRepository implements MessageRepository {
       const statement = this.db.prepare('DELETE FROM messages WHERE id = ?')
       for (const id of messageIds) {
         statement.run(id)
+        this.searchIndex.deleteMessage(id)
       }
       filesToRemove = this.findUnreferencedAttachmentFileIds(fileIds, ids)
       this.deleteAttachmentRows(filesToRemove)

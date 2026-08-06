@@ -19,9 +19,11 @@ import { MessageJumpRail } from './MessageJumpRail'
 
 interface Props {
   messages: IMessage[]
+  /** 证据回跳：会话加载完成后滚动到指定消息并高亮。 */
+  initialJumpMessageId?: string
 }
 
-function BubbleList({ messages }: Props) {
+function BubbleList({ messages, initialJumpMessageId }: Props) {
   const {
     autoScrollToBottom,
     disableAutoScroll,
@@ -85,6 +87,39 @@ function BubbleList({ messages }: Props) {
     },
     [infiniteScrollRef, disableAutoScroll],
   )
+
+  // 证据回跳：目标消息可能在异步加载后才渲染，用 MutationObserver 轮询等待
+  useEffect(() => {
+    if (!initialJumpMessageId) {
+      return
+    }
+    const container = infiniteScrollRef.current?.containerRef.current
+    if (!container) {
+      return
+    }
+
+    const tryScroll = () => {
+      if (container.querySelector(`[data-message-id="${initialJumpMessageId}"]`)) {
+        handleJumpToMessage(initialJumpMessageId)
+        return true
+      }
+      return false
+    }
+    if (tryScroll()) {
+      return
+    }
+    const observer = new MutationObserver(() => {
+      if (tryScroll()) {
+        observer.disconnect()
+      }
+    })
+    observer.observe(container, { childList: true, subtree: true })
+    const timer = setTimeout(() => observer.disconnect(), 5000)
+    return () => {
+      observer.disconnect()
+      clearTimeout(timer)
+    }
+  }, [initialJumpMessageId, handleJumpToMessage, infiniteScrollRef])
 
   return (
     <>
