@@ -594,9 +594,9 @@ describe('fork 命令', () => {
       },
     ])
     deps.appDataContext.messageRepository.create
-      .mockResolvedValueOnce({ id: 'fork-event' })
       .mockResolvedValueOnce({ id: 'fork-m1' })
       .mockResolvedValueOnce({ id: 'fork-m2' })
+      .mockResolvedValueOnce({ id: 'fork-event' })
 
     const cc = createCommandController(deps as any)
     const result = await cc.runBuiltinCommand({
@@ -624,7 +624,11 @@ describe('fork 命令', () => {
       compactedThroughMessageId: 'fork-m1',
       modelInfo: { provider: 'provider', providerId: 'provider-1', model: 'model-1' },
       usage: { inputTokens: 100, outputTokens: 10, totalTokens: 110 },
+      createdAt: 2,
     }))
+    expect(createCalls[0][0]).toEqual(expect.objectContaining({ role: 'user', createdAt: 1 }))
+    expect(createCalls[2][0]).toEqual(expect.objectContaining({ role: 'event', eventType: 'fork' }))
+    expect(createCalls[2][0].createdAt).toBeGreaterThan(createCalls[1][0].createdAt)
   })
 
   it('/fork 重新映射 turnId 并保持 tool-call 和 tool-result 配对', async () => {
@@ -660,10 +664,10 @@ describe('fork 命令', () => {
       },
     ])
     deps.appDataContext.messageRepository.create
-      .mockResolvedValueOnce({ id: 'fork-event' })
       .mockResolvedValueOnce({ id: 'fork-u1' })
       .mockResolvedValueOnce({ id: 'fork-a1' })
       .mockResolvedValueOnce({ id: 'fork-t1' })
+      .mockResolvedValueOnce({ id: 'fork-event' })
 
     const cc = createCommandController(deps as any)
     const result = await cc.runBuiltinCommand({
