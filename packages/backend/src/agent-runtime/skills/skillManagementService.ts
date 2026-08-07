@@ -15,6 +15,25 @@ const BUILTIN_SKILL_VISUALIZE = 'visualize'
 
 const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---/
 
+/**
+ * 递归复制目录。
+ * Electron 的 asar 支持不覆盖 fs.cp（底层 opendir 无法打开 app.asar 内的虚拟路径），
+ * 但 readdir/readFile/copyFile 均可透明读写 asar；打包后 builtin-skills 位于 asar 内，
+ * 因此逐文件复制而不是用 fs.cp。
+ */
+async function copyDirectory(sourceDir: string, targetDir: string): Promise<void> {
+  await fs.promises.mkdir(targetDir, { recursive: true })
+  const entries = await fs.promises.readdir(sourceDir, { withFileTypes: true })
+  for (const entry of entries) {
+    const sourcePath = path.join(sourceDir, entry.name)
+    const targetPath = path.join(targetDir, entry.name)
+    if (entry.isDirectory())
+      await copyDirectory(sourcePath, targetPath)
+    else
+      await fs.promises.copyFile(sourcePath, targetPath)
+  }
+}
+
 /** 从已知位置定位 builtin-skills 源目录。 */
 function resolveBuiltinSkillsSourceRoot(): string {
   const moduleDir = import.meta.dirname ?? __dirname
@@ -431,9 +450,8 @@ export class SkillManagementService {
   /** 确保可视化 Skill 的协议文件存在，并保持用户启用状态不被初始化覆盖。 */
   private async ensureBuiltinVisualize(): Promise<void> {
     const skillPath = path.join(this.skillsRoot, BUILTIN_SKILL_VISUALIZE)
-    await fs.promises.mkdir(skillPath, { recursive: true })
     const sourcePath = path.join(this.builtinSkillsSourceRoot, BUILTIN_SKILL_VISUALIZE)
-    await fs.promises.cp(sourcePath, skillPath, { recursive: true, force: true })
+    await copyDirectory(sourcePath, skillPath)
 
     const appState = await this.readAppState()
     if (!appState[BUILTIN_SKILL_VISUALIZE]) {

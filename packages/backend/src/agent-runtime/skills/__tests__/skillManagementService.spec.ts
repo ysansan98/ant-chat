@@ -43,6 +43,14 @@ describe('skillManagementService', () => {
     expect(await fs.promises.readFile(path.join(skillsRoot, 'visualize', 'SKILL.md'), 'utf8')).toContain('name: visualize')
   })
 
+  it('初始化时递归复制 visualize 的 references 子目录', async () => {
+    await reader.ensureInitialized()
+
+    const referencesRoot = path.join(skillsRoot, 'visualize', 'references')
+    const files = await fs.promises.readdir(referencesRoot)
+    expect(files.sort()).toEqual(['visualization-contract.md', 'visualization-design.md', 'visualization-schema.md'])
+  })
+
   it('内置 skill-installer 的 SKILL.md 包含正确的 YAML frontmatter', async () => {
     await reader.ensureInitialized()
 
