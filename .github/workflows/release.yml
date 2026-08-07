@@ -85,7 +85,7 @@ jobs:
           if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
             "$launcher" settings show --data-dir "$RUNNER_TEMP/ant-chat-no-runtime" >/tmp/ant-chat-launcher.log 2>&1
           else
-            cmd.exe /d /s /c "\"$launcher\" settings show --data-dir \"$RUNNER_TEMP/ant-chat-no-runtime\"" >/tmp/ant-chat-launcher.log 2>&1
+            powershell -NoProfile -Command "& '$launcher' settings show --data-dir '$RUNNER_TEMP/ant-chat-no-runtime'; exit \$LASTEXITCODE" >/tmp/ant-chat-launcher.log 2>&1
           fi
           launcher_code=$?
           set -e
