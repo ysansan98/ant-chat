@@ -32,7 +32,6 @@ describe('browserSessionManager 行为', () => {
     expect(secondTurn).toBe(firstTurn)
     expect(otherConversation.sessionName).not.toBe(firstTurn.sessionName)
     expect(otherConversation.socketPath).not.toBe(firstTurn.socketPath)
-    expect(otherConversation.profilePath).not.toBe(firstTurn.profilePath)
   })
 
   it('应用重启后派生稳定的 session 路径', () => {
@@ -41,15 +40,12 @@ describe('browserSessionManager 行为', () => {
 
     expect(restored.sessionName).toBe(first.sessionName)
     expect(restored.socketPath).toBe(first.socketPath)
-    expect(restored.profilePath).toBe(first.profilePath)
   })
 
   it('会话关闭时释放 session', async () => {
     const manager = createManager()
     const first = manager.get('conv-1')
     fs.mkdirSync(first.socketPath, { recursive: true })
-    fs.mkdirSync(first.profilePath, { recursive: true })
-    fs.writeFileSync(path.join(first.profilePath, 'Preferences'), '{}')
 
     await manager.close('conv-1', true)
     const next = manager.get('conv-1')
@@ -57,18 +53,15 @@ describe('browserSessionManager 行为', () => {
     expect(next).not.toBe(first)
     expect(next).toMatchObject({ started: false, headed: false })
     expect(fs.existsSync(first.socketPath)).toBe(false)
-    expect(fs.existsSync(first.profilePath)).toBe(false)
-    expect(next.profilePath).toBe(first.profilePath)
   })
 
-  it('认证状态 generation 变化后创建新会话并保留旧 Profile', () => {
+  it('认证状态 generation 变化后创建新会话并保留旧会话状态', () => {
     let generation = 0
     const provider = {
       getGeneration: () => generation,
       getCookies: () => [{ name: `sid-${generation}`, value: 'secret', domain: '.example.com', path: '/', secure: true, httpOnly: true }],
     }
     const manager = new BrowserSessionManager({
-      profilePath: path.join(root, 'profile'),
       artifactsPath: path.join(root, 'artifacts'),
     }, provider)
     const first = manager.get('conv-1')
@@ -79,10 +72,26 @@ describe('browserSessionManager 行为', () => {
     expect(next).not.toBe(first)
     expect(next.authGeneration).toBe(1)
     expect(next.authCookies?.[0]?.name).toBe('sid-1')
-    expect(next.profilePath).not.toBe(first.profilePath)
   })
 
-  it('清除认证状态时撤销旧会话并释放 Profile', async () => {
+  it('认证状态未初始化时快照标记为未初始化', () => {
+    const provider = {
+      getGeneration: () => 0,
+      getCookies: () => null,
+      isInitialized: () => false,
+    }
+    const manager = new BrowserSessionManager({
+      artifactsPath: path.join(root, 'artifacts'),
+    }, provider)
+
+    const state = manager.get('conv-1')
+
+    expect(state.authSnapshotReady).toBe(false)
+    expect(state.authCookies).toBeUndefined()
+    expect(state.authGeneration).toBe(0)
+  })
+
+  it('清除认证状态时撤销旧会话', async () => {
     let cleared = false
     let notifyClear: (() => void | Promise<void>) | undefined
     const provider = {
@@ -94,18 +103,15 @@ describe('browserSessionManager 行为', () => {
       },
     }
     const manager = new BrowserSessionManager({
-      profilePath: path.join(root, 'profile'),
       artifactsPath: path.join(root, 'artifacts'),
     }, provider)
     const first = manager.get('conv-1')
-    fs.mkdirSync(first.profilePath, { recursive: true })
 
     cleared = true
     await notifyClear?.()
 
     expect(first.invalidated).toBe(true)
     expect(first.authCookies).toBeUndefined()
-    expect(fs.existsSync(first.profilePath)).toBe(false)
     const next = manager.get('conv-1')
     expect(next).not.toBe(first)
     expect(next.authCookies).toBeUndefined()
@@ -113,7 +119,6 @@ describe('browserSessionManager 行为', () => {
 
   function createManager() {
     return new BrowserSessionManager({
-      profilePath: path.join(root, 'profile'),
       artifactsPath: path.join(root, 'artifacts'),
     })
   }

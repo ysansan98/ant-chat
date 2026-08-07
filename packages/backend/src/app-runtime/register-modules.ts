@@ -94,7 +94,8 @@ export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModu
 
   return {
     routes: [chat, settings, provider, mcp, skills, workspace, permissions, runtimeStatus, browserProfiles, agent, automation, commands, channel],
-    lifecycle: [browserProfiles, workspace, skills, provider, settings, mcp, agent, automation, channel],
+    // 浏览器身份改为惰性加载：钥匙串只在真正使用浏览器工具或打开浏览器设置页时访问。
+    lifecycle: [workspace, skills, provider, settings, mcp, agent, automation, channel],
     routeBindings: createDataRoutes(core),
     appControl,
     skills: {

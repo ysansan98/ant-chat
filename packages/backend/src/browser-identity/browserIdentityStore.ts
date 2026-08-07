@@ -55,6 +55,7 @@ export class BrowserIdentityStore implements BrowserAuthStateProvider {
   private generation = 0
   private lastError: string | undefined
   private operation: Promise<unknown> = Promise.resolve()
+  private initialization: Promise<void> | null = null
   private readonly clearListeners = new Set<() => void | Promise<void>>()
 
   private readonly now: () => number
@@ -102,6 +103,28 @@ export class BrowserIdentityStore implements BrowserAuthStateProvider {
     this.initialized = true
   }
 
+  /**
+   * 惰性加载持久化身份：幂等、并发去重，失败后允许下次重试。
+   * 应用启动不再预热，钥匙串只在导入过 Cookies 且真正读取身份时访问。
+   */
+  async ensureInitialized(): Promise<void> {
+    if (this.initialized) {
+      return
+    }
+    if (!this.initialization) {
+      this.initialization = this.initialize().catch((error) => {
+        this.initialization = null
+        throw error
+      })
+    }
+    await this.initialization
+  }
+
+  /** 同步状态：初始化前 getCookies/getGeneration 返回空值，消费方需先 ensure。 */
+  isInitialized(): boolean {
+    return this.initialized
+  }
+
   getCookies(): BrowserCookie[] | null {
     if (!this.initialized || !this.current || !this.encryptionKey || !this.cookies)
       return null
@@ -118,6 +141,7 @@ export class BrowserIdentityStore implements BrowserAuthStateProvider {
   }
 
   async getStatus(): Promise<BrowserIdentityStatus> {
+    await this.ensureInitialized()
     const state = this.current
     if (!state || !this.getCookies()) {
       return {
@@ -136,11 +160,13 @@ export class BrowserIdentityStore implements BrowserAuthStateProvider {
   }
 
   async listSources(): Promise<BrowserProfileSourceView[]> {
+    await this.ensureInitialized()
     const sources = await this.discoverSourceRecords()
     return sources.map(({ sourceId, browserName, profileName, available }): BrowserProfileSourceView => ({ sourceId, browserName, profileName, available }))
   }
 
   async importSource(sourceId: string): Promise<BrowserIdentityStatus> {
+    await this.ensureInitialized()
     return await this.runExclusive(async () => {
       const source = (await this.discoverSourceRecords()).find(candidate => candidate.sourceId === sourceId)
         ?? (this.current?.sourceId === sourceId ? toSource(this.current) : undefined)
@@ -151,6 +177,7 @@ export class BrowserIdentityStore implements BrowserAuthStateProvider {
   }
 
   async updateCurrent(): Promise<BrowserIdentityStatus> {
+    await this.ensureInitialized()
     return await this.runExclusive(async () => {
       if (!this.current)
         throw new BrowserIdentityError('SOURCE_NOT_FOUND', '尚未选择浏览器 Profile。')
@@ -159,6 +186,7 @@ export class BrowserIdentityStore implements BrowserAuthStateProvider {
   }
 
   async importFromDirectory(directory: string): Promise<BrowserIdentityStatus> {
+    await this.ensureInitialized()
     return await this.runExclusive(async () => {
       try {
         return await this.importRecord(await inspectBrowserDirectory(directory, this.options.discovery))
@@ -172,6 +200,7 @@ export class BrowserIdentityStore implements BrowserAuthStateProvider {
   }
 
   async clear(): Promise<void> {
+    await this.ensureInitialized()
     await this.runExclusive(async () => {
       await this.clearPersistedState()
       this.current = null

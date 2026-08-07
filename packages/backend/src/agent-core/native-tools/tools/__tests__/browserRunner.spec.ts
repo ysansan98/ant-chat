@@ -1,21 +1,19 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { runBrowserTool, validateBrowserInput } from '../browserRunner'
 import type { BrowserSessionState } from '../browserSessionManager'
 
 describe('browserRunner 行为', () => {
   let root: string
   let agentBrowserPath: string
-  let profilePath: string
   let artifactsPath: string
   let invocationsPath: string
 
   beforeEach(() => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), 'ant-chat-browser-'))
     agentBrowserPath = path.join(root, 'agent-browser')
-    profilePath = path.join(root, 'profile')
     artifactsPath = path.join(root, 'artifacts')
     invocationsPath = path.join(root, 'invocations.jsonl')
     fs.writeFileSync(agentBrowserPath, `#!/usr/bin/env node
@@ -49,12 +47,11 @@ process.stdin.on('data', chunk => stdin += chunk)
     fs.rmSync(root, { recursive: true, force: true })
   })
 
-  it('注入持久 profile、direct session、proxy 和 daemon idle timeout', async () => {
+  it('托管会话不传 profile，仅用 session 隔离，并透传 proxy 和 daemon idle timeout', async () => {
     const result = await runBrowserTool({
       command: 'open',
       args: ['https://example.com'],
     }, {
-      profilePath,
       artifactsPath,
       env: {
         PATH: browserPath(),
@@ -66,8 +63,6 @@ process.stdin.on('data', chunk => stdin += chunk)
     expect(result).toMatchObject({ ok: true, result: 'ok', diagnostics: { stdout: 'ok' } })
     const invocation = JSON.parse(fs.readFileSync(invocationsPath, 'utf8').trim())
     expect(invocation.args).toEqual([
-      '--profile',
-      profilePath,
       '--session',
       expect.stringMatching(/^ant-chat-direct-\d+$/),
       '--content-boundaries',
@@ -86,7 +81,6 @@ process.stdin.on('data', chunk => stdin += chunk)
     const result = await runBrowserTool({
       command: 'get title',
     }, {
-      profilePath,
       artifactsPath,
       env: {
         PATH: browserPath(),
@@ -98,8 +92,6 @@ process.stdin.on('data', chunk => stdin += chunk)
     const invocation = JSON.parse(fs.readFileSync(invocationsPath, 'utf8').trim())
     expect(invocation.args).toEqual([
       'agent-browser',
-      '--profile',
-      profilePath,
       '--session',
       expect.stringMatching(/^ant-chat-direct-\d+$/),
       'get',
@@ -110,12 +102,10 @@ process.stdin.on('data', chunk => stdin += chunk)
   it('从内部 Cookies provider 通过 batch 注入完整 Cookie 属性', async () => {
     const cookie = { name: 'sid', value: 'secret', domain: '.example.com', path: '/', secure: true, httpOnly: true, sameSite: 'Lax' as const }
     const result = await runBrowserTool({ command: 'open', args: ['https://example.com'] }, {
-      profilePath,
       artifactsPath,
       state: {
         sessionName: 'auth-session',
         socketPath: path.join(root, 'socket'),
-        profilePath,
         headed: false,
         started: false,
         authCookies: [cookie],
@@ -127,8 +117,6 @@ process.stdin.on('data', chunk => stdin += chunk)
     expect(result).toMatchObject({ ok: true })
     const invocations = fs.readFileSync(invocationsPath, 'utf8').trim().split('\n').map(line => JSON.parse(line))
     expect(invocations[1].args).toEqual([
-      '--profile',
-      profilePath,
       '--session',
       'auth-session',
       'batch',
@@ -148,7 +136,6 @@ process.stdin.on('data', chunk => stdin += chunk)
     const state: BrowserSessionState = {
       sessionName: 'multi-domain-session',
       socketPath: path.join(root, 'socket-multi-domain'),
-      profilePath,
       headed: false,
       started: false,
       authCookies: [
@@ -159,7 +146,6 @@ process.stdin.on('data', chunk => stdin += chunk)
       queue: Promise.resolve(),
     }
     const options = {
-      profilePath,
       artifactsPath,
       state,
       env: { PATH: browserPath(), INVOCATIONS_PATH: invocationsPath },
@@ -184,7 +170,6 @@ process.stdin.on('data', chunk => stdin += chunk)
     const state: BrowserSessionState = {
       sessionName: 'redirect-session',
       socketPath: path.join(root, 'socket-redirect'),
-      profilePath,
       headed: false,
       started: true,
       authCookies: [
@@ -196,7 +181,6 @@ process.stdin.on('data', chunk => stdin += chunk)
     }
 
     await expect(runBrowserTool({ command: 'snapshot' }, {
-      profilePath,
       artifactsPath,
       state,
       env: { PATH: browserPath(), INVOCATIONS_PATH: invocationsPath, URL_FILE: urlPath },
@@ -217,7 +201,6 @@ process.stdin.on('data', chunk => stdin += chunk)
     state.authCookies = [{ name: 'sid', value: 'secret', domain: '.example.com', path: '/', secure: true, httpOnly: true }]
 
     await expect(runBrowserTool({ command: 'get title' }, {
-      profilePath,
       artifactsPath,
       state,
       env: { PATH: browserPath(), INVOCATIONS_PATH: invocationsPath },
@@ -230,12 +213,10 @@ process.stdin.on('data', chunk => stdin += chunk)
 
   it('cookies 注入失败时返回 agent-browser 的错误输出和退出码', async () => {
     const result = await runBrowserTool({ command: 'open', args: ['https://example.com'] }, {
-      profilePath,
       artifactsPath,
       state: {
         sessionName: 'auth-session',
         socketPath: path.join(root, 'socket-failure'),
-        profilePath,
         headed: false,
         started: false,
         authCookies: [{ name: 'sid', value: 'secret', domain: '.example.com', path: '/', secure: true, httpOnly: true }],
@@ -259,7 +240,6 @@ process.stdin.on('data', chunk => stdin += chunk)
     const state = {
       sessionName: 'timeout-session',
       socketPath: path.join(root, 'socket-timeout'),
-      profilePath,
       headed: false,
       started: false,
       authCookies: [{ name: 'sid', value: 'secret', domain: '.example.com', path: '/', secure: true, httpOnly: true }],
@@ -267,7 +247,6 @@ process.stdin.on('data', chunk => stdin += chunk)
     }
 
     const result = await runBrowserTool({ command: 'open', args: ['https://example.com'], timeoutMs: 10 }, {
-      profilePath,
       artifactsPath,
       state,
       env: { PATH: browserPath(), INVOCATIONS_PATH: invocationsPath, DELAY_MS: '1000' },
@@ -279,12 +258,10 @@ process.stdin.on('data', chunk => stdin += chunk)
 
   it('显式系统 Profile 不混入应用托管认证状态', async () => {
     await runBrowserTool({ command: 'open', args: ['https://example.com', '--profile', 'Default'] }, {
-      profilePath,
       artifactsPath,
       state: {
         sessionName: 'system-profile-session',
         socketPath: path.join(root, 'socket-system'),
-        profilePath,
         headed: false,
         started: false,
         authCookies: [{ name: 'sid', value: 'secret', domain: '.example.com', path: '/', secure: true, httpOnly: true }],
@@ -303,14 +280,12 @@ process.stdin.on('data', chunk => stdin += chunk)
     const state = {
       sessionName: 'system-profile-session',
       socketPath: path.join(root, 'socket-system-persistent'),
-      profilePath,
       headed: false,
       started: false,
       authCookies: [{ name: 'sid', value: 'secret', domain: '.example.com', path: '/', secure: true, httpOnly: true }],
       queue: Promise.resolve(),
     }
     const options = {
-      profilePath,
       artifactsPath,
       state,
       env: { PATH: browserPath(), INVOCATIONS_PATH: invocationsPath },
@@ -338,19 +313,19 @@ process.stdin.on('data', chunk => stdin += chunk)
     const state = {
       sessionName: 'snapshot-session',
       socketPath: path.join(root, 'socket-snapshot'),
-      profilePath,
       headed: false,
       started: false,
       authCookies: undefined,
+      authGeneration: 0,
       queue: Promise.resolve(),
     }
     const result = await runBrowserTool({ command: 'get title' }, {
-      profilePath,
       artifactsPath,
       state,
       authStateProvider: {
         getCookies: () => [{ name: 'late', value: 'secret', domain: '.example.com', path: '/', secure: true, httpOnly: true }],
         getGeneration: () => 1,
+        isInitialized: () => true,
       },
       env: { PATH: browserPath(), INVOCATIONS_PATH: invocationsPath },
     })
@@ -361,13 +336,71 @@ process.stdin.on('data', chunk => stdin += chunk)
     expect(state.authCookies).toBeUndefined()
   })
 
+  it('执行浏览器工具前初始化认证状态并补读惰性快照', async () => {
+    const state: BrowserSessionState = {
+      sessionName: 'lazy-session',
+      socketPath: path.join(root, 'socket-lazy'),
+      headed: false,
+      started: false,
+      authCookies: undefined,
+      authGeneration: 0,
+      authSnapshotReady: false,
+      queue: Promise.resolve(),
+    }
+    const cookie = { name: 'sid', value: 'secret', domain: '.example.com', path: '/', secure: true, httpOnly: true }
+    let initialized = false
+    const ensureInitialized = vi.fn(async () => {
+      initialized = true
+    })
+    const authStateProvider = {
+      getCookies: () => initialized ? [cookie] : null,
+      getGeneration: () => initialized ? 3 : 0,
+      ensureInitialized,
+      isInitialized: () => initialized,
+    }
+
+    const result = await runBrowserTool({ command: 'open', args: ['https://example.com'] }, {
+      artifactsPath,
+      state,
+      authStateProvider,
+      env: { PATH: browserPath(), INVOCATIONS_PATH: invocationsPath },
+    })
+
+    expect(ensureInitialized).toHaveBeenCalledTimes(1)
+    expect(result).toMatchObject({ ok: true })
+    expect(state.authCookies).toEqual([cookie])
+    const invocations = fs.readFileSync(invocationsPath, 'utf8').trim().split('\n').map(line => JSON.parse(line))
+    expect(invocations.some(item => item.args.includes('batch'))).toBe(true)
+  })
+
+  it('injectCookies=false 时以未登录状态打开，不注入托管 Cookies', async () => {
+    const state: BrowserSessionState = {
+      sessionName: 'no-inject-session',
+      socketPath: path.join(root, 'socket-no-inject'),
+      headed: false,
+      started: false,
+      authCookies: [{ name: 'sid', value: 'secret', domain: '.example.com', path: '/', secure: true, httpOnly: true }],
+      queue: Promise.resolve(),
+    }
+
+    const result = await runBrowserTool({ command: 'open', args: ['https://example.com'], injectCookies: false }, {
+      artifactsPath,
+      state,
+      env: { PATH: browserPath(), INVOCATIONS_PATH: invocationsPath },
+    })
+
+    expect(result).toMatchObject({ ok: true })
+    const invocations = fs.readFileSync(invocationsPath, 'utf8').trim().split('\n').map(line => JSON.parse(line))
+    expect(invocations.some(item => item.args.includes('batch'))).toBe(false)
+    expect(state.authCookieDomains).toBeUndefined()
+  })
+
   it('agent-browser 和 npx 都不可用时返回安装错误', async () => {
     fs.rmSync(agentBrowserPath)
 
     const result = await runBrowserTool({
       command: 'get title',
     }, {
-      profilePath,
       artifactsPath,
       env: { PATH: root },
     })
@@ -381,7 +414,6 @@ process.stdin.on('data', chunk => stdin += chunk)
 
   it('缓存同一 PATH 的 agent-browser 发现结果', async () => {
     const options = {
-      profilePath,
       artifactsPath,
       env: { PATH: browserPath(), INVOCATIONS_PATH: invocationsPath },
     }
@@ -401,7 +433,6 @@ process.stdin.on('data', chunk => stdin += chunk)
       command: 'open',
       args: ['--headed', 'https://example.com/login'],
     }, {
-      profilePath,
       artifactsPath,
       env: { PATH: browserPath(), INVOCATIONS_PATH: invocationsPath },
       state,
@@ -410,7 +441,6 @@ process.stdin.on('data', chunk => stdin += chunk)
       command: 'snapshot',
       args: ['-i'],
     }, {
-      profilePath,
       artifactsPath,
       env: { PATH: browserPath(), INVOCATIONS_PATH: invocationsPath },
       state,
@@ -418,8 +448,6 @@ process.stdin.on('data', chunk => stdin += chunk)
 
     const invocations = fs.readFileSync(invocationsPath, 'utf8').trim().split('\n').map(line => JSON.parse(line))
     expect(invocations[0].args).toEqual([
-      '--profile',
-      profilePath,
       '--session',
       'ant-chat-test',
       '--content-boundaries',
@@ -428,8 +456,6 @@ process.stdin.on('data', chunk => stdin += chunk)
       'https://example.com/login',
     ])
     expect(invocations[1].args).toEqual([
-      '--profile',
-      profilePath,
       '--session',
       'ant-chat-test',
       '--headed',
@@ -442,7 +468,6 @@ process.stdin.on('data', chunk => stdin += chunk)
   it('关闭 browser 后重置 sticky headed 模式', async () => {
     const state = createState()
     const options = {
-      profilePath,
       artifactsPath,
       env: { PATH: browserPath(), INVOCATIONS_PATH: invocationsPath },
       state,
@@ -464,7 +489,6 @@ process.stdout.write('page content\\n⚠ --profile, --headed ignored: daemon alr
     fs.chmodSync(agentBrowserPath, 0o755)
 
     const result = await runBrowserTool({ command: 'snapshot' }, {
-      profilePath,
       artifactsPath,
       env: { PATH: browserPath() },
     })
@@ -474,12 +498,10 @@ process.stdout.write('page content\\n⚠ --profile, --headed ignored: daemon alr
 
   it('同一 browser session 内串行执行命令', async () => {
     const first = runBrowserTool({ command: 'get title' }, {
-      profilePath,
       artifactsPath,
       env: { PATH: browserPath(), INVOCATIONS_PATH: invocationsPath, DELAY_MS: '80' },
     })
     const second = runBrowserTool({ command: 'get url' }, {
-      profilePath,
       artifactsPath,
       env: { PATH: browserPath(), INVOCATIONS_PATH: invocationsPath },
     })
@@ -592,7 +614,6 @@ process.stdout.write('page content\\n⚠ --profile, --headed ignored: daemon alr
       command: 'open',
       args: ['https://example.com'],
     }, {
-      profilePath,
       artifactsPath,
       proxyUrl: 'http://explicit-proxy:8080',
       env: {
@@ -611,7 +632,6 @@ process.stdout.write('page content\\n⚠ --profile, --headed ignored: daemon alr
     return {
       sessionName: 'ant-chat-test',
       socketPath: path.join(root, 'socket'),
-      profilePath,
       headed: false,
       started: false,
       profile: undefined,

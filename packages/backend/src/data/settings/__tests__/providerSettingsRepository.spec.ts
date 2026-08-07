@@ -2,7 +2,7 @@ import type { AppSettingsState } from '@ant-chat/shared'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { AppSettingsStore } from '../appSettingsStore'
 import { ProviderSettingsRepository } from '../providerSettingsRepository'
 
@@ -24,7 +24,6 @@ describe('provider settings repository', () => {
         id: 'provider-1',
         name: 'Provider',
         baseUrl: 'https://example.com',
-        apiKey: 'key',
         apiMode: 'openai',
         integrationId: 'api-key',
         isOfficial: false,
@@ -68,20 +67,6 @@ describe('provider settings repository', () => {
         ],
       }),
     ])
-  })
-
-  it('将旧版明文 API Key 写入安全存储后才移除 settings.json 中的值', async () => {
-    const saveProviderApiKey = vi.fn(async ({ providerId }: { providerId: string, apiKey: string }) => ({
-      kind: 'secret_ref' as const,
-      id: `provider:${providerId}:api_key`,
-      scope: 'persistent' as const,
-    }))
-
-    await expect(repository.migratePlaintextApiKeys({ saveProviderApiKey })).resolves.toBe(1)
-    expect(saveProviderApiKey).toHaveBeenCalledWith({ providerId: 'provider-1', apiKey: 'key' })
-    const provider = repository.getProviderSettingsById('provider-1')!
-    expect(provider.apiKey).toBeUndefined()
-    expect(provider.apiKeySecretId).toBe('provider:provider-1:api_key')
   })
 
   it('内部配置只接受当前 Provider 自身的 API Key secret ref audience', () => {
@@ -244,10 +229,11 @@ describe('provider settings repository', () => {
     const store = new AppSettingsStore({ filePath, resetInvalidFile: true })
     const settings = store.read()
 
-    // 用户自定义 provider 必须保留，不能被 DEFAULT_APP_SETTINGS 覆盖
-    expect(settings.providers).toContainEqual(
-      expect.objectContaining({ id: 'custom-provider', apiKey: 'key' }),
-    )
+    // 用户自定义 provider 必须保留，不能被 DEFAULT_APP_SETTINGS 覆盖；
+    // 明文 apiKey 不是合法持久化状态，读取时被 schema 丢弃。
+    expect(settings.providers).toContainEqual(expect.objectContaining({ id: 'custom-provider' }))
+    const legacyProvider = settings.providers.find(provider => provider.id === 'custom-provider')!
+    expect(legacyProvider).not.toHaveProperty('apiKey')
     expect(settings.assistantModelId).toBe('gpt-4')
     // 缺失字段以 schema 默认值补齐
     expect(settings.assistantProviderId).toBe('')
@@ -268,7 +254,6 @@ describe('provider settings repository', () => {
           id: 'provider-a',
           name: 'A',
           baseUrl: 'https://a.example.com',
-          apiKey: 'key-a',
           apiMode: 'openai',
           integrationId: 'api-key',
           isOfficial: false,
@@ -282,7 +267,6 @@ describe('provider settings repository', () => {
           id: 'provider-b',
           name: 'B',
           baseUrl: 'https://b.example.com',
-          apiKey: 'key-b',
           apiMode: 'openai',
           integrationId: 'api-key',
           isOfficial: false,

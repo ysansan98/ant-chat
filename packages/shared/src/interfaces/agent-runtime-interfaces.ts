@@ -262,7 +262,7 @@ export interface SecretRequestController {
 }
 
 export interface AgentBrowserRuntimeConfig {
-  profilePath: string
+  /** 浏览器输出目录（截图、PDF、下载等）。 */
   artifactsPath: string
   /** Explicit proxy URL; when set, overrides environment proxy variables. */
   proxyUrl?: string

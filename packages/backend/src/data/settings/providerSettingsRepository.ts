@@ -6,7 +6,6 @@ import type {
   ProviderConfigSchema,
   ProviderModelSettingsSchema,
   ProviderSettingsSchema,
-  SecretStore,
   UpdateProviderConfigSchema,
 } from '@ant-chat/shared'
 import type { AppSettingsStore } from './appSettingsStore'
@@ -32,8 +31,8 @@ export interface ProviderModelSyncInput {
 }
 
 function toProviderConfig(provider: ProviderSettingsSchema): ProviderConfigSchema {
-  const { apiKey, models: _models, ...providerConfig } = provider
-  return { ...providerConfig, hasApiKey: Boolean(provider.apiKeySecretId || apiKey), createdAt: 0, updatedAt: 0 }
+  const { models: _models, ...providerConfig } = provider
+  return { ...providerConfig, hasApiKey: Boolean(provider.apiKeySecretId), createdAt: 0, updatedAt: 0 }
 }
 
 function toProviderConfigModel(providerId: string, modelId: string, model: ProviderModelSettingsSchema): ProviderConfigModelSchema {
@@ -135,36 +134,6 @@ export class ProviderSettingsRepository {
 
   getProviderSettingsById(id: string): ProviderSettingsSchema | null {
     return this.store.read().providers.find(provider => provider.id === id) ?? null
-  }
-
-  /**
-   * 旧版 settings.json 将 API Key 明文写入配置。迁移先写入 Keychain，再在同一
-   * settings 更新中替换为引用；写入失败时保留原值，避免丢失用户凭证。
-   */
-  async migratePlaintextApiKeys(secretStore: Pick<SecretStore, 'saveProviderApiKey'>): Promise<number> {
-    const legacyProviders = this.store.read().providers.filter(provider => Boolean(provider.apiKey))
-    if (legacyProviders.length === 0) {
-      return 0
-    }
-
-    const migrated = new Map<string, string>()
-    for (const provider of legacyProviders) {
-      const ref = await secretStore.saveProviderApiKey({ providerId: provider.id, apiKey: provider.apiKey! })
-      migrated.set(provider.id, ref.id)
-    }
-
-    this.store.update(settings => ({
-      ...settings,
-      providers: settings.providers.map((provider) => {
-        const apiKeySecretId = migrated.get(provider.id)
-        if (!apiKeySecretId) {
-          return provider
-        }
-        const { apiKey: _apiKey, ...safeProvider } = provider
-        return { ...safeProvider, apiKeySecretId }
-      }),
-    }))
-    return migrated.size
   }
 
   getModel(providerId: string, modelId: string): ProviderConfigModelSchema | null {

@@ -7,10 +7,6 @@ import { Method, Module } from '../../decorators'
 export class BrowserProfilesModule implements RuntimeModuleMethods<'browserProfiles'> {
   constructor(private readonly identity: BrowserIdentityStore) {}
 
-  async initialize(): Promise<void> {
-    await this.identity.initialize()
-  }
-
   @Method()
   getStatus(_input: AppRpcInput<'browserProfiles.getStatus'>): Promise<BrowserIdentityStatus> {
     return this.identity.getStatus()
