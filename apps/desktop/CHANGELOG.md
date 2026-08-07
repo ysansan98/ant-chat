@@ -1,5 +1,11 @@
 # Ant Chat Desktop
 
+## 1.0.0-alpha.3
+
+### Patch Changes
+
+- a63a888: 修复打包后内置 visualize Skill 激活失败：Electron asar 不支持 `fs.cp`，内置 Skill 改为逐文件递归复制，兼容安装包内 `app.asar` 路径。
+
 ## 1.0.0-alpha.2
 
 ### Minor Changes
