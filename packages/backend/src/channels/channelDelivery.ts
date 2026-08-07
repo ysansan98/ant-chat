@@ -56,6 +56,7 @@ interface ExecutionProjection {
   visualization?: { title: string, summary: string }
   secretRequest?: SecretRequest
   lastPublishedAt?: number
+  lastSentText?: string
   timer?: ReturnType<typeof setTimeout>
 }
 
@@ -250,6 +251,9 @@ export class ChannelDelivery {
   private async scheduleExecution(projection: ExecutionProjection): Promise<void> {
     if (!projection.model)
       return
+    // 纯文本平台（微信）没有可更新消息：流式中间态不发送，只等 handleTaskUpdate 终态发一次。
+    if (!this.deps.connectors.get(projection.channelType)?.update)
+      return
     const now = Date.now()
     const elapsed = now - (projection.lastPublishedAt ?? 0)
     if (!projection.lastPublishedAt || elapsed >= EXECUTION_UPDATE_INTERVAL_MS) {
@@ -272,6 +276,28 @@ export class ChannelDelivery {
       projection.timer = undefined
     }
     const actions = this.executionActions(projection)
+    const text = projection.secretRequest
+      ? [
+          projection.text,
+          `需要敏感信息：${projection.secretRequest.label}`,
+          projection.secretRequest.reason,
+          '为避免密码或 Token 经第三方平台传输，请在 Ant Chat 桌面端完成输入。',
+        ].filter(Boolean).join('\n\n')
+      : projection.text
+    const supportsUpdate = Boolean(this.deps.connectors.get(projection.channelType)?.update)
+    if (!supportsUpdate) {
+      // 纯文本平台（微信）没有可更新消息：只在终态或有操作时才发，
+      // 避免运行中空状态和重复文本刷屏。
+      const actionable = Boolean(projection.pendingAction || projection.secretRequest)
+      const settled = ['success', 'failed', 'cancelled'].includes(projection.status)
+      if (!actionable && !settled)
+        return
+      if (!text.trim())
+        return
+      // 终态只发一次；pending/secret 有操作提示时需要重复发以便展示。
+      if (!actionable && projection.lastSentText === text)
+        return
+    }
     await this.publish(
       projection.channelAccountId,
       projection.externalChatId,
@@ -281,14 +307,7 @@ export class ChannelDelivery {
         executionId: projection.executionId,
         status: projection.status,
         phase: projection.phase,
-        text: projection.secretRequest
-          ? [
-              projection.text,
-              `需要敏感信息：${projection.secretRequest.label}`,
-              projection.secretRequest.reason,
-              '为避免密码或 Token 经第三方平台传输，请在 Ant Chat 桌面端完成输入。',
-            ].filter(Boolean).join('\n\n')
-          : projection.text,
+        text,
         model: projection.model,
         steps: [...projection.steps.values()],
         pendingAction: projection.pendingAction,
@@ -296,6 +315,7 @@ export class ChannelDelivery {
         actions,
       },
     )
+    projection.lastSentText = text
     projection.lastPublishedAt = Date.now()
   }
 
@@ -405,8 +425,16 @@ export class ChannelDelivery {
     if (!connector)
       return
     const existing = await this.deps.data.channelReceiptRepository.getOutboundByLocalMessageId(channelAccountId, localMessageId)
-    if (existing?.status === 'sent' && content.kind !== 'text' && connector.update) {
-      await connector.update({ externalMessageId: existing.externalMessageId, content })
+    if (existing?.status === 'sent' && connector.update) {
+      if (content.kind !== 'text')
+        await connector.update({ externalMessageId: existing.externalMessageId, content })
+      return
+    }
+    // 纯文本平台（微信）没有可更新消息：每次实质内容变化发一条新文本，
+    // 并把回执指向最新平台消息 ID，避免唯一约束冲突。
+    if (existing?.status === 'sent' && !connector.update) {
+      const sent = await connector.send({ externalChatId, content })
+      await this.deps.data.channelReceiptRepository.updateExternalMessageId(existing.id, sent.externalMessageId)
       return
     }
     if (existing?.status === 'sent')

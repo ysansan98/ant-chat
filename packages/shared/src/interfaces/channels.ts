@@ -34,6 +34,8 @@ export interface ChannelAccount {
   channelType: ChannelType
   displayName: string
   credentialRef: string
+  /** 微信扫码登录的 owner 用户 ID；命中时自动授权，身份不一致回退配对。 */
+  ownerUserId?: string
   defaultWorkspacePath: string | null
   permissionMode: AgentMode
   enabled: boolean
@@ -55,6 +57,8 @@ export interface ChannelSetupResult {
   expiresAt?: number
   account?: ChannelAccountView
   error?: string
+  /** 微信扫码登录需要输入手机上显示的验证码。 */
+  verifyCodeRequired?: boolean
 }
 
 export interface ChannelPairing {

@@ -77,6 +77,74 @@ describe('channelRuntime 入站行为', () => {
     expect(startTurn).not.toHaveBeenCalled()
   })
 
+  it('微信 owner 身份首次消息自动授权并启动 Turn', async () => {
+    const { runtime, data, startTurn } = createHarness()
+    data.channelAccountRepository.getById = vi.fn(async () => ({
+      id: 'a1',
+      channelType: 'weixin' as const,
+      displayName: '微信',
+      credentialRef: 'ref',
+      ownerUserId: 'owner-1',
+      defaultWorkspacePath: '/workspace',
+      permissionMode: 'hybrid' as const,
+      enabled: true,
+      status: 'connected' as const,
+      createdAt: 1,
+      updatedAt: 1,
+    }))
+    data.channelPairingRepository.get = vi.fn(async () => undefined)
+    data.channelPairingRepository.upsert = vi.fn(async input => ({ ...input, id: input.id }))
+
+    await expect(runtime.handleInbound({
+      channelAccountId: 'a1',
+      channelType: 'weixin',
+      externalUserId: 'owner-1',
+      externalDisplayName: '本人',
+      externalChatId: 'owner-1',
+      externalMessageId: 'e-owner',
+      text: '你好',
+    })).resolves.toMatchObject({ kind: 'turn' })
+    expect(data.channelPairingRepository.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      externalUserId: 'owner-1',
+      status: 'authorized',
+    }))
+    expect(startTurn).toHaveBeenCalledOnce()
+  })
+
+  it('微信非 owner 身份仍回退配对流程', async () => {
+    const { runtime, data, startTurn } = createHarness()
+    data.channelAccountRepository.getById = vi.fn(async () => ({
+      id: 'a1',
+      channelType: 'weixin' as const,
+      displayName: '微信',
+      credentialRef: 'ref',
+      ownerUserId: 'owner-1',
+      defaultWorkspacePath: '/workspace',
+      permissionMode: 'hybrid' as const,
+      enabled: true,
+      status: 'connected' as const,
+      createdAt: 1,
+      updatedAt: 1,
+    }))
+    data.channelPairingRepository.get = vi.fn(async () => undefined)
+
+    const result = await runtime.handleInbound({
+      channelAccountId: 'a1',
+      channelType: 'weixin',
+      externalUserId: 'other-1',
+      externalDisplayName: '其他人',
+      externalChatId: 'other-1',
+      externalMessageId: 'e-other',
+      text: '你好',
+    })
+    expect(result.kind).toBe('pairing-required')
+    expect(data.channelPairingRepository.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      externalUserId: 'other-1',
+      status: 'pending',
+    }))
+    expect(startTurn).not.toHaveBeenCalled()
+  })
+
   it('已有频道会话的模型失效时改用首个可用模型启动 Turn', async () => {
     const { data, updateConversation } = createHarness()
     data.conversationRepository.getById = vi.fn(async () => ({

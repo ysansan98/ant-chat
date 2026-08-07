@@ -27,7 +27,7 @@ describe('channelsPage 平台槽位布局', () => {
     vi.mocked(workspaceApi.listWorkspaces).mockResolvedValue({ workspaces: [] })
   })
 
-  it('未接入任何频道时，按平台铺出固定槽位，个人微信暂不可接入', async () => {
+  it('未接入任何频道时，按平台铺出固定槽位，飞书与个人微信都可接入', async () => {
     vi.mocked(listChannels).mockResolvedValue([])
 
     render(<ChannelsPage />)
@@ -37,7 +37,7 @@ describe('channelsPage 平台槽位布局', () => {
     const connectButtons = screen.getAllByRole('button', { name: '接入' })
     expect(connectButtons).toHaveLength(2)
     expect(connectButtons[0]).toBeEnabled()
-    expect(connectButtons[1]).toBeDisabled()
+    expect(connectButtons[1]).toBeEnabled()
   })
 
   it('已接入的平台不再显示「接入」入口，行内展示名称、状态与默认工作区', async () => {
@@ -50,8 +50,8 @@ describe('channelsPage 平台槽位布局', () => {
     expect(screen.getByText('飞书私聊')).toBeInTheDocument()
     expect(screen.getByText('已连接')).toBeInTheDocument()
     expect(screen.getByText(/\/Users\/ysansan\/team/)).toBeInTheDocument()
-    // 只剩余个人微信的禁用入口
-    expect(screen.getByRole('button', { name: '接入' })).toBeDisabled()
+    // 只剩余个人微信的可用入口
+    expect(screen.getByRole('button', { name: '接入' })).toBeEnabled()
   })
 
   it('用开关停用频道，并同步状态徽标', async () => {

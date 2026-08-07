@@ -156,7 +156,7 @@ export class ChannelRuntime {
       case 'new': {
         const workspacePath = command.path ? this.validateWorkspace(command.path) : session.currentWorkspacePath
         const current = await this.deps.data.conversationRepository.getById(session.activeConversationId)
-        const conversation = await this.deps.data.conversationRepository.create({ title: 'Untitled', workspacePath, createdAt: this.now(), updatedAt: this.now(), conversationInstructions: '', settings: current.settings, sourceType: current.sourceType ?? 'feishu', sourceChannelAccountId: event.channelAccountId, sourceExternalChatId: event.externalChatId })
+        const conversation = await this.deps.data.conversationRepository.create({ title: 'Untitled', workspacePath, createdAt: this.now(), updatedAt: this.now(), conversationInstructions: '', settings: current.settings, sourceType: event.channelType, sourceChannelAccountId: event.channelAccountId, sourceExternalChatId: event.externalChatId })
         await this.deps.data.channelSessionRepository.upsert({ channelAccountId: event.channelAccountId, externalChatId: event.externalChatId, activeConversationId: conversation.id, currentWorkspacePath: workspacePath, createdAt: sessionCreatedAt(session), updatedAt: this.now() })
         const account = await this.deps.data.channelAccountRepository.getById(event.channelAccountId)
         return result(`已创建新会话\n${this.formatContext(conversation, workspacePath, account.permissionMode)}`, conversation.id)
@@ -213,6 +213,18 @@ export class ChannelRuntime {
     const existing = await this.deps.data.channelPairingRepository.get(account.id, event.externalUserId)
     if (existing?.status === 'authorized')
       return existing
+    // 微信扫码登录身份即本机 owner；owner 首次消息直接自动授权，身份不一致仍回退配对。
+    if (account.channelType === 'weixin' && account.ownerUserId && account.ownerUserId === event.externalUserId) {
+      return this.deps.data.channelPairingRepository.upsert({
+        id: `pair-${account.id}-${event.externalUserId}`,
+        channelAccountId: account.id,
+        externalUserId: event.externalUserId,
+        externalDisplayName: event.externalDisplayName,
+        status: 'authorized',
+        requestedAt: this.now(),
+        approvedAt: this.now(),
+      })
+    }
     if (!existing || (existing.expiresAt !== undefined && existing.expiresAt <= this.now()))
       await this.deps.data.channelPairingRepository.upsert({ id: `pair-${account.id}-${event.externalUserId}`, channelAccountId: account.id, externalUserId: event.externalUserId, externalDisplayName: event.externalDisplayName, status: 'pending', requestedAt: this.now(), expiresAt: this.now() + 86_400_000 })
     return undefined

@@ -5,6 +5,7 @@ import type { RegisteredRoute } from './routeRegistry'
 import type { RuntimeModule } from './runtimeModule'
 import { AppControl } from '../app-control/appControl'
 import { createFeishuTransport, FeishuConnector } from '../channels/feishu'
+import { createWeixinTransport, WeixinConnector } from '../channels/weixin'
 import { AgentModule } from './modules/agent'
 import { AutomationModule } from './modules/automation'
 import { BrowserProfilesModule } from './modules/browserProfiles'
@@ -67,7 +68,10 @@ export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModu
     rejectPendingAction: options => agent.rejectPendingAction({ options }),
     rejectSecretRequest: options => agent.rejectSecretRequest({ options }),
   }
-  const channel = new ChannelModule(core, channelAgent, [new FeishuConnector(credential => createFeishuTransport(credential, logger), logger)])
+  const channel = new ChannelModule(core, channelAgent, [
+    new FeishuConnector(credential => createFeishuTransport(credential, logger), logger),
+    new WeixinConnector(credential => createWeixinTransport(credential, logger), logger),
+  ])
   const chat = new ChatModule(
     data.conversationRepository,
     data.messageRepository,

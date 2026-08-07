@@ -76,7 +76,8 @@
 先接飞书，再接微信：
 
 - 飞书：官方 scan-to-create、WebSocket、私聊文本、事件校验；
-- 微信：iLink QR、long-polling、owner user ID 自动授权、配对回退、私聊文本。
+- 微信：iLink QR、long-polling、owner user ID 自动授权、配对回退、私聊文本；
+- 当前状态：飞书已接入；微信已完成代码实现，等待真实 iLink 扫码/长轮询联调。
 
 平台 SDK 只能位于 adapter；不得把平台对象泄漏到 shared domain 或 Agent Runtime。
 

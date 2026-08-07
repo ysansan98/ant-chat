@@ -44,7 +44,7 @@ interface ChannelSlot {
  */
 const CHANNEL_SLOTS: ChannelSlot[] = [
   { type: 'feishu', name: '飞书私聊', icon: <FeishuLogo />, description: '接收 1v1 文本消息，扫码创建应用后即可从飞书续聊。', available: true },
-  { type: 'weixin', name: '个人微信', icon: <WeixinLogo />, description: '个人微信 iLink 接入尚未开放。', available: false },
+  { type: 'weixin', name: '个人微信', icon: <WeixinLogo />, description: '微信扫码登录后接收 1v1 文本消息，可在手机微信与桌面端续聊。', available: true },
 ]
 
 function getPlatformName(type: ChannelType) {
@@ -61,6 +61,7 @@ export function ChannelsPage() {
   const [saving, setSaving] = useState(false)
   const [setupResult, setSetupResult] = useState<ChannelSetupResult>()
   const [qrImage, setQrImage] = useState<string>()
+  const [verifyCode, setVerifyCode] = useState('')
 
   const refresh = () => void listChannels().then(setChannels).catch(() => setChannels([]))
 
@@ -92,6 +93,7 @@ export function ChannelsPage() {
     setForm({ ...emptyForm, channelType })
     setSetupResult(undefined)
     setQrImage(undefined)
+    setVerifyCode('')
     setSetupOpen(true)
   }
 
@@ -99,6 +101,7 @@ export function ChannelsPage() {
     setSaving(true)
     setSetupResult(undefined)
     setQrImage(undefined)
+    setVerifyCode('')
     try {
       const result = await createChannel(formToSubmit)
       setSetupResult(result)
@@ -106,7 +109,7 @@ export function ChannelsPage() {
         setSetupOpen(false)
         setForm(emptyForm)
         refresh()
-        toast.success(result.mode === 'reauth' ? '飞书应用已重新授权并连接' : '消息频道已连接')
+        toast.success(result.channelType === 'weixin' ? '微信已扫码登录并连接' : result.mode === 'reauth' ? '飞书应用已重新授权并连接' : '消息频道已连接')
       }
     }
     catch (error) {
@@ -133,6 +136,7 @@ export function ChannelsPage() {
     setForm(reauthForm)
     setSetupResult(undefined)
     setQrImage(undefined)
+    setVerifyCode('')
     setSetupOpen(true)
     void startSetup(reauthForm)
   }
@@ -141,11 +145,12 @@ export function ChannelsPage() {
     if (!setupResult?.verificationUrl)
       return
     void QRCode.toDataURL(setupResult.verificationUrl, { margin: 1, width: 220 }).then(setQrImage)
-  }, [setupResult?.verificationUrl])
+  }, [setupResult?.channelType, setupResult?.verificationUrl])
 
   useEffect(() => {
     if (!setupResult || setupResult.status === 'completed' || setupResult.status === 'failed' || setupResult.status === 'expired')
       return
+    let notified = false
     const timer = window.setInterval(() => {
       void getChannelSetupStatus(setupResult.setupId).then((next) => {
         setSetupResult(next)
@@ -153,9 +158,17 @@ export function ChannelsPage() {
           setSetupOpen(false)
           setForm(emptyForm)
           refresh()
-          toast.success(next.mode === 'reauth' ? '飞书应用已重新授权并连接' : '飞书应用已创建并连接')
+          toast.success(next.channelType === 'weixin'
+            ? (next.mode === 'reauth' ? '微信已重新授权并连接' : '微信已扫码登录并连接')
+            : (next.mode === 'reauth' ? '飞书应用已重新授权并连接' : '飞书应用已创建并连接'))
         }
-      }).catch(() => undefined)
+      }).catch((error) => {
+        if (notified)
+          return
+        notified = true
+        toast.error(error instanceof Error ? error.message : '获取微信扫码状态失败')
+        refresh()
+      })
     }, 1500)
     return () => window.clearInterval(timer)
   }, [setupResult])
@@ -207,34 +220,63 @@ export function ChannelsPage() {
       <Dialog open={setupOpen} onOpenChange={setSetupOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{setupResult?.mode === 'reauth' || form.channelAccountId ? '重新授权飞书应用' : `接入${getPlatformName(form.channelType)}`}</DialogTitle>
+            <DialogTitle>{setupResult?.mode === 'reauth' || form.channelAccountId ? (form.channelType === 'weixin' ? '重新授权微信' : '重新授权飞书应用') : `接入${getPlatformName(form.channelType)}`}</DialogTitle>
             <DialogDescription>
               {setupResult
-                ? setupResult.mode === 'reauth'
-                  ? '确认页会展示本次将更新的权限范围，扫码确认后应用配置随之更新。'
-                  : '用飞书扫描二维码完成应用创建，完成后凭证会由系统自动保管。'
-                : '飞书通过扫码创建应用；不需要手动填写 App Secret。'}
+                ? setupResult.channelType === 'weixin'
+                  ? setupResult.mode === 'reauth'
+                    ? '用微信扫描二维码重新登录，确认后凭证会由系统自动保管。'
+                    : '用微信扫描二维码完成登录，完成后凭证会由系统自动保管。'
+                  : setupResult.mode === 'reauth'
+                    ? '确认页会展示本次将更新的权限范围，扫码确认后应用配置随之更新。'
+                    : '用飞书扫描二维码完成应用创建，完成后凭证会由系统自动保管。'
+                : form.channelType === 'weixin'
+                  ? '微信通过 iLink 扫码登录；不需要手动填写任何凭证。'
+                  : '飞书通过扫码创建应用；不需要手动填写 App Secret。'}
             </DialogDescription>
           </DialogHeader>
           {setupResult
             ? (
                 <div className="flex flex-col items-center gap-4 py-3 text-center">
-                  {qrImage
-                    ? <img src={qrImage} alt="飞书扫码创建应用二维码" className="size-56 rounded-lg bg-white p-3 ring-1 ring-black/10" />
-                    : <div className="flex size-56 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">正在生成二维码…</div>}
+                  {setupResult.channelType === 'weixin'
+                    ? setupResult.verificationUrl
+                      ? <img src={qrImage} alt="微信扫码登录二维码" className="size-56 rounded-lg bg-white p-3 ring-1 ring-black/10" />
+                      : <div className="flex size-56 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">正在生成二维码…</div>
+                    : qrImage
+                      ? <img src={qrImage} alt="飞书扫码创建应用二维码" className="size-56 rounded-lg bg-white p-3 ring-1 ring-black/10" />
+                      : <div className="flex size-56 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">正在生成二维码…</div>}
                   <div className="space-y-1">
                     <p className="text-sm font-medium">
-                      {setupResult.status === 'polling' ? '已扫码，正在等待飞书确认' : setupResult.status === 'failed' ? '飞书应用配置失败' : setupResult.status === 'expired' ? '二维码已过期' : setupResult.mode === 'reauth' ? '请使用飞书扫码确认授权' : '请使用飞书扫码创建应用'}
+                      {setupResult.channelType === 'weixin'
+                        ? setupResult.status === 'polling' ? '已扫码，请在手机上确认' : setupResult.status === 'failed' ? '微信登录失败' : setupResult.status === 'expired' ? '二维码已过期' : setupResult.mode === 'reauth' ? '请使用微信扫码重新登录' : '请使用微信扫码登录'
+                        : setupResult.status === 'polling' ? '已扫码，正在等待飞书确认' : setupResult.status === 'failed' ? '飞书应用配置失败' : setupResult.status === 'expired' ? '二维码已过期' : setupResult.mode === 'reauth' ? '请使用飞书扫码确认授权' : '请使用飞书扫码创建应用'}
                     </p>
-                    <p className="text-xs text-muted-foreground">{setupResult.error ?? (setupResult.mode === 'reauth' ? '将更新已有应用的权限配置，过期后可关闭窗口重新发起。' : '二维码为短期链接，过期后可关闭窗口重新发起。')}</p>
+                    <p className="text-xs text-muted-foreground">{setupResult.error ?? (setupResult.mode === 'reauth' ? (setupResult.channelType === 'weixin' ? '重新登录后保留原有微信账号，过期后可关闭窗口重新发起。' : '将更新已有应用的权限配置，过期后可关闭窗口重新发起。') : '二维码为短期链接，过期后可关闭窗口重新发起。')}</p>
                   </div>
-                  {setupResult.verificationUrl && <a className="text-xs text-primary underline-offset-4 hover:underline" href={setupResult.verificationUrl} target="_blank" rel="noreferrer">无法扫码？在飞书中打开验证链接</a>}
+                  {setupResult.verifyCodeRequired && (
+                    <div className="flex w-full max-w-xs items-center gap-2">
+                      <Input value={verifyCode} onChange={event => setVerifyCode(event.target.value)} placeholder="输入手机上的验证码" />
+                      <Button
+                        size="sm"
+                        disabled={!verifyCode.trim()}
+                        onClick={() => {
+                          void getChannelSetupStatus(setupResult.setupId, verifyCode.trim()).then((next) => {
+                            setSetupResult(next)
+                            setVerifyCode('')
+                          }).catch(error => toast.error(error instanceof Error ? error.message : '提交验证码失败'))
+                        }}
+                      >
+                        确认
+                      </Button>
+                    </div>
+                  )}
+                  {setupResult.verificationUrl && <a className="text-xs text-primary underline-offset-4 hover:underline" href={setupResult.verificationUrl} target="_blank" rel="noreferrer">{setupResult.channelType === 'weixin' ? '无法扫码？在微信中打开验证链接' : '无法扫码？在飞书中打开验证链接'}</a>}
                 </div>
               )
             : (
                 <form id="channel-setup-form" onSubmit={event => void submitSetup(event)} className="space-y-4">
                   <FieldSet>
-                    {!form.channelAccountId && (
+                    {form.channelType === 'feishu' && !form.channelAccountId && (
                       <Field>
                         <FieldLabel>接入方式</FieldLabel>
                         <RadioGroup value={form.appId ? 'reauth' : 'create'} onValueChange={value => setForm({ ...form, appId: value === 'reauth' ? '' : undefined })} className="flex gap-6">
@@ -250,7 +292,7 @@ export function ChannelsPage() {
                         <FieldDescription>绑定已有应用不会创建新应用，扫码确认后更新其权限配置。</FieldDescription>
                       </Field>
                     )}
-                    {form.appId !== undefined && (
+                    {form.channelType === 'feishu' && form.appId !== undefined && (
                       <Field>
                         <FieldLabel htmlFor="channel-app-id">应用 ID</FieldLabel>
                         <Input id="channel-app-id" required placeholder="cli_xxxxx" value={form.appId} onChange={event => setForm({ ...form, appId: event.target.value })} />
@@ -280,6 +322,7 @@ export function ChannelsPage() {
                   onClick={() => {
                     setSetupResult(undefined)
                     setQrImage(undefined)
+                    setVerifyCode('')
                   }}
                 />
               )}
@@ -401,7 +444,7 @@ function ChannelSlotRow({ slot, channel, expanded, pairingRequests, onConnect, o
             <ChevronDown className={`size-4 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
           </Button>
           <div className="flex gap-1">
-            <Button variant="outline" size="sm" disabled={busy} onClick={onReauth} title="重新扫码授权，更新该应用的权限配置">
+            <Button variant="outline" size="sm" disabled={busy} onClick={onReauth} title="重新扫码授权">
               <RefreshCw className="size-3.5" />
               重新授权
             </Button>

@@ -97,6 +97,7 @@ export function initializeAppDataSchema(db: AppDataDatabase): void {
       channel_type text NOT NULL,
       display_name text NOT NULL,
       credential_ref text NOT NULL,
+      owner_user_id text,
       default_workspace_path text,
       permission_mode text NOT NULL DEFAULT 'hybrid',
       enabled integer NOT NULL DEFAULT 0,
