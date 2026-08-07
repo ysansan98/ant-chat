@@ -88,6 +88,9 @@ jobs:
           fi
           launcher_code=$?
           set -e
+          echo "launcher exit code: $launcher_code"
+          echo "--- launcher output ---"
+          cat /tmp/ant-chat-launcher.log 2>/dev/null || true
           test "$launcher_code" -ne 0
           grep -Eqi 'running|connect|运行|连接' /tmp/ant-chat-launcher.log
 
