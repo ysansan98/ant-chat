@@ -162,6 +162,19 @@ Windows 安装包计划使用 SignPath Foundation 进行代码签名：
 
 签名只覆盖本仓库源代码构建的 Ant Chat 发布产物，不签名第三方软件或外部二进制文件。
 
+### macOS 安装说明
+
+当前 macOS 安装包未签名或公证，首次打开可能被 Gatekeeper 拦截，提示“无法验证开发者”或“应用已损坏”。两种方式解除：
+
+- 在“访达”中右键点击 Ant Chat，选择“打开”，并在弹窗中确认；
+- 或清除下载隔离标记：
+
+```bash
+sudo xattr -rd com.apple.quarantine "/Applications/Ant Chat.app"
+```
+
+清除后即可正常打开。请只从 GitHub Releases 下载安装包，不要使用来源不明的副本。
+
 ## 许可证
 
 [MIT](./LICENSE)

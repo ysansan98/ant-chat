@@ -148,7 +148,7 @@ jobs:
             echo
             echo "## 下载"
             echo
-            echo "请从本 GitHub Release 下载对应平台安装包。当前安装包未签名或公证：macOS 可能需要在隐私与安全性设置中手动允许，Windows SmartScreen 可能显示未知发布者。"
+            echo "请从本 GitHub Release 下载对应平台安装包。当前安装包未签名或公证：macOS 首次打开可能被 Gatekeeper 拦截，可在“隐私与安全性”中允许，或执行 sudo xattr -rd com.apple.quarantine \"/Applications/Ant Chat.app\"；Windows SmartScreen 可能显示未知发布者。"
             echo
             echo "## 网络安全"
             echo
