@@ -180,7 +180,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          mapfile -d '' files < <(find release-assets -type f -print0)
+          mapfile -d '' files < <(find release-assets -type f \( -name '*.dmg' -o -name '*.exe' -o -name '*.zip' -o -name 'SHA256SUMS-*.txt' -o -name 'latest*.yml' \) -print0)
           for attempt in 1 2 3; do
             if gh release upload "$GITHUB_REF_NAME" "${files[@]}" --clobber; then
               break
