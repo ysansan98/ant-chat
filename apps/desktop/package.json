@@ -1,6 +1,6 @@
 {
   "name": "@ant-chat/desktop",
-  "version": "1.0.0-alpha.2",
+  "version": "1.0.0-alpha.3",
   "private": true,
   "description": "Ant Chat Electron Desktop App",
   "author": {
