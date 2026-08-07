@@ -79,6 +79,7 @@ jobs:
           else
             launcher=$(find apps/desktop/release -path '*/resources/ant-chat/ant-chat.cmd' -type f -print -quit)
             test -n "$launcher"
+            launcher=$(cygpath -w "$launcher")
           fi
           set +e
           if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
