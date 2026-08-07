@@ -75,13 +75,6 @@ export class ProviderModule implements RuntimeModuleMethods<'provider'> {
     }
   }
 
-  async initialize() {
-    const migratedCount = await this.providerSettingsRepository.migratePlaintextApiKeys(this.secretStore)
-    if (migratedCount > 0) {
-      this.events.emit('provider:changed', {})
-    }
-  }
-
   @Method()
   listProviders(_input?: AppRpcInput<'provider.listProviders'>) {
     return this.providerSettingsRepository.listProviders().map(provider => this.toPublicProvider(provider))
@@ -338,11 +331,8 @@ export class ProviderModule implements RuntimeModuleMethods<'provider'> {
 
 export async function resolveProviderApiKey(
   secretStore: KeychainSecretStore,
-  provider: { id: string, apiKey?: string, apiKeySecretId?: string },
+  provider: { id: string, apiKeySecretId?: string },
 ) {
-  if (provider.apiKey) {
-    return provider.apiKey
-  }
   if (provider.apiKeySecretId) {
     if (provider.apiKeySecretId !== getProviderApiKeyId(provider.id)) {
       throw new Error(`Provider ${provider.id} 的 API Key secret ref audience 不匹配。`)

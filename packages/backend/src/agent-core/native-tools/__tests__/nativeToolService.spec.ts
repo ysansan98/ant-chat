@@ -115,7 +115,6 @@ describe('native tool service 行为', () => {
   it('将普通网页操作标记为外部资源，将系统 Profile 标记为本机越界资源', () => {
     const service = new NativeToolService(workspacePath, false, {
       browser: {
-        profilePath: '/tmp/profile',
         artifactsPath: '/tmp/artifacts',
       },
     })

@@ -32,10 +32,11 @@ export const ProviderSettingsSchema = ProviderConfigSchema.omit({
   createdAt: true,
   updatedAt: true,
   hasApiKey: true,
+  // 明文 apiKey 不是合法持久化状态：凭据只通过 apiKeySecretId 引用 Keychain。
+  apiKey: true,
   // capabilities 由 Integration 在运行时派生，不持久化，避免被陈旧数据覆盖。
   capabilities: true,
 }).extend({
-  apiKey: z.string().optional(),
   models: z.record(z.string(), ProviderModelSettingsSchema),
 })
 

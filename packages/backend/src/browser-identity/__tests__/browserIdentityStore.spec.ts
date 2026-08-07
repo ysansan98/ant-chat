@@ -47,6 +47,89 @@ describe('browserIdentityStore 行为', () => {
     expect((await restored.getStatus()).imported).toBe(true)
   })
 
+  it('未初始化时同步读取返回空值且不访问钥匙串', async () => {
+    const fixture = createFixture()
+    const store = new BrowserIdentityStore(fixture.options)
+    let keyReads = 0
+    fixture.keyStore.getBrowserCookieEncryptionKey = async () => {
+      keyReads++
+      return fixture.keyStore.key
+    }
+
+    expect(store.isInitialized()).toBe(false)
+    expect(store.getCookies()).toBeNull()
+    expect(store.getGeneration()).toBe(0)
+    expect(keyReads).toBe(0)
+  })
+
+  it('没有导入过 Cookies 时初始化不访问钥匙串', async () => {
+    const fixture = createFixture()
+    const store = new BrowserIdentityStore(fixture.options)
+    let keyReads = 0
+    fixture.keyStore.getBrowserCookieEncryptionKey = async () => {
+      keyReads++
+      return fixture.keyStore.key
+    }
+
+    await store.ensureInitialized()
+
+    expect(store.isInitialized()).toBe(true)
+    expect(store.getCookies()).toBeNull()
+    expect(keyReads).toBe(0)
+  })
+
+  it('ensureInitialized 幂等且并发首次调用只读取一次 Keychain', async () => {
+    const fixture = createFixture()
+    const seed = new BrowserIdentityStore(fixture.options)
+    await seed.initialize()
+    await seed.importSource(fixture.source.sourceId)
+
+    const store = new BrowserIdentityStore(fixture.options)
+    let keyReads = 0
+    fixture.keyStore.getBrowserCookieEncryptionKey = async () => {
+      keyReads++
+      return fixture.keyStore.key
+    }
+
+    await Promise.all([
+      store.ensureInitialized(),
+      store.ensureInitialized(),
+      store.ensureInitialized(),
+    ])
+    await store.ensureInitialized()
+
+    expect(store.isInitialized()).toBe(true)
+    expect(keyReads).toBe(1)
+    expect(store.getCookies()).toEqual(fixture.cookies)
+  })
+
+  it('未初始化时 getStatus 自动加载持久化身份', async () => {
+    const fixture = createFixture()
+    const seed = new BrowserIdentityStore(fixture.options)
+    await seed.initialize()
+    await seed.importSource(fixture.source.sourceId)
+
+    const restored = new BrowserIdentityStore(fixture.options)
+    expect(restored.isInitialized()).toBe(false)
+
+    expect((await restored.getStatus()).imported).toBe(true)
+    expect(restored.getCookies()).toEqual(fixture.cookies)
+  })
+
+  it('未初始化时 clear 也会加载并清除已持久化身份', async () => {
+    const fixture = createFixture()
+    const seed = new BrowserIdentityStore(fixture.options)
+    await seed.initialize()
+    await seed.importSource(fixture.source.sourceId)
+
+    const restored = new BrowserIdentityStore(fixture.options)
+    await restored.clear()
+
+    expect(restored.getCookies()).toBeNull()
+    expect((await restored.getStatus()).imported).toBe(false)
+    expect(fs.existsSync(fixture.paths.identityPath)).toBe(false)
+  })
+
   it('新导入失败时保留旧 Cookies 和来源记录', async () => {
     const fixture = createFixture()
     let fail = false

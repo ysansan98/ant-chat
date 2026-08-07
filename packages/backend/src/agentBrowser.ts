@@ -2,7 +2,6 @@ import os from 'node:os'
 import path from 'node:path'
 
 export interface AgentBrowserPaths {
-  profilePath: string
   artifactsPath: string
 }
 
@@ -16,14 +15,13 @@ export interface BrowserIdentityPaths extends AgentBrowserPaths {
 export function createAgentBrowserPaths(appDataRoot: string = path.join(os.homedir(), '.ant-chat')): AgentBrowserPaths {
   const root = path.join(appDataRoot, 'browser')
   return {
-    profilePath: path.join(root, 'profile'),
     artifactsPath: path.join(root, 'artifacts'),
   }
 }
 
 export function createBrowserIdentityPaths(appDataRoot: string = path.join(os.homedir(), '.ant-chat')): BrowserIdentityPaths {
+  const root = path.join(appDataRoot, 'browser')
   const browserPaths = createAgentBrowserPaths(appDataRoot)
-  const root = path.dirname(browserPaths.profilePath)
   return {
     root,
     ...browserPaths,

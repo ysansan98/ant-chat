@@ -90,12 +90,11 @@ const COMMAND_FLAGS: Record<string, Set<string>> = {
 }
 
 const PATH_OUTPUT_COMMANDS = new Set(['screenshot', 'pdf'])
-const directSessions = new Map<string, BrowserSessionState>()
+let directSession: BrowserSessionState | null = null
 const browserCommandCache = new Map<string, BrowserCommand | null>()
 
 export interface BrowserRunnerOptions {
   workspacePath?: string
-  profilePath: string
   artifactsPath: string
   env?: NodeJS.ProcessEnv
   proxyUrl?: string
@@ -177,17 +176,27 @@ export async function runBrowserTool(
     return { ok: false, result: validationError }
   }
 
-  const state = options.state ?? createDirectSessionState(options.profilePath)
+  // 只有真正执行浏览器工具时才加载应用托管认证状态（钥匙串访问点）。
+  if (options.authStateProvider?.ensureInitialized) {
+    await options.authStateProvider.ensureInitialized()
+  }
+
+  const state = options.state ?? createDirectSessionState()
   if (state.invalidated && normalizeCommand(input.command) !== 'close') {
     return {
       ok: false,
       result: 'Browser 会话已因登录状态清除而失效，请重新开始当前 Browser 会话。',
     }
   }
-  // 会话状态由 BrowserSessionManager 在 Turn 创建时快照认证 Cookies。只有未传入
-  // 会话状态的底层直接调用才在这里捕获 provider，避免旧 Turn 迟到读取新 generation。
-  if (!options.state && state.authCookies === undefined) {
-    state.authCookies = options.authStateProvider?.getCookies() ?? undefined
+  // 快照发生在认证状态加载前（authSnapshotReady=false）时补读当前 Cookies；
+  // 已加载的快照仅在 generation 未变化时补读，避免旧 Turn 迟到读取新的登录态。
+  if (state.authCookies === undefined) {
+    const providerGeneration = options.authStateProvider?.getGeneration()
+    const snapshotBeforeInit = state.authSnapshotReady === false
+    const generationUnchanged = state.authGeneration === undefined || state.authGeneration === providerGeneration
+    if (snapshotBeforeInit || generationUnchanged) {
+      state.authCookies = options.authStateProvider?.getCookies() ?? undefined
+    }
   }
   const previous = state.queue
   let release: () => void = () => {}
@@ -222,8 +231,6 @@ async function executeBrowserTool(
   }
 
   const state = options.state!
-  await fs.promises.mkdir(state.profilePath, { recursive: true, mode: 0o700 })
-  await fs.promises.chmod(state.profilePath, 0o700)
   await fs.promises.mkdir(state.socketPath, { recursive: true, mode: 0o700 })
   await fs.promises.mkdir(options.artifactsPath, { recursive: true, mode: 0o700 })
 
@@ -238,9 +245,8 @@ async function executeBrowserTool(
     state.profile = globalArgs[explicitProfileIndex + 1]
   }
   const usesManagedProfile = explicitProfileIndex < 0 && !state.profile
-  const profileArgs = explicitProfileIndex < 0
-    ? ['--profile', state.profile ?? state.profilePath]
-    : []
+  // 托管会话不传 profile；显式系统 profile 由 state 记住并跨命令透传。
+  const profileArgs = state.profile ? ['--profile', state.profile] : []
   const sessionArgs = ['--session', state.sessionName]
   const headedArgs = state.headed && !explicitHeaded ? ['--headed'] : []
   const args = [
@@ -263,7 +269,8 @@ async function executeBrowserTool(
     ? state.authCookies.filter(cookie => cookieMatchesHost(cookie, cookieDomain))
     : []
   const domainAlreadySeeded = cookieDomain ? state.authCookieDomains?.has(cookieDomain) : false
-  if (usesManagedProfile && command !== 'close' && state.authCookies && state.authCookies.length > 0 && !domainAlreadySeeded && (cookiesForDomain.length > 0 || !initialUrl)) {
+  const shouldInjectCookies = input.injectCookies !== false
+  if (usesManagedProfile && shouldInjectCookies && command !== 'close' && state.authCookies && state.authCookies.length > 0 && !domainAlreadySeeded && (cookiesForDomain.length > 0 || !initialUrl)) {
     const importResult = await seedManagedCookies(browserCommand, state, options, env, timeoutMs, initialUrl, cookieDomain, cookiesForDomain)
     if (importResult) {
       return { ...importResult, diagnostics: { ...importResult.diagnostics, durationMs: Date.now() - startedAt } }
@@ -366,7 +373,7 @@ async function executeBrowserTool(
       })
     })
   })
-  if (!result.ok || command === 'close' || !usesManagedProfile || !state.authCookies?.length) {
+  if (!result.ok || command === 'close' || !usesManagedProfile || !shouldInjectCookies || !state.authCookies?.length) {
     return result
   }
 
@@ -495,8 +502,8 @@ async function seedManagedCookies(
   cookies: BrowserCookie[] = [],
   navigateToUrl = true,
 ): Promise<AgentToolResult | null> {
-  // agent-browser 禁止 `--profile` 与 storage state 同时使用；首次注入先打开目标页，
-  // 跨域补注入则复用当前页面，只通过同一 Profile daemon 的 batch 设置 Cookies 并刷新。
+  // 首次注入先打开目标页，跨域补注入则复用当前页面，只通过同一 session daemon
+  // 的 batch 设置 Cookies 并刷新。
   if (!state.started && !initialUrl) {
     return {
       ok: false,
@@ -508,8 +515,6 @@ async function seedManagedCookies(
     return null
   const commandPrefix = [
     ...browserCommand.executableArgs,
-    '--profile',
-    state.profilePath,
     '--session',
     state.sessionName,
     ...(state.headed ? ['--headed'] : []),
@@ -590,8 +595,6 @@ async function readCurrentBrowserUrl(
 ): Promise<string | undefined> {
   const commandPrefix = [
     ...browserCommand.executableArgs,
-    '--profile',
-    state.profilePath,
     '--session',
     state.sessionName,
     ...(state.headed ? ['--headed'] : []),
@@ -802,23 +805,21 @@ function removeDaemonOptionWarnings(output: string): string {
     .replace(/^\n+|\n+$/g, '')
 }
 
-function createDirectSessionState(profilePath: string): BrowserSessionState {
-  const existing = directSessions.get(profilePath)
-  if (existing) {
-    return existing
+function createDirectSessionState(): BrowserSessionState {
+  if (directSession) {
+    return directSession
   }
   const id = `ant-chat-direct-${process.pid}`
   const state: BrowserSessionState = {
     sessionName: id,
     socketPath: path.join(process.platform === 'darwin' ? '/tmp' : os.tmpdir(), id),
-    profilePath,
     headed: false,
     started: false,
     profile: undefined,
     authCookieDomains: new Set(),
     queue: Promise.resolve(),
   }
-  directSessions.set(profilePath, state)
+  directSession = state
   return state
 }
 

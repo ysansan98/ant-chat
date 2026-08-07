@@ -51,6 +51,8 @@ export interface BrowserToolInput {
   command: string
   args?: string[]
   timeoutMs?: number
+  /** 是否注入应用托管的登录 Cookies；仅首次导航/跨域时生效，默认 true。 */
+  injectCookies?: boolean
 }
 
 /** browser_navigate 工具：打开 URL */
@@ -58,6 +60,8 @@ export interface BrowserNavigateInput {
   url: string
   headed?: boolean
   profile?: string
+  /** 是否注入应用托管的登录 Cookies，默认 true；设为 false 时以未登录状态打开。 */
+  injectCookies?: boolean
   timeoutMs?: number
 }
 

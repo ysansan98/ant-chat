@@ -173,7 +173,6 @@ describe('appSettingsStore', () => {
             id: 'existing-provider',
             name: 'Existing Provider',
             baseUrl: 'https://example.com',
-            apiKey: 'key',
             apiMode: 'openai',
             integrationId: 'api-key',
             isOfficial: false,
@@ -220,7 +219,6 @@ describe('appSettingsStore', () => {
             id: 'openai',
             name: 'Custom OpenAI Name', // User customized name
             baseUrl: 'https://custom-url.com',
-            apiKey: 'custom-key',
             apiMode: 'openai',
             integrationId: 'api-key',
             isOfficial: true,
@@ -244,7 +242,8 @@ describe('appSettingsStore', () => {
       // Should preserve user's customizations
       expect(openai.name).toBe('Custom OpenAI Name')
       expect(openai.baseUrl).toBe('https://custom-url.com')
-      expect(openai.apiKey).toBe('custom-key')
+      // 明文 apiKey 不再作为合法持久化状态保留
+      expect(openai).not.toHaveProperty('apiKey')
       expect(openai.isEnabled).toBe(true)
       expect(openai.models['gpt-4'].isEnabled).toBe(true)
       expect(openai.models['gpt-4'].temperature).toBe(0.5)

@@ -31,8 +31,8 @@ interface BrowserToolFactoryOptions {
  * 拆分后的 11 个工具在此层做命令映射和参数组装，browserRunner 层只负责执行。
  */
 
-function toBrowserInput(command: string, args: string[], timeoutMs?: number): BrowserToolInput {
-  return { command, args, timeoutMs }
+function toBrowserInput(command: string, args: string[], timeoutMs?: number, injectCookies?: boolean): BrowserToolInput {
+  return { command, args, timeoutMs, ...(injectCookies !== undefined ? { injectCookies } : {}) }
 }
 
 /** 校验映射后的 BrowserToolInput（底层 46 命令白名单兜底） */
@@ -72,9 +72,11 @@ export function createBrowserNavigateTool(options: BrowserToolFactoryOptions) {
     name: 'browser_navigate',
     operationType: 'browser',
     description: [
-      '在持久浏览器会话中打开 URL。',
-      '浏览器会话按对话隔离，并在同一对话的后续轮次复用。',
+      '在独立浏览器会话中打开 URL。',
+      '浏览器会话按对话隔离：同一对话的命令复用同一实例，不同对话互不共享窗口、Cookies 与页面状态。',
+      '会话不持久化：关闭浏览器或对话结束后，登录态与页面状态即失效。',
       '用户需要完成登录、验证码或双因素认证时使用 headed。',
+      '默认注入应用托管的登录 Cookies；需要以未登录状态访问时设置 injectCookies=false。',
       '不要索要、接收或输入账户密码；请打开可见浏览器，由用户直接输入凭据。',
       '只有用户明确要求复用系统 Chrome Profile 时才设置 profile。',
     ].join('\n'),
@@ -84,6 +86,7 @@ export function createBrowserNavigateTool(options: BrowserToolFactoryOptions) {
         url: { type: 'string', description: '要打开的 HTTP 或 HTTPS URL。' },
         headed: { type: 'boolean', description: '打开可见浏览器窗口供用户手动交互。' },
         profile: { type: 'string', description: '系统 Chrome Profile 名称，仅在用户明确要求时使用。' },
+        injectCookies: { type: 'boolean', description: '是否注入应用托管的登录 Cookies，默认 true；设为 false 时以未登录状态打开。' },
         timeoutMs: { type: 'number', description: '执行超时毫秒数，最大为 300000。' },
       },
       required: ['url'],
@@ -110,7 +113,7 @@ export function createBrowserNavigateTool(options: BrowserToolFactoryOptions) {
       if (typeof input.profile === 'string' && input.profile) {
         args.push('--profile', input.profile)
       }
-      return validateMappedInput(toBrowserInput('open', args, input.timeoutMs), options)
+      return validateMappedInput(toBrowserInput('open', args, input.timeoutMs, input.injectCookies), options)
     },
     execute: async (rawInput) => {
       const input = rawInput as unknown as BrowserNavigateInput
@@ -120,7 +123,7 @@ export function createBrowserNavigateTool(options: BrowserToolFactoryOptions) {
       if (typeof input.profile === 'string' && input.profile) {
         args.push('--profile', input.profile)
       }
-      return executeMapped(toBrowserInput('open', args, input.timeoutMs), options)
+      return executeMapped(toBrowserInput('open', args, input.timeoutMs, input.injectCookies), options)
     },
     truncateResult: false,
   })

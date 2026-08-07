@@ -27,7 +27,6 @@ import { createWriteFileTool, writeFile } from './tools/writeFileTool'
 interface NativeToolServiceOptions {
   trustedPaths?: string[]
   browser?: {
-    profilePath: string
     artifactsPath: string
     proxyUrl?: string
   }
@@ -50,13 +49,13 @@ export class NativeToolService {
     const browserSession = this.options.browserSession ?? {
       sessionName: 'ant-chat-direct',
       socketPath: path.join(os.tmpdir(), 'ant-chat-direct'),
-      profilePath: this.options.browser?.profilePath ?? '',
       headed: false,
       started: false,
       profile: undefined,
       queue: Promise.resolve(),
       authGeneration: this.options.browserAuthState?.getGeneration() ?? 0,
       authCookies: this.options.browserAuthState?.getCookies() ?? undefined,
+      authSnapshotReady: this.options.browserAuthState?.isInitialized?.() ?? true,
     }
     const browserFactoryOptions = this.options.browser
       ? {

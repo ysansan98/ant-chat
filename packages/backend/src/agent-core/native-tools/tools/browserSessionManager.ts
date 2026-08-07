@@ -1,6 +1,5 @@
 import type { AgentBrowserRuntimeConfig, BrowserAuthStateProvider, BrowserCookie } from '@ant-chat/shared'
 import { createHash } from 'node:crypto'
-import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
@@ -9,13 +8,14 @@ import { runBrowserTool } from './browserRunner'
 export interface BrowserSessionState {
   sessionName: string
   socketPath: string
-  profilePath: string
   headed: boolean
   started: boolean
   profile?: string
   authGeneration?: number
   authCookies?: BrowserCookie[]
   authCookieDomains?: Set<string>
+  /** 快照时认证 provider 是否已加载；未加载时执行路径需先 ensure 再补读。 */
+  authSnapshotReady?: boolean
   /** 清除应用托管登录态后，旧 Turn 不能继续复用该会话。 */
   invalidated?: boolean
   queue: Promise<void>
@@ -51,12 +51,12 @@ export class BrowserSessionManager {
     const state: BrowserSessionState = {
       sessionName,
       socketPath: path.join(getSocketRoot(), sessionName),
-      profilePath: path.join(path.dirname(this.config.profilePath), 'sessions', `${id}-g${generation}`, 'profile'),
       headed: false,
       started: false,
       profile: undefined,
       authGeneration: generation,
       authCookies: this.authStateProvider?.getCookies() ?? undefined,
+      authSnapshotReady: this.authStateProvider?.isInitialized?.() ?? true,
       authCookieDomains: new Set(),
       queue: Promise.resolve(),
     }
@@ -115,18 +115,12 @@ export class BrowserSessionManager {
     ])]
   }
 
-  private async closeState(state: BrowserSessionState, removeProfile: boolean): Promise<void> {
-    try {
-      await runBrowserTool({ command: 'close' }, {
-        ...this.config,
-        state,
-        authStateProvider: this.authStateProvider,
-      })
-    }
-    finally {
-      if (removeProfile)
-        await fs.promises.rm(path.dirname(state.profilePath), { recursive: true, force: true })
-    }
+  private async closeState(state: BrowserSessionState, _removeProfile: boolean): Promise<void> {
+    await runBrowserTool({ command: 'close' }, {
+      ...this.config,
+      state,
+      authStateProvider: this.authStateProvider,
+    })
   }
 }
 

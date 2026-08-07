@@ -16,6 +16,10 @@ export interface BrowserAuthStateProvider {
   getGeneration: () => number
   /** 清除应用托管登录态后通知运行中的 Browser 会话撤销自身。 */
   onClear?: (listener: () => void | Promise<void>) => () => void
+  /** 浏览器工具执行前调用，确保底层持久化状态已加载；幂等，可并发调用。 */
+  ensureInitialized?: () => Promise<void>
+  /** 同步返回底层状态是否已加载；未加载时 getCookies/getGeneration 返回空值。 */
+  isInitialized?: () => boolean
 }
 
 export type BrowserProfileKind = 'chrome' | 'edge' | 'chromium' | 'brave'
