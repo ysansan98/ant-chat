@@ -1,12 +1,15 @@
 {
   "name": "@ant-chat/shared",
   "type": "module",
-  "version": "1.0.0-alpha.1",
+  "version": "1.0.0-alpha.2",
   "license": "MIT",
   "keywords": [],
   "exports": {
     ".": {
-      "development": { "types": "./src/index.ts", "default": "./src/index.ts" },
+      "development": {
+        "types": "./src/index.ts",
+        "default": "./src/index.ts"
+      },
       "import": "./dist/index.mjs",
       "require": "./dist/index.cjs"
     },

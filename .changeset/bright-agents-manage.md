@@ -1,5 +1,5 @@
 ---
-"@ant-chat/cli": minor
+"@ant-chat/control-client": minor
 "@ant-chat/shared": minor
 ---
 

@@ -1,6 +1,7 @@
 {
   "name": "@ant-chat/backend",
   "type": "module",
+  "version": "1.0.0-alpha.2",
   "license": "MIT",
   "exports": {
     ".": {

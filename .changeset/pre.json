@@ -1,0 +1,34 @@
+{
+  "mode": "pre",
+  "tag": "alpha",
+  "initialVersions": {
+    "@ant-chat/desktop": "1.0.0-alpha.1",
+    "@ant-chat/web": "1.0.0-alpha.1",
+    "ant-chat": "1.0.0-alpha.1",
+    "@ant-chat/backend": "1.0.0-alpha.1",
+    "@ant-chat/control-client": "1.0.0-alpha.1",
+    "@ant-chat/shared": "1.0.0-alpha.1",
+    "@workspace/ui": "0.0.0"
+  },
+  "changesets": [
+    "agent-message-search-memory-catalog",
+    "ai-sdk-v7-multi-provider",
+    "bright-agents-manage",
+    "browser-cookies-import",
+    "calm-browsers-connect",
+    "calm-commands-cancel",
+    "calm-otters-sleep",
+    "codex-subscription-integration",
+    "common-kiwis-search",
+    "deep-runtime-boundaries",
+    "fast-pets-bake",
+    "fix-fork-message-order",
+    "mcp-server-enabled-switch",
+    "quiet-products-release",
+    "quiet-traces-settle",
+    "reasoning-effort-config",
+    "remove-conversation-temperature-config",
+    "safe-tool-approval-grants",
+    "settings-route-inline"
+  ]
+}
