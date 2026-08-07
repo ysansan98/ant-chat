@@ -121,7 +121,6 @@ describe('appControl 行为', () => {
       args: ['server.js'],
       command: 'node',
       description: '旧说明',
-      icon: 'terminal',
       serverName: 'demo',
       transportType: 'stdio',
     })

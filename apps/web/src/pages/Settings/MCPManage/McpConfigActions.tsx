@@ -6,42 +6,43 @@ import { McpDeleteDialog } from './McpDeleteDialog'
 
 export interface McpConfigActionsProps {
   item: McpConfigSchema
+  enabled: boolean
   status: McpServerStatus
   onTriggerAction?: (
-    action: 'start' | 'stop' | 'edit' | 'delete',
+    action: 'enable' | 'disable' | 'start' | 'stop' | 'edit' | 'delete',
     item: McpConfigSchema,
     options?: { deletePermissionRules?: boolean },
   ) => void | Promise<void>
 }
 
-export function McpConfigActions({ item, status, onTriggerAction }: McpConfigActionsProps) {
+export function McpConfigActions({ item, enabled, status, onTriggerAction }: McpConfigActionsProps) {
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const stop = (handler?: () => void) => (event: React.MouseEvent) => {
+    event.stopPropagation()
+    handler?.()
+  }
 
   return (
     <div className="flex items-center">
       {
-        status === 'connected' && (
+        enabled && status === 'connected' && (
           <Button
             variant="ghost"
             size="icon-sm"
             aria-label={`停止服务器：${item.serverName}`}
-            onClick={() => {
-              onTriggerAction?.('stop', item)
-            }}
+            onClick={stop(() => onTriggerAction?.('stop', item))}
           >
             <PauseCircle className="size-4" />
           </Button>
         )
       }
       {
-        status === 'disconnected' && (
+        enabled && status === 'disconnected' && (
           <Button
             variant="ghost"
             size="icon-sm"
             aria-label={`启动服务器：${item.serverName}`}
-            onClick={() => {
-              onTriggerAction?.('start', item)
-            }}
+            onClick={stop(() => onTriggerAction?.('start', item))}
           >
             <PlayCircle className="size-4" />
           </Button>
@@ -51,9 +52,7 @@ export function McpConfigActions({ item, status, onTriggerAction }: McpConfigAct
         variant="ghost"
         size="icon-sm"
         aria-label={`编辑服务器：${item.serverName}`}
-        onClick={() => {
-          onTriggerAction?.('edit', item)
-        }}
+        onClick={stop(() => onTriggerAction?.('edit', item))}
       >
         <Pencil className="size-4" />
       </Button>
@@ -64,7 +63,7 @@ export function McpConfigActions({ item, status, onTriggerAction }: McpConfigAct
               variant="ghost"
               size="icon-sm"
               aria-label={`删除服务器：${item.serverName}`}
-              onClick={() => setDeleteOpen(true)}
+              onClick={stop(() => setDeleteOpen(true))}
             >
               <Trash2 className="size-4" />
             </Button>

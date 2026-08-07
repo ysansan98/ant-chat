@@ -22,8 +22,8 @@ describe('mcp settings repository', () => {
 
   it('adds, updates, and deletes MCP configs by server name', () => {
     const created = repository.addMcpConfig({
+      enabled: true,
       serverName: 'local',
-      icon: 'L',
       description: 'Local server',
       transportType: 'stdio',
       command: 'node',
@@ -40,12 +40,12 @@ describe('mcp settings repository', () => {
     expect(repository.getMcpConfigByServerName('local')).toEqual(created)
 
     const updated = repository.replaceMcpConfig('local', {
+      enabled: true,
       serverName: 'local',
       transportType: 'stdio',
       command: 'bun',
       args: ['server.js'],
       env: { NODE_ENV: 'test' },
-      icon: 'L',
       description: 'Local server',
     })
     expect(updated).toEqual(expect.objectContaining({
@@ -67,7 +67,6 @@ describe('mcp settings repository', () => {
         servers: {
           remote: {
             serverName: 'remote',
-            icon: 'R',
             transportType: 'sse',
             url: 'https://mcp.example.com',
           },
@@ -95,15 +94,15 @@ describe('mcp settings repository', () => {
 
   it('重命名 server 时保留稳定身份', () => {
     const created = repository.addMcpConfig({
+      enabled: true,
       serverName: 'before',
-      icon: 'B',
       transportType: 'streamable-http',
       url: 'https://mcp.example.com',
     })
 
     const renamed = repository.replaceMcpConfig('before', {
+      enabled: true,
       serverName: 'after',
-      icon: 'A',
       transportType: 'streamable-http',
       url: 'https://mcp.example.com',
     })

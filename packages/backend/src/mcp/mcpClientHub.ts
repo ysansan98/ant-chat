@@ -145,6 +145,9 @@ export class McpOAuthProvider implements OAuthClientProvider {
       this.verifier = undefined
       return
     }
+    if (!this.currentIssuer) {
+      this.currentIssuer = await this.credentialStore?.loadDiscoveryIssuer(this.endpoint)
+    }
     if (!this.currentIssuer)
       return
     const credential = await this.loadCredential(this.currentIssuer)
@@ -496,6 +499,15 @@ export class McpConnectionManager {
     catch {
       return []
     }
+  }
+
+  /** 清除指定 server 的 OAuth 凭据（Keychain 与内存），下次连接会重新发起授权。 */
+  async invalidateOAuthCredentials(name: string): Promise<void> {
+    const provider = this.oauthProviders.get(name)
+    if (!provider)
+      return
+    await provider.invalidateCredentials('all')
+    this.oauthProviders.delete(name)
   }
 
   getAllAvailableToolsList(): McpTool[] {

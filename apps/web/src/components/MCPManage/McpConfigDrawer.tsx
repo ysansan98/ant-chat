@@ -16,7 +16,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { getMcpTestResult, testMcpServer } from '@/api/mcpApi'
 import { KeyValueList } from '@/components/Common/KeyValueList'
-import { EmojiPickerHoc } from '@/components/EmojiPiker'
 import { QuickImport } from './QuickImport'
 import { SelectTransportType } from './SelectTransportType'
 
@@ -31,7 +30,6 @@ interface McpConfigDrawerProps {
 
 interface McpConfigForm {
   serverName: string
-  icon: string
   transportType: 'stdio' | 'streamable-http' | ''
   command?: string
   args?: string
@@ -48,7 +46,6 @@ export default function McpConfigDrawer({ open, mode, defaultValues, renamePermi
   const _defaultValues: McpConfigForm = mode === 'edit' && defaultValues
     ? {
         serverName: defaultValues.serverName,
-        icon: defaultValues.icon,
         transportType: defaultValues.transportType as 'stdio' | 'streamable-http',
         command: (defaultValues as Record<string, unknown>).command as string | undefined,
         args: Array.isArray((defaultValues as Record<string, unknown>).args)
@@ -62,7 +59,6 @@ export default function McpConfigDrawer({ open, mode, defaultValues, renamePermi
         authType: (defaultValues as Record<string, unknown>).authType as 'none' | 'oauth' | undefined ?? 'none',
       }
     : {
-        icon: '⚒️',
         serverName: '',
         url: '',
         command: '',
@@ -143,7 +139,6 @@ export default function McpConfigDrawer({ open, mode, defaultValues, renamePermi
       const updateConfig = config.transportType === 'stdio'
         ? {
             serverName: config.serverName,
-            icon: config.icon,
             transportType: 'stdio' as const,
             command: config.command,
             args: config.args ? config.args.split(',').filter(Boolean) : [],
@@ -153,7 +148,6 @@ export default function McpConfigDrawer({ open, mode, defaultValues, renamePermi
           }
         : {
             serverName: config.serverName,
-            icon: config.icon,
             transportType: 'streamable-http' as const,
             url: config.url,
             headers: config.headers ? envArrayToObject(config.headers) : config.headers,
@@ -192,14 +186,12 @@ export default function McpConfigDrawer({ open, mode, defaultValues, renamePermi
                 setValue('command', e.command)
                 setValue('args', e.args?.join(','))
                 setValue('env', objectToArray(e.env))
-                setValue('icon', e.icon)
               }
               else {
                 setValue('serverName', e.serverName)
                 setValue('transportType', 'streamable-http')
                 setValue('url', e.url)
                 setValue('headers', objectToArray(e.headers))
-                setValue('icon', e.icon)
               }
             }}
             />
@@ -237,14 +229,6 @@ export default function McpConfigDrawer({ open, mode, defaultValues, renamePermi
                     <AlertDescription>保存新名称时，服务器配置与相关权限规则会由后端原子更新。</AlertDescription>
                   </Alert>
                 )}
-
-                <div className="flex flex-col gap-1">
-                  <FormItemLabel name="图标" tag="icon" />
-                  <EmojiPickerHoc
-                    value={watch('icon')}
-                    onChange={e => setValue('icon', e)}
-                  />
-                </div>
 
                 {transportType === 'streamable-http'
                   ? (
@@ -382,7 +366,7 @@ export default function McpConfigDrawer({ open, mode, defaultValues, renamePermi
                   <div className="p-3">
                     <div className="flex items-center gap-3 rounded-md bg-card p-3 text-card-foreground">
                       <Avatar className="size-9 rounded-full">
-                        <span>{previewConfig?.icon || previewConfig?.serverName?.[0]}</span>
+                        <span>{previewConfig?.serverName?.[0]}</span>
                       </Avatar>
                       <div>
                         <div className="text-xl">{previewConfig?.serverName}</div>
@@ -504,7 +488,6 @@ function toAddMcpConfig(config: McpConfigForm): AddMcpConfigSchema {
   return AddMcpConfigSchema.parse(config.transportType === 'stdio'
     ? {
         serverName: config.serverName,
-        icon: config.icon,
         transportType: 'stdio',
         command: config.command || '',
         args: config.args ? config.args.split(',').filter(Boolean) : [],
@@ -514,7 +497,6 @@ function toAddMcpConfig(config: McpConfigForm): AddMcpConfigSchema {
       }
     : {
         serverName: config.serverName,
-        icon: config.icon,
         transportType: 'streamable-http',
         url: config.url || '',
         headers: envArrayToObject(config.headers),

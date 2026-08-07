@@ -17,6 +17,12 @@ class FakeMcpClientHub {
   connections: TestConnection[] = []
   failNextConnect?: Error
   failNextDelete?: Error
+  /** 下一次 connectToServer 模拟 SDK 需要 OAuth 授权（返回 false）。 */
+  nextConnectNeedsAuth = false
+  pendingOAuthUrl: string | undefined
+  preparedOAuthState: string | undefined
+  invalidateOAuthCredentials = vi.fn(async () => {})
+  oauthRedirectUrl: string | undefined
   private readonly statusCallbacks: Array<(name: string, status: McpServer['status']) => void> = []
   private readonly errorCallbacks: Array<(name: string, error: Error) => void> = []
 
@@ -39,6 +45,10 @@ class FakeMcpClientHub {
       this.failNextConnect = undefined
       this.errorCallbacks.forEach(callback => callback(name, error))
       throw error
+    }
+    if (this.nextConnectNeedsAuth) {
+      this.nextConnectNeedsAuth = false
+      return false
     }
     this.connections = this.connections.filter(connection => connection.server.name !== name)
     this.connections.push({
@@ -77,11 +87,21 @@ class FakeMcpClientHub {
   }
 
   getPendingOAuthUrl(_name: string): string | undefined {
-    return undefined
+    return this.pendingOAuthUrl
+      ? `${this.pendingOAuthUrl}?state=${this.preparedOAuthState ?? ''}`
+      : undefined
   }
 
   getOAuthRedirectUrl(): string | undefined {
-    return 'http://localhost:9999/callback'
+    return this.oauthRedirectUrl ?? 'http://localhost:9999/callback'
+  }
+
+  prepareOAuthState(_name: string, state: string): void {
+    this.preparedOAuthState = state
+  }
+
+  setOAuthRedirectUrl(url: string): void {
+    this.oauthRedirectUrl = url
   }
 }
 
@@ -197,6 +217,132 @@ describe('mcp module 生命周期', () => {
 
     expect(repository.getMcpConfigByServerName('demo')).toBeNull()
     expect(hub.connections).toEqual([])
+  })
+
+  it('initialize 只启动启用状态的 server', async () => {
+    repository.addMcpConfig({ ...stdioConfig('disabled'), enabled: false })
+    repository.addMcpConfig(stdioConfig('enabled'))
+
+    await module.initialize()
+
+    expect(hub.connections.map(connection => connection.server.name)).toEqual(['enabled'])
+    expect(repository.getMcpConfigByServerName('disabled')).toEqual(expect.objectContaining({ enabled: false }))
+    expect(repository.getMcpConfigByServerName('enabled')).toEqual(expect.objectContaining({ enabled: true }))
+  })
+
+  it('setServerEnabled 禁用时停止连接并持久化，启用时立即连接', async () => {
+    await module.installServer({ config: stdioConfig('demo') })
+
+    await expect(module.setServerEnabled({ serverName: 'demo', enabled: false })).resolves.toEqual({
+      configSaved: true,
+      serverName: 'demo',
+      status: 'disconnected',
+      transportType: 'stdio',
+    })
+    expect(repository.getMcpConfigByServerName('demo')).toEqual(expect.objectContaining({ enabled: false }))
+    expect(hub.connections).toEqual([])
+
+    await expect(module.setServerEnabled({ serverName: 'demo', enabled: true })).resolves.toEqual({
+      serverName: 'demo',
+      status: 'connected',
+      transportType: 'stdio',
+    })
+    expect(repository.getMcpConfigByServerName('demo')).toEqual(expect.objectContaining({ enabled: true }))
+    expect(hub.connections.map(connection => connection.server.name)).toEqual(['demo'])
+  })
+
+  it('setServerEnabled 启用连接失败时保留已保存的配置', async () => {
+    await module.installServer({ config: stdioConfig('demo') })
+    await module.setServerEnabled({ serverName: 'demo', enabled: false })
+    hub.failNextConnect = new Error('connection refused')
+
+    await expect(module.setServerEnabled({ serverName: 'demo', enabled: true })).resolves.toEqual({
+      configSaved: true,
+      error: 'connection refused',
+      serverName: 'demo',
+      status: 'disconnected',
+      transportType: 'stdio',
+    })
+
+    expect(repository.getMcpConfigByServerName('demo')).toEqual(expect.objectContaining({ enabled: true }))
+  })
+
+  it('oauth 凭据失效时清除凭据并重新发起浏览器授权', async () => {
+    const openAuthorization = vi.fn(async () => {})
+    module = new McpModule({
+      data: { mcpSettingsRepository: repository, permissionsFileStore },
+      events,
+      logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
+      oauthCallbackHost: {
+        redirectUrl: 'http://localhost:9999/callback',
+        openAuthorization,
+        subscribeCallback: vi.fn(),
+      },
+      secretStore: {},
+    } as never, hub as never)
+
+    const oauthConfig: McpConfigSchema = {
+      enabled: true,
+      serverId: crypto.randomUUID(),
+      serverName: 'demo',
+      transportType: 'streamable-http',
+      url: 'https://mcp.example.com',
+      authType: 'oauth',
+    }
+    await module.installServer({ config: oauthConfig })
+    await module.stopServer({ serverName: 'demo' })
+
+    hub.failNextConnect = new Error('Error POSTing to endpoint: {"message":"Unauthorized"}')
+    hub.nextConnectNeedsAuth = true
+    hub.pendingOAuthUrl = 'https://auth.example.com/authorize'
+
+    await expect(module.startServer({ serverName: 'demo' })).resolves.toEqual({
+      serverName: 'demo',
+      status: 'connecting',
+      error: 'OAuth authorization required',
+      transportType: 'streamable-http',
+    })
+
+    expect(hub.invalidateOAuthCredentials).toHaveBeenCalledWith('demo')
+    expect(hub.preparedOAuthState).toBeTruthy()
+    expect(openAuthorization).toHaveBeenCalledWith(expect.stringContaining('state='))
+  })
+
+  it('应用启动自动连接 oauth server 需要授权时不弹窗，保持未运行', async () => {
+    const openAuthorization = vi.fn(async () => {})
+    const statuses: unknown[] = []
+    events.on('mcp:status-changed', event => statuses.push(event))
+    module = new McpModule({
+      data: { mcpSettingsRepository: repository, permissionsFileStore },
+      events,
+      logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
+      oauthCallbackHost: {
+        redirectUrl: 'http://localhost:9999/callback',
+        openAuthorization,
+        subscribeCallback: vi.fn(),
+      },
+      secretStore: {},
+    } as never, hub as never)
+
+    repository.addMcpConfig({
+      enabled: true,
+      serverName: 'demo',
+      transportType: 'streamable-http',
+      url: 'https://mcp.example.com',
+      authType: 'oauth',
+    })
+    hub.nextConnectNeedsAuth = true
+    hub.pendingOAuthUrl = 'https://auth.example.com/authorize'
+
+    await module.initialize()
+
+    expect(openAuthorization).not.toHaveBeenCalled()
+    expect(hub.connections).toEqual([])
+    expect(statuses).toContainEqual(expect.objectContaining({
+      serverName: 'demo',
+      status: 'disconnected',
+      error: '需要授权后才能连接，请在 MCP 设置页点击启动重新授权',
+    }))
   })
 
   it('删除 server 时按输入保留或删除同名权限规则', async () => {
@@ -331,7 +477,7 @@ describe('mcp module 生命周期', () => {
       const existingConn = this.connections.find(c => c.server.name === name)
       const config = existingConn
         ? JSON.parse(existingConn.server.config) as McpConfigSchema
-        : { serverId: crypto.randomUUID(), serverName: name, icon: '', transportType: 'streamable-http' as const, url: 'https://mcp.example.com' }
+        : { enabled: true, serverId: crypto.randomUUID(), serverName: name, transportType: 'streamable-http' as const, url: 'https://mcp.example.com' }
       return mockConnect.call(this, name, config)
     })
     vi.spyOn(McpConnectionManager.prototype, 'deleteConnection').mockImplementation(async () => true)
@@ -357,9 +503,9 @@ describe('mcp module 生命周期', () => {
     } as never, hub as never)
 
     const oauthConfig: McpConfigSchema = {
+      enabled: true,
       serverId: crypto.randomUUID(),
       serverName: 'oauth-server',
-      icon: '🔑',
       transportType: 'streamable-http',
       url: 'https://mcp.example.com',
       authType: 'oauth',
@@ -384,7 +530,7 @@ function stdioConfig(serverName: string): McpConfigSchema {
     args: ['server.js'],
     command: 'node',
     description: '测试 server',
-    icon: 'terminal',
+    enabled: true,
     serverId: crypto.randomUUID(),
     serverName,
     transportType: 'stdio',

@@ -4,10 +4,11 @@ export const BaseMcpConfig = z.object({
   /** 持久化身份；显示名、配置 key 和权限展示都不得承担该职责。 */
   serverId: z.uuid({ error: 'serverId 必须是有效 UUID' }),
   serverName: z.string({ error: 'serverName 是必填项' }),
-  icon: z.string(),
   description: z.string().optional().nullable(),
   timeout: z.number().optional(),
   transportType: z.enum(['stdio', 'streamable-http']),
+  /** 是否启用：禁用后不随应用启动自动连接，也不会保持运行。 */
+  enabled: z.boolean().default(true),
 })
 
 export const StreamableHttpMcpConfig = BaseMcpConfig.extend({
@@ -54,10 +55,10 @@ export type UpdateMcpConfigSchema = z.infer<typeof UpdateMcpConfigSchema>
 /** MCP 生命周期 module 接收的编辑 patch；最终完整配置由 module 合并并校验。 */
 export interface McpServerEditPatch {
   serverName?: string
-  icon?: string
   description?: string | null
   timeout?: number
   transportType?: 'stdio' | 'streamable-http'
+  enabled?: boolean
   command?: string
   args?: string[]
   env?: Record<string, unknown>

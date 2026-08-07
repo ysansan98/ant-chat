@@ -29,6 +29,10 @@ export class McpModule implements RuntimeModuleMethods<'mcp'> {
     private readonly createClientHub: () => McpConnectionManager = () => new McpConnectionManager(core.logger, undefined, new McpOAuthCredentialStore(core.secretStore)),
   ) {
     this.clientHub = clientHub
+    // OAuth transport 需要回调地址构造 authProvider；缺少时 SDK 收到 401 无法进入授权流程。
+    if (core.oauthCallbackHost) {
+      this.clientHub.setOAuthRedirectUrl(core.oauthCallbackHost.redirectUrl)
+    }
     this.removeOAuthCallbackHandler = registerOAuthCallbackHandler(core.oauthCallbackHost, async (params) => {
       const consumed = this.oauthCoordinator.consumeCallback(params)
       if (!consumed)
@@ -73,7 +77,12 @@ export class McpModule implements RuntimeModuleMethods<'mcp'> {
   }
 
   initialize() {
-    return Promise.all(this.core.data.mcpSettingsRepository.getMcpConfigs().map(config => this.connect(config))).then(() => undefined)
+    return Promise.all(
+      this.core.data.mcpSettingsRepository.getMcpConfigs()
+        .filter(config => config.enabled !== false)
+        // 应用启动的自动连接不弹交互式 OAuth 授权；需要授权时保持未运行，由用户手动启动。
+        .map(config => this.connect(config, false, false)),
+    ).then(() => undefined)
   }
 
   async dispose() {
@@ -264,6 +273,30 @@ export class McpModule implements RuntimeModuleMethods<'mcp'> {
     return this.disconnect(this.requireConfig(input.serverName))
   }
 
+  /** 启用/禁用持久化开关；启用立即启动，禁用立即停止，与生命周期状态保持一致。 */
+  @Method()
+  async setServerEnabled(input: AppRpcInput<'mcp.setServerEnabled'>): Promise<McpServerLifecycleResult> {
+    const config = this.requireConfig(input.serverName)
+    const next = this.core.data.mcpSettingsRepository.replaceMcpConfig(input.serverName, {
+      ...config,
+      enabled: input.enabled,
+    })
+    this.emitChanged(input.serverName)
+    if (!input.enabled) {
+      const stopped = await this.disconnect(next)
+      return { ...stopped, configSaved: true }
+    }
+    const status = this.getConnectionStatus(input.serverName)
+    if (status === 'connected' || status === 'connecting')
+      return this.result(next, status)
+    if (status) {
+      const stopped = await this.disconnect(next)
+      if (stopped.error)
+        return { ...stopped, configSaved: true }
+    }
+    return this.connect(next, true)
+  }
+
   /** 使用隔离连接预检未保存配置，不污染持久化配置和正式连接状态。 */
   @Method()
   async testServer(input: AppRpcInput<'mcp.testServer'>): Promise<McpServerTestResult> {
@@ -357,18 +390,46 @@ export class McpModule implements RuntimeModuleMethods<'mcp'> {
     return { serverName: session.config.serverName, tools: [], oauthRequired: true, attemptId: attempt.id }
   }
 
-  private async connect(config: McpConfigSchema, configSaved = false): Promise<McpServerLifecycleResult> {
+  private async connect(
+    config: McpConfigSchema,
+    configSaved = false,
+    allowOAuthPrompt = true,
+  ): Promise<McpServerLifecycleResult> {
     this.lifecycleOperations.add(config.serverName)
     try {
-      const oauthAttempt = config.transportType === 'streamable-http' && config.authType === 'oauth' && this.core.oauthCallbackHost
-        ? this.oauthCoordinator.begin({ purpose: 'persistent', serverId: config.serverId })
-        : undefined
-      if (oauthAttempt)
-        this.clientHub.prepareOAuthState(config.serverName, oauthAttempt.state)
+      return await this.tryConnect(config, configSaved, false, allowOAuthPrompt)
+    }
+    finally {
+      this.lifecycleOperations.delete(config.serverName)
+    }
+  }
+
+  /**
+   * 单次连接尝试；OAuth 凭据失效时（如 token 过期且 refresh 失败）清除凭据后
+   * 重试一次，让 SDK 走完整浏览器授权而不是把 401 当普通连接失败。
+   */
+  private async tryConnect(
+    config: McpConfigSchema,
+    configSaved: boolean,
+    reauthAttempted: boolean,
+    allowOAuthPrompt: boolean,
+  ): Promise<McpServerLifecycleResult> {
+    const oauthAttempt = config.transportType === 'streamable-http' && config.authType === 'oauth' && this.core.oauthCallbackHost
+      ? this.oauthCoordinator.begin({ purpose: 'persistent', serverId: config.serverId })
+      : undefined
+    if (oauthAttempt)
+      this.clientHub.prepareOAuthState(config.serverName, oauthAttempt.state)
+    try {
       const connected = await this.clientHub.connectToServer(config.serverName, config)
       if (!connected) {
         const authorizationUrl = this.clientHub.getPendingOAuthUrl(config.serverName)
         if (oauthAttempt && authorizationUrl) {
+          if (!allowOAuthPrompt) {
+            this.oauthCoordinator.cancel(oauthAttempt.id)
+            await this.clientHub.deleteConnection(config.serverName).catch(() => false)
+            this.emitStatus(config.serverName, 'disconnected', '需要授权后才能连接，请在 MCP 设置页点击启动重新授权')
+            return this.result(config, 'disconnected', '需要授权后才能连接，请在 MCP 设置页点击启动重新授权', configSaved)
+          }
           this.oauthCoordinator.markAuthorizationRequired({ attemptId: oauthAttempt.id, authorizationUrl })
           await this.core.oauthCallbackHost!.openAuthorization(authorizationUrl)
         }
@@ -381,12 +442,13 @@ export class McpModule implements RuntimeModuleMethods<'mcp'> {
     }
     catch (error) {
       await this.clientHub.deleteConnection(config.serverName).catch(() => false)
+      if (!reauthAttempted && allowOAuthPrompt && isOAuthCredentialFailure(config, error)) {
+        await this.clientHub.invalidateOAuthCredentials(config.serverName).catch(() => false)
+        return this.tryConnect(config, configSaved, true, true)
+      }
       const message = error instanceof Error ? error.message : String(error)
       this.emitStatus(config.serverName, 'disconnected', message)
       return this.result(config, 'disconnected', message, configSaved)
-    }
-    finally {
-      this.lifecycleOperations.delete(config.serverName)
     }
   }
 
@@ -484,9 +546,22 @@ export class McpModule implements RuntimeModuleMethods<'mcp'> {
 }
 
 function mergeConfig(current: McpConfigSchema, updates: McpServerEditPatch): McpConfigSchema {
-  return McpConfigValidator.parse({ ...current, ...updates })
+  return McpConfigValidator.parse({ ...current, ...stripUndefined(updates) })
 }
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+/** 显式 undefined 的 patch 字段不得覆盖现有配置（例如编辑表单未提交的 enabled）。 */
+function stripUndefined<T extends object>(value: T): T {
+  return Object.fromEntries(Object.entries(value).filter(([, v]) => v !== undefined)) as T
+}
+
+/** 仅对 OAuth server 且错误明确指向凭据失效时触发重新授权，避免误清网络故障的凭据。 */
+function isOAuthCredentialFailure(config: McpConfigSchema, error: unknown): boolean {
+  if (!('authType' in config) || config.authType !== 'oauth')
+    return false
+  const message = error instanceof Error ? error.message : String(error)
+  return /unauthorized|401|authentication|invalid grant|expired/i.test(message)
 }

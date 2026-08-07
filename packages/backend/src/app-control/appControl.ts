@@ -193,7 +193,6 @@ export class AppControl {
             env: command.env,
             url: command.url,
             headers: command.headers,
-            icon: command.icon,
             description: command.description,
             timeout: command.timeout,
           }),
@@ -294,25 +293,24 @@ function toMcpConnection(name: string, config: string, connection?: McpConnectio
 }
 
 function toMcpInstallConfig(command: Extract<McpCommand, { action: 'install' }>): AddMcpConfigSchema {
-  const icon = command.icon ?? (command.transportType === 'stdio' ? 'terminal' : 'globe')
   if (command.transportType === 'stdio') {
     return {
+      enabled: true,
       serverName: command.serverName,
       transportType: command.transportType,
       command: command.command,
       args: command.args,
       env: command.env,
-      icon,
       description: command.description,
       timeout: command.timeout,
     }
   }
   return {
+    enabled: true,
     serverName: command.serverName,
     transportType: command.transportType,
     url: command.url,
     headers: command.headers,
-    icon,
     description: command.description,
     timeout: command.timeout,
   }

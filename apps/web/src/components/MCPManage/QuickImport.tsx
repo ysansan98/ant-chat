@@ -112,7 +112,7 @@ function parseMcpServerJsonText(text: string): AddMcpConfigSchema {
 
   const [serverName, config] = entries[0]
 
-  const options = { ...config, icon: '🛠️', serverName, transportType: 'stdio' }
+  const options = { ...config, serverName, transportType: 'stdio' }
 
   if (config.url) {
     options.transportType = 'streamable-http'

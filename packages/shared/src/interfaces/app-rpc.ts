@@ -146,6 +146,7 @@ export interface AppRpcContract {
   'mcp.deleteServer': RpcEndpoint<{ serverName: string, deletePermissionRules: boolean }, McpServerLifecycleResult>
   'mcp.startServer': RpcEndpoint<{ serverName: string }, McpServerLifecycleResult>
   'mcp.stopServer': RpcEndpoint<{ serverName: string }, McpServerLifecycleResult>
+  'mcp.setServerEnabled': RpcEndpoint<{ serverName: string, enabled: boolean }, McpServerLifecycleResult>
   'mcp.testServer': RpcEndpoint<{ config: AddMcpConfigSchema }, McpServerTestResult>
   'mcp.getTestResult': RpcEndpoint<{ attemptId: string }, McpServerTestResult>
   'mcp.getConnections': RpcEndpoint<undefined, McpConnection[]>

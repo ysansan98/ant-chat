@@ -4,10 +4,11 @@ import { Plus } from 'lucide-react'
 import React from 'react'
 import { toast } from 'sonner'
 import permissionsApi from '@/api/permissionsApi'
-import { deleteMcpServerAction, editMcpServerAction, initializeMcpConfigs, installMcpServerAction, startMcpServerAction, stopMcpServerAction, useMcpConfigsStore } from '@/store/mcpConfigs'
+import { deleteMcpServerAction, editMcpServerAction, initializeMcpConfigs, installMcpServerAction, selectMcpServer, setMcpServerEnabledAction, startMcpServerAction, stopMcpServerAction, useMcpConfigsStore } from '@/store/mcpConfigs'
 import { SettingsPageLayout } from '../SettingsPageLayout'
 import { MCPList } from './MCPList'
 import { countMcpRules } from './mcpPermissionRules'
+import { McpToolsPanel } from './McpToolsPanel'
 
 const McpConfigDrawer = React.lazy(() => import('@/components/MCPManage/McpConfigDrawer'))
 
@@ -17,6 +18,7 @@ export default function MCPManage() {
   const [editData, setEditData] = React.useState<McpConfigSchema | null>(null)
   const [renamePermissionRuleCount, setRenamePermissionRuleCount] = React.useState(0)
   const data = useMcpConfigsStore(state => state.mcpConfigs)
+  const selectedServerName = useMcpConfigsStore(state => state.selectedServerName)
 
   React.useEffect(() => {
     initializeMcpConfigs()
@@ -28,58 +30,79 @@ export default function MCPManage() {
       description="管理模型上下文协议服务器及其连接状态。"
       variant="wide"
     >
-      <Button
-        onClick={() => {
-          setMode('add')
-          setEditData(null)
-          setOpen(true)
-        }}
-        className="self-start"
-      >
-        <Plus className="size-3.5" />
-        添加服务器
-      </Button>
-      <MCPList
-        items={data}
-        onTriggerAction={async (action, item, options) => {
-          switch (action) {
-            case 'delete': {
-              const result = await deleteMcpServerAction(item.serverName, options?.deletePermissionRules ?? false)
-              if (result.error)
-                throw new Error(result.error)
-              break
-            }
+      <div className="flex min-h-0 gap-5">
+        <div className="flex w-80 shrink-0 flex-col">
+          <Button
+            onClick={() => {
+              setMode('add')
+              setEditData(null)
+              setOpen(true)
+            }}
+            className="self-start"
+          >
+            <Plus className="size-3.5" />
+            添加服务器
+          </Button>
+          <MCPList
+            items={data}
+            selectedServerName={selectedServerName}
+            onSelect={selectMcpServer}
+            onTriggerAction={async (action, item, options) => {
+              switch (action) {
+                case 'delete': {
+                  const result = await deleteMcpServerAction(item.serverName, options?.deletePermissionRules ?? false)
+                  if (result.error)
+                    throw new Error(result.error)
+                  break
+                }
 
-            case 'start': {
-              const result = await startMcpServerAction(item.serverName)
-              if (result.error)
-                toast.error(result.error)
-              break
-            }
-            case 'stop': {
-              const result = await stopMcpServerAction(item.serverName)
-              if (result.error)
-                toast.error(result.error)
-              break
-            }
-            case 'edit': {
-              try {
-                const permissions = await permissionsApi.list()
-                setRenamePermissionRuleCount(countMcpRules(permissions, item.serverName))
-                setEditData(item)
-                setMode('edit')
-                setOpen(true)
+                case 'enable': {
+                  const result = await setMcpServerEnabledAction(item.serverName, true)
+                  if (result.error)
+                    toast.error(result.configSaved ? `配置已保存，但启动失败：${result.error}` : result.error)
+                  break
+                }
+                case 'disable': {
+                  const result = await setMcpServerEnabledAction(item.serverName, false)
+                  if (result.error)
+                    toast.error(result.error)
+                  break
+                }
+                case 'start': {
+                  const result = await startMcpServerAction(item.serverName)
+                  if (result.error)
+                    toast.error(result.error)
+                  break
+                }
+                case 'stop': {
+                  const result = await stopMcpServerAction(item.serverName)
+                  if (result.error)
+                    toast.error(result.error)
+                  break
+                }
+                case 'edit': {
+                  try {
+                    const permissions = await permissionsApi.list()
+                    setRenamePermissionRuleCount(countMcpRules(permissions, item.serverName))
+                    setEditData(item)
+                    setMode('edit')
+                    setOpen(true)
+                  }
+                  catch (error) {
+                    toast.error(error instanceof Error ? error.message : '读取 MCP 权限失败')
+                  }
+                  break
+                }
+                default:
+                  break
               }
-              catch (error) {
-                toast.error(error instanceof Error ? error.message : '读取 MCP 权限失败')
-              }
-              break
-            }
-            default:
-              break
-          }
-        }}
-      />
+            }}
+          />
+        </div>
+        <div className="min-w-0 flex-1">
+          <McpToolsPanel />
+        </div>
+      </div>
       <React.Suspense>
         <McpConfigDrawer
           key={editData?.serverName || mode}

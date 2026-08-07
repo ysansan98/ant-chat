@@ -103,7 +103,6 @@ const McpInstallStdioCommandSchema = z.object({
   command: NonEmptyStringSchema,
   args: z.array(z.string()).optional(),
   env: OptionalRecordOfStringsSchema,
-  icon: z.string().optional(),
   description: z.string().optional(),
   timeout: z.number().positive().optional(),
 })
@@ -114,7 +113,6 @@ const McpInstallStreamableHttpCommandSchema = z.object({
   transportType: z.literal('streamable-http'),
   url: z.string().url(),
   headers: OptionalRecordOfStringsSchema,
-  icon: z.string().optional(),
   description: z.string().optional(),
   timeout: z.number().positive().optional(),
 })
@@ -128,7 +126,6 @@ const McpEditCommandSchema = z.object({
   env: OptionalRecordOfStringsSchema,
   url: z.string().url().optional(),
   headers: OptionalRecordOfStringsSchema,
-  icon: z.string().optional(),
   description: z.string().nullable().optional(),
   timeout: z.number().positive().optional(),
 })

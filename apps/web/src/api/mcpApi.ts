@@ -48,6 +48,10 @@ export function stopMcpServer(serverName: string): Promise<McpServerLifecycleRes
   return getAppRpcClient().call('mcp.stopServer', { serverName })
 }
 
+export function setMcpServerEnabled(serverName: string, enabled: boolean): Promise<McpServerLifecycleResult> {
+  return getAppRpcClient().call('mcp.setServerEnabled', { serverName, enabled })
+}
+
 export function testMcpServer(config: AddMcpConfigSchema): Promise<McpServerTestResult> {
   return getAppRpcClient().call('mcp.testServer', { config })
 }

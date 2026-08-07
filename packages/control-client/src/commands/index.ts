@@ -259,7 +259,6 @@ function parseMcp(args: string[]): AppControlCommand {
       if (transportType !== 'stdio' && transportType !== 'streamable-http') {
         throw new Error('--transport-type must be stdio or streamable-http')
       }
-      const icon = parsed.icon
       const description = parsed.description
       const timeout = parsed.timeout ? Number(parsed.timeout) : undefined
       if (transportType === 'stdio') {
@@ -276,7 +275,6 @@ function parseMcp(args: string[]): AppControlCommand {
             parsed.env ? parseKeyValuePairs(parsed.env) : undefined,
             parsed.envFromEnv ? readKeyValuePairsFromEnv(parsed.envFromEnv, '--env-from-env') : undefined,
           ),
-          icon,
           description,
           timeout,
         }
@@ -293,7 +291,6 @@ function parseMcp(args: string[]): AppControlCommand {
           parsed.headers ? parseKeyValuePairs(parsed.headers) : undefined,
           parsed.headersFromEnv ? readKeyValuePairsFromEnv(parsed.headersFromEnv, '--headers-from-env') : undefined,
         ),
-        icon,
         description,
         timeout,
       }
@@ -324,7 +321,6 @@ function parseMcp(args: string[]): AppControlCommand {
           parsed.headers ? parseKeyValuePairs(parsed.headers) : undefined,
           parsed.headersFromEnv ? readKeyValuePairsFromEnv(parsed.headersFromEnv, '--headers-from-env') : undefined,
         ),
-        icon: parsed.icon,
         description: parsed.description,
         timeout: parsed.timeout ? Number(parsed.timeout) : undefined,
       }

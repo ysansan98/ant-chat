@@ -43,7 +43,7 @@ export function useAppEventListener() {
     const unsubscribes = [
       eventSubscriptions.subscribe('common:Notification', handle),
       eventSubscriptions.subscribe('mcp:status-changed', (payload) => {
-        onMcpServerStatusChanged(payload.serverName, payload.status)
+        onMcpServerStatusChanged(payload.serverName, payload.status, payload.error)
       }),
       eventSubscriptions.subscribe('conversation:updated', (payload) => {
         upsertConversationAction(payload.conversation)

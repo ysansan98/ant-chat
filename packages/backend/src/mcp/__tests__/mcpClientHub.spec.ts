@@ -141,4 +141,30 @@ describe('mcp OAuth provider 凭据边界', () => {
     expect(provider.codeVerifier()).toBe('ephemeral-verifier')
     expect(() => new McpOAuthProvider('https://mcp.example.com/v1', 'http://127.0.0.1/callback').codeVerifier()).toThrow('no code verifier available')
   })
+
+  it('无 currentIssuer 时从 discovery 索引恢复 issuer 后清除全部凭据', async () => {
+    const values = new Map<string, string>()
+    const secretStore = {
+      deleteMcpOAuthCredential: vi.fn(async ({ endpoint, issuer }: { endpoint: string, issuer: string }) => {
+        values.delete(`${endpoint}\u0000${issuer}`)
+      }),
+      getMcpOAuthCredential: vi.fn(async ({ endpoint, issuer }: { endpoint: string, issuer: string }) => values.get(`${endpoint}\u0000${issuer}`) ?? null),
+      saveMcpOAuthCredential: vi.fn(async ({ endpoint, issuer, value }: { endpoint: string, issuer: string, value: string }) => {
+        values.set(`${endpoint}\u0000${issuer}`, value)
+      }),
+    }
+    const endpoint = 'https://mcp.example.com/v1'
+    const issuer = 'https://issuer.example.com'
+    const credentialStore = new McpOAuthCredentialStore(secretStore)
+    const first = new McpOAuthProvider(endpoint, 'http://127.0.0.1/callback', undefined, credentialStore)
+    await first.saveTokens({ access_token: 'access-token', refresh_token: 'refresh-token', issuer, token_type: 'bearer' }, { issuer })
+    await first.saveDiscoveryState({ authorizationServerUrl: issuer } as never)
+
+    // 模拟新实例：从未通过 ctx 加载过 token，currentIssuer 为空。
+    const provider = new McpOAuthProvider(endpoint, 'http://127.0.0.1/callback', undefined, credentialStore)
+    await provider.invalidateCredentials('all')
+
+    await expect(provider.tokens({ issuer })).resolves.toBeUndefined()
+    expect(secretStore.deleteMcpOAuthCredential).toHaveBeenCalledWith(expect.objectContaining({ endpoint, issuer }))
+  })
 })
