@@ -65,7 +65,6 @@ const config: Configuration = {
   },
   files: [
     'out/**/*',
-    '!node_modules/**',
     'node_modules/better-sqlite3',
 
     'node_modules/electron-store',
