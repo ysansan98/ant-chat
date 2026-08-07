@@ -99,7 +99,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: desktop-${{ matrix.os }}
-          path: apps/desktop/release
+          path: |
+            apps/desktop/release/*/*.dmg
+            apps/desktop/release/*/*.exe
+            apps/desktop/release/*/*.zip
+            apps/desktop/release/*/latest*.yml
+            apps/desktop/release/SHA256SUMS-*.txt
           if-no-files-found: error
 
   release:
