@@ -25,8 +25,8 @@
     "analyze:main": "VISUALIZER_MAIN=true pnpm build",
     "rebuild:electron": "electron-rebuild -f -w better-sqlite3,keytar",
     "build": "cross-env NODE_ENV=production electron-vite build",
-    "build:win": "pnpm rg:prepare && cross-env NODE_ENV=production electron-vite build && electron-builder --win",
-    "build:mac": "pnpm rg:prepare && cross-env NODE_ENV=production electron-vite build && electron-builder --mac",
+    "build:win": "pnpm rg:prepare && cross-env NODE_ENV=production electron-vite build && electron-builder --win --publish never",
+    "build:mac": "pnpm rg:prepare && cross-env NODE_ENV=production electron-vite build && electron-builder --mac --publish never",
     "lint": "eslint .",
     "clean": "rm -rf node_modules out release"
   },

@@ -56,11 +56,11 @@ jobs:
 
       - name: Build Windows package
         if: matrix.os == 'windows-latest'
-        run: pnpm -F @ant-chat/desktop build:win -- --publish never
+        run: pnpm -F @ant-chat/desktop build:win
 
       - name: Build macOS package
         if: matrix.os == 'macos-latest'
-        run: pnpm -F @ant-chat/desktop build:mac -- --publish never
+        run: pnpm -F @ant-chat/desktop build:mac
 
       - name: Verify and checksum artifacts
         shell: bash
