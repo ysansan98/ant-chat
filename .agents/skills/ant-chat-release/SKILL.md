@@ -43,8 +43,25 @@ description: 在 ant-chat 仓库执行版本发布或排查发布失败时使用
 2. **`npm pack` 报 `EUNSUPPORTEDPROTOCOL catalog:`**：发布物不能含 pnpm `catalog:` 死引用。必须用 `pnpm pack`（自动展开为实际版本），不要用 `npm pack`。
 3. **`__dirname` ReferenceError（ESM bundle）**：`@larksuiteoapi/node-sdk` 的 user-agent 模块用 `__dirname`，需 tsdown `external` + 声明运行时依赖（按 CJS 加载）。
 4. **Ubuntu smoke 报 `libsecret-1.so.0`**：keytar 运行时依赖。`release-npm.yml` 需 `apt-get install libsecret-1-0`（与 `ci.yml` 一致）。
-5. **npm publish 404**：全新包名需先在 npmjs.com 配置 Trusted Publisher（GitHub Actions / `ysansan98` / `ant-chat` / `release-npm.yml` / Allow npm publish）。已发布版本 CI 会检测并跳过。
+5. **npm publish 404（OIDC Trusted Publishing）**：`npm publish --provenance` 报
+   `404 The requested resource 'ant-chat@<版本>' could not be found or you do not have permission`
+   时按序排查：
+   - **OIDC claims 与 npmjs 配置逐项一致**。registry 按 GitHub OIDC 的 `job_workflow_ref`
+     （形如 `ysansan98/ant-chat/.github/workflows/release-npm.yml@refs/tags/...`）匹配：
+     Organization/user = GitHub 用户名（**`ysansan98`，不是 npm 用户名 `ysansan`**）；
+     Repository = 仓库名；Workflow = **只填文件名**（`.github/workflows/` 前缀不要）；
+     Environment = 与 workflow 的 `environment:` 一致（无则**留空**）；
+     Allowed actions = **必须勾选 npm publish**（2026-05-20 后创建/编辑的配置必须显式选择）。
+     npm 保存时不校验配置，错误只在发布时暴露。
+   - **package.json 必须有 `repository` 字段**且 normalize 后匹配 GitHub 仓库
+     （`git+https://github.com/ysansan98/ant-chat.git`）；缺失会被 registry 拒绝。
+   - 排查技巧：临时在 workflow 加一步打印 OIDC claims（
+     `curl -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=github-actions"`
+     后解 JWT payload 看 `repository`/`job_workflow_ref`/`environment`），与 npmjs 配置对比。
+   - 已发布版本 CI 会检测并跳过（`npm view ant-chat@<版本>` 命中时走「已发布」分支）。
 6. **本地发布**：仓库 `.npmrc` 指向 npmmirror（只读镜像），必须显式 `--registry=https://registry.npmjs.org/`；账号 2FA 为 auth-and-writes，发布需 `--otp` 或 bypass 2FA 的 granular token。
+7. **CI 里不要经过 npmmirror**：项目 `.npmrc` 的 `registry`/`electron_mirror`/`electron_builder_binaries_mirror` 是本地（中国大陆）加速配置；GitHub Actions runner 在境外，大文件（如 electron zip ~119MB）从 npmmirror CDN 下载不稳定（`unexpected EOF`、下载完成但解压缺文件）。electron-builder 的 app-builder（Go）**只读环境变量**解析镜像，优先级：
+   `electronDownload.mirror` 配置 > `NPM_CONFIG_ELECTRON_MIRROR` > `npm_config_electron_mirror`（npm/pnpm 会从项目 .npmrc 导出）> `ELECTRON_MIRROR` > GitHub 官方默认。修复：`ci.yml`/`release.yml`/`release-npm.yml` 在 checkout 后移除项目 `.npmrc` 的 registry/镜像行并回指 npmjs（`grep -v -E '^(registry|sass_binary_site|electron_mirror|electron_builder_binaries_mirror)=' .npmrc`）。不要用 `npm config set electron_mirror ...`——npm 11 会报 `electron_mirror is not a valid npm option`。
 
 ## 详细参考
 
