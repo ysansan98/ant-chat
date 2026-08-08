@@ -1,5 +1,13 @@
 # @ant-chat/web
 
+## 1.0.0-alpha.3
+
+### Patch Changes
+
+- Updated dependencies [77b841a]
+- Updated dependencies [37a7bef]
+  - @ant-chat/shared@1.0.0-alpha.3
+
 ## 1.0.0-alpha.2
 
 ### Minor Changes
