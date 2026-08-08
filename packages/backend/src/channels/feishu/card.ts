@@ -104,7 +104,18 @@ function buildExecutionCard(content: Extract<FeishuCardContent, { kind: 'executi
       '飞书卡片仅支持本次批准；记住授权请在 Ant Chat 桌面端操作。',
     ].join('\n\n')))
   }
-  elements.push(markdown(`---\n模型：${content.model.provider} / ${content.model.model}`))
+  // 底部服务商/模型信息用最小字号（text_size: notation，约 12px）弱化展示，
+  // 不引入 note 组件：飞书卡片 2.0 中 note 标签已废弃。
+  elements.push(markdown('---'))
+  elements.push({
+    tag: 'div',
+    text: {
+      tag: 'plain_text',
+      content: `${content.model.provider} / ${content.model.model}`,
+      text_size: 'notation',
+      text_color: 'grey',
+    },
+  })
   elements.push(...(content.actions ?? []).map(actionButton))
   return createCard(meta.title, meta.template, executionSummary(content), elements)
 }

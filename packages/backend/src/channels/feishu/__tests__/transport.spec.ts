@@ -86,7 +86,16 @@ describe('飞书 transport 出站行为', () => {
       header: { title: { content: '正在执行' }, template: 'blue' },
       body: { elements: expect.arrayContaining([
         { tag: 'markdown', content: '**处理中**' },
-        { tag: 'markdown', content: '---\n模型：服务一 / 模型一' },
+        { tag: 'markdown', content: '---' },
+        {
+          tag: 'div',
+          text: {
+            tag: 'plain_text',
+            content: '服务一 / 模型一',
+            text_size: 'notation',
+            text_color: 'grey',
+          },
+        },
       ]) },
     })
     expect(sdk.patchMessage).toHaveBeenCalledWith(expect.objectContaining({
