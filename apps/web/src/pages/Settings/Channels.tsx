@@ -441,9 +441,10 @@ function ChannelSlotRow({ slot, channel, expanded, pairingRequests, onConnect, o
       </CardHeader>
       {channel && expanded && <CardContent><PairingRequests requests={pairingRequests} onChange={onPairingChange} /></CardContent>}
       {channel && (
-        <CardFooter className="justify-between gap-2">
+        <CardFooter className="justify-end gap-2">
+          {/* 微信无配对流程不渲染该按钮，操作组随之保持右侧对齐。 */}
           {slot.type !== 'weixin' && (
-            <Button variant="ghost" size="sm" onClick={onTogglePairings} className="transition-colors hover:bg-accent">
+            <Button variant="ghost" size="sm" onClick={onTogglePairings} className="me-auto transition-colors hover:bg-accent">
               配对请求
               {pairingRequests.length > 0 && <Badge variant="secondary" className="ml-1">{pairingRequests.length}</Badge>}
               <ChevronDown className={`size-4 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />

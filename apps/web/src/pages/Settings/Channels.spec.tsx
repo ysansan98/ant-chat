@@ -91,6 +91,20 @@ describe('channelsPage 平台槽位布局', () => {
     expect(screen.getByRole('button', { name: '拒绝' })).toBeInTheDocument()
   })
 
+  it('微信行不展示配对请求，仍保留重新授权与删除入口', async () => {
+    vi.mocked(listChannels).mockResolvedValue([channelView({ channelType: 'weixin', displayName: '我的微信' })])
+    vi.mocked(listChannelPairings).mockResolvedValue([])
+
+    render(<ChannelsPage />)
+
+    expect(await screen.findByText('我的微信')).toBeInTheDocument()
+    // 微信只连接本机 owner 的单个微信，无配对流程：不渲染按钮也不发起接口调用。
+    expect(screen.queryByRole('button', { name: /配对请求/ })).not.toBeInTheDocument()
+    expect(listChannelPairings).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: '重新授权' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '删除频道' })).toBeInTheDocument()
+  })
+
   it('删除频道前需要确认', async () => {
     vi.mocked(listChannels).mockResolvedValue([channelView()])
     vi.mocked(listChannelPairings).mockResolvedValue([])
