@@ -43,7 +43,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/ant-chat-package"
           cd packages/ant-chat
-          npm pack --pack-destination "$RUNNER_TEMP/ant-chat-package"
+          pnpm pack --pack-destination "$RUNNER_TEMP/ant-chat-package"
 
       - name: Verify tarball contents
         shell: bash

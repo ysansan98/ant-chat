@@ -42,6 +42,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@larksuiteoapi/node-sdk": "^1.72.0",
     "better-sqlite3": "catalog:",
     "keytar": "catalog:"
   },

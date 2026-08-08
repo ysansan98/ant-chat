@@ -206,8 +206,10 @@ npm workflow 的阶段如下：
 rm -rf /tmp/ant-chat-package
 mkdir -p /tmp/ant-chat-package
 cd packages/ant-chat
-npm pack --ignore-scripts --pack-destination /tmp/ant-chat-package
+pnpm pack --pack-destination /tmp/ant-chat-package
 ```
+
+`pnpm pack` 会在打包时把 `catalog:` 依赖展开为 `pnpm-workspace.yaml` 中定义的实际版本范围，tarball 里的 `dependencies` 是标准 npm 语义。不要用 `npm pack` 打包含 `catalog:` 引用的包——npm 不识别该协议，产物无法被任何消费者安装。
 
 不要重新构建一个未经过 smoke 的 tarball。workflow 会把 smoke 使用的 `$TARBALL` 直接传给 `npm publish`。
 

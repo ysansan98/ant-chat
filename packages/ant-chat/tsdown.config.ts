@@ -18,6 +18,6 @@ export default defineConfig({
   inlineOnly: false,
   sourcemap: true,
   clean: true,
-  external: ['better-sqlite3', 'keytar'],
+  external: ['better-sqlite3', 'keytar', '@larksuiteoapi/node-sdk'],
   noExternal: [/^@ant-chat\//],
 })
