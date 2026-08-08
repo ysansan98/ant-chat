@@ -1,5 +1,11 @@
 # Ant Chat Desktop
 
+## 1.0.0-alpha.4
+
+### Minor Changes
+
+- 桌面版支持个人微信 iLink 消息频道：设置页新增个人微信接入，支持扫码授权、验证码配对与文本消息收发；owner 身份自动授权，频道消息按终态单条发送。
+
 ## 1.0.0-alpha.3
 
 ### Patch Changes

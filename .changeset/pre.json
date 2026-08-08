@@ -31,6 +31,7 @@
     "reasoning-effort-config",
     "remove-conversation-temperature-config",
     "safe-tool-approval-grants",
-    "settings-route-inline"
+    "settings-route-inline",
+    "weixin-ilink-channel-desktop"
   ]
 }
