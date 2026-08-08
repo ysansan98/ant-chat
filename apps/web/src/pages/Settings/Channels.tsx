@@ -85,8 +85,12 @@ export function ChannelsPage() {
 
   // 预加载各频道的待批准配对，用于行内徽标展示数量；展开时再刷新一次保证最新。
   useEffect(() => {
-    for (const channel of channels)
+    for (const channel of channels) {
+      // 微信只连接本机 owner 的单个微信，无配对流程，无需预加载。
+      if (channel.channelType === 'weixin')
+        continue
       void loadPairings(channel.id, { silent: true })
+    }
   }, [channels])
 
   function openSetup(channelType: ChannelType = 'feishu') {
@@ -301,7 +305,7 @@ export function ChannelsPage() {
                     )}
                     <Field>
                       <FieldLabel htmlFor="channel-name">显示名称</FieldLabel>
-                      <Input id="channel-name" required placeholder="例如：团队飞书" value={form.displayName} onChange={event => setForm({ ...form, displayName: event.target.value })} />
+                      <Input id="channel-name" required placeholder={form.channelType === 'weixin' ? '例如：我的微信' : '例如：团队飞书'} value={form.displayName} onChange={event => setForm({ ...form, displayName: event.target.value })} />
                     </Field>
                     <Field>
                       <FieldLabel htmlFor="channel-workspace">默认工作区</FieldLabel>
@@ -438,11 +442,13 @@ function ChannelSlotRow({ slot, channel, expanded, pairingRequests, onConnect, o
       {channel && expanded && <CardContent><PairingRequests requests={pairingRequests} onChange={onPairingChange} /></CardContent>}
       {channel && (
         <CardFooter className="justify-between gap-2">
-          <Button variant="ghost" size="sm" onClick={onTogglePairings} className="transition-colors hover:bg-accent">
-            配对请求
-            {pairingRequests.length > 0 && <Badge variant="secondary" className="ml-1">{pairingRequests.length}</Badge>}
-            <ChevronDown className={`size-4 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
-          </Button>
+          {slot.type !== 'weixin' && (
+            <Button variant="ghost" size="sm" onClick={onTogglePairings} className="transition-colors hover:bg-accent">
+              配对请求
+              {pairingRequests.length > 0 && <Badge variant="secondary" className="ml-1">{pairingRequests.length}</Badge>}
+              <ChevronDown className={`size-4 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
+            </Button>
+          )}
           <div className="flex gap-1">
             <Button variant="outline" size="sm" disabled={busy} onClick={onReauth} title="重新扫码授权">
               <RefreshCw className="size-3.5" />
