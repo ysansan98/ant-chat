@@ -37,10 +37,33 @@
 | --- | --- | --- |
 | 只影响 npm 产品包 | `ant-chat` | 例如 npm CLI、产品服务、npm tarball 内容 |
 | 只影响 Desktop | `@ant-chat/desktop` | 例如 Electron 主进程、安装包、更新逻辑 |
-| 共享 backend、shared、control-client、Web UI 或控制协议 | 通常同时选择 `ant-chat` 和 `@ant-chat/desktop` | 两个发行物都可能受影响；如果确认只影响一端，必须在 PR 描述中说明 |
+| 共享 backend、shared、control-client、Web UI 或控制协议 | 同时选择 `ant-chat` 和 `@ant-chat/desktop` | 除 `apps/desktop/**` 外的产品代码几乎都同时进入两个发行物（见 1.4 影响面矩阵）；如果确认只影响一端，必须在 PR 描述中说明 |
 | 只影响内部测试或文档 | 不选发行物 | 不产生用户 changelog |
 
-`@ant-chat/backend`、`@ant-chat/shared` 和 `@ant-chat/control-client` 是内部实现包，不作为独立 npm 发行物发布。
+`@ant-chat/backend`、`@ant-chat/shared`、`@ant-chat/control-client`、`@workspace/ui` 和 `apps/web` 都是内部包，不作为独立 npm 发行物发布；它们的代码通过构建进入 `ant-chat` 和 `@ant-chat/desktop` 两个发行物。
+
+### 1.4 项目内依赖关系与变更影响面
+
+内部依赖链：`@ant-chat/shared`（叶子）→ backend / control-client / `@workspace-ui` → `apps/web`。
+
+构建期绑定决定变更落点：
+
+- `ant-chat`（npm tarball）：tsdown `alias` 把 backend / control-client / shared 的 **src 内联**进 dist，`apps/web` 构建产物打进 `dist/web`（`packages/ant-chat/tsdown.config.ts` + build script）。
+- `@ant-chat/desktop`：**无独立 renderer**，桌面界面即 `apps/web` 构建产物（`electron.vite.config.ts` 的 `webRoot = '../web'`）；安装包 `extraResources` 内置 `ant-chat` CLI launcher 与 backend 资源。
+
+变更目录 → 发行物影响面：
+
+| 变更目录 | npm 产品 `ant-chat` | Desktop `@ant-chat/desktop` |
+| --- | --- | --- |
+| `packages/shared/src` | 进入（源码内联/引用） | 进入 |
+| `packages/backend/src` | 进入（tsdown 内联 + builtin-skills） | 进入（launcher/runtime + 内置资源） |
+| `packages/control-client/src` | 进入（tsdown 内联） | 进入 |
+| `packages/ant-chat/src` | 自身 | 进入（内置 launcher/runtime） |
+| `apps/web/src`（含 `@workspace/ui`） | 进入（`dist/web`） | 进入（即桌面界面） |
+| `apps/desktop/src`、`electron-builder.ts`、`apps/desktop/resources` | 不进入 | 自身 |
+| `docs/`、`.github/`、根配置、仅测试 | 不进入 | 不进入 |
+
+判断规则：除 `apps/desktop/**` 外，用户可见的产品代码变更应**同时**选 `ant-chat` 和 `@ant-chat/desktop`；拿不准就双选（反例：iLink 频道 #89 落在 backend + apps/web 却只选 `ant-chat`，桌面版事后补发 1.0.0-alpha.4）。
 
 ## 2. 为 commit 创建 changeset
 
