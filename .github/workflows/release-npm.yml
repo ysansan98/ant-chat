@@ -29,6 +29,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libsecret-1-0
+
       - name: Prepare npm Trusted Publishing
         run: npm install --global npm@11
 
