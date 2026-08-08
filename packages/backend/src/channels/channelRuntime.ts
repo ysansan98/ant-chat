@@ -47,8 +47,21 @@ const permissionModeLabels: Record<AgentMode, string> = {
   full_managed: '完全访问权限',
 }
 
+/** ChannelRuntime 实际使用的数据仓库子集；装配层提供 AppDataContext 的对应切片。 */
+export type ChannelRuntimeData = Pick<
+  AppDataContext,
+  | 'channelAccountRepository'
+  | 'channelPairingRepository'
+  | 'channelReceiptRepository'
+  | 'channelSessionRepository'
+  | 'conversationRepository'
+  | 'messageRepository'
+  | 'settingsRepository'
+  | 'workspaceService'
+>
+
 export interface ChannelRuntimeDeps {
-  data: AppDataContext
+  data: ChannelRuntimeData
   turnService: Pick<AgentTurnService, 'startTurn'>
   updateConversation: (input: { id: string, settings: ConversationsSettingsSchema }) => Promise<unknown>
   listModels?: () => ChannelModelOption[]
@@ -156,7 +169,7 @@ export class ChannelRuntime {
       case 'new': {
         const workspacePath = command.path ? this.validateWorkspace(command.path) : session.currentWorkspacePath
         const current = await this.deps.data.conversationRepository.getById(session.activeConversationId)
-        const conversation = await this.deps.data.conversationRepository.create({ title: 'Untitled', workspacePath, createdAt: this.now(), updatedAt: this.now(), conversationInstructions: '', settings: current.settings, sourceType: current.sourceType ?? 'feishu', sourceChannelAccountId: event.channelAccountId, sourceExternalChatId: event.externalChatId })
+        const conversation = await this.deps.data.conversationRepository.create({ title: 'Untitled', workspacePath, createdAt: this.now(), updatedAt: this.now(), conversationInstructions: '', settings: current.settings, sourceType: event.channelType, sourceChannelAccountId: event.channelAccountId, sourceExternalChatId: event.externalChatId })
         await this.deps.data.channelSessionRepository.upsert({ channelAccountId: event.channelAccountId, externalChatId: event.externalChatId, activeConversationId: conversation.id, currentWorkspacePath: workspacePath, createdAt: sessionCreatedAt(session), updatedAt: this.now() })
         const account = await this.deps.data.channelAccountRepository.getById(event.channelAccountId)
         return result(`已创建新会话\n${this.formatContext(conversation, workspacePath, account.permissionMode)}`, conversation.id)
@@ -179,15 +192,15 @@ export class ChannelRuntime {
         const conversation = await this.deps.data.conversationRepository.getById(session.activeConversationId)
         const models = this.getModels()
         return result(
-          models.map(formatModel).join('\n') || '当前没有可用模型。',
+          models.map((model, index) => `${index + 1}. ${formatModel(model)}`).join('\n') || '当前没有可用模型。',
           session.activeConversationId,
           models.length
             ? {
                 kind: 'model-selection',
-                models: models.map(model => ({
+                models: models.map((model, index) => ({
                   providerId: model.providerId,
                   modelId: model.modelId,
-                  label: formatModel(model),
+                  label: `${index + 1}. ${formatModel(model)}`,
                   selected: model.providerId === conversation.settings.providerId && model.modelId === conversation.settings.modelId,
                 })),
               }
@@ -203,7 +216,7 @@ export class ChannelRuntime {
         ])
         return result(`当前会话：${session.activeConversationId}\n${this.formatContext(conversation, session.currentWorkspacePath, account.permissionMode)}`)
       }
-      case 'help': return result('/new [path]\n/model <名称>\n/models\n/mode <默认权限|自动审查|完全访问权限>\n/steer <文本>\n/stop\n/status\n/approve\n/deny')
+      case 'help': return result('/new [path]\n/model <名称或序号>\n/models\n/mode <权限模式或序号>\n/steer <文本>\n/stop\n/status\n/approve\n/deny')
       case 'approve': await this.deps.approvePending?.(session.activeConversationId); return result('已批准当前队首操作。')
       case 'deny': await this.deps.denyPending?.(session.activeConversationId); return result('已拒绝当前队首操作。')
     }
@@ -213,6 +226,18 @@ export class ChannelRuntime {
     const existing = await this.deps.data.channelPairingRepository.get(account.id, event.externalUserId)
     if (existing?.status === 'authorized')
       return existing
+    // 微信扫码登录身份即本机 owner；owner 首次消息直接自动授权，身份不一致仍回退配对。
+    if (account.channelType === 'weixin' && account.ownerUserId && account.ownerUserId === event.externalUserId) {
+      return this.deps.data.channelPairingRepository.upsert({
+        id: `pair-${account.id}-${event.externalUserId}`,
+        channelAccountId: account.id,
+        externalUserId: event.externalUserId,
+        externalDisplayName: event.externalDisplayName,
+        status: 'authorized',
+        requestedAt: this.now(),
+        approvedAt: this.now(),
+      })
+    }
     if (!existing || (existing.expiresAt !== undefined && existing.expiresAt <= this.now()))
       await this.deps.data.channelPairingRepository.upsert({ id: `pair-${account.id}-${event.externalUserId}`, channelAccountId: account.id, externalUserId: event.externalUserId, externalDisplayName: event.externalDisplayName, status: 'pending', requestedAt: this.now(), expiresAt: this.now() + 86_400_000 })
     return undefined
@@ -252,7 +277,18 @@ export class ChannelRuntime {
 
   private async setModel(conversationId: string, query: string) {
     const normalized = query.toLowerCase()
-    const matches = this.getModels().filter((model) => {
+    const models = this.getModels()
+    // 纯数字优先按 /models 列表序号选择；序号无效直接报错，避免与模型名匹配产生歧义。
+    const numeric = /^\d+$/.test(normalized) ? Number(normalized) : undefined
+    if (numeric !== undefined) {
+      const model = models[numeric - 1]
+      if (!model)
+        return `模型序号无效，请发送 /models 查看列表。`
+      const conversation = await this.deps.data.conversationRepository.getById(conversationId)
+      await this.deps.updateConversation({ id: conversationId, settings: toModelConfig(model, conversation.settings.reasoningEffort) })
+      return `已切换模型：${formatModel(model)}`
+    }
+    const matches = models.filter((model) => {
       return [model.name, model.modelId, formatModel(model), `${model.providerId}/${model.modelId}`]
         .some(value => value.toLowerCase().includes(normalized))
     })
@@ -264,9 +300,17 @@ export class ChannelRuntime {
   }
 
   private async setPermissionMode(channelAccountId: string, query: string): Promise<string> {
+    // 纯数字优先按 /mode 列表序号选择，避免与模式名匹配产生歧义。
+    const numeric = /^\d+$/.test(query.trim()) ? Number(query.trim()) : undefined
+    if (numeric !== undefined) {
+      const mode = (Object.entries(permissionModeLabels) as Array<[AgentMode, string]>)[numeric - 1]
+      if (!mode)
+        return '权限模式序号无效，请发送 /mode 查看列表。'
+      return this.selectPermissionMode(channelAccountId, mode[0])
+    }
     const permissionMode = parsePermissionMode(query)
     if (!permissionMode)
-      return '用法：/mode <默认权限|自动审查|完全访问权限>'
+      return '用法：/mode <权限模式或序号>'
     return this.selectPermissionMode(channelAccountId, permissionMode)
   }
 

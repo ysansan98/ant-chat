@@ -77,6 +77,74 @@ describe('channelRuntime 入站行为', () => {
     expect(startTurn).not.toHaveBeenCalled()
   })
 
+  it('微信 owner 身份首次消息自动授权并启动 Turn', async () => {
+    const { runtime, data, startTurn } = createHarness()
+    data.channelAccountRepository.getById = vi.fn(async () => ({
+      id: 'a1',
+      channelType: 'weixin' as const,
+      displayName: '微信',
+      credentialRef: 'ref',
+      ownerUserId: 'owner-1',
+      defaultWorkspacePath: '/workspace',
+      permissionMode: 'hybrid' as const,
+      enabled: true,
+      status: 'connected' as const,
+      createdAt: 1,
+      updatedAt: 1,
+    }))
+    data.channelPairingRepository.get = vi.fn(async () => undefined)
+    data.channelPairingRepository.upsert = vi.fn(async input => ({ ...input, id: input.id }))
+
+    await expect(runtime.handleInbound({
+      channelAccountId: 'a1',
+      channelType: 'weixin',
+      externalUserId: 'owner-1',
+      externalDisplayName: '本人',
+      externalChatId: 'owner-1',
+      externalMessageId: 'e-owner',
+      text: '你好',
+    })).resolves.toMatchObject({ kind: 'turn' })
+    expect(data.channelPairingRepository.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      externalUserId: 'owner-1',
+      status: 'authorized',
+    }))
+    expect(startTurn).toHaveBeenCalledOnce()
+  })
+
+  it('微信非 owner 身份仍回退配对流程', async () => {
+    const { runtime, data, startTurn } = createHarness()
+    data.channelAccountRepository.getById = vi.fn(async () => ({
+      id: 'a1',
+      channelType: 'weixin' as const,
+      displayName: '微信',
+      credentialRef: 'ref',
+      ownerUserId: 'owner-1',
+      defaultWorkspacePath: '/workspace',
+      permissionMode: 'hybrid' as const,
+      enabled: true,
+      status: 'connected' as const,
+      createdAt: 1,
+      updatedAt: 1,
+    }))
+    data.channelPairingRepository.get = vi.fn(async () => undefined)
+
+    const result = await runtime.handleInbound({
+      channelAccountId: 'a1',
+      channelType: 'weixin',
+      externalUserId: 'other-1',
+      externalDisplayName: '其他人',
+      externalChatId: 'other-1',
+      externalMessageId: 'e-other',
+      text: '你好',
+    })
+    expect(result.kind).toBe('pairing-required')
+    expect(data.channelPairingRepository.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      externalUserId: 'other-1',
+      status: 'pending',
+    }))
+    expect(startTurn).not.toHaveBeenCalled()
+  })
+
   it('已有频道会话的模型失效时改用首个可用模型启动 Turn', async () => {
     const { data, updateConversation } = createHarness()
     data.conversationRepository.getById = vi.fn(async () => ({
@@ -222,6 +290,103 @@ describe('channelRuntime 入站行为', () => {
     })
   })
 
+  it('/models 返回带序号的模型列表，序号与选择卡片顺序一致', async () => {
+    const { data, updateConversation } = createHarness()
+    const models = [
+      { modelId: 'model-1', providerId: 'provider-1', name: '模型一', providerName: '服务一' },
+      { modelId: 'model-2', providerId: 'provider-2', name: '模型二', providerName: '服务二' },
+    ]
+    const runtime = new ChannelRuntime({
+      data,
+      turnService: { startTurn: vi.fn() },
+      updateConversation,
+      listModels: () => models,
+    })
+
+    await expect(runtime.handleInbound({
+      channelAccountId: 'a1',
+      channelType: 'feishu',
+      externalUserId: 'u1',
+      externalDisplayName: '用户',
+      externalChatId: 'chat-1',
+      externalMessageId: 'e-models-list',
+      text: '/models',
+    })).resolves.toEqual({
+      kind: 'command',
+      message: '1. 服务一 / 模型一\n2. 服务二 / 模型二',
+      conversationId: 'c1',
+      presentation: {
+        kind: 'model-selection',
+        models: [
+          { providerId: 'provider-1', modelId: 'model-1', label: '1. 服务一 / 模型一', selected: false },
+          { providerId: 'provider-2', modelId: 'model-2', label: '2. 服务二 / 模型二', selected: false },
+        ],
+      },
+    })
+  })
+
+  it('/model 按 /models 序号切换模型', async () => {
+    const { data, updateConversation } = createHarness()
+    const runtime = new ChannelRuntime({
+      data,
+      turnService: { startTurn: vi.fn() },
+      updateConversation,
+      listModels: () => [
+        { modelId: 'model-1', providerId: 'provider-1', name: '模型一', providerName: '服务一' },
+        { modelId: 'model-2', providerId: 'provider-2', name: '模型二', providerName: '服务二' },
+      ],
+    })
+
+    await expect(runtime.handleInbound({
+      channelAccountId: 'a1',
+      channelType: 'feishu',
+      externalUserId: 'u1',
+      externalDisplayName: '用户',
+      externalChatId: 'chat-1',
+      externalMessageId: 'e-model-index',
+      text: '/model 2',
+    })).resolves.toEqual({
+      kind: 'command',
+      message: '已切换模型：服务二 / 模型二',
+      conversationId: 'c1',
+    })
+    expect(updateConversation).toHaveBeenCalledWith({
+      id: 'c1',
+      settings: {
+        modelId: 'model-2',
+        providerId: 'provider-2',
+        reasoningEffort: undefined,
+      },
+    })
+  })
+
+  it('/model 无效序号直接报错，不按名称回退', async () => {
+    const { data, updateConversation } = createHarness()
+    const runtime = new ChannelRuntime({
+      data,
+      turnService: { startTurn: vi.fn() },
+      updateConversation,
+      listModels: () => [
+        { modelId: 'model-1', providerId: 'provider-1', name: '模型一', providerName: '服务一' },
+      ],
+    })
+
+    await expect(runtime.handleInbound({
+      channelAccountId: 'a1',
+      channelType: 'feishu',
+      externalUserId: 'u1',
+      externalDisplayName: '用户',
+      externalChatId: 'chat-1',
+      externalMessageId: 'e-model-invalid-index',
+      text: '/model 9',
+    })).resolves.toEqual({
+      kind: 'command',
+      message: '模型序号无效，请发送 /models 查看列表。',
+      conversationId: 'c1',
+    })
+    expect(updateConversation).not.toHaveBeenCalled()
+  })
+
   it('/mode 使用用户可见名称持久化频道权限模式', async () => {
     const { runtime, data } = createHarness()
 
@@ -239,6 +404,44 @@ describe('channelRuntime 入站行为', () => {
       conversationId: 'c1',
     })
     expect(data.channelAccountRepository.updatePermissionMode).toHaveBeenCalledWith('a1', 'full_managed')
+  })
+
+  it('/mode 按列表序号切换权限模式', async () => {
+    const { runtime, data } = createHarness()
+
+    await expect(runtime.handleInbound({
+      channelAccountId: 'a1',
+      channelType: 'feishu',
+      externalUserId: 'u1',
+      externalDisplayName: '用户',
+      externalChatId: 'chat-1',
+      externalMessageId: 'e-mode-index',
+      text: '/mode 2',
+    })).resolves.toEqual({
+      kind: 'command',
+      message: '已切换权限模式：自动审查',
+      conversationId: 'c1',
+    })
+    expect(data.channelAccountRepository.updatePermissionMode).toHaveBeenCalledWith('a1', 'hybrid')
+  })
+
+  it('/mode 无效序号直接报错', async () => {
+    const { runtime, data } = createHarness()
+
+    await expect(runtime.handleInbound({
+      channelAccountId: 'a1',
+      channelType: 'feishu',
+      externalUserId: 'u1',
+      externalDisplayName: '用户',
+      externalChatId: 'chat-1',
+      externalMessageId: 'e-mode-invalid-index',
+      text: '/mode 9',
+    })).resolves.toEqual({
+      kind: 'command',
+      message: '权限模式序号无效，请发送 /mode 查看列表。',
+      conversationId: 'c1',
+    })
+    expect(data.channelAccountRepository.updatePermissionMode).not.toHaveBeenCalled()
   })
 
   it('/mode 无参数时返回包含当前选中项的权限模式卡片数据', async () => {

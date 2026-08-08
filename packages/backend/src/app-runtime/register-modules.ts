@@ -1,10 +1,11 @@
-import type { BrowserIdentityStatus, SkillManifest } from '@ant-chat/shared'
+import type { BrowserIdentityStatus, ChannelAttachmentSender, SkillManifest } from '@ant-chat/shared'
 import type { RuntimeCore } from './createRuntimeCore'
 import type { ChannelAgentDependencies } from './modules/channel'
 import type { RegisteredRoute } from './routeRegistry'
 import type { RuntimeModule } from './runtimeModule'
 import { AppControl } from '../app-control/appControl'
 import { createFeishuTransport, FeishuConnector } from '../channels/feishu'
+import { createWeixinTransport, WeixinConnector } from '../channels/weixin'
 import { AgentModule } from './modules/agent'
 import { AutomationModule } from './modules/automation'
 import { BrowserProfilesModule } from './modules/browserProfiles'
@@ -52,10 +53,19 @@ export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModu
   const browserProfiles = new BrowserProfilesModule(core.browserIdentity)
   const skills = new SkillsModule(core)
   const mcp = new McpModule(core)
+  // AgentModule 先于 ChannelModule 构造；通过可变引用在频道模块就绪后绑定发送能力。
+  let channelAttachmentSender: ChannelAttachmentSender | undefined
   const agent = new AgentModule(core, {
     aiProviderFactory: provider.aiProviderFactory,
     mcpClientHub: mcp.clientHub,
     skills: skills.service,
+    channelAttachmentSender: {
+      send: (input) => {
+        if (!channelAttachmentSender)
+          throw new Error('频道发送能力尚未就绪')
+        return channelAttachmentSender.send(input)
+      },
+    },
   })
   const listActiveTasks = (conversationId?: string) => agent.listActiveTasks({ conversationId })
   const channelAgent: ChannelAgentDependencies = {
@@ -67,7 +77,11 @@ export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModu
     rejectPendingAction: options => agent.rejectPendingAction({ options }),
     rejectSecretRequest: options => agent.rejectSecretRequest({ options }),
   }
-  const channel = new ChannelModule(core, channelAgent, [new FeishuConnector(credential => createFeishuTransport(credential, logger), logger)])
+  const channel = new ChannelModule(core, channelAgent, [
+    new FeishuConnector(credential => createFeishuTransport(credential, logger), logger),
+    new WeixinConnector(credential => createWeixinTransport(credential, logger), logger),
+  ])
+  channelAttachmentSender = { send: input => channel.sendAttachment(input) }
   const chat = new ChatModule(
     data.conversationRepository,
     data.messageRepository,

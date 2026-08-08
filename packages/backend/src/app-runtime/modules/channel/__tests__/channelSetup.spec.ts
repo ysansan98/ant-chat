@@ -80,10 +80,12 @@ describe('channel module 频道配置（扫码创建 / 重新授权）', () => {
     }
     const connector: ChannelConnector = {
       type: 'feishu',
+      capabilities: { supportsUpdate: true },
       setup: vi.fn(async () => ({})),
       start: vi.fn(async () => {}),
       stop: vi.fn(async () => {}),
       send: vi.fn(async () => ({ externalMessageId: 'reply-1' })),
+      sendAttachment: vi.fn(async () => ({ messageId: 'attachment-1' })),
       update: vi.fn(async () => {}),
       setTyping: vi.fn(async () => ({ changed: true })),
       getStatus: vi.fn(() => ({ status: 'connected' as const })),

@@ -7,6 +7,29 @@ export type ChannelType = z.infer<typeof ChannelTypeSchema>
 /** 频道配置会话的模式：创建新应用，或对已有应用重新扫码授权。 */
 export type ChannelSetupMode = 'create' | 'reauth'
 
+/** 出站附件：字节由发送方（transport）解码发送，发送期一次性携带。 */
+export interface ChannelAttachment {
+  name: string
+  mediaType: string
+  /** base64 字节。 */
+  data: string
+  size?: number
+  /** 对应消息块的 type：image-block / document / file。 */
+  kind: 'image' | 'document' | 'file'
+}
+
+/**
+ * agent 工具直接发送附件的宿主能力；channelAccountId + externalChatId
+ * 唯一确定目标频道会话，由 ChannelModule 实现并校验连接状态。
+ */
+export interface ChannelAttachmentSender {
+  send: (input: {
+    channelAccountId: string
+    externalChatId: string
+    attachment: ChannelAttachment
+  }) => Promise<{ messageId: string }>
+}
+
 export const ConversationSourceTypeSchema = z.enum(['local', 'feishu', 'weixin', 'wecom'])
 export type ConversationSourceType = z.infer<typeof ConversationSourceTypeSchema>
 
@@ -34,6 +57,8 @@ export interface ChannelAccount {
   channelType: ChannelType
   displayName: string
   credentialRef: string
+  /** 微信扫码登录的 owner 用户 ID；命中时自动授权，身份不一致回退配对。 */
+  ownerUserId?: string
   defaultWorkspacePath: string | null
   permissionMode: AgentMode
   enabled: boolean
@@ -55,6 +80,8 @@ export interface ChannelSetupResult {
   expiresAt?: number
   account?: ChannelAccountView
   error?: string
+  /** 微信扫码登录需要输入手机上显示的验证码。 */
+  verifyCodeRequired?: boolean
 }
 
 export interface ChannelPairing {

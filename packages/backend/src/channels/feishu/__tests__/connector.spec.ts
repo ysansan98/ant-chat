@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer'
 import { describe, expect, it, vi } from 'vitest'
 import type { FeishuTransport } from '../connector'
 import { FeishuConnector, normalizeFeishuActionEvent, normalizeFeishuEvent } from '../connector'
@@ -7,6 +8,7 @@ function createTransport(connect: FeishuTransport['connect'] = vi.fn(async () =>
     connect,
     close: vi.fn(async () => {}),
     sendText: vi.fn(async () => ({ messageId: 'out-1' })),
+    sendFile: vi.fn(async () => ({ messageId: 'file-1' })),
     createCard: vi.fn(async () => ({ messageId: 'card-1' })),
     updateCard: vi.fn(async () => {}),
     setTyping: vi.fn(async () => ({ changed: true })),
@@ -97,6 +99,57 @@ describe('频道 connector adapter', () => {
     expect(transport.setTyping).toHaveBeenNthCalledWith(1, 'm1', true)
     expect(transport.setTyping).toHaveBeenNthCalledWith(2, 'm1', false)
     expect(connector.getStatus()).toEqual({ status: 'disconnected' })
+  })
+
+  it('附件失败只告警并继续后续附件，回执取最后成功消息 ID', async () => {
+    const transport = createTransport()
+    vi.mocked(transport.sendFile)
+      .mockRejectedValueOnce(new Error('超过 30MB 上限'))
+      .mockResolvedValueOnce({ messageId: 'file-2' })
+    const logger = { info: vi.fn(), warn: vi.fn() }
+    const connector = new FeishuConnector(transport, logger)
+    const attachment = {
+      name: '方案.pdf',
+      mediaType: 'application/pdf',
+      kind: 'document' as const,
+      data: Buffer.from('pdf').toString('base64'),
+    }
+
+    const result = await connector.send({
+      externalChatId: 'c1',
+      content: { kind: 'text', text: '附件如下', attachments: [attachment, attachment] },
+    })
+
+    expect(transport.sendText).toHaveBeenCalledWith('c1', '附件如下')
+    expect(transport.sendFile).toHaveBeenCalledTimes(2)
+    expect(logger.warn).toHaveBeenCalledWith('[消息频道] 飞书附件发送失败', {
+      name: '方案.pdf',
+      kind: 'document',
+      error: '超过 30MB 上限',
+    })
+    expect(result).toEqual({ externalMessageId: 'file-2' })
+  })
+
+  it('sendAttachment 透传 transport.sendFile，失败向上抛出不吞掉', async () => {
+    const transport = createTransport()
+    vi.mocked(transport.sendFile).mockResolvedValue({ messageId: 'file-direct' })
+    const connector = new FeishuConnector(transport)
+    const attachment = {
+      name: 'a.pdf',
+      mediaType: 'application/pdf',
+      kind: 'document' as const,
+      data: Buffer.from('pdf').toString('base64'),
+    }
+
+    await expect(connector.sendAttachment({ externalChatId: 'c1', attachment }))
+      .resolves
+      .toEqual({ messageId: 'file-direct' })
+    expect(transport.sendFile).toHaveBeenCalledWith('c1', attachment)
+
+    vi.mocked(transport.sendFile).mockRejectedValueOnce(new Error('超过 30MB 上限'))
+    await expect(connector.sendAttachment({ externalChatId: 'c1', attachment }))
+      .rejects
+      .toThrow('超过 30MB 上限')
   })
 
   it('按频道账号凭证创建真实 transport，并把飞书入站事件交给运行时', async () => {

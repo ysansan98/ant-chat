@@ -18,7 +18,7 @@
 - 删除 `/cwd`。
 - 复用现有 `conversations`、`messages`、Agent Runtime、权限、Trace 和 Renderer 事件。
 - Conversation 来源与 Turn 来源分离；跨 Web/Desktop/IM 交叉续聊；回复回原始 Turn 入口。
-- `/model` 使用用户可见模型名；`/models` 展示候选。
+- `/models` 展示带序号的候选；`/model` 接受模型名或列表序号。
 - IM 审批使用 `/approve`、`/deny`，每个 Conversation 严格 FIFO，一次一个。
 - Web/Desktop 必须继续接受后端 `message:updated`、`conversation:updated`、`agent:task-updated` 推送。
 - SecretStore 是平台敏感凭据 owner；断开不删除历史会话。
@@ -76,13 +76,15 @@
 先接飞书，再接微信：
 
 - 飞书：官方 scan-to-create、WebSocket、私聊文本、事件校验；
-- 微信：iLink QR、long-polling、owner user ID 自动授权、配对回退、私聊文本。
+- 微信：iLink QR、long-polling、owner user ID 自动授权、配对回退、私聊文本；
+- 当前状态：飞书已接入；微信已完成代码实现，等待真实 iLink 扫码/长轮询联调。
 
 平台 SDK 只能位于 adapter；不得把平台对象泄漏到 shared domain 或 Agent Runtime。
 
 ## 不得自行扩张的范围
 
-- 不实现企业微信、群聊、媒体、主动自动化推送、公网 Webhook；
+- 不实现企业微信、群聊、媒体入站解析、主动自动化推送、公网 Webhook；
+  出站附件（文件/图片/文档）已支持，媒体入站不在范围内；
 - 不创建本地账号或权限系统；
 - 不让频道绕过现有权限裁决；
 - 不让 `/cwd` 修改已有 Conversation；

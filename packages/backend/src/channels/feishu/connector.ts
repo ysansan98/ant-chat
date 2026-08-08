@@ -1,7 +1,6 @@
-/* eslint-disable style/max-statements-per-line */
-
-import type { ChannelActionEvent, ChannelActionResult, ChannelConnector, ChannelOutboundContent, ChannelSendInput, ChannelSendResult, ChannelSetupInput, ChannelUpdateInput } from '../channelConnector'
+import type { ChannelActionEvent, ChannelActionResult, ChannelAttachment, ChannelConnector, ChannelOutboundContent, ChannelSendInput, ChannelSendResult, ChannelSetupInput, ChannelUpdateInput } from '../channelConnector'
 import type { ChannelInboundEvent } from '../channelRuntime'
+import { createConnectorState } from '../channelConnector'
 
 export interface FeishuTransport {
   connect: (handlers: {
@@ -10,6 +9,7 @@ export interface FeishuTransport {
   }) => Promise<void>
   close: () => Promise<void>
   sendText: (chatId: string, text: string) => Promise<{ messageId: string }>
+  sendFile: (chatId: string, attachment: ChannelAttachment) => Promise<{ messageId: string }>
   createCard: (chatId: string, content: Exclude<ChannelOutboundContent, { kind: 'text' }>) => Promise<{ messageId: string }>
   updateCard: (messageId: string, content: Exclude<ChannelOutboundContent, { kind: 'text' }>) => Promise<void>
   setTyping: (messageId: string, typing: boolean) => Promise<{ changed: boolean }>
@@ -17,14 +17,14 @@ export interface FeishuTransport {
 
 export class FeishuConnector implements ChannelConnector {
   readonly type = 'feishu' as const
-  private status: ReturnType<ChannelConnector['getStatus']> = { status: 'disconnected' }
-  private activeTransport?: FeishuTransport
+  readonly capabilities = { supportsUpdate: true } as const
+  private readonly state = createConnectorState<FeishuTransport>()
   private readonly transportFactory?: (credential: string) => FeishuTransport
   constructor(transport: FeishuTransport | ((credential: string) => FeishuTransport), private readonly logger?: Pick<Console, 'info' | 'warn'>) {
     if (typeof transport === 'function')
       this.transportFactory = transport
     else
-      this.activeTransport = transport
+      this.state.activeTransport = transport
   }
 
   async setup(input: ChannelSetupInput) { return { channelAccountId: input.channelAccountId, configured: true } }
@@ -34,9 +34,10 @@ export class FeishuConnector implements ChannelConnector {
     onInbound: (event: ChannelInboundEvent) => Promise<void>
     onAction: (event: ChannelActionEvent) => Promise<ChannelActionResult>
   }) {
-    this.status = { status: 'connecting' }; try {
-      const transport = this.transportFactory ? this.transportFactory(input.credential ?? '') : this.activeTransport!
-      this.activeTransport = transport
+    this.state.beginConnect()
+    try {
+      const transport = this.transportFactory ? this.transportFactory(input.credential ?? '') : this.state.activeTransport!
+      this.state.activeTransport = transport
       await transport.connect({
         onMessage: async (event) => {
           const structure = inspectFeishuEvent(event)
@@ -53,34 +54,66 @@ export class FeishuConnector implements ChannelConnector {
             return { status: 'error', message: '卡片操作无效或已过期。' }
           return input.onAction({ ...normalized, channelAccountId: input.channelAccountId })
         },
-      }); this.status = { status: 'connected' }
+      })
+      this.state.setConnected()
     }
-    catch (error) { this.status = { status: 'degraded', lastError: error instanceof Error ? error.message : String(error) }; throw error }
+    catch (error) {
+      this.state.setDegraded(error)
+      throw error
+    }
   }
 
-  async stop() { await this.activeTransport?.close(); this.activeTransport = undefined; this.status = { status: 'disconnected' } }
+  async stop() { await this.state.stopActive(transport => transport.close()) }
   async send(input: ChannelSendInput): Promise<ChannelSendResult> {
-    if (!this.activeTransport)
+    const transport = this.state.activeTransport
+    if (!transport)
       throw new Error('飞书频道尚未连接')
-    const result = input.content.kind === 'text'
-      ? await this.activeTransport.sendText(input.externalChatId, input.content.text)
-      : await this.activeTransport.createCard(input.externalChatId, input.content)
-    return { externalMessageId: result.messageId }
+    let lastMessageId = ''
+    const primary = input.content.kind === 'text'
+      ? await transport.sendText(input.externalChatId, input.content.text)
+      : await transport.createCard(input.externalChatId, input.content)
+    lastMessageId = primary.messageId
+    // 飞书不支持"文本/卡片+附件"一条消息，附件作为独立消息顺序发送；
+    // 单个附件失败只告警并继续，不阻断主内容与后续附件。
+    for (const attachment of input.content.attachments ?? []) {
+      try {
+        const result = await transport.sendFile(input.externalChatId, attachment)
+        lastMessageId = result.messageId
+      }
+      catch (error) {
+        this.logger?.warn('[消息频道] 飞书附件发送失败', {
+          name: attachment.name,
+          kind: attachment.kind,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+    }
+    return { externalMessageId: lastMessageId }
   }
 
   async update(input: ChannelUpdateInput): Promise<void> {
-    if (!this.activeTransport)
+    const transport = this.state.activeTransport
+    if (!transport)
       throw new Error('飞书频道尚未连接')
-    await this.activeTransport.updateCard(input.externalMessageId, input.content)
+    await transport.updateCard(input.externalMessageId, input.content)
   }
 
   async setTyping(input: { externalMessageId: string, typing: boolean }) {
-    if (!this.activeTransport)
+    const transport = this.state.activeTransport
+    if (!transport)
       throw new Error('飞书频道尚未连接')
-    return this.activeTransport.setTyping(input.externalMessageId, input.typing)
+    return transport.setTyping(input.externalMessageId, input.typing)
   }
 
-  getStatus() { return this.status }
+  async sendAttachment(input: { externalChatId: string, attachment: import('@ant-chat/shared').ChannelAttachment }) {
+    const transport = this.state.activeTransport
+    if (!transport)
+      throw new Error('飞书频道尚未连接')
+    // 失败直接向上抛，由工具层呈现给模型，不静默吞掉。
+    return transport.sendFile(input.externalChatId, input.attachment)
+  }
+
+  getStatus() { return this.state.getStatus() }
 }
 
 export function normalizeFeishuActionEvent(value: unknown): Omit<ChannelActionEvent, 'channelAccountId'> | undefined {

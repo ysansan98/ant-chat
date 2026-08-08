@@ -3,6 +3,7 @@ import type { AgentMemoryReader } from './agent-memory'
 import type { AgentMode, AgentPendingAction, AgentTaskSnapshot, AgentTurnSource } from './agent-runtime'
 import type { AgentTool } from './agent-tools'
 import type { BrowserAuthStateProvider } from './browser-profiles'
+import type { ChannelAttachmentSender } from './channels'
 import type { IConversations, IMessage, IMessageContent } from './db-types'
 import type { McpServer, McpToolCallResponse } from './mcp'
 import type { MemoryCatalogPort } from './memory-catalog'
@@ -327,6 +328,8 @@ export interface AgentRuntimeHost {
   secretRequester?: SecretRequestController
   /** 加载附件文件数据（用于将 file_id 转换为 base64 数据） */
   loadFileData?: (fileId: string) => Promise<string | null>
+  /** 频道附件发送能力：channel turn 中工具直接发送到当前会话。 */
+  channelAttachmentSender?: ChannelAttachmentSender
   /** 读取权限规则（全局 + 指定工作区） */
   getPermissionRules?: (workspacePath: string) => { global: ToolApprovalRule[], workspace: ToolApprovalRule[] }
   /** 原子保存一组规则到指定分组；全部成功或全部不保存 */
@@ -371,6 +374,8 @@ export interface AgentRuntimeConfig extends AgentRuntimeOverrides {
   secretRequester?: SecretRequestController
   /** 加载附件文件数据（用于将 file_id 转换为 base64 数据） */
   loadFileData?: (fileId: string) => Promise<string | null>
+  /** 频道附件发送能力：channel turn 中工具直接发送到当前会话。 */
+  channelAttachmentSender?: ChannelAttachmentSender
 }
 
 export interface AgentRuntimeStartTaskOptions {

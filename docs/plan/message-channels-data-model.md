@@ -8,7 +8,8 @@
 
 增加个人微信（Weixin）和飞书的 1v1 消息入口，同时复用现有 `conversations`、`messages`、Agent Runtime、权限和前端事件投影。
 
-首版不做企业微信、群聊、媒体、主动自动化推送和公网 Webhook。
+首版不做企业微信、群聊、媒体入站解析、主动自动化推送和公网 Webhook；
+出站附件（文件/图片/文档，微信 iLink 与飞书）在首版范围内。
 
 ## 核心关系
 
@@ -173,7 +174,7 @@ receipt 不替代 `messages`：
 
 ```text
 /new [path]
-/model <名称>
+/model <名称或序号>
 /models
 /steer <text>
 /stop
@@ -186,7 +187,7 @@ receipt 不替代 `messages`：
 - `/new`、`/model`、`/models`、`/stop`、`/status`、`/help` 作为可审计 event Message 持久化，但不进入模型上下文；
 - `/steer` 是实际 Turn 输入，沿用现有 steering 持久化；
 - `/approve`、`/deny` 只操作当前 Conversation 的队首 pending action；多个审批严格 FIFO，一次只展示一个；
-- `/model` 使用用户可见模型名/别名；歧义时返回候选，不暴露 providerId 要求用户输入；后端最终保存真实 provider/model 设置。
+- `/models` 展示带序号的候选列表；`/model` 支持按用户可见模型名/别名或列表序号切换；歧义时返回候选，不暴露 providerId 要求用户输入；后端最终保存真实 provider/model 设置。
 
 ## 生命周期与失败合同
 

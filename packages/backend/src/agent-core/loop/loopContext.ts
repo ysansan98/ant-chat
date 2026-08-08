@@ -150,6 +150,26 @@ export async function buildConversationContextEntries(
       return message.status === 'success' || message.status === 'cancel'
     })
 
+  // 进程中断可能留下只有 tool-call、没有 tool-result 的孤儿消息（例如执行中被 kill）。
+  // AI SDK v7 会拒绝携带未配对 tool-call 的历史；过滤掉会丢失失败事实。
+  // 这里为中断的 tool-call 生成失败 tool-result，让后续 turn 知道该调用未完成。
+  const toolCallIds = new Set<string>()
+  const toolResultIds = new Set<string>()
+  for (const message of valid) {
+    for (const block of message.content) {
+      if (block.type === 'tool-call' && message.role === 'assistant')
+        toolCallIds.add(block.toolCallId)
+      if (block.type === 'tool-result' && message.role === 'tool')
+        toolResultIds.add(block.toolCallId)
+    }
+  }
+  const resolvedToolCallIds = new Set(
+    [...toolCallIds].filter(toolCallId => toolResultIds.has(toolCallId)),
+  )
+  const interruptedToolCallIds = new Set(
+    [...toolCallIds].filter(toolCallId => !toolResultIds.has(toolCallId)),
+  )
+
   const result: ConversationContextEntry[] = []
 
   if (latestCompactionEvent) {
@@ -174,6 +194,7 @@ export async function buildConversationContextEntries(
 
   for (const message of valid) {
     const content: LoopMessage['content'] = []
+    const interruptedToolCalls: Array<{ toolCallId: string, toolName: string }> = []
     if (message.role === 'user') {
       content.push(...await contentBlocksToLoopMessageContent(message.content, loadFileData))
     }
@@ -183,6 +204,8 @@ export async function buildConversationContextEntries(
           content.push(block)
         }
         else if (block.type === 'tool-call' && message.role === 'assistant') {
+          if (interruptedToolCallIds.has(block.toolCallId))
+            interruptedToolCalls.push({ toolCallId: block.toolCallId, toolName: block.toolName })
           content.push({
             type: 'tool-call',
             toolCallId: block.toolCallId,
@@ -190,7 +213,7 @@ export async function buildConversationContextEntries(
             args: block.args,
           })
         }
-        else if (block.type === 'tool-result' && message.role === 'tool') {
+        else if (block.type === 'tool-result' && message.role === 'tool' && resolvedToolCallIds.has(block.toolCallId)) {
           content.push({
             type: 'tool-result',
             toolCallId: block.toolCallId,
@@ -214,6 +237,25 @@ export async function buildConversationContextEntries(
         content,
       },
     })
+
+    // 中断的 tool-call 紧跟一个失败 tool-result，保证 AI SDK 的配对校验通过，
+    // 同时把“执行被进程中断”作为失败事实交给模型。
+    for (const toolCall of interruptedToolCalls) {
+      result.push({
+        sourceMessageId: `${message.id}:interrupted:${toolCall.toolCallId}`,
+        status: 'error',
+        message: {
+          role: 'tool',
+          content: [{
+            type: 'tool-result',
+            toolCallId: toolCall.toolCallId,
+            toolName: toolCall.toolName,
+            result: '工具执行被中断（进程退出），未返回结果。',
+            isError: true,
+          }],
+        },
+      })
+    }
   }
 
   return result

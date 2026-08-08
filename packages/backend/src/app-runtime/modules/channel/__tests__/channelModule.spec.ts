@@ -1,10 +1,60 @@
 import type { AgentTaskSnapshot, IMessage } from '@ant-chat/shared'
 import type { ChannelConnector, ChannelInboundEvent } from '../../../../channels'
+import { Buffer } from 'node:buffer'
 import { RuntimeEventBus } from '../../../../events'
 import { describe, expect, it, vi } from 'vitest'
 import { ChannelModule } from '..'
 
 describe('channel module 平台回包', () => {
+  it('sendAttachment 按账号定位 connector 并透传，失败向上抛', async () => {
+    const account = {
+      id: 'a1',
+      channelType: 'feishu' as const,
+      displayName: '飞书',
+      credentialRef: 'credential-1',
+      defaultWorkspacePath: '/workspace',
+      permissionMode: 'hybrid' as const,
+      enabled: true,
+      status: 'connected' as const,
+      createdAt: 1,
+      updatedAt: 1,
+    }
+    const connector: ChannelConnector = {
+      type: 'feishu',
+      capabilities: { supportsUpdate: true },
+      setup: vi.fn(async () => ({})),
+      start: vi.fn(async () => {}),
+      stop: vi.fn(async () => {}),
+      send: vi.fn(async () => ({ externalMessageId: 'reply-1' })),
+      sendAttachment: vi.fn(async () => ({ messageId: 'attachment-1' })),
+      getStatus: vi.fn(() => ({ status: 'connected' as const })),
+    }
+    const module = new ChannelModule({
+      data: {
+        channelAccountRepository: { getById: vi.fn(async () => account) },
+      },
+      events: new RuntimeEventBus(),
+      logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+      secretStore: {},
+    } as never, {} as never, [connector])
+    const attachment = {
+      name: '报告.md',
+      mediaType: 'text/markdown',
+      kind: 'document' as const,
+      data: Buffer.from('内容').toString('base64'),
+    }
+
+    await expect(module.sendAttachment({
+      channelAccountId: 'a1',
+      externalChatId: 'chat-1',
+      attachment,
+    })).resolves.toEqual({ messageId: 'attachment-1' })
+    expect(connector.sendAttachment).toHaveBeenCalledWith({
+      externalChatId: 'chat-1',
+      attachment,
+    })
+  })
+
   it('已配对用户发送 /status 后由原 connector 回复结果', async () => {
     const account = {
       id: 'a1',
@@ -35,6 +85,7 @@ describe('channel module 平台回包', () => {
     const setTyping = vi.fn(async () => ({ changed: true }))
     const connector: ChannelConnector = {
       type: 'feishu',
+      capabilities: { supportsUpdate: true },
       setup: vi.fn(async () => ({})),
       start: vi.fn(async (input) => {
         onInbound = input.onInbound
@@ -42,6 +93,7 @@ describe('channel module 平台回包', () => {
       }),
       stop: vi.fn(async () => {}),
       send: vi.fn(async () => ({ externalMessageId: 'reply-1' })),
+      sendAttachment: vi.fn(async () => ({ messageId: 'attachment-1' })),
       update: vi.fn(async () => {}),
       setTyping,
       getStatus: vi.fn(() => ({ status: 'connected' as const })),
@@ -161,7 +213,7 @@ describe('channel module 平台回包', () => {
     })
     expect(connector.send).toHaveBeenNthCalledWith(2, {
       externalChatId: 'chat-1',
-      content: { kind: 'text', text: '用法：/model <名称>' },
+      content: { kind: 'text', text: '用法：/model <名称或序号>' },
     })
     expect(connector.send).toHaveBeenNthCalledWith(3, {
       externalChatId: 'chat-1',
@@ -170,7 +222,7 @@ describe('channel module 平台回包', () => {
         title: '选择模型',
         token: expect.any(String),
         models: [{
-          label: '服务一 / 模型一',
+          label: '1. 服务一 / 模型一',
           selected: true,
           value: expect.any(String),
         }],

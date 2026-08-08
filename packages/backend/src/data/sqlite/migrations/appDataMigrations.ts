@@ -191,6 +191,15 @@ export function createAppDataMigrations(
         migrateMemoryCatalogTables(db)
       },
     },
+    {
+      version: 10,
+      name: '记录微信扫码登录 owner 身份',
+      migrate(db) {
+        const columns = db.prepare('PRAGMA table_info(channel_accounts)').all() as Array<{ name: string }>
+        if (!columns.some(column => column.name === 'owner_user_id'))
+          db.exec('ALTER TABLE channel_accounts ADD COLUMN owner_user_id text')
+      },
+    },
   ]
 }
 

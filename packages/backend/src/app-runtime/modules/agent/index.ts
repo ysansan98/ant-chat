@@ -1,4 +1,4 @@
-import type { AgentTurnSummary, AIProviderFactory, AppRpcInput, IAgentEventEmitter } from '@ant-chat/shared'
+import type { AgentTurnSummary, AIProviderFactory, AppRpcInput, ChannelAttachmentSender, IAgentEventEmitter } from '@ant-chat/shared'
 import type { SkillManagementService } from '../../../agent-runtime'
 import type { McpConnectionManager } from '../../../mcp'
 import type { RuntimeCore } from '../../createRuntimeCore'
@@ -19,6 +19,7 @@ export interface AgentModuleDependencies {
   aiProviderFactory: AIProviderFactory
   mcpClientHub: McpConnectionManager
   skills: SkillManagementService
+  channelAttachmentSender?: ChannelAttachmentSender
 }
 
 @Module('agent')
@@ -63,6 +64,7 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
         savePermissionRules: (scope, workspacePath, rules) => core.data.permissionsFileStore.saveRules(scope, workspacePath, rules),
         secretStore: core.secretStore,
         secretRequester: this.secretRequester,
+        channelAttachmentSender: dependencies.channelAttachmentSender,
       },
       overrides: {
         logger: core.logger,

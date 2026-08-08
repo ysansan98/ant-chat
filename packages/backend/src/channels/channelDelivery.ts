@@ -12,8 +12,10 @@ import type {
 } from '@ant-chat/shared'
 import type { AppDataContext } from '../data'
 import type { AppRuntimeEventBus } from '../events'
+import type { SystemLogger } from '../systemLogger'
 import type {
   ChannelActionEvent,
+  ChannelAttachment,
   ChannelConnector,
   ChannelExecutionStep,
   ChannelOutboundContent,
@@ -56,6 +58,9 @@ interface ExecutionProjection {
   visualization?: { title: string, summary: string }
   secretRequest?: SecretRequest
   lastPublishedAt?: number
+  lastSentText?: string
+  lastSentPendingActionId?: string
+  attachments?: ChannelAttachment[]
   timer?: ReturnType<typeof setTimeout>
 }
 
@@ -71,12 +76,22 @@ export class ChannelDelivery {
   private readonly executions = new Map<string, ExecutionProjection>()
   private readonly actions = new Map<string, RegisteredAction>()
   private readonly queues = new Map<string, Promise<void>>()
+  private readonly supportsUpdateByType = new Map<ChannelType, boolean>()
 
   constructor(private readonly deps: {
     events: AppRuntimeEventBus
     data: AppDataContext
     connectors: Map<ChannelType, ChannelConnector>
-  }) {}
+    logger?: Pick<SystemLogger, 'warn'>
+  }) {
+    for (const [type, connector] of this.deps.connectors) {
+      this.supportsUpdateByType.set(type, connector.capabilities.supportsUpdate)
+    }
+  }
+
+  private supportsUpdate(channelType: ChannelType): boolean {
+    return this.supportsUpdateByType.get(channelType) ?? false
+  }
 
   start(): void {
     this.unsubscribers.push(this.deps.events.on('message:updated', (event) => {
@@ -114,6 +129,11 @@ export class ChannelDelivery {
     if (!presentation)
       return this.deliverResponse(event, message)
     if (presentation.kind === 'model-selection') {
+      // 纯文本平台（微信）无法渲染选择卡片：直接发带序号的文本列表，用户用 /model <序号> 切换。
+      if (!this.supportsUpdate(event.channelType)) {
+        const lines = [...message.split('\n'), '回复 /model <序号> 切换。']
+        return this.deliverResponse(event, lines.join('\n'))
+      }
       const options = Object.fromEntries(presentation.models.map(model => [
         randomUUID(),
         { providerId: model.providerId, modelId: model.modelId },
@@ -133,6 +153,11 @@ export class ChannelDelivery {
           value: optionEntries[index][0],
         })),
       })
+    }
+    if (presentation.kind === 'permission-mode-selection' && !this.supportsUpdate(event.channelType)) {
+      const lines = presentation.modes.map((mode, index) => `${mode.selected ? '✓ ' : ''}${index + 1}. ${mode.label}`)
+      lines.push('回复 /mode <序号> 切换。')
+      return this.deliverResponse(event, lines.join('\n'))
     }
     const options = Object.fromEntries(presentation.modes.map(mode => [randomUUID(), mode.value]))
     const optionEntries = Object.entries(options)
@@ -184,6 +209,7 @@ export class ChannelDelivery {
         .trim()
       if (text)
         projection.text = text
+      projection.attachments = await this.collectAttachments(message.content)
       for (const block of message.content) {
         if (block.type === 'tool-call')
           this.applyToolCall(projection, block)
@@ -198,6 +224,36 @@ export class ChannelDelivery {
       }
     }
     await this.scheduleExecution(projection)
+  }
+
+  /** 收集 assistant 附件块并解析字节：块自带 data 优先，否则从 file_id 读取。 */
+  private async collectAttachments(content: IMessage['content']): Promise<ChannelAttachment[] | undefined> {
+    const attachments: ChannelAttachment[] = []
+    for (const block of content) {
+      if (block.type !== 'image-block' && block.type !== 'document' && block.type !== 'file')
+        continue
+      if (block.source.type !== 'file_id') {
+        // url 来源需要额外下载器，本次不做，跳过并保留日志。
+        this.deps.logger?.warn(`[消息频道] 跳过 url 来源附件块：${block.type}`)
+        continue
+      }
+      const data = block.data ?? await this.deps.data.loadAttachmentData(block.source.file_id)
+      if (!data) {
+        this.deps.logger?.warn(`[消息频道] 附件数据缺失，跳过：${block.source.file_id}`)
+        continue
+      }
+      const name = block.type === 'file'
+        ? block.filename ?? block.name ?? 'file'
+        : block.name ?? block.type
+      attachments.push({
+        name,
+        mediaType: block.media_type ?? (block.type === 'image-block' ? 'image/jpeg' : 'application/octet-stream'),
+        data,
+        size: block.size,
+        kind: block.type === 'image-block' ? 'image' : block.type,
+      })
+    }
+    return attachments.length > 0 ? attachments : undefined
   }
 
   private async handleTaskUpdate(task: AgentTaskSnapshot): Promise<void> {
@@ -250,6 +306,9 @@ export class ChannelDelivery {
   private async scheduleExecution(projection: ExecutionProjection): Promise<void> {
     if (!projection.model)
       return
+    // 纯文本平台（微信）没有可更新消息：流式中间态不发送，只等 handleTaskUpdate 终态发一次。
+    if (!this.supportsUpdate(projection.channelType))
+      return
     const now = Date.now()
     const elapsed = now - (projection.lastPublishedAt ?? 0)
     if (!projection.lastPublishedAt || elapsed >= EXECUTION_UPDATE_INTERVAL_MS) {
@@ -272,6 +331,41 @@ export class ChannelDelivery {
       projection.timer = undefined
     }
     const actions = this.executionActions(projection)
+    const supportsUpdate = this.supportsUpdate(projection.channelType)
+    let text = projection.text
+    if (projection.secretRequest) {
+      text = [
+        projection.text,
+        `需要敏感信息：${projection.secretRequest.label}`,
+        projection.secretRequest.reason,
+        '为避免密码或 Token 经第三方平台传输，请在 Ant Chat 桌面端完成输入。',
+      ].filter(Boolean).join('\n\n')
+    }
+    else if (!supportsUpdate && projection.pendingAction) {
+      // 纯文本平台没有可更新的审批卡，把审批信息拼进正文，用户可回复 /approve 或 /deny。
+      text = [
+        projection.text,
+        `需要审批：${projection.pendingAction.toolName}`,
+        projection.pendingAction.inputPreview,
+        '回复 /approve 批准，/deny 拒绝。',
+      ].filter(Boolean).join('\n\n')
+    }
+    if (!supportsUpdate) {
+      // 纯文本平台（微信）没有可更新消息：只在终态或有操作时才发，
+      // 避免运行中空状态和重复文本刷屏。
+      const actionable = Boolean(projection.pendingAction || projection.secretRequest)
+      const settled = ['success', 'failed', 'cancelled'].includes(projection.status)
+      if (!actionable && !settled)
+        return
+      if (!text.trim() && !projection.attachments?.length)
+        return
+      // 终态只发一次；secret 提示重复触发时再发以便用户看到。
+      if (!actionable && projection.lastSentText === text)
+        return
+      // 同一审批只推一次，task-updated 重复触发时不能刷屏。
+      if (projection.pendingAction && projection.lastSentPendingActionId === projection.pendingAction.actionId)
+        return
+    }
     await this.publish(
       projection.channelAccountId,
       projection.externalChatId,
@@ -281,21 +375,18 @@ export class ChannelDelivery {
         executionId: projection.executionId,
         status: projection.status,
         phase: projection.phase,
-        text: projection.secretRequest
-          ? [
-              projection.text,
-              `需要敏感信息：${projection.secretRequest.label}`,
-              projection.secretRequest.reason,
-              '为避免密码或 Token 经第三方平台传输，请在 Ant Chat 桌面端完成输入。',
-            ].filter(Boolean).join('\n\n')
-          : projection.text,
+        text,
         model: projection.model,
         steps: [...projection.steps.values()],
         pendingAction: projection.pendingAction,
         visualization: projection.visualization,
         actions,
+        ...(projection.attachments ? { attachments: projection.attachments } : {}),
       },
     )
+    projection.lastSentText = text
+    if (projection.pendingAction)
+      projection.lastSentPendingActionId = projection.pendingAction.actionId
     projection.lastPublishedAt = Date.now()
   }
 
@@ -405,8 +496,16 @@ export class ChannelDelivery {
     if (!connector)
       return
     const existing = await this.deps.data.channelReceiptRepository.getOutboundByLocalMessageId(channelAccountId, localMessageId)
-    if (existing?.status === 'sent' && content.kind !== 'text' && connector.update) {
-      await connector.update({ externalMessageId: existing.externalMessageId, content })
+    if (existing?.status === 'sent' && connector.capabilities.supportsUpdate) {
+      if (content.kind !== 'text')
+        await connector.update?.({ externalMessageId: existing.externalMessageId, content })
+      return
+    }
+    // 纯文本平台（微信）没有可更新消息：每次实质内容变化发一条新文本，
+    // 并把回执指向最新平台消息 ID，避免唯一约束冲突。
+    if (existing?.status === 'sent' && !connector.capabilities.supportsUpdate) {
+      const sent = await connector.send({ externalChatId, content })
+      await this.deps.data.channelReceiptRepository.updateExternalMessageId(existing.id, sent.externalMessageId)
       return
     }
     if (existing?.status === 'sent')

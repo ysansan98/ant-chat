@@ -28,4 +28,6 @@ export interface ChannelReceiptRepository {
   getOutboundByLocalMessageId: (channelAccountId: string, localMessageId: string) => Promise<ChannelMessageReceipt | undefined>
   create: (input: Omit<ChannelMessageReceipt, 'id' | 'createdAt' | 'updatedAt'>) => Promise<ChannelMessageReceipt>
   updateStatus: (id: string, status: ChannelReceiptStatus, lastError?: string, localMessageId?: string) => Promise<ChannelMessageReceipt>
+  /** 纯文本平台发新消息后，把回执指向最新平台消息 ID。 */
+  updateExternalMessageId: (id: string, externalMessageId: string) => Promise<ChannelMessageReceipt>
 }

@@ -1,7 +1,13 @@
+import type { ChannelAttachment } from '../channelConnector'
 import type { FeishuTransport } from './connector'
 
+import { Buffer } from 'node:buffer'
 import * as lark from '@larksuiteoapi/node-sdk'
 import { buildFeishuCard } from './card'
+
+/** 飞书 im.v1.file.create 上限 30MB、im.v1.image.create 上限 10MB。 */
+const FEISHU_FILE_LIMIT_BYTES = 30 * 1024 * 1024
+const FEISHU_IMAGE_LIMIT_BYTES = 10 * 1024 * 1024
 
 /**
  * 飞书长连接只负责收发平台事件；Agent 入口仍由 FeishuConnector 和 ChannelRuntime 持有。
@@ -85,6 +91,55 @@ export function createFeishuTransport(credential: string, logger?: Pick<Console,
         throw new Error('飞书发送消息未返回 message_id')
       return { messageId }
     },
+    async sendFile(chatId, attachment) {
+      const bytes = Buffer.from(attachment.data, 'base64')
+      if (attachment.kind === 'image') {
+        if (bytes.byteLength > FEISHU_IMAGE_LIMIT_BYTES)
+          throw new Error(`飞书图片超过 10MB 上限：${attachment.name}`)
+        const image = await client.im.v1.image.create({
+          data: { image_type: 'message', image: bytes },
+        })
+        const imageKey = image?.image_key
+        if (!imageKey)
+          throw new Error('飞书上传图片未返回 image_key')
+        const response = await client.im.v1.message.create({
+          params: { receive_id_type: 'chat_id' },
+          data: {
+            receive_id: chatId,
+            msg_type: 'image',
+            content: JSON.stringify({ image_key: imageKey }),
+          },
+        })
+        const messageId = response.data?.message_id
+        if (!messageId)
+          throw new Error('飞书发送图片消息未返回 message_id')
+        return { messageId }
+      }
+      if (bytes.byteLength > FEISHU_FILE_LIMIT_BYTES)
+        throw new Error(`飞书文件超过 30MB 上限：${attachment.name}`)
+      const file = await client.im.v1.file.create({
+        data: {
+          file_type: mapFeishuFileType(attachment),
+          file_name: attachment.name || 'file',
+          file: bytes,
+        },
+      })
+      const fileKey = file?.file_key
+      if (!fileKey)
+        throw new Error('飞书上传文件未返回 file_key')
+      const response = await client.im.v1.message.create({
+        params: { receive_id_type: 'chat_id' },
+        data: {
+          receive_id: chatId,
+          msg_type: 'file',
+          content: JSON.stringify({ file_key: fileKey }),
+        },
+      })
+      const messageId = response.data?.message_id
+      if (!messageId)
+        throw new Error('飞书发送文件消息未返回 message_id')
+      return { messageId }
+    },
     async createCard(chatId, content) {
       const response = await client.im.v1.message.create({
         params: { receive_id_type: 'chat_id' },
@@ -129,6 +184,25 @@ export function createFeishuTransport(credential: string, logger?: Pick<Console,
       return { changed: true }
     },
   }
+}
+
+/** 飞书 file_type 枚举有限，未知类型必须落 stream 且保留原始文件名。 */
+function mapFeishuFileType(attachment: ChannelAttachment): 'opus' | 'mp4' | 'pdf' | 'doc' | 'xls' | 'ppt' | 'stream' {
+  const name = attachment.name.toLowerCase()
+  const mediaType = attachment.mediaType.toLowerCase()
+  if (name.endsWith('.pdf') || mediaType.includes('pdf'))
+    return 'pdf'
+  if (name.endsWith('.doc') || name.endsWith('.docx') || mediaType.includes('msword') || mediaType.includes('word') || mediaType.includes('openxmlformats-officedocument.wordprocessingml'))
+    return 'doc'
+  if (name.endsWith('.xls') || name.endsWith('.xlsx') || mediaType.includes('spreadsheet') || mediaType.includes('excel') || mediaType.includes('openxmlformats-officedocument.spreadsheetml'))
+    return 'xls'
+  if (name.endsWith('.ppt') || name.endsWith('.pptx') || mediaType.includes('presentation') || mediaType.includes('powerpoint') || mediaType.includes('openxmlformats-officedocument.presentationml'))
+    return 'ppt'
+  if (name.endsWith('.mp4') || mediaType.includes('mp4'))
+    return 'mp4'
+  if (name.endsWith('.opus') || mediaType.includes('opus'))
+    return 'opus'
+  return 'stream'
 }
 
 function inspectFeishuCardAction(value: unknown): { eventId?: string, eventType?: string, messageId?: string } {

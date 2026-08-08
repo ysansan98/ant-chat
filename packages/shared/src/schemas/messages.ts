@@ -1,62 +1,9 @@
 import { z } from 'zod'
 
 import { CommandMetadataSchema } from './command'
-import { VisualizationBlockSchema, VisualizationOutputBlocksSchema } from './visualization'
+import { VisualizationBlockSchema, VisualizationBlockTransportSchema } from './visualization'
 
-// 文本内容
-export const TextContentSchema = z.object({
-  type: z.literal('text'),
-  text: z.string(),
-})
-
-export type TextContent = z.infer<typeof TextContentSchema>
-
-// 图片内容
-export const ImageContentSchema = z.object({
-  type: z.literal('image'),
-  mimeType: z.string(),
-  data: z.string(),
-  url: z.string().optional(),
-})
-
-// 错误内容
-export const ErrorContentSchema = z.object({
-  type: z.literal('error'),
-  error: z.string(),
-})
-
-export type ErrorContent = z.infer<typeof ErrorContentSchema>
-
-export type ImageContent = z.infer<typeof ImageContentSchema>
-
-// Tool call 内容块（在 assistant 消息的 content 中）
-export const ToolCallContentSchema = z.object({
-  type: z.literal('tool-call'),
-  toolCallId: z.string(),
-  toolName: z.string(),
-  args: z.record(z.string(), z.unknown()),
-  serverName: z.string().optional(),
-  /** 命令工具的结构化解释器身份，供展示和 Trace 使用。 */
-  command: CommandMetadataSchema.optional(),
-  executeState: z.enum(['executing', 'completed']).optional(),
-  /** 仅限 agent loop 内部 transport，持久化前由 session emitter 剥离。 */
-  outputBlocks: VisualizationOutputBlocksSchema.shape.outputBlocks.optional(),
-})
-
-export type ToolCallContent = z.infer<typeof ToolCallContentSchema>
-
-// Tool result 内容块（在 role: 'tool' 消息的 content 中）
-export const ToolResultContentSchema = z.object({
-  type: z.literal('tool-result'),
-  toolCallId: z.string(),
-  toolName: z.string(),
-  result: z.unknown(),
-  isError: z.boolean().optional(),
-})
-
-export type ToolResultContent = z.infer<typeof ToolResultContentSchema>
-
-// ============================ 新增：文件引用类型 ============================
+// ============================ 文件引用与附件块 ============================
 
 // 文件 ID 来源（本地存储）
 export const FileIdSourceSchema = z.object({
@@ -123,6 +70,123 @@ export const FileBlockSchema = z.object({
 })
 
 export type FileBlock = z.infer<typeof FileBlockSchema>
+
+// ============================ 附件 outputBlocks（agent loop transport） ============================
+
+/** 附件块在工具执行阶段的 transport 变体：data 必填，持久化前由 stageAttachmentData 剥离。 */
+export const ImageBlockTransportSchema = ImageBlockSchema.extend({
+  source: FileIdSourceSchema,
+  name: z.string().min(1),
+  media_type: z.string().min(1),
+  size: z.number().int().positive(),
+  data: z.string().min(1),
+})
+
+export type ImageBlockTransport = z.infer<typeof ImageBlockTransportSchema>
+
+export const DocumentBlockTransportSchema = DocumentBlockSchema.extend({
+  source: FileIdSourceSchema,
+  name: z.string().min(1),
+  media_type: z.string().min(1),
+  size: z.number().int().positive(),
+  data: z.string().min(1),
+})
+
+export type DocumentBlockTransport = z.infer<typeof DocumentBlockTransportSchema>
+
+export const FileBlockTransportSchema = FileBlockSchema.extend({
+  source: FileIdSourceSchema,
+  filename: z.string().min(1),
+  name: z.string().min(1),
+  media_type: z.string().min(1),
+  size: z.number().int().positive(),
+  data: z.string().min(1),
+})
+
+export type FileBlockTransport = z.infer<typeof FileBlockTransportSchema>
+
+export const AttachmentOutputBlockSchema = z.discriminatedUnion('type', [
+  ImageBlockTransportSchema,
+  DocumentBlockTransportSchema,
+  FileBlockTransportSchema,
+])
+
+export type AttachmentOutputBlock = z.infer<typeof AttachmentOutputBlockSchema>
+
+/** 附件块持久化形态：data 已被剥离，仅保留 file_id 引用。 */
+export const AttachmentBlockSchema = z.discriminatedUnion('type', [
+  ImageBlockSchema,
+  DocumentBlockSchema,
+  FileBlockSchema,
+])
+
+export type AttachmentBlock = z.infer<typeof AttachmentBlockSchema>
+
+/** 工具 diagnostics 允许携带的产物块：可视化 + 附件（均为 transport 形态）。 */
+export const ToolOutputBlocksSchema = z.object({
+  outputBlocks: z.array(z.union([
+    VisualizationBlockTransportSchema,
+    ImageBlockTransportSchema,
+    DocumentBlockTransportSchema,
+    FileBlockTransportSchema,
+  ])).max(10),
+})
+
+export type ToolOutputBlocks = z.infer<typeof ToolOutputBlocksSchema>
+export type ToolOutputBlock = ToolOutputBlocks['outputBlocks'][number]
+
+// 文本内容
+export const TextContentSchema = z.object({
+  type: z.literal('text'),
+  text: z.string(),
+})
+
+export type TextContent = z.infer<typeof TextContentSchema>
+
+// 图片内容
+export const ImageContentSchema = z.object({
+  type: z.literal('image'),
+  mimeType: z.string(),
+  data: z.string(),
+  url: z.string().optional(),
+})
+
+// 错误内容
+export const ErrorContentSchema = z.object({
+  type: z.literal('error'),
+  error: z.string(),
+})
+
+export type ErrorContent = z.infer<typeof ErrorContentSchema>
+
+export type ImageContent = z.infer<typeof ImageContentSchema>
+
+// Tool call 内容块（在 assistant 消息的 content 中）
+export const ToolCallContentSchema = z.object({
+  type: z.literal('tool-call'),
+  toolCallId: z.string(),
+  toolName: z.string(),
+  args: z.record(z.string(), z.unknown()),
+  serverName: z.string().optional(),
+  /** 命令工具的结构化解释器身份，供展示和 Trace 使用。 */
+  command: CommandMetadataSchema.optional(),
+  executeState: z.enum(['executing', 'completed']).optional(),
+  /** 仅限 agent loop 内部 transport，持久化前由 session emitter 剥离。 */
+  outputBlocks: ToolOutputBlocksSchema.shape.outputBlocks.optional(),
+})
+
+export type ToolCallContent = z.infer<typeof ToolCallContentSchema>
+
+// Tool result 内容块（在 role: 'tool' 消息的 content 中）
+export const ToolResultContentSchema = z.object({
+  type: z.literal('tool-result'),
+  toolCallId: z.string(),
+  toolName: z.string(),
+  result: z.unknown(),
+  isError: z.boolean().optional(),
+})
+
+export type ToolResultContent = z.infer<typeof ToolResultContentSchema>
 
 // ============================ 消息内容 Schema ============================
 
@@ -194,7 +258,7 @@ export const McpToolCallSchema = z.object({
   command: CommandMetadataSchema.optional(),
   executeState: z.enum(['await', 'executing', 'completed']),
   result: McpToolResultSchema.optional(),
-  outputBlocks: VisualizationOutputBlocksSchema.shape.outputBlocks.optional(),
+  outputBlocks: ToolOutputBlocksSchema.shape.outputBlocks.optional(),
 })
 
 export type McpToolCall = z.infer<typeof McpToolCallSchema>

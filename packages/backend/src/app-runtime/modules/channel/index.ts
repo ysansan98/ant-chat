@@ -1,14 +1,15 @@
 /* eslint-disable style/max-statements-per-line */
 
-import type { AgentTaskSnapshot, ApprovePendingActionOptions, AppRpcInput, CancelTaskOptions, ChannelAccount, ChannelAccountView, ChannelSetupResult, ChannelType, ConversationsSettingsSchema, RejectPendingActionOptions } from '@ant-chat/shared'
+import type { AgentTaskSnapshot, ApprovePendingActionOptions, AppRpcInput, CancelTaskOptions, ChannelAccount, ChannelAccountView, ChannelAttachmentSender, ChannelSetupResult, ChannelType, ConversationsSettingsSchema, RejectPendingActionOptions } from '@ant-chat/shared'
 import type { AgentTurnService } from '../../../agent-runtime/agentTurnService'
 import type { ChannelActionEvent, ChannelActionResult, ChannelConnector } from '../../../channels'
 import type { RuntimeCore } from '../../createRuntimeCore'
 import type { RuntimeModuleMethods } from '../../routeRegistry'
 import type { RuntimeModule } from '../../runtimeModule'
 import { randomUUID } from 'node:crypto'
-import { ChannelDelivery, ChannelRuntime } from '../../../channels'
+import { ChannelActionHandler, ChannelDelivery, ChannelRuntime } from '../../../channels'
 import { FeishuAppRegistration } from '../../../channels/feishu'
+import { parseWeixinCredential, WeixinAppRegistration } from '../../../channels/weixin'
 import { Method, Module } from '../../decorators'
 
 export interface ChannelAgentDependencies {
@@ -25,11 +26,15 @@ export interface ChannelAgentDependencies {
 export class ChannelModule implements RuntimeModuleMethods<'channel'>, RuntimeModule {
   readonly runtime: ChannelRuntime
   private readonly delivery: ChannelDelivery
+  private readonly actionHandler: ChannelActionHandler
   private readonly connectors: Map<ChannelType, ChannelConnector>
   private readonly feishuRegistration = new FeishuAppRegistration()
+  private readonly weixinRegistration: WeixinAppRegistration
   private readonly setupAccounts = new Map<string, string>()
-  constructor(private readonly core: Pick<RuntimeCore, 'data' | 'events' | 'logger' | 'secretStore'>, private readonly agent: ChannelAgentDependencies, connectors: ChannelConnector[] = []) {
+  private readonly setupChannelTypes = new Map<string, ChannelType>()
+  constructor(private readonly core: Pick<RuntimeCore, 'data' | 'events' | 'logger' | 'secretStore'>, agent: ChannelAgentDependencies, connectors: ChannelConnector[] = []) {
     this.connectors = new Map(connectors.map(connector => [connector.type, connector]))
+    this.weixinRegistration = new WeixinAppRegistration(core.logger)
     this.runtime = new ChannelRuntime({
       data: core.data,
       turnService: agent.turnService,
@@ -59,7 +64,14 @@ export class ChannelModule implements RuntimeModuleMethods<'channel'>, RuntimeMo
           agent.rejectPendingAction({ taskId: task.taskId, actionId: task.pendingAction.actionId, reason: '通过消息频道拒绝' })
       },
     })
-    this.delivery = new ChannelDelivery({ events: core.events, data: core.data, connectors: this.connectors })
+    this.delivery = new ChannelDelivery({ events: core.events, data: core.data, connectors: this.connectors, logger: core.logger })
+    this.actionHandler = new ChannelActionHandler({
+      data: core.data,
+      delivery: this.delivery,
+      runtime: this.runtime,
+      agent,
+      logger: core.logger,
+    })
   }
 
   async initialize() {
@@ -82,14 +94,24 @@ export class ChannelModule implements RuntimeModuleMethods<'channel'>, RuntimeMo
   }
 
   async dispose() { this.delivery.stop(); await Promise.all([...this.connectors.values()].map(connector => connector.stop().catch(() => {}))) }
+
+  /** agent 工具直发附件的宿主能力：定位账号对应 connector 并透传，失败抛给工具层。 */
+  async sendAttachment(input: Parameters<ChannelAttachmentSender['send']>[0]): Promise<{ messageId: string }> {
+    const account = await this.core.data.channelAccountRepository.getById(input.channelAccountId)
+    const connector = this.connectors.get(account.channelType)
+    if (!connector)
+      throw new Error('频道发送能力不可用')
+    return connector.sendAttachment({
+      externalChatId: input.externalChatId,
+      attachment: input.attachment,
+    })
+  }
+
   @Method()
   async list(_input?: AppRpcInput<'channel.list'>): Promise<ChannelAccountView[]> { return (await this.core.data.channelAccountRepository.list()).map(toPublicAccount) }
 
   @Method()
   async setup(input: AppRpcInput<'channel.setup'>): Promise<ChannelSetupResult> {
-    if (input.channelType !== 'feishu')
-      throw new Error('个人微信扫码接入尚未完成')
-
     // channel_accounts.channel_type 有唯一索引：每种平台只允许一个频道。
     // 已有频道时引导用户在卡片上重新授权或删除重建，避免撞唯一约束后抛底层 SQL 错误。
     const existing = input.channelAccountId
@@ -99,7 +121,12 @@ export class ChannelModule implements RuntimeModuleMethods<'channel'>, RuntimeMo
       throw new Error(`已存在${input.channelType === 'feishu' ? '飞书' : '微信'}频道「${existing.displayName}」。每种平台只支持一个频道，请在该频道上点击「重新授权」，或删除后重新添加。`)
     if (existing && existing.channelType !== input.channelType)
       throw new Error('频道与应用平台不匹配，请重新发起。')
+    return input.channelType === 'feishu'
+      ? this.setupFeishu(input, existing)
+      : this.setupWeixin(input, existing)
+  }
 
+  private async setupFeishu(input: AppRpcInput<'channel.setup'>, existing: ChannelAccount | undefined): Promise<ChannelSetupResult> {
     // 重新授权已有频道时，应用 ID 从已保存凭证读取，避免把凭据内容暴露给前端。
     let appId = input.appId
     if (existing) {
@@ -141,11 +168,87 @@ export class ChannelModule implements RuntimeModuleMethods<'channel'>, RuntimeMo
       },
     })
     this.setupAccounts.set(setup.setupId, account.id)
+    this.setupChannelTypes.set(setup.setupId, 'feishu')
     return { setupId: setup.setupId, channelType: 'feishu', mode: setup.mode, status: setup.status, verificationUrl: setup.verificationUrl, expiresAt: setup.expiresAt }
+  }
+
+  private async setupWeixin(input: AppRpcInput<'channel.setup'>, existing: ChannelAccount | undefined): Promise<ChannelSetupResult> {
+    this.core.logger.info('[消息频道] 发起微信扫码配置', {
+      channelAccountId: input.channelAccountId,
+      reauth: Boolean(existing),
+    })
+    let localToken: string | undefined
+    if (existing) {
+      const credential = existing.credentialRef
+        ? await this.core.secretStore.resolve({ kind: 'secret_ref', id: existing.credentialRef, scope: 'persistent' })
+        : null
+      localToken = credential ? parseWeixinCredential(credential).botToken : undefined
+      if (!localToken)
+        throw new Error('该频道的凭证不完整，无法重新授权，请删除后重新添加。')
+    }
+
+    const account = existing ?? await this.createAccount({ channelType: 'weixin', displayName: input.displayName, defaultWorkspacePath: input.defaultWorkspacePath })
+    const setup = this.weixinRegistration.start({
+      localToken,
+      onCompleted: async ({ botToken, botId, userId, baseUrl }) => {
+        const credential = await this.core.secretStore.saveChannelCredential({ channelAccountId: account.id, value: JSON.stringify({ botToken, botId, userId, baseUrl }) })
+        // 新建频道默认直接启用；重新授权保持用户当前的启用状态。
+        const configured = await this.core.data.channelAccountRepository.upsert({
+          ...account,
+          displayName: input.displayName.trim(),
+          ownerUserId: userId,
+          defaultWorkspacePath: input.defaultWorkspacePath,
+          credentialRef: credential.id,
+          enabled: existing ? account.enabled : true,
+          status: 'configured',
+          updatedAt: Date.now(),
+        })
+        const connector = this.connectors.get('weixin')
+        if (connector && configured.enabled) {
+          try {
+            await this.startAccount(configured, connector)
+            await this.core.data.channelAccountRepository.updateStatus(account.id, 'connected')
+          }
+          catch (error) {
+            await this.core.data.channelAccountRepository.updateStatus(account.id, 'degraded', error instanceof Error ? error.message : String(error))
+            this.core.logger.warn(existing ? '微信重新授权完成，但长轮询启动失败' : '微信扫码完成，但长轮询启动失败', { error })
+          }
+        }
+      },
+    })
+    this.setupAccounts.set(setup.setupId, account.id)
+    this.setupChannelTypes.set(setup.setupId, 'weixin')
+    return {
+      setupId: setup.setupId,
+      channelType: 'weixin',
+      mode: setup.mode,
+      status: setup.status,
+      verificationUrl: setup.verificationUrl,
+      expiresAt: setup.expiresAt,
+      verifyCodeRequired: setup.verifyCodeRequired,
+    }
   }
 
   @Method()
   async getSetupStatus(input: AppRpcInput<'channel.getSetupStatus'>) {
+    if (this.setupChannelTypes.get(input.setupId) === 'weixin') {
+      const setup = this.weixinRegistration.get(input.setupId, input.verifyCode)
+      if (!setup)
+        throw new Error('扫码会话不存在或已过期')
+      const accountId = this.setupAccounts.get(input.setupId)
+      const account = accountId && setup.status === 'completed' ? await this.core.data.channelAccountRepository.getById(accountId).catch(() => undefined) : undefined
+      return {
+        setupId: setup.setupId,
+        channelType: 'weixin' as const,
+        mode: setup.mode,
+        status: setup.status,
+        verificationUrl: setup.verificationUrl,
+        expiresAt: setup.expiresAt,
+        error: setup.error,
+        verifyCodeRequired: setup.verifyCodeRequired,
+        account: account ? toPublicAccount(account) : undefined,
+      }
+    }
     const setup = this.feishuRegistration.get(input.setupId)
     if (!setup)
       throw new Error('扫码会话不存在或已过期')
@@ -242,7 +345,7 @@ export class ChannelModule implements RuntimeModuleMethods<'channel'>, RuntimeMo
       channelAccountId: account.id,
       credential,
       onInbound: async (event) => {
-        this.core.logger.info('[消息频道] 收到飞书私聊消息', { channelAccountId: event.channelAccountId, externalChatId: event.externalChatId, externalMessageId: event.externalMessageId })
+        this.core.logger.info('[消息频道] 收到频道私聊消息', { channelType: event.channelType, channelAccountId: event.channelAccountId, externalChatId: event.externalChatId, externalMessageId: event.externalMessageId })
         const typing = await this.setTyping(connector, event.externalMessageId, true)
         let keepTyping = false
         try {
@@ -279,104 +382,7 @@ export class ChannelModule implements RuntimeModuleMethods<'channel'>, RuntimeMo
   }
 
   private async handleAction(event: ChannelActionEvent): Promise<ChannelActionResult> {
-    try {
-      const receiptKey = `card-action:${event.externalEventId}`
-      if (await this.core.data.channelReceiptRepository.get(event.channelAccountId, receiptKey, 'inbound'))
-        return { status: 'success', message: '该操作已处理。' }
-      const pairing = await this.core.data.channelPairingRepository.get(event.channelAccountId, event.externalUserId)
-      if (pairing?.status !== 'authorized')
-        return { status: 'error', message: '当前飞书身份未获授权。' }
-      const session = await this.core.data.channelSessionRepository.get(event.channelAccountId, event.externalChatId)
-      if (!session)
-        return { status: 'error', message: '频道会话已失效，请重新发送消息。' }
-      const action = this.delivery.resolveAction(event)
-      if (!action)
-        return { status: 'error', message: '卡片操作无效或已过期。' }
-
-      let message: string
-      let updatedContent: ChannelActionResult['updatedContent']
-      if (action.kind === 'model.select') {
-        if (action.conversationId !== session.activeConversationId)
-          return { status: 'error', message: '这张模型卡片已过期，请重新发送 /models。' }
-        const selected = event.formValues?.model
-        const model = selected ? action.options[selected] : undefined
-        if (!model)
-          return { status: 'error', message: '请选择一个可用模型。' }
-        message = await this.runtime.selectModel(action.conversationId, model.providerId, model.modelId)
-        this.claimAction(event)
-        updatedContent = { kind: 'notice', title: '模型已切换', text: message, tone: 'success' }
-      }
-      else if (action.kind === 'permission-mode.select') {
-        if (action.conversationId !== session.activeConversationId)
-          return { status: 'error', message: '这张权限模式卡片已过期，请重新发送 /mode。' }
-        const selected = event.formValues?.permissionMode
-        const permissionMode = selected ? action.options[selected] : undefined
-        if (!permissionMode)
-          return { status: 'error', message: '请选择一个可用权限模式。' }
-        message = await this.runtime.selectPermissionMode(event.channelAccountId, permissionMode)
-        this.claimAction(event)
-        updatedContent = { kind: 'notice', title: '权限模式已切换', text: message, tone: 'success' }
-      }
-      else if (action.kind === 'secret.reject') {
-        const task = this.requireActionTask(session.activeConversationId, action.executionId, event)
-        if (task.userMessageId !== action.executionId)
-          return { status: 'error', message: '敏感信息请求与当前任务不匹配。' }
-        this.claimAction(event)
-        this.agent.rejectSecretRequest({ requestId: action.requestId, reason: '用户通过飞书拒绝提供敏感信息' })
-        message = '已拒绝提供敏感信息。'
-      }
-      else if (action.kind === 'task.cancel') {
-        this.requireActionTask(session.activeConversationId, action.taskId, event)
-        this.claimAction(event)
-        this.agent.cancelTask({ taskId: action.taskId })
-        message = '已请求停止当前任务。'
-      }
-      else {
-        const task = this.requireActionTask(session.activeConversationId, action.taskId, event)
-        if (task.pendingAction?.actionId !== action.actionId)
-          return { status: 'error', message: '审批操作已处理或已过期。' }
-        this.claimAction(event)
-        if (action.kind === 'approval.approve') {
-          this.agent.approvePendingAction({ taskId: action.taskId, actionId: action.actionId })
-          message = '已批准，本次任务将继续执行。'
-        }
-        else {
-          this.agent.rejectPendingAction({ taskId: action.taskId, actionId: action.actionId, reason: '用户通过飞书拒绝' })
-          message = '已拒绝该操作。'
-        }
-      }
-
-      await this.core.data.channelReceiptRepository.create({
-        channelAccountId: event.channelAccountId,
-        externalChatId: event.externalChatId,
-        externalMessageId: receiptKey,
-        localMessageId: event.externalMessageId,
-        direction: 'inbound',
-        status: 'received',
-      })
-      return { status: 'success', message, ...(updatedContent ? { updatedContent } : {}) }
-    }
-    catch (error) {
-      this.core.logger.warn('[消息频道] 处理卡片操作失败', { externalEventId: event.externalEventId, error })
-      return { status: 'error', message: error instanceof Error ? error.message : '卡片操作失败。' }
-    }
-  }
-
-  private claimAction(event: ChannelActionEvent): void {
-    if (!this.delivery.claimAction(event))
-      throw new Error('卡片操作无效或已过期。')
-  }
-
-  private requireActionTask(conversationId: string, taskIdOrExecutionId: string, event: ChannelActionEvent) {
-    const task = this.agent.listActiveTasks(conversationId).find(item => item.taskId === taskIdOrExecutionId || item.userMessageId === taskIdOrExecutionId)
-    if (!task || task.turnSource?.type !== 'channel'
-      || task.turnSource.channelAccountId !== event.channelAccountId
-      || task.turnSource.externalUserId !== event.externalUserId
-      || task.turnSource.externalChatId !== event.externalChatId
-      || task.turnSource.channelType !== 'feishu') {
-      throw new Error('任务不存在、已结束或不属于当前频道。')
-    }
-    return task
+    return this.actionHandler.handle(event)
   }
 
   private async setTyping(connector: ChannelConnector, externalMessageId: string, typing: boolean) {
