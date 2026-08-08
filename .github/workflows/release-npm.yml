@@ -98,6 +98,15 @@ jobs:
           test "$sse_code" -eq 28
           grep -q 'connected' "$smoke_dir/sse.log"
 
+      - name: Debug OIDC claims（排查 trusted publisher 匹配）
+        shell: bash
+        run: |
+          oidc=$(curl -sS -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=github-actions")
+          token=$(printf '%s' "$oidc" | jq -r .value)
+          payload=$(printf '%s' "$token" | cut -d. -f2)
+          payload="${payload}==="
+          printf '%s' "$payload" | tr '_-' '/+' | base64 -d | jq '{iss, aud, job_workflow_ref, repository, ref, environment, workflow}'
+
       - name: Publish verified tarball with OIDC
         shell: bash
         run: |
