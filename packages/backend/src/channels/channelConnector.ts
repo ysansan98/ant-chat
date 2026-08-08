@@ -67,8 +67,60 @@ export interface ChannelActionResult {
   message: string
   updatedContent?: Exclude<ChannelOutboundContent, { kind: 'text' }>
 }
+export interface ChannelConnectorStatus {
+  status: 'configured' | 'connecting' | 'connected' | 'degraded' | 'disconnected'
+  lastError?: string
+}
+export interface ConnectorState<T> {
+  getStatus: () => ChannelConnectorStatus
+  beginConnect: () => void
+  setConnected: () => void
+  setDegraded: (error: unknown) => void
+  setDisconnected: () => void
+  activeTransport: T | undefined
+  stopActive: (stop: (transport: T) => Promise<void>) => Promise<void>
+}
+/** 连接生命周期状态机 + transport 持有，两个平台 connector 共用同一套语义。 */
+export function createConnectorState<T>(): ConnectorState<T> {
+  let status: ChannelConnectorStatus = { status: 'disconnected' }
+  let activeTransport: T | undefined
+  return {
+    getStatus: () => status,
+    beginConnect: () => {
+      status = { status: 'connecting' }
+    },
+    setConnected: () => {
+      status = { status: 'connected' }
+    },
+    setDegraded: (error) => {
+      status = { status: 'degraded', lastError: error instanceof Error ? error.message : String(error) }
+    },
+    setDisconnected: () => {
+      status = { status: 'disconnected' }
+    },
+    get activeTransport() {
+      return activeTransport
+    },
+    set activeTransport(value: T | undefined) {
+      activeTransport = value
+    },
+    async stopActive(stop) {
+      const transport = activeTransport
+      activeTransport = undefined
+      if (transport)
+        await stop(transport)
+      status = { status: 'disconnected' }
+    },
+  }
+}
+/** 平台传输能力。调用方依赖它选择发送策略，而不是探测方法是否存在。 */
+export interface ChannelCapabilities {
+  /** 平台能否编辑已发送的消息（卡片平台为 true，纯文本平台为 false）。 */
+  supportsUpdate: boolean
+}
 export interface ChannelConnector {
   readonly type: ChannelType
+  readonly capabilities: ChannelCapabilities
   setup: (input: ChannelSetupInput) => Promise<unknown>
   start: (input: {
     channelAccountId: string
@@ -82,5 +134,5 @@ export interface ChannelConnector {
   sendAttachment: (input: { externalChatId: string, attachment: ChannelAttachment }) => Promise<{ messageId: string }>
   update?: (input: ChannelUpdateInput) => Promise<void>
   setTyping?: (input: ChannelTypingInput) => Promise<ChannelTypingResult>
-  getStatus: () => { status: 'configured' | 'connecting' | 'connected' | 'degraded' | 'disconnected', lastError?: string }
+  getStatus: () => ChannelConnectorStatus
 }

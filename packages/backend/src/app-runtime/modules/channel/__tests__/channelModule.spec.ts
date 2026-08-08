@@ -21,6 +21,7 @@ describe('channel module 平台回包', () => {
     }
     const connector: ChannelConnector = {
       type: 'feishu',
+      capabilities: { supportsUpdate: true },
       setup: vi.fn(async () => ({})),
       start: vi.fn(async () => {}),
       stop: vi.fn(async () => {}),
@@ -84,6 +85,7 @@ describe('channel module 平台回包', () => {
     const setTyping = vi.fn(async () => ({ changed: true }))
     const connector: ChannelConnector = {
       type: 'feishu',
+      capabilities: { supportsUpdate: true },
       setup: vi.fn(async () => ({})),
       start: vi.fn(async (input) => {
         onInbound = input.onInbound

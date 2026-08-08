@@ -1,9 +1,23 @@
-import type { SystemLogger } from '../../systemLogger'
 import type { ChannelAttachment } from '../channelConnector'
-import { Buffer } from 'node:buffer'
-import { createCipheriv, createHash, randomBytes, randomUUID } from 'node:crypto'
-import process from 'node:process'
-import { fetch } from 'undici'
+import type { TransportLogger } from './ilinkHttp'
+import { randomUUID } from 'node:crypto'
+import {
+  BACKOFF_DELAY_MS,
+  DEFAULT_API_BASE_URL,
+  isStaleSession,
+  LONG_POLL_TIMEOUT_MS,
+  RATE_LIMIT_ERRCODE,
+  readEnvInt,
+  RETRY_DELAY_MS,
+  SESSION_EXPIRED_ERRCODE,
+  TEXT_BATCH_SPLIT_THRESHOLD,
+  TYPING_TICKET_TTL_MS,
+  weixinPost,
+} from './ilinkHttp'
+import { uploadMediaToIlink } from './mediaUpload'
+
+export type { TransportLogger, WeixinQrCodeResponse, WeixinQrStatusResponse } from './ilinkHttp'
+export { getWeixinBotQrcode, getWeixinQrStatus, readEnvInt } from './ilinkHttp'
 
 export interface WeixinTransport {
   start: (handlers: {
@@ -23,57 +37,6 @@ export interface WeixinCredential {
   baseUrl?: string
 }
 
-export interface WeixinQrCodeResponse {
-  qrcode: string
-  qrcode_img_content?: string
-  ret?: number
-}
-
-export interface WeixinQrStatusResponse {
-  status: 'wait' | 'scaned' | 'confirmed' | 'expired' | 'scaned_but_redirect' | 'binded_redirect' | 'need_verifycode' | 'verify_code_blocked' | string
-  ret?: number
-  timedOut?: boolean
-  bot_token?: string
-  ilink_endpoint_id?: string
-  ilink_user_id?: string
-  baseurl?: string
-  redirect_host?: string
-}
-
-export type TransportLogger = Pick<SystemLogger, 'debug' | 'info' | 'warn' | 'error'>
-
-const DEFAULT_API_BASE_URL = 'https://ilinkai.weixin.qq.com'
-const DEFAULT_CDN_BASE_URL = 'https://novac2c.cdn.weixin.qq.com/c2c'
-const DEFAULT_BOT_TYPE = '3'
-const LONG_POLL_TIMEOUT_MS = 35_000
-const QR_POLL_TIMEOUT_MS = 35_000
-const SESSION_EXPIRED_ERRCODE = -14
-const RATE_LIMIT_ERRCODE = -2
-const RETRY_DELAY_MS = 2_000
-const BACKOFF_DELAY_MS = 30_000
-const TYPING_TICKET_TTL_MS = 600_000
-/** iLink 会把长文本拆成约 2048 字符的多条消息，达到阈值时放宽合并等待。 */
-const TEXT_BATCH_SPLIT_THRESHOLD = 1800
-const BOT_AGENT = 'AntChat/1.0.0 (ant-chat)'
-const ILINK_APP_ID = 'bot'
-const ILINK_APP_CLIENT_VERSION = '1'
-
-/** 读取环境变量整数配置，缺失或非法时回退默认值。 */
-export function readEnvInt(name: string, fallback: number): number {
-  const raw = process.env[name]
-  if (!raw)
-    return fallback
-  const parsed = Number.parseInt(raw, 10)
-  return Number.isFinite(parsed) ? parsed : fallback
-}
-
-/** iLink 的 ret=-2/errcode=-2 + "unknown error" 是会话过期信号，不是真限流。 */
-function isStaleSession(ret: number | undefined, errcode: number | undefined, errmsg: unknown): boolean {
-  if (ret !== RATE_LIMIT_ERRCODE && errcode !== RATE_LIMIT_ERRCODE)
-    return false
-  return String(errmsg ?? '').toLowerCase() === 'unknown error'
-}
-
 function extractText(message: Record<string, unknown>): string {
   const itemList = Array.isArray(message.item_list) ? message.item_list : []
   for (const item of itemList) {
@@ -89,239 +52,6 @@ function extractText(message: Record<string, unknown>): string {
 
 function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
-}
-
-/** AES-128-ECB 加密并做 PKCS7 补位（Node crypto 默认填充）。 */
-function aes128EcbEncrypt(plaintext: Buffer, key: Buffer): Buffer {
-  const cipher = createCipheriv('aes-128-ecb', key, null)
-  return Buffer.concat([cipher.update(plaintext), cipher.final()])
-}
-
-/** getuploadurl 的 filesize 是 PKCS7 补位后的大小，必须与密文长度一致。 */
-function aesPaddedSize(size: number): number {
-  return Math.ceil(size / 16) * 16
-}
-
-/** 把密文 POST 到微信 CDN，响应头 x-encrypted-param 即最终 encrypt_query_param。 */
-async function weixinUploadCiphertext(input: {
-  uploadUrl: string
-  ciphertext: Buffer
-  signal?: AbortSignal
-  timeoutMs?: number
-  logger?: TransportLogger
-}): Promise<string> {
-  input.logger?.debug('[消息频道] 微信 CDN 上传', { timeoutMs: input.timeoutMs })
-  try {
-    const response = await fetch(input.uploadUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/octet-stream' },
-      body: input.ciphertext,
-      signal: timeoutSignal(input.signal ?? new AbortController().signal, input.timeoutMs ?? 120_000),
-    })
-    const encryptedParam = response.headers.get('x-encrypted-param')
-    const raw = await response.text()
-    if (!response.ok)
-      throw new Error(`微信 CDN 上传失败：HTTP ${response.status} ${raw.slice(0, 200)}`)
-    if (!encryptedParam)
-      throw new Error(`微信 CDN 上传缺少 x-encrypted-param 响应头：${raw.slice(0, 200)}`)
-    return encryptedParam
-  }
-  catch (error) {
-    if (error instanceof Error && error.name === 'TimeoutError' && !input.signal?.aborted) {
-      input.logger?.debug('[消息频道] 微信 CDN 上传超时', {})
-      throw new Error('微信 CDN 上传超时')
-    }
-    input.logger?.warn('[消息频道] 微信 CDN 上传异常', { error: error instanceof Error ? error.message : String(error) })
-    throw error
-  }
-}
-
-/** 微信 iLink 的 base_info 随每个授权请求携带，标识驱动 bot 的客户端。 */
-function buildBaseInfo(): { channel_version: string, bot_agent: string } {
-  return { channel_version: '1', bot_agent: BOT_AGENT }
-}
-
-function commonHeaders(): Record<string, string> {
-  return {
-    'iLink-App-Id': ILINK_APP_ID,
-    'iLink-App-ClientVersion': ILINK_APP_CLIENT_VERSION,
-  }
-}
-
-function postHeaders(token?: string): Record<string, string> {
-  return {
-    ...commonHeaders(),
-    'Content-Type': 'application/json',
-    'AuthorizationType': 'ilink_bot_token',
-    'X-WECHAT-UIN': randomBytes(4).toString('base64'),
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  }
-}
-
-function timeoutSignal(signal: AbortSignal, timeoutMs: number): AbortSignal {
-  return AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
-}
-
-/** 脱敏请求 body：只保留字段名与类型，绝不输出 bot token、context token、验证码或同步游标。 */
-function redactBody(body: Record<string, unknown>): Record<string, unknown> {
-  return Object.fromEntries(
-    Object.entries(body).map(([key, value]) => [key, describeValue(value)]),
-  )
-}
-
-function describeValue(value: unknown): unknown {
-  if (value === null || value === undefined)
-    return value
-  if (typeof value === 'string')
-    return typeof value === 'string' && value.length ? '[string]' : '[empty string]'
-  if (typeof value === 'number' || typeof value === 'boolean')
-    return value
-  if (Array.isArray(value))
-    return value.map(item => describeValue(item))
-  if (typeof value === 'object')
-    return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, describeValue(item)]))
-  return typeof value
-}
-
-/** 脱敏响应：bot_token/context_token/get_updates_buf/qrcode 等敏感字段只保留存在性，其余完整保留。 */
-function redactResponse(raw: string): unknown {
-  try {
-    const parsed = JSON.parse(raw) as Record<string, unknown>
-    const redacted = { ...parsed }
-    for (const key of ['bot_token', 'context_token', 'get_updates_buf', 'sync_buf', 'qrcode', 'verify_code', 'typing_ticket']) {
-      if (key in redacted)
-        redacted[key] = `[${typeof redacted[key]} present]`
-    }
-    if (redacted.msg && typeof redacted.msg === 'object')
-      redacted.msg = describeValue(redacted.msg)
-    if (Array.isArray(redacted.msgs)) {
-      redacted.msgs = redacted.msgs.map((item) => {
-        const record = item as Record<string, unknown>
-        const out: Record<string, unknown> = { ...record }
-        if ('context_token' in out)
-          out.context_token = '[string present]'
-        if ('item_list' in out)
-          out.item_list = describeValue(out.item_list)
-        return out
-      })
-    }
-    return redacted
-  }
-  catch {
-    return raw.slice(0, 200)
-  }
-}
-
-export async function weixinPost<T>(input: {
-  baseUrl: string
-  path: string
-  token?: string
-  body: Record<string, unknown>
-  signal?: AbortSignal
-  timeoutMs?: number
-  logger?: TransportLogger
-}): Promise<T> {
-  const requestBody = JSON.stringify({ ...input.body, base_info: buildBaseInfo() })
-  input.logger?.debug('[消息频道] 微信 POST', {
-    path: input.path,
-    timeoutMs: input.timeoutMs,
-    body: redactBody(input.body),
-  })
-  try {
-    const response = await fetch(new URL(input.path, input.baseUrl), {
-      method: 'POST',
-      headers: postHeaders(input.token),
-      body: requestBody,
-      signal: timeoutSignal(input.signal ?? new AbortController().signal, input.timeoutMs ?? 30_000),
-    })
-    const rawText = await response.text()
-    input.logger?.info('[消息频道] 微信 POST 响应', {
-      path: input.path,
-      httpStatus: response.status,
-      response: redactResponse(rawText),
-    })
-    if (!response.ok)
-      throw new Error(`微信 iLink 请求失败：HTTP ${response.status} ${rawText.slice(0, 200)}`)
-    return JSON.parse(rawText) as T
-  }
-  catch (error) {
-    if (error instanceof Error && error.name === 'TimeoutError' && !input.signal?.aborted) {
-      input.logger?.debug('[消息频道] 微信 POST 超时', { path: input.path })
-      return { ret: 0 } as T
-    }
-    input.logger?.warn('[消息频道] 微信 POST 异常', { path: input.path, error: error instanceof Error ? error.message : String(error) })
-    throw error
-  }
-}
-
-export async function weixinGet<T>(input: {
-  baseUrl: string
-  path: string
-  token?: string
-  signal?: AbortSignal
-  timeoutMs?: number
-  logger?: TransportLogger
-}): Promise<T> {
-  input.logger?.debug('[消息频道] 微信 GET', { path: input.path, timeoutMs: input.timeoutMs })
-  try {
-    const response = await fetch(new URL(input.path, input.baseUrl), {
-      method: 'GET',
-      headers: commonHeaders(),
-      signal: timeoutSignal(input.signal ?? new AbortController().signal, input.timeoutMs ?? 30_000),
-    })
-    const rawText = await response.text()
-    input.logger?.info('[消息频道] 微信 GET 响应', {
-      path: input.path,
-      httpStatus: response.status,
-      response: redactResponse(rawText),
-    })
-    if (!response.ok)
-      throw new Error(`微信 iLink 请求失败：HTTP ${response.status} ${rawText.slice(0, 200)}`)
-    return JSON.parse(rawText) as T
-  }
-  catch (error) {
-    // 长轮询接口超时是正常状态：上层应继续轮询而不是把登录判死。
-    if (error instanceof Error && error.name === 'TimeoutError' && !input.signal?.aborted) {
-      input.logger?.debug('[消息频道] 微信 GET 超时，继续轮询', { path: input.path })
-      return { ret: 0, timedOut: true } as T
-    }
-    input.logger?.warn('[消息频道] 微信 GET 异常', { path: input.path, error: error instanceof Error ? error.message : String(error) })
-    throw error
-  }
-}
-
-export function getWeixinBotQrcode(input: {
-  baseUrl?: string
-  localTokenList?: string[]
-  signal?: AbortSignal
-  logger?: TransportLogger
-}): Promise<WeixinQrCodeResponse> {
-  return weixinPost<WeixinQrCodeResponse>({
-    baseUrl: input.baseUrl ?? DEFAULT_API_BASE_URL,
-    path: `ilink/bot/get_bot_qrcode?bot_type=${DEFAULT_BOT_TYPE}`,
-    body: { local_token_list: input.localTokenList ?? [] },
-    signal: input.signal,
-    logger: input.logger,
-  })
-}
-
-export function getWeixinQrStatus(input: {
-  baseUrl: string
-  qrcode: string
-  verifyCode?: string
-  signal?: AbortSignal
-  logger?: TransportLogger
-}): Promise<WeixinQrStatusResponse> {
-  const query = new URLSearchParams({ qrcode: input.qrcode })
-  if (input.verifyCode)
-    query.set('verify_code', input.verifyCode)
-  return weixinGet<WeixinQrStatusResponse>({
-    baseUrl: input.baseUrl,
-    path: `ilink/bot/get_qrcode_status?${query.toString()}`,
-    signal: input.signal,
-    timeoutMs: QR_POLL_TIMEOUT_MS,
-    logger: input.logger,
-  })
 }
 
 interface GetUpdatesResponse {
@@ -584,66 +314,14 @@ export function createWeixinTransport(credential: string, logger?: TransportLogg
       const contextToken = contextTokens.get(chatId)
       if (!contextToken)
         throw new Error('尚未收到该用户的微信消息，无法发送附件。')
-      const plaintext = Buffer.from(attachment.data, 'base64')
-      const filekey = randomBytes(16).toString('hex')
-      const aesKey = randomBytes(16)
-      const rawfilemd5 = createHash('md5').update(plaintext).digest('hex')
-      // media_type：1=图片，2=视频，3=文件，4=语音。视频/语音原生气泡未验证，
-      // document/file 一律按文件（3）发送，与 Hermes 参考实现一致。
-      const mediaType = attachment.kind === 'image' ? 1 : 3
-      const uploadResponse = await weixinPost<{
-        upload_full_url?: string
-        upload_param?: string
-        ret?: number
-        errcode?: number
-        errmsg?: string
-      }>({
+      const { mediaItem } = await uploadMediaToIlink({
+        post: weixinPost,
         baseUrl,
-        path: 'ilink/bot/getuploadurl',
-        token: parsed.botToken,
-        logger,
-        body: {
-          filekey,
-          media_type: mediaType,
-          to_user_id: chatId,
-          rawsize: plaintext.byteLength,
-          rawfilemd5,
-          filesize: aesPaddedSize(plaintext.byteLength),
-          no_need_thumb: true,
-          aeskey: aesKey.toString('hex'),
-        },
-      })
-      const uploadUrl = uploadResponse.upload_full_url
-        ?? (uploadResponse.upload_param
-          ? `${process.env.WEIXIN_CDN_BASE_URL ?? DEFAULT_CDN_BASE_URL}/upload?encrypted_query_param=${encodeURIComponent(uploadResponse.upload_param)}&filekey=${encodeURIComponent(filekey)}`
-          : undefined)
-      if (!uploadUrl)
-        throw new Error('微信 getuploadurl 未返回 upload_full_url 或 upload_param')
-      const ciphertext = aes128EcbEncrypt(plaintext, aesKey)
-      const encryptQueryParam = await weixinUploadCiphertext({
-        uploadUrl,
-        ciphertext,
+        botToken: parsed.botToken,
+        chatId,
+        attachment,
         logger,
       })
-      // iLink 期望 aes_key 为 base64(hex(key)) 而不是 base64(原始字节)，
-      // 否则接收端无法解密，图片显示灰块。
-      const aesKeyForApi = Buffer.from(aesKey.toString('hex')).toString('base64')
-      const mediaItem = attachment.kind === 'image'
-        ? {
-            type: 2,
-            image_item: {
-              media: { encrypt_query_param: encryptQueryParam, aes_key: aesKeyForApi, encrypt_type: 1 },
-              mid_size: ciphertext.byteLength,
-            },
-          }
-        : {
-            type: 4,
-            file_item: {
-              media: { encrypt_query_param: encryptQueryParam, aes_key: aesKeyForApi, encrypt_type: 1 },
-              file_name: attachment.name,
-              len: String(plaintext.byteLength),
-            },
-          }
       const messageId = await sendIlinkMessage({
         chatId,
         contextToken,

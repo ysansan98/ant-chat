@@ -76,13 +76,22 @@ export class ChannelDelivery {
   private readonly executions = new Map<string, ExecutionProjection>()
   private readonly actions = new Map<string, RegisteredAction>()
   private readonly queues = new Map<string, Promise<void>>()
+  private readonly supportsUpdateByType = new Map<ChannelType, boolean>()
 
   constructor(private readonly deps: {
     events: AppRuntimeEventBus
     data: AppDataContext
     connectors: Map<ChannelType, ChannelConnector>
     logger?: Pick<SystemLogger, 'warn'>
-  }) {}
+  }) {
+    for (const [type, connector] of this.deps.connectors) {
+      this.supportsUpdateByType.set(type, connector.capabilities.supportsUpdate)
+    }
+  }
+
+  private supportsUpdate(channelType: ChannelType): boolean {
+    return this.supportsUpdateByType.get(channelType) ?? false
+  }
 
   start(): void {
     this.unsubscribers.push(this.deps.events.on('message:updated', (event) => {
@@ -121,7 +130,7 @@ export class ChannelDelivery {
       return this.deliverResponse(event, message)
     if (presentation.kind === 'model-selection') {
       // 纯文本平台（微信）无法渲染选择卡片：直接发带序号的文本列表，用户用 /model <序号> 切换。
-      if (!this.deps.connectors.get(event.channelType)?.update) {
+      if (!this.supportsUpdate(event.channelType)) {
         const lines = [...message.split('\n'), '回复 /model <序号> 切换。']
         return this.deliverResponse(event, lines.join('\n'))
       }
@@ -145,7 +154,7 @@ export class ChannelDelivery {
         })),
       })
     }
-    if (presentation.kind === 'permission-mode-selection' && !this.deps.connectors.get(event.channelType)?.update) {
+    if (presentation.kind === 'permission-mode-selection' && !this.supportsUpdate(event.channelType)) {
       const lines = presentation.modes.map((mode, index) => `${mode.selected ? '✓ ' : ''}${index + 1}. ${mode.label}`)
       lines.push('回复 /mode <序号> 切换。')
       return this.deliverResponse(event, lines.join('\n'))
@@ -298,7 +307,7 @@ export class ChannelDelivery {
     if (!projection.model)
       return
     // 纯文本平台（微信）没有可更新消息：流式中间态不发送，只等 handleTaskUpdate 终态发一次。
-    if (!this.deps.connectors.get(projection.channelType)?.update)
+    if (!this.supportsUpdate(projection.channelType))
       return
     const now = Date.now()
     const elapsed = now - (projection.lastPublishedAt ?? 0)
@@ -322,7 +331,7 @@ export class ChannelDelivery {
       projection.timer = undefined
     }
     const actions = this.executionActions(projection)
-    const supportsUpdate = Boolean(this.deps.connectors.get(projection.channelType)?.update)
+    const supportsUpdate = this.supportsUpdate(projection.channelType)
     let text = projection.text
     if (projection.secretRequest) {
       text = [
@@ -487,14 +496,14 @@ export class ChannelDelivery {
     if (!connector)
       return
     const existing = await this.deps.data.channelReceiptRepository.getOutboundByLocalMessageId(channelAccountId, localMessageId)
-    if (existing?.status === 'sent' && connector.update) {
+    if (existing?.status === 'sent' && connector.capabilities.supportsUpdate) {
       if (content.kind !== 'text')
-        await connector.update({ externalMessageId: existing.externalMessageId, content })
+        await connector.update?.({ externalMessageId: existing.externalMessageId, content })
       return
     }
     // 纯文本平台（微信）没有可更新消息：每次实质内容变化发一条新文本，
     // 并把回执指向最新平台消息 ID，避免唯一约束冲突。
-    if (existing?.status === 'sent' && !connector.update) {
+    if (existing?.status === 'sent' && !connector.capabilities.supportsUpdate) {
       const sent = await connector.send({ externalChatId, content })
       await this.deps.data.channelReceiptRepository.updateExternalMessageId(existing.id, sent.externalMessageId)
       return

@@ -1,3 +1,4 @@
+export * from './channelActionHandler'
 export * from './channelCommandParser'
 export * from './channelConnector'
 export * from './channelDelivery'

@@ -1,11 +1,10 @@
-/* eslint-disable style/max-statements-per-line */
-
 import type { SystemLogger } from '../../systemLogger'
 
 import type { ChannelActionEvent, ChannelActionResult, ChannelConnector, ChannelSendInput, ChannelSendResult, ChannelSetupInput } from '../channelConnector'
 import type { ChannelInboundEvent } from '../channelRuntime'
 import type { WeixinTransport } from './transport'
 import process from 'node:process'
+import { createConnectorState } from '../channelConnector'
 import { DEFAULT_WEIXIN_MAX_MESSAGE_LENGTH, splitWeixinDelivery, wrapCopyFriendlyLines } from './delivery'
 import { readEnvInt } from './transport'
 
@@ -33,8 +32,8 @@ function delay(ms: number): Promise<void> {
 
 export class WeixinConnector implements ChannelConnector {
   readonly type = 'weixin' as const
-  private status: ReturnType<ChannelConnector['getStatus']> = { status: 'disconnected' }
-  private activeTransport?: WeixinTransport
+  readonly capabilities = { supportsUpdate: false } as const
+  private readonly state = createConnectorState<WeixinTransport>()
   private readonly transportFactory?: (credential: string) => WeixinTransport
   private readonly options: WeixinConnectorOptions
   constructor(transport: WeixinTransport | ((credential: string) => WeixinTransport), private readonly logger?: Pick<SystemLogger, 'info' | 'warn'>, options?: Partial<WeixinConnectorOptions>) {
@@ -42,7 +41,7 @@ export class WeixinConnector implements ChannelConnector {
     if (typeof transport === 'function')
       this.transportFactory = transport
     else
-      this.activeTransport = transport
+      this.state.activeTransport = transport
   }
 
   async setup(input: ChannelSetupInput) { return { channelAccountId: input.channelAccountId, configured: true } }
@@ -52,12 +51,12 @@ export class WeixinConnector implements ChannelConnector {
     onInbound: (event: ChannelInboundEvent) => Promise<void>
     onAction: (event: ChannelActionEvent) => Promise<ChannelActionResult>
   }) {
-    this.status = { status: 'connecting' }
+    this.state.beginConnect()
     // 重新授权时会再次 start：先停掉旧 transport，避免两个长轮询抢同一 bot token。
-    if (this.activeTransport)
-      await this.activeTransport.stop().catch(() => undefined)
-    const transport = this.transportFactory ? this.transportFactory(input.credential ?? '') : this.activeTransport!
-    this.activeTransport = transport
+    if (this.state.activeTransport)
+      await this.state.activeTransport.stop().catch(() => undefined)
+    const transport = this.transportFactory ? this.transportFactory(input.credential ?? '') : this.state.activeTransport!
+    this.state.activeTransport = transport
     try {
       await transport.start({
         onMessage: async (event) => {
@@ -71,20 +70,24 @@ export class WeixinConnector implements ChannelConnector {
           }
         },
         onConnectionChange: (status, lastError) => {
-          this.status = status === 'connected' ? { status: 'connected' } : { status: 'degraded', lastError }
+          if (status === 'connected')
+            this.state.setConnected()
+          else
+            this.state.setDegraded(lastError)
         },
       })
-      this.status = { status: 'connected' }
+      this.state.setConnected()
     }
     catch (error) {
-      this.status = { status: 'degraded', lastError: error instanceof Error ? error.message : String(error) }
+      this.state.setDegraded(error)
       throw error
     }
   }
 
-  async stop() { await this.activeTransport?.stop().catch(() => undefined); this.activeTransport = undefined; this.status = { status: 'disconnected' } }
+  async stop() { await this.state.stopActive(transport => transport.stop().catch(() => undefined)) }
   async send(input: ChannelSendInput): Promise<ChannelSendResult> {
-    if (!this.activeTransport)
+    const transport = this.state.activeTransport
+    if (!transport)
       throw new Error('微信频道尚未连接')
     const text = input.content.kind === 'text'
       ? input.content.text
@@ -100,7 +103,7 @@ export class WeixinConnector implements ChannelConnector {
     const chunks = splitWeixinDelivery(wrapCopyFriendlyLines(text), this.options.maxMessageLength, this.options.splitPerLine)
     let lastMessageId = ''
     for (let index = 0; index < chunks.length; index++) {
-      const result = await this.activeTransport.sendText(input.externalChatId, chunks[index]!)
+      const result = await transport.sendText(input.externalChatId, chunks[index]!)
       lastMessageId = result.messageId
       if (index < chunks.length - 1 && this.options.chunkDelayMs > 0)
         await delay(this.options.chunkDelayMs)
@@ -109,7 +112,7 @@ export class WeixinConnector implements ChannelConnector {
     const attachments = input.content.attachments ?? []
     for (let index = 0; index < attachments.length; index++) {
       try {
-        const result = await this.activeTransport.sendFile(input.externalChatId, attachments[index]!)
+        const result = await transport.sendFile(input.externalChatId, attachments[index]!)
         lastMessageId = result.messageId
       }
       catch (error) {
@@ -126,19 +129,21 @@ export class WeixinConnector implements ChannelConnector {
   }
 
   async setTyping(input: { externalMessageId: string, typing: boolean }) {
-    if (!this.activeTransport)
+    const transport = this.state.activeTransport
+    if (!transport)
       throw new Error('微信频道尚未连接')
-    return this.activeTransport.setTyping(input.externalMessageId, input.typing)
+    return transport.setTyping(input.externalMessageId, input.typing)
   }
 
   async sendAttachment(input: { externalChatId: string, attachment: import('@ant-chat/shared').ChannelAttachment }) {
-    if (!this.activeTransport)
+    const transport = this.state.activeTransport
+    if (!transport)
       throw new Error('微信频道尚未连接')
     // 失败直接向上抛，由工具层呈现给模型，不静默吞掉。
-    return this.activeTransport.sendFile(input.externalChatId, input.attachment)
+    return transport.sendFile(input.externalChatId, input.attachment)
   }
 
-  getStatus() { return this.status }
+  getStatus() { return this.state.getStatus() }
 }
 
 function inspectWeixinEvent(value: unknown): Record<string, unknown> {

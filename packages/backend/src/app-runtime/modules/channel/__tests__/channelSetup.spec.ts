@@ -80,6 +80,7 @@ describe('channel module 频道配置（扫码创建 / 重新授权）', () => {
     }
     const connector: ChannelConnector = {
       type: 'feishu',
+      capabilities: { supportsUpdate: true },
       setup: vi.fn(async () => ({})),
       start: vi.fn(async () => {}),
       stop: vi.fn(async () => {}),

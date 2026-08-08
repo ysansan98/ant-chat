@@ -47,8 +47,21 @@ const permissionModeLabels: Record<AgentMode, string> = {
   full_managed: '完全访问权限',
 }
 
+/** ChannelRuntime 实际使用的数据仓库子集；装配层提供 AppDataContext 的对应切片。 */
+export type ChannelRuntimeData = Pick<
+  AppDataContext,
+  | 'channelAccountRepository'
+  | 'channelPairingRepository'
+  | 'channelReceiptRepository'
+  | 'channelSessionRepository'
+  | 'conversationRepository'
+  | 'messageRepository'
+  | 'settingsRepository'
+  | 'workspaceService'
+>
+
 export interface ChannelRuntimeDeps {
-  data: AppDataContext
+  data: ChannelRuntimeData
   turnService: Pick<AgentTurnService, 'startTurn'>
   updateConversation: (input: { id: string, settings: ConversationsSettingsSchema }) => Promise<unknown>
   listModels?: () => ChannelModelOption[]

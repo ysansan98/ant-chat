@@ -11,6 +11,7 @@ function createHarness(send = vi.fn(async () => ({ externalMessageId: 'card-1' }
   let outboundReceipt: Record<string, unknown> | undefined
   const connector = {
     type: 'feishu',
+    capabilities: { supportsUpdate: true },
     send,
     update: vi.fn(async () => {}),
     setTyping: vi.fn(async () => ({ changed: true })),
@@ -539,6 +540,7 @@ function createWeixinHarness(send = vi.fn(async () => ({ externalMessageId: 'wei
   const events = new RuntimeEventBus()
   const connector = {
     type: 'weixin',
+    capabilities: { supportsUpdate: false },
     send,
     setTyping: vi.fn(async () => ({ changed: true })),
   } as unknown as ChannelConnector

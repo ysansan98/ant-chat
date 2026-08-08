@@ -18,7 +18,7 @@
 - 删除 `/cwd`。
 - 复用现有 `conversations`、`messages`、Agent Runtime、权限、Trace 和 Renderer 事件。
 - Conversation 来源与 Turn 来源分离；跨 Web/Desktop/IM 交叉续聊；回复回原始 Turn 入口。
-- `/model` 使用用户可见模型名；`/models` 展示候选。
+- `/models` 展示带序号的候选；`/model` 接受模型名或列表序号。
 - IM 审批使用 `/approve`、`/deny`，每个 Conversation 严格 FIFO，一次一个。
 - Web/Desktop 必须继续接受后端 `message:updated`、`conversation:updated`、`agent:task-updated` 推送。
 - SecretStore 是平台敏感凭据 owner；断开不删除历史会话。

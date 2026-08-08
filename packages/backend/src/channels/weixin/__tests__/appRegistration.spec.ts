@@ -29,14 +29,14 @@ describe('微信扫码注册流程', () => {
     expect(registration.get(state.setupId)).toEqual(expect.objectContaining({ status: 'completed', verificationUrl: 'https://qr.example/img' }))
   })
 
-  it('本地 token 存在时以 reauth 模式发起并带回服务端', async () => {
+  it('本地 token 存在时以 reauth 模式发起，但扫码请求不把旧 token 带回服务端', async () => {
     mocks.getWeixinBotQrcode.mockResolvedValue({ qrcode: 'qr-2', qrcode_img_content: 'https://qr.example/img' })
     mocks.getWeixinQrStatus.mockResolvedValue({ status: 'binded_redirect' })
     const registration = new WeixinAppRegistration()
     const state = registration.start({ localToken: 'token-old', onCompleted: vi.fn() })
 
     expect(state.mode).toBe('reauth')
-    await vi.waitFor(() => expect(mocks.getWeixinBotQrcode).toHaveBeenCalledWith(expect.objectContaining({ localTokenList: ['token-old'] })))
+    await vi.waitFor(() => expect(mocks.getWeixinBotQrcode).toHaveBeenCalledWith(expect.objectContaining({ localTokenList: [] })))
   })
 
   it('need_verifycode 后提交验证码继续轮询', async () => {
