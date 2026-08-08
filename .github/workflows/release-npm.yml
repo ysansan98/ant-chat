@@ -32,8 +32,6 @@ jobs:
           grep -v -E '^(registry|sass_binary_site|electron_mirror|electron_builder_binaries_mirror)=' .npmrc > .npmrc.ci
           mv .npmrc.ci .npmrc
           npm config set registry https://registry.npmjs.org/
-          npm config set electron_mirror https://github.com/electron/electron/releases/download/
-          npm config set electron_builder_binaries_mirror https://github.com/electron-userland/electron-builder-binaries/releases/download/
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
