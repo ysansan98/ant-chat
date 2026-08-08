@@ -48,7 +48,11 @@ apps/desktop/.ant-chat/
 
 # Agents and skills
 .claude
-.agents
+.agents/*
+!.agents/skills/
+.agents/skills/*
+!.agents/skills/ant-chat-release/
+!.agents/skills/ant-chat-release/**
 .worktreeinclude
 skills-lock.json
 AGENTS.md
