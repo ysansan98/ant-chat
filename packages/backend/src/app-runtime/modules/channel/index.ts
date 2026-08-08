@@ -32,7 +32,7 @@ export class ChannelModule implements RuntimeModuleMethods<'channel'>, RuntimeMo
   private readonly weixinRegistration: WeixinAppRegistration
   private readonly setupAccounts = new Map<string, string>()
   private readonly setupChannelTypes = new Map<string, ChannelType>()
-  constructor(private readonly core: Pick<RuntimeCore, 'data' | 'events' | 'logger' | 'secretStore'>, private readonly agent: ChannelAgentDependencies, connectors: ChannelConnector[] = []) {
+  constructor(private readonly core: Pick<RuntimeCore, 'data' | 'events' | 'logger' | 'secretStore'>, agent: ChannelAgentDependencies, connectors: ChannelConnector[] = []) {
     this.connectors = new Map(connectors.map(connector => [connector.type, connector]))
     this.weixinRegistration = new WeixinAppRegistration(core.logger)
     this.runtime = new ChannelRuntime({
