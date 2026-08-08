@@ -4,6 +4,10 @@
   "version": "1.0.0-alpha.4",
   "description": "Ant Chat 本地 Agent 产品运行时",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ysansan98/ant-chat.git"
+  },
   "exports": {
     ".": {
       "development": {
