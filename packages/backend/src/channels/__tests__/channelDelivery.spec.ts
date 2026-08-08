@@ -1,6 +1,7 @@
 import type { AgentTaskSnapshot, IMessage } from '@ant-chat/shared'
 import type { ChannelConnector } from '../channelConnector'
 import type { ChannelInboundEvent } from '../channelRuntime'
+import { Buffer } from 'node:buffer'
 import { describe, expect, it, vi } from 'vitest'
 import { RuntimeEventBus } from '../../events'
 import { ChannelDelivery } from '../channelDelivery'
@@ -34,6 +35,7 @@ function createHarness(send = vi.fn(async () => ({ externalMessageId: 'card-1' }
         originExternalChatId: 'chat-1',
       })),
     },
+    loadAttachmentData: vi.fn(async (_fileId: string): Promise<string | null> => null),
     conversationRepository: {
       getById: vi.fn(async () => ({
         id: 'conversation-1',
@@ -558,6 +560,7 @@ function createWeixinHarness(send = vi.fn(async () => ({ externalMessageId: 'wei
         originExternalChatId: 'chat-1',
       })),
     },
+    loadAttachmentData: vi.fn(async (_fileId: string): Promise<string | null> => null),
     conversationRepository: {
       getById: vi.fn(async () => ({
         id: 'conversation-1',
@@ -783,6 +786,166 @@ describe('微信纯文本平台投递', () => {
         kind: 'text',
         text: '1. 默认权限\n✓ 2. 自动审查\n3. 完全访问权限\n回复 /mode <序号> 切换。',
       },
+    })
+  })
+
+  it('assistant 附件块投影为出站附件并从 file_id 加载字节', async () => {
+    const { connector, data, events } = createWeixinHarness()
+    vi.mocked(data.loadAttachmentData)
+      .mockResolvedValueOnce(Buffer.from('图片字节').toString('base64'))
+      .mockResolvedValueOnce(Buffer.from('文档字节').toString('base64'))
+    events.emit('agent:task-updated', {
+      task: {
+        taskId: 'task-1',
+        userMessageId: 'turn-1',
+        conversationId: 'conversation-1',
+        status: 'running',
+        turnSource: source,
+      } as AgentTaskSnapshot,
+    })
+    events.emit('message:updated', {
+      message: {
+        id: 'assistant-attachment',
+        turnId: 'turn-1',
+        role: 'assistant',
+        modelInfo: { provider: '服务一', model: '模型一' },
+        content: [
+          { type: 'text', text: '文件如下' },
+          {
+            type: 'image-block',
+            source: { type: 'file_id', file_id: 'image-1' },
+            name: '截图.png',
+            media_type: 'image/png',
+            size: 12,
+          },
+          {
+            type: 'document',
+            source: { type: 'file_id', file_id: 'doc-1' },
+            title: '报告',
+            name: '方案.pdf',
+            media_type: 'application/pdf',
+          },
+        ],
+      } as IMessage,
+    })
+    events.emit('agent:task-updated', {
+      task: {
+        taskId: 'task-1',
+        userMessageId: 'turn-1',
+        conversationId: 'conversation-1',
+        status: 'success',
+        turnSource: source,
+      } as AgentTaskSnapshot,
+    })
+
+    await vi.waitFor(() => expect(connector.send).toHaveBeenCalledOnce())
+    expect(connector.send).toHaveBeenCalledWith({
+      externalChatId: 'chat-1',
+      content: expect.objectContaining({
+        kind: 'execution',
+        text: '文件如下',
+        attachments: [
+          {
+            name: '截图.png',
+            mediaType: 'image/png',
+            kind: 'image',
+            size: 12,
+            data: Buffer.from('图片字节').toString('base64'),
+          },
+          {
+            name: '方案.pdf',
+            mediaType: 'application/pdf',
+            kind: 'document',
+            size: undefined,
+            data: Buffer.from('文档字节').toString('base64'),
+          },
+        ],
+      }),
+    })
+    expect(data.loadAttachmentData).toHaveBeenCalledWith('image-1')
+    expect(data.loadAttachmentData).toHaveBeenCalledWith('doc-1')
+  })
+
+  it('附件字节缺失或 url 来源时跳过，不阻塞正文发送', async () => {
+    const { connector, data, events } = createWeixinHarness()
+    vi.mocked(data.loadAttachmentData).mockResolvedValue(null)
+    events.emit('agent:task-updated', {
+      task: {
+        taskId: 'task-1',
+        userMessageId: 'turn-1',
+        conversationId: 'conversation-1',
+        status: 'running',
+        turnSource: source,
+      } as AgentTaskSnapshot,
+    })
+    events.emit('message:updated', {
+      message: {
+        id: 'assistant-attachment-missing',
+        turnId: 'turn-1',
+        role: 'assistant',
+        modelInfo: { provider: '服务一', model: '模型一' },
+        content: [
+          { type: 'text', text: '正文照发' },
+          { type: 'image-block', source: { type: 'file_id', file_id: 'missing-1' }, name: '丢.png', media_type: 'image/png' },
+          { type: 'file', source: { type: 'url', url: 'https://example.com/a.txt' }, name: '远程.txt', media_type: 'text/plain' },
+        ],
+      } as IMessage,
+    })
+    events.emit('agent:task-updated', {
+      task: {
+        taskId: 'task-1',
+        userMessageId: 'turn-1',
+        conversationId: 'conversation-1',
+        status: 'success',
+        turnSource: source,
+      } as AgentTaskSnapshot,
+    })
+
+    await vi.waitFor(() => expect(connector.send).toHaveBeenCalledOnce())
+    const content = vi.mocked(connector.send).mock.calls[0][0].content
+    expect(content).toMatchObject({ kind: 'execution', text: '正文照发' })
+    expect(content.attachments).toBeUndefined()
+  })
+
+  it('仅含附件没有正文时也发送（纯文本平台不再被空文本守卫丢弃）', async () => {
+    const { connector, data, events } = createWeixinHarness()
+    vi.mocked(data.loadAttachmentData).mockResolvedValue(Buffer.from('字节').toString('base64'))
+    events.emit('agent:task-updated', {
+      task: {
+        taskId: 'task-1',
+        userMessageId: 'turn-1',
+        conversationId: 'conversation-1',
+        status: 'running',
+        turnSource: source,
+      } as AgentTaskSnapshot,
+    })
+    events.emit('message:updated', {
+      message: {
+        id: 'assistant-attachment-only',
+        turnId: 'turn-1',
+        role: 'assistant',
+        modelInfo: { provider: '服务一', model: '模型一' },
+        content: [
+          { type: 'file', source: { type: 'file_id', file_id: 'file-1' }, filename: '数据.csv', media_type: 'text/csv' },
+        ],
+      } as IMessage,
+    })
+    events.emit('agent:task-updated', {
+      task: {
+        taskId: 'task-1',
+        userMessageId: 'turn-1',
+        conversationId: 'conversation-1',
+        status: 'success',
+        turnSource: source,
+      } as AgentTaskSnapshot,
+    })
+
+    await vi.waitFor(() => expect(connector.send).toHaveBeenCalledOnce())
+    const content = vi.mocked(connector.send).mock.calls[0][0].content
+    expect(content).toMatchObject({
+      kind: 'execution',
+      text: '',
+      attachments: [{ name: '数据.csv', mediaType: 'text/csv', kind: 'file' }],
     })
   })
 })

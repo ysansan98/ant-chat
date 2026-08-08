@@ -1,5 +1,7 @@
 import type { SystemLogger } from '../../systemLogger'
-import { randomBytes, randomUUID } from 'node:crypto'
+import type { ChannelAttachment } from '../channelConnector'
+import { Buffer } from 'node:buffer'
+import { createCipheriv, createHash, randomBytes, randomUUID } from 'node:crypto'
 import process from 'node:process'
 import { fetch } from 'undici'
 
@@ -10,6 +12,7 @@ export interface WeixinTransport {
   }) => Promise<void>
   stop: () => Promise<void>
   sendText: (chatId: string, text: string) => Promise<{ messageId: string }>
+  sendFile: (chatId: string, attachment: ChannelAttachment) => Promise<{ messageId: string }>
   setTyping: (messageId: string, typing: boolean) => Promise<{ changed: boolean }>
 }
 
@@ -40,6 +43,7 @@ export interface WeixinQrStatusResponse {
 export type TransportLogger = Pick<SystemLogger, 'debug' | 'info' | 'warn' | 'error'>
 
 const DEFAULT_API_BASE_URL = 'https://ilinkai.weixin.qq.com'
+const DEFAULT_CDN_BASE_URL = 'https://novac2c.cdn.weixin.qq.com/c2c'
 const DEFAULT_BOT_TYPE = '3'
 const LONG_POLL_TIMEOUT_MS = 35_000
 const QR_POLL_TIMEOUT_MS = 35_000
@@ -85,6 +89,51 @@ function extractText(message: Record<string, unknown>): string {
 
 function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+/** AES-128-ECB 加密并做 PKCS7 补位（Node crypto 默认填充）。 */
+function aes128EcbEncrypt(plaintext: Buffer, key: Buffer): Buffer {
+  const cipher = createCipheriv('aes-128-ecb', key, null)
+  return Buffer.concat([cipher.update(plaintext), cipher.final()])
+}
+
+/** getuploadurl 的 filesize 是 PKCS7 补位后的大小，必须与密文长度一致。 */
+function aesPaddedSize(size: number): number {
+  return Math.ceil(size / 16) * 16
+}
+
+/** 把密文 POST 到微信 CDN，响应头 x-encrypted-param 即最终 encrypt_query_param。 */
+async function weixinUploadCiphertext(input: {
+  uploadUrl: string
+  ciphertext: Buffer
+  signal?: AbortSignal
+  timeoutMs?: number
+  logger?: TransportLogger
+}): Promise<string> {
+  input.logger?.debug('[消息频道] 微信 CDN 上传', { timeoutMs: input.timeoutMs })
+  try {
+    const response = await fetch(input.uploadUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: input.ciphertext,
+      signal: timeoutSignal(input.signal ?? new AbortController().signal, input.timeoutMs ?? 120_000),
+    })
+    const encryptedParam = response.headers.get('x-encrypted-param')
+    const raw = await response.text()
+    if (!response.ok)
+      throw new Error(`微信 CDN 上传失败：HTTP ${response.status} ${raw.slice(0, 200)}`)
+    if (!encryptedParam)
+      throw new Error(`微信 CDN 上传缺少 x-encrypted-param 响应头：${raw.slice(0, 200)}`)
+    return encryptedParam
+  }
+  catch (error) {
+    if (error instanceof Error && error.name === 'TimeoutError' && !input.signal?.aborted) {
+      input.logger?.debug('[消息频道] 微信 CDN 上传超时', {})
+      throw new Error('微信 CDN 上传超时')
+    }
+    input.logger?.warn('[消息频道] 微信 CDN 上传异常', { error: error instanceof Error ? error.message : String(error) })
+    throw error
+  }
 }
 
 /** 微信 iLink 的 base_info 随每个授权请求携带，标识驱动 bot 的客户端。 */
@@ -425,6 +474,72 @@ export function createWeixinTransport(credential: string, logger?: TransportLogg
     }
   }
 
+  /**
+   * sendmessage 共用发送路径：每条消息独立重试，同一消息复用 client_id
+   * 便于 iLink 幂等；session 过期（-14）时去掉 context_token 降级重试一次。
+   */
+  async function sendIlinkMessage(input: {
+    chatId: string
+    contextToken: string
+    itemList: Array<Record<string, unknown>>
+  }): Promise<string> {
+    const clientId = randomUUID()
+    let effectiveToken: string | undefined = input.contextToken
+    let retriedWithoutToken = false
+    let lastError: Error | undefined
+    for (let attempt = 0; attempt <= sendChunkRetries; attempt++) {
+      try {
+        const result = await weixinPost<{ message_id?: string, ret?: number, errcode?: number, errmsg?: string }>({
+          baseUrl,
+          path: 'ilink/bot/sendmessage',
+          token: parsed.botToken,
+          logger,
+          body: {
+            msg: {
+              from_user_id: '',
+              to_user_id: input.chatId,
+              client_id: clientId,
+              message_type: 2,
+              message_state: 2,
+              ...(effectiveToken ? { context_token: effectiveToken } : {}),
+              item_list: input.itemList,
+            },
+          },
+        })
+        const ret = result.ret
+        const errcode = result.errcode
+        const failed = (ret !== undefined && ret !== 0) || (errcode !== undefined && errcode !== 0)
+        if (failed) {
+          const sessionExpired = ret === SESSION_EXPIRED_ERRCODE || errcode === SESSION_EXPIRED_ERRCODE || isStaleSession(ret, errcode, result.errmsg)
+          if (sessionExpired && !retriedWithoutToken && effectiveToken) {
+            retriedWithoutToken = true
+            effectiveToken = undefined
+            contextTokens.delete(input.chatId)
+            logger?.warn('[消息频道] 微信会话过期，去掉 context_token 重试一次')
+            continue
+          }
+          const rateLimited = ret === RATE_LIMIT_ERRCODE || errcode === RATE_LIMIT_ERRCODE
+          lastError = new Error(`微信 iLink 发送失败：ret=${ret ?? '?'} errcode=${errcode ?? '?'} errmsg=${String(result.errmsg ?? '')}`)
+          if (rateLimited && attempt < sendChunkRetries) {
+            // 限流退避 3 倍，避免连续请求加剧触发频率限制。
+            logger?.warn('[消息频道] 微信 iLink 限流，退避后重试')
+            await delay(sendChunkRetryDelayMs * 3)
+            continue
+          }
+          break
+        }
+        return result.message_id ?? clientId
+      }
+      catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error))
+        if (attempt >= sendChunkRetries)
+          break
+        await delay(sendChunkRetryDelayMs * (attempt + 1))
+      }
+    }
+    throw lastError ?? new Error('微信消息发送失败')
+  }
+
   return {
     async start(handlers) {
       if (started)
@@ -458,64 +573,83 @@ export function createWeixinTransport(credential: string, logger?: TransportLogg
       const contextToken = contextTokens.get(chatId)
       if (!contextToken)
         throw new Error('尚未收到该用户的微信消息，无法回复。')
-      const clientId = randomUUID()
-      // 每条 chunk 独立重试；同一 chunk 复用 client_id 便于 iLink 幂等。
-      // session 过期（-14）时去掉 context_token 降级重试一次，保证
-      // 长时间未活跃后的主动回复仍可送达。
-      let effectiveToken: string | undefined = contextToken
-      let retriedWithoutToken = false
-      let lastError: Error | undefined
-      for (let attempt = 0; attempt <= sendChunkRetries; attempt++) {
-        try {
-          const result = await weixinPost<{ message_id?: string, ret?: number, errcode?: number, errmsg?: string }>({
-            baseUrl,
-            path: 'ilink/bot/sendmessage',
-            token: parsed.botToken,
-            logger,
-            body: {
-              msg: {
-                from_user_id: '',
-                to_user_id: chatId,
-                client_id: clientId,
-                message_type: 2,
-                message_state: 2,
-                ...(effectiveToken ? { context_token: effectiveToken } : {}),
-                item_list: [{ type: 1, text_item: { text } }],
-              },
+      const messageId = await sendIlinkMessage({
+        chatId,
+        contextToken,
+        itemList: [{ type: 1, text_item: { text } }],
+      })
+      return { messageId }
+    },
+    async sendFile(chatId, attachment) {
+      const contextToken = contextTokens.get(chatId)
+      if (!contextToken)
+        throw new Error('尚未收到该用户的微信消息，无法发送附件。')
+      const plaintext = Buffer.from(attachment.data, 'base64')
+      const filekey = randomBytes(16).toString('hex')
+      const aesKey = randomBytes(16)
+      const rawfilemd5 = createHash('md5').update(plaintext).digest('hex')
+      // media_type：1=图片，2=视频，3=文件，4=语音。视频/语音原生气泡未验证，
+      // document/file 一律按文件（3）发送，与 Hermes 参考实现一致。
+      const mediaType = attachment.kind === 'image' ? 1 : 3
+      const uploadResponse = await weixinPost<{
+        upload_full_url?: string
+        upload_param?: string
+        ret?: number
+        errcode?: number
+        errmsg?: string
+      }>({
+        baseUrl,
+        path: 'ilink/bot/getuploadurl',
+        token: parsed.botToken,
+        logger,
+        body: {
+          filekey,
+          media_type: mediaType,
+          to_user_id: chatId,
+          rawsize: plaintext.byteLength,
+          rawfilemd5,
+          filesize: aesPaddedSize(plaintext.byteLength),
+          no_need_thumb: true,
+          aeskey: aesKey.toString('hex'),
+        },
+      })
+      const uploadUrl = uploadResponse.upload_full_url
+        ?? (uploadResponse.upload_param
+          ? `${process.env.WEIXIN_CDN_BASE_URL ?? DEFAULT_CDN_BASE_URL}/upload?encrypted_query_param=${encodeURIComponent(uploadResponse.upload_param)}&filekey=${encodeURIComponent(filekey)}`
+          : undefined)
+      if (!uploadUrl)
+        throw new Error('微信 getuploadurl 未返回 upload_full_url 或 upload_param')
+      const ciphertext = aes128EcbEncrypt(plaintext, aesKey)
+      const encryptQueryParam = await weixinUploadCiphertext({
+        uploadUrl,
+        ciphertext,
+        logger,
+      })
+      // iLink 期望 aes_key 为 base64(hex(key)) 而不是 base64(原始字节)，
+      // 否则接收端无法解密，图片显示灰块。
+      const aesKeyForApi = Buffer.from(aesKey.toString('hex')).toString('base64')
+      const mediaItem = attachment.kind === 'image'
+        ? {
+            type: 2,
+            image_item: {
+              media: { encrypt_query_param: encryptQueryParam, aes_key: aesKeyForApi, encrypt_type: 1 },
+              mid_size: ciphertext.byteLength,
             },
-          })
-          const ret = result.ret
-          const errcode = result.errcode
-          const failed = (ret !== undefined && ret !== 0) || (errcode !== undefined && errcode !== 0)
-          if (failed) {
-            const sessionExpired = ret === SESSION_EXPIRED_ERRCODE || errcode === SESSION_EXPIRED_ERRCODE || isStaleSession(ret, errcode, result.errmsg)
-            if (sessionExpired && !retriedWithoutToken && effectiveToken) {
-              retriedWithoutToken = true
-              effectiveToken = undefined
-              contextTokens.delete(chatId)
-              logger?.warn('[消息频道] 微信会话过期，去掉 context_token 重试一次')
-              continue
-            }
-            const rateLimited = ret === RATE_LIMIT_ERRCODE || errcode === RATE_LIMIT_ERRCODE
-            lastError = new Error(`微信 iLink 发送失败：ret=${ret ?? '?'} errcode=${errcode ?? '?'} errmsg=${String(result.errmsg ?? '')}`)
-            if (rateLimited && attempt < sendChunkRetries) {
-              // 限流退避 3 倍，避免连续请求加剧触发频率限制。
-              logger?.warn('[消息频道] 微信 iLink 限流，退避后重试')
-              await delay(sendChunkRetryDelayMs * 3)
-              continue
-            }
-            break
           }
-          return { messageId: result.message_id ?? clientId }
-        }
-        catch (error) {
-          lastError = error instanceof Error ? error : new Error(String(error))
-          if (attempt >= sendChunkRetries)
-            break
-          await delay(sendChunkRetryDelayMs * (attempt + 1))
-        }
-      }
-      throw lastError ?? new Error('微信消息发送失败')
+        : {
+            type: 4,
+            file_item: {
+              media: { encrypt_query_param: encryptQueryParam, aes_key: aesKeyForApi, encrypt_type: 1 },
+              file_name: attachment.name,
+              len: String(plaintext.byteLength),
+            },
+          }
+      const messageId = await sendIlinkMessage({
+        chatId,
+        contextToken,
+        itemList: [mediaItem],
+      })
+      return { messageId }
     },
     async setTyping(messageId, typing) {
       const userId = messageUsers.get(messageId)

@@ -105,6 +105,23 @@ export class WeixinConnector implements ChannelConnector {
       if (index < chunks.length - 1 && this.options.chunkDelayMs > 0)
         await delay(this.options.chunkDelayMs)
     }
+    // 附件独立于文本消息逐条发送；单个附件失败只告警并继续，不阻断后续附件。
+    const attachments = input.content.attachments ?? []
+    for (let index = 0; index < attachments.length; index++) {
+      try {
+        const result = await this.activeTransport.sendFile(input.externalChatId, attachments[index]!)
+        lastMessageId = result.messageId
+      }
+      catch (error) {
+        this.logger?.warn('[消息频道] 微信附件发送失败', {
+          name: attachments[index]!.name,
+          kind: attachments[index]!.kind,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+      if (this.options.chunkDelayMs > 0)
+        await delay(this.options.chunkDelayMs)
+    }
     return { externalMessageId: lastMessageId }
   }
 
@@ -112,6 +129,13 @@ export class WeixinConnector implements ChannelConnector {
     if (!this.activeTransport)
       throw new Error('微信频道尚未连接')
     return this.activeTransport.setTyping(input.externalMessageId, input.typing)
+  }
+
+  async sendAttachment(input: { externalChatId: string, attachment: import('@ant-chat/shared').ChannelAttachment }) {
+    if (!this.activeTransport)
+      throw new Error('微信频道尚未连接')
+    // 失败直接向上抛，由工具层呈现给模型，不静默吞掉。
+    return this.activeTransport.sendFile(input.externalChatId, input.attachment)
   }
 
   getStatus() { return this.status }

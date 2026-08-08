@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer'
 import { describe, expect, it, vi } from 'vitest'
 import { normalizeWeixinEvent, WeixinConnector } from '../connector'
 
@@ -41,6 +42,7 @@ describe('微信 connector adapter', () => {
       start: vi.fn().mockResolvedValue(undefined),
       stop: vi.fn().mockResolvedValue(undefined),
       sendText,
+      sendFile: vi.fn(),
       setTyping: vi.fn(),
     }
     const connector = new WeixinConnector(transport, undefined, { maxMessageLength: 10, chunkDelayMs: 0 })
@@ -60,6 +62,7 @@ describe('微信 connector adapter', () => {
       start: vi.fn().mockResolvedValue(undefined),
       stop: vi.fn().mockResolvedValue(undefined),
       sendText,
+      sendFile: vi.fn(),
       setTyping: vi.fn(),
     }
     const connector = new WeixinConnector(transport, undefined, { maxMessageLength: 10, chunkDelayMs: 0 })
@@ -69,5 +72,99 @@ describe('微信 connector adapter', () => {
 
     expect(sendText).toHaveBeenCalledTimes(1)
     expect(sendText).toHaveBeenCalledWith('u1', '收到')
+  })
+
+  it('文本后按顺序发送附件，返回最后一条消息 ID 作为回执', async () => {
+    const sendFile = vi.fn()
+      .mockResolvedValueOnce({ messageId: 'file-1' })
+      .mockResolvedValueOnce({ messageId: 'file-2' })
+    const transport = {
+      start: vi.fn().mockResolvedValue(undefined),
+      stop: vi.fn().mockResolvedValue(undefined),
+      sendText: vi.fn().mockResolvedValue({ messageId: 'text-1' }),
+      sendFile,
+      setTyping: vi.fn(),
+    }
+    const connector = new WeixinConnector(transport, undefined, { maxMessageLength: 10, chunkDelayMs: 0 })
+    await connector.start({ channelAccountId: 'a1', onInbound: vi.fn(), onAction: vi.fn() })
+    const attachment = {
+      name: '报告.txt',
+      mediaType: 'text/plain',
+      kind: 'file' as const,
+      data: Buffer.from('内容').toString('base64'),
+    }
+
+    const result = await connector.send({
+      externalChatId: 'u1',
+      content: { kind: 'text', text: '附件如下', attachments: [attachment, attachment] },
+    })
+
+    expect(sendFile).toHaveBeenNthCalledWith(1, 'u1', attachment)
+    expect(sendFile).toHaveBeenNthCalledWith(2, 'u1', attachment)
+    expect(result).toEqual({ externalMessageId: 'file-2' })
+  })
+
+  it('单个附件失败只告警并继续，回执回退到文本消息 ID', async () => {
+    const sendFile = vi.fn()
+      .mockRejectedValueOnce(new Error('CDN 上传失败'))
+      .mockResolvedValueOnce({ messageId: 'file-2' })
+    const transport = {
+      start: vi.fn().mockResolvedValue(undefined),
+      stop: vi.fn().mockResolvedValue(undefined),
+      sendText: vi.fn().mockResolvedValue({ messageId: 'text-1' }),
+      sendFile,
+      setTyping: vi.fn(),
+    }
+    const logger = { info: vi.fn(), warn: vi.fn() }
+    const connector = new WeixinConnector(transport, logger, { maxMessageLength: 10, chunkDelayMs: 0 })
+    await connector.start({ channelAccountId: 'a1', onInbound: vi.fn(), onAction: vi.fn() })
+    const attachment = {
+      name: 'a.txt',
+      mediaType: 'text/plain',
+      kind: 'file' as const,
+      data: Buffer.from('x').toString('base64'),
+    }
+
+    const result = await connector.send({
+      externalChatId: 'u1',
+      content: { kind: 'text', text: '附件如下', attachments: [attachment, attachment] },
+    })
+
+    expect(sendFile).toHaveBeenCalledTimes(2)
+    expect(logger.warn).toHaveBeenCalledWith('[消息频道] 微信附件发送失败', {
+      name: 'a.txt',
+      kind: 'file',
+      error: 'CDN 上传失败',
+    })
+    expect(result).toEqual({ externalMessageId: 'file-2' })
+  })
+
+  it('sendAttachment 透传 transport.sendFile，失败向上抛出不吞掉', async () => {
+    const sendFile = vi.fn(async () => ({ messageId: 'file-direct' }))
+    const transport = {
+      start: vi.fn().mockResolvedValue(undefined),
+      stop: vi.fn().mockResolvedValue(undefined),
+      sendText: vi.fn().mockResolvedValue({ messageId: 'text-1' }),
+      sendFile,
+      setTyping: vi.fn(),
+    }
+    const connector = new WeixinConnector(transport, undefined, { maxMessageLength: 10, chunkDelayMs: 0 })
+    await connector.start({ channelAccountId: 'a1', onInbound: vi.fn(), onAction: vi.fn() })
+    const attachment = {
+      name: 'a.txt',
+      mediaType: 'text/plain',
+      kind: 'file' as const,
+      data: Buffer.from('x').toString('base64'),
+    }
+
+    await expect(connector.sendAttachment({ externalChatId: 'u1', attachment }))
+      .resolves
+      .toEqual({ messageId: 'file-direct' })
+    expect(sendFile).toHaveBeenCalledWith('u1', attachment)
+
+    sendFile.mockRejectedValueOnce(new Error('CDN 上传失败'))
+    await expect(connector.sendAttachment({ externalChatId: 'u1', attachment }))
+      .rejects
+      .toThrow('CDN 上传失败')
   })
 })

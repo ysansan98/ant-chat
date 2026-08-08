@@ -485,6 +485,41 @@ describe('executeToolStep 行为', () => {
     expect(JSON.parse(result.toolResultContent)).toEqual(expect.objectContaining({ success: false, status: 'failed', message: expect.stringContaining('iframe') }))
   })
 
+  it('send_attachment 的附件 outputBlocks 被提取到 tool-call（不再限定 publish_visualization）', async () => {
+    const attachmentBlock = {
+      type: 'file' as const,
+      source: { type: 'file_id' as const, file_id: 'att-1' },
+      filename: '报告.txt',
+      name: '报告.txt',
+      media_type: 'text/plain',
+      size: 4,
+      data: 'eHl6',
+    }
+    const tool = createReadTool({
+      name: 'send_attachment',
+      execute: async () => ({
+        ok: true,
+        result: '{"success":true}',
+        diagnostics: { data: { outputBlocks: [attachmentBlock] } },
+      }),
+    })
+    const emitter = createMockEmitter()
+    const result = await executeToolStep({
+      task: createTask(),
+      registry: new ToolRegistry([tool]),
+      requestedToolCall: { toolName: 'send_attachment', input: { path: '报告.txt' } },
+      currentModelText: '',
+      currentToolMessages: [],
+      step: 1,
+      config: { eventEmitter: emitter, logger: createMockLogger() },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
+    })
+
+    expect(result.isError).toBe(false)
+    const emitted = vi.mocked(emitter.emitTurnToolCalls!).mock.calls.at(-1)?.[0] as { toolCalls: Array<{ outputBlocks?: unknown }> }
+    expect(emitted.toolCalls[0]?.outputBlocks).toEqual([attachmentBlock])
+  })
+
   it('工具执行抛异常时返回工具失败并保留异常细节', async () => {
     const emitter = createMockEmitter()
     const logger = createMockLogger()

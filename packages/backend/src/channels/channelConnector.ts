@@ -1,5 +1,7 @@
-import type { AgentExecutionPhase, AgentPendingAction, AgentTaskStatus, ChannelType, ModelInfo } from '@ant-chat/shared'
+import type { AgentExecutionPhase, AgentPendingAction, AgentTaskStatus, ChannelAttachment, ChannelType, ModelInfo } from '@ant-chat/shared'
 import type { ChannelInboundEvent } from './channelRuntime'
+
+export type { ChannelAttachment }
 
 export interface ChannelExecutionStep {
   id: string
@@ -10,33 +12,34 @@ export interface ChannelExecutionStep {
 export type ChannelCardAction
   = | { label: string, token: string, style?: 'primary' | 'danger' | 'default' }
 
-export type ChannelOutboundContent
-  = | { kind: 'text', text: string }
-    | {
-      kind: 'execution'
-      executionId: string
-      status: AgentTaskStatus
-      phase?: AgentExecutionPhase
-      text: string
-      model: ModelInfo
-      steps: ChannelExecutionStep[]
-      pendingAction?: AgentPendingAction
-      visualization?: { title: string, summary: string }
-      actions?: ChannelCardAction[]
-    }
-    | {
-      kind: 'model-selection'
-      title: string
-      token: string
-      models: Array<{ label: string, value: string, selected: boolean }>
-    }
-    | {
-      kind: 'permission-mode-selection'
-      title: string
-      token: string
-      modes: Array<{ label: string, value: string, selected: boolean }>
-    }
-    | { kind: 'notice', title: string, text: string, tone?: 'info' | 'success' | 'warning' | 'error' }
+export type ChannelOutboundContent = (
+  | { kind: 'text', text: string }
+  | {
+    kind: 'execution'
+    executionId: string
+    status: AgentTaskStatus
+    phase?: AgentExecutionPhase
+    text: string
+    model: ModelInfo
+    steps: ChannelExecutionStep[]
+    pendingAction?: AgentPendingAction
+    visualization?: { title: string, summary: string }
+    actions?: ChannelCardAction[]
+  }
+  | {
+    kind: 'model-selection'
+    title: string
+    token: string
+    models: Array<{ label: string, value: string, selected: boolean }>
+  }
+  | {
+    kind: 'permission-mode-selection'
+    title: string
+    token: string
+    modes: Array<{ label: string, value: string, selected: boolean }>
+  }
+  | { kind: 'notice', title: string, text: string, tone?: 'info' | 'success' | 'warning' | 'error' }
+) & { attachments?: ChannelAttachment[] }
 
 export interface ChannelSendInput {
   externalChatId: string
@@ -75,6 +78,8 @@ export interface ChannelConnector {
   }) => Promise<void>
   stop: () => Promise<void>
   send: (input: ChannelSendInput) => Promise<ChannelSendResult>
+  /** 直接发送单个附件并返回平台消息 ID；失败必须抛错，由调用方决定如何呈现。 */
+  sendAttachment: (input: { externalChatId: string, attachment: ChannelAttachment }) => Promise<{ messageId: string }>
   update?: (input: ChannelUpdateInput) => Promise<void>
   setTyping?: (input: ChannelTypingInput) => Promise<ChannelTypingResult>
   getStatus: () => { status: 'configured' | 'connecting' | 'connected' | 'degraded' | 'disconnected', lastError?: string }

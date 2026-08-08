@@ -1,6 +1,6 @@
 /* eslint-disable style/max-statements-per-line */
 
-import type { ChannelActionEvent, ChannelActionResult, ChannelConnector, ChannelOutboundContent, ChannelSendInput, ChannelSendResult, ChannelSetupInput, ChannelUpdateInput } from '../channelConnector'
+import type { ChannelActionEvent, ChannelActionResult, ChannelAttachment, ChannelConnector, ChannelOutboundContent, ChannelSendInput, ChannelSendResult, ChannelSetupInput, ChannelUpdateInput } from '../channelConnector'
 import type { ChannelInboundEvent } from '../channelRuntime'
 
 export interface FeishuTransport {
@@ -10,6 +10,7 @@ export interface FeishuTransport {
   }) => Promise<void>
   close: () => Promise<void>
   sendText: (chatId: string, text: string) => Promise<{ messageId: string }>
+  sendFile: (chatId: string, attachment: ChannelAttachment) => Promise<{ messageId: string }>
   createCard: (chatId: string, content: Exclude<ChannelOutboundContent, { kind: 'text' }>) => Promise<{ messageId: string }>
   updateCard: (messageId: string, content: Exclude<ChannelOutboundContent, { kind: 'text' }>) => Promise<void>
   setTyping: (messageId: string, typing: boolean) => Promise<{ changed: boolean }>
@@ -62,10 +63,27 @@ export class FeishuConnector implements ChannelConnector {
   async send(input: ChannelSendInput): Promise<ChannelSendResult> {
     if (!this.activeTransport)
       throw new Error('飞书频道尚未连接')
-    const result = input.content.kind === 'text'
+    let lastMessageId = ''
+    const primary = input.content.kind === 'text'
       ? await this.activeTransport.sendText(input.externalChatId, input.content.text)
       : await this.activeTransport.createCard(input.externalChatId, input.content)
-    return { externalMessageId: result.messageId }
+    lastMessageId = primary.messageId
+    // 飞书不支持"文本/卡片+附件"一条消息，附件作为独立消息顺序发送；
+    // 单个附件失败只告警并继续，不阻断主内容与后续附件。
+    for (const attachment of input.content.attachments ?? []) {
+      try {
+        const result = await this.activeTransport.sendFile(input.externalChatId, attachment)
+        lastMessageId = result.messageId
+      }
+      catch (error) {
+        this.logger?.warn('[消息频道] 飞书附件发送失败', {
+          name: attachment.name,
+          kind: attachment.kind,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+    }
+    return { externalMessageId: lastMessageId }
   }
 
   async update(input: ChannelUpdateInput): Promise<void> {
@@ -78,6 +96,13 @@ export class FeishuConnector implements ChannelConnector {
     if (!this.activeTransport)
       throw new Error('飞书频道尚未连接')
     return this.activeTransport.setTyping(input.externalMessageId, input.typing)
+  }
+
+  async sendAttachment(input: { externalChatId: string, attachment: import('@ant-chat/shared').ChannelAttachment }) {
+    if (!this.activeTransport)
+      throw new Error('飞书频道尚未连接')
+    // 失败直接向上抛，由工具层呈现给模型，不静默吞掉。
+    return this.activeTransport.sendFile(input.externalChatId, input.attachment)
   }
 
   getStatus() { return this.status }

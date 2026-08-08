@@ -1,6 +1,6 @@
 /* eslint-disable style/max-statements-per-line */
 
-import type { AgentTaskSnapshot, ApprovePendingActionOptions, AppRpcInput, CancelTaskOptions, ChannelAccount, ChannelAccountView, ChannelSetupResult, ChannelType, ConversationsSettingsSchema, RejectPendingActionOptions } from '@ant-chat/shared'
+import type { AgentTaskSnapshot, ApprovePendingActionOptions, AppRpcInput, CancelTaskOptions, ChannelAccount, ChannelAccountView, ChannelAttachmentSender, ChannelSetupResult, ChannelType, ConversationsSettingsSchema, RejectPendingActionOptions } from '@ant-chat/shared'
 import type { AgentTurnService } from '../../../agent-runtime/agentTurnService'
 import type { ChannelActionEvent, ChannelActionResult, ChannelConnector } from '../../../channels'
 import type { RuntimeCore } from '../../createRuntimeCore'
@@ -63,7 +63,7 @@ export class ChannelModule implements RuntimeModuleMethods<'channel'>, RuntimeMo
           agent.rejectPendingAction({ taskId: task.taskId, actionId: task.pendingAction.actionId, reason: '通过消息频道拒绝' })
       },
     })
-    this.delivery = new ChannelDelivery({ events: core.events, data: core.data, connectors: this.connectors })
+    this.delivery = new ChannelDelivery({ events: core.events, data: core.data, connectors: this.connectors, logger: core.logger })
   }
 
   async initialize() {
@@ -86,6 +86,19 @@ export class ChannelModule implements RuntimeModuleMethods<'channel'>, RuntimeMo
   }
 
   async dispose() { this.delivery.stop(); await Promise.all([...this.connectors.values()].map(connector => connector.stop().catch(() => {}))) }
+
+  /** agent 工具直发附件的宿主能力：定位账号对应 connector 并透传，失败抛给工具层。 */
+  async sendAttachment(input: Parameters<ChannelAttachmentSender['send']>[0]): Promise<{ messageId: string }> {
+    const account = await this.core.data.channelAccountRepository.getById(input.channelAccountId)
+    const connector = this.connectors.get(account.channelType)
+    if (!connector)
+      throw new Error('频道发送能力不可用')
+    return connector.sendAttachment({
+      externalChatId: input.externalChatId,
+      attachment: input.attachment,
+    })
+  }
+
   @Method()
   async list(_input?: AppRpcInput<'channel.list'>): Promise<ChannelAccountView[]> { return (await this.core.data.channelAccountRepository.list()).map(toPublicAccount) }
 

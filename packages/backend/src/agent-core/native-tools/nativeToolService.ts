@@ -2,7 +2,9 @@ import type {
   AgentCommandHost,
   AgentTool,
   AgentToolResult,
+  AgentTurnSource,
   BrowserAuthStateProvider,
+  ChannelAttachmentSender,
   EditFileToolInput,
   GlobFilesToolInput,
   GrepFilesToolInput,
@@ -22,6 +24,7 @@ import { createGlobFilesTool, globFiles } from './tools/globFilesTool'
 import { createGrepFilesTool, grepFiles } from './tools/grepFilesTool'
 import { createListDirTool, listDir } from './tools/listDirTool'
 import { createReadFileTool, readFile } from './tools/readFileTool'
+import { createSendAttachmentTool } from './tools/sendAttachmentTool'
 import { createWriteFileTool, writeFile } from './tools/writeFileTool'
 
 interface NativeToolServiceOptions {
@@ -35,6 +38,8 @@ interface NativeToolServiceOptions {
   commandHost?: AgentCommandHost
   secretStore?: SecretStore
   runId?: string
+  turnSource?: AgentTurnSource
+  channelAttachmentSender?: ChannelAttachmentSender
 }
 
 export class NativeToolService {
@@ -67,6 +72,10 @@ export class NativeToolService {
       : undefined
     return [
       createReadFileTool(policy, this.unrestricted),
+      createSendAttachmentTool(policy, this.unrestricted, {
+        turnSource: this.options.turnSource,
+        channelAttachmentSender: this.options.channelAttachmentSender,
+      }),
       createListDirTool(policy, this.unrestricted),
       createGlobFilesTool(policy, this.unrestricted),
       createGrepFilesTool(policy, this.unrestricted),

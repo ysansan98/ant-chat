@@ -1,9 +1,12 @@
+import { Buffer } from 'node:buffer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createFeishuTransport } from '../transport'
 
 const sdk = vi.hoisted(() => ({
   createMessage: vi.fn(),
   patchMessage: vi.fn(),
+  createFile: vi.fn(),
+  createImage: vi.fn(),
   createReaction: vi.fn(),
   deleteReaction: vi.fn(),
   eventHandlers: {} as Record<string, (event: unknown) => Promise<unknown>>,
@@ -16,6 +19,8 @@ vi.mock('@larksuiteoapi/node-sdk', () => ({
     im = {
       v1: {
         message: { create: sdk.createMessage, patch: sdk.patchMessage },
+        file: { create: sdk.createFile },
+        image: { create: sdk.createImage },
         messageReaction: {
           create: sdk.createReaction,
           delete: sdk.deleteReaction,
@@ -40,6 +45,8 @@ describe('飞书 transport 出站行为', () => {
   beforeEach(() => {
     sdk.createMessage.mockReset()
     sdk.patchMessage.mockReset()
+    sdk.createFile.mockReset()
+    sdk.createImage.mockReset()
     sdk.createReaction.mockReset()
     sdk.deleteReaction.mockReset()
     sdk.startWs.mockReset().mockResolvedValue(undefined)
@@ -334,5 +341,92 @@ describe('飞书 transport 出站行为', () => {
     )
     expect(JSON.stringify(logger.error.mock.calls)).not.toContain('secret-token')
     expect(JSON.stringify(logger.error.mock.calls)).not.toContain('secret-value')
+  })
+
+  it('按附件类型上传图片并发送 image 消息', async () => {
+    sdk.createImage.mockResolvedValue({ image_key: 'image-key-1' })
+    sdk.createMessage.mockResolvedValue({ data: { message_id: 'message-image' } })
+    const transport = createFeishuTransport('{"appId":"cli_x","appSecret":"secret"}')
+    const bytes = Buffer.from('fake-png')
+
+    const result = await transport.sendFile('chat-1', {
+      name: '截图.png',
+      mediaType: 'image/png',
+      kind: 'image',
+      data: bytes.toString('base64'),
+    })
+
+    expect(result).toEqual({ messageId: 'message-image' })
+    expect(sdk.createImage).toHaveBeenCalledWith({
+      data: { image_type: 'message', image: bytes },
+    })
+    expect(sdk.createMessage).toHaveBeenCalledWith({
+      params: { receive_id_type: 'chat_id' },
+      data: {
+        receive_id: 'chat-1',
+        msg_type: 'image',
+        content: JSON.stringify({ image_key: 'image-key-1' }),
+      },
+    })
+  })
+
+  it('按扩展名映射 file_type，未知类型落 stream 并保留文件名', async () => {
+    sdk.createFile.mockResolvedValue({ file_key: 'file-key-1' })
+    sdk.createMessage.mockResolvedValue({ data: { message_id: 'message-file' } })
+    const transport = createFeishuTransport('{"appId":"cli_x","appSecret":"secret"}')
+    const bytes = Buffer.from('fake-pdf')
+
+    const result = await transport.sendFile('chat-1', {
+      name: '方案.pdf',
+      mediaType: 'application/pdf',
+      kind: 'document',
+      data: bytes.toString('base64'),
+    })
+
+    expect(result).toEqual({ messageId: 'message-file' })
+    expect(sdk.createFile).toHaveBeenCalledWith({
+      data: {
+        file_type: 'pdf',
+        file_name: '方案.pdf',
+        file: bytes,
+      },
+    })
+    expect(sdk.createMessage).toHaveBeenCalledWith({
+      params: { receive_id_type: 'chat_id' },
+      data: {
+        receive_id: 'chat-1',
+        msg_type: 'file',
+        content: JSON.stringify({ file_key: 'file-key-1' }),
+      },
+    })
+
+    sdk.createFile.mockClear()
+    await transport.sendFile('chat-1', {
+      name: 'archive.bin',
+      mediaType: 'application/octet-stream',
+      kind: 'file',
+      data: bytes.toString('base64'),
+    })
+    expect(sdk.createFile).toHaveBeenCalledWith(expect.objectContaining({
+      data: { file_type: 'stream', file_name: 'archive.bin', file: bytes },
+    }))
+  })
+
+  it('超过飞书文件/图片上限时报错', async () => {
+    const transport = createFeishuTransport('{"appId":"cli_x","appSecret":"secret"}')
+    await expect(transport.sendFile('chat-1', {
+      name: 'big.jpg',
+      mediaType: 'image/jpeg',
+      kind: 'image',
+      data: Buffer.alloc(10 * 1024 * 1024 + 1).toString('base64'),
+    })).rejects.toThrow('超过 10MB 上限')
+    await expect(transport.sendFile('chat-1', {
+      name: 'big.bin',
+      mediaType: 'application/octet-stream',
+      kind: 'file',
+      data: Buffer.alloc(30 * 1024 * 1024 + 1).toString('base64'),
+    })).rejects.toThrow('超过 30MB 上限')
+    expect(sdk.createImage).not.toHaveBeenCalled()
+    expect(sdk.createFile).not.toHaveBeenCalled()
   })
 })

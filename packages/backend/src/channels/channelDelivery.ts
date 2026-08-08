@@ -12,8 +12,10 @@ import type {
 } from '@ant-chat/shared'
 import type { AppDataContext } from '../data'
 import type { AppRuntimeEventBus } from '../events'
+import type { SystemLogger } from '../systemLogger'
 import type {
   ChannelActionEvent,
+  ChannelAttachment,
   ChannelConnector,
   ChannelExecutionStep,
   ChannelOutboundContent,
@@ -58,6 +60,7 @@ interface ExecutionProjection {
   lastPublishedAt?: number
   lastSentText?: string
   lastSentPendingActionId?: string
+  attachments?: ChannelAttachment[]
   timer?: ReturnType<typeof setTimeout>
 }
 
@@ -78,6 +81,7 @@ export class ChannelDelivery {
     events: AppRuntimeEventBus
     data: AppDataContext
     connectors: Map<ChannelType, ChannelConnector>
+    logger?: Pick<SystemLogger, 'warn'>
   }) {}
 
   start(): void {
@@ -196,6 +200,7 @@ export class ChannelDelivery {
         .trim()
       if (text)
         projection.text = text
+      projection.attachments = await this.collectAttachments(message.content)
       for (const block of message.content) {
         if (block.type === 'tool-call')
           this.applyToolCall(projection, block)
@@ -210,6 +215,36 @@ export class ChannelDelivery {
       }
     }
     await this.scheduleExecution(projection)
+  }
+
+  /** 收集 assistant 附件块并解析字节：块自带 data 优先，否则从 file_id 读取。 */
+  private async collectAttachments(content: IMessage['content']): Promise<ChannelAttachment[] | undefined> {
+    const attachments: ChannelAttachment[] = []
+    for (const block of content) {
+      if (block.type !== 'image-block' && block.type !== 'document' && block.type !== 'file')
+        continue
+      if (block.source.type !== 'file_id') {
+        // url 来源需要额外下载器，本次不做，跳过并保留日志。
+        this.deps.logger?.warn(`[消息频道] 跳过 url 来源附件块：${block.type}`)
+        continue
+      }
+      const data = block.data ?? await this.deps.data.loadAttachmentData(block.source.file_id)
+      if (!data) {
+        this.deps.logger?.warn(`[消息频道] 附件数据缺失，跳过：${block.source.file_id}`)
+        continue
+      }
+      const name = block.type === 'file'
+        ? block.filename ?? block.name ?? 'file'
+        : block.name ?? block.type
+      attachments.push({
+        name,
+        mediaType: block.media_type ?? (block.type === 'image-block' ? 'image/jpeg' : 'application/octet-stream'),
+        data,
+        size: block.size,
+        kind: block.type === 'image-block' ? 'image' : block.type,
+      })
+    }
+    return attachments.length > 0 ? attachments : undefined
   }
 
   private async handleTaskUpdate(task: AgentTaskSnapshot): Promise<void> {
@@ -313,7 +348,7 @@ export class ChannelDelivery {
       const settled = ['success', 'failed', 'cancelled'].includes(projection.status)
       if (!actionable && !settled)
         return
-      if (!text.trim())
+      if (!text.trim() && !projection.attachments?.length)
         return
       // 终态只发一次；secret 提示重复触发时再发以便用户看到。
       if (!actionable && projection.lastSentText === text)
@@ -337,6 +372,7 @@ export class ChannelDelivery {
         pendingAction: projection.pendingAction,
         visualization: projection.visualization,
         actions,
+        ...(projection.attachments ? { attachments: projection.attachments } : {}),
       },
     )
     projection.lastSentText = text

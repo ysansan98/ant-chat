@@ -55,6 +55,8 @@ export class ToolRegistry {
       browserSession,
       secretStore: config.secretStore,
       runId,
+      turnSource,
+      channelAttachmentSender: config.channelAttachmentSender,
     }).getTools(), turnSource)
     const relaxedNativeTools = unrestricted
       ? nativeTools
@@ -66,6 +68,8 @@ export class ToolRegistry {
           browserSession,
           secretStore: config.secretStore,
           runId,
+          turnSource,
+          channelAttachmentSender: config.channelAttachmentSender,
         }).getTools(), turnSource)
     const skillTools = skillReader
       ? await makeSkillTools(skillReader, turnSource)

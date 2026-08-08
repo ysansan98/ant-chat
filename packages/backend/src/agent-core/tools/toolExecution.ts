@@ -1,9 +1,9 @@
-import type { AgentRuntimeConfig, AgentToolResult, McpToolCall, SecretRef, ToolCallContent, VisualizationBlockTransport } from '@ant-chat/shared'
+import type { AgentRuntimeConfig, AgentToolResult, McpToolCall, SecretRef, ToolCallContent, ToolOutputBlock } from '@ant-chat/shared'
 import type { RuntimeTask } from '../taskStore'
 import type { PreparedToolCall, ToolRegistry } from './toolRegistry'
 import type { ToolAuthorization, ToolCallContext } from './types'
 import { randomUUID } from 'node:crypto'
-import { AGENT_POLICY_BLOCKED, AGENT_TOOL_EXEC_FAILED, VisualizationOutputBlocksSchema } from '@ant-chat/shared'
+import { AGENT_POLICY_BLOCKED, AGENT_TOOL_EXEC_FAILED, ToolOutputBlocksSchema } from '@ant-chat/shared'
 import { AgentError } from '../AgentError'
 import { isPreparedCommandState } from '../native-tools/command/types'
 import { cancelObservation, completeObservation, failObservation, startObservationSpan } from '../observation'
@@ -327,11 +327,9 @@ async function finalizeSuccessToolStep(
   durationMs: number,
   redactEvidence: ToolEvidenceRedactor,
 ): Promise<ExecuteToolStepResult> {
-  const { prepared, lastToolCallContext } = preparation
+  const { lastToolCallContext } = preparation
   const toolOutputText = redactEvidence(result.result)
-  const outputBlocks = prepared.toolName === 'publish_visualization'
-    ? extractVisualizationOutputBlocks(result.diagnostics?.data)
-    : []
+  const outputBlocks = extractToolOutputBlocks(result.diagnostics?.data)
   if (outputBlocks.length > 0) {
     currentToolCall.outputBlocks = outputBlocks
   }
@@ -484,8 +482,8 @@ function toToolCallContent(tool: McpToolCall): ToolCallContent {
   }
 }
 
-function extractVisualizationOutputBlocks(value: unknown): VisualizationBlockTransport[] {
-  const parsed = VisualizationOutputBlocksSchema.safeParse(value)
+function extractToolOutputBlocks(value: unknown): ToolOutputBlock[] {
+  const parsed = ToolOutputBlocksSchema.safeParse(value)
   return parsed.success ? parsed.data.outputBlocks : []
 }
 
