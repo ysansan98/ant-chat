@@ -76,6 +76,7 @@ export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModu
     approvePendingAction: options => agent.approvePendingAction({ options }),
     rejectPendingAction: options => agent.rejectPendingAction({ options }),
     rejectSecretRequest: options => agent.rejectSecretRequest({ options }),
+    injectSteering: (conversationId, text) => agent.injectSteering({ conversationId, text }),
   }
   const channel = new ChannelModule(core, channelAgent, [
     new FeishuConnector(credential => createFeishuTransport(credential, logger), logger),

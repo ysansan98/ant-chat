@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { IMessage } from '@ant-chat/shared'
 import type { AppDataContext } from '../../data'
 import { ChannelRuntime } from '../channelRuntime'
 
@@ -20,7 +21,8 @@ function createHarness() {
   } as unknown as AppDataContext
   const startTurn = vi.fn(async () => ({ taskId: 't1', conversationId: 'c1', userMessageId: 'm1', conversation }))
   const updateConversation = vi.fn(input => data.conversationRepository.update(input))
-  return { runtime: new ChannelRuntime({ data, turnService: { startTurn }, updateConversation }), data, startTurn, updateConversation }
+  const injectSteering = vi.fn(async (_conversationId: string, _text: string): Promise<IMessage | null> => null)
+  return { runtime: new ChannelRuntime({ data, turnService: { startTurn }, updateConversation, injectSteering }), data, startTurn, updateConversation, injectSteering }
 }
 
 describe('channelRuntime 入站行为', () => {
@@ -173,6 +175,7 @@ describe('channelRuntime 入站行为', () => {
         providerId: 'provider-1',
         name: '可用模型',
       }],
+      injectSteering: vi.fn(async () => null),
     })
 
     await expect(runtime.handleInbound({
@@ -233,6 +236,7 @@ describe('channelRuntime 入站行为', () => {
         providerId: 'channel-provider',
         name: '频道模型',
       }],
+      injectSteering: vi.fn(async () => null),
     })
 
     await expect(runtime.handleInbound({
@@ -265,6 +269,7 @@ describe('channelRuntime 入站行为', () => {
         name: '模型二',
         providerName: '服务二',
       }],
+      injectSteering: vi.fn(async () => null),
     })
 
     await expect(runtime.handleInbound({
@@ -301,6 +306,7 @@ describe('channelRuntime 入站行为', () => {
       turnService: { startTurn: vi.fn() },
       updateConversation,
       listModels: () => models,
+      injectSteering: vi.fn(async () => null),
     })
 
     await expect(runtime.handleInbound({
@@ -335,6 +341,7 @@ describe('channelRuntime 入站行为', () => {
         { modelId: 'model-1', providerId: 'provider-1', name: '模型一', providerName: '服务一' },
         { modelId: 'model-2', providerId: 'provider-2', name: '模型二', providerName: '服务二' },
       ],
+      injectSteering: vi.fn(async () => null),
     })
 
     await expect(runtime.handleInbound({
@@ -369,6 +376,7 @@ describe('channelRuntime 入站行为', () => {
       listModels: () => [
         { modelId: 'model-1', providerId: 'provider-1', name: '模型一', providerName: '服务一' },
       ],
+      injectSteering: vi.fn(async () => null),
     })
 
     await expect(runtime.handleInbound({
@@ -536,6 +544,90 @@ describe('channelRuntime 入站行为', () => {
     }))
 
     await expect(runtime.handleInbound(event)).resolves.toEqual({ kind: 'duplicate' })
+    expect(data.messageRepository.create).not.toHaveBeenCalled()
+  })
+
+  it('频道指令执行不写 message 事件', async () => {
+    const { runtime, data } = createHarness()
+
+    await expect(runtime.handleInbound({
+      channelAccountId: 'a1',
+      channelType: 'feishu',
+      externalUserId: 'u1',
+      externalDisplayName: '用户',
+      externalChatId: 'chat-1',
+      externalMessageId: 'e-status-no-event',
+      text: '/status',
+    })).resolves.toMatchObject({ kind: 'command' })
+
+    expect(data.messageRepository.create).not.toHaveBeenCalled()
+  })
+
+  it('解析失败或用法错误的指令不写 message 事件', async () => {
+    const { runtime, data } = createHarness()
+
+    await expect(runtime.handleInbound({
+      channelAccountId: 'a1',
+      channelType: 'feishu',
+      externalUserId: 'u1',
+      externalDisplayName: '用户',
+      externalChatId: 'chat-1',
+      externalMessageId: 'e-bad-command',
+      text: '/foo',
+    })).resolves.toEqual({
+      kind: 'command',
+      message: '无法识别频道命令。发送 /help 查看可用命令。',
+      conversationId: 'c1',
+    })
+
+    expect(data.messageRepository.create).not.toHaveBeenCalled()
+  })
+
+  it('/steer 仍写入 steering 用户消息', async () => {
+    const { runtime, data } = createHarness()
+
+    await expect(runtime.handleInbound({
+      channelAccountId: 'a1',
+      channelType: 'feishu',
+      externalUserId: 'u1',
+      externalDisplayName: '用户',
+      externalChatId: 'chat-1',
+      externalMessageId: 'e-steer',
+      text: '/steer 保持简洁',
+    })).resolves.toEqual({
+      kind: 'command',
+      message: '当前没有运行中的任务，指令已记录，下次任务开始时生效。',
+      conversationId: 'c1',
+    })
+
     expect(data.messageRepository.create).toHaveBeenCalledOnce()
+    expect(data.messageRepository.create).toHaveBeenCalledWith(expect.objectContaining({
+      convId: 'c1',
+      role: 'user',
+      eventType: 'steering',
+      content: [{ type: 'text', text: '保持简洁' }],
+    }))
+  })
+
+  it('/steer 在任务运行中注入下一个迭代，不落库', async () => {
+    const { runtime, data, injectSteering } = createHarness()
+    injectSteering.mockResolvedValue({ id: 'm-injected' } as IMessage)
+
+    await expect(runtime.handleInbound({
+      channelAccountId: 'a1',
+      channelType: 'feishu',
+      externalUserId: 'u1',
+      externalDisplayName: '用户',
+      externalChatId: 'chat-1',
+      externalMessageId: 'e-steer-running',
+      text: '/steer 换个思路',
+    })).resolves.toEqual({
+      kind: 'command',
+      message: '已注入当前任务。',
+      conversationId: 'c1',
+    })
+
+    expect(injectSteering).toHaveBeenCalledWith('c1', '换个思路')
+    expect(data.messageRepository.create).not.toHaveBeenCalled()
   })
 })
