@@ -153,4 +153,77 @@ describe('buildConversationContextMessages 行为', () => {
       },
     ])).rejects.toThrow('Compaction boundary message not found: missing')
   })
+
+  it('中断的 tool-call 修复为失败 tool-result，无对应 tool-call 的孤儿 tool-result 仍过滤', async () => {
+    const messages: IMessage[] = [
+      {
+        ...textMessage('a1', 'assistant', '准备执行'),
+        content: [
+          { type: 'text', text: '准备执行' },
+          { type: 'tool-call', toolCallId: 'call-completed', toolName: 'read_file', args: { path: 'a.ts' }, executeState: 'completed' },
+        ],
+      },
+      {
+        id: 't1',
+        convId: 'conv-1',
+        createdAt: 2,
+        role: 'tool',
+        status: 'success',
+        content: [{ type: 'tool-result', toolCallId: 'call-completed', toolName: 'read_file', result: 'ok', isError: false }],
+      },
+      {
+        ...textMessage('a2', 'assistant', '正在滚动页面'),
+        content: [
+          { type: 'text', text: '正在滚动页面' },
+          { type: 'tool-call', toolCallId: 'call-orphan', toolName: 'browser_eval', args: { expression: 'scroll()' }, executeState: 'executing' },
+        ],
+      },
+      {
+        id: 't2',
+        convId: 'conv-1',
+        createdAt: 3,
+        role: 'tool',
+        status: 'success',
+        content: [{ type: 'tool-result', toolCallId: 'call-orphan-result', toolName: 'browser_eval', result: 'unpaired', isError: false }],
+      },
+      textMessage('u3', 'user', '继续'),
+    ]
+
+    const result = await buildConversationContextEntries(messages)
+
+    expect(result.map(entry => entry.message)).toEqual([
+      {
+        role: 'assistant',
+        content: [
+          { type: 'text', text: '准备执行' },
+          { type: 'tool-call', toolCallId: 'call-completed', toolName: 'read_file', args: { path: 'a.ts' } },
+        ],
+      },
+      {
+        role: 'tool',
+        content: [{ type: 'tool-result', toolCallId: 'call-completed', toolName: 'read_file', result: 'ok', isError: false }],
+      },
+      {
+        role: 'assistant',
+        content: [
+          { type: 'text', text: '正在滚动页面' },
+          { type: 'tool-call', toolCallId: 'call-orphan', toolName: 'browser_eval', args: { expression: 'scroll()' } },
+        ],
+      },
+      {
+        role: 'tool',
+        content: [{
+          type: 'tool-result',
+          toolCallId: 'call-orphan',
+          toolName: 'browser_eval',
+          result: '工具执行被中断（进程退出），未返回结果。',
+          isError: true,
+        }],
+      },
+      {
+        role: 'user',
+        content: [{ type: 'text', text: '继续' }],
+      },
+    ])
+  })
 })

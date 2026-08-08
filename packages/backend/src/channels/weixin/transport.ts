@@ -1,5 +1,6 @@
 import type { SystemLogger } from '../../systemLogger'
 import { randomBytes, randomUUID } from 'node:crypto'
+import process from 'node:process'
 import { fetch } from 'undici'
 
 export interface WeixinTransport {
@@ -43,11 +44,48 @@ const DEFAULT_BOT_TYPE = '3'
 const LONG_POLL_TIMEOUT_MS = 35_000
 const QR_POLL_TIMEOUT_MS = 35_000
 const SESSION_EXPIRED_ERRCODE = -14
+const RATE_LIMIT_ERRCODE = -2
 const RETRY_DELAY_MS = 2_000
 const BACKOFF_DELAY_MS = 30_000
+const TYPING_TICKET_TTL_MS = 600_000
+/** iLink 会把长文本拆成约 2048 字符的多条消息，达到阈值时放宽合并等待。 */
+const TEXT_BATCH_SPLIT_THRESHOLD = 1800
 const BOT_AGENT = 'AntChat/1.0.0 (ant-chat)'
 const ILINK_APP_ID = 'bot'
 const ILINK_APP_CLIENT_VERSION = '1'
+
+/** 读取环境变量整数配置，缺失或非法时回退默认值。 */
+export function readEnvInt(name: string, fallback: number): number {
+  const raw = process.env[name]
+  if (!raw)
+    return fallback
+  const parsed = Number.parseInt(raw, 10)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
+/** iLink 的 ret=-2/errcode=-2 + "unknown error" 是会话过期信号，不是真限流。 */
+function isStaleSession(ret: number | undefined, errcode: number | undefined, errmsg: unknown): boolean {
+  if (ret !== RATE_LIMIT_ERRCODE && errcode !== RATE_LIMIT_ERRCODE)
+    return false
+  return String(errmsg ?? '').toLowerCase() === 'unknown error'
+}
+
+function extractText(message: Record<string, unknown>): string {
+  const itemList = Array.isArray(message.item_list) ? message.item_list : []
+  for (const item of itemList) {
+    const record = item as Record<string, unknown>
+    if (record.type !== 1)
+      continue
+    const textItem = (record.text_item ?? record) as Record<string, unknown>
+    if (typeof textItem.text === 'string')
+      return textItem.text
+  }
+  return ''
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
 
 /** 微信 iLink 的 base_info 随每个授权请求携带，标识驱动 bot 的客户端。 */
 function buildBaseInfo(): { channel_version: string, bot_agent: string } {
@@ -264,11 +302,59 @@ export function createWeixinTransport(credential: string, logger?: TransportLogg
   const parsed = parseWeixinCredential(credential)
   const baseUrl = parsed.baseUrl || DEFAULT_API_BASE_URL
   const contextTokens = new Map<string, string>()
-  const typingTickets = new Map<string, string>()
+  const typingTickets = new Map<string, { ticket: string, expiresAt: number }>()
   const messageUsers = new Map<string, string>()
+  const sendChunkRetries = readEnvInt('WEIXIN_SEND_CHUNK_RETRIES', 3)
+  const sendChunkRetryDelayMs = readEnvInt('WEIXIN_SEND_CHUNK_RETRY_DELAY_MS', 1000)
+  const textBatchDelayMs = readEnvInt('WEIXIN_TEXT_BATCH_DELAY_MS', 3000)
+  const textBatchSplitDelayMs = readEnvInt('WEIXIN_TEXT_BATCH_SPLIT_DELAY_MS', 5000)
   let pollAbort: AbortController | undefined
   let pollPromise: Promise<void> | undefined
   let started = false
+  let onInbound: ((event: unknown) => Promise<void>) | undefined
+  const pendingTextBatches = new Map<string, {
+    message: Record<string, unknown>
+    text: string
+    lastLength: number
+    timer?: ReturnType<typeof setTimeout>
+  }>()
+
+  /**
+   * iLink 会把转发/粘贴产生的连续消息拆成多条独立消息。文本消息
+   * 按会话静默合并，等一段安静期再一次性交给 Agent，避免连续打断；
+   * 非文本消息（图片等）不合并，立即回调。
+   */
+  function enqueueTextBatch(userId: string, message: Record<string, unknown>, text: string): void {
+    const existing = pendingTextBatches.get(userId)
+    if (existing) {
+      existing.text = existing.text ? `${existing.text}\n${text}` : text
+      existing.message = message
+      existing.lastLength = text.length
+    }
+    else {
+      pendingTextBatches.set(userId, { message, text, lastLength: text.length })
+    }
+    const entry = pendingTextBatches.get(userId)!
+    if (entry.timer)
+      clearTimeout(entry.timer)
+    const waitMs = entry.lastLength >= TEXT_BATCH_SPLIT_THRESHOLD ? textBatchSplitDelayMs : textBatchDelayMs
+    entry.timer = setTimeout(() => {
+      void flushTextBatch(userId).catch((error) => {
+        logger?.warn('[消息频道] 微信文本批处理失败', error instanceof Error ? error.message : String(error))
+      })
+    }, waitMs)
+    entry.timer.unref?.()
+  }
+
+  async function flushTextBatch(userId: string): Promise<void> {
+    const entry = pendingTextBatches.get(userId)
+    if (!entry)
+      return
+    pendingTextBatches.delete(userId)
+    // 合成一条消息：保留最新一条的身份/ID/context_token，文本为合并结果。
+    const merged: Record<string, unknown> = { ...entry.message, item_list: [{ type: 1, text_item: { text: entry.text } }] }
+    await onInbound?.(merged)
+  }
 
   async function notify(suffix: 'start' | 'stop'): Promise<void> {
     try {
@@ -320,7 +406,11 @@ export function createWeixinTransport(credential: string, logger?: TransportLogg
             messageUsers.set(String(messageId), userId)
           if (userId && typeof message.context_token === 'string')
             contextTokens.set(userId, message.context_token)
-          await onMessage(message)
+          const text = extractText(message)
+          if (text && userId)
+            enqueueTextBatch(userId, message, text)
+          else
+            await onMessage(message)
         }
         if (typeof response.get_updates_buf === 'string')
           syncBuf = response.get_updates_buf
@@ -340,12 +430,18 @@ export function createWeixinTransport(credential: string, logger?: TransportLogg
       if (started)
         return
       started = true
+      onInbound = handlers.onMessage
       pollAbort = new AbortController()
       await notify('start')
       pollPromise = pollLoop(pollAbort.signal, handlers.onMessage, handlers.onConnectionChange)
       handlers.onConnectionChange('connected')
     },
     async stop() {
+      for (const entry of pendingTextBatches.values()) {
+        if (entry.timer)
+          clearTimeout(entry.timer)
+      }
+      pendingTextBatches.clear()
       pollAbort?.abort()
       await pollPromise?.catch(() => undefined)
       pollPromise = undefined
@@ -363,24 +459,63 @@ export function createWeixinTransport(credential: string, logger?: TransportLogg
       if (!contextToken)
         throw new Error('尚未收到该用户的微信消息，无法回复。')
       const clientId = randomUUID()
-      const result = await weixinPost<{ message_id?: string }>({
-        baseUrl,
-        path: 'ilink/bot/sendmessage',
-        token: parsed.botToken,
-        logger,
-        body: {
-          msg: {
-            from_user_id: '',
-            to_user_id: chatId,
-            client_id: clientId,
-            message_type: 2,
-            message_state: 2,
-            context_token: contextToken,
-            item_list: [{ type: 1, text_item: { text } }],
-          },
-        },
-      })
-      return { messageId: result.message_id ?? clientId }
+      // 每条 chunk 独立重试；同一 chunk 复用 client_id 便于 iLink 幂等。
+      // session 过期（-14）时去掉 context_token 降级重试一次，保证
+      // 长时间未活跃后的主动回复仍可送达。
+      let effectiveToken: string | undefined = contextToken
+      let retriedWithoutToken = false
+      let lastError: Error | undefined
+      for (let attempt = 0; attempt <= sendChunkRetries; attempt++) {
+        try {
+          const result = await weixinPost<{ message_id?: string, ret?: number, errcode?: number, errmsg?: string }>({
+            baseUrl,
+            path: 'ilink/bot/sendmessage',
+            token: parsed.botToken,
+            logger,
+            body: {
+              msg: {
+                from_user_id: '',
+                to_user_id: chatId,
+                client_id: clientId,
+                message_type: 2,
+                message_state: 2,
+                ...(effectiveToken ? { context_token: effectiveToken } : {}),
+                item_list: [{ type: 1, text_item: { text } }],
+              },
+            },
+          })
+          const ret = result.ret
+          const errcode = result.errcode
+          const failed = (ret !== undefined && ret !== 0) || (errcode !== undefined && errcode !== 0)
+          if (failed) {
+            const sessionExpired = ret === SESSION_EXPIRED_ERRCODE || errcode === SESSION_EXPIRED_ERRCODE || isStaleSession(ret, errcode, result.errmsg)
+            if (sessionExpired && !retriedWithoutToken && effectiveToken) {
+              retriedWithoutToken = true
+              effectiveToken = undefined
+              contextTokens.delete(chatId)
+              logger?.warn('[消息频道] 微信会话过期，去掉 context_token 重试一次')
+              continue
+            }
+            const rateLimited = ret === RATE_LIMIT_ERRCODE || errcode === RATE_LIMIT_ERRCODE
+            lastError = new Error(`微信 iLink 发送失败：ret=${ret ?? '?'} errcode=${errcode ?? '?'} errmsg=${String(result.errmsg ?? '')}`)
+            if (rateLimited && attempt < sendChunkRetries) {
+              // 限流退避 3 倍，避免连续请求加剧触发频率限制。
+              logger?.warn('[消息频道] 微信 iLink 限流，退避后重试')
+              await delay(sendChunkRetryDelayMs * 3)
+              continue
+            }
+            break
+          }
+          return { messageId: result.message_id ?? clientId }
+        }
+        catch (error) {
+          lastError = error instanceof Error ? error : new Error(String(error))
+          if (attempt >= sendChunkRetries)
+            break
+          await delay(sendChunkRetryDelayMs * (attempt + 1))
+        }
+      }
+      throw lastError ?? new Error('微信消息发送失败')
     },
     async setTyping(messageId, typing) {
       const userId = messageUsers.get(messageId)
@@ -389,8 +524,10 @@ export function createWeixinTransport(credential: string, logger?: TransportLogg
       const contextToken = contextTokens.get(userId)
       if (!contextToken)
         return { changed: false }
-      let ticket = typingTickets.get(userId)
-      if (!ticket) {
+      // typing ticket 有 600 秒 TTL，过期后 sendtyping 静默失效，微信端
+      // 会一直卡在"输入中"；超时后重新通过 getconfig 拉取。
+      let cached = typingTickets.get(userId)
+      if (!cached || cached.expiresAt <= Date.now()) {
         const config = await weixinPost<{ typing_ticket?: string }>({
           baseUrl,
           path: 'ilink/bot/getconfig',
@@ -398,17 +535,17 @@ export function createWeixinTransport(credential: string, logger?: TransportLogg
           logger,
           body: { ilink_user_id: userId, context_token: contextToken },
         })
-        ticket = config.typing_ticket
-        if (!ticket)
+        if (!config.typing_ticket)
           return { changed: false }
-        typingTickets.set(userId, ticket)
+        cached = { ticket: config.typing_ticket, expiresAt: Date.now() + TYPING_TICKET_TTL_MS }
+        typingTickets.set(userId, cached)
       }
       await weixinPost({
         baseUrl,
         path: 'ilink/bot/sendtyping',
         token: parsed.botToken,
         logger,
-        body: { ilink_user_id: userId, typing_ticket: ticket, status: typing ? 1 : 2 },
+        body: { ilink_user_id: userId, typing_ticket: cached.ticket, status: typing ? 1 : 2 },
       })
       return { changed: true }
     },

@@ -15,6 +15,6 @@ describe('频道命令解析', () => {
 
   it('未知命令和缺少参数返回用户可读错误，不降级成普通文本', () => {
     expect(parseChannelInput('/unknown value')).toEqual({ kind: 'error', message: expect.stringContaining('/help') })
-    expect(parseChannelInput('/model')).toEqual({ kind: 'error', message: '用法：/model <名称>' })
+    expect(parseChannelInput('/model')).toEqual({ kind: 'error', message: '用法：/model <名称或序号>' })
   })
 })

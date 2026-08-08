@@ -1,16 +1,44 @@
 /* eslint-disable style/max-statements-per-line */
 
 import type { SystemLogger } from '../../systemLogger'
+
 import type { ChannelActionEvent, ChannelActionResult, ChannelConnector, ChannelSendInput, ChannelSendResult, ChannelSetupInput } from '../channelConnector'
 import type { ChannelInboundEvent } from '../channelRuntime'
 import type { WeixinTransport } from './transport'
+import process from 'node:process'
+import { DEFAULT_WEIXIN_MAX_MESSAGE_LENGTH, splitWeixinDelivery, wrapCopyFriendlyLines } from './delivery'
+import { readEnvInt } from './transport'
+
+export interface WeixinConnectorOptions {
+  /** 单条微信文本上限，超出按 Markdown 块拆分。 */
+  maxMessageLength: number
+  /** 相邻拆分消息的发送间隔（毫秒），0 表示不等待（测试用）。 */
+  chunkDelayMs: number
+  /** legacy 模式：顶层换行即独立消息。默认 false（紧凑模式）。 */
+  splitPerLine: boolean
+}
+
+function resolveConnectorOptions(overrides?: Partial<WeixinConnectorOptions>): WeixinConnectorOptions {
+  return {
+    maxMessageLength: readEnvInt('WEIXIN_MAX_MESSAGE_LENGTH', DEFAULT_WEIXIN_MAX_MESSAGE_LENGTH),
+    chunkDelayMs: readEnvInt('WEIXIN_SEND_CHUNK_DELAY_MS', 1500),
+    splitPerLine: process.env.WEIXIN_SPLIT_MULTILINE_MESSAGES === 'true',
+    ...overrides,
+  }
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
 
 export class WeixinConnector implements ChannelConnector {
   readonly type = 'weixin' as const
   private status: ReturnType<ChannelConnector['getStatus']> = { status: 'disconnected' }
   private activeTransport?: WeixinTransport
   private readonly transportFactory?: (credential: string) => WeixinTransport
-  constructor(transport: WeixinTransport | ((credential: string) => WeixinTransport), private readonly logger?: Pick<SystemLogger, 'info' | 'warn'>) {
+  private readonly options: WeixinConnectorOptions
+  constructor(transport: WeixinTransport | ((credential: string) => WeixinTransport), private readonly logger?: Pick<SystemLogger, 'info' | 'warn'>, options?: Partial<WeixinConnectorOptions>) {
+    this.options = resolveConnectorOptions(options)
     if (typeof transport === 'function')
       this.transportFactory = transport
     else
@@ -67,8 +95,17 @@ export class WeixinConnector implements ChannelConnector {
           : input.content.kind === 'permission-mode-selection'
             ? input.content.modes.map(mode => `${mode.selected ? '✓ ' : ''}${mode.label}`).join('\n')
             : `${input.content.title}\n${input.content.text}`
-    const result = await this.activeTransport.sendText(input.externalChatId, text)
-    return { externalMessageId: result.messageId }
+    // 微信不能编辑消息，回复必须整段终态发出；先折行再按块拆分，
+    // 逐条顺序发送，块间隔避免连续消息触发 iLink 限流。
+    const chunks = splitWeixinDelivery(wrapCopyFriendlyLines(text), this.options.maxMessageLength, this.options.splitPerLine)
+    let lastMessageId = ''
+    for (let index = 0; index < chunks.length; index++) {
+      const result = await this.activeTransport.sendText(input.externalChatId, chunks[index]!)
+      lastMessageId = result.messageId
+      if (index < chunks.length - 1 && this.options.chunkDelayMs > 0)
+        await delay(this.options.chunkDelayMs)
+    }
+    return { externalMessageId: lastMessageId }
   }
 
   async setTyping(input: { externalMessageId: string, typing: boolean }) {

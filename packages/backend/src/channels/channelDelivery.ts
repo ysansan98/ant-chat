@@ -57,6 +57,7 @@ interface ExecutionProjection {
   secretRequest?: SecretRequest
   lastPublishedAt?: number
   lastSentText?: string
+  lastSentPendingActionId?: string
   timer?: ReturnType<typeof setTimeout>
 }
 
@@ -115,6 +116,11 @@ export class ChannelDelivery {
     if (!presentation)
       return this.deliverResponse(event, message)
     if (presentation.kind === 'model-selection') {
+      // 纯文本平台（微信）无法渲染选择卡片：直接发带序号的文本列表，用户用 /model <序号> 切换。
+      if (!this.deps.connectors.get(event.channelType)?.update) {
+        const lines = [...message.split('\n'), '回复 /model <序号> 切换。']
+        return this.deliverResponse(event, lines.join('\n'))
+      }
       const options = Object.fromEntries(presentation.models.map(model => [
         randomUUID(),
         { providerId: model.providerId, modelId: model.modelId },
@@ -134,6 +140,11 @@ export class ChannelDelivery {
           value: optionEntries[index][0],
         })),
       })
+    }
+    if (presentation.kind === 'permission-mode-selection' && !this.deps.connectors.get(event.channelType)?.update) {
+      const lines = presentation.modes.map((mode, index) => `${mode.selected ? '✓ ' : ''}${index + 1}. ${mode.label}`)
+      lines.push('回复 /mode <序号> 切换。')
+      return this.deliverResponse(event, lines.join('\n'))
     }
     const options = Object.fromEntries(presentation.modes.map(mode => [randomUUID(), mode.value]))
     const optionEntries = Object.entries(options)
@@ -276,15 +287,25 @@ export class ChannelDelivery {
       projection.timer = undefined
     }
     const actions = this.executionActions(projection)
-    const text = projection.secretRequest
-      ? [
-          projection.text,
-          `需要敏感信息：${projection.secretRequest.label}`,
-          projection.secretRequest.reason,
-          '为避免密码或 Token 经第三方平台传输，请在 Ant Chat 桌面端完成输入。',
-        ].filter(Boolean).join('\n\n')
-      : projection.text
     const supportsUpdate = Boolean(this.deps.connectors.get(projection.channelType)?.update)
+    let text = projection.text
+    if (projection.secretRequest) {
+      text = [
+        projection.text,
+        `需要敏感信息：${projection.secretRequest.label}`,
+        projection.secretRequest.reason,
+        '为避免密码或 Token 经第三方平台传输，请在 Ant Chat 桌面端完成输入。',
+      ].filter(Boolean).join('\n\n')
+    }
+    else if (!supportsUpdate && projection.pendingAction) {
+      // 纯文本平台没有可更新的审批卡，把审批信息拼进正文，用户可回复 /approve 或 /deny。
+      text = [
+        projection.text,
+        `需要审批：${projection.pendingAction.toolName}`,
+        projection.pendingAction.inputPreview,
+        '回复 /approve 批准，/deny 拒绝。',
+      ].filter(Boolean).join('\n\n')
+    }
     if (!supportsUpdate) {
       // 纯文本平台（微信）没有可更新消息：只在终态或有操作时才发，
       // 避免运行中空状态和重复文本刷屏。
@@ -294,8 +315,11 @@ export class ChannelDelivery {
         return
       if (!text.trim())
         return
-      // 终态只发一次；pending/secret 有操作提示时需要重复发以便展示。
+      // 终态只发一次；secret 提示重复触发时再发以便用户看到。
       if (!actionable && projection.lastSentText === text)
+        return
+      // 同一审批只推一次，task-updated 重复触发时不能刷屏。
+      if (projection.pendingAction && projection.lastSentPendingActionId === projection.pendingAction.actionId)
         return
     }
     await this.publish(
@@ -316,6 +340,8 @@ export class ChannelDelivery {
       },
     )
     projection.lastSentText = text
+    if (projection.pendingAction)
+      projection.lastSentPendingActionId = projection.pendingAction.actionId
     projection.lastPublishedAt = Date.now()
   }
 

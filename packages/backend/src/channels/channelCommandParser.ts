@@ -29,7 +29,7 @@ export function parseChannelInput(input: string): ParsedChannelInput {
   const remainder = match[2]?.trim()
   switch (match[1]) {
     case 'new': return remainder ? { kind: 'command', command: { id: 'new', path: remainder } } : { kind: 'command', command: { id: 'new' } }
-    case 'model': return remainder ? { kind: 'command', command: { id: 'model', query: remainder } } : { kind: 'error', message: '用法：/model <名称>' }
+    case 'model': return remainder ? { kind: 'command', command: { id: 'model', query: remainder } } : { kind: 'error', message: '用法：/model <名称或序号>' }
     case 'mode': return remainder ? { kind: 'command', command: { id: 'mode', query: remainder } } : { kind: 'command', command: { id: 'mode' } }
     case 'steer': return remainder ? { kind: 'command', command: { id: 'steer', text: remainder } } : { kind: 'error', message: '用法：/steer <文本>' }
     case 'models': return noArgs(match[1], remainder, { id: 'models' })

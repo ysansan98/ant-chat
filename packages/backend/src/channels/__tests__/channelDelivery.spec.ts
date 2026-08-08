@@ -532,3 +532,257 @@ describe('频道执行投递', () => {
     })
   })
 })
+
+function createWeixinHarness(send = vi.fn(async () => ({ externalMessageId: 'weixin-message-1' }))) {
+  const events = new RuntimeEventBus()
+  const connector = {
+    type: 'weixin',
+    send,
+    setTyping: vi.fn(async () => ({ changed: true })),
+  } as unknown as ChannelConnector
+  const data = {
+    channelAccountRepository: {
+      getById: vi.fn(async () => ({ channelType: 'weixin' })),
+    },
+    channelReceiptRepository: {
+      getOutboundByLocalMessageId: vi.fn(async () => undefined),
+      create: vi.fn(async input => ({ id: 'receipt-weixin', ...input })),
+      updateExternalMessageId: vi.fn(async () => undefined),
+    },
+    messageRepository: {
+      getById: vi.fn(async () => ({
+        id: 'turn-1',
+        role: 'user',
+        originType: 'weixin',
+        originChannelAccountId: 'account-1',
+        originExternalChatId: 'chat-1',
+      })),
+    },
+    conversationRepository: {
+      getById: vi.fn(async () => ({
+        id: 'conversation-1',
+        settings: { providerId: 'provider-1', modelId: 'model-1' },
+      })),
+    },
+    providerSettingsRepository: {
+      getAllAvailableModels: vi.fn(() => [{
+        id: 'provider-1',
+        name: '服务一',
+        models: [{ id: 'model-1', name: '模型一' }],
+      }]),
+    },
+  }
+  const delivery = new ChannelDelivery({
+    events,
+    connectors: new Map([['weixin', connector]]),
+    data: data as never,
+  })
+  delivery.start()
+  return { connector, data, delivery, events }
+}
+
+describe('微信纯文本平台投递', () => {
+  const source = {
+    type: 'channel' as const,
+    channelType: 'weixin' as const,
+    channelAccountId: 'account-1',
+    externalUserId: 'user-1',
+    externalChatId: 'chat-1',
+    externalMessageId: 'source-message-1',
+  }
+
+  it('awaiting_approval 推送含工具名、预览和 /approve /deny 的审批文本', async () => {
+    const { connector, events } = createWeixinHarness()
+    events.emit('agent:task-updated', {
+      task: {
+        taskId: 'task-1',
+        userMessageId: 'turn-1',
+        conversationId: 'conversation-1',
+        status: 'running',
+        turnSource: source,
+      } as AgentTaskSnapshot,
+    })
+    events.emit('message:updated', {
+      message: {
+        id: 'assistant-1',
+        turnId: 'turn-1',
+        role: 'assistant',
+        status: 'loading',
+        modelInfo: { provider: '服务一', model: '模型一' },
+        content: [{ type: 'text', text: '准备执行命令' }],
+      } as IMessage,
+    })
+    events.emit('agent:task-updated', {
+      task: {
+        taskId: 'task-1',
+        userMessageId: 'turn-1',
+        conversationId: 'conversation-1',
+        status: 'awaiting_approval',
+        pendingAction: {
+          actionId: 'approval-1',
+          toolName: 'execute_command',
+          operationType: 'command',
+          scope: 'outside',
+          inputPreview: 'git push',
+          createdAt: 1,
+        },
+        turnSource: source,
+      } as AgentTaskSnapshot,
+    })
+
+    await vi.waitFor(() => expect(connector.send).toHaveBeenCalledOnce())
+    const sent = vi.mocked(connector.send).mock.calls[0][0]
+    expect(sent.externalChatId).toBe('chat-1')
+    expect(sent.content).toMatchObject({ kind: 'execution', status: 'awaiting_approval' })
+    const text = sent.content.kind === 'execution' ? sent.content.text : ''
+    expect(text).toContain('需要审批：execute_command')
+    expect(text).toContain('git push')
+    expect(text).toContain('/approve')
+    expect(text).toContain('/deny')
+  })
+
+  it('模型没有产出正文时，审批提示本身也能发出', async () => {
+    const { connector, events } = createWeixinHarness()
+    events.emit('agent:task-updated', {
+      task: {
+        taskId: 'task-1',
+        userMessageId: 'turn-1',
+        conversationId: 'conversation-1',
+        status: 'running',
+        turnSource: source,
+      } as AgentTaskSnapshot,
+    })
+    events.emit('message:updated', {
+      message: {
+        id: 'assistant-1',
+        turnId: 'turn-1',
+        role: 'assistant',
+        status: 'loading',
+        modelInfo: { provider: '服务一', model: '模型一' },
+        content: [] as IMessage['content'],
+      } as IMessage,
+    })
+    events.emit('agent:task-updated', {
+      task: {
+        taskId: 'task-1',
+        userMessageId: 'turn-1',
+        conversationId: 'conversation-1',
+        status: 'awaiting_approval',
+        pendingAction: {
+          actionId: 'approval-2',
+          toolName: 'execute_command',
+          operationType: 'command',
+          scope: 'outside',
+          inputPreview: 'pnpm install',
+          createdAt: 1,
+        },
+        turnSource: source,
+      } as AgentTaskSnapshot,
+    })
+
+    await vi.waitFor(() => expect(connector.send).toHaveBeenCalledOnce())
+    const sent = vi.mocked(connector.send).mock.calls[0][0]
+    const text = sent.content.kind === 'execution' ? sent.content.text : ''
+    expect(text).toContain('需要审批：execute_command')
+    expect(text).toContain('pnpm install')
+  })
+
+  it('同一审批重复 task-updated 不重复推送', async () => {
+    const { connector, events } = createWeixinHarness()
+    events.emit('agent:task-updated', {
+      task: {
+        taskId: 'task-1',
+        userMessageId: 'turn-1',
+        conversationId: 'conversation-1',
+        status: 'running',
+        turnSource: source,
+      } as AgentTaskSnapshot,
+    })
+    events.emit('message:updated', {
+      message: {
+        id: 'assistant-1',
+        turnId: 'turn-1',
+        role: 'assistant',
+        status: 'loading',
+        modelInfo: { provider: '服务一', model: '模型一' },
+        content: [{ type: 'text', text: '准备执行命令' }],
+      } as IMessage,
+    })
+    const pendingAction = {
+      actionId: 'approval-1',
+      toolName: 'execute_command',
+      operationType: 'command',
+      scope: 'outside',
+      inputPreview: 'git push',
+      createdAt: 1,
+    }
+    const task = {
+      taskId: 'task-1',
+      userMessageId: 'turn-1',
+      conversationId: 'conversation-1',
+      status: 'awaiting_approval',
+      pendingAction,
+      turnSource: source,
+    } as AgentTaskSnapshot
+    events.emit('agent:task-updated', { task })
+    await vi.waitFor(() => expect(connector.send).toHaveBeenCalledOnce())
+
+    events.emit('agent:task-updated', { task })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(connector.send).toHaveBeenCalledOnce()
+  })
+
+  it('/models 在纯文本平台直接发送带序号的文本列表', async () => {
+    const { connector, delivery } = createWeixinHarness()
+    const event: ChannelInboundEvent = {
+      channelAccountId: 'account-1',
+      channelType: 'weixin',
+      externalUserId: 'user-1',
+      externalDisplayName: '用户',
+      externalChatId: 'chat-1',
+      externalMessageId: 'message-models',
+      text: '/models',
+    }
+    await delivery.deliverCommand(event, 'conversation-1', '1. 服务一 / 模型一\n2. 服务二 / 模型二', {
+      kind: 'model-selection',
+      models: [
+        { providerId: 'provider-1', modelId: 'model-1', label: '服务一 / 模型一', selected: true },
+        { providerId: 'provider-2', modelId: 'model-2', label: '服务二 / 模型二', selected: false },
+      ],
+    })
+
+    expect(connector.send).toHaveBeenCalledWith({
+      externalChatId: 'chat-1',
+      content: { kind: 'text', text: '1. 服务一 / 模型一\n2. 服务二 / 模型二\n回复 /model <序号> 切换。' },
+    })
+  })
+
+  it('/mode 在纯文本平台直接发送带序号和命令提示的权限模式列表', async () => {
+    const { connector, delivery } = createWeixinHarness()
+    const event: ChannelInboundEvent = {
+      channelAccountId: 'account-1',
+      channelType: 'weixin',
+      externalUserId: 'user-1',
+      externalDisplayName: '用户',
+      externalChatId: 'chat-1',
+      externalMessageId: 'message-mode',
+      text: '/mode',
+    }
+    await delivery.deliverCommand(event, 'conversation-1', '请选择权限模式。', {
+      kind: 'permission-mode-selection',
+      modes: [
+        { value: 'strict', label: '默认权限', selected: false },
+        { value: 'hybrid', label: '自动审查', selected: true },
+        { value: 'full_managed', label: '完全访问权限', selected: false },
+      ],
+    })
+
+    expect(connector.send).toHaveBeenCalledWith({
+      externalChatId: 'chat-1',
+      content: {
+        kind: 'text',
+        text: '1. 默认权限\n✓ 2. 自动审查\n3. 完全访问权限\n回复 /mode <序号> 切换。',
+      },
+    })
+  })
+})

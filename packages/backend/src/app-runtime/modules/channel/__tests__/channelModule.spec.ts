@@ -161,7 +161,7 @@ describe('channel module 平台回包', () => {
     })
     expect(connector.send).toHaveBeenNthCalledWith(2, {
       externalChatId: 'chat-1',
-      content: { kind: 'text', text: '用法：/model <名称>' },
+      content: { kind: 'text', text: '用法：/model <名称或序号>' },
     })
     expect(connector.send).toHaveBeenNthCalledWith(3, {
       externalChatId: 'chat-1',
@@ -170,7 +170,7 @@ describe('channel module 平台回包', () => {
         title: '选择模型',
         token: expect.any(String),
         models: [{
-          label: '服务一 / 模型一',
+          label: '1. 服务一 / 模型一',
           selected: true,
           value: expect.any(String),
         }],
