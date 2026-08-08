@@ -107,6 +107,7 @@ describe('channel module 频道配置（扫码创建 / 重新授权）', () => {
       listActiveTasks: vi.fn(() => [] as AgentTaskSnapshot[]),
       approvePendingAction: vi.fn(),
       cancelTask: vi.fn(),
+      injectSteering: vi.fn(),
     } as never, [connector])
     return { module, data, secretStore, connector }
   }

@@ -1,6 +1,6 @@
 /* eslint-disable style/max-statements-per-line */
 
-import type { AgentTaskSnapshot, ApprovePendingActionOptions, AppRpcInput, CancelTaskOptions, ChannelAccount, ChannelAccountView, ChannelAttachmentSender, ChannelSetupResult, ChannelType, ConversationsSettingsSchema, RejectPendingActionOptions } from '@ant-chat/shared'
+import type { AgentTaskSnapshot, ApprovePendingActionOptions, AppRpcInput, CancelTaskOptions, ChannelAccount, ChannelAccountView, ChannelAttachmentSender, ChannelSetupResult, ChannelType, ConversationsSettingsSchema, IMessage, RejectPendingActionOptions } from '@ant-chat/shared'
 import type { AgentTurnService } from '../../../agent-runtime/agentTurnService'
 import type { ChannelActionEvent, ChannelActionResult, ChannelConnector } from '../../../channels'
 import type { RuntimeCore } from '../../createRuntimeCore'
@@ -20,6 +20,7 @@ export interface ChannelAgentDependencies {
   approvePendingAction: (options: ApprovePendingActionOptions) => void
   rejectPendingAction: (options: RejectPendingActionOptions) => void
   rejectSecretRequest: (options: { requestId: string, reason?: string }) => void
+  injectSteering: (conversationId: string, text: string) => Promise<IMessage>
 }
 
 @Module('channel')
@@ -53,6 +54,13 @@ export class ChannelModule implements RuntimeModuleMethods<'channel'>, RuntimeMo
         providerName: provider.name,
       }))),
       listActiveTasks: conversationId => agent.listActiveTasks(conversationId).filter(task => task.status === 'awaiting_approval').map(task => ({ taskId: task.taskId, status: task.status, pendingAction: task.pendingAction })),
+      // /steer 注入语义：有运行/等待审批任务时注入下一个迭代，否则返回 null 由 ChannelRuntime 落库等待下一轮。
+      injectSteering: async (conversationId, text) => {
+        const running = agent.listActiveTasks(conversationId).some(item => ['running', 'awaiting_approval'].includes(item.status))
+        if (!running)
+          return null
+        return agent.injectSteering(conversationId, text)
+      },
       approvePending: async (conversationId) => {
         const task = agent.listActiveTasks(conversationId).find(item => item.status === 'awaiting_approval' && item.pendingAction)
         if (task?.pendingAction)

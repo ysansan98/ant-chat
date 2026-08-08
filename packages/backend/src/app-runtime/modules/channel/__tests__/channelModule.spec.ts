@@ -156,6 +156,7 @@ describe('channel module 平台回包', () => {
     let activeTasks: AgentTaskSnapshot[] = []
     const approvePendingAction = vi.fn()
     const cancelTask = vi.fn()
+    const injectSteering = vi.fn(async () => ({ id: 'injected' } as IMessage))
     const module = new ChannelModule({
       data,
       events,
@@ -167,6 +168,7 @@ describe('channel module 平台回包', () => {
       listActiveTasks: vi.fn(() => activeTasks),
       approvePendingAction,
       cancelTask,
+      injectSteering,
     } as never, [connector])
 
     await module.initialize()
@@ -425,5 +427,19 @@ describe('channel module 平台回包', () => {
       taskId: 'task-approval',
       actionId: 'approval-1',
     })
+
+    // /steer 在任务运行中通过注入进入下一个迭代，不落库
+    activeTasks = [runningTask]
+    await onInbound?.({
+      channelAccountId: 'a1',
+      channelType: 'feishu',
+      externalUserId: 'u1',
+      externalDisplayName: '用户',
+      externalChatId: 'chat-1',
+      externalMessageId: 'message-steer',
+      text: '/steer 继续执行',
+    })
+    expect(injectSteering).toHaveBeenCalledWith('c1', '继续执行')
+    expect(data.messageRepository.create).not.toHaveBeenCalled()
   })
 })

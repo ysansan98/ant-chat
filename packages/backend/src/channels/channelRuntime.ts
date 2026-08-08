@@ -1,6 +1,6 @@
 /* eslint-disable style/max-statements-per-line */
 
-import type { AddMessage, AgentMode, AgentRuntimeStartTaskResult, ChannelAccount, ChannelPairing, ChannelType, ConversationsSettingsSchema, StartAgentTurnOptions } from '@ant-chat/shared'
+import type { AddMessage, AgentMode, AgentRuntimeStartTaskResult, ChannelAccount, ChannelPairing, ChannelType, ConversationsSettingsSchema, IMessage, StartAgentTurnOptions } from '@ant-chat/shared'
 import type { AgentTurnService } from '../agent-runtime/agentTurnService'
 import type { AppDataContext } from '../data'
 import type { ChannelCommand } from './channelCommandParser'
@@ -69,6 +69,8 @@ export interface ChannelRuntimeDeps {
   approvePending?: (conversationId: string) => Promise<void>
   denyPending?: (conversationId: string) => Promise<void>
   listActiveTasks?: (conversationId: string) => Array<{ taskId: string, status: string, pendingAction?: { actionId: string } }>
+  /** 把文本作为运行中任务的追加指令注入；无运行任务时返回 null，由调用方决定是否落库等待下一轮。 */
+  injectSteering: (conversationId: string, text: string) => Promise<IMessage | null>
   now?: () => number
 }
 
@@ -92,14 +94,13 @@ export class ChannelRuntime {
     const session = await this.getOrCreateSession(account, event)
     const parsed = parseChannelInput(event.text)
     if (parsed.kind === 'error') {
-      await this.persistReceiptAndEvent(event, session.activeConversationId)
+      await this.createInboundReceipt(event)
       return { kind: 'command', message: parsed.message, conversationId: session.activeConversationId }
     }
     if (parsed.kind === 'command') {
       const receipt = await this.createInboundReceipt(event)
       try {
         const result = await this.handleCommand(parsed.command, event, session)
-        await this.persistCommandEvent(event, result.conversationId, receipt.id)
         return {
           kind: 'command',
           message: result.message,
@@ -115,7 +116,7 @@ export class ChannelRuntime {
     const modelConfig = await this.getModelConfig(session.activeConversationId)
     if (!modelConfig) {
       const message = '当前没有可用模型，请先在设置中启用模型。'
-      await this.persistReceiptAndEvent(event, session.activeConversationId)
+      await this.createInboundReceipt(event)
       return { kind: 'configuration-required', message }
     }
     const receipt = await this.createInboundReceipt(event)
@@ -207,7 +208,14 @@ export class ChannelRuntime {
             : undefined,
         )
       }
-      case 'steer': await this.deps.data.messageRepository.create({ convId: session.activeConversationId, role: 'user', status: 'success', content: [{ type: 'text', text: command.text }], turnId: session.activeConversationId, eventType: 'steering' } as AddMessage); return result('已记录 steering。')
+      case 'steer': {
+        // 有运行中任务时注入下一个迭代；无任务时落库，由下一轮 startTurn 作为历史追加。
+        const injected = await this.deps.injectSteering(session.activeConversationId, command.text)
+        if (injected)
+          return result('已注入当前任务。')
+        await this.deps.data.messageRepository.create({ convId: session.activeConversationId, role: 'user', status: 'success', content: [{ type: 'text', text: command.text }], turnId: session.activeConversationId, eventType: 'steering' } as AddMessage)
+        return result('当前没有运行中的任务，指令已记录，下次任务开始时生效。')
+      }
       case 'stop': await this.deps.stopTask?.(session.activeConversationId); return result('已请求停止当前任务。')
       case 'status': {
         const [conversation, account] = await Promise.all([
@@ -325,8 +333,6 @@ export class ChannelRuntime {
   private getModels(): ChannelModelOption[] { return this.deps.listModels?.() ?? [] }
   private findModel(providerId: string, modelId: string): ChannelModelOption | undefined { return this.getModels().find(model => model.providerId === providerId && model.modelId === modelId) }
   private createInboundReceipt(event: ChannelInboundEvent) { return this.deps.data.channelReceiptRepository.create({ channelAccountId: event.channelAccountId, externalChatId: event.externalChatId, externalMessageId: event.externalMessageId, direction: 'inbound', status: 'received' }) }
-  private async persistReceiptAndEvent(event: ChannelInboundEvent, conversationId: string) { const receipt = await this.createInboundReceipt(event); await this.persistCommandEvent(event, conversationId, receipt.id) }
-  private async persistCommandEvent(event: ChannelInboundEvent, conversationId: string, receiptId: string) { const message = await this.deps.data.messageRepository.create({ convId: conversationId, role: 'event', status: 'success', content: [{ type: 'text', text: event.text }], eventType: 'channel-command' } as AddMessage); await this.deps.data.channelReceiptRepository.updateStatus(receiptId, 'received', undefined, message.id) }
   private isRegisteredWorkspace(input: string): boolean { return this.deps.data.workspaceService.listWorkspaces().workspaces.some(workspace => workspace.path === input) && this.deps.data.workspaceService.isWorkspaceAvailable(input) }
 }
 
