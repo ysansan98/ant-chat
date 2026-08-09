@@ -12,6 +12,7 @@ export interface AutomationRepository {
   createManualRun: (automationId: string, scheduledAt: number) => Promise<AutomationRun>
   updateRun: (id: string, patch: Partial<Omit<AutomationRun, 'id' | 'automationId' | 'createdAt'>>) => Promise<AutomationRun>
   listRuns: (automationId?: string, limit?: number) => Promise<AutomationRun[]>
+  markRunRead: (id: string, readAt: number) => Promise<AutomationRun>
   hasActiveRun: (automationId: string) => Promise<boolean>
   cancelRunning: (finishedAt: number) => Promise<void>
 }

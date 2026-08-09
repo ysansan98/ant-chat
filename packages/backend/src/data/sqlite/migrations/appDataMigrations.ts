@@ -221,6 +221,8 @@ export function createAppDataMigrations(
         `)
       },
     },
+    // 该迁移仅保留版本历史：微信执行过程消息功能已移除，show_progress 列不再被
+    // 任何代码读写；线上数据库已应用过此版本，删除定义会导致迁移历史校验失败。
     {
       version: 12,
       name: '微信频道执行过程消息开关',

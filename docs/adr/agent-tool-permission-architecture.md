@@ -15,7 +15,8 @@ Agent 工具权限原先主要依赖 `operationType + scope`，但两个字段�
 - Browser 把网页访问和系统 Chrome Profile 复用都标成 `workspace`，自动化也没有
   Browser 权限项，却会无条件获得并执行该工具。
 - `full_managed` 在检查 `blocked` 之前直接允许，系统硬阻断可能被权限模式覆盖。
-- 自动化权限拒绝被当成普通工具错误返回模型，模型随后正常回复会把运行误标为成功。
+- 无人值守下「运行是否成功」无法可靠判定：模型总结不可信，权限拒绝也可能被模型
+  总结成成功；run 若用 succeeded/failed 呈现会让用户误以为自动化经过了成败校验。
 
 这些问题的共同根因是能力集合、资源边界、审批模式和无人值守终态没有各自明确的
 owner。
@@ -51,10 +52,14 @@ owner。
 ### 4. Agent Loop 和 Automation Runtime 拥有各自终态
 
 - 交互 Turn 可把普通权限拒绝作为工具结果交还模型解释。
-- 自动化遇到策略阻断时必须终止 Loop，不能继续生成成功回复；用户配置的 deny 规则是例外，它只阻止当前工具调用并将原因交回模型。
-- `AutomationRuntime` 将该终态收口为 `needs_attention`。
+- 自动化遇到权限拒绝时不中断 Loop：拒绝结果交回模型继续，模型可换写法重试或
+  继续其他步骤；用户配置的 deny 规则只阻止当前工具调用并同样交回模型。
+- `AutomationRun` 不做成败判定：task 结束统一收口为 `completed`（拒绝/异常信息
+  保留在 errorCode/errorMessage），run 只表达执行事实（queued/running/completed/
+  skipped/cancelled）和「等待你操作」（`awaiting`，来自审批与 Secret 请求）。
+- run 的查看态独立为 `readAt`（收件箱语义：completed 且未打开 = 未读）。
 - Secret 请求携带 `automationRunId`，即使事件早于 `startTurn` 返回，也能可靠转为
-  `needs_attention`。
+  `awaiting`。
 - Secret 请求绑定 Turn 的 `AbortSignal`；转人工后取消任务会立即清理 pending 请求，
   不等待超时。
 
@@ -73,6 +78,6 @@ owner。
 - Browser 关闭时不进入自动化工具集合；开启后普通网页操作可执行。
 - 系统 Chrome Profile 在交互模式进入审批，在自动化中始终拒绝。
 - `full_managed` 不能覆盖 `blocked`。
-- 自动化策略拒绝不会被后续模型回复改写为成功。
+- 自动化策略拒绝不中断 Loop；拒绝事实保留在会话 tool-result，run 不做成败判定。
 - 早到的 Secret 请求不会因 taskId 映射尚未建立而丢失。
 - 自动化转人工取消任务后不残留等待中的 Secret Promise。

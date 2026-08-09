@@ -194,6 +194,7 @@ export interface AppRpcContract {
   'automation.setEnabled': RpcEndpoint<{ id: string, enabled: boolean }, AutomationDefinition>
   'automation.runNow': RpcEndpoint<{ id: string }, AutomationRun>
   'automation.listRuns': RpcEndpoint<{ automationId?: string, limit?: number }, AutomationRun[]>
+  'automation.markRunRead': RpcEndpoint<{ id: string }, AutomationRun>
 
   'commands.runBuiltinCommand': RpcEndpoint<RunBuiltinCommandParams, RunBuiltinCommandResult>
   'commands.cancelCommand': RpcEndpoint<{ conversationId: string }, null>

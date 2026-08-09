@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   setEnabled: vi.fn(),
   runNow: vi.fn(),
   listRuns: vi.fn(),
+  markRunRead: vi.fn(),
   delete: vi.fn(),
   openWorkspace: vi.fn(),
 }))
@@ -57,6 +58,7 @@ describe('automationsPage', () => {
     mocks.setEnabled.mockResolvedValue({ ...automation, enabled: false, nextRunAt: undefined })
     mocks.runNow.mockResolvedValue({ id: 'run-1', automationId: automation.id, scheduledAt: Date.now(), status: 'queued', createdAt: Date.now() })
     mocks.listRuns.mockResolvedValue([])
+    mocks.markRunRead.mockResolvedValue({ id: 'run-1', automationId: automation.id, scheduledAt: Date.now(), status: 'completed', readAt: Date.now(), createdAt: Date.now() })
     mocks.delete.mockResolvedValue(null)
     mocks.openWorkspace.mockResolvedValue({ workspaces: [] })
   })
@@ -74,7 +76,7 @@ describe('automationsPage', () => {
 
   it('从运行时加载任务并持久化启停操作', async () => {
     renderPage()
-    expect(await screen.findAllByText('每日检查')).toHaveLength(2)
+    expect(await screen.findAllByText('每日检查')).toHaveLength(1)
 
     fireEvent.click(screen.getByRole('switch', { name: '停用每日检查' }))
 
@@ -84,7 +86,7 @@ describe('automationsPage', () => {
 
   it('打开运行记录时从后端读取而不是使用模拟数据', async () => {
     renderPage()
-    expect(await screen.findAllByText('每日检查')).toHaveLength(2)
+    expect(await screen.findAllByText('每日检查')).toHaveLength(1)
 
     fireEvent.click(screen.getByRole('button', { name: '运行记录' }))
 
@@ -99,7 +101,7 @@ describe('automationsPage', () => {
       scheduledAt: Date.now(),
       startedAt: Date.now(),
       finishedAt: Date.now() + 1_000,
-      status: 'succeeded',
+      status: 'completed',
       conversationId: 'conv-history-1',
       turnId: 'turn-history-1',
       summary: '检查完成',
@@ -122,7 +124,7 @@ describe('automationsPage', () => {
       scheduledAt: Date.now(),
       startedAt: Date.now(),
       finishedAt: Date.now() + 1_000,
-      status: 'succeeded',
+      status: 'completed',
       conversationId: 'conv-history-1',
       turnId: 'turn-history-1',
       summary: '检查完成',
@@ -137,6 +139,30 @@ describe('automationsPage', () => {
     expect(await screen.findByText('会话页面')).toBeInTheDocument()
     expect(mocks.openWorkspace).toHaveBeenCalledWith('/workspace/project')
     expect(screen.getByTestId('chat-search')).toHaveTextContent('?traceTurnId=turn-history-1')
+  })
+
+  it('未读 run 显示未读标记，打开会话后标记已读', async () => {
+    mocks.listRuns.mockResolvedValue([{
+      id: 'run-1',
+      automationId: automation.id,
+      scheduledAt: Date.now(),
+      startedAt: Date.now(),
+      finishedAt: Date.now() + 1_000,
+      status: 'completed',
+      conversationId: 'conv-history-1',
+      turnId: 'turn-history-1',
+      summary: '检查完成',
+      createdAt: Date.now(),
+    }])
+    renderPage()
+    await screen.findAllByText('每日检查')
+
+    fireEvent.click(screen.getByRole('button', { name: '运行记录' }))
+    expect(await screen.findByLabelText('未读')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '查看会话' }))
+    expect(mocks.markRunRead).toHaveBeenCalledWith('run-1')
+    expect(await screen.findByText('会话页面')).toBeInTheDocument()
   })
 
   it('创建任务时权限区域跟随上方选择的工作区', async () => {

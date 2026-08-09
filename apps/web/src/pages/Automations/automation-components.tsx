@@ -11,23 +11,6 @@ import { Switch } from '@workspace/ui/components/switch'
 import { Check, ChevronDown } from 'lucide-react'
 import { formatDuration, formatRunStatus, formatTimestamp } from './automation-utils'
 
-export function OverviewCard(props: { icon: ReactNode, label: string, value: string, detail: string }) {
-  return (
-    <Card size="sm">
-      <CardContent className="flex items-center gap-3">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-          {props.icon}
-        </div>
-        <div className="min-w-0">
-          <p className="text-xs text-muted-foreground">{props.label}</p>
-          <p className="font-heading font-semibold">{props.value}</p>
-          <p className="truncate text-xs text-muted-foreground">{props.detail}</p>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
 export function TaskMeta(props: { label: string, value: string, code?: string, status?: string }) {
   return (
     <div className="flex min-w-0 flex-col gap-1">
@@ -53,6 +36,14 @@ export function RunHistorySheet(props: {
     ? undefined
     : props.automations.find(item => item.id === props.target)
   const records = props.records
+
+  function runStatusVariant(status: AutomationRun['status']): 'secondary' | 'destructive' | 'outline' {
+    if (status === 'awaiting')
+      return 'destructive'
+    if (status === 'completed' || status === 'running' || status === 'queued')
+      return 'secondary'
+    return 'outline'
+  }
 
   return (
     <Sheet open={Boolean(props.target)} onOpenChange={props.onOpenChange}>
@@ -82,16 +73,21 @@ export function RunHistorySheet(props: {
                 <CardHeader>
                   <div className="min-w-0">
                     {props.target === 'all' && <CardTitle className="truncate">{automation?.name}</CardTitle>}
-                    <CardDescription>
-                      {record.startedAt ? formatTimestamp(record.startedAt) : '等待执行'}
-                      {' '}
-                      ·
-                      {' '}
-                      {formatDuration(record)}
-                    </CardDescription>
+                    <div className="flex items-center gap-2">
+                      {record.status === 'completed' && !record.readAt && (
+                        <span className="size-2 shrink-0 rounded-full bg-primary" aria-label="未读" />
+                      )}
+                      <CardDescription>
+                        {record.startedAt ? formatTimestamp(record.startedAt) : '等待执行'}
+                        {' '}
+                        ·
+                        {' '}
+                        {formatDuration(record)}
+                      </CardDescription>
+                    </div>
                   </div>
                   <CardAction>
-                    <Badge variant={record.status === 'succeeded' ? 'secondary' : 'destructive'}>{formatRunStatus(record.status)}</Badge>
+                    <Badge variant={runStatusVariant(record.status)}>{formatRunStatus(record.status)}</Badge>
                   </CardAction>
                 </CardHeader>
                 <CardContent>

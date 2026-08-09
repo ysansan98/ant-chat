@@ -30,6 +30,7 @@ interface RunRow {
   started_at: number | null
   finished_at: number | null
   status: AutomationRun['status']
+  read_at: number | null
   task_id: string | null
   conversation_id: string | null
   turn_id: string | null
@@ -40,7 +41,7 @@ interface RunRow {
 }
 
 const AUTOMATION_COLUMNS = 'id, name, prompt, workspace_path, provider_id, model_id, allowed_skills, allowed_mcp_servers, permission_policy, schedule, enabled, next_run_at, last_run_at, created_at, updated_at'
-const RUN_COLUMNS = 'id, automation_id, scheduled_at, started_at, finished_at, status, task_id, conversation_id, turn_id, summary, error_code, error_message, created_at'
+const RUN_COLUMNS = 'id, automation_id, scheduled_at, started_at, finished_at, status, read_at, task_id, conversation_id, turn_id, summary, error_code, error_message, created_at'
 
 export class SqliteAutomationRepository implements AutomationRepository {
   constructor(private readonly db: AppDataDatabase) {}
@@ -168,11 +169,12 @@ export class SqliteAutomationRepository implements AutomationRepository {
   async updateRun(id: string, patch: Partial<Omit<AutomationRun, 'id' | 'automationId' | 'createdAt'>>) {
     const current = this.getRunSync(id)
     const value = { ...current, ...patch }
-    this.db.prepare('UPDATE automation_runs SET scheduled_at=?, started_at=?, finished_at=?, status=?, task_id=?, conversation_id=?, turn_id=?, summary=?, error_code=?, error_message=? WHERE id=?').run(
+    this.db.prepare('UPDATE automation_runs SET scheduled_at=?, started_at=?, finished_at=?, status=?, read_at=?, task_id=?, conversation_id=?, turn_id=?, summary=?, error_code=?, error_message=? WHERE id=?').run(
       value.scheduledAt,
       value.startedAt ?? null,
       value.finishedAt ?? null,
       value.status,
+      value.readAt ?? null,
       value.taskId ?? null,
       value.conversationId ?? null,
       value.turnId ?? null,
@@ -189,6 +191,13 @@ export class SqliteAutomationRepository implements AutomationRepository {
       ? this.db.prepare<[string, number], RunRow>(`SELECT ${RUN_COLUMNS} FROM automation_runs WHERE automation_id = ? ORDER BY created_at DESC LIMIT ?`).all(automationId, limit)
       : this.db.prepare<[number], RunRow>(`SELECT ${RUN_COLUMNS} FROM automation_runs ORDER BY created_at DESC LIMIT ?`).all(limit)
     return rows.map(mapRun)
+  }
+
+  async markRunRead(id: string, readAt: number) {
+    const result = this.db.prepare('UPDATE automation_runs SET read_at = ? WHERE id = ?').run(readAt, id)
+    if (result.changes === 0)
+      throw new Error('自动化运行记录不存在')
+    return this.getRunSync(id)
   }
 
   async hasActiveRun(automationId: string) {
@@ -277,6 +286,7 @@ function mapRun(row: RunRow): AutomationRun {
     startedAt: row.started_at ?? undefined,
     finishedAt: row.finished_at ?? undefined,
     status: row.status,
+    readAt: row.read_at ?? undefined,
     taskId: row.task_id ?? undefined,
     conversationId: row.conversation_id ?? undefined,
     turnId: row.turn_id ?? undefined,

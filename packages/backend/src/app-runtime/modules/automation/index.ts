@@ -80,4 +80,9 @@ export class AutomationModule implements RuntimeModuleMethods<'automation'> {
   listRuns(input: AppRpcInput<'automation.listRuns'>) {
     return this.runtime.listRuns(input.automationId, input.limit)
   }
+
+  @Method()
+  markRunRead(input: AppRpcInput<'automation.markRunRead'>) {
+    return this.runtime.markRunRead(input.id)
+  }
 }
