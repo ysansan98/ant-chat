@@ -4,6 +4,7 @@ import { resolveAppDataRoot } from '@ant-chat/shared'
 import { app } from 'electron'
 import { activateDesktopAppRuntime, disposeDesktopAppRuntime } from './app-runtime-host/appRuntime'
 import { UpdateService } from './domains/update/updateService'
+import { setupDockIcon } from './utils/dockIcon'
 import { logger } from './utils/logger'
 import { MainWindow } from './windows/window'
 import './bridge'
@@ -29,6 +30,8 @@ if (cliMarkerIndex !== -1) {
 else {
   void app.whenReady().then(async () => {
     await activateDesktopAppRuntime()
+
+    setupDockIcon()
 
     const mainWindow = new MainWindow()
     await mainWindow.createWindow()
