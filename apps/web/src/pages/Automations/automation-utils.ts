@@ -101,11 +101,10 @@ export function formatRunStatus(status: AutomationRun['status']) {
   return {
     queued: '等待执行',
     running: '运行中',
-    succeeded: '成功',
-    failed: '失败',
+    completed: '已完成',
     skipped: '已跳过',
     cancelled: '已取消',
-    needs_attention: '需要处理',
+    awaiting: '等待你操作',
   }[status]
 }
 

@@ -79,6 +79,7 @@ export function initializeAppDataSchema(db: AppDataDatabase): void {
       started_at integer,
       finished_at integer,
       status text NOT NULL,
+      read_at integer,
       task_id text,
       conversation_id text,
       turn_id text,

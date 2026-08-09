@@ -6,7 +6,7 @@ import { Button } from '@workspace/ui/components/button'
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@workspace/ui/components/card'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from '@workspace/ui/components/dropdown-menu'
 import { Switch } from '@workspace/ui/components/switch'
-import { CalendarClock, CheckCircle2, Clock3, History, MoreHorizontal, Pencil, Plus, Sparkles, Trash2 } from 'lucide-react'
+import { History, MoreHorizontal, Pencil, Plus, Sparkles, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
@@ -17,7 +17,7 @@ import { skillApi } from '@/api/skillApi'
 import workspaceApi from '@/api/workspaceApi'
 import { AUTOMATION_CHANGED_EVENT, AUTOMATION_RUN_CHANGED_EVENT } from '@/constants/automationEvents'
 import { activateWorkspaceSession } from '@/store/workspaceSession'
-import { OverviewCard, RunHistorySheet, TaskMeta } from './automation-components'
+import { RunHistorySheet, TaskMeta } from './automation-components'
 import { toAutomationItem } from './automation-utils'
 import { CreateAutomationSheet } from './CreateAutomationSheet'
 
@@ -93,6 +93,10 @@ export function AutomationsPage() {
   async function openConversation(run: AutomationRun, automation?: AutomationItem, inspectTrace = false) {
     if (!run.conversationId || !automation)
       throw new Error(run.errorMessage || '该运行记录没有可查看的会话')
+    // 收件箱语义：打开即已读；失败不阻断查看会话
+    if (run.status === 'completed' && !run.readAt) {
+      void automationApi.markRunRead(run.id).catch(() => {})
+    }
     await activateWorkspaceSession({
       workspacePath: automation.workspacePath,
       conversationId: run.conversationId,
@@ -148,9 +152,6 @@ export function AutomationsPage() {
     setDeleteTarget(undefined)
   }
 
-  const enabledCount = automations.filter(item => item.enabled).length
-  const nextAutomation = automations.find(item => item.enabled)
-
   return (
     <main className="h-full overflow-y-auto bg-background">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-5 py-8 md:px-10 md:py-12">
@@ -173,12 +174,6 @@ export function AutomationsPage() {
           </Button>
         </header>
 
-        <section className="grid gap-3 md:grid-cols-3" aria-label="自动化概览">
-          <OverviewCard icon={<CalendarClock />} label="已启用" value={`${enabledCount} 个`} detail="正在等待调度" />
-          <OverviewCard icon={<Clock3 />} label="下一次执行" value={nextAutomation?.nextRun ?? '暂无计划'} detail={nextAutomation?.name ?? '创建任务后显示'} />
-          <OverviewCard icon={<CheckCircle2 />} label="运行记录" value={`${runs.filter(run => run.status === 'succeeded').length} 次成功`} detail="打开记录后同步最新结果" />
-        </section>
-
         <section className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <div>
@@ -190,7 +185,7 @@ export function AutomationsPage() {
               </p>
             </div>
             <Button variant="ghost" size="sm" onClick={() => void openHistory('all')}>
-              <History data-icon="inline-start" />
+              <History className="size-3.5" />
               全部运行记录
             </Button>
           </div>
