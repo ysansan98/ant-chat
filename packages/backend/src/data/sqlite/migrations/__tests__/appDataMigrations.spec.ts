@@ -59,7 +59,6 @@ describe('app-data SQLite 迁移', () => {
       { version: 9, name: '消息搜索投影、FTS 与长期记忆目录' },
       { version: 10, name: '记录微信扫码登录 owner 身份' },
       { version: 11, name: '自动化 run 状态收窄并增加已读标记' },
-      { version: 12, name: '微信频道执行过程消息开关' },
     ])
   })
 
@@ -72,7 +71,6 @@ describe('app-data SQLite 迁移', () => {
     expect(messageColumns.map(column => column.name)).toEqual(expect.arrayContaining(['origin_type', 'origin_channel_account_id', 'origin_external_chat_id']))
     expect((sqlite.prepare('PRAGMA table_info(channel_accounts)').all() as Array<{ name: string }>).map(column => column.name)).toContain('permission_mode')
     expect((sqlite.prepare('PRAGMA table_info(channel_accounts)').all() as Array<{ name: string }>).map(column => column.name)).toContain('owner_user_id')
-    expect((sqlite.prepare('PRAGMA table_info(channel_accounts)').all() as Array<{ name: string }>).map(column => column.name)).toContain('show_progress')
     expect(sqlite.prepare('SELECT sql FROM sqlite_master WHERE name = \'channel_message_receipts\'').get()).toEqual(expect.objectContaining({ sql: expect.stringContaining('UNIQUE (channel_account_id, external_message_id, direction, part_index)') }))
   })
 
@@ -114,7 +112,7 @@ describe('app-data SQLite 迁移', () => {
     expect(messageColumnNames).not.toEqual(expect.arrayContaining(['images', 'attachments']))
     const conversationColumns = sqlite.prepare('PRAGMA table_info(conversations)').all() as Array<{ name: string }>
     expect(conversationColumns.map(column => column.name)).toContain('archived')
-    expect(sqlite.prepare('SELECT version FROM app_data_migrations').all()).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }, { version: 7 }, { version: 8 }, { version: 9 }, { version: 10 }, { version: 11 }, { version: 12 }])
+    expect(sqlite.prepare('SELECT version FROM app_data_migrations').all()).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }, { version: 7 }, { version: 8 }, { version: 9 }, { version: 10 }, { version: 11 }])
   })
 
   // ===== 测试：version 8 → 9 迁移 =====

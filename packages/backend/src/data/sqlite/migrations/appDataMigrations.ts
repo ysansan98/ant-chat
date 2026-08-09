@@ -221,17 +221,6 @@ export function createAppDataMigrations(
         `)
       },
     },
-    // 该迁移仅保留版本历史：微信执行过程消息功能已移除，show_progress 列不再被
-    // 任何代码读写；线上数据库已应用过此版本，删除定义会导致迁移历史校验失败。
-    {
-      version: 12,
-      name: '微信频道执行过程消息开关',
-      migrate(db) {
-        const columns = db.prepare('PRAGMA table_info(channel_accounts)').all() as Array<{ name: string }>
-        if (!columns.some(column => column.name === 'show_progress'))
-          db.exec('ALTER TABLE channel_accounts ADD COLUMN show_progress integer NOT NULL DEFAULT 0')
-      },
-    },
   ]
 }
 
