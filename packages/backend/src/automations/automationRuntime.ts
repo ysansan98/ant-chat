@@ -24,6 +24,7 @@ export interface AutomationRuntime {
   setEnabled: (id: string, enabled: boolean) => Promise<AutomationDefinition>
   delete: (id: string, options?: { force?: boolean }) => Promise<void>
   runNow: (id: string) => Promise<AutomationRun>
+  markRunRead: (id: string) => Promise<AutomationRun>
 }
 
 export interface AutomationClock {
@@ -96,17 +97,20 @@ export function createAutomationRuntime(options: {
       markTerminalRun(runId)
       runByTaskId.delete(task.taskId)
       options.cancelTask(task.taskId)
-      trackFinish(runId, finishRun(runId, 'needs_attention', task.errorCode, '任务需要额外授权'))
+      // 无人值守跑不下去，需要用户操作；awaiting 是执行态（卡住等你），不是成败判定
+      trackFinish(runId, finishRun(runId, 'awaiting', task.errorCode, '任务需要额外授权'))
     }
-    else if (task.status === 'success' || task.status === 'failed' || task.status === 'cancelled') {
+    else if (task.status === 'success' || task.status === 'failed') {
       markTerminalRun(runId)
       runByTaskId.delete(task.taskId)
-      const status = task.status === 'success'
-        ? 'succeeded'
-        : task.status === 'failed' && task.errorCode === 'AGENT_POLICY_BLOCKED'
-          ? 'needs_attention'
-          : task.status
-      trackFinish(runId, finishRun(runId, status, task.errorCode, task.errorMessage, task.summary))
+      // 无人值守下成败无法可靠判定，统一收口为 completed；异常/拒绝信息保留在
+      // errorCode/errorMessage/summary，打开 run 会话查看产出后由用户自己判断
+      trackFinish(runId, finishRun(runId, 'completed', task.errorCode, task.errorMessage, task.summary))
+    }
+    else if (task.status === 'cancelled') {
+      markTerminalRun(runId)
+      runByTaskId.delete(task.taskId)
+      trackFinish(runId, finishRun(runId, 'cancelled', task.errorCode, task.errorMessage, task.summary))
     }
   })
   const unsubscribeSecretRequested = options.events.on('agent:secret-requested', ({ request }) => {
@@ -122,7 +126,7 @@ export function createAutomationRuntime(options: {
     runByTaskId.delete(taskId)
     options.cancelTask(taskId)
     markTerminalRun(runId)
-    trackFinish(runId, finishRun(runId, 'needs_attention', 'AUTOMATION_SECRET_REQUIRED', '任务需要补充秘密信息'))
+    trackFinish(runId, finishRun(runId, 'awaiting', 'AUTOMATION_SECRET_REQUIRED', '任务需要补充秘密信息'))
   })
 
   function clearTimer() {
@@ -211,7 +215,7 @@ export function createAutomationRuntime(options: {
     catch (error) {
       if (cancelledRuns.has(runId))
         return await ensureCancelled(runId)
-      return await finishRun(runId, 'failed', 'AUTOMATION_START_FAILED', error instanceof Error ? error.message : String(error))
+      return await finishRun(runId, 'completed', 'AUTOMATION_START_FAILED', error instanceof Error ? error.message : String(error))
     }
   }
 
@@ -375,6 +379,7 @@ export function createAutomationRuntime(options: {
       const run = await options.repository.createManualRun(id, clock.now())
       return await trackExecution(automation, run.id)
     },
+    markRunRead: id => options.repository.markRunRead(id, clock.now()),
   }
   return runtime
 }

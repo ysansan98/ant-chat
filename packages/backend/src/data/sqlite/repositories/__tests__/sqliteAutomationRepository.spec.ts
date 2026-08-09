@@ -111,4 +111,19 @@ describe('sqliteAutomationRepository', () => {
       expect.objectContaining({ scheduledAt: 1_000, status: 'skipped' }),
     ]))
   })
+
+  it('markRunRead 设置 read_at，未读 run 的 readAt 为 undefined', async () => {
+    const automation = await repository.create(input, 1_000)
+    const run = await repository.createManualRun(automation.id, 500)
+
+    await expect(repository.listRuns(automation.id)).resolves.toEqual([
+      expect.objectContaining({ id: run.id, readAt: undefined }),
+    ])
+
+    const marked = await repository.markRunRead(run.id, 1_234)
+    expect(marked.readAt).toBe(1_234)
+    await expect(repository.listRuns(automation.id)).resolves.toEqual([
+      expect.objectContaining({ id: run.id, readAt: 1_234 }),
+    ])
+  })
 })

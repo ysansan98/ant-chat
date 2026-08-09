@@ -58,6 +58,7 @@ describe('app-data SQLite 迁移', () => {
       { version: 8, name: '增加消息频道权限模式' },
       { version: 9, name: '消息搜索投影、FTS 与长期记忆目录' },
       { version: 10, name: '记录微信扫码登录 owner 身份' },
+      { version: 11, name: '自动化 run 状态收窄并增加已读标记' },
     ])
   })
 
@@ -111,7 +112,7 @@ describe('app-data SQLite 迁移', () => {
     expect(messageColumnNames).not.toEqual(expect.arrayContaining(['images', 'attachments']))
     const conversationColumns = sqlite.prepare('PRAGMA table_info(conversations)').all() as Array<{ name: string }>
     expect(conversationColumns.map(column => column.name)).toContain('archived')
-    expect(sqlite.prepare('SELECT version FROM app_data_migrations').all()).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }, { version: 7 }, { version: 8 }, { version: 9 }, { version: 10 }])
+    expect(sqlite.prepare('SELECT version FROM app_data_migrations').all()).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }, { version: 7 }, { version: 8 }, { version: 9 }, { version: 10 }, { version: 11 }])
   })
 
   // ===== 测试：version 8 → 9 迁移 =====

@@ -3,7 +3,7 @@ import type { RuntimeTask } from '../taskStore'
 import type { PreparedToolCall, ToolRegistry } from './toolRegistry'
 import type { ToolAuthorization, ToolCallContext } from './types'
 import { randomUUID } from 'node:crypto'
-import { AGENT_POLICY_BLOCKED, AGENT_TOOL_EXEC_FAILED, ToolOutputBlocksSchema } from '@ant-chat/shared'
+import { AGENT_TOOL_EXEC_FAILED, ToolOutputBlocksSchema } from '@ant-chat/shared'
 import { AgentError } from '../AgentError'
 import { isPreparedCommandState } from '../native-tools/command/types'
 import { cancelObservation, completeObservation, failObservation, startObservationSpan } from '../observation'
@@ -97,10 +97,6 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
     }
     const safePreparation = redactPreparation(preparation, redactOpaqueRefs)
     const result = await finalizeToolStep(currentToolCall, safePreparation, task.snapshot.conversationId, config, currentModelText, currentToolMessages)
-    // 交互 Turn 可把拒绝结果交还模型解释；无人值守 Turn 必须终止，
-    // 否则模型下一轮正常回复会把被权限阻断的自动化误标为成功。
-    if (preparation.status === 'blocked' && preparation.policyErrorCode === AGENT_POLICY_BLOCKED && !preparation.continueAgent && task.snapshot.turnSource?.type === 'automation')
-      throw new AgentError(AGENT_POLICY_BLOCKED, safePreparation.toolResultText)
     return result
   }
 

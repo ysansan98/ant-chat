@@ -3,7 +3,7 @@ import { runAgentLoop } from '../agentLoop'
 import { AgentError } from '../../AgentError'
 import { ToolRegistry } from '../../tools/toolRegistry'
 import { createPublishVisualizationTool } from '../../tools/publishVisualizationTool'
-import type { AgentRuntimeConfig, AgentTool, IAgentEventEmitter, IAIProvider, IAIStreamChunk, ILogger, LoopMessage } from '@ant-chat/shared'
+import type { AgentRuntimeConfig, AgentTaskSnapshot, AgentTool, IAgentEventEmitter, IAIProvider, IAIStreamChunk, ILogger, LoopMessage } from '@ant-chat/shared'
 import type { RuntimeStartInput } from '../../session/types'
 import type { RuntimeTask, TaskExecution } from '../../taskStore'
 
@@ -61,7 +61,11 @@ function createReadTool(overrides: Partial<AgentTool> = {}): AgentTool {
   }
 }
 
-function createTask(taskId = 'task-loop-1', conversationId = 'conv-loop-1') {
+function createTask(
+  taskId = 'task-loop-1',
+  conversationId = 'conv-loop-1',
+  turnSource?: AgentTaskSnapshot['turnSource'],
+): RuntimeTask {
   return {
     snapshot: {
       taskId,
@@ -74,6 +78,7 @@ function createTask(taskId = 'task-loop-1', conversationId = 'conv-loop-1') {
       prompt: 'test',
       createdAt: Date.now(),
       updatedAt: Date.now(),
+      turnSource,
     },
     abortController: new AbortController(),
   }
@@ -541,6 +546,70 @@ describe('runAgentLoop 行为', () => {
     expect(emitter.emitTurnFinished).toHaveBeenCalledWith(expect.objectContaining({
       status: 'success',
       text: '已调整执行方案',
+    }))
+  })
+
+  it('自动化 turn 被权限阻断后 loop 继续运行，终态由模型总结决定', async () => {
+    const modelRequests: LoopMessage[][] = []
+    let requestIndex = 0
+    const aiProvider: IAIProvider = {
+      async* streamModel(options) {
+        modelRequests.push(options.messages)
+        yield* requestIndex++ === 0
+          ? [makeToolCallChunk('read_file', { path: 'test.txt' }, 'blocked-call')]
+          : [makeTextChunk('已完成任务')]
+      },
+      complete: vi.fn().mockResolvedValue({ text: 'unused' }),
+    }
+    const { taskId, options } = createBaseInput({
+      aiProvider,
+      registry: new ToolRegistry([createReadTool()]),
+    })
+    const task = createTask(taskId, options.conversationId, {
+      type: 'automation',
+      automationId: 'automation-1',
+      runId: 'run-1',
+      allowedSkills: [],
+      allowedMcpServers: [],
+      permissionPolicy: {
+        workspaceAccess: 'read',
+        allowSelectedSkillRuntime: false,
+        allowBrowser: false,
+        allowMcpTools: false,
+        extraFileRoots: [],
+        allowCommandExecution: false,
+        commandPatterns: [],
+      },
+    })
+    const { execution } = createExecution(task)
+
+    await runAgentLoop({
+      execution,
+      options,
+      config: { eventEmitter: emitter, logger },
+      beforeToolExecute: async () => ({
+        outcome: 'block',
+        errorCode: 'AGENT_POLICY_BLOCKED',
+        reason: '命令命中不可覆盖的底线保护',
+      }),
+    })
+
+    // loop 没有在第一轮中断：模型被调用两次，第二次收到拒绝结果后正常总结
+    expect(modelRequests).toHaveLength(2)
+    expect(modelRequests[1]).toContainEqual({
+      role: 'tool',
+      content: [expect.objectContaining({
+        type: 'tool-result',
+        toolCallId: 'blocked-call',
+        isError: true,
+      })],
+    })
+    // 拒绝事实保留在会话 tool-result 中；run 终态不再被权限拒绝占用，
+    // needs_attention 只留给 awaiting_approval / secret 等「等待用户介入」场景
+    expect(task.snapshot.status).toBe('success')
+    expect(emitter.emitTurnFinished).toHaveBeenCalledWith(expect.objectContaining({
+      status: 'success',
+      text: '已完成任务',
     }))
   })
 

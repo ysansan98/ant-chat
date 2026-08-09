@@ -295,7 +295,7 @@ describe('executeToolStep 行为', () => {
     expect(result.toolResultContent).toBe('策略阻断，禁止执行')
   })
 
-  it('自动化被权限策略阻断时终止执行而不是把错误交回模型继续', async () => {
+  it('自动化被权限策略阻断时返回拒绝结果不中断，由 loop 交回模型继续', async () => {
     const currentToolMessages: McpToolCall[] = []
     const task = createTask({
       turnSource: {
@@ -316,7 +316,7 @@ describe('executeToolStep 行为', () => {
       },
     })
 
-    await expect(executeToolStep({
+    const result = await executeToolStep({
       task,
       registry: new ToolRegistry([createReadTool()]),
       requestedToolCall: { toolName: 'read_file', input: {} },
@@ -325,7 +325,12 @@ describe('executeToolStep 行为', () => {
       step: 1,
       config: { eventEmitter: createMockEmitter(), logger: createMockLogger() },
       beforeToolExecute: async () => ({ outcome: 'block', errorCode: 'AGENT_POLICY_BLOCKED', reason: '任务需要额外授权' }),
-    })).rejects.toMatchObject({ code: 'AGENT_POLICY_BLOCKED', message: '任务需要额外授权' })
+    })
+
+    expect(result).toEqual(expect.objectContaining({
+      isError: true,
+      toolResultContent: '任务需要额外授权',
+    }))
 
     expect(currentToolMessages[0]).toMatchObject({
       executeState: 'completed',

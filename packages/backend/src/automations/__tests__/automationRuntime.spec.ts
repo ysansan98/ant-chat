@@ -172,14 +172,14 @@ describe('automationRuntime', () => {
   it('task success 只收尾一次并清除 task mapping', async () => {
     const automation = definition()
     const linked = run({ status: 'running', taskId: 'task-1', conversationId: 'conversation-1' })
-    const succeeded = run({ status: 'succeeded', taskId: 'task-1', conversationId: 'conversation-1', finishedAt: 2_000 })
+    const succeeded = run({ status: 'completed', taskId: 'task-1', conversationId: 'conversation-1', finishedAt: 2_000 })
     const repository = {
       getById: vi.fn(async () => automation),
       createManualRun: vi.fn(async () => run({ status: 'queued' })),
       updateRun: vi.fn(async (_id: string, patch: Partial<AutomationRun>) => {
         if (patch.status === 'running')
           return run({ status: 'running', startedAt: 2_000 })
-        if (patch.status === 'succeeded')
+        if (patch.status === 'completed')
           return succeeded
         return linked
       }),
@@ -199,10 +199,10 @@ describe('automationRuntime', () => {
     events.emit('agent:task-updated', taskEvent)
     events.emit('agent:task-updated', taskEvent)
     await vi.waitFor(() => {
-      expect(repository.updateRun).toHaveBeenCalledWith('run-1', expect.objectContaining({ status: 'succeeded' }))
+      expect(repository.updateRun).toHaveBeenCalledWith('run-1', expect.objectContaining({ status: 'completed' }))
     })
 
-    const finishCalls = repository.updateRun.mock.calls.filter(([, patch]) => patch.status === 'succeeded')
+    const finishCalls = repository.updateRun.mock.calls.filter(([, patch]) => patch.status === 'completed')
     expect(finishCalls).toHaveLength(1)
     await runtime.dispose()
   })
@@ -215,7 +215,7 @@ describe('automationRuntime', () => {
       getById: vi.fn(async () => automation),
       createManualRun: vi.fn(async () => currentRun),
       updateRun: vi.fn(async (_id: string, patch: Partial<AutomationRun>) => {
-        if (patch.status === 'succeeded' && ++finishAttempts === 1)
+        if (patch.status === 'completed' && ++finishAttempts === 1)
           throw new Error('database unavailable')
         currentRun = { ...currentRun, ...patch }
         return currentRun
@@ -245,7 +245,7 @@ describe('automationRuntime', () => {
     await vi.waitFor(() => expect(logger.error).toHaveBeenCalledOnce())
     events.emit('agent:task-updated', terminalEvent)
 
-    await vi.waitFor(() => expect(currentRun.status).toBe('succeeded'))
+    await vi.waitFor(() => expect(currentRun.status).toBe('completed'))
     expect(finishAttempts).toBe(2)
     await runtime.dispose()
   })
@@ -299,7 +299,7 @@ describe('automationRuntime', () => {
     const completed = await runtime.runNow(automation.id)
 
     expect(completed).toEqual(expect.objectContaining({
-      status: 'failed',
+      status: 'completed',
       taskId: 'fast-task',
       conversationId: 'fast-conversation',
       errorMessage: '快速失败',
@@ -307,7 +307,7 @@ describe('automationRuntime', () => {
     await runtime.dispose()
   })
 
-  it('startTurn 返回前请求秘密信息时仍能转为 needs_attention', async () => {
+  it('startTurn 返回前请求秘密信息时仍能转为 awaiting', async () => {
     const automation = definition()
     let currentRun = run({ status: 'queued' })
     const repository = {
@@ -346,7 +346,7 @@ describe('automationRuntime', () => {
     const completed = await runtime.runNow(automation.id)
 
     expect(completed).toEqual(expect.objectContaining({
-      status: 'needs_attention',
+      status: 'awaiting',
       taskId: 'fast-task',
       errorCode: 'AUTOMATION_SECRET_REQUIRED',
     }))
@@ -354,17 +354,17 @@ describe('automationRuntime', () => {
     await runtime.dispose()
   })
 
-  it('awaiting approval 取消 task 并将 run 收口为 needs_attention', async () => {
+  it('awaiting approval 取消 task 并将 run 收口为 awaiting', async () => {
     const automation = definition()
     const linked = run({ status: 'running', taskId: 'task-1', conversationId: 'conversation-1' })
-    const attention = run({ status: 'needs_attention', taskId: 'task-1', conversationId: 'conversation-1', finishedAt: 2_000 })
+    const attention = run({ status: 'awaiting', taskId: 'task-1', conversationId: 'conversation-1', finishedAt: 2_000 })
     const repository = {
       getById: vi.fn(async () => automation),
       createManualRun: vi.fn(async () => run({ status: 'queued' })),
       updateRun: vi.fn(async (_id: string, patch: Partial<AutomationRun>) => {
         if (patch.status === 'running')
           return run({ status: 'running', startedAt: 2_000 })
-        if (patch.status === 'needs_attention')
+        if (patch.status === 'awaiting')
           return attention
         return linked
       }),
@@ -385,7 +385,7 @@ describe('automationRuntime', () => {
 
     await vi.waitFor(() => {
       expect(repository.updateRun).toHaveBeenCalledWith('run-1', expect.objectContaining({
-        status: 'needs_attention',
+        status: 'awaiting',
         errorMessage: '任务需要额外授权',
       }))
     })
@@ -393,7 +393,7 @@ describe('automationRuntime', () => {
     await runtime.dispose()
   })
 
-  it('权限策略阻断时将自动化收口为 needs_attention', async () => {
+  it('权限策略阻断时收口为 completed 并保留错误信息', async () => {
     const automation = definition()
     const repository = {
       getById: vi.fn(async () => automation),
@@ -429,7 +429,7 @@ describe('automationRuntime', () => {
     } as never)
 
     await vi.waitFor(() => expect(repository.updateRun).toHaveBeenCalledWith('run-1', expect.objectContaining({
-      status: 'needs_attention',
+      status: 'completed',
       errorCode: 'AGENT_POLICY_BLOCKED',
       errorMessage: '自动化任务未授权浏览器操作',
     })))

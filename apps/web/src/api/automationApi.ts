@@ -9,4 +9,5 @@ export const automationApi = {
   setEnabled: (id: string, enabled: boolean): Promise<AutomationDefinition> => getAppRpcClient().call('automation.setEnabled', { id, enabled }),
   runNow: (id: string): Promise<AutomationRun> => getAppRpcClient().call('automation.runNow', { id }),
   listRuns: (automationId?: string, limit?: number): Promise<AutomationRun[]> => getAppRpcClient().call('automation.listRuns', { automationId, limit }),
+  markRunRead: (id: string): Promise<AutomationRun> => getAppRpcClient().call('automation.markRunRead', { id }),
 }
