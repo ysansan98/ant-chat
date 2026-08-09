@@ -950,4 +950,75 @@ describe('微信纯文本平台投递', () => {
       attachments: [{ name: '数据.csv', mediaType: 'text/csv', kind: 'file' }],
     })
   })
+
+  it('turn 全程保持 typing 心跳，终态停止并发送关闭信号', async () => {
+    vi.useFakeTimers()
+    try {
+      const { connector, events } = createWeixinHarness()
+      const setTyping = vi.mocked(connector.setTyping!)
+      events.emit('agent:task-updated', {
+        task: {
+          taskId: 'task-1',
+          userMessageId: 'turn-1',
+          conversationId: 'conversation-1',
+          status: 'running',
+          turnSource: source,
+        } as AgentTaskSnapshot,
+      })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(connector.setTyping).not.toHaveBeenCalled()
+
+      await vi.advanceTimersByTimeAsync(2000)
+      expect(connector.setTyping).toHaveBeenCalledWith({ externalMessageId: 'source-message-1', typing: true })
+
+      events.emit('agent:task-updated', {
+        task: {
+          taskId: 'task-1',
+          userMessageId: 'turn-1',
+          conversationId: 'conversation-1',
+          status: 'success',
+          turnSource: source,
+        } as AgentTaskSnapshot,
+      })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(connector.setTyping).toHaveBeenLastCalledWith({ externalMessageId: 'source-message-1', typing: false })
+      const callsAfterSettle = setTyping.mock.calls.length
+      await vi.advanceTimersByTimeAsync(4000)
+      expect(setTyping.mock.calls.length).toBe(callsAfterSettle)
+    }
+    finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('typing 心跳通过 connector 实例调用 setTyping，不丢失 this', async () => {
+    vi.useFakeTimers()
+    try {
+      const { connector, events } = createWeixinHarness()
+      let lostThis = false
+      // 真实 WeixinConnector.setTyping 依赖 this.state，这里用依赖 this 的 mock 捕获解构调用。
+      const setTyping = vi.fn(function (this: unknown) {
+        if (this === undefined || this === globalThis)
+          lostThis = true
+        return Promise.resolve({ changed: true })
+      })
+      ;(connector as unknown as { setTyping: typeof setTyping }).setTyping = setTyping
+
+      events.emit('agent:task-updated', {
+        task: {
+          taskId: 'task-1',
+          userMessageId: 'turn-1',
+          conversationId: 'conversation-1',
+          status: 'running',
+          turnSource: source,
+        } as AgentTaskSnapshot,
+      })
+      await vi.advanceTimersByTimeAsync(2000)
+      expect(setTyping).toHaveBeenCalledWith({ externalMessageId: 'source-message-1', typing: true })
+      expect(lostThis).toBe(false)
+    }
+    finally {
+      vi.useRealTimers()
+    }
+  })
 })

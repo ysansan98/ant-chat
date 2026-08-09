@@ -200,6 +200,36 @@ export function createAppDataMigrations(
           db.exec('ALTER TABLE channel_accounts ADD COLUMN owner_user_id text')
       },
     },
+    {
+      version: 11,
+      name: '自动化 run 状态收窄并增加已读标记',
+      migrate(db) {
+        const hasRunsTable = Boolean(db.prepare(`
+          SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'automation_runs'
+        `).get())
+        if (!hasRunsTable)
+          return
+        const columns = db.prepare('PRAGMA table_info(automation_runs)').all() as Array<{ name: string }>
+        if (!columns.some(column => column.name === 'read_at')) {
+          db.exec('ALTER TABLE automation_runs ADD COLUMN read_at integer')
+        }
+        // 无人值守下成败判定不可靠，存量 succeeded/failed 合并为 completed；
+        // needs_attention 收缩为 awaiting（只表达审批/秘密等「等待你操作」）。
+        db.exec(`
+          UPDATE automation_runs SET status = 'completed' WHERE status IN ('succeeded', 'failed');
+          UPDATE automation_runs SET status = 'awaiting' WHERE status = 'needs_attention';
+        `)
+      },
+    },
+    {
+      version: 12,
+      name: '微信频道执行过程消息开关',
+      migrate(db) {
+        const columns = db.prepare('PRAGMA table_info(channel_accounts)').all() as Array<{ name: string }>
+        if (!columns.some(column => column.name === 'show_progress'))
+          db.exec('ALTER TABLE channel_accounts ADD COLUMN show_progress integer NOT NULL DEFAULT 0')
+      },
+    },
   ]
 }
 

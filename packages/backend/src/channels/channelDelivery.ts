@@ -2,6 +2,7 @@ import type {
   AgentMode,
   AgentPendingAction,
   AgentTaskSnapshot,
+  AgentTurnSource,
   ChannelType,
   IMessage,
   ModelInfo,
@@ -22,8 +23,11 @@ import type {
 } from './channelConnector'
 import type { ChannelCommandPresentation, ChannelInboundEvent } from './channelRuntime'
 import { randomUUID } from 'node:crypto'
+import process from 'node:process'
 
 const EXECUTION_UPDATE_INTERVAL_MS = 250
+/** 微信 typing 心跳间隔；iLink 端气泡为瞬态，需周期性续发才能撑满整个 turn。 */
+const TYPING_REFRESH_INTERVAL_MS = Number(process.env.WEIXIN_TYPING_REFRESH_MS) || 2000
 
 export type ChannelInteractionAction
   = | {
@@ -76,6 +80,7 @@ export class ChannelDelivery {
   private readonly executions = new Map<string, ExecutionProjection>()
   private readonly actions = new Map<string, RegisteredAction>()
   private readonly queues = new Map<string, Promise<void>>()
+  private readonly typingTimers = new Map<string, ReturnType<typeof setInterval>>()
   private readonly supportsUpdateByType = new Map<ChannelType, boolean>()
 
   constructor(private readonly deps: {
@@ -113,9 +118,12 @@ export class ChannelDelivery {
       if (execution.timer)
         clearTimeout(execution.timer)
     }
+    for (const timer of this.typingTimers.values())
+      clearInterval(timer)
     this.executions.clear()
     this.actions.clear()
     this.queues.clear()
+    this.typingTimers.clear()
   }
 
   deliverResponse(event: ChannelInboundEvent, text: string): Promise<void> {
@@ -286,12 +294,44 @@ export class ChannelDelivery {
     this.executions.set(task.userMessageId, projection)
     if (projection.model)
       await this.flushExecution(projection, settled || task.status === 'awaiting_approval')
+    // 微信等纯文本平台的 typing 气泡是瞬态：running 时周期续发心跳，
+    // 直到终态才停止并发送关闭信号；中间审批（awaiting_approval）不停。
+    if (task.status === 'running' && !this.supportsUpdate(task.turnSource.channelType) && !this.typingTimers.has(task.userMessageId))
+      this.startTypingHeartbeat(task.userMessageId, task.turnSource)
     if (settled) {
+      this.stopTypingHeartbeat(task.userMessageId)
       await this.deps.connectors.get(task.turnSource.channelType)?.setTyping?.({
         externalMessageId: task.turnSource.externalMessageId,
         typing: false,
       }).catch(() => undefined)
     }
+  }
+
+  /**
+   * 微信 typing 心跳：iLink 的 sendtyping 是瞬态事件，需要周期性续发
+   * 才能让客户端气泡撑满整个 turn；失败静默，下一拍继续。
+   * 注意必须通过 connector 实例调用 setTyping（解构会丢失 this）。
+   */
+  private startTypingHeartbeat(userMessageId: string, turnSource: Extract<AgentTurnSource, { type: 'channel' }>): void {
+    const connector = this.deps.connectors.get(turnSource.channelType)
+    if (!connector?.setTyping)
+      return
+    const timer = setInterval(() => {
+      connector.setTyping?.({
+        externalMessageId: turnSource.externalMessageId,
+        typing: true,
+      }).catch(() => undefined)
+    }, TYPING_REFRESH_INTERVAL_MS)
+    timer.unref?.()
+    this.typingTimers.set(userMessageId, timer)
+  }
+
+  private stopTypingHeartbeat(userMessageId: string): void {
+    const timer = this.typingTimers.get(userMessageId)
+    if (!timer)
+      return
+    clearInterval(timer)
+    this.typingTimers.delete(userMessageId)
   }
 
   private async handleSecretRequest(request: SecretRequest): Promise<void> {
