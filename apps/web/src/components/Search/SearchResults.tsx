@@ -10,7 +10,7 @@ interface SearchResultsProps {
 }
 
 const IconMapping: Record<SearchResult['type'], React.ReactNode> = {
-  message: <MessageSquare className="text-muted-foreground!" />,
+  message: <MessageSquare className="size-3.5 text-muted-foreground!" />,
 }
 
 export function SearchResults({ items, keywords, onItemClick }: SearchResultsProps) {
