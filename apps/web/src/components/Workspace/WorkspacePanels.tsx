@@ -242,7 +242,7 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
     <>
       <div className="flex h-full min-h-0 flex-col">
         <div className="flex items-center justify-between px-2 text-xs font-medium text-sidebar-foreground/60">
-          <span>工作区</span>
+          <span className="select-none">工作区</span>
           <Tooltip>
             <TooltipTrigger render={(
               <Button
@@ -446,44 +446,50 @@ function WorkspacePanel({
         onDelete={onDeleteWorkspace}
       />
 
-      {expanded
-        ? (
-            <div className="pl-0">
-              {state?.loading
+      {/* 展开/收起使用 grid-template-rows 过渡，内容常驻以支持收起动画 */}
+      <div
+        className={`
+          grid transition-[grid-template-rows] duration-200 ease-out
+          ${expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}
+        `}
+      >
+        <div className="min-h-0 overflow-hidden" inert={!expanded}>
+          <div className="pl-0">
+            {state?.loading
+              ? (
+                  <div className="flex justify-center py-2"><Spinner /></div>
+                )
+              : state?.data?.length
                 ? (
-                    <div className="flex justify-center py-2"><Spinner /></div>
+                    (showAll ? state.data : state.data.slice(0, 5)).map(conversation => (
+                      <ConversationListItem
+                        key={conversation.id}
+                        conversation={conversation}
+                        active={conversation.id === activeConversationId}
+                        running={conversationStates[conversation.id] === 'running'}
+                        completed={conversationStates[conversation.id] === 'completed'}
+                        onOpen={() => onOpenConversation(item.path, conversation.id)}
+                      />
+                    ))
                   )
-                : state?.data?.length
-                  ? (
-                      (showAll ? state.data : state.data.slice(0, 5)).map(conversation => (
-                        <ConversationListItem
-                          key={conversation.id}
-                          conversation={conversation}
-                          active={conversation.id === activeConversationId}
-                          running={conversationStates[conversation.id] === 'running'}
-                          completed={conversationStates[conversation.id] === 'completed'}
-                          onOpen={() => onOpenConversation(item.path, conversation.id)}
-                        />
-                      ))
-                    )
-                  : (
-                      <EmptyState title="暂无会话" />
-                    )}
-              {state && state.total > 5
-                ? (
-                    <button
-                      type="button"
-                      className="mt-1 inline-flex px-3.5 py-1.5 text-left text-xs text-sidebar-foreground/60 transition-colors hover:text-sidebar-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={loadingAll}
-                      onClick={() => onToggleAll(item.path)}
-                    >
-                      {loadingAll ? '加载中...' : showAll ? '收起' : `查看全部（${state.total}）`}
-                    </button>
-                  )
-                : null}
-            </div>
-          )
-        : null}
+                : (
+                    <EmptyState title="暂无会话" />
+                  )}
+            {state && state.total > 5
+              ? (
+                  <button
+                    type="button"
+                    className="mt-1 inline-flex px-3.5 py-1.5 text-left text-xs text-sidebar-foreground/60 transition-colors hover:text-sidebar-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={loadingAll}
+                    onClick={() => onToggleAll(item.path)}
+                  >
+                    {loadingAll ? '加载中...' : showAll ? '收起' : `查看全部（${state.total}）`}
+                  </button>
+                )
+              : null}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -564,7 +570,7 @@ function ConversationListItem({ conversation, active, running, completed, onOpen
     <>
       <div
         className={`
-          group/conversation mt-1 flex w-full items-center rounded-md px-2 py-1.5
+          group/conversation mt-1 flex w-full items-center rounded-md px-2 py-1.5 pl-6
           text-sm transition-colors duration-150 hover:bg-sidebar-accent
           hover:text-sidebar-accent-foreground
           ${active
