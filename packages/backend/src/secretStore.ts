@@ -2,70 +2,91 @@ import type { ProviderIntegrationId, SecretRef, SecretStore } from '@ant-chat/sh
 import { createHash, randomUUID } from 'node:crypto'
 import keytar from 'keytar'
 
-const SERVICE_NAME = 'ant-chat'
+export const DEFAULT_KEYCHAIN_SERVICE_NAME = 'ant-chat'
 
+/**
+ * Keychain 存取实现。
+ *
+ * serviceName 由 createRuntimeCore 按运行环境传入（development 用 ant-chat-dev）：
+ * macOS Keychain 条目 ACL 绑定创建它的 app 签名，dev/prod 是两个不同签名的可执行文件，
+ * 共用同一 service 会互相触发钥匙串授权弹窗，因此必须按环境隔离。
+ */
 export class KeychainSecretStore implements SecretStore {
   private readonly turnSecrets = new Map<string, string>()
 
+  constructor(private readonly serviceName: string = DEFAULT_KEYCHAIN_SERVICE_NAME) {}
+
+  private async setPassword(account: string, password: string): Promise<void> {
+    await keytar.setPassword(this.serviceName, account, password)
+  }
+
+  private async getPassword(account: string): Promise<string | null> {
+    return await keytar.getPassword(this.serviceName, account)
+  }
+
+  private async deletePassword(account: string): Promise<void> {
+    await keytar.deletePassword(this.serviceName, account)
+  }
+
   async saveProviderApiKey(input: { providerId: string, apiKey: string }): Promise<SecretRef> {
     const id = getProviderApiKeyId(input.providerId)
-    await keytar.setPassword(SERVICE_NAME, id, input.apiKey)
+    await this.setPassword(id, input.apiKey)
     return { kind: 'secret_ref', id, scope: 'persistent' }
   }
 
   async getProviderApiKey(providerId: string): Promise<string | null> {
-    return await keytar.getPassword(SERVICE_NAME, getProviderApiKeyId(providerId))
+    return await this.getPassword(getProviderApiKeyId(providerId))
   }
 
   async deleteProviderApiKey(providerId: string): Promise<void> {
-    await keytar.deletePassword(SERVICE_NAME, getProviderApiKeyId(providerId))
+    await this.deletePassword(getProviderApiKeyId(providerId))
   }
 
   /** Integration 凭据只保存到 Keychain；命名空间绑定 Provider 和 Integration audience。 */
   async saveProviderIntegrationCredential(input: ProviderIntegrationCredentialScope & { value: string }): Promise<void> {
-    await keytar.setPassword(SERVICE_NAME, getProviderIntegrationCredentialId(input), input.value)
+    await this.setPassword(getProviderIntegrationCredentialId(input), input.value)
   }
 
   async getProviderIntegrationCredential(input: ProviderIntegrationCredentialScope): Promise<string | null> {
-    return await keytar.getPassword(SERVICE_NAME, getProviderIntegrationCredentialId(input))
+    return await this.getPassword(getProviderIntegrationCredentialId(input))
   }
 
   async deleteProviderIntegrationCredential(input: ProviderIntegrationCredentialScope): Promise<void> {
-    await keytar.deletePassword(SERVICE_NAME, getProviderIntegrationCredentialId(input))
+    await this.deletePassword(getProviderIntegrationCredentialId(input))
   }
 
   async saveChannelCredential(input: { channelAccountId: string, value: string }): Promise<{ kind: 'secret_ref', id: string, scope: 'persistent' }> {
     const id = `channel:${input.channelAccountId}:credential`
-    await keytar.setPassword(SERVICE_NAME, id, input.value)
+    await this.setPassword(id, input.value)
     return { kind: 'secret_ref', id, scope: 'persistent' }
   }
 
   async deleteChannelCredential(channelAccountId: string): Promise<void> {
-    await keytar.deletePassword(SERVICE_NAME, `channel:${channelAccountId}:credential`)
+    await this.deletePassword(`channel:${channelAccountId}:credential`)
   }
 
   async saveMcpOAuthCredential(input: { endpoint: string, issuer: string, value: string }): Promise<void> {
-    await keytar.setPassword(SERVICE_NAME, getMcpOAuthCredentialId(input.endpoint, input.issuer), input.value)
+    await this.setPassword(getMcpOAuthCredentialId(input.endpoint, input.issuer), input.value)
   }
 
   async getMcpOAuthCredential(input: { endpoint: string, issuer: string }): Promise<string | null> {
-    return await keytar.getPassword(SERVICE_NAME, getMcpOAuthCredentialId(input.endpoint, input.issuer))
+    return await this.getPassword(getMcpOAuthCredentialId(input.endpoint, input.issuer))
   }
 
   async deleteMcpOAuthCredential(input: { endpoint: string, issuer: string }): Promise<void> {
-    await keytar.deletePassword(SERVICE_NAME, getMcpOAuthCredentialId(input.endpoint, input.issuer))
+    await this.deletePassword(getMcpOAuthCredentialId(input.endpoint, input.issuer))
   }
 
   async getBrowserCookieEncryptionKey(): Promise<string | null> {
-    return await keytar.getPassword(SERVICE_NAME, 'browser:cookie-encryption-key')
+    return await this.getPassword('browser:cookie-encryption-key')
   }
 
   async saveBrowserCookieEncryptionKey(key: string): Promise<void> {
-    await keytar.setPassword(SERVICE_NAME, 'browser:cookie-encryption-key', key)
+    await this.setPassword('browser:cookie-encryption-key', key)
   }
 
   async deleteBrowserCookieEncryptionKey(): Promise<void> {
-    await keytar.deletePassword(SERVICE_NAME, 'browser:cookie-encryption-key')
+    await this.deletePassword('browser:cookie-encryption-key')
   }
 
   async createTurnSecret(input: { runId: string, label: string, value: string }): Promise<SecretRef> {
@@ -76,7 +97,7 @@ export class KeychainSecretStore implements SecretStore {
 
   async resolve(ref: SecretRef): Promise<string | null> {
     if (ref.scope === 'persistent') {
-      return await keytar.getPassword(SERVICE_NAME, ref.id)
+      return await this.getPassword(ref.id)
     }
     return this.turnSecrets.get(ref.id) ?? null
   }

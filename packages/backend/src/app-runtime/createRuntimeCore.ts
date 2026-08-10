@@ -6,6 +6,7 @@ import type { AppRuntimePaths } from '../paths'
 import type { KeychainSecretStore } from '../secretStore'
 import type { SystemLogger } from '../systemLogger'
 import type { CreateAppRuntimeOptions, OAuthCallbackHost } from './types'
+import { resolveKeychainServiceName } from '@ant-chat/shared'
 import { createAgentBrowserPaths, createBrowserIdentityPaths } from '../agentBrowser'
 import { BrowserIdentityStore } from '../browser-identity/browserIdentityStore'
 import { createAppDataContext } from '../data'
@@ -48,7 +49,7 @@ export function createRuntimeCore(options: CreateAppRuntimeOptions, commandHost:
     permissionsFilePath: paths.permissionsFile,
   })
 
-  const secretStore = new KeychainSecretStoreImpl()
+  const secretStore = new KeychainSecretStoreImpl(resolveKeychainServiceName())
   const browserIdentityPaths = createBrowserIdentityPaths(options.appDataRoot)
   return {
     browserPaths: createAgentBrowserPaths(options.appDataRoot),

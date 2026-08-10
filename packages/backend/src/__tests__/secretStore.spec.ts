@@ -47,6 +47,17 @@ describe('keychainSecretStore', () => {
     expect(await store.getProviderApiKey('openai')).toBeNull()
   })
 
+  it('不同 serviceName 的 store 互相隔离，dev/prod 不会读到对方的凭据', async () => {
+    const { KeychainSecretStore } = await import('../secretStore')
+    const devStore = new KeychainSecretStore('ant-chat-dev')
+    const prodStore = new KeychainSecretStore('ant-chat')
+
+    await devStore.saveProviderApiKey({ providerId: 'openai', apiKey: 'dev-key' })
+
+    expect(await devStore.getProviderApiKey('openai')).toBe('dev-key')
+    expect(await prodStore.getProviderApiKey('openai')).toBeNull()
+  })
+
   it('按 Provider 和 Integration 隔离保存订阅凭据', async () => {
     const { KeychainSecretStore, getProviderIntegrationCredentialId } = await import('../secretStore')
     const store = new KeychainSecretStore()

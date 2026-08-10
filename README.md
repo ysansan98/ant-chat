@@ -55,6 +55,11 @@ ant-chat settings show --json
 `ant-chat settings`、`provider`、`mcp` 和 `automation` 只连接已有 Runtime，不会隐式启动第二个服务。
 `--data-dir` 可以覆盖默认的 `~/.ant-chat`，也可以使用 `ANT_CHAT_DATA_ROOT`。同一数据目录只允许一个 Runtime 实例。
 
+开发环境默认与生产隔离：`pnpm dev` / `pnpm dev:web` 会自动设置 `ANT_CHAT_ENV=development`，
+数据目录使用 `~/.ant-chat-dev`，Keychain service 使用 `ant-chat-dev`，与生产的 `~/.ant-chat` 和 `ant-chat` 互不共享。
+这样避免 dev（无签名 Electron 二进制）与 prod（打包签名应用）这两个签名不同的可执行文件
+读写同一批 Keychain 条目时，反复触发 macOS 钥匙串授权弹窗。CLI 需要开发隔离时可手动设置 `ANT_CHAT_ENV=development`。
+
 `--host` 会监听 `0.0.0.0`。当前 HTTP Web UI、RPC 和 SSE 没有鉴权，只能用于可信局域网或受控网络，禁止直接暴露到公网。
 
 ## 快速开始

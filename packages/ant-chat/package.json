@@ -39,8 +39,8 @@
   "scripts": {
     "build": "tsdown && node ../../scripts/copy-product-builtin-skills.mjs && pnpm -F @ant-chat/web build --outDir ../../packages/ant-chat/dist/web --emptyOutDir false",
     "clean": "rm -rf dist node_modules",
-    "dev": "node ../../scripts/link-cli-dev.mjs && tsx watch --conditions=development --exclude '../../apps/web/node_modules' --exclude '../../apps/web/dist' --exclude '../../apps/desktop/out' --exclude '../../apps/desktop/release' src/dev.ts",
-    "dev:web": "node ../../scripts/link-cli-dev.mjs && PATH=\"$PWD/../../node_modules/.bin:$PATH\" tsx watch --conditions=development --exclude '../../apps/web/node_modules' --exclude '../../apps/web/dist' --exclude '../../apps/desktop/out' --exclude '../../apps/desktop/release' src/dev.ts --web",
+    "dev": "ANT_CHAT_ENV=development node ../../scripts/link-cli-dev.mjs && ANT_CHAT_ENV=development tsx watch --conditions=development --exclude '../../apps/web/node_modules' --exclude '../../apps/web/dist' --exclude '../../apps/desktop/out' --exclude '../../apps/desktop/release' src/dev.ts",
+    "dev:web": "ANT_CHAT_ENV=development node ../../scripts/link-cli-dev.mjs && ANT_CHAT_ENV=development PATH=\"$PWD/../../node_modules/.bin:$PATH\" tsx watch --conditions=development --exclude '../../apps/web/node_modules' --exclude '../../apps/web/dist' --exclude '../../apps/desktop/out' --exclude '../../apps/desktop/release' src/dev.ts --web",
     "prepack": "pnpm build",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
