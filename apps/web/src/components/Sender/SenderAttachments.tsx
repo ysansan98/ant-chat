@@ -51,7 +51,7 @@ export function SenderAddAttachmentButton({ accept }: { accept: string }) {
   return (
     <PromptInputButton
       size="icon-xs"
-      tooltip="附件(支持文档与图片)"
+      tooltip="附件(仅支持图片)"
       onClick={() => attachments.openFileDialog()}
     >
       <PaperclipIcon className="size-4" />

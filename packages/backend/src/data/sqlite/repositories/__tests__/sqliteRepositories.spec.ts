@@ -352,10 +352,10 @@ describe('sqlite repositories', () => {
       content: [
         { type: 'text', text: 'see image' },
         {
-          type: 'image-block',
+          type: 'image',
           source: { type: 'file_id', file_id: 'img-1' },
           name: 'image.png',
-          media_type: 'image/png',
+          mimeType: 'image/png',
           size: bytes.length,
           data: `data:image/png;base64,${bytes.toString('base64')}`,
         },
@@ -365,10 +365,10 @@ describe('sqlite repositories', () => {
     expect(message.content).toEqual([
       { type: 'text', text: 'see image' },
       {
-        type: 'image-block',
+        type: 'image',
         source: { type: 'file_id', file_id: 'img-1' },
         name: 'image.png',
-        media_type: 'image/png',
+        mimeType: 'image/png',
         size: bytes.length,
       },
     ])

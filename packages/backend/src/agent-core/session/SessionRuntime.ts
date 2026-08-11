@@ -12,6 +12,7 @@ import type {
 } from '@ant-chat/shared'
 import type { ConversationContextEntry } from '../loop/loopContext'
 import type { TaskStore } from '../taskStore'
+import type { ImagePlaceholderItem } from '../utils/attachmentUtils'
 import type { RuntimeStartInput } from './types'
 import { randomUUID } from 'node:crypto'
 import { canonicalizeWorkspacePath } from '../../workspace/workspaceIdentity'
@@ -70,6 +71,19 @@ export class SessionRuntime {
 
     const { model, provider } = options
     const loadFileData = createCachedLoadFileData(this.config.loadFileData)
+    // 目标模型不支持图片输入时，把图片附件替换为识别占位符文本（由 agent 调用
+    // `ant-chat image recognize --file-id <id>` 识别），避免把 image part 硬发给纯文本模型。
+    const modelSupportsImage = model.capabilities?.inputModalities?.includes('image') === true
+    let projectedUnsupportedImages: ImagePlaceholderItem[] = []
+    const attachmentOptions: Parameters<typeof contentBlocksToLoopMessageContent>[2] = modelSupportsImage
+      ? undefined
+      : {
+          imageToPlaceholder: {
+            onReplaced: (items) => {
+              projectedUnsupportedImages = items
+            },
+          },
+        }
 
     const conversation = await getExistingConversation(store, options.conversationId)
 
@@ -87,7 +101,7 @@ export class SessionRuntime {
     // 保留消息原始内容（referencedFiles 已被删除，@ 引用已包含在文本中）
     let userContent: LoopMessage['content']
     if (userMessage.content.length > 0) {
-      userContent = await contentBlocksToLoopMessageContent(userMessage.content, loadFileData)
+      userContent = await contentBlocksToLoopMessageContent(userMessage.content, loadFileData, attachmentOptions)
     }
     else {
       userContent = [{ type: 'text', text: userText }]
@@ -98,6 +112,7 @@ export class SessionRuntime {
       historyMessages,
       undefined,
       loadFileData,
+      attachmentOptions,
     )
 
     const apiMode = provider.apiMode || 'openai'
@@ -165,6 +180,7 @@ export class SessionRuntime {
       reasoningEffort: options.modelSettings?.reasoningEffort,
       compaction: compactionSettings,
       preTurnContextEvents: preTurnCompaction.contextEvent ? [preTurnCompaction.contextEvent] : undefined,
+      projectedUnsupportedImages,
     }
 
     return {

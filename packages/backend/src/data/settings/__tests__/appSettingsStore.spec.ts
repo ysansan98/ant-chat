@@ -162,6 +162,8 @@ describe('appSettingsStore', () => {
       const existingSettings: AppSettingsState = {
         assistantModelId: 'test-model',
         assistantProviderId: '',
+        visionModelId: '',
+        visionProviderId: '',
         defaultModelId: '',
         defaultProviderId: '',
         autoGenerateTitle: false,
@@ -208,6 +210,8 @@ describe('appSettingsStore', () => {
       const existingSettings: AppSettingsState = {
         assistantModelId: 'test-model',
         assistantProviderId: '',
+        visionModelId: '',
+        visionProviderId: '',
         defaultModelId: '',
         defaultProviderId: '',
         autoGenerateTitle: false,
@@ -270,6 +274,8 @@ describe('appSettingsStore', () => {
       const existingSettings: AppSettingsState = {
         assistantModelId: 'test-model',
         assistantProviderId: '',
+        visionModelId: '',
+        visionProviderId: '',
         defaultModelId: '',
         defaultProviderId: '',
         autoGenerateTitle: false,

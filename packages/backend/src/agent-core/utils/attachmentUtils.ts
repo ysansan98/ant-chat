@@ -1,10 +1,38 @@
-import type { IMessageContent, LoadFileDataFn, LoopMessage } from '@ant-chat/shared'
+import type { ImageContent, IMessageContent, LoadFileDataFn, LoopMessage } from '@ant-chat/shared'
+
+export interface ImagePlaceholderItem {
+  fileId: string
+  name?: string
+  mimeType?: string
+}
+
+type FileIdImageContent = ImageContent & { source: { type: 'file_id', file_id: string } }
+
+export interface AttachmentContentOptions {
+  /**
+   * 目标模型不支持图片输入时，把图片附件替换成占位符文本：
+   * 汇总为紧凑列表（含 file_id），由 agent 调用 `ant-chat image recognize --file-id` 识别，
+   * 避免把 image part 直接发给纯文本模型导致上游 400。
+   */
+  imageToPlaceholder?: {
+    /** 收集被替换的图片附件，用于可观测性记录。 */
+    onReplaced?: (items: ImagePlaceholderItem[]) => void
+  }
+}
 
 export async function contentBlocksToLoopMessageContent(
   content: IMessageContent,
   loadFileData?: LoadFileDataFn,
+  options?: AttachmentContentOptions,
 ): Promise<LoopMessage['content']> {
   const result: LoopMessage['content'] = []
+  const placeholder = options?.imageToPlaceholder
+  // 占位模式：先收集所有 file_id 型图片附件，在首个图片块处合并成一个汇总列表。
+  const imageBlocks = placeholder
+    ? content.filter((block): block is FileIdImageContent =>
+        block.type === 'image' && block.source?.type === 'file_id')
+    : []
+  let placeholderEmitted = false
 
   for (const block of content) {
     switch (block.type) {
@@ -12,28 +40,31 @@ export async function contentBlocksToLoopMessageContent(
         result.push({ type: 'text', text: block.text })
         break
 
-      case 'image':
-        if (block.data) {
+      case 'image': {
+        if (placeholder && imageBlocks.length > 0) {
+          if (!placeholderEmitted) {
+            const items: ImagePlaceholderItem[] = imageBlocks.map(item => ({
+              fileId: item.source.file_id,
+              name: item.name,
+              mimeType: item.mimeType,
+            }))
+            placeholder.onReplaced?.(items)
+            result.push({ type: 'text', text: buildImageListPlaceholder(items) })
+            placeholderEmitted = true
+          }
+          break
+        }
+        const data = getBase64Payload(block.data)
+          ?? (block.source?.type === 'file_id' && loadFileData ? await loadFileData(block.source.file_id) : null)
+        if (data) {
           result.push({
             type: 'image',
             mimeType: block.mimeType || 'image/jpeg',
-            data: block.data,
+            data,
           })
         }
         break
-
-      case 'image-block':
-        if (block.source.type === 'file_id') {
-          const data = getBase64Payload(block.data) ?? (loadFileData ? await loadFileData(block.source.file_id) : null)
-          if (data) {
-            result.push({
-              type: 'image',
-              mimeType: block.media_type || 'image/jpeg',
-              data,
-            })
-          }
-        }
-        break
+      }
 
       case 'document':
         if (block.source.type === 'file_id') {
@@ -76,6 +107,19 @@ export async function contentBlocksToLoopMessageContent(
   }
 
   return result
+}
+
+function buildImageListPlaceholder(items: ImagePlaceholderItem[]): string {
+  const list = items
+    .map((item, index) => `${index + 1}) ${item.name || 'image'} file_id=${item.fileId}`)
+    .join(' ')
+  const count = items.length
+  return [
+    `[用户上传了 ${count} 张图片：${list}。`,
+    '当前模型不支持直接查看图片，',
+    `请用图像识别命令逐张识别（如 \`ant-chat image recognize --file-id ${items[0]?.fileId} --json\`），`,
+    '再结合识别结果回答用户。]',
+  ].join('')
 }
 
 function getBase64Payload(data?: string): string | null {

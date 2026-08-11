@@ -6,6 +6,8 @@ import { AppSettingsStore } from './appSettingsStore'
 export const DEFAULT_GENERAL_SETTINGS: GeneralSettingsState = {
   assistantModelId: '',
   assistantProviderId: '',
+  visionModelId: '',
+  visionProviderId: '',
   defaultModelId: '',
   defaultProviderId: '',
   autoGenerateTitle: false,

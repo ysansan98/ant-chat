@@ -250,7 +250,7 @@ function extractAttachmentBlocks(value: unknown): AttachmentOutputBlock[] {
   const parsed = ToolOutputBlocksSchema.safeParse({ outputBlocks })
   if (!parsed.success)
     return []
-  return parsed.data.outputBlocks.filter((block): block is AttachmentOutputBlock => block.type === 'image-block' || block.type === 'document' || block.type === 'file')
+  return parsed.data.outputBlocks.filter((block): block is AttachmentOutputBlock => block.type === 'image' || block.type === 'document' || block.type === 'file')
 }
 
 function replaceVisualizationBlock(meta: TurnMeta, blocks: VisualizationBlock[]): void {

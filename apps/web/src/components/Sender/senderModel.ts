@@ -1,5 +1,5 @@
 import type { ProviderConfigModelSchema } from '@ant-chat/shared'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { providerApi } from '@/api/providerApi'
 
 const MODALITY_ACCEPT_MAP: Record<string, string> = {
@@ -10,6 +10,7 @@ const MODALITY_ACCEPT_MAP: Record<string, string> = {
   audio: 'audio/*',
 }
 
+/** 按模型模态生成附件类型约束；当前阶段固定使用图片，恢复动态映射时启用。 */
 export function buildAcceptFromModalities(inputModalities?: string[]): string {
   if (!inputModalities || inputModalities.length === 0)
     return ''
@@ -29,10 +30,10 @@ export function useSenderModel(modelId?: string, providerId?: string) {
     void providerApi.getModelInfoById(modelId, providerId).then(setModelInfo)
   }, [modelId, providerId])
 
-  const fileAccept = useMemo(
-    () => buildAcceptFromModalities(modelInfo?.capabilities?.inputModalities ?? []),
-    [modelInfo?.capabilities?.inputModalities],
-  )
+  // 当前阶段仅支持图片附件：agent 对附件的处理能力只有图像识别，
+  // 先固定 accept 为图片，避免用户上传文本/PDF 等暂不支持的类型。
+  // 后续新增能力时按 inputModalities 恢复 MODALITY_ACCEPT_MAP 的动态映射。
+  const fileAccept = 'image/*'
 
   return {
     modelInfo,

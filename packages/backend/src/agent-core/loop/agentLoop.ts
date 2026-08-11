@@ -26,6 +26,7 @@ export async function runAgentLoop(input: {
     providerName,
     providerId,
     reasoningEffort,
+    projectedUnsupportedImages,
   } = options
 
   const toolDefs = registry.listTools()
@@ -38,6 +39,14 @@ export async function runAgentLoop(input: {
   const loopMessages: LoopMessage[] = [...initialMessages]
   const systemPrompt = initialSystemPrompt
   const taskStartedAt = Date.now()
+
+  // 模型不支持图片输入时，图片附件已被替换为识别占位符；记录到 trace 供排查。
+  if (projectedUnsupportedImages?.length) {
+    recordContextObservation(config, {
+      kind: 'image_capability_placeholder',
+      items: projectedUnsupportedImages,
+    })
+  }
 
   try {
     for (;;) {

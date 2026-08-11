@@ -814,10 +814,10 @@ describe('微信纯文本平台投递', () => {
         content: [
           { type: 'text', text: '文件如下' },
           {
-            type: 'image-block',
+            type: 'image',
             source: { type: 'file_id', file_id: 'image-1' },
             name: '截图.png',
-            media_type: 'image/png',
+            mimeType: 'image/png',
             size: 12,
           },
           {
@@ -888,7 +888,7 @@ describe('微信纯文本平台投递', () => {
         modelInfo: { provider: '服务一', model: '模型一' },
         content: [
           { type: 'text', text: '正文照发' },
-          { type: 'image-block', source: { type: 'file_id', file_id: 'missing-1' }, name: '丢.png', media_type: 'image/png' },
+          { type: 'image', source: { type: 'file_id', file_id: 'missing-1' }, name: '丢.png', mimeType: 'image/png' },
           { type: 'file', source: { type: 'url', url: 'https://example.com/a.txt' }, name: '远程.txt', media_type: 'text/plain' },
         ],
       } as IMessage,

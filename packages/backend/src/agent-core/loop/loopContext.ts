@@ -1,4 +1,5 @@
 import type { IMessage, LanguageModelUsage, LoadFileDataFn, LoopMessage } from '@ant-chat/shared'
+import type { AttachmentContentOptions } from '../utils/attachmentUtils'
 import { contentBlocksToLoopMessageContent } from '../utils/attachmentUtils'
 
 export interface LoopSystemPromptMemory {
@@ -108,8 +109,9 @@ export async function buildConversationContextMessages(
   messages: IMessage[],
   currentUserMessageId?: string,
   loadFileData?: LoadFileDataFn,
+  options?: AttachmentContentOptions,
 ): Promise<LoopMessage[]> {
-  const entries = await buildConversationContextEntries(messages, currentUserMessageId, loadFileData)
+  const entries = await buildConversationContextEntries(messages, currentUserMessageId, loadFileData, options)
   return entries.map(entry => entry.message)
 }
 
@@ -124,6 +126,7 @@ export async function buildConversationContextEntries(
   messages: IMessage[],
   currentUserMessageId?: string,
   loadFileData?: LoadFileDataFn,
+  options?: AttachmentContentOptions,
 ): Promise<ConversationContextEntry[]> {
   const latestCompactionEventIndex = findLatestCompactionEventIndex(messages)
   const latestCompactionEvent = latestCompactionEventIndex >= 0
@@ -196,7 +199,7 @@ export async function buildConversationContextEntries(
     const content: LoopMessage['content'] = []
     const interruptedToolCalls: Array<{ toolCallId: string, toolName: string }> = []
     if (message.role === 'user') {
-      content.push(...await contentBlocksToLoopMessageContent(message.content, loadFileData))
+      content.push(...await contentBlocksToLoopMessageContent(message.content, loadFileData, options))
     }
     else {
       for (const block of message.content) {

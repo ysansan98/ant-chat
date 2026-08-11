@@ -57,13 +57,13 @@ export async function buildMessageContent(message: SenderPromptMessage): Promise
 
     if (category === 'image') {
       content.push({
-        type: 'image-block',
+        type: 'image',
         source: {
           type: 'file_id',
           file_id: file.uid,
         },
         name: file.name,
-        media_type: file.type,
+        mimeType: file.type,
         size: file.size,
         data: file.data,
       })

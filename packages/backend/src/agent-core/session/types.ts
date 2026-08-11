@@ -41,6 +41,13 @@ export interface RuntimeStartInput {
   /** Turn 准备阶段已发生、待 recorder 创建后按序写入的上下文事实。 */
   preTurnContextEvents?: unknown[]
 
+  /** 因模型不支持图片输入而被替换为占位符的附件列表（可观测性）。 */
+  projectedUnsupportedImages?: Array<{
+    fileId: string
+    name?: string
+    mediaType?: string
+  }>
+
 }
 
 export interface RuntimeStartResult {

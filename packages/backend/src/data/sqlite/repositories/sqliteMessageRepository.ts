@@ -9,6 +9,7 @@ import path from 'node:path'
 import { validateVisualizationHtmlFragment, VISUALIZATION_LIMITS } from '@ant-chat/shared'
 import { nanoid } from 'nanoid'
 import { getAttachmentFileCandidates, getAttachmentFilePath } from '../attachmentFiles'
+import { normalizeLegacyMessageContent } from '../contentNormalize'
 import { MessageSearchIndex } from '../messageSearchIndex'
 import { decodeAttachmentData } from '../migrations/migrateAttachments'
 import { mapMessageRow, stringifyJson } from '../rows'
@@ -436,7 +437,7 @@ export class SqliteMessageRepository implements MessageRepository {
         return persistedBlock
       }
       if (
-        block.type !== 'image-block'
+        block.type !== 'image'
         && block.type !== 'document'
         && block.type !== 'file'
       ) {
@@ -447,7 +448,7 @@ export class SqliteMessageRepository implements MessageRepository {
         return block
       }
 
-      if (block.source.type !== 'file_id') {
+      if (block.source?.type !== 'file_id') {
         throw new Error('Attachment content with inline data must use file_id source')
       }
 
@@ -463,7 +464,9 @@ export class SqliteMessageRepository implements MessageRepository {
         tempPath,
         finalPath,
         name: block.type === 'file' ? block.filename ?? block.name ?? 'file' : block.name ?? block.type,
-        mediaType: block.media_type ?? 'application/octet-stream',
+        mediaType: block.type === 'image'
+          ? block.mimeType ?? 'application/octet-stream'
+          : block.media_type ?? 'application/octet-stream',
         size: block.size ?? bytes.byteLength,
       })
 
@@ -604,7 +607,8 @@ function parsePersistedContent(value: string): PersistedMessageContent {
   if (!Array.isArray(content)) {
     throw new TypeError('消息内容格式无效')
   }
-  return content as PersistedMessageContent
+  // 兼容旧格式：image 统一之前持久化的消息可能残留 image-block 块，读取时归一到 image。
+  return normalizeLegacyMessageContent(content) as PersistedMessageContent
 }
 
 function getAttachmentIdsFromContent(content: unknown): string[] {
@@ -621,7 +625,7 @@ function getAttachmentIdsFromContent(content: unknown): string[] {
       source?: { type?: unknown, file_id?: unknown }
     }
     if (
-      (candidate.type === 'image-block' || candidate.type === 'document' || candidate.type === 'file' || candidate.type === 'visualization')
+      (candidate.type === 'image' || candidate.type === 'document' || candidate.type === 'file' || candidate.type === 'visualization')
       && candidate.source?.type === 'file_id'
       && typeof candidate.source.file_id === 'string'
     ) {

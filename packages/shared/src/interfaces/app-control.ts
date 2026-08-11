@@ -169,6 +169,22 @@ const ChannelPairingUpdateCommandSchema = z.object({ type: z.literal('channel'),
 const ChannelStatusCommandSchema = z.object({ type: z.literal('channel'), action: z.literal('getStatus'), channelType: z.enum(['feishu', 'weixin']) })
 const ChannelToggleCommandSchema = z.object({ type: z.literal('channel'), action: z.enum(['enable', 'disable']), id: NonEmptyStringSchema })
 
+const ImageRecognizeCommandSchema = z.object({
+  type: z.literal('image'),
+  action: z.literal('recognize'),
+  /** 待识别图片的绝对路径（工作区图片）；与 fileId 二选一。 */
+  path: NonEmptyStringSchema.optional(),
+  /** 聊天附件 file_id（附件读取走应用内附件存储，绕开工作区外路径权限）；与 path 二选一。 */
+  fileId: NonEmptyStringSchema.optional(),
+  /** 识别指令；缺省时按通用描述。 */
+  prompt: z.string().trim().min(1).optional(),
+  /** 显式指定识别模型；缺省时使用当前默认模型（需支持图片输入）。 */
+  providerId: NonEmptyStringSchema.optional(),
+  modelId: NonEmptyStringSchema.optional(),
+}).refine(value => Boolean(value.path) !== Boolean(value.fileId), {
+  message: '图片路径与附件 file_id 必须且只能提供其一',
+})
+
 export const AppControlCommandSchema = z.union([
   SettingsShowCommandSchema,
   SettingsThemeSetCommandSchema,
@@ -209,6 +225,7 @@ export const AppControlCommandSchema = z.union([
   ChannelPairingUpdateCommandSchema,
   ChannelStatusCommandSchema,
   ChannelToggleCommandSchema,
+  ImageRecognizeCommandSchema,
 ])
 
 export type AppControlCommand = z.infer<typeof AppControlCommandSchema>
@@ -217,6 +234,7 @@ export type ProviderCommand = Extract<AppControlCommand, { type: 'provider' }>
 export type McpCommand = Extract<AppControlCommand, { type: 'mcp' }>
 export type AutomationCommand = Extract<AppControlCommand, { type: 'automation' }>
 export type ChannelCommand = Extract<AppControlCommand, { type: 'channel' }>
+export type ImageCommand = Extract<AppControlCommand, { type: 'image' }>
 
 export interface AppControlResultMap {
   'settings:show': { settings: GeneralSettingsState }
@@ -259,6 +277,19 @@ export interface AppControlResultMap {
   'channel:getStatus': { status: string, lastError?: string }
   'channel:enable': { id: string, enabled: boolean, status: string }
   'channel:disable': { id: string, enabled: boolean, status: string }
+  'image:recognize': {
+    providerId: string
+    modelId: string
+    /** 识别模型返回的文本。 */
+    text: string
+    usage?: {
+      inputTokens?: number
+      outputTokens?: number
+      totalTokens?: number
+      reasoningTokens?: number
+      cachedInputTokens?: number
+    }
+  }
 }
 
 type CommandKey<TCommand extends AppControlCommand> = TCommand extends {

@@ -14,7 +14,7 @@ export interface ChannelAttachment {
   /** base64 字节。 */
   data: string
   size?: number
-  /** 对应消息块的 type：image-block / document / file。 */
+  /** 对应消息块的 type：image / document / file。 */
   kind: 'image' | 'document' | 'file'
 }
 

@@ -1,6 +1,7 @@
 import type { MessageContent } from '@ant-chat/shared'
 import type { Statement } from 'better-sqlite3'
 import type { AppDataDatabase } from './types'
+import { normalizeLegacyMessageContent } from './contentNormalize'
 
 /**
  * 消息搜索投影（可重建的派生读模型）。
@@ -75,7 +76,7 @@ export function extractSearchProjection(content: MessageContent): SearchProjecti
         break
       }
       default:
-        // image-block/document/file/visualization 等附件不进入投影
+        // image/document/file/visualization 等附件不进入投影
         break
     }
   }
@@ -249,5 +250,6 @@ function parsePersistedContent(value: string): MessageContent {
   if (!Array.isArray(parsed)) {
     throw new TypeError('消息内容格式无效')
   }
-  return parsed as MessageContent
+  // 兼容旧格式：image 统一之前持久化的消息可能残留 image-block 块，读取时归一到 image。
+  return normalizeLegacyMessageContent(parsed) as MessageContent
 }

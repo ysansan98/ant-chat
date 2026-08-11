@@ -21,7 +21,7 @@ import { Role } from '@/constants'
 import { extractMessageAttachments } from '@/utils/extractMessageAttachments'
 import { transformMessageContent } from '@/utils/messageTransform'
 import BubbleFooter from './BubbleFooter'
-import MessageContent from './MessageContent'
+import MessageContent, { MessageAttachments } from './MessageContent'
 import { buildToolResultMap } from './turnSteps'
 import { TurnErrorAlert, TurnTrace } from './TurnTrace'
 
@@ -155,13 +155,11 @@ export function MessageBubble({ messages, onCopyMessage, turnStatus }: MessageBu
     >
       <div className={cn('flex items-start', isUser && 'justify-end')}>
         <div className={cn('min-w-0 flex-1', isUser && 'flex flex-col items-end')}>
-          <AiMessageContent
-            className={isAI && hasToolCallBlocks(messages)
-              ? 'w-full'
-              : undefined}
-          >
-            {isAI
-              ? (
+          {isAI
+            ? (
+                <AiMessageContent
+                  className={hasToolCallBlocks(messages) ? 'w-full' : undefined}
+                >
                   <div className="space-y-3">
                     <TurnTrace
                       messages={nonToolMessages}
@@ -172,20 +170,15 @@ export function MessageBubble({ messages, onCopyMessage, turnStatus }: MessageBu
                       <TurnStatusAlert key={item.id} message={item} />
                     ))}
                   </div>
-                )
-              : (
-                  <div className={cn('space-y-5', isUser && 'space-y-3')}>
-                    {nonToolMessages.map(item => (
-                      <div
-                        key={item.id}
-                        data-message-id={item.id}
-                      >
-                        <PlainMessageContent item={item} />
-                      </div>
-                    ))}
-                  </div>
-                )}
-          </AiMessageContent>
+                </AiMessageContent>
+              )
+            : (
+                <div className="space-y-3">
+                  {nonToolMessages.map(item => (
+                    <UserMessageBubble key={item.id} item={item} />
+                  ))}
+                </div>
+              )}
 
           {turnStatus}
 
@@ -204,19 +197,27 @@ export function MessageBubble({ messages, onCopyMessage, turnStatus }: MessageBu
   )
 }
 
-// ---- per-message content renderer ----
+// ---- 用户消息：气泡内只渲染文本，附件渲染在气泡下方 ----
 
-function PlainMessageContent({ item }: { item: IMessage }) {
+function UserMessageBubble({ item }: { item: IMessage }) {
   const { images, attachments } = extractMessageAttachments(item)
+  const text = transformMessageContent(item, { skipAttachmentBlocks: true })
 
   return (
-    <MessageContent
-      content={transformMessageContent(item)}
-      images={images}
-      attachments={attachments}
-      status={item.status as 'success' | 'loading' | 'typing'}
-      enableReferenceTokens
-    />
+    <div className="flex flex-col items-end gap-2" data-message-id={item.id}>
+      {text.length > 0 && (
+        <AiMessageContent>
+          <MessageContent
+            content={text}
+            status={item.status}
+            enableReferenceTokens
+          />
+        </AiMessageContent>
+      )}
+      {(images.length > 0 || attachments.length > 0) && (
+        <MessageAttachments images={images} attachments={attachments} />
+      )}
+    </div>
   )
 }
 

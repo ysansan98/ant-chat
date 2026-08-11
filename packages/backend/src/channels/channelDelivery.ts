@@ -238,9 +238,9 @@ export class ChannelDelivery {
   private async collectAttachments(content: IMessage['content']): Promise<ChannelAttachment[] | undefined> {
     const attachments: ChannelAttachment[] = []
     for (const block of content) {
-      if (block.type !== 'image-block' && block.type !== 'document' && block.type !== 'file')
+      if (block.type !== 'image' && block.type !== 'document' && block.type !== 'file')
         continue
-      if (block.source.type !== 'file_id') {
+      if (block.source?.type !== 'file_id') {
         // url 来源需要额外下载器，本次不做，跳过并保留日志。
         this.deps.logger?.warn(`[消息频道] 跳过 url 来源附件块：${block.type}`)
         continue
@@ -255,10 +255,12 @@ export class ChannelDelivery {
         : block.name ?? block.type
       attachments.push({
         name,
-        mediaType: block.media_type ?? (block.type === 'image-block' ? 'image/jpeg' : 'application/octet-stream'),
+        mediaType: block.type === 'image'
+          ? block.mimeType ?? 'image/jpeg'
+          : block.media_type ?? 'application/octet-stream',
         data,
         size: block.size,
-        kind: block.type === 'image-block' ? 'image' : block.type,
+        kind: block.type === 'image' ? 'image' : block.type,
       })
     }
     return attachments.length > 0 ? attachments : undefined

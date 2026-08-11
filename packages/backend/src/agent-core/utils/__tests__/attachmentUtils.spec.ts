@@ -8,10 +8,10 @@ describe('contentBlocksToLoopMessageContent 行为', () => {
 
     const content = await contentBlocksToLoopMessageContent([
       {
-        type: 'image-block',
+        type: 'image',
         source: { type: 'file_id', file_id: 'img-1' },
         name: 'image.png',
-        media_type: 'image/png',
+        mimeType: 'image/png',
       },
     ], loadFileData)
 
@@ -22,6 +22,82 @@ describe('contentBlocksToLoopMessageContent 行为', () => {
         mimeType: 'image/png',
         data: 'image-base64',
       },
+    ])
+  })
+
+  it('开启 imageToPlaceholder 时把图片引用替换为 file_id 占位符文本，不再读取图片数据', async () => {
+    const loadFileData = vi.fn(async () => 'image-base64')
+    const onReplaced = vi.fn()
+
+    const content = await contentBlocksToLoopMessageContent([
+      {
+        type: 'image',
+        source: { type: 'file_id', file_id: 'img-1' },
+        name: 'photo.png',
+        mimeType: 'image/png',
+      },
+    ], loadFileData, {
+      imageToPlaceholder: {
+        onReplaced,
+      },
+    })
+
+    expect(loadFileData).not.toHaveBeenCalled()
+    expect(content).toEqual([
+      {
+        type: 'text',
+        text: expect.stringContaining('file_id=img-1'),
+      },
+    ])
+    expect(content[0].type === 'text' && content[0].text).toContain('photo.png')
+    expect(onReplaced).toHaveBeenCalledWith([{
+      fileId: 'img-1',
+      name: 'photo.png',
+      mimeType: 'image/png',
+    }])
+  })
+
+  it('imageToPlaceholder 把多张图片合并为一个汇总占位符列表', async () => {
+    const loadFileData = vi.fn(async () => 'image-base64')
+    const onReplaced = vi.fn()
+
+    const content = await contentBlocksToLoopMessageContent([
+      {
+        type: 'image',
+        source: { type: 'file_id', file_id: 'img-1' },
+        name: 'a.png',
+        mimeType: 'image/png',
+      },
+      {
+        type: 'image',
+        source: { type: 'file_id', file_id: 'img-2' },
+        name: 'b.jpg',
+        mimeType: 'image/jpeg',
+      },
+      {
+        type: 'text',
+        text: '看看这些图',
+      },
+    ], loadFileData, {
+      imageToPlaceholder: {
+        onReplaced,
+      },
+    })
+
+    expect(content).toHaveLength(2)
+    const placeholder = content[0]
+    expect(placeholder.type).toBe('text')
+    if (placeholder.type === 'text') {
+      expect(placeholder.text).toContain('用户上传了 2 张图片')
+      expect(placeholder.text).toContain('1) a.png file_id=img-1')
+      expect(placeholder.text).toContain('2) b.jpg file_id=img-2')
+      expect(placeholder.text).toContain('ant-chat image recognize --file-id img-1 --json')
+    }
+    expect(content[1]).toEqual({ type: 'text', text: '看看这些图' })
+    expect(loadFileData).not.toHaveBeenCalled()
+    expect(onReplaced).toHaveBeenCalledWith([
+      { fileId: 'img-1', name: 'a.png', mimeType: 'image/png' },
+      { fileId: 'img-2', name: 'b.jpg', mimeType: 'image/jpeg' },
     ])
   })
 

@@ -53,8 +53,8 @@ export function parseCliArgs(args: string[]): AntChatCliAction {
   }
 
   if (remaining.length > 0) {
-    if (!['settings', 'provider', 'mcp', 'automation'].includes(remaining[0])) {
-      throw new Error(`未知命令：${remaining[0]}。可用命令：start、settings、provider、mcp、automation`)
+    if (!['settings', 'provider', 'mcp', 'automation', 'image'].includes(remaining[0])) {
+      throw new Error(`未知命令：${remaining[0]}。可用命令：start、settings、provider、mcp、automation、image`)
     }
     return { type: 'control', argv: remaining, options: { dataDir } }
   }
@@ -108,6 +108,7 @@ export const CLI_HELP = `用法：ant-chat [start] [选项]
   ant-chat provider ...
   ant-chat mcp ...
   ant-chat automation ...
+  ant-chat image recognize <path> [--prompt <指令>] [--provider-id <id> --model-id <id>]
 
 选项：
       --data-dir <路径>   数据目录，默认 ~/.ant-chat，也可用 ANT_CHAT_DATA_ROOT

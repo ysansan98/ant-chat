@@ -6,6 +6,7 @@ import type {
   AutomationCommand,
   AutomationInput,
   ChannelCommand,
+  ImageCommand,
   McpCommand,
   McpConnection,
   McpListItem,
@@ -39,6 +40,8 @@ export class AppControl {
         return await this.executeAutomation(command)
       case 'channel':
         return await this.executeChannel(command)
+      case 'image':
+        return await this.executeImage(command)
     }
   }
 
@@ -264,6 +267,24 @@ export class AppControl {
       case 'getStatus': return this.modules.channel.getStatus({ channelType: command.channelType })
       case 'enable': return this.modules.channel.enable({ id: command.id })
       case 'disable': return this.modules.channel.disable({ id: command.id })
+    }
+  }
+
+  private async executeImage(command: ImageCommand): Promise<AppControlResultFor<ImageCommand>> {
+    switch (command.action) {
+      case 'recognize': {
+        if (!this.modules.image) {
+          throw new Error('图像识别能力未启用')
+        }
+        const result = await this.modules.image.recognize({
+          ...(command.path ? { path: command.path } : {}),
+          ...(command.fileId ? { fileId: command.fileId } : {}),
+          ...(command.prompt ? { prompt: command.prompt } : {}),
+          ...(command.providerId ? { providerId: command.providerId } : {}),
+          ...(command.modelId ? { modelId: command.modelId } : {}),
+        })
+        return result
+      }
     }
   }
 }

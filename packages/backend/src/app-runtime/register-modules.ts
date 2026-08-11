@@ -13,6 +13,7 @@ import { ChannelModule } from './modules/channel'
 import { ChatModule } from './modules/chat'
 import { CommandsModule } from './modules/commands'
 import { createDataRoutes } from './modules/dataRoutes'
+import { ImageModule } from './modules/image'
 import { McpModule } from './modules/mcp'
 import { PermissionsModule } from './modules/permissions'
 import { ProviderModule } from './modules/provider'
@@ -104,8 +105,15 @@ export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModu
     eventEmitter: agent.eventEmitter,
     conversationLifecycle: agent.conversationLifecycle,
   })
+  const image = new ImageModule({
+    providerSettingsRepository: data.providerSettingsRepository,
+    settingsRepository: data.settingsRepository,
+    aiProviderFactory: provider.aiProviderFactory,
+    loadAttachmentData: data.loadAttachmentData,
+    logger,
+  })
 
-  const appControl = new AppControl({ settings, provider, mcp, automation, channel })
+  const appControl = new AppControl({ settings, provider, mcp, automation, channel, image })
 
   return {
     routes: [chat, settings, provider, mcp, skills, workspace, permissions, runtimeStatus, browserProfiles, agent, automation, commands, channel],

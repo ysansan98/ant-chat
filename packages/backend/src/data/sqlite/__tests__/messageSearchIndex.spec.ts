@@ -16,7 +16,7 @@ describe('搜索投影抽取', () => {
     const projection = extractSearchProjection([
       { type: 'text', text: '第一段' },
       { type: 'error', error: '执行失败' },
-      { type: 'image-block', source: { type: 'file_id', file_id: 'file-1' }, name: '图' },
+      { type: 'image', source: { type: 'file_id', file_id: 'file-1' }, name: '图' },
       { type: 'document', source: { type: 'file_id', file_id: 'file-2' }, title: '文档' },
     ] as never)
     expect(projection.text).toBe('第一段\n执行失败')

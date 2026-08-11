@@ -203,7 +203,7 @@ describe('createAgentTurnService 行为', () => {
       conversationId: 'c1',
       messageContent: [
         { type: 'text', text: 'run it' },
-        { type: 'image-block', source: { type: 'file_id', file_id: 'img-1' }, name: 'a.png', media_type: 'image/png', size: 1 },
+        { type: 'image', source: { type: 'file_id', file_id: 'img-1' }, name: 'a.png', mimeType: 'image/png', size: 1 },
         { type: 'document', source: { type: 'file_id', file_id: 'file-1' }, name: 'a.txt', media_type: 'text/plain', size: 1 },
       ],
       workspacePath: '/explicit-workspace',
@@ -221,7 +221,7 @@ describe('createAgentTurnService 行为', () => {
       mode: 'strict',
       messageContent: [
         { type: 'text', text: 'run it' },
-        { type: 'image-block', source: { type: 'file_id', file_id: 'img-1' }, name: 'a.png', media_type: 'image/png', size: 1 },
+        { type: 'image', source: { type: 'file_id', file_id: 'img-1' }, name: 'a.png', mimeType: 'image/png', size: 1 },
         { type: 'document', source: { type: 'file_id', file_id: 'file-1' }, name: 'a.txt', media_type: 'text/plain', size: 1 },
       ],
     }))
@@ -278,6 +278,8 @@ describe('createAgentTurnService 行为', () => {
     vi.mocked(appDataContext.settingsRepository.getGeneralSettings).mockResolvedValueOnce({
       assistantModelId: 'assistant-model-9',
       assistantProviderId: 'provider-1',
+      visionModelId: '',
+      visionProviderId: '',
       defaultModelId: '',
       defaultProviderId: '',
       autoGenerateTitle: true,
@@ -492,7 +494,7 @@ describe('createAgentTurnService 行为', () => {
       messageContent: [
         { type: 'text', text: 'first block' },
         { type: 'text', text: 'second block' },
-        { type: 'image-block', source: { type: 'file_id', file_id: 'img-1' }, name: 'a.png', media_type: 'image/png', size: 1 },
+        { type: 'image', source: { type: 'file_id', file_id: 'img-1' }, name: 'a.png', mimeType: 'image/png', size: 1 },
       ],
       workspacePath: '/workspace',
       modelConfig: {
@@ -509,7 +511,7 @@ describe('createAgentTurnService 行为', () => {
       content: [
         { type: 'text', text: 'first block' },
         { type: 'text', text: 'second block' },
-        { type: 'image-block', source: { type: 'file_id', file_id: 'img-1' }, name: 'a.png', media_type: 'image/png', size: 1 },
+        { type: 'image', source: { type: 'file_id', file_id: 'img-1' }, name: 'a.png', mimeType: 'image/png', size: 1 },
       ],
       turnId: undefined,
     })
@@ -519,7 +521,7 @@ describe('createAgentTurnService 行为', () => {
         messageContent: [
           { type: 'text', text: 'first block' },
           { type: 'text', text: 'second block' },
-          { type: 'image-block', source: { type: 'file_id', file_id: 'img-1' }, name: 'a.png', media_type: 'image/png', size: 1 },
+          { type: 'image', source: { type: 'file_id', file_id: 'img-1' }, name: 'a.png', mimeType: 'image/png', size: 1 },
         ],
       }),
     )

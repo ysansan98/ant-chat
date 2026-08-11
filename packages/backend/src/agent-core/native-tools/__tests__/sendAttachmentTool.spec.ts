@@ -47,12 +47,12 @@ describe('send_attachment 工具', () => {
     expect(block.data).toBe(Buffer.from('报告内容', 'utf8').toString('base64'))
   })
 
-  it('图片按 image-block 产出，未知二进制按 file 产出', async () => {
+  it('图片按 image 产出，未知二进制按 file 产出', async () => {
     const image = writeFile('photo.png', Buffer.from([0x89, 0x50, 0x4E, 0x47]))
     const binary = writeFile('archive.bin', Buffer.from([1, 2, 3]))
 
     const imageResult = await sendAttachment({ path: image }, createPathPolicy(workspacePath))
-    expect(extractBlock(imageResult)).toMatchObject({ type: 'image-block', media_type: 'image/png' })
+    expect(extractBlock(imageResult)).toMatchObject({ type: 'image', mimeType: 'image/png' })
 
     const binaryResult = await sendAttachment({ path: binary }, createPathPolicy(workspacePath))
     expect(extractBlock(binaryResult)).toMatchObject({

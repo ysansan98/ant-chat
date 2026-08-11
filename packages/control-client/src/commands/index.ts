@@ -43,7 +43,7 @@ export async function executeCommand(
 
 function parseArgv(argv: string[]): AppControlCommand {
   if (argv.length === 0) {
-    throw new Error('用法：ant-chat <命令> [选项]\n\n命令：\n  settings    管理设置\n  provider    管理 AI Provider\n  mcp         管理 MCP 服务\n  automation  管理自动化任务')
+    throw new Error('用法：ant-chat <命令> [选项]\n\n命令：\n  settings    管理设置\n  provider    管理 AI Provider\n  mcp         管理 MCP 服务\n  automation  管理自动化任务\n  image       图像识别')
   }
 
   const [type, ...rest] = argv
@@ -57,8 +57,10 @@ function parseArgv(argv: string[]): AppControlCommand {
       return parseMcp(rest)
     case 'automation':
       return parseAutomation(rest)
+    case 'image':
+      return parseImage(rest)
     default:
-      throw new Error(`未知命令：${type}。可用命令：settings、provider、mcp、automation`)
+      throw new Error(`未知命令：${type}。可用命令：settings、provider、mcp、automation、image`)
   }
 }
 
@@ -419,6 +421,35 @@ function parseAutomation(args: string[]): AppControlCommand {
   }
 }
 
+function parseImage(args: string[]): AppControlCommand {
+  if (args.length === 0) {
+    throw new Error('用法：ant-chat image <recognize> [...]')
+  }
+
+  const [action, ...rest] = args
+  switch (action) {
+    case 'recognize': {
+      const parsed = parseNamedArgs(rest)
+      const positional = rest.filter(arg => !arg.startsWith('--'))
+      if (positional.length === 0 && !parsed.fileId) {
+        throw new Error('用法：ant-chat image recognize [<path> | --file-id <id>] [--prompt <指令>] [--provider-id <id> --model-id <id>]')
+      }
+      return {
+        type: 'image',
+        action: 'recognize',
+        ...(positional.length > 0 ? { path: positional[0] } : {}),
+        ...(parsed.fileId ? { fileId: parsed.fileId } : {}),
+        ...(parsed.prompt ? { prompt: parsed.prompt } : {}),
+        ...(parsed.providerId ? { providerId: parsed.providerId } : {}),
+        ...(parsed.modelId ? { modelId: parsed.modelId } : {}),
+      }
+    }
+
+    default:
+      throw new Error(`未知 image 子命令：${action}。可用命令：recognize`)
+  }
+}
+
 // ── 输出格式化 ──────────────────────────────────────
 
 function formatResult(command: AppControlCommand, result: AppControlResult, options: CliOptions): string {
@@ -435,6 +466,7 @@ function formatResult(command: AppControlCommand, result: AppControlResult, opti
       return [
         `Theme: ${s.appearance?.mode ?? 'unknown'}`,
         `Assistant: ${s.assistantProviderId ?? '-'} / ${s.assistantModelId ?? '-'}`,
+        `Vision: ${s.visionProviderId || '-'} / ${s.visionModelId || '-'}`,
         `Proxy: ${s.proxySettings?.mode ?? 'none'}`,
       ].join('\n')
     }
@@ -577,6 +609,16 @@ function formatResult(command: AppControlCommand, result: AppControlResult, opti
       return items.map(r =>
         `${r.id.padEnd(28)} ${r.status.padEnd(14)} ${r.summary ?? '-'}`,
       ).join('\n')
+    }
+
+    case 'recognize': {
+      if (!('text' in result))
+        return JSON.stringify(result, null, 2)
+      return [
+        `识别模型：${result.providerId}/${result.modelId}`,
+        '',
+        result.text,
+      ].join('\n')
     }
 
     default:

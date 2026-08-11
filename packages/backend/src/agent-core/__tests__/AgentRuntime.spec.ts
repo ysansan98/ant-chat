@@ -5,7 +5,7 @@ import { afterAll, describe, expect, it, vi } from 'vitest'
 import { AgentRuntime } from '../AgentRuntime'
 import { runAgentLoop } from '../loop/agentLoop'
 import { ToolRegistry } from '../tools/toolRegistry'
-import type { AgentRuntimeConfig, AgentRuntimeStartTaskOptions, IAgentEventEmitter, ILogger, ISessionStore } from '@ant-chat/shared'
+import type { AgentRuntimeConfig, AgentRuntimeStartTaskOptions, IAgentEventEmitter, ILogger, IMessage, ISessionStore } from '@ant-chat/shared'
 import type { RuntimeStartInput } from '../session/types'
 
 const TEST_WORKSPACE_INPUT = fs.mkdtempSync(path.join(os.tmpdir(), 'ant-chat-agent-runtime-'))
@@ -276,6 +276,101 @@ describe('agentRuntime 行为', () => {
           conversationId: 'conv-1',
         }),
       )
+    })
+
+    it('模型不支持图片输入时把用户图片附件替换为识别占位符文本', async () => {
+      const sessionStore = createSessionStore({
+        getMessages: vi.fn(async () => [{
+          id: 'user-msg-1',
+          convId: 'conv-session',
+          createdAt: 2,
+          role: 'user' as const,
+          status: 'success' as const,
+          content: [
+            { type: 'text', text: '看看这张图' },
+            { type: 'image', source: { type: 'file_id', file_id: 'img-1' }, name: 'a.png', mimeType: 'image/png' },
+          ] as IMessage['content'],
+          turnId: undefined,
+        }]),
+      })
+      const loadFileData = vi.fn(async () => 'image-base64')
+      const runtime = new AgentRuntime(createSessionConfig({
+        sessionStore,
+        loadFileData,
+      }))
+
+      vi.mocked(runAgentLoop).mockClear()
+      await runtime.startSessionTask(createValidSessionStartInput({
+        model: {
+          id: 'model-1',
+          model: 'deepseek-v4-flash',
+          name: 'DeepSeek V4 Flash',
+          providerId: 'provider-1',
+          contextLength: 128_000,
+          capabilities: { inputModalities: ['text'] },
+        },
+      }))
+
+      await vi.waitFor(() => {
+        expect(runAgentLoop).toHaveBeenCalled()
+      })
+      const calls = vi.mocked(runAgentLoop).mock.calls
+      const input = calls[calls.length - 1]![0]
+      const userMessage = input.options.messages[input.options.messages.length - 1]!
+      expect(userMessage.role).toBe('user')
+      expect(userMessage.content).toContainEqual(expect.objectContaining({
+        type: 'text',
+        text: expect.stringContaining('file_id=img-1'),
+      }))
+      expect(loadFileData).not.toHaveBeenCalledWith('img-1')
+      expect(input.options.projectedUnsupportedImages).toEqual([
+        { fileId: 'img-1', name: 'a.png', mimeType: 'image/png' },
+      ])
+    })
+
+    it('模型支持图片输入时保持图片附件为 image content', async () => {
+      const sessionStore = createSessionStore({
+        getMessages: vi.fn(async () => [{
+          id: 'user-msg-1',
+          convId: 'conv-session',
+          createdAt: 2,
+          role: 'user' as const,
+          status: 'success' as const,
+          content: [
+            { type: 'image', source: { type: 'file_id', file_id: 'img-1' }, name: 'a.png', mimeType: 'image/png' },
+          ] as IMessage['content'],
+          turnId: undefined,
+        }]),
+      })
+      const loadFileData = vi.fn(async () => 'image-base64')
+      const runtime = new AgentRuntime(createSessionConfig({
+        sessionStore,
+        loadFileData,
+      }))
+
+      vi.mocked(runAgentLoop).mockClear()
+      await runtime.startSessionTask(createValidSessionStartInput({
+        model: {
+          id: 'model-1',
+          model: 'vision-model',
+          name: 'Vision Model',
+          providerId: 'provider-1',
+          contextLength: 128_000,
+          capabilities: { inputModalities: ['text', 'image'] },
+        },
+      }))
+
+      await vi.waitFor(() => {
+        expect(runAgentLoop).toHaveBeenCalled()
+      })
+      const calls = vi.mocked(runAgentLoop).mock.calls
+      const input = calls[calls.length - 1]![0]
+      const userMessage = input.options.messages[input.options.messages.length - 1]!
+      expect(userMessage.content).toEqual([expect.objectContaining({
+        type: 'image',
+        mimeType: 'image/png',
+        data: 'image-base64',
+      })])
     })
 
     it('首次 task 状态通知失败时释放会话占用', async () => {

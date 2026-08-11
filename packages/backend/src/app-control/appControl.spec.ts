@@ -33,6 +33,9 @@ describe('appControl 行为', () => {
     listRuns: vi.fn(),
     safeDelete: vi.fn(),
   }
+  const image = {
+    recognize: vi.fn(),
+  }
   beforeEach(() => {
     vi.clearAllMocks()
     settings.getSettings.mockResolvedValue({
@@ -47,8 +50,73 @@ describe('appControl 行为', () => {
   })
 
   function createControl() {
-    return new AppControl({ automation, mcp, provider, settings })
+    return new AppControl({ automation, image, mcp, provider, settings })
   }
+
+  it('image recognize 转发到 ImageModule 并透传可选参数', async () => {
+    image.recognize.mockResolvedValue({
+      providerId: 'provider-1',
+      modelId: 'vision-model',
+      text: '一只猫',
+    })
+
+    const result = await createControl().execute({
+      type: 'image',
+      action: 'recognize',
+      path: '/tmp/photo.png',
+      prompt: '描述这张图',
+    })
+
+    expect(image.recognize).toHaveBeenCalledWith({
+      path: '/tmp/photo.png',
+      prompt: '描述这张图',
+    })
+    expect(result).toEqual({
+      providerId: 'provider-1',
+      modelId: 'vision-model',
+      text: '一只猫',
+    })
+  })
+
+  it('image recognize 支持 fileId 透传（聊天附件场景）', async () => {
+    image.recognize.mockResolvedValue({
+      providerId: 'provider-1',
+      modelId: 'vision-model',
+      text: '一只猫',
+    })
+
+    const result = await createControl().execute({
+      type: 'image',
+      action: 'recognize',
+      fileId: 'img-1',
+    })
+
+    expect(image.recognize).toHaveBeenCalledWith({ fileId: 'img-1' })
+    expect(result).toEqual({
+      providerId: 'provider-1',
+      modelId: 'vision-model',
+      text: '一只猫',
+    })
+  })
+
+  it('image recognize 同时传 path 与 fileId 时透传两者（互斥校验在 socket 边界）', async () => {
+    const result = await createControl().execute({
+      type: 'image',
+      action: 'recognize',
+      path: '/tmp/photo.png',
+      fileId: 'img-1',
+    } as never)
+
+    expect(image.recognize).toHaveBeenCalledWith({
+      path: '/tmp/photo.png',
+      fileId: 'img-1',
+    })
+    expect(result).toEqual({
+      providerId: 'provider-1',
+      modelId: 'vision-model',
+      text: '一只猫',
+    })
+  })
 
   it('保存真实 API Key 时交由 provider module 管理密钥生命周期', async () => {
     provider.updateProvider.mockResolvedValue({ id: 'provider-1', hasApiKey: true })
