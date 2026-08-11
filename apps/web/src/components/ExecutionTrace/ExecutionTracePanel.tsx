@@ -344,7 +344,7 @@ function TurnCard(props: {
                 {' '}
                 {summary.turnId}
               </span>
-              <Badge variant="outline">{summary.source.type === 'automation' ? 'Automation' : '交互'}</Badge>
+              <Badge variant="outline">{summary.source.type === 'automation' ? '自动化' : '交互'}</Badge>
               <Badge variant={summary.status === 'success' ? 'secondary' : 'destructive'}>{statusLabels[summary.status]}</Badge>
             </div>
             <div className="mt-1 flex gap-2 text-xs text-muted-foreground">
