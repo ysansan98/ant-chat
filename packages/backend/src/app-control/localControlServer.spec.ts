@@ -25,6 +25,8 @@ describe('localControlServer', () => {
           appearance: { darkThemeId: 'default', lightThemeId: 'default', mode: 'system' },
           assistantModelId: 'model-1',
           assistantProviderId: 'provider-1',
+          visionModelId: '',
+          visionProviderId: '',
           defaultModelId: '',
           defaultProviderId: '',
           autoGenerateTitle: true,
@@ -81,6 +83,26 @@ describe('localControlServer', () => {
     await expect(sendRequest(meta.endpoint, {
       auth: meta.authToken,
       command: { action: 'install', serverName: 'demo', transportType: 'stdio', type: 'mcp' },
+    })).resolves.toMatchObject({ error: { code: 'INVALID_COMMAND' }, ok: false })
+
+    expect(appControl.execute).not.toHaveBeenCalled()
+  })
+
+  it('拒绝同时携带 path 与 fileId 的 image recognize 命令（互斥校验）', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'ant-chat-control-'))
+    roots.push(root)
+    const appControl = { execute: vi.fn() }
+    const server = new LocalControlServer(appControl, { appDataRoot: root })
+    servers.push(server)
+    await server.start()
+
+    const meta = JSON.parse(await readFile(path.join(root, '.control-endpoint.json'), 'utf8')) as {
+      authToken: string
+      endpoint: string
+    }
+    await expect(sendRequest(meta.endpoint, {
+      auth: meta.authToken,
+      command: { type: 'image', action: 'recognize', path: '/tmp/a.png', fileId: 'img-1' },
     })).resolves.toMatchObject({ error: { code: 'INVALID_COMMAND' }, ok: false })
 
     expect(appControl.execute).not.toHaveBeenCalled()

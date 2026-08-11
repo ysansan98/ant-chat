@@ -1,3 +1,8 @@
 @echo off
 rem 开发环境 launcher；生产构建会在 afterPack 中改写为应用内可执行文件路径。
-pnpm exec electron apps/desktop --ant-chat-cli %*
+rem 直接跑 CLI 源码（node + tsx，与 link-cli-dev 同一入口），不依赖 pnpm 与调用方 cwd：
+rem agent 的 execute_command 可能在任意目录执行本命令，pnpm 的 verify-deps-before-run=install
+rem 会在无 package.json 的目录自动 install 而失败；同时避免再起一个 Electron 实例与运行中的应用冲突。
+set "ROOT=%~dp0..\..\..\.."
+cd /d "%ROOT%\packages\ant-chat"
+node --conditions=development --import tsx "%ROOT%\packages\ant-chat\src\cli.ts" %*

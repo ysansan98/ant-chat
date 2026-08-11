@@ -43,6 +43,9 @@ export const ProviderSettingsSchema = ProviderConfigSchema.omit({
 export const AppSettingsSchema = z.object({
   assistantModelId: z.string(),
   assistantProviderId: z.string().default(''),
+  /** 全局视觉模型（图像识别等视觉任务默认使用）。未设置时识别命令可回退到默认模型。 */
+  visionModelId: z.string().default(''),
+  visionProviderId: z.string().default(''),
   /** 用户最近一次在普通对话中显式选择的模型，用作新会话起始值。 */
   defaultModelId: z.string().default(''),
   defaultProviderId: z.string().default(''),

@@ -42,4 +42,39 @@ describe('messageTransform', () => {
       data: '不应进入文本',
     }]))).toBe('[可视化：阶段延迟]')
   })
+
+  it('image 内联数据已是完整 data URL 时原样输出，不重复拼接前缀', () => {
+    expect(transformMessageContent(createMessage([
+      { type: 'text', text: '看图' },
+      { type: 'image', data: 'data:image/png;base64,AAAA', mimeType: 'image/png' },
+    ]))).toBe('看图\n![](data:image/png;base64,AAAA)')
+  })
+
+  it('image 内联数据为纯 base64 时补齐 mimeType 前缀', () => {
+    expect(transformMessageContent(createMessage([
+      { type: 'image', data: 'AAAA', mimeType: 'image/png' },
+    ]))).toBe('![](data:image/png;base64,AAAA)')
+  })
+
+  it('image 为引用形态（无 data）时显示占位文本', () => {
+    expect(transformMessageContent(createMessage([
+      { type: 'image', source: { type: 'file_id', file_id: 'img-1' }, name: 'a.png' },
+    ]))).toBe('[Image: a.png]')
+  })
+
+  it('skipAttachmentBlocks 时跳过有渲染通道的附件块，只保留文本', () => {
+    expect(transformMessageContent(createMessage([
+      { type: 'text', text: '看一下这两个文件' },
+      { type: 'image', source: { type: 'file_id', file_id: 'img-1' }, name: 'a.png' },
+      { type: 'document', source: { type: 'file_id', file_id: 'doc-1' }, name: 'a.pdf' },
+      { type: 'file', source: { type: 'file_id', file_id: 'f-1' }, filename: 'b.zip' },
+    ]), { skipAttachmentBlocks: true })).toBe('看一下这两个文件')
+  })
+
+  it('skipAttachmentBlocks 不影响无附件块的消息', () => {
+    expect(transformMessageContent(createMessage([
+      { type: 'text', text: '第一段' },
+      { type: 'text', text: '第二段' },
+    ]), { skipAttachmentBlocks: true })).toBe('第一段\n第二段')
+  })
 })

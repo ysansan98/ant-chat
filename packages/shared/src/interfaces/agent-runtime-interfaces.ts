@@ -1,4 +1,4 @@
-import type { AddMessage, CommandInterpreter, LanguageModelUsage, ModelInfo, ProviderConfigSchema, ReasoningEffortLevel, SecretRef, SecretRequest, SecretRequestField, SecretRequestResult, ToolApprovalRule, ToolCallContent, ToolResultContent, UpdateMessageSchema } from '../schemas'
+import type { AddMessage, CommandInterpreter, LanguageModelUsage, ModelCapabilitiesSchema, ModelInfo, ProviderConfigSchema, ReasoningEffortLevel, SecretRef, SecretRequest, SecretRequestField, SecretRequestResult, ToolApprovalRule, ToolCallContent, ToolResultContent, UpdateMessageSchema } from '../schemas'
 import type { AgentMemoryReader } from './agent-memory'
 import type { AgentMode, AgentPendingAction, AgentTaskSnapshot, AgentTurnSource } from './agent-runtime'
 import type { AgentTool } from './agent-tools'
@@ -177,6 +177,8 @@ export interface AgentModel {
   name: string
   providerId: string
   contextLength: number
+  /** 模型能力（输入/输出模态等）；用于决定附件是否可直接发送给模型。 */
+  capabilities?: ModelCapabilitiesSchema | null
 }
 
 export type AgentProvider = ProviderConfigSchema

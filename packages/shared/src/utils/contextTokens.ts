@@ -39,7 +39,7 @@ export function estimateMessageTokens(msg: TokenizableMessage): number {
     else if (type === 'error') {
       total += estimateTextTokens((part.error as string) || '')
     }
-    // image, image-block, document, file: skip token estimation for non-text content
+    // image, document, file: skip token estimation for non-text content
   }
   return total + 4
 }

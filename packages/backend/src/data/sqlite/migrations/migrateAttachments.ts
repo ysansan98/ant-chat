@@ -96,13 +96,13 @@ export function migrateMessageAttachments(
           )
 
           return {
-            type: 'image-block',
+            type: 'image',
             source: {
               type: 'file_id',
               file_id: fileId,
             },
             name: img.name,
-            media_type: img.type,
+            mimeType: img.type,
             size: img.size,
           }
         })

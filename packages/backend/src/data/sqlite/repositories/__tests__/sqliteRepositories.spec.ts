@@ -287,7 +287,14 @@ describe('sqlite repositories', () => {
       convId: newerConversation.id,
       role: 'user',
       status: 'success',
-      content: [{ type: 'image', mimeType: 'image/png', data: 'base64' }],
+      content: [{
+        type: 'image',
+        source: { type: 'file_id', file_id: 'search-img-1' },
+        name: 'image.png',
+        mimeType: 'image/png',
+        size: 4,
+        data: `data:image/png;base64,${Buffer.from([0x89, 0x50, 0x4E, 0x47]).toString('base64')}`,
+      }],
     })
     const matchedMessage = await messageRepository.create({
       convId: newerConversation.id,
@@ -352,10 +359,10 @@ describe('sqlite repositories', () => {
       content: [
         { type: 'text', text: 'see image' },
         {
-          type: 'image-block',
+          type: 'image',
           source: { type: 'file_id', file_id: 'img-1' },
           name: 'image.png',
-          media_type: 'image/png',
+          mimeType: 'image/png',
           size: bytes.length,
           data: `data:image/png;base64,${bytes.toString('base64')}`,
         },
@@ -365,10 +372,10 @@ describe('sqlite repositories', () => {
     expect(message.content).toEqual([
       { type: 'text', text: 'see image' },
       {
-        type: 'image-block',
+        type: 'image',
         source: { type: 'file_id', file_id: 'img-1' },
         name: 'image.png',
-        media_type: 'image/png',
+        mimeType: 'image/png',
         size: bytes.length,
       },
     ])

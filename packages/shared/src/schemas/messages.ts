@@ -29,18 +29,24 @@ export const ContentSourceSchema = z.union([
 
 export type ContentSource = z.infer<typeof ContentSourceSchema>
 
-// 图片内容块（通过 file_id 引用本地文件）
-export const ImageBlockSchema = z.object({
-  type: z.literal('image-block'),
-  source: ContentSourceSchema,
-  name: z.string().optional(),
-  media_type: z.string().optional(),
-  size: z.number().optional(),
-  // Transport-only payload. App data strips it before persisting message content.
+// 图片内容块：file_id/url 引用或内联数据。
+// 持久化形态为引用（data 由 stageAttachmentData 剥离，仅保留 source/file_id）；
+// 运行时由 attachmentUtils 补充内联 data 后发送给模型。
+export const ImageContentSchema = z.object({
+  type: z.literal('image'),
+  /** file_id / url 引用（持久化形态必带）。 */
+  source: ContentSourceSchema.optional(),
+  /** 内联 base64；仅 transport 携带，持久化前剥离。 */
   data: z.string().optional(),
+  /** 图片 MIME 类型。 */
+  mimeType: z.string().optional(),
+  name: z.string().optional(),
+  size: z.number().optional(),
+  /** 远程图片 URL（兼容历史 image 字段）。 */
+  url: z.string().optional(),
 })
 
-export type ImageBlock = z.infer<typeof ImageBlockSchema>
+export type ImageContent = z.infer<typeof ImageContentSchema>
 
 // 文档内容块（通过 file_id 引用本地文件）
 export const DocumentBlockSchema = z.object({
@@ -73,16 +79,16 @@ export type FileBlock = z.infer<typeof FileBlockSchema>
 
 // ============================ 附件 outputBlocks（agent loop transport） ============================
 
-/** 附件块在工具执行阶段的 transport 变体：data 必填，持久化前由 stageAttachmentData 剥离。 */
-export const ImageBlockTransportSchema = ImageBlockSchema.extend({
+/** 图片附件在工具执行阶段的 transport 变体：data 必填，持久化前由 stageAttachmentData 剥离。 */
+export const ImageTransportSchema = ImageContentSchema.extend({
   source: FileIdSourceSchema,
   name: z.string().min(1),
-  media_type: z.string().min(1),
+  mimeType: z.string().min(1),
   size: z.number().int().positive(),
   data: z.string().min(1),
 })
 
-export type ImageBlockTransport = z.infer<typeof ImageBlockTransportSchema>
+export type ImageTransport = z.infer<typeof ImageTransportSchema>
 
 export const DocumentBlockTransportSchema = DocumentBlockSchema.extend({
   source: FileIdSourceSchema,
@@ -106,7 +112,7 @@ export const FileBlockTransportSchema = FileBlockSchema.extend({
 export type FileBlockTransport = z.infer<typeof FileBlockTransportSchema>
 
 export const AttachmentOutputBlockSchema = z.discriminatedUnion('type', [
-  ImageBlockTransportSchema,
+  ImageTransportSchema,
   DocumentBlockTransportSchema,
   FileBlockTransportSchema,
 ])
@@ -115,7 +121,7 @@ export type AttachmentOutputBlock = z.infer<typeof AttachmentOutputBlockSchema>
 
 /** 附件块持久化形态：data 已被剥离，仅保留 file_id 引用。 */
 export const AttachmentBlockSchema = z.discriminatedUnion('type', [
-  ImageBlockSchema,
+  ImageContentSchema,
   DocumentBlockSchema,
   FileBlockSchema,
 ])
@@ -126,7 +132,7 @@ export type AttachmentBlock = z.infer<typeof AttachmentBlockSchema>
 export const ToolOutputBlocksSchema = z.object({
   outputBlocks: z.array(z.union([
     VisualizationBlockTransportSchema,
-    ImageBlockTransportSchema,
+    ImageTransportSchema,
     DocumentBlockTransportSchema,
     FileBlockTransportSchema,
   ])).max(10),
@@ -143,14 +149,6 @@ export const TextContentSchema = z.object({
 
 export type TextContent = z.infer<typeof TextContentSchema>
 
-// 图片内容
-export const ImageContentSchema = z.object({
-  type: z.literal('image'),
-  mimeType: z.string(),
-  data: z.string(),
-  url: z.string().optional(),
-})
-
 // 错误内容
 export const ErrorContentSchema = z.object({
   type: z.literal('error'),
@@ -158,8 +156,6 @@ export const ErrorContentSchema = z.object({
 })
 
 export type ErrorContent = z.infer<typeof ErrorContentSchema>
-
-export type ImageContent = z.infer<typeof ImageContentSchema>
 
 // Tool call 内容块（在 assistant 消息的 content 中）
 export const ToolCallContentSchema = z.object({
@@ -197,7 +193,6 @@ export const MessageContentSchema = z.array(z.union([
   ErrorContentSchema,
   ToolCallContentSchema,
   ToolResultContentSchema,
-  ImageBlockSchema,
   DocumentBlockSchema,
   FileBlockSchema,
   VisualizationBlockSchema,

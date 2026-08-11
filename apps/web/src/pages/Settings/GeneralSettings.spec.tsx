@@ -67,6 +67,8 @@ function settings(agentObservabilityEnabled: boolean) {
   return {
     assistantModelId: '',
     assistantProviderId: '',
+    visionModelId: '',
+    visionProviderId: '',
     defaultModelId: '',
     defaultProviderId: '',
     autoGenerateTitle: false,

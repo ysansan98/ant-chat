@@ -317,6 +317,48 @@ describe('消息气泡', () => {
     expect(screen.getByText('已更新')).toBeInTheDocument()
   })
 
+  it('用户消息附件不输出占位文本，文件卡片渲染在气泡外', () => {
+    renderBubble([{
+      id: 'user-1',
+      convId: 'conv-1',
+      role: 'user',
+      content: [
+        { type: 'text', text: '看一下这两个文件' },
+        { type: 'image', source: { type: 'file_id', file_id: 'img-1' }, name: '截图.png', mimeType: 'image/png', size: 10 },
+        { type: 'document', source: { type: 'file_id', file_id: 'doc-1' }, name: '报告.pdf', media_type: 'application/pdf', size: 10 },
+      ],
+      status: 'success',
+      createdAt: 1,
+      turnId: 'turn-1',
+    }])
+
+    expect(screen.getByText('看一下这两个文件')).toBeInTheDocument()
+    expect(screen.queryByText(/\[Image:/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/\[Document:/)).not.toBeInTheDocument()
+    expect(screen.getByText('报告.pdf')).toBeInTheDocument()
+    expect(screen.getByText('application/pdf')).toBeInTheDocument()
+    // 附件卡片在气泡容器（bg-secondary）之外渲染
+    expect(screen.getByText('报告.pdf').closest('[class*="bg-secondary"]')).toBeNull()
+    expect(screen.getByText('看一下这两个文件').closest('[class*="bg-secondary"]')).not.toBeNull()
+  })
+
+  it('纯附件用户消息不渲染空气泡，附件仍展示', () => {
+    renderBubble([{
+      id: 'user-2',
+      convId: 'conv-1',
+      role: 'user',
+      content: [
+        { type: 'file', source: { type: 'file_id', file_id: 'f-1' }, filename: 'data.zip', name: 'data.zip', media_type: 'application/zip', size: 10 },
+      ],
+      status: 'success',
+      createdAt: 1,
+      turnId: 'turn-1',
+    }])
+
+    expect(screen.getByText('data.zip')).toBeInTheDocument()
+    expect(screen.queryByText(/\[File:/)).not.toBeInTheDocument()
+  })
+
   it('仅有错误内容时展示失败 Alert，不出现执行过程面板', () => {
     renderBubble([
       createAssistantMessage('failed-answer', [

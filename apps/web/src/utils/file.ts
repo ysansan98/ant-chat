@@ -10,6 +10,18 @@ export async function downloadAntChatFile(fileContent: string, fileName: string)
   a.remove()
 }
 
+/**
+ * 把图片内联数据统一成可渲染的 data URL。
+ * data 可能已是完整 data URL（fileToBase64 的 readAsDataURL 产物），
+ * 也可能是被剥离前缀的纯 base64（如后端 loadAttachmentData 的返回）；
+ * 直接拼接 mimeType 前缀会得到双重前缀的无效 URL。
+ */
+export function toImageDataUrl(data: string, mimeType?: string): string {
+  return data.startsWith('data:')
+    ? data
+    : `data:${mimeType || 'image/jpeg'};base64,${data}`
+}
+
 export async function exportAntChatFile(fileContent: string, fileName: string) {
   const fileHandle = await window.showSaveFilePicker({ suggestedName: fileName, types: [ANT_CHAT_FILE_TYPE] })
   const writableStream = await fileHandle.createWritable()

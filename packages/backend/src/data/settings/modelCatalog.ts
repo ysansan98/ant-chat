@@ -15,6 +15,7 @@ export function createModelCatalog(repository: ProviderSettingsRepository): IMod
           name: resolved.model.name,
           providerId: resolved.model.providerId,
           contextLength: resolved.model.contextLength,
+          capabilities: resolved.model.capabilities,
         },
         provider: resolved.provider,
       }
@@ -30,6 +31,7 @@ export function createModelCatalog(repository: ProviderSettingsRepository): IMod
         name: model.name,
         providerId: model.providerId,
         contextLength: model.contextLength,
+        capabilities: model.capabilities,
       }
     },
     getProvider: async (id) => {

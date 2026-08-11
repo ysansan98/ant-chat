@@ -1,5 +1,5 @@
+import type { IAttachment, IMessage } from '@ant-chat/shared'
 import type { AttachmentData } from '@workspace/ui/components/ai-elements/attachments'
-import type { BubbleContent } from '@/types/global'
 import {
   Attachment,
   AttachmentInfo,
@@ -20,7 +20,7 @@ import { ImageViewer } from './ImageViewer'
 import { tokenizeMessageReferences } from './messageReferenceTokens'
 
 function toAttachmentData(
-  item: NonNullable<BubbleContent['attachments']>[number],
+  item: IAttachment,
 ): AttachmentData {
   return {
     type: 'file',
@@ -31,19 +31,22 @@ function toAttachmentData(
   }
 }
 
-const EMPTY_IMAGES: NonNullable<BubbleContent['images']> = []
-const EMPTY_ATTACHMENTS: NonNullable<BubbleContent['attachments']> = []
+const EMPTY_IMAGES: IAttachment[] = []
+const EMPTY_ATTACHMENTS: IAttachment[] = []
 
+interface MessageContentProps {
+  content?: string
+  status?: IMessage['status']
+  enableReferenceTokens?: boolean
+}
+
+/** 气泡内的文本渲染层：附件块（image/document/file）不在这里渲染。 */
 export default function MessageContent({
   content = '',
-  images = EMPTY_IMAGES,
-  attachments = EMPTY_ATTACHMENTS,
   status,
   enableReferenceTokens = false,
-}: Partial<BubbleContent> & { enableReferenceTokens?: boolean }) {
+}: MessageContentProps) {
   const isStreaming = status === 'loading' || status === 'typing'
-  const imageItems = images.map(attachmentToPreviewItem)
-  const attachmentItems = attachments.map(toAttachmentData)
 
   return (
     <div className="space-y-3">
@@ -55,9 +58,31 @@ export default function MessageContent({
           : (
               <MessageResponse isAnimating={isStreaming}>{content}</MessageResponse>
             ))}
+    </div>
+  )
+}
 
+/**
+ * 气泡下方的附件渲染区：图片缩略图 + 文件/文档元信息卡片。
+ * 与气泡内文本层分离，避免同一附件被占位文本和真实渲染双重展示。
+ */
+export function MessageAttachments({
+  images = EMPTY_IMAGES,
+  attachments = EMPTY_ATTACHMENTS,
+}: {
+  images?: IAttachment[]
+  attachments?: IAttachment[]
+}) {
+  const imageItems = images.map(attachmentToPreviewItem)
+  const attachmentItems = attachments.map(toAttachmentData)
+
+  if (imageItems.length === 0 && attachmentItems.length === 0) {
+    return null
+  }
+
+  return (
+    <div className="space-y-2">
       <ImageViewer items={imageItems} />
-
       {attachmentItems.length > 0 && (
         <Attachments variant="list">
           {attachmentItems.map(item => (

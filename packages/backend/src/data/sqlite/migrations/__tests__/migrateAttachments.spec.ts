@@ -82,10 +82,10 @@ describe('migrateMessageAttachments', () => {
 
     expect(content[0]).toEqual({ type: 'text', text: 'prompt' })
     expect(imageBlock).toEqual({
-      type: 'image-block',
+      type: 'image',
       source: { type: 'file_id', file_id: imageBlock.source.file_id },
       name: 'image.png',
-      media_type: 'image/png',
+      mimeType: 'image/png',
       size: imageBytes.length,
     })
     expect(documentBlock).toEqual({

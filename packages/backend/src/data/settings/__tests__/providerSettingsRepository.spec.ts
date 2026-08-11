@@ -13,6 +13,8 @@ describe('provider settings repository', () => {
   const initialSettings: AppSettingsState = {
     assistantModelId: '',
     assistantProviderId: '',
+    visionModelId: '',
+    visionProviderId: '',
     defaultModelId: '',
     defaultProviderId: '',
     autoGenerateTitle: false,
@@ -243,6 +245,8 @@ describe('provider settings repository', () => {
     const baseSettings: AppSettingsState = {
       assistantModelId: '',
       assistantProviderId: '',
+      visionModelId: '',
+      visionProviderId: '',
       defaultModelId: '',
       defaultProviderId: '',
       autoGenerateTitle: false,

@@ -103,17 +103,16 @@ function createAttachmentBlock(name: string, mediaType: string, kind: 'image' | 
   const base = {
     source: { type: 'file_id' as const, file_id: fileId },
     name,
-    media_type: mediaType,
     size: bytes.byteLength,
     data: bytes.toString('base64'),
   }
   if (kind === 'image') {
-    return { type: 'image-block', ...base }
+    return { type: 'image', ...base, mimeType: mediaType }
   }
   if (kind === 'document') {
-    return { type: 'document', ...base }
+    return { type: 'document', ...base, media_type: mediaType }
   }
-  return { type: 'file', filename: name, ...base }
+  return { type: 'file', filename: name, ...base, media_type: mediaType }
 }
 
 const MIME_BY_EXTENSION: Record<string, string> = {

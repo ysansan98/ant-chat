@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { observabilityApi } from '@/api/observabilityApi'
 import { CustomProxyUrl, ProxySettings as ProxySettingsControl } from '@/components/GeneralSettings/ProxySettings'
 import { SelectModel } from '@/components/GeneralSettings/SelectModel'
+import { SelectVisionModel } from '@/components/GeneralSettings/SelectVisionModel'
 import { setAgentObservabilityEnabled, setAutoGenerateTitle, updateProxySettings, useGeneralSettingsStore } from '@/store/generalSettings'
 import { BrowserProfilesSettings } from './BrowserProfiles'
 import { SettingsPageLayout } from './SettingsPageLayout'
@@ -26,7 +27,7 @@ export function GeneralSettings() {
   return (
     <SettingsPageLayout
       title="通用设置"
-      description="设置助手模型、开发者工具、网络连接与浏览器 Cookies。"
+      description="设置助手模型、视觉模型、开发者工具、网络连接与浏览器 Cookies。"
       variant="narrow"
     >
       <div className="flex flex-col gap-6">
@@ -52,6 +53,18 @@ export function GeneralSettings() {
                 <SelectModel />
               </GeneralSettingsRow>
             )}
+          </div>
+        </section>
+
+        <section>
+          <h3 className="mb-2 text-xs font-semibold text-muted-foreground">视觉模型</h3>
+          <div className="overflow-hidden rounded-xl border border-border bg-card">
+            <GeneralSettingsRow
+              title="图像识别模型"
+              help="用于识别图片内容的模型，必须支持图片输入。agent 通过图像识别命令识别图片时默认使用该模型"
+            >
+              <SelectVisionModel />
+            </GeneralSettingsRow>
           </div>
         </section>
 

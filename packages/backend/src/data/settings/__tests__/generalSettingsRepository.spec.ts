@@ -23,6 +23,8 @@ describe('general settings repository', () => {
       initialSettings: {
         assistantModelId: 'model-1',
         assistantProviderId: '',
+        visionModelId: '',
+        visionProviderId: '',
         defaultModelId: '',
         defaultProviderId: '',
         autoGenerateTitle: false,
@@ -35,6 +37,8 @@ describe('general settings repository', () => {
     await expect(repository.getGeneralSettings()).resolves.toEqual({
       assistantModelId: 'model-1',
       assistantProviderId: '',
+      visionModelId: '',
+      visionProviderId: '',
       defaultModelId: '',
       defaultProviderId: '',
       autoGenerateTitle: false,
@@ -50,6 +54,8 @@ describe('general settings repository', () => {
       initialSettings: {
         assistantModelId: 'model-1',
         assistantProviderId: '',
+        visionModelId: '',
+        visionProviderId: '',
         defaultModelId: '',
         defaultProviderId: '',
         autoGenerateTitle: false,
@@ -66,6 +72,8 @@ describe('general settings repository', () => {
     expect(settings).toEqual({
       assistantModelId: 'model-1',
       assistantProviderId: '',
+      visionModelId: '',
+      visionProviderId: '',
       defaultModelId: '',
       defaultProviderId: '',
       autoGenerateTitle: false,

@@ -1,7 +1,7 @@
 import type { IMessage } from '@ant-chat/shared'
 import { useCallback } from 'react'
 import { toast } from 'sonner'
-import { clipboardWrite } from '@/utils'
+import { clipboardWrite, toImageDataUrl } from '@/utils'
 
 export function useMessageActions() {
   const copyMessage = useCallback(async (message: IMessage) => {
@@ -11,10 +11,9 @@ export function useMessageActions() {
         data.text += '\n'
       }
       if (b.type === 'image') {
-        data.text += `![](data:${b.mimeType};base64,${b.data})\n`
-      }
-      else if (b.type === 'image-block') {
-        data.text += `[Image: ${b.name || 'image'}]`
+        data.text += b.data
+          ? `![](${toImageDataUrl(b.data, b.mimeType)})\n`
+          : `[Image: ${b.name || 'image'}]`
       }
       else if (b.type === 'document') {
         data.text += `[Document: ${b.name || b.title || 'document'}]`

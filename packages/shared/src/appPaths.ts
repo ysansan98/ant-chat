@@ -22,9 +22,11 @@ export function getAppEnvironment(): AppEnvironment {
  *
  * - production:     ~/.ant-chat
  * - development:    ~/.ant-chat-dev（与生产数据隔离）
+ * - environment 缺省时按当前运行环境（ANT_CHAT_ENV）解析。
  */
-export function resolveAppDataRoot(): string {
-  return path.join(os.homedir(), getAppEnvironment() === 'development' ? APP_DIR_DEV : APP_DIR)
+export function resolveAppDataRoot(environment?: AppEnvironment): string {
+  const resolved = environment ?? getAppEnvironment()
+  return path.join(os.homedir(), resolved === 'development' ? APP_DIR_DEV : APP_DIR)
 }
 
 /**

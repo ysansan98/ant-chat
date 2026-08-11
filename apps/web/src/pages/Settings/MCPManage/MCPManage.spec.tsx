@@ -72,7 +72,8 @@ describe('协议服务器管理页', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: '编辑服务器：github' }))
 
-    expect(await screen.findByText('重命名将迁移 2 条权限规则')).toBeInTheDocument()
+    // 编辑弹窗走 React.lazy 动态加载，并行负载下渲染可能超过默认 1s 断言窗口
+    expect(await screen.findByText('重命名将迁移 2 条权限规则', undefined, { timeout: 5000 })).toBeInTheDocument()
     expect(screen.getByText('保存新名称时，服务器配置与相关权限规则会由后端原子更新。')).toBeInTheDocument()
   })
 

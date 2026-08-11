@@ -36,6 +36,7 @@ export interface ControlPlaneModules {
   mcp: McpControlPlane
   automation: AutomationControlPlane
   channel?: ChannelControlPlane
+  image?: ImageControlPlane
 }
 
 export interface ChannelControlPlane {
@@ -92,4 +93,25 @@ export interface AutomationControlPlane {
   /** 安全删除 — 检查活跃 run 并支持 force。 */
   safeDelete: (id: string, force?: boolean) => Promise<void>
   listRuns: (input: { automationId?: string, limit?: number }) => Promise<AutomationRun[]>
+}
+
+export interface ImageControlPlane {
+  recognize: (input: {
+    path?: string
+    fileId?: string
+    prompt?: string
+    providerId?: string
+    modelId?: string
+  }) => Promise<{
+    providerId: string
+    modelId: string
+    text: string
+    usage?: {
+      inputTokens?: number
+      outputTokens?: number
+      totalTokens?: number
+      reasoningTokens?: number
+      cachedInputTokens?: number
+    }
+  }>
 }

@@ -3,6 +3,8 @@ import type { AppSettingsState } from '@ant-chat/shared'
 export const DEFAULT_APP_SETTINGS: AppSettingsState = {
   assistantModelId: '',
   assistantProviderId: '',
+  visionModelId: '',
+  visionProviderId: '',
   defaultModelId: '',
   defaultProviderId: '',
   autoGenerateTitle: false,

@@ -13,6 +13,7 @@ import {
   MessageContentSchema,
   ModelInfoSchema,
 } from '@ant-chat/shared'
+import { normalizeLegacyMessageContent } from './contentNormalize'
 
 export interface ConversationRow {
   id: string
@@ -112,7 +113,8 @@ function parseConversationSettings(value: string): ConversationsSettingsSchema {
 }
 
 export function parseMessageContent(value: string): MessageContent {
-  return MessageContentSchema.parse(JSON.parse(value))
+  // 兼容旧格式：image 统一之前持久化的消息可能残留 image-block 块，先归一再严格解析。
+  return MessageContentSchema.parse(normalizeLegacyMessageContent(JSON.parse(value)))
 }
 
 function parseNullableModelInfo(value: string | null): ModelInfo | undefined {

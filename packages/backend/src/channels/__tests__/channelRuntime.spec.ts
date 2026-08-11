@@ -216,6 +216,8 @@ describe('channelRuntime 入站行为', () => {
     data.settingsRepository.getGeneralSettings = vi.fn(async () => ({
       assistantModelId: 'assistant-model',
       assistantProviderId: 'assistant-provider',
+      visionModelId: '',
+      visionProviderId: '',
       defaultModelId: '',
       defaultProviderId: '',
       autoGenerateTitle: false,

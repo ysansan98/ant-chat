@@ -155,4 +155,92 @@ describe('ant-chat CLI 命令', () => {
       type: 'provider',
     })
   })
+
+  it('解析 image recognize 的位置参数与可选参数', async () => {
+    const client = createClient({ providerId: 'provider-1', modelId: 'gpt-vision', text: '一只猫' })
+
+    const result = await executeCommand(client as never, [
+      'image',
+      'recognize',
+      '/tmp/photo.png',
+      '--prompt=描述这张图',
+      '--provider-id=provider-1',
+      '--model-id=gpt-vision',
+    ], { json: true })
+
+    expect(result.exitCode).toBe(0)
+    expect(client.send).toHaveBeenCalledWith({
+      type: 'image',
+      action: 'recognize',
+      path: '/tmp/photo.png',
+      prompt: '描述这张图',
+      providerId: 'provider-1',
+      modelId: 'gpt-vision',
+    })
+  })
+
+  it('image recognize 缺省可选参数时只传 path', async () => {
+    const client = createClient({ providerId: 'provider-1', modelId: 'vision-model', text: 'ok' })
+
+    await executeCommand(client as never, ['image', 'recognize', './photo.png'], { json: false })
+
+    expect(client.send).toHaveBeenCalledWith({
+      type: 'image',
+      action: 'recognize',
+      path: './photo.png',
+    })
+  })
+
+  it('image recognize 支持 --file-id 识别聊天附件', async () => {
+    const client = createClient({ providerId: 'provider-1', modelId: 'vision-model', text: 'ok' })
+
+    await executeCommand(client as never, [
+      'image',
+      'recognize',
+      '--file-id=img-1',
+      '--prompt=描述这张图',
+    ], { json: true })
+
+    expect(client.send).toHaveBeenCalledWith({
+      type: 'image',
+      action: 'recognize',
+      fileId: 'img-1',
+      prompt: '描述这张图',
+    })
+  })
+
+  it('image recognize 支持空格形式 --file-id <id>（值不泄漏为 path）', async () => {
+    const client = createClient({ providerId: 'provider-1', modelId: 'vision-model', text: 'ok' })
+
+    await executeCommand(client as never, [
+      'image',
+      'recognize',
+      '--file-id',
+      'img-1',
+    ], { json: true })
+
+    expect(client.send).toHaveBeenCalledWith({
+      type: 'image',
+      action: 'recognize',
+      fileId: 'img-1',
+    })
+  })
+
+  it('image recognize 缺少 path 和 --file-id 时报用法错误', async () => {
+    const client = createClient()
+
+    const result = await executeCommand(client as never, ['image', 'recognize', '--prompt=描述'], { json: false })
+
+    expect(result.exitCode).toBe(1)
+    expect(result.error).toContain('ant-chat image recognize')
+  })
+
+  it('image recognize 缺少路径时报用法错误', async () => {
+    const client = createClient()
+
+    const result = await executeCommand(client as never, ['image', 'recognize'], { json: false })
+
+    expect(result.exitCode).toBe(1)
+    expect(result.error).toContain('ant-chat image recognize')
+  })
 })

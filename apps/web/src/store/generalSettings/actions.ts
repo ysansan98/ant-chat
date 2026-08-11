@@ -139,6 +139,22 @@ export async function setAssistantModel(modelId: string, providerId: string) {
   }
 }
 
+export async function setVisionModel(modelId: string, providerId: string) {
+  useGeneralSettingsStore.setState(produce((state) => {
+    state.isLoading = true
+  }))
+  try {
+    const updates = { visionModelId: modelId, visionProviderId: providerId }
+    const newSettings = await generalSettingsApi.updateSettings(updates)
+    useGeneralSettingsStore.setState(newSettings)
+  }
+  finally {
+    useGeneralSettingsStore.setState(produce((state) => {
+      state.isLoading = false
+    }))
+  }
+}
+
 export async function setAssistantReasoningEffort(reasoningEffort: ReasoningEffortLevel | undefined) {
   useGeneralSettingsStore.setState(produce((state) => {
     state.isLoading = true
