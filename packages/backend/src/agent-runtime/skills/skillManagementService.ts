@@ -12,6 +12,7 @@ const SKILL_NAME_PATTERN = /^[\w.-]+$/
 const BUILTIN_SKILL_INSTALLER = 'skill-installer'
 const BUILTIN_SKILL_MANAGER = 'ant-chat-manager'
 const BUILTIN_SKILL_VISUALIZE = 'visualize'
+const BUILTIN_SKILL_IMAGE_RECOGNITION = 'image-recognition'
 
 const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---/
 
@@ -91,6 +92,7 @@ export class SkillManagementService {
     await this.ensureBuiltinSkillInstaller()
     await this.ensureBuiltinAntChatManager()
     await this.ensureBuiltinVisualize()
+    await this.ensureBuiltinImageRecognition()
   }
 
   async listSkills(): Promise<SkillIndex> {
@@ -457,6 +459,26 @@ export class SkillManagementService {
     if (!appState[BUILTIN_SKILL_VISUALIZE]) {
       const now = Date.now()
       appState[BUILTIN_SKILL_VISUALIZE] = {
+        enabled: true,
+        builtin: true,
+        source: 'builtin',
+        installedAt: now,
+        updatedAt: now,
+      }
+      await this.writeAppState(appState)
+    }
+  }
+
+  /** 确保内置图像识别 Skill 存在（纯文本主模型收到图片时由 agent 调用识别命令）。 */
+  private async ensureBuiltinImageRecognition(): Promise<void> {
+    const skillPath = path.join(this.skillsRoot, BUILTIN_SKILL_IMAGE_RECOGNITION)
+    const sourcePath = path.join(this.builtinSkillsSourceRoot, BUILTIN_SKILL_IMAGE_RECOGNITION)
+    await copyDirectory(sourcePath, skillPath)
+
+    const appState = await this.readAppState()
+    if (!appState[BUILTIN_SKILL_IMAGE_RECOGNITION]) {
+      const now = Date.now()
+      appState[BUILTIN_SKILL_IMAGE_RECOGNITION] = {
         enabled: true,
         builtin: true,
         source: 'builtin',

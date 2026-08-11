@@ -52,6 +52,9 @@ ant-chat image recognize --file-id img-1 --json
 `packages/backend/builtin-skills/image-recognition/SKILL.md`：agent 通过 `execute_command` 主动调用。
 覆盖：何时使用、执行路径、`--file-id`/`--prompt` 用法、`--json` 结果解析、失败处理、明确排除 OCR。
 
+> **调用方超时**：识别是同步模型调用，`execute_command` 默认 10 秒超时会杀死命令（实测
+> 10~30 秒常见）；agent 调用时必须显式传 `timeoutMs: 150000`（SKILL 内已含示例）。
+
 ### 3. 视觉模型用户预配置
 
 - 设置页"视觉模型 → 图像识别模型"区块：`apps/web/src/pages/Settings/GeneralSettings.tsx` +

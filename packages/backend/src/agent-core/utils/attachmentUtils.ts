@@ -118,6 +118,7 @@ function buildImageListPlaceholder(items: ImagePlaceholderItem[]): string {
     `[用户上传了 ${count} 张图片：${list}。`,
     '当前模型不支持直接查看图片，',
     `请用图像识别命令逐张识别（如 \`ant-chat image recognize --file-id ${items[0]?.fileId} --json\`），`,
+    '识别是同步模型调用，执行时给 execute_command 设置 timeoutMs: 150000（默认 10 秒超时不够）。',
     '再结合识别结果回答用户。]',
   ].join('')
 }

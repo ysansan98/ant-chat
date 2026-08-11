@@ -25,11 +25,21 @@ description: 当用户提供了图片（聊天附件、工作区图片、截图�
 ant-chat image recognize /abs/path/to/image.png --json
 ```
 
+> **必须设置 `timeoutMs`**：视觉模型识别是同步调用，耗时可能超过 `execute_command`
+> 默认的 10 秒超时（实测 10~30 秒常见）。调用时显式传 `timeoutMs: 150000`，
+> 否则命令会被工具超时杀死而拿不到结果。示例：
+>
+> ```json
+> { "command": "ant-chat image recognize /abs/path/to/image.png --json", "timeoutMs": 150000 }
+> ```
+
 3. 聊天附件场景用 `--file-id` 识别（附件 id 来自占位符里的 `file_id=`，读取走应用内附件存储，不依赖文件路径）：
 
 ```bash
 ant-chat image recognize --file-id img-1 --json
 ```
+
+`--file-id` 场景同样需要 `timeoutMs: 150000`。
 
 4. 用 `--prompt` 定制识别指令（默认是通用描述）：
 
