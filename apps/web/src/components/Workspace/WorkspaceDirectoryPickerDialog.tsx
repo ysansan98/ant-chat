@@ -50,6 +50,9 @@ export function WorkspaceDirectoryPickerDialog({
   const [filter, setFilter] = useState('')
   const filterInputRef = useRef<HTMLInputElement>(null)
   const newFolderInputRef = useRef<HTMLInputElement>(null)
+  /** 键盘导航高亮索引，相对 filteredDirectories；进入新目录后归零 */
+  const [highlightedIndex, setHighlightedIndex] = useState(0)
+  const listRef = useRef<HTMLDivElement>(null)
 
   const resetFormState = useCallback(() => {
     setFilter('')
@@ -65,6 +68,7 @@ export function WorkspaceDirectoryPickerDialog({
       const data = await workspaceApi.listDirectories(path)
       setListing(data)
       setSelectedPath(data.currentPath)
+      setHighlightedIndex(0)
     }
     catch (err) {
       setError((err as Error).message)
@@ -82,6 +86,108 @@ export function WorkspaceDirectoryPickerDialog({
     const keyword = filter.trim().toLowerCase()
     return listing.directories.filter(dir => dir.name.toLowerCase().includes(keyword))
   }, [listing, filter])
+
+  // 过滤结果收缩后索引可能越界，统一用夹取后的安全索引驱动交互与视觉
+  const safeHighlightedIndex = Math.min(highlightedIndex, Math.max(filteredDirectories.length - 1, 0))
+
+  // 键盘移动后把高亮项滚入视野
+  useEffect(() => {
+    const activeItem = listRef.current?.querySelector('[data-highlighted="true"]')
+    activeItem?.scrollIntoView({ block: 'nearest' })
+  }, [safeHighlightedIndex, filteredDirectories])
+
+  const moveHighlight = useCallback((delta: number) => {
+    const count = filteredDirectories.length
+    if (count === 0) {
+      return
+    }
+
+    // 当前 index 对应的项若不在选中态（例如刚进入子目录），方向键先落到最近端点
+    const current = filteredDirectories[safeHighlightedIndex]
+    const hasActiveHighlight = current !== undefined && current.path === selectedPath
+    const nextIndex = hasActiveHighlight
+      ? Math.min(Math.max(safeHighlightedIndex + delta, 0), count - 1)
+      : delta > 0
+        ? 0
+        : count - 1
+
+    setHighlightedIndex(nextIndex)
+    setSelectedPath(filteredDirectories[nextIndex].path)
+  }, [filteredDirectories, safeHighlightedIndex, selectedPath])
+
+  const handleConfirm = useCallback(() => {
+    if (selectedPath) {
+      onConfirm(selectedPath)
+    }
+  }, [selectedPath, onConfirm])
+
+  // 键盘导航挂到 window 捕获阶段：Base UI Dialog 会在内部拦截 keydown 的
+  // 冒泡阶段（stopPropagation），且目录切换可能让焦点短暂丢失到 body；
+  // 捕获阶段监听不依赖焦点位置、也不受子元素拦截影响，保证切目录后按键仍然有效
+  useEffect(() => {
+    if (!open) {
+      return
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // 新建文件夹输入框有自己的 Enter/Escape 语义，不参与目录导航
+      if (newFolderInputRef.current === event.target) {
+        return
+      }
+
+      switch (event.key) {
+        case 'ArrowDown':
+          event.preventDefault()
+          moveHighlight(1)
+          return
+        case 'ArrowUp':
+          event.preventDefault()
+          moveHighlight(-1)
+          return
+        case 'ArrowLeft': {
+          // 搜索框有文字时 ←/→ 留给光标移动（编辑搜索词），空时用于目录导航
+          const editingSearch = event.target === filterInputRef.current && filter.length > 0
+          if (!editingSearch && listing?.parentPath) {
+            event.preventDefault()
+            void loadDirectory(listing.parentPath)
+          }
+          return
+        }
+        case 'ArrowRight': {
+          const editingSearch = event.target === filterInputRef.current && filter.length > 0
+          if (editingSearch) {
+            return
+          }
+          // 进入当前高亮目录（等价右键/双击）
+          const target = filteredDirectories[safeHighlightedIndex]
+          if (target) {
+            event.preventDefault()
+            void loadDirectory(target.path)
+          }
+          return
+        }
+        case 'Tab': {
+          // 进入当前高亮目录（等价右键/双击）
+          const target = filteredDirectories[safeHighlightedIndex]
+          if (target) {
+            event.preventDefault()
+            void loadDirectory(target.path)
+          }
+          return
+        }
+        case 'Enter': {
+          // 焦点在 filter input 时回车 = 添加当前目录；列表/按钮保持默认点击行为
+          if (event.target === filterInputRef.current && selectedPath) {
+            event.preventDefault()
+            handleConfirm()
+          }
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown, true)
+    return () => window.removeEventListener('keydown', handleKeyDown, true)
+  }, [open, filteredDirectories, safeHighlightedIndex, listing, selectedPath, filter, moveHighlight, loadDirectory, handleConfirm])
 
   useEffect(() => {
     if (open) {
@@ -131,12 +237,6 @@ export function WorkspaceDirectoryPickerDialog({
     }
     finally {
       setCreating(false)
-    }
-  }
-
-  function handleConfirm() {
-    if (selectedPath) {
-      onConfirm(selectedPath)
     }
   }
 
@@ -214,9 +314,13 @@ export function WorkspaceDirectoryPickerDialog({
             <Input
               ref={filterInputRef}
               value={filter}
-              onChange={e => setFilter(e.target.value)}
+              onChange={(e) => {
+                // loading 期间禁止输入，但不 disabled：disabled 会强制失焦导致键盘导航中断
+                if (!loading) {
+                  setFilter(e.target.value)
+                }
+              }}
               placeholder="搜索目录..."
-              disabled={loading}
               className="h-8 px-8 text-sm"
             />
             {filter && (
@@ -231,7 +335,7 @@ export function WorkspaceDirectoryPickerDialog({
           </div>
 
           {/* Directory list */}
-          <div className="h-60 overflow-y-auto rounded-md border">
+          <div ref={listRef} className="h-60 overflow-y-auto rounded-md border">
             {loading
               ? (
                   <div className="flex items-center justify-center py-8">
@@ -240,10 +344,11 @@ export function WorkspaceDirectoryPickerDialog({
                 )
               : filteredDirectories.length
                 ? (
-                    filteredDirectories.map(dir => (
+                    filteredDirectories.map((dir, index) => (
                       <button
                         key={dir.path}
                         type="button"
+                        data-highlighted={index === safeHighlightedIndex}
                         className={`
                           flex h-8 w-full items-center gap-2 px-3 text-sm
                           hover:bg-accent hover:text-accent-foreground
@@ -251,7 +356,10 @@ export function WorkspaceDirectoryPickerDialog({
                         ? 'bg-accent font-medium text-accent-foreground'
                         : ''}
                         `}
-                        onClick={() => handleSelect(dir.path)}
+                        onClick={() => {
+                          setHighlightedIndex(index)
+                          handleSelect(dir.path)
+                        }}
                         onDoubleClick={() => handleDoubleClick(dir.path)}
                       >
                         <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
@@ -262,6 +370,10 @@ export function WorkspaceDirectoryPickerDialog({
                 : (
                     <EmptyState title={filter ? '无匹配目录' : '暂无目录'} />
                   )}
+          </div>
+          {/* 键盘快捷键说明 */}
+          <div className="shrink-0 px-1 text-xs text-muted-foreground">
+            ↑↓ 选择 · ← 返回上级 · → 进入目录 · Enter 添加 · Tab 进入 · 搜索输入时 ←→ 移动光标
           </div>
 
           {/* New folder input */}
