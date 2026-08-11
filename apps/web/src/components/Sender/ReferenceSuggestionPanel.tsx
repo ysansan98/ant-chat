@@ -48,6 +48,15 @@ function computeDirectoryLabel(dirPath: string, query: string): string {
   return label || dirPath
 }
 
+/**
+ * cmdk 在挂载时会自动把第一个 item 标记为 `data-selected`（内部 value 为空时选中首项）。
+ * 面板的高亮完全由自定义 `data-highlighted` 驱动，两者同时落在同一 item 上时，
+ * 编译后的 `data-[selected=true]:bg-transparent`（同特异性、顺序靠后）会压过高亮样式，
+ * 导致默认选中的第一项不高亮。这里传一个不匹配任何 item 的哨兵 value，
+ * 禁用 cmdk 的内部选中态，让 `data-highlighted` 成为唯一高亮源。
+ */
+const NO_SELECTION_VALUE = '__no-selection__'
+
 export function ReferenceSuggestionPanel({
   trigger,
   directories,
@@ -113,7 +122,7 @@ export function ReferenceSuggestionPanel({
       "
       style={style}
     >
-      <Command shouldFilter={false}>
+      <Command shouldFilter={false} value={NO_SELECTION_VALUE}>
         <CommandList ref={listRef} className="max-h-64">
           {isFile && (
             <CommandGroup heading="@ 选择工作区文件">
@@ -122,7 +131,7 @@ export function ReferenceSuggestionPanel({
                 <CommandItem
                   key="__parent__"
                   value=".."
-                  className="data-[highlighted=true]:bg-muted data-[selected=true]:bg-transparent data-[selected=true]:text-inherit"
+                  className="data-[highlighted=true]:bg-muted"
                   data-highlighted={highlightedIndex === 0}
                   onMouseEnter={() => onSetHighlightedIndex(0)}
                   onMouseDown={(event) => {
@@ -154,7 +163,7 @@ export function ReferenceSuggestionPanel({
                   <CommandItem
                     key={dir.path}
                     value={dir.path}
-                    className="data-[highlighted=true]:bg-muted data-[selected=true]:bg-transparent! data-[selected=true]:text-inherit!"
+                    className="data-[highlighted=true]:bg-muted"
                     data-highlighted={globalIndex === highlightedIndex}
                     onMouseEnter={() => onSetHighlightedIndex(globalIndex)}
                     onMouseDown={(event) => {
@@ -175,7 +184,7 @@ export function ReferenceSuggestionPanel({
                   <CommandItem
                     key={file.path}
                     value={file.path}
-                    className="data-[highlighted=true]:bg-muted data-[selected=true]:bg-transparent data-[selected=true]:text-inherit"
+                    className="data-[highlighted=true]:bg-muted"
                     data-highlighted={globalIndex === highlightedIndex}
                     onMouseEnter={() => onSetHighlightedIndex(globalIndex)}
                     onMouseDown={(event) => {
@@ -200,8 +209,6 @@ export function ReferenceSuggestionPanel({
                   className="
                     items-start
                     data-[highlighted=true]:bg-muted
-                    data-[selected=true]:bg-transparent
-                    data-[selected=true]:text-inherit
                   "
                   data-highlighted={index === highlightedIndex}
                   onMouseEnter={() => onSetHighlightedIndex(index)}
@@ -241,8 +248,6 @@ export function ReferenceSuggestionPanel({
                     className="
                       items-start
                       data-[highlighted=true]:bg-muted
-                      data-[selected=true]:bg-transparent
-                      data-[selected=true]:text-inherit
                     "
                     data-highlighted={globalIndex === highlightedIndex}
                     onMouseEnter={() => onSetHighlightedIndex(globalIndex)}
