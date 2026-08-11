@@ -1,3 +1,8 @@
 #!/bin/sh
 # 开发环境 launcher；生产构建会在 afterPack 中改写为应用内可执行文件路径。
-exec pnpm exec electron apps/desktop --ant-chat-cli "$@"
+# 直接跑 CLI 源码（node + tsx，与 link-cli-dev 同一入口），不依赖 pnpm 与调用方 cwd：
+# agent 的 execute_command 可能在任意目录执行本命令，pnpm 的 verify-deps-before-run=install
+# 会在无 package.json 的目录自动 install 而失败；同时避免再起一个 Electron 实例与运行中的应用冲突。
+ROOT="$(CDPATH= cd "$(dirname "$0")/../../../../" && pwd)"
+cd "$ROOT/packages/ant-chat" || exit 1
+exec node --conditions=development --import tsx "$ROOT/packages/ant-chat/src/cli.ts" "$@"
