@@ -57,6 +57,30 @@ describe('resolveMcpToolTimeoutMs', () => {
 })
 
 describe('mcpClientHub 日志行为', () => {
+  it('stdio command 含空格时抛出可读错误，而不是把整串交给 spawn 报 ENOENT', async () => {
+    const logger = createMockLogger()
+    const hub = new McpConnectionManager(logger)
+
+    await expect(hub.connectToServer('bad-command', {
+      transportType: 'stdio',
+      command: 'npx -y mcp-remote https://mcp.tavily.com/mcp',
+      args: [],
+      env: {},
+    } as never)).rejects.toThrow(/command 只允许填可执行文件/)
+  })
+
+  it('args 中单个元素含空格时抛出可读错误，而不是让 npm 等解析错乱', async () => {
+    const logger = createMockLogger()
+    const hub = new McpConnectionManager(logger)
+
+    await expect(hub.connectToServer('bad-args', {
+      transportType: 'stdio',
+      command: 'npx',
+      args: ['-y mcp-remote https://mcp.tavily.com/mcp'],
+      env: {},
+    } as never)).rejects.toThrow(/args 参数 ".*" 包含空格/)
+  })
+
   it('删除连接失败时写入注入的运行日志', async () => {
     const logger = createMockLogger()
     const hub = new McpConnectionManager(logger)

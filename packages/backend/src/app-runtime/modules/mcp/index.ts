@@ -20,6 +20,8 @@ export class McpModule implements RuntimeModuleMethods<'mcp'> {
   private readonly lifecycleOperations = new Set<string>()
   private readonly oauthCoordinator = new OAuthCoordinator()
   private readonly removeOAuthCallbackHandler: () => void
+  /** 启动时后台自动连接任务；测试可等待其完成，运行时不阻塞应用激活。 */
+  autoConnectPromise: Promise<void> | undefined
   /** OAuth 测试连接只按一次性 attempt 关联，不能由可变的 serverName 劫持。 */
   private readonly testSessions = new Map<string, { config: McpConfigSchema, probe: McpConnectionManager, result?: McpServerTestResult }>()
 
@@ -77,12 +79,16 @@ export class McpModule implements RuntimeModuleMethods<'mcp'> {
   }
 
   initialize() {
-    return Promise.all(
+    // 应用启动的自动连接放到后台，不阻塞 runtime 激活：
+    // npx 首次下载、远程握手超时等慢/失败场景不应拖住整个应用启动。
+    // 连接结果通过 mcp:status-changed 事件反馈，UI 照常展示状态；
+    // 自动连接不弹交互式 OAuth 授权，需要授权时保持未运行，由用户手动启动。
+    this.autoConnectPromise = Promise.all(
       this.core.data.mcpSettingsRepository.getMcpConfigs()
         .filter(config => config.enabled !== false)
-        // 应用启动的自动连接不弹交互式 OAuth 授权；需要授权时保持未运行，由用户手动启动。
         .map(config => this.connect(config, false, false)),
     ).then(() => undefined)
+    return Promise.resolve()
   }
 
   async dispose() {

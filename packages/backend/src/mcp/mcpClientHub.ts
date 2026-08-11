@@ -353,6 +353,20 @@ export class McpConnectionManager {
       transport = new StreamableHTTPClientTransport(new URL(config.url), httpOptions as never)
     }
     else {
+      // StdioClientTransport 以 shell:false 直接 spawn(command, args)，
+      // command 必须是可执行文件路径。含空白说明参数被拼进了 command
+      // （常见于直接粘贴 Claude Desktop 的整串命令格式），此时 spawn 必然
+      // ENOENT；提前抛出可读错误，避免用户面对不可操作的进程级报错。
+      if (/\s/.test(config.command)) {
+        throw new Error(`command 只允许填可执行文件（如 npx/uv/docker），参数请填写到 args；当前 command 包含空格："${config.command}"`)
+      }
+      // args 是逐参数数组，shell:false 下不会做分词。单个元素含空格说明
+      // 用户把多个参数拼成了一串（如 "npx -y pkg <url>" 被整体塞进一个
+      // args 元素），直接传给 npm 等会产生不可读的 config 解析错误。
+      const malformedArg = (config.args ?? []).find(arg => /\s/.test(arg))
+      if (malformedArg !== undefined) {
+        throw new Error(`args 参数 "${malformedArg}" 包含空格，请将每个参数分开填写（空格分隔的参数请用引号包裹）；可在 MCP 设置页重新保存该服务器自动修正`)
+      }
       transport = new StdioClientTransport({
         command: config.command,
         args: config.args,

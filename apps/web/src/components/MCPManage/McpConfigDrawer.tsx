@@ -3,7 +3,7 @@ import type { KeyValueItem } from '@/components/Common/KeyValueList'
 
 import { AddMcpConfigSchema, UpdateMcpConfigSchema } from '@ant-chat/shared'
 import { Alert, AlertDescription, AlertTitle } from '@workspace/ui/components/alert'
-import { Avatar } from '@workspace/ui/components/avatar'
+import { Avatar, AvatarFallback } from '@workspace/ui/components/avatar'
 import { Badge } from '@workspace/ui/components/badge'
 import { Button } from '@workspace/ui/components/button'
 import { EmptyState } from '@workspace/ui/components/empty-state'
@@ -16,6 +16,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { getMcpTestResult, testMcpServer } from '@/api/mcpApi'
 import { KeyValueList } from '@/components/Common/KeyValueList'
+import { ArgsList } from './ArgsList'
 import { QuickImport } from './QuickImport'
 import { SelectTransportType } from './SelectTransportType'
 
@@ -32,7 +33,7 @@ interface McpConfigForm {
   serverName: string
   transportType: 'stdio' | 'streamable-http' | ''
   command?: string
-  args?: string
+  args?: string[]
   env?: KeyValueItem[]
   headers?: KeyValueItem[]
   url?: string
@@ -49,8 +50,8 @@ export default function McpConfigDrawer({ open, mode, defaultValues, renamePermi
         transportType: defaultValues.transportType as 'stdio' | 'streamable-http',
         command: (defaultValues as Record<string, unknown>).command as string | undefined,
         args: Array.isArray((defaultValues as Record<string, unknown>).args)
-          ? ((defaultValues as Record<string, unknown>).args as string[]).join(',')
-          : ((defaultValues as Record<string, unknown>).args as string || ''),
+          ? ((defaultValues as Record<string, unknown>).args as string[])
+          : [],
         url: (defaultValues as Record<string, unknown>).url as string | undefined,
         description: defaultValues.description,
         timeout: defaultValues.timeout,
@@ -62,7 +63,7 @@ export default function McpConfigDrawer({ open, mode, defaultValues, renamePermi
         serverName: '',
         url: '',
         command: '',
-        args: '',
+        args: [],
         env: [],
         headers: [],
         transportType: '' as const,
@@ -141,7 +142,7 @@ export default function McpConfigDrawer({ open, mode, defaultValues, renamePermi
             serverName: config.serverName,
             transportType: 'stdio' as const,
             command: config.command,
-            args: config.args ? config.args.split(',').filter(Boolean) : [],
+            args: config.args?.filter(arg => arg.trim() !== '') ?? [],
             env: config.env ? envArrayToObject(config.env) : config.env,
             description: config.description,
             timeout: config.timeout,
@@ -172,7 +173,7 @@ export default function McpConfigDrawer({ open, mode, defaultValues, renamePermi
     >
       <SheetContent
         side="bottom"
-        className="h-[calc(100vh-40px)]"
+        className="h-full max-h-[calc(100vh-40px)] gap-1"
       >
         <SheetHeader>
           <SheetTitle>{mode === 'add' ? '添加MCP服务器' : '更新MCP服务器'}</SheetTitle>
@@ -184,7 +185,7 @@ export default function McpConfigDrawer({ open, mode, defaultValues, renamePermi
                 setValue('serverName', e.serverName)
                 setValue('transportType', 'stdio')
                 setValue('command', e.command)
-                setValue('args', e.args?.join(','))
+                setValue('args', e.args ?? [])
                 setValue('env', objectToArray(e.env))
               }
               else {
@@ -262,11 +263,17 @@ export default function McpConfigDrawer({ open, mode, defaultValues, renamePermi
                           <div className="flex flex-col gap-1">
                             <FormItemLabel name="命令" tag="command" />
                             <Input placeholder="例如： npx / uv / docker" {...register('command', { required: true })} />
+                            <p className="text-xs text-muted-foreground">
+                              command 只填可执行文件，参数填在下方「命令参数」；粘贴完整命令行请使用上方「快速导入JSON配置」
+                            </p>
                           </div>
 
                           <div className="flex flex-col gap-1">
-                            <FormItemLabel name="命令参数" tag="args" />
-                            <Input placeholder="参数用逗号分隔" {...register('args')} />
+                            <ArgsList
+                              label={<FormItemLabel name="命令参数" tag="args" />}
+                              value={watch('args') ?? []}
+                              onChange={v => setValue('args', v)}
+                            />
                           </div>
 
                           <KeyValueList
@@ -366,7 +373,9 @@ export default function McpConfigDrawer({ open, mode, defaultValues, renamePermi
                   <div className="p-3">
                     <div className="flex items-center gap-3 rounded-md bg-card p-3 text-card-foreground">
                       <Avatar className="size-9 rounded-full">
-                        <span>{previewConfig?.serverName?.[0]}</span>
+                        <AvatarFallback>
+                          {previewConfig?.serverName?.[0].toUpperCase()}
+                        </AvatarFallback>
                       </Avatar>
                       <div>
                         <div className="text-xl">{previewConfig?.serverName}</div>
@@ -490,7 +499,7 @@ function toAddMcpConfig(config: McpConfigForm): AddMcpConfigSchema {
         serverName: config.serverName,
         transportType: 'stdio',
         command: config.command || '',
-        args: config.args ? config.args.split(',').filter(Boolean) : [],
+        args: config.args?.filter(arg => arg.trim() !== '') ?? [],
         env: envArrayToObject(config.env),
         description: config.description,
         timeout: config.timeout,

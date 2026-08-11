@@ -105,6 +105,11 @@ class FakeMcpClientHub {
   }
 }
 
+/** initialize 改为后台自动连接，测试需显式等待后台任务完成。 */
+async function flushAutoConnect(module: McpModule): Promise<void> {
+  await (module as unknown as { autoConnectPromise?: Promise<void> }).autoConnectPromise
+}
+
 describe('mcp module 生命周期', () => {
   let dir: string
   let repository: McpSettingsRepository
@@ -224,6 +229,7 @@ describe('mcp module 生命周期', () => {
     repository.addMcpConfig(stdioConfig('enabled'))
 
     await module.initialize()
+    await flushAutoConnect(module)
 
     expect(hub.connections.map(connection => connection.server.name)).toEqual(['enabled'])
     expect(repository.getMcpConfigByServerName('disabled')).toEqual(expect.objectContaining({ enabled: false }))
@@ -335,6 +341,7 @@ describe('mcp module 生命周期', () => {
     hub.pendingOAuthUrl = 'https://auth.example.com/authorize'
 
     await module.initialize()
+    await flushAutoConnect(module)
 
     expect(openAuthorization).not.toHaveBeenCalled()
     expect(hub.connections).toEqual([])

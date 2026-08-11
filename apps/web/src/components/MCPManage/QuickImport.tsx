@@ -1,8 +1,9 @@
-import { AddMcpConfigSchema } from '@ant-chat/shared'
+import type { AddMcpConfigSchema } from '@ant-chat/shared'
 import { Alert, AlertTitle } from '@workspace/ui/components/alert'
 import { Button } from '@workspace/ui/components/button'
 import { Textarea } from '@workspace/ui/components/textarea'
 import React from 'react'
+import { parseMcpServerJsonText } from './quickImportParser'
 
 interface QuickImportProps {
   onImport?: (e: AddMcpConfigSchema) => void
@@ -85,37 +86,4 @@ export function QuickImport({ onImport }: QuickImportProps) {
           快速导入JSON配置
         </Button>
       )
-}
-
-interface ServerJson {
-  mcpServers: {
-    [key: string]: {
-      transportType?: 'streamable-http' | 'stdio'
-      command?: string
-      args?: string[]
-      env?: Record<string, string | number | boolean>
-      url?: string
-    }
-  }
-}
-
-function parseMcpServerJsonText(text: string): AddMcpConfigSchema {
-  const data = JSON.parse(text) as ServerJson
-  if (typeof data.mcpServers !== 'object') {
-    throw new TypeError('mcpServers 格式错误')
-  }
-  const entries = Object.entries(data.mcpServers)
-
-  if (entries.length === 0) {
-    throw new Error('mcpServers 为空')
-  }
-
-  const [serverName, config] = entries[0]
-
-  const options = { ...config, serverName, transportType: 'stdio' }
-
-  if (config.url) {
-    options.transportType = 'streamable-http'
-  }
-  return AddMcpConfigSchema.parse(options)
 }
