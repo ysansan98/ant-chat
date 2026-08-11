@@ -209,6 +209,23 @@ describe('ant-chat CLI 命令', () => {
     })
   })
 
+  it('image recognize 支持空格形式 --file-id <id>（值不泄漏为 path）', async () => {
+    const client = createClient({ providerId: 'provider-1', modelId: 'vision-model', text: 'ok' })
+
+    await executeCommand(client as never, [
+      'image',
+      'recognize',
+      '--file-id',
+      'img-1',
+    ], { json: true })
+
+    expect(client.send).toHaveBeenCalledWith({
+      type: 'image',
+      action: 'recognize',
+      fileId: 'img-1',
+    })
+  })
+
   it('image recognize 缺少 path 和 --file-id 时报用法错误', async () => {
     const client = createClient()
 

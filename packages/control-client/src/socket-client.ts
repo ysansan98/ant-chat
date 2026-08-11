@@ -4,6 +4,8 @@ import { readFileSync } from 'node:fs'
 import { connect } from 'node:net'
 import * as os from 'node:os'
 import * as path from 'node:path'
+import process from 'node:process'
+import { resolveAppDataRoot } from '@ant-chat/shared'
 
 export interface ControlEndpointMeta {
   protocolVersion: number
@@ -13,7 +15,9 @@ export interface ControlEndpointMeta {
 }
 
 const CONNECT_TIMEOUT_MS = 5_000
-const RESPONSE_TIMEOUT_MS = 60_000
+// 视觉模型识别是同步调用，慢模型可能超过 60 秒；与 image-recognition SKILL 建议的
+// execute_command timeoutMs 对齐，避免 CLI 比调用方更早放弃。
+const RESPONSE_TIMEOUT_MS = 120_000
 
 export class SocketClient {
   private meta?: ControlEndpointMeta
@@ -24,21 +28,56 @@ export class SocketClient {
   loadMeta(): ControlEndpointMeta {
     if (this.meta)
       return this.meta
-    const metaPath = path.join(this.appDataRoot, '.control-endpoint.json')
-    try {
-      const raw = readFileSync(metaPath, 'utf-8')
-      const meta = JSON.parse(raw) as ControlEndpointMeta
-      if (meta.protocolVersion !== 1) {
-        throw new Error(`不支持的控制协议版本：${meta.protocolVersion}`)
+    const primary = this.readMeta(this.appDataRoot)
+    if (primary && isProcessAlive(primary.pid)) {
+      this.meta = primary
+      return primary
+    }
+
+    // 默认数据根不可用（服务未启动，或端点文件是残留）时，回退探测另一默认根
+    // （~/.ant-chat <-> ~/.ant-chat-dev）：CLI 应连接实际运行中的 Runtime，
+    // 而不依赖调用方 shell 是否设置了 ANT_CHAT_ENV。显式 --data-dir 的自定义根不做回退。
+    const siblingRoot = this.siblingDefaultDataRoot()
+    if (siblingRoot) {
+      const fallback = this.readMeta(siblingRoot)
+      if (fallback && isProcessAlive(fallback.pid)) {
+        this.meta = fallback
+        return fallback
       }
-      this.meta = meta
-      return meta
     }
-    catch (err) {
-      throw new Error(
-        `无法连接到 ant-chat Runtime。请确认服务已启动（${metaPath}：${err instanceof Error ? err.message : String(err)}）`,
-      )
+
+    const primaryPath = path.join(this.appDataRoot, '.control-endpoint.json')
+    if (primary) {
+      throw new Error(`无法连接到 ant-chat Runtime。控制进程 ${primary.pid} 已退出，端点元数据为残留（${primaryPath}）`)
     }
+    throw new Error(`无法连接到 ant-chat Runtime。请确认服务已启动（${primaryPath}：不存在）`)
+  }
+
+  private readMeta(dataRoot: string): ControlEndpointMeta | undefined {
+    const metaPath = path.join(dataRoot, '.control-endpoint.json')
+    let raw: string
+    try {
+      raw = readFileSync(metaPath, 'utf-8')
+    }
+    catch {
+      return undefined
+    }
+    const meta = JSON.parse(raw) as ControlEndpointMeta
+    if (meta.protocolVersion !== 1)
+      return undefined
+    return meta
+  }
+
+  /** 当前数据根属于 dev/prod 默认根之一时，返回另一个默认根；自定义根返回 undefined。 */
+  private siblingDefaultDataRoot(): string | undefined {
+    const current = path.resolve(this.appDataRoot)
+    const development = resolveAppDataRoot('development')
+    const production = resolveAppDataRoot('production')
+    if (current === path.resolve(development))
+      return production
+    if (current === path.resolve(production))
+      return development
+    return undefined
   }
 
   /** 发送命令并等待响应 */
@@ -105,7 +144,8 @@ export class SocketClient {
         // 连接错误可能是 socket 文件不存在或 AppRuntime 未启动
         const nodeErr = err as NodeJS.ErrnoException
         if (nodeErr.code === 'ENOENT' || nodeErr.code === 'ECONNREFUSED') {
-          reject(new Error(`无法连接到 ant-chat Runtime。请确认服务已启动\n  控制端点：${endpoint}`))
+          // 端点元数据里的 pid 已退出时，说明文件是上次运行残留，而不是有进程在监听。
+          reject(new Error(`无法连接到 ant-chat Runtime。请确认服务已启动\n  控制端点：${endpoint}${isProcessAlive(meta.pid) ? '' : `（控制进程 ${meta.pid} 已退出，端点元数据为残留）`}`))
         }
         else {
           reject(err)
@@ -120,5 +160,18 @@ export class SocketClient {
         }
       })
     })
+  }
+}
+
+/** 检查 pid 是否存活（0 信号只探测不发送）。 */
+function isProcessAlive(pid: number): boolean {
+  if (!Number.isInteger(pid) || pid <= 0)
+    return false
+  try {
+    process.kill(pid, 0)
+    return true
+  }
+  catch {
+    return false
   }
 }

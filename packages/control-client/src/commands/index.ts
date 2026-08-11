@@ -430,7 +430,14 @@ function parseImage(args: string[]): AppControlCommand {
   switch (action) {
     case 'recognize': {
       const parsed = parseNamedArgs(rest)
-      const positional = rest.filter(arg => !arg.startsWith('--'))
+      // 位置参数 = 不以 -- 开头、且不是前一个命名选项的值；
+      // 否则 `--file-id img-1` 里的 img-1 会同时被当成 path 和 fileId，触发互斥校验。
+      const positional = rest.filter((arg, index) => {
+        if (arg.startsWith('--'))
+          return false
+        const prev = rest[index - 1]
+        return !(prev?.startsWith('--') && !prev.includes('='))
+      })
       if (positional.length === 0 && !parsed.fileId) {
         throw new Error('用法：ant-chat image recognize [<path> | --file-id <id>] [--prompt <指令>] [--provider-id <id> --model-id <id>]')
       }
