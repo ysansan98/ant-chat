@@ -37,6 +37,7 @@
     "registry": "https://registry.npmjs.org/"
   },
   "scripts": {
+    "predev": "node ../../scripts/native-abi.mjs --sync node",
     "build": "tsdown && node ../../scripts/copy-product-builtin-skills.mjs && pnpm -F @ant-chat/web build --outDir ../../packages/ant-chat/dist/web --emptyOutDir false",
     "clean": "rm -rf dist node_modules",
     "dev": "ANT_CHAT_ENV=development node ../../scripts/link-cli-dev.mjs && ANT_CHAT_ENV=development tsx watch --conditions=development --exclude '../../apps/web/node_modules' --exclude '../../apps/web/dist' --exclude '../../apps/desktop/out' --exclude '../../apps/desktop/release' src/dev.ts",
