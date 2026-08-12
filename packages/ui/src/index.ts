@@ -3,6 +3,7 @@
 // 新增公共模块时需同步补充导出（或改用目录通配导出）。
 export * from './components/ai-elements/attachments'
 export * from './components/ai-elements/code-block'
+export * from './components/ai-elements/markdown'
 export * from './components/ai-elements/message'
 export * from './components/ai-elements/prompt-input'
 export * from './components/ai-elements/shimmer'

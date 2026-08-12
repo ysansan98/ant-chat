@@ -3,6 +3,7 @@ import { cn } from '@workspace/ui/lib/utils'
 import { ChevronRightIcon, FileIcon, FolderIcon, FolderOpenIcon, Loader2Icon } from 'lucide-react'
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import workspaceApi from '@/api/workspaceApi'
+import { toErrorMessage } from '@/utils/util'
 
 interface FileTreeProps {
   workspacePath: string
@@ -19,6 +20,9 @@ type EntriesByPath = Record<string, WorkspaceTreeEntry[]>
  * 工作区文件树（懒加载）。
  * 根目录 relPath 约定为空串 ''；展开目录时按需调用 listDirectoryEntries。
  * requestId 守卫保证工作区切换 / 快速展开时旧请求的结果不会覆盖新状态。
+ *
+ * 缩进通过递归嵌套实现：子目录容器统一 pl-3.5（14px），自然累加层级缩进，
+ * 无需 depth 参数或内联 paddingLeft。
  */
 export function FileTree({ workspacePath, selectedPath, revealPath, onSelectFile }: FileTreeProps) {
   const [entriesByPath, setEntriesByPath] = useState<EntriesByPath>({})
@@ -161,7 +165,7 @@ export function FileTree({ workspacePath, selectedPath, revealPath, onSelectFile
     }
   }
 
-  function renderDirectory(entry: WorkspaceTreeEntry, depth: number) {
+  function renderDirectory(entry: WorkspaceTreeEntry) {
     const isExpanded = expandedPaths.has(entry.relPath)
     const isLoading = loadingPaths[entry.relPath]
     return (
@@ -169,8 +173,7 @@ export function FileTree({ workspacePath, selectedPath, revealPath, onSelectFile
         <button
           type="button"
           data-tree-rel-path={entry.relPath}
-          className="flex w-full min-w-0 items-center gap-1.5 rounded-md py-1 pr-2 text-left text-sm text-foreground/85 transition-colors hover:bg-accent/60"
-          style={{ paddingLeft: depth * 14 + 6 }}
+          className="flex w-full min-w-0 items-center gap-1.5 rounded-md py-1 pr-2 pl-1.5 text-left text-sm text-foreground/85 transition-colors hover:bg-accent"
           aria-expanded={isExpanded}
           onClick={() => toggleDirectory(entry.relPath)}
         >
@@ -182,20 +185,21 @@ export function FileTree({ workspacePath, selectedPath, revealPath, onSelectFile
             : <FolderIcon className="size-4 shrink-0 text-muted-foreground" />}
           <span className="truncate">{entry.name}</span>
         </button>
+        {/* 子条目容器：pl-3.5（14px）自然累加层级缩进 */}
         {isExpanded && (
-          <div>
+          <div className="pl-3.5">
             {isLoading
-              ? <LoadingRow depth={depth + 1} />
+              ? <LoadingRow />
               : errorByPath[entry.relPath]
-                ? <ErrorRow depth={depth + 1} message={errorByPath[entry.relPath]} />
-                : renderEntries(entry.relPath, depth + 1)}
+                ? <ErrorRow message={errorByPath[entry.relPath]} />
+                : renderEntries(entry.relPath)}
           </div>
         )}
       </Fragment>
     )
   }
 
-  function renderFile(entry: WorkspaceTreeEntry, depth: number) {
+  function renderFile(entry: WorkspaceTreeEntry) {
     const selected = selectedPath === entry.relPath
     return (
       <button
@@ -203,12 +207,11 @@ export function FileTree({ workspacePath, selectedPath, revealPath, onSelectFile
         key={entry.relPath}
         data-tree-rel-path={entry.relPath}
         className={cn(
-          'flex w-full min-w-0 items-center gap-1.5 rounded-md py-1 pr-2 text-left text-sm transition-colors',
+          'flex w-full min-w-0 items-center gap-1.5 rounded-md py-1 pr-2 pl-6.5 text-left text-sm transition-colors',
           selected
             ? 'bg-accent font-medium text-accent-foreground'
-            : 'text-foreground/85 hover:bg-accent/60',
+            : 'text-foreground/85 hover:bg-accent',
         )}
-        style={{ paddingLeft: depth * 14 + 20 }}
         onClick={() => onSelectFile(entry)}
       >
         <FileIcon className="size-4 shrink-0 text-muted-foreground" />
@@ -217,15 +220,15 @@ export function FileTree({ workspacePath, selectedPath, revealPath, onSelectFile
     )
   }
 
-  function renderEntries(dirPath: string, depth: number) {
+  function renderEntries(dirPath: string) {
     const entries = entriesByPath[dirPath]
     if (!entries || entries.length === 0) {
-      return <div className="px-3 py-1 text-xs text-muted-foreground" style={{ paddingLeft: depth * 14 + 22 }}>空目录</div>
+      return <div className="py-1 pl-5 text-xs text-muted-foreground">空目录</div>
     }
     return entries.map(entry =>
       entry.type === 'directory'
-        ? renderDirectory(entry, depth)
-        : renderFile(entry, depth),
+        ? renderDirectory(entry)
+        : renderFile(entry),
     )
   }
 
@@ -234,19 +237,18 @@ export function FileTree({ workspacePath, selectedPath, revealPath, onSelectFile
   return (
     <div className="py-1">
       {loadingPaths[''] && !rootEntries
-        ? <LoadingRow depth={0} />
+        ? <LoadingRow />
         : errorByPath['']
-          ? <ErrorRow depth={0} message={errorByPath['']} />
-          : renderEntries('', 0)}
+          ? <ErrorRow message={errorByPath['']} />
+          : renderEntries('')}
     </div>
   )
 }
 
-function LoadingRow({ depth }: { depth: number }) {
+function LoadingRow() {
   return (
     <div
-      className="flex items-center gap-1.5 py-1 text-xs text-muted-foreground"
-      style={{ paddingLeft: depth * 14 + 22 }}
+      className="flex items-center gap-1.5 py-1 pl-5 text-xs text-muted-foreground"
       data-testid="file-tree-loading"
     >
       <Loader2Icon className="size-3.5 animate-spin" />
@@ -255,12 +257,9 @@ function LoadingRow({ depth }: { depth: number }) {
   )
 }
 
-function ErrorRow({ depth, message }: { depth: number, message: string }) {
+function ErrorRow({ message }: { message: string }) {
   return (
-    <div
-      className="py-1 text-xs text-destructive"
-      style={{ paddingLeft: depth * 14 + 22 }}
-    >
+    <div className="py-1 pl-5 text-xs text-destructive">
       {message}
     </div>
   )
@@ -273,8 +272,4 @@ function omitKey<T>(record: Record<string, T>, key: string): Record<string, T> {
   const next = { ...record }
   delete next[key]
   return next
-}
-
-function toErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }

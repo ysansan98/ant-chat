@@ -6,8 +6,14 @@ import { Spinner } from '@workspace/ui/components/spinner'
 import { ChevronRightIcon, ExternalLinkIcon, FileTextIcon } from 'lucide-react'
 import { Fragment } from 'react'
 import { detectFileLanguage } from '../Workspace/fileLanguage'
-import { isMarkdownFileName } from './fileView'
+import { detectFileKind, isMarkdownFileName } from './fileView'
 import { MarkdownPreview } from './MarkdownPreview'
+import { AudioPreview } from './previews/AudioPreview'
+import { DocxPreview } from './previews/DocxPreview'
+import { ExcelPreview } from './previews/ExcelPreview'
+import { ImagePreview } from './previews/ImagePreview'
+import { PdfPreview } from './previews/PdfPreview'
+import { VideoPreview } from './previews/VideoPreview'
 
 export type MarkdownMode = 'preview' | 'source'
 
@@ -16,6 +22,8 @@ export interface FileTabView {
   file: WorkspaceTreeEntry
   status: 'loading' | 'ready' | 'error'
   content?: WorkspaceTextFileContent
+  /** 媒体文件（图片/音视频/Excel）的流式预览 URL */
+  url?: string
   error?: string
   mode: MarkdownMode
 }
@@ -138,8 +146,31 @@ function ContentView({ file, view }: {
       </div>
     )
   }
+  const kind = detectFileKind(file.name)
+
+  // 媒体类型：走流式 URL 预览（content 为空属于预期）
+  if (kind === 'image' && view.url) {
+    return <ImagePreview url={view.url} fileName={file.name} />
+  }
+  if (kind === 'audio' && view.url) {
+    return <AudioPreview url={view.url} fileName={file.name} />
+  }
+  if (kind === 'video' && view.url) {
+    return <VideoPreview url={view.url} fileName={file.name} />
+  }
+  if (kind === 'excel' && view.url) {
+    return <ExcelPreview url={view.url} fileName={file.name} />
+  }
+  if (kind === 'pdf' && view.url) {
+    return <PdfPreview url={view.url} fileName={file.name} />
+  }
+  if (kind === 'docx' && view.url) {
+    return <DocxPreview url={view.url} fileName={file.name} />
+  }
+
+  // 文本类：需要 content
   const content = view.content!
-  if (view.mode === 'preview' && isMarkdownFileName(file.name)) {
+  if (kind === 'markdown' && view.mode === 'preview') {
     return <MarkdownPreview content={content.content} />
   }
   return (

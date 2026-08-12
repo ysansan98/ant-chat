@@ -19,9 +19,10 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from '
 import { toast } from 'sonner'
 import workspaceApi from '@/api/workspaceApi'
 import { useWorkspaceStore } from '@/store/workspace'
+import { loadClampedNumber, toErrorMessage } from '@/utils/util'
 import { ExecutionTracePanel } from '../ExecutionTrace'
 import { FilesPanel } from './FilesPanel'
-import { isMarkdownFileName } from './fileView'
+import { detectFileKind, isMarkdownFileName } from './fileView'
 import { ResizeHandle } from './ResizeHandle'
 
 export type SidebarTabKind = 'files' | 'trace'
@@ -102,15 +103,31 @@ export function RightSidebar({
     const key = `${tabId}:${relPath}`
     const requestId = (fileRequestIdsRef.current[key] ?? 0) + 1
     fileRequestIdsRef.current[key] = requestId
+    const fileName = relPath.split('/').pop() ?? relPath
+    const kind = detectFileKind(fileName)
+    const isTextLike = kind === 'text' || kind === 'markdown'
     try {
-      const content = await workspaceApi.readTextFile(workspacePath, relPath)
-      if (fileRequestIdsRef.current[key] !== requestId) {
-        return
+      if (isTextLike) {
+        const content = await workspaceApi.readTextFile(workspacePath, relPath)
+        if (fileRequestIdsRef.current[key] !== requestId) {
+          return
+        }
+        setFileViews((prev) => {
+          const current = prev[tabId]
+          return current?.file.relPath === relPath ? { ...prev, [tabId]: { ...current, status: 'ready', content } } : prev
+        })
       }
-      setFileViews((prev) => {
-        const current = prev[tabId]
-        return current?.file.relPath === relPath ? { ...prev, [tabId]: { ...current, status: 'ready', content } } : prev
-      })
+      else {
+        // 媒体文件（图片/音视频/Excel）：构造流式 URL 即可预览，无需读取内容
+        const url = workspaceApi.getFileStreamUrl(workspacePath, relPath)
+        if (fileRequestIdsRef.current[key] !== requestId) {
+          return
+        }
+        setFileViews((prev) => {
+          const current = prev[tabId]
+          return current?.file.relPath === relPath ? { ...prev, [tabId]: { ...current, status: 'ready', url } } : prev
+        })
+      }
     }
     catch (cause) {
       if (fileRequestIdsRef.current[key] !== requestId) {
@@ -286,7 +303,7 @@ export function RightSidebar({
     <aside
       className={cn(
         'relative flex h-full shrink-0 flex-col overflow-hidden border-l border-border bg-background transition-[width,opacity,visibility] duration-300',
-        open ? 'shadow-xl' : 'pointer-events-none invisible border-l-transparent opacity-0 shadow-none',
+        open ? 'border-l-border' : 'pointer-events-none invisible border-l-transparent opacity-0',
       )}
       style={{ width: open ? width : 0, minWidth: 0, maxWidth: '80vw' }}
       aria-label="右侧辅助栏"
@@ -446,16 +463,5 @@ function useMediaQuery(query: string): boolean {
 }
 
 function loadSavedWidth(): number {
-  try {
-    const raw = window.localStorage.getItem(WIDTH_STORAGE_KEY)
-    const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN
-    return Number.isFinite(parsed) ? Math.max(MIN_PANEL_WIDTH, parsed) : DEFAULT_PANEL_WIDTH
-  }
-  catch {
-    return DEFAULT_PANEL_WIDTH
-  }
-}
-
-function toErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
+  return loadClampedNumber(WIDTH_STORAGE_KEY, MIN_PANEL_WIDTH, undefined, DEFAULT_PANEL_WIDTH)
 }

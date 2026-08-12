@@ -5,6 +5,7 @@ import type {
   WorkspaceFileSearchResult,
   WorkspaceTextFileContent,
 } from '@ant-chat/shared'
+import { isElectronRuntime } from '@/utils/ipc-bus'
 import { getAppRpcClient } from './transports/appRpc'
 
 async function listWorkspaces(): Promise<ListWorkspacesData> {
@@ -55,6 +56,19 @@ async function openWithDefaultApp(workspacePath: string, relPath: string): Promi
   return getAppRpcClient().call('workspace.openWithDefaultApp', { workspacePath, relPath })
 }
 
+/**
+ * 构造工作区文件的流式预览 URL。
+ * - Web：走本地 HTTP 端点 /api/workspace/file（支持 Range）。
+ * - Electron：走自定义 scheme antchat-ws-file（protocol.handle 流式 + Range）。
+ * 安全校验由后端 workspace.resolveFileForStream 统一完成。
+ */
+function getFileStreamUrl(workspacePath: string, relPath: string): string {
+  const params = new URLSearchParams({ workspacePath, relPath })
+  return isElectronRuntime()
+    ? `antchat-ws-file://file?${params.toString()}`
+    : `/api/workspace/file?${params.toString()}`
+}
+
 export default {
   listWorkspaces,
   addWorkspace,
@@ -68,4 +82,5 @@ export default {
   listDirectoryEntries,
   readTextFile,
   openWithDefaultApp,
+  getFileStreamUrl,
 }

@@ -1,6 +1,7 @@
 import type { AppRuntime } from '@ant-chat/backend'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { Buffer } from 'node:buffer'
+import fs from 'node:fs'
 import { createServer as createHttpServer } from 'node:http'
 
 const MAX_RPC_BODY_BYTES = 32 * 1024 * 1024
@@ -55,6 +56,10 @@ export function createLocalApiHandler(runtime: object, limits?: RpcLimits): Loca
           const fileId = fileMatch[1]
           const mimeType = url.searchParams.get('type') || 'application/octet-stream'
           await serveAttachmentFile(fileId, mimeType, res, appRuntime)
+          return true
+        }
+        if (url.pathname === '/api/workspace/file') {
+          await serveWorkspaceFile(url, req, res, appRuntime)
           return true
         }
       }
@@ -187,4 +192,93 @@ async function serveAttachmentFile(
     res.writeHead(500, { 'content-type': 'application/json; charset=utf-8' })
     res.end(JSON.stringify({ success: false, msg: message }))
   }
+}
+
+/**
+ * 工作区文件流式预览端点：通过 RPC 解析已校验的真实路径与元信息，
+ * 再以 Range 请求流式返回文件内容。安全校验在 workspace.resolveFileForStream 完成。
+ */
+async function serveWorkspaceFile(
+  url: URL,
+  req: IncomingMessage,
+  res: ServerResponse,
+  runtime: AppRuntime,
+): Promise<void> {
+  const workspacePath = url.searchParams.get('workspacePath') ?? ''
+  const relPath = url.searchParams.get('relPath') ?? ''
+  if (!workspacePath || !relPath) {
+    res.writeHead(400, { 'content-type': 'application/json; charset=utf-8' })
+    res.end(JSON.stringify({ success: false, msg: 'workspacePath 与 relPath 不能为空' }))
+    return
+  }
+  let info: { absolutePath: string, size: number, mediaType: string }
+  try {
+    info = await runtime.invoke('workspace.resolveFileForStream', { workspacePath, relPath })
+  }
+  catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    res.writeHead(403, { 'content-type': 'application/json; charset=utf-8' })
+    res.end(JSON.stringify({ success: false, msg: message }))
+    return
+  }
+  await serveFileWithRange(req, res, info.absolutePath, info.size, info.mediaType)
+}
+
+/**
+ * 带Range的文件流式响应：支持 bytes=start-end / bytes=start- / bytes=-suffix，
+ * 用于视频进度拖动等场景。无 Range 头时全量返回。
+ */
+async function serveFileWithRange(
+  req: IncomingMessage,
+  res: ServerResponse,
+  filePath: string,
+  size: number,
+  mediaType: string,
+): Promise<void> {
+  const baseHeaders: Record<string, string> = {
+    'content-type': mediaType,
+    'accept-ranges': 'bytes',
+    'cache-control': 'public, max-age=86400, immutable',
+  }
+
+  const rangeHeader = req.headers.range
+  if (!rangeHeader) {
+    res.writeHead(200, { ...baseHeaders, 'content-length': size.toString() })
+    fs.createReadStream(filePath).pipe(res)
+    return
+  }
+
+  const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader)
+  if (!match) {
+    res.writeHead(416, { 'content-range': `bytes */${size}` })
+    res.end()
+    return
+  }
+
+  const isSuffix = match[1] === '' && match[2] !== ''
+  let start: number
+  let end: number
+  if (isSuffix) {
+    const n = Number.parseInt(match[2], 10)
+    start = Math.max(0, size - n)
+    end = size - 1
+  }
+  else {
+    start = Number.parseInt(match[1], 10)
+    end = match[2] ? Number.parseInt(match[2], 10) : size - 1
+  }
+
+  if (Number.isNaN(start) || start > end || start < 0 || end >= size) {
+    res.writeHead(416, { 'content-range': `bytes */${size}` })
+    res.end()
+    return
+  }
+
+  const chunkSize = end - start + 1
+  res.writeHead(206, {
+    ...baseHeaders,
+    'content-range': `bytes ${start}-${end}/${size}`,
+    'content-length': chunkSize.toString(),
+  })
+  fs.createReadStream(filePath, { start, end }).pipe(res)
 }

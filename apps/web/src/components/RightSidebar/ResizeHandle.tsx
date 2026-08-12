@@ -37,5 +37,5 @@ export function ResizeHandle({ width, minWidth, maxWidth, onWidthChange }: Resiz
     document.addEventListener('pointerup', finish)
   }
 
-  return <div className="absolute inset-y-0 -left-1 z-10 w-2 cursor-ew-resize hover:bg-primary/20" onPointerDown={handlePointerDown} />
+  return <div className="absolute inset-y-0 -left-1 z-10 w-2 cursor-ew-resize transition-colors hover:bg-accent" onPointerDown={handlePointerDown} />
 }

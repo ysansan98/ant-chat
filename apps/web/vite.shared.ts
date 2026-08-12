@@ -38,6 +38,9 @@ export function createWebRendererViteConfig({
     resolve: {
       conditions,
       alias: [
+        // wasm-bindgen glue code 从 Node 内置模块导入，浏览器环境需 shim
+        { find: 'util', replacement: resolve(rootDir, 'src/lib/util-shim.ts') },
+        { find: 'async_hooks', replacement: resolve(rootDir, 'src/lib/util-shim.ts') },
         { find: /^shiki\/engine\/javascript$/, replacement: resolve(rootDir, '../../packages/ui/src/lib/shiki-engine-shim.ts') },
         { find: /^shiki$/, replacement: resolve(rootDir, '../../packages/ui/src/lib/shiki-shim.ts') },
         { find: '@', replacement: resolve(rootDir, 'src') },
@@ -84,6 +87,7 @@ export function createWebRendererViteConfig({
         '@ant-chat/shared',
         '@workspace/ui/components/ai-elements/attachments',
         '@workspace/ui/components/ai-elements/code-block',
+        '@workspace/ui/components/ai-elements/markdown',
         '@workspace/ui/components/ai-elements/message',
         '@workspace/ui/components/ai-elements/prompt-input',
         '@workspace/ui/components/ai-elements/shimmer',
@@ -123,7 +127,19 @@ export function createWebRendererViteConfig({
         '@workspace/ui/hooks/use-theme',
         '@workspace/ui/lib/clipboard',
         '@workspace/ui/lib/utils',
+        // 预览库：含 WASM glue code，需预构建以正确解析依赖
+        '@extend-ai/react-xlsx',
+        '@extend-ai/react-docx',
+        '@embedpdf/react-pdf-viewer',
       ],
+      // Vite 8 用 Rolldown 预构建依赖；Node 内置模块在浏览器环境需 shim
+      // （wasm-bindgen glue code 引用 util / async_hooks）
+      rolldownOptions: {
+        alias: {
+          'util': resolve(rootDir, 'src/lib/util-shim.ts'),
+          'async_hooks': resolve(rootDir, 'src/lib/util-shim.ts'),
+        },
+      },
     },
   }
 }
