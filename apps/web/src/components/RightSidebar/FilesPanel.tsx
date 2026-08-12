@@ -14,6 +14,7 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import workspaceApi from '@/api/workspaceApi'
 import { useWorkspaceStore } from '@/store/workspace'
+import { loadClampedNumber, toErrorMessage } from '@/utils/util'
 import { FileTree } from '../Workspace/FileTree'
 import { FileContentArea, FileHeader, NoFileSelectedState } from './FileContentArea'
 import { ResizeHandle } from './ResizeHandle'
@@ -56,7 +57,7 @@ export function FilesPanel({
 }: FilesPanelProps) {
   const workspacePath = useWorkspaceStore(state => state.currentWorkspacePath)
   const [treeVisible, setTreeVisible] = useState(true)
-  const [treeWidth, setTreeWidth] = useState(loadSavedTreeWidth)
+  const [treeWidth, setTreeWidth] = useState(() => loadClampedNumber(TREE_WIDTH_KEY, MIN_TREE_WIDTH, MAX_TREE_WIDTH, DEFAULT_TREE_WIDTH))
   const [filterQuery, setFilterQuery] = useState('')
   const [searchResults, setSearchResults] = useState<WorkspaceFileSearchResult[] | null>(null)
   const [searchStatus, setSearchStatus] = useState<SearchStatus>('idle')
@@ -221,17 +222,6 @@ export function FilesPanel({
   )
 }
 
-function loadSavedTreeWidth(): number {
-  try {
-    const raw = window.localStorage.getItem(TREE_WIDTH_KEY)
-    const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN
-    return Number.isFinite(parsed) ? Math.max(MIN_TREE_WIDTH, Math.min(MAX_TREE_WIDTH, parsed)) : DEFAULT_TREE_WIDTH
-  }
-  catch {
-    return DEFAULT_TREE_WIDTH
-  }
-}
-
 function SearchResults({ status, results, error, onSelectFile, onSelectDir }: {
   status: SearchStatus
   results: WorkspaceFileSearchResult[]
@@ -255,7 +245,7 @@ function SearchResults({ status, results, error, onSelectFile, onSelectDir }: {
           type="button"
           key={item.path}
           className={cn(
-            'flex w-full min-w-0 items-center gap-1.5 rounded-md px-2 py-1 pr-2 text-left text-xs text-foreground/85 transition-colors hover:bg-accent/60',
+            'flex w-full min-w-0 items-center gap-1.5 rounded-md px-2 py-1 pr-2 text-left text-xs text-foreground/85 transition-colors hover:bg-accent',
           )}
           onClick={() => (item.type === 'file' ? onSelectFile(item) : onSelectDir(item))}
         >
@@ -277,8 +267,4 @@ function parentDirOf(relPath: string): string {
 
 function workspaceNameOf(workspacePath: string): string {
   return workspacePath ? (workspacePath.split('/').filter(Boolean).pop() ?? workspacePath) : ''
-}
-
-function toErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }

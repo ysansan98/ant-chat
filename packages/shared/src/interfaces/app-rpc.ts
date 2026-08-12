@@ -51,6 +51,7 @@ import type {
   WorkspaceDirectoryEntries,
   WorkspaceDirectoryListing,
   WorkspaceFileSearchResult,
+  WorkspaceFileStreamInfo,
   WorkspaceTextFileContent,
 } from './workspace'
 
@@ -182,6 +183,7 @@ export interface AppRpcContract {
   'workspace.listDirectoryEntries': RpcEndpoint<{ workspacePath: string, relPath?: string }, WorkspaceDirectoryEntries>
   'workspace.readTextFile': RpcEndpoint<{ workspacePath: string, relPath: string }, WorkspaceTextFileContent>
   'workspace.openWithDefaultApp': RpcEndpoint<{ workspacePath: string, relPath: string }, void>
+  'workspace.resolveFileForStream': RpcEndpoint<{ workspacePath: string, relPath: string }, WorkspaceFileStreamInfo>
 
   'agent.startTurn': RpcEndpoint<{ options: StartAgentTurnOptions }, AgentTurnResult>
   'agent.approvePendingAction': RpcEndpoint<{ options: ApprovePendingActionOptions }, null>

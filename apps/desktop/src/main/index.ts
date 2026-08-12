@@ -7,11 +7,15 @@ import { UpdateService } from './domains/update/updateService'
 import { setupDockIcon } from './utils/dockIcon'
 import { logger } from './utils/logger'
 import { MainWindow } from './windows/window'
+import { registerWorkspaceFileProtocol, registerWorkspaceFileScheme } from './workspace-file-protocol'
 import './bridge'
 
 const __dirname = process.cwd()
 
 logger.info('Electron 主进程启动', __dirname)
+
+// 注册工作区文件流式预览 scheme（须在 app ready 之前）
+registerWorkspaceFileScheme()
 
 const cliMarkerIndex = process.argv.indexOf('--ant-chat-cli')
 
@@ -30,6 +34,9 @@ if (cliMarkerIndex !== -1) {
 else {
   void app.whenReady().then(async () => {
     await activateDesktopAppRuntime()
+
+    // 注册工作区文件流式预览 protocol（图片/音视频/Excel 预览所需）
+    registerWorkspaceFileProtocol()
 
     setupDockIcon()
 

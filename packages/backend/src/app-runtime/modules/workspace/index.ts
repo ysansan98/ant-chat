@@ -2,7 +2,7 @@ import type { AppRpcInput } from '@ant-chat/shared'
 import type { PermissionsFileStore, WorkspaceService } from '../../../data'
 import type { RuntimeEventBus } from '../../../events'
 import type { RuntimeModuleMethods } from '../../routeRegistry'
-import { listDirectoryEntries, openPathWithDefaultApp, readTextFile, resolveWorkspaceFilePath, searchWorkspaceFiles } from '../../../data'
+import { getWorkspaceFileForStream, listDirectoryEntries, openPathWithDefaultApp, readTextFile, resolveWorkspaceFilePath, searchWorkspaceFiles } from '../../../data'
 import { canonicalizeWorkspacePath } from '../../../workspace/workspaceIdentity'
 import { Method, Module } from '../../decorators'
 
@@ -97,6 +97,12 @@ export class WorkspaceModule implements RuntimeModuleMethods<'workspace'> {
   async readTextFile(input: AppRpcInput<'workspace.readTextFile'>) {
     const workspacePath = this.requireWorkspace(input.workspacePath)
     return await readTextFile(workspacePath, input.relPath)
+  }
+
+  @Method()
+  async resolveFileForStream(input: AppRpcInput<'workspace.resolveFileForStream'>) {
+    const workspacePath = this.requireWorkspace(input.workspacePath)
+    return await getWorkspaceFileForStream(workspacePath, input.relPath)
   }
 
   @Method()

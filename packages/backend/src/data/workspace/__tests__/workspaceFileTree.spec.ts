@@ -3,7 +3,7 @@ import { Buffer } from 'node:buffer'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { listDirectoryEntries, readTextFile, resolveWorkspaceFilePath } from '../workspaceFileTree'
+import { getWorkspaceFileForStream, listDirectoryEntries, readTextFile, resolveWorkspaceFilePath } from '../workspaceFileTree'
 
 const MAX_PREVIEW_BYTES = 1024 * 1024
 
@@ -19,6 +19,10 @@ describe('workspaceFileTree', () => {
     await fs.promises.writeFile(path.join(workspacePath, 'src/components/Button.tsx'), 'btn')
     await fs.promises.writeFile(path.join(workspacePath, 'README.md'), 'readme')
     await fs.promises.writeFile(path.join(workspacePath, 'package.json'), '{}')
+    // 媒体预览测试文件
+    await fs.promises.writeFile(path.join(workspacePath, 'logo.png'), Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A]))
+    await fs.promises.writeFile(path.join(workspacePath, 'demo.mp4'), Buffer.from([0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70]))
+    await fs.promises.writeFile(path.join(workspacePath, 'data.xlsx'), Buffer.from([0x50, 0x4B, 0x03, 0x04]))
   })
 
   afterEach(async () => {
@@ -30,8 +34,8 @@ describe('workspaceFileTree', () => {
     const result = await listDirectoryEntries(workspacePath)
 
     expect(result.dirs).toEqual([{ name: 'src', relPath: 'src', type: 'directory' }])
-    expect(result.files.map(file => file.name)).toEqual(['package.json', 'README.md'])
-    expect(result.files[1]).toEqual({ name: 'README.md', relPath: 'README.md', type: 'file' })
+    expect(result.files.map(file => file.name)).toEqual(['data.xlsx', 'demo.mp4', 'logo.png', 'package.json', 'README.md'])
+    expect(result.files[4]).toEqual({ name: 'README.md', relPath: 'README.md', type: 'file' })
   })
 
   it('子目录枚举返回嵌套 relPath', async () => {
@@ -114,5 +118,51 @@ describe('workspaceFileTree', () => {
 
   it('对目录调用读取抛路径不是文件', async () => {
     await expect(readTextFile(workspacePath, 'src')).rejects.toThrow('路径不是文件')
+  })
+
+  describe('getWorkspaceFileForStream', () => {
+    it('返回已校验的绝对路径、大小与 MIME 类型', async () => {
+      const rootReal = fs.realpathSync.native(workspacePath)
+
+      const png = await getWorkspaceFileForStream(workspacePath, 'logo.png')
+      expect(png.absolutePath).toBe(path.join(rootReal, 'logo.png'))
+      expect(png.size).toBe(6)
+      expect(png.mediaType).toBe('image/png')
+
+      const mp4 = await getWorkspaceFileForStream(workspacePath, 'demo.mp4')
+      expect(mp4.mediaType).toBe('video/mp4')
+
+      const xlsx = await getWorkspaceFileForStream(workspacePath, 'data.xlsx')
+      expect(xlsx.mediaType).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+      // 未知扩展名回退 octet-stream
+      const txt = await getWorkspaceFileForStream(workspacePath, 'README.md')
+      expect(txt.mediaType).toBe('application/octet-stream')
+    })
+
+    it('拒绝 .. 与绝对路径', async () => {
+      await expect(getWorkspaceFileForStream(workspacePath, '../outside')).rejects.toThrow('路径超出工作区范围')
+      await expect(getWorkspaceFileForStream(workspacePath, '/etc/passwd')).rejects.toThrow('路径超出工作区范围')
+      await expect(getWorkspaceFileForStream(workspacePath, '../../etc/passwd')).rejects.toThrow('路径超出工作区范围')
+    })
+
+    it('符号链接逃逸工作区的文件不可流式预览', async () => {
+      await fs.promises.writeFile(path.join(outsideDir, 'secret.txt'), 'secret')
+      await fs.promises.symlink(path.join(outsideDir, 'secret.txt'), path.join(workspacePath, 'link.txt'), 'file')
+
+      await expect(getWorkspaceFileForStream(workspacePath, 'link.txt')).rejects.toThrow('路径超出工作区范围')
+    })
+
+    it('不存在的文件抛明确错误', async () => {
+      await expect(getWorkspaceFileForStream(workspacePath, 'missing.png')).rejects.toThrow('文件不存在')
+    })
+
+    it('对目录调用抛路径不是文件', async () => {
+      await expect(getWorkspaceFileForStream(workspacePath, 'src')).rejects.toThrow('路径不是文件')
+    })
+
+    it('空 relPath 抛路径超出工作区范围', async () => {
+      await expect(getWorkspaceFileForStream(workspacePath, '')).rejects.toThrow('路径超出工作区范围')
+    })
   })
 })

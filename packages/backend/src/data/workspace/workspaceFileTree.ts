@@ -1,4 +1,4 @@
-import type { WorkspaceDirectoryEntries, WorkspaceTextFileContent, WorkspaceTreeEntry } from '@ant-chat/shared'
+import type { WorkspaceDirectoryEntries, WorkspaceFileStreamInfo, WorkspaceTextFileContent, WorkspaceTreeEntry } from '@ant-chat/shared'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -67,6 +67,81 @@ export function resolveWorkspaceFilePath(workspacePath: string, relPath: string)
   }
   const root = path.resolve(workspacePath)
   return resolveInsideWorkspace(root, relPath)
+}
+
+/** 扩展名（小写含点）→ MIME 类型；未命中回退 application/octet-stream。 */
+const EXTENSION_MEDIA_TYPES: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.bmp': 'image/bmp',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.avif': 'image/avif',
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+  '.ogg': 'audio/ogg',
+  '.m4a': 'audio/mp4',
+  '.flac': 'audio/flac',
+  '.aac': 'audio/aac',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.mov': 'video/quicktime',
+  '.avi': 'video/x-msvideo',
+  '.mkv': 'video/x-matroska',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.xls': 'application/vnd.ms-excel',
+  '.pdf': 'application/pdf',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+}
+
+/** 根据文件名推断 MIME 类型，未知时回退 application/octet-stream。 */
+function detectMediaType(fileName: string): string {
+  const baseName = fileName.split('/').pop() ?? fileName
+  const dotIndex = baseName.lastIndexOf('.')
+  if (dotIndex <= 0) {
+    return 'application/octet-stream'
+  }
+  return EXTENSION_MEDIA_TYPES[baseName.slice(dotIndex).toLowerCase()] ?? 'application/octet-stream'
+}
+
+/**
+ * 解析工作区内文件的流式预览元信息：复用路径安全校验（防遍历/符号链接逃逸），
+ * 返回真实绝对路径、文件大小与 MIME 类型。仅做路径与 stat 解析，不读取文件内容，
+ * 供 HTTP 端点 / Electron protocol 流式传输使用。
+ */
+export async function getWorkspaceFileForStream(
+  workspacePath: string,
+  relPath: string,
+): Promise<WorkspaceFileStreamInfo> {
+  if (!isValidRelativePath(relPath) || !relPath) {
+    throw new Error(PATH_OUTSIDE_WORKSPACE)
+  }
+
+  const root = path.resolve(workspacePath)
+  const target = resolveInsideWorkspace(root, relPath)
+
+  let stat: fs.Stats
+  try {
+    stat = await fs.promises.stat(target)
+  }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      throw new Error(`文件不存在：${relPath}`)
+    }
+    throw new Error(`无法读取文件：${error instanceof Error ? error.message : String(error)}`)
+  }
+  if (!stat.isFile()) {
+    throw new Error('路径不是文件')
+  }
+
+  return {
+    absolutePath: target,
+    size: stat.size,
+    mediaType: detectMediaType(relPath),
+  }
 }
 
 function sortEntries(entries: WorkspaceTreeEntry[]): void {

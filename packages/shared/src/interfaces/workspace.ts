@@ -59,5 +59,15 @@ export interface WorkspaceTextFileContent {
   size: number
 }
 
+/** 文件预览类型分类（决定前端分发到哪种预览组件）。 */
+export type WorkspaceFileKind = 'image' | 'audio' | 'video' | 'excel' | 'pdf' | 'docx' | 'markdown' | 'text'
+
+/** 流式预览文件元信息：已通过安全校验的真实路径与大小，供 HTTP/protocol 流式传输。 */
+export interface WorkspaceFileStreamInfo {
+  absolutePath: string
+  size: number
+  mediaType: string
+}
+
 export const WORKSPACE_INVALID_PATH = 'WORKSPACE_INVALID_PATH'
 export const WORKSPACE_DUPLICATED_PATH = 'WORKSPACE_DUPLICATED_PATH'

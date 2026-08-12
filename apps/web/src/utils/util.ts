@@ -43,3 +43,27 @@ export function maximizeOrRestoreWindow() {
 export function quitApp() {
   void ipc.app.quitApp()
 }
+
+/** 从 unknown 类型的错误中提取可读消息 */
+export function toErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+/**
+ * 从 localStorage 读取一个数值，校验并 clamp 到 [min, max] 范围。
+ * 不可用或无效时返回 fallback。
+ */
+export function loadClampedNumber(key: string, min: number, max: number | undefined, fallback: number): number {
+  try {
+    const raw = window.localStorage.getItem(key)
+    const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN
+    if (!Number.isFinite(parsed)) {
+      return fallback
+    }
+    const clamped = Math.max(min, parsed)
+    return max !== undefined ? Math.min(max, clamped) : clamped
+  }
+  catch {
+    return fallback
+  }
+}
