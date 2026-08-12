@@ -34,6 +34,9 @@ export default antfu(
       'no-console': ['off'],
       'ts/no-redeclare': ['off'],
       'react/no-implicit-key': ['off'],
+      // @eslint-react 的 set-state-in-effect 对「effect 内同步重置 + 防抖/异步流程」误报，
+      // 与 packages/ui 块已关闭的 react-hooks/set-state-in-effect 属同一规则家族，统一关闭
+      'react/set-state-in-effect': ['off'],
     },
   },
   {
@@ -80,6 +83,7 @@ export default antfu(
             'model-control-trigger',
             'pending-message-scroll',
             'pending-message-enter',
+            'markdown-preview',
             'is-user',
             'is-user:.*',
             'is-assistant',

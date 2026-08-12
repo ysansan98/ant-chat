@@ -92,6 +92,8 @@ const mocks = vi.hoisted(() => ({
     listWorkspaces: vi.fn(),
     openWorkspace: vi.fn(),
     searchWorkspaceFiles: vi.fn(async () => []),
+    listDirectoryEntries: vi.fn(async () => ({ dirs: [], files: [] })),
+    readTextFile: vi.fn(async () => ({ content: '', size: 0 })),
   },
 }))
 

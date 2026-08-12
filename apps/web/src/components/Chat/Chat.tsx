@@ -1,4 +1,5 @@
 import type { AgentMode, IMessageContent } from '@ant-chat/shared'
+import { Button } from '@workspace/ui/components/button'
 import { Skeleton } from '@workspace/ui/components/skeleton'
 import { cn } from '@workspace/ui/lib/utils'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
@@ -17,7 +18,7 @@ import {
 } from '@/store/pendingMessages'
 import { cancelTurnCommand, submitTurnIntake } from '@/store/turnIntake'
 import { useWorkspaceStore } from '@/store/workspace'
-import { ExecutionTracePanel } from '../ExecutionTrace'
+import { RightSidebar } from '../RightSidebar'
 import Sender from '../Sender'
 import { ConversationTitleBar } from './ConversationTitleBar'
 
@@ -54,9 +55,10 @@ export default function Chat() {
   const [searchParams, setSearchParams] = useSearchParams()
   const initialTraceTurnId = searchParams.get('traceTurnId') ?? undefined
   const initialJumpMessageId = searchParams.get('jumpToMessage') ?? undefined
-  const [diagnosticsOpen, setDiagnosticsOpen] = useState(Boolean(initialTraceTurnId))
-  const [focusedTraceTurnId, setFocusedTraceTurnId] = useState<string | undefined>(initialTraceTurnId)
+  const [focusedTraceTurnId] = useState<string | undefined>(initialTraceTurnId)
   const [commandRunning, setCommandRunning] = useState(false)
+  // 右侧辅助栏默认收起；从消息跳转 Trace 时自动展开（Trace 标签由 RightSidebar 内部添加）
+  const [sidebarOpen, setSidebarOpen] = useState(Boolean(initialTraceTurnId))
 
   // AgentApprovalCard 进入/退出动画
   const approvalVisible = !!(agentTask && pending)
@@ -75,7 +77,6 @@ export default function Chat() {
 
   useEffect(() => {
     if (approvalVisible) {
-      // eslint-disable-next-line react/set-state-in-effect -- 需先挂载 DOM，下一帧触发 CSS 进入动画
       setApprovalMounted(true)
       approvalMountedRef.current = true
       const raf = requestAnimationFrame(() => setApprovalState('open'))
@@ -105,11 +106,6 @@ export default function Chat() {
     next.delete('jumpToMessage')
     setSearchParams(next, { replace: true })
   }, [searchParams, setSearchParams])
-
-  function openTrace(turnId?: string) {
-    setFocusedTraceTurnId(turnId)
-    setDiagnosticsOpen(true)
-  }
 
   async function onSubmit(
     content: IMessageContent,
@@ -178,7 +174,9 @@ export default function Chat() {
     <div ref={chatContainerRef} className="relative flex size-full min-w-0">
       <div className="flex min-w-0 flex-1 flex-col">
         {currentConversations && (
-          <ConversationTitleBar conversation={currentConversations} onOpenTrace={() => openTrace()} />
+          <ConversationTitleBar
+            conversation={currentConversations}
+          />
         )}
         <div className={`flex min-h-0 min-w-0 flex-1 flex-col ${!hasMessages ? 'justify-center' : ''}`}>
           {hasMessages && (
@@ -250,14 +248,32 @@ export default function Chat() {
         </div>
       </div>
 
-      {diagnosticsOpen && (
-        <ExecutionTracePanel
-          conversationId={activeConversationsId}
-          isOpen={diagnosticsOpen}
-          focusTurnId={focusedTraceTurnId}
-          onClose={() => setDiagnosticsOpen(false)}
-        />
-      )}
+      <RightSidebar
+        open={sidebarOpen}
+        conversationId={activeConversationsId}
+        focusTurnId={focusedTraceTurnId}
+        onClose={() => setSidebarOpen(false)}
+      />
+      {/* 固定在窗口右上角的侧栏开关：单个按钮常驻，icon 随展开/收起切换 */}
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="absolute top-1 right-4 z-9990 text-muted-foreground"
+        onClick={() => setSidebarOpen(open => !open)}
+        aria-label={sidebarOpen ? '收起右侧栏' : '打开右侧栏'}
+        title={sidebarOpen ? '收起右侧栏' : '打开右侧栏'}
+      >
+        <span
+          className={`${sidebarOpen
+            ? 'icon-[fluent--panel-right-24-filled]'
+            : 'icon-[fluent--panel-right-24-regular]'}
+            text-xl
+          `}
+        >
+
+        </span>
+      </Button>
     </div>
   )
 }

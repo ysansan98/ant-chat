@@ -273,7 +273,7 @@ const CodeBlockBody = memo(
     return (
       <pre
         className={cn(
-          'm-0 p-4 text-sm dark:bg-(--shiki-dark-bg)! dark:text-(--shiki-dark)!',
+          'm-0 min-w-max p-4 text-sm dark:bg-(--shiki-dark-bg)! dark:text-(--shiki-dark)!',
           className,
         )}
         style={preStyle}
@@ -312,7 +312,7 @@ export function CodeBlockContainer({
   return (
     <div
       className={cn(
-        'group relative w-full overflow-hidden rounded-md border bg-background text-foreground',
+        'group relative flex w-full flex-col overflow-hidden rounded-md border bg-background text-foreground',
         className,
       )}
       data-language={language}
@@ -431,7 +431,9 @@ export function CodeBlockContent({
   const tokenized = asyncTokens ?? syncTokens
 
   return (
-    <div className="relative overflow-auto">
+    // 父级有界（h-full/max-h）时压缩到容器高度并内部滚动；
+    // 父级高度 auto 时 flex-auto(basis auto) 保持内容自然高度，避免塌陷。
+    <div className="relative min-h-0 flex-auto overflow-auto">
       <CodeBlockBody showLineNumbers={showLineNumbers} tokenized={tokenized} />
     </div>
   )

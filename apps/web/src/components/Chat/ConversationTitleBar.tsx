@@ -1,15 +1,14 @@
 import type { IConversations } from '@ant-chat/shared'
-import { ActivityIcon, PencilIcon } from 'lucide-react'
+import { PencilIcon } from 'lucide-react'
 import { useState } from 'react'
 import { useSidebar } from '@/contexts/sidebar'
 import { renameConversationsAction } from '@/store/conversation'
 
 interface ConversationTitleBarProps {
   conversation: IConversations
-  onOpenTrace: () => void
 }
 
-export function ConversationTitleBar({ conversation, onOpenTrace }: ConversationTitleBarProps) {
+export function ConversationTitleBar({ conversation }: ConversationTitleBarProps) {
   const { showSliderMenu } = useSidebar()
   const [editing, setEditing] = useState(false)
   const [title, setTitle] = useState(conversation.title)
@@ -53,7 +52,7 @@ export function ConversationTitleBar({ conversation, onOpenTrace }: Conversation
   }
 
   return (
-    <div className={`flex h-14 shrink-0 items-center border-b border-border/60 px-4 ${showSliderMenu ? '' : 'pl-45'}`}>
+    <div className={`flex h-10 shrink-0 items-center border-b border-border/60 px-4 ${showSliderMenu ? '' : 'pl-45'}`}>
       <div className="group flex min-w-0 flex-1 items-center gap-2">
         {editing
           ? (
@@ -70,7 +69,7 @@ export function ConversationTitleBar({ conversation, onOpenTrace }: Conversation
             )
           : (
               <>
-                <span className="truncate text-base font-medium">
+                <span className="truncate text-sm font-medium">
                   {conversation.title}
                 </span>
                 <button
@@ -84,15 +83,6 @@ export function ConversationTitleBar({ conversation, onOpenTrace }: Conversation
               </>
             )}
       </div>
-      <button
-        type="button"
-        className="ml-2 inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
-        onClick={onOpenTrace}
-        aria-label="打开执行轨迹"
-      >
-        <ActivityIcon className="size-3.5" />
-        Trace
-      </button>
     </div>
   )
 }

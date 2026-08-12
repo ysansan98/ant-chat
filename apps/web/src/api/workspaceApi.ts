@@ -1,4 +1,10 @@
-import type { ListWorkspacesData, WorkspaceDirectoryListing, WorkspaceFileSearchResult } from '@ant-chat/shared'
+import type {
+  ListWorkspacesData,
+  WorkspaceDirectoryEntries,
+  WorkspaceDirectoryListing,
+  WorkspaceFileSearchResult,
+  WorkspaceTextFileContent,
+} from '@ant-chat/shared'
 import { getAppRpcClient } from './transports/appRpc'
 
 async function listWorkspaces(): Promise<ListWorkspacesData> {
@@ -37,6 +43,18 @@ async function searchWorkspaceFiles(workspacePath: string, query: string, limit 
   return getAppRpcClient().call('workspace.searchWorkspaceFiles', { workspacePath, query, limit })
 }
 
+async function listDirectoryEntries(workspacePath: string, relPath?: string): Promise<WorkspaceDirectoryEntries> {
+  return getAppRpcClient().call('workspace.listDirectoryEntries', { workspacePath, relPath })
+}
+
+async function readTextFile(workspacePath: string, relPath: string): Promise<WorkspaceTextFileContent> {
+  return getAppRpcClient().call('workspace.readTextFile', { workspacePath, relPath })
+}
+
+async function openWithDefaultApp(workspacePath: string, relPath: string): Promise<void> {
+  return getAppRpcClient().call('workspace.openWithDefaultApp', { workspacePath, relPath })
+}
+
 export default {
   listWorkspaces,
   addWorkspace,
@@ -47,4 +65,7 @@ export default {
   listDirectories,
   createDirectory,
   searchWorkspaceFiles,
+  listDirectoryEntries,
+  readTextFile,
+  openWithDefaultApp,
 }

@@ -38,5 +38,26 @@ export interface WorkspaceDirectoryListing {
   directories: WorkspaceDirectoryEntry[]
 }
 
+/** 文件树中的一个条目（文件或目录）。relPath 为相对 workspacePath 的 posix 路径。 */
+export interface WorkspaceTreeEntry {
+  /** 条目名（basename） */
+  name: string
+  /** 相对 workspacePath 的 posix 路径；根目录下即为条目名 */
+  relPath: string
+  type: 'file' | 'directory'
+}
+
+/** 单个目录的懒加载列表：目录在前，文件在后，各自按名称排序。 */
+export interface WorkspaceDirectoryEntries {
+  dirs: WorkspaceTreeEntry[]
+  files: WorkspaceTreeEntry[]
+}
+
+/** 文本文件预览结果。 */
+export interface WorkspaceTextFileContent {
+  content: string
+  size: number
+}
+
 export const WORKSPACE_INVALID_PATH = 'WORKSPACE_INVALID_PATH'
 export const WORKSPACE_DUPLICATED_PATH = 'WORKSPACE_DUPLICATED_PATH'

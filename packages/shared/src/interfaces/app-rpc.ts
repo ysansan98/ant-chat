@@ -46,7 +46,13 @@ import type {
   SkillManifest,
 } from './skill'
 import type { UpdateConfig, UpdateInfo, UpdateStatus } from './update'
-import type { ListWorkspacesData, WorkspaceDirectoryListing, WorkspaceFileSearchResult } from './workspace'
+import type {
+  ListWorkspacesData,
+  WorkspaceDirectoryEntries,
+  WorkspaceDirectoryListing,
+  WorkspaceFileSearchResult,
+  WorkspaceTextFileContent,
+} from './workspace'
 
 export interface AppRuntimeCapabilities {
   nativeWindow: boolean
@@ -173,6 +179,9 @@ export interface AppRpcContract {
   'workspace.listDirectories': RpcEndpoint<{ path?: string } | undefined, WorkspaceDirectoryListing>
   'workspace.createDirectory': RpcEndpoint<{ parentPath: string, name: string }, { name: string, path: string }>
   'workspace.searchWorkspaceFiles': RpcEndpoint<{ workspacePath: string, query?: string, limit?: number }, WorkspaceFileSearchResult[]>
+  'workspace.listDirectoryEntries': RpcEndpoint<{ workspacePath: string, relPath?: string }, WorkspaceDirectoryEntries>
+  'workspace.readTextFile': RpcEndpoint<{ workspacePath: string, relPath: string }, WorkspaceTextFileContent>
+  'workspace.openWithDefaultApp': RpcEndpoint<{ workspacePath: string, relPath: string }, void>
 
   'agent.startTurn': RpcEndpoint<{ options: StartAgentTurnOptions }, AgentTurnResult>
   'agent.approvePendingAction': RpcEndpoint<{ options: ApprovePendingActionOptions }, null>

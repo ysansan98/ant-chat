@@ -1,14 +1,12 @@
 import type { AgentObservabilityEvidence, AgentTurnSummary, AgentTurnTimeline, AgentTurnTimelineItem } from '@ant-chat/shared'
 import type { ToolDefinitionView } from './evidenceModel'
 import { Badge } from '@workspace/ui/components/badge'
-import { Button } from '@workspace/ui/components/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@workspace/ui/components/collapsible'
 import { EmptyState } from '@workspace/ui/components/empty-state'
-import { Sheet, SheetContent } from '@workspace/ui/components/sheet'
 import { Spinner } from '@workspace/ui/components/spinner'
 import { cn } from '@workspace/ui/lib/utils'
-import { ActivityIcon, AlertTriangleIcon, ChevronRightIcon, LoaderIcon, XIcon } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { ActivityIcon, AlertTriangleIcon, ChevronRightIcon, LoaderIcon } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { observabilityApi } from '@/api/observabilityApi'
 import { getAppEventSubscriptions } from '@/api/transports/appEventSubscriptions'
 import { formatDuration, formatTime } from '@/utils'
@@ -20,11 +18,7 @@ interface ExecutionTracePanelProps {
   conversationId?: string
   isOpen: boolean
   focusTurnId?: string
-  onClose: () => void
 }
-
-const NARROW_QUERY = '(max-width: 767px)'
-const DEFAULT_PANEL_WIDTH = 520
 
 type AvailableTurnSummary = Extract<AgentTurnSummary, { availability: 'available' }>
 type CompletedTurnSummary = Extract<AvailableTurnSummary, { lifecycle: 'completed' }>
@@ -42,35 +36,13 @@ const statusLabels: Record<CompletedTurnSummary['status'], string> = {
 }
 
 export function ExecutionTracePanel(props: ExecutionTracePanelProps) {
-  const narrow = useMediaQuery(NARROW_QUERY)
-  const [width, setWidth] = useState(DEFAULT_PANEL_WIDTH)
-
   if (!props.isOpen)
     return null
 
-  if (narrow) {
-    return (
-      <Sheet open onOpenChange={open => !open && props.onClose()}>
-        <SheetContent className="w-screen max-w-none gap-0 p-0 data-[side=right]:w-screen data-[side=right]:max-w-none" showCloseButton={false}>
-          <TraceContent key={`${props.conversationId}:${props.focusTurnId ?? ''}`} {...props} onClose={props.onClose} />
-        </SheetContent>
-      </Sheet>
-    )
-  }
-
-  return (
-    <aside
-      className="relative flex h-full shrink-0 flex-col border-l border-border bg-background shadow-xl"
-      style={{ width, minWidth: 360, maxWidth: '80vw' }}
-      aria-label="执行轨迹"
-    >
-      <ResizeHandle width={width} onWidthChange={setWidth} />
-      <TraceContent key={`${props.conversationId}:${props.focusTurnId ?? ''}`} {...props} onClose={props.onClose} />
-    </aside>
-  )
+  return <TraceContent key={`${props.conversationId}:${props.focusTurnId ?? ''}`} {...props} />
 }
 
-function TraceContent({ conversationId, isOpen, focusTurnId, onClose }: ExecutionTracePanelProps) {
+function TraceContent({ conversationId, isOpen, focusTurnId }: ExecutionTracePanelProps) {
   const [summaries, setSummaries] = useState<AgentTurnSummary[]>([])
   const [timelines, setTimelines] = useState<Record<string, AgentTurnTimeline | null>>({})
   const [timelineErrors, setTimelineErrors] = useState<Record<string, string>>({})
@@ -233,9 +205,6 @@ function TraceContent({ conversationId, isOpen, focusTurnId, onClose }: Executio
           <h2 className="truncate text-sm font-semibold">执行轨迹</h2>
           <p className="text-xs text-muted-foreground">Agent Turn 原始执行证据</p>
         </div>
-        <Button type="button" variant="ghost" size="icon-sm" aria-label="关闭执行轨迹" onClick={onClose}>
-          <XIcon />
-        </Button>
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
@@ -502,33 +471,6 @@ function TurnContextSection({ turnContext }: { turnContext: TurnContext }) {
       </CollapsibleContent>
     </Collapsible>
   )
-}
-
-function ResizeHandle({ width, onWidthChange }: { width: number, onWidthChange: (width: number) => void }) {
-  function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
-    const startX = event.clientX
-    const startWidth = width
-    const move = (next: PointerEvent) => onWidthChange(Math.max(360, Math.min(window.innerWidth * 0.8, startWidth + startX - next.clientX)))
-    const finish = () => {
-      document.removeEventListener('pointermove', move)
-      document.removeEventListener('pointerup', finish)
-      document.body.style.userSelect = ''
-    }
-    document.body.style.userSelect = 'none'
-    document.addEventListener('pointermove', move)
-    document.addEventListener('pointerup', finish)
-  }
-  return <div className="absolute inset-y-0 -left-1 z-10 w-2 cursor-ew-resize hover:bg-primary/20" onPointerDown={handlePointerDown} />
-}
-
-function useMediaQuery(query: string): boolean {
-  const subscribe = useCallback((onChange: () => void) => {
-    const media = window.matchMedia(query)
-    media.addEventListener('change', onChange)
-    return () => media.removeEventListener('change', onChange)
-  }, [query])
-  const snapshot = useCallback(() => window.matchMedia(query).matches, [query])
-  return useSyncExternalStore(subscribe, snapshot, () => false)
 }
 
 function formatOffset(ms: number): string {
