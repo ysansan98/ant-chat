@@ -17,6 +17,8 @@ export interface SkillAppState {
   builtin: boolean
   source: SkillSource
   sourceUrl?: string
+  /** GitHub 导入时锁定的 commit 哈希，用于可复现/追溯安装版本。 */
+  commitSha?: string
   installedAt: number
   updatedAt: number
 }
@@ -40,6 +42,11 @@ export interface ImportSkillFromGithubOptions {
   url: string
   name?: string
 }
+
+/** 统一 Skill 导入输入：ZIP 传文件 base64，GitHub 传仓库 URL，后端按 source 分发。 */
+export type ImportSkillOptions
+  = | { source: 'zip', zipBase64: string, name?: string }
+    | { source: 'github', url: string, name?: string }
 
 export interface SetSkillEnabledOptions {
   name: string

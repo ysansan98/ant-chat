@@ -2,12 +2,19 @@ import { Buffer } from 'node:buffer'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { strToU8, zipSync } from 'fflate'
 import { SkillManagementService } from '../skillManagementService'
 
 const VALID_SKILL_ZIP = 'UEsDBBQAAAAIAK1YnlxVUSklIgAAACQAAAAIAAAAU0tJTEwubWRTVggvyixJLeLiAtMKxRn5RSUKRak5qYnFqQp5+SWpxXoAUEsBAhQAFAAAAAgArVieXFVRKSUiAAAAJAAAAAgAAAAAAAAAAAAAAAAAAAAAAFNLSUxMLm1kUEsFBgAAAAABAAEANgAAAEgAAAAAAA=='
 const UNSAFE_SKILL_ZIP = 'UEsDBBQAAAAIAK9Ynly7JMeZCgAAAAgAAAALAAAALi4vU0tJTEwubWRTVgjNK05MSwUAUEsBAhQAFAAAAAgAr1ieXLskx5kKAAAACAAAAAsAAAAAAAAAAAAAAAAAAAAAAC4uL1NLSUxMLm1kUEsFBgAAAAABAAEAOQAAADMAAAAAAA=='
 const FRONTMATTER_SKILL_ZIP = 'UEsDBBQAAAAAAHx8plzIj6ltcwAAAHMAAAAIAAAAU0tJTEwubWQtLS0KbmFtZToga2FtaQpkZXNjcmlwdGlvbjogVHlwZXNldCBwcm9mZXNzaW9uYWwgZG9jdW1lbnRzLgotLS0KCiMga2FtaSDCtyDntJkKCldyaXRlIHByb2Zlc3Npb25hbCBQREZzIHdpdGgga2FtaS4KUEsBAhQDFAAAAAAAfHymXMiPqW1zAAAAcwAAAAgAAAAAAAAAAAAAAIABAAAAAFNLSUxMLm1kUEsFBgAAAAABAAEANgAAAJkAAAAAAA=='
+
+/** 构造 codeload 风格的 github zip：仓库目录前缀 + SKILL.md。 */
+function githubArchiveZip(skillMarkdown: string): string {
+  const zip = zipSync({ 'writer-main/SKILL.md': strToU8(skillMarkdown) })
+  return Buffer.from(zip).toString('base64')
+}
 
 describe('skillManagementService', () => {
   let homeDir: string
@@ -65,20 +72,14 @@ describe('skillManagementService', () => {
   })
 
   it('导入 skill zip 后不创建 manifest.json', async () => {
-    const zipPath = path.join(homeDir, 'writer.zip')
-    await fs.promises.writeFile(zipPath, Buffer.from(VALID_SKILL_ZIP, 'base64'))
-
-    await reader.importFromZip(zipPath)
+    await reader.importSkill({ source: 'zip', zipBase64: VALID_SKILL_ZIP })
 
     const manifestPath = path.join(skillsRoot, 'writer', 'manifest.json')
     expect(fs.existsSync(manifestPath)).toBe(false)
   })
 
   it('导入 skill zip 并读取已安装 markdown', async () => {
-    const zipPath = path.join(homeDir, 'writer.zip')
-    await fs.promises.writeFile(zipPath, Buffer.from(VALID_SKILL_ZIP, 'base64'))
-
-    const manifest = await reader.importFromZip(zipPath)
+    const manifest = await reader.importSkill({ source: 'zip', zipBase64: VALID_SKILL_ZIP })
     const index = await reader.listSkills()
     const markdown = await reader.readSkillMarkdown('writer')
 
@@ -91,18 +92,78 @@ describe('skillManagementService', () => {
     expect(markdown).toContain('Write short release notes.')
   })
 
-  it('拒绝包含不安全路径的 zip entry', async () => {
-    const zipPath = path.join(homeDir, 'unsafe.zip')
-    await fs.promises.writeFile(zipPath, Buffer.from(UNSAFE_SKILL_ZIP, 'base64'))
+  it('gitHub 导入把分支解析为 commit 哈希并持久化', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes('/commits/main')) {
+        return { ok: true, json: async () => ({ sha: 'abc123def456' }) } as unknown as Response
+      }
+      if (url.includes('/zip/abc123def456')) {
+        return {
+          ok: true,
+          arrayBuffer: async () => Buffer.from(githubArchiveZip([
+            '---',
+            'name: writer',
+            'description: Write short release notes.',
+            '---',
+            '',
+            '# Writer',
+            '',
+            'Write short release notes.',
+          ].join('\n')), 'base64'),
+        } as unknown as Response
+      }
+      throw new Error(`unexpected fetch: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      const manifest = await reader.importSkill({
+        source: 'github',
+        url: 'https://github.com/acme/writer/tree/main',
+      })
 
-    await expect(reader.importFromZip(zipPath)).rejects.toThrow('unsafe zip path')
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://api.github.com/repos/acme/writer/commits/main',
+      )
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://codeload.github.com/acme/writer/zip/abc123def456',
+      )
+      expect(manifest).toMatchObject({
+        name: 'writer',
+        source: 'github',
+        sourceUrl: 'https://github.com/acme/writer/tree/main',
+        commitSha: 'abc123def456',
+      })
+    }
+    finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('gitHub 导入解析不了 commit 时显式失败', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes('/commits/main')) {
+        return { ok: false, status: 404 } as unknown as Response
+      }
+      throw new Error(`unexpected fetch: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      await expect(reader.importSkill({
+        source: 'github',
+        url: 'https://github.com/acme/writer/tree/main',
+      })).rejects.toThrow('failed to resolve commit')
+    }
+    finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('拒绝包含不安全路径的 zip entry', async () => {
+    await expect(reader.importSkill({ source: 'zip', zipBase64: UNSAFE_SKILL_ZIP })).rejects.toThrow('unsafe zip path')
   })
 
   it('使用 SKILL.md frontmatter 作为元数据来源', async () => {
-    const zipPath = path.join(homeDir, 'kami-test.zip')
-    await fs.promises.writeFile(zipPath, Buffer.from(FRONTMATTER_SKILL_ZIP, 'base64'))
-
-    const manifest = await reader.importFromZip(zipPath)
+    const manifest = await reader.importSkill({ source: 'zip', zipBase64: FRONTMATTER_SKILL_ZIP })
 
     // name 会被规范化为与目录名一致
     expect(manifest.name).toBe('kami')
@@ -113,9 +174,7 @@ describe('skillManagementService', () => {
   })
 
   it('setEnabled 更新 .index.json 而不修改 SKILL.md', async () => {
-    const zipPath = path.join(homeDir, 'writer.zip')
-    await fs.promises.writeFile(zipPath, Buffer.from(VALID_SKILL_ZIP, 'base64'))
-    await reader.importFromZip(zipPath)
+    await reader.importSkill({ source: 'zip', zipBase64: VALID_SKILL_ZIP })
 
     const skillFile = path.join(skillsRoot, 'writer', 'SKILL.md')
     const before = await fs.promises.readFile(skillFile, 'utf8')
@@ -131,9 +190,7 @@ describe('skillManagementService', () => {
   })
 
   it('deleteSkill 删除目录并从 .index.json 移除', async () => {
-    const zipPath = path.join(homeDir, 'writer.zip')
-    await fs.promises.writeFile(zipPath, Buffer.from(VALID_SKILL_ZIP, 'base64'))
-    await reader.importFromZip(zipPath)
+    await reader.importSkill({ source: 'zip', zipBase64: VALID_SKILL_ZIP })
 
     await reader.deleteSkill('writer')
 

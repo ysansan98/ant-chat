@@ -1,4 +1,4 @@
-import type { ImportSkillFromGithubOptions, SkillAppState, SkillFrontmatter, SkillIndex, SkillIndexFile, SkillManifest } from '@ant-chat/shared'
+import type { ImportSkillFromGithubOptions, ImportSkillOptions, SkillAppState, SkillFrontmatter, SkillIndex, SkillIndexFile, SkillManifest } from '@ant-chat/shared'
 import { Buffer } from 'node:buffer'
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
@@ -13,6 +13,8 @@ const BUILTIN_SKILL_INSTALLER = 'skill-installer'
 const BUILTIN_SKILL_MANAGER = 'ant-chat-manager'
 const BUILTIN_SKILL_VISUALIZE = 'visualize'
 const BUILTIN_SKILL_IMAGE_RECOGNITION = 'image-recognition'
+/** base64 大小上限（约 24MB 的 zip 内容），防止超大上传拖垮本地服务。 */
+const MAX_SKILL_ZIP_BASE64 = 32 * 1024 * 1024
 
 const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---/
 
@@ -127,15 +129,25 @@ export class SkillManagementService {
     return { rootPath: this.skillsRoot, skills }
   }
 
-  async importFromZip(zipPath: string): Promise<SkillManifest> {
+  /** 统一导入入口：ZIP 走 base64 内容，GitHub 走仓库 URL。 */
+  async importSkill(options: ImportSkillOptions): Promise<SkillManifest> {
     await this.ensureInitialized()
+    if (options.source === 'zip') {
+      if (options.zipBase64.length > MAX_SKILL_ZIP_BASE64) {
+        throw new Error('ZIP 文件过大')
+      }
+      return this.importFromZipBuffer(Buffer.from(options.zipBase64, 'base64'), options.name)
+    }
+    return this.importFromGithub({ url: options.url, name: options.name })
+  }
+
+  private async importFromZipBuffer(zipBuffer: Buffer, name?: string): Promise<SkillManifest> {
     const tempDir = await this.createTempDir()
     try {
-      const zipBuffer = await fs.promises.readFile(zipPath)
       await extractZip(zipBuffer, tempDir)
       return await this.importFromDirectory(findSkillRoot(tempDir), {
         source: 'zip',
-        sourceUrl: zipPath,
+        name,
       })
     }
     finally {
@@ -147,7 +159,9 @@ export class SkillManagementService {
     await this.ensureInitialized()
     const parsed = parseGithubUrl(options.url)
     const ref = parsed.ref ?? await fetchDefaultBranch(parsed.owner, parsed.repo)
-    const archive = await downloadGithubArchive(parsed.owner, parsed.repo, ref)
+    const commitSha = await fetchCommitSha(parsed.owner, parsed.repo, ref)
+    // 用 sha 下载而非分支名：同一 URL 重复导入得到完全相同的版本，可复现。
+    const archive = await downloadGithubArchive(parsed.owner, parsed.repo, commitSha)
     const tempDir = await this.createTempDir()
     try {
       await extractZip(archive, tempDir)
@@ -156,6 +170,7 @@ export class SkillManagementService {
       const manifest = await this.importFromDirectory(findSkillRoot(sourceRoot), {
         source: 'github',
         sourceUrl: options.url,
+        commitSha,
         name: options.name,
       })
       return manifest
@@ -334,7 +349,7 @@ export class SkillManagementService {
 
   private async importFromDirectory(
     sourcePath: string,
-    options: { source: SkillManifest['source'], sourceUrl?: string, name?: string },
+    options: { source: SkillManifest['source'], sourceUrl?: string, commitSha?: string, name?: string },
   ): Promise<SkillManifest> {
     await validateSkillDirectory(sourcePath)
     const frontmatter = await this.readFrontmatter(sourcePath)
@@ -349,6 +364,7 @@ export class SkillManagementService {
     const appState: SkillAppState = {
       source: options.source,
       sourceUrl: options.sourceUrl,
+      commitSha: options.commitSha,
       enabled: true,
       builtin: false,
       installedAt: now,
@@ -690,6 +706,19 @@ async function fetchDefaultBranch(owner: string, repo: string): Promise<string> 
   }
   const data = await response.json() as { default_branch?: string }
   return data.default_branch || 'main'
+}
+
+/** 把分支/tag 解析成 commit 哈希并记录，保证同一来源可复现。 */
+async function fetchCommitSha(owner: string, repo: string, ref: string): Promise<string> {
+  const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/commits/${encodeURIComponent(ref)}`)
+  if (!response.ok) {
+    throw new Error(`AGENT_SKILL_INVALID: failed to resolve commit ${owner}/${repo}@${ref}`)
+  }
+  const data = await response.json() as { sha?: string }
+  if (!data.sha) {
+    throw new Error(`AGENT_SKILL_INVALID: failed to resolve commit ${owner}/${repo}@${ref}`)
+  }
+  return data.sha
 }
 
 async function downloadGithubArchive(owner: string, repo: string, ref: string): Promise<Buffer> {

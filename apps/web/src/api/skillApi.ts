@@ -1,5 +1,4 @@
-import type { ImportSkillFromGithubOptions, SetSkillEnabledOptions, SkillIndex, SkillManifest } from '@ant-chat/shared'
-import { ipc, isElectronRuntime, unwrapIpcResponse } from '@/utils/ipc-bus'
+import type { ImportSkillOptions, SetSkillEnabledOptions, SkillIndex, SkillManifest } from '@ant-chat/shared'
 import { getAppRpcClient } from './transports/appRpc'
 
 export const skillApi = {
@@ -7,15 +6,8 @@ export const skillApi = {
     return getAppRpcClient().call('skills.listSkills', undefined)
   },
 
-  importSkillFromZip: async (): Promise<SkillManifest | null> => {
-    if (!isElectronRuntime()) {
-      return null
-    }
-    return unwrapIpcResponse(await ipc.skills.importSkillFromZip())
-  },
-
-  importSkillFromGithub: async (options: ImportSkillFromGithubOptions): Promise<SkillManifest> => {
-    return getAppRpcClient().call('skills.importSkillFromGithub', { options })
+  importSkill: async (options: ImportSkillOptions): Promise<SkillManifest> => {
+    return getAppRpcClient().call('skills.importSkill', { options })
   },
 
   setSkillEnabled: async (options: SetSkillEnabledOptions): Promise<SkillManifest> => {

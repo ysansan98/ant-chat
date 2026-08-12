@@ -16,18 +16,14 @@ export class SkillsModule implements RuntimeModuleMethods<'skills'> {
     return this.service.ensureInitialized()
   }
 
-  importSkillFromZip(filePath: string) {
-    return this.service.importFromZip(filePath)
-  }
-
   @Method()
   listSkills(_input: AppRpcInput<'skills.listSkills'>) {
     return this.service.listSkills()
   }
 
   @Method()
-  importSkillFromGithub(input: AppRpcInput<'skills.importSkillFromGithub'>) {
-    return this.service.importFromGithub(input.options)
+  importSkill(input: AppRpcInput<'skills.importSkill'>) {
+    return this.service.importSkill(input.options)
   }
 
   @Method()

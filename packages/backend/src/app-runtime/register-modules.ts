@@ -1,4 +1,4 @@
-import type { BrowserIdentityStatus, ChannelAttachmentSender, SkillManifest } from '@ant-chat/shared'
+import type { BrowserIdentityStatus, ChannelAttachmentSender } from '@ant-chat/shared'
 import type { RuntimeCore } from './createRuntimeCore'
 import type { ChannelAgentDependencies } from './modules/channel'
 import type { RegisteredRoute } from './routeRegistry'
@@ -29,10 +29,6 @@ export interface RegisteredRuntimeModules {
   /** 纯转发的数据访问路由（memory / search / files），声明式绑定到 app-data。 */
   routeBindings: RegisteredRoute[]
   appControl: AppControl
-  /** 宿主专用能力；不注册为普通 AppRpc，避免扩大 Web 文件访问面。 */
-  skills: {
-    importSkillFromZip: (filePath: string) => Promise<SkillManifest>
-  }
   /** 桌面原生目录选择器使用的宿主专用能力。 */
   browserProfiles: {
     importFromDirectory: (directory: string) => Promise<BrowserIdentityStatus>
@@ -121,9 +117,6 @@ export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModu
     lifecycle: [workspace, skills, provider, settings, mcp, agent, automation, channel],
     routeBindings: createDataRoutes(core),
     appControl,
-    skills: {
-      importSkillFromZip: filePath => skills.importSkillFromZip(filePath),
-    },
     browserProfiles: {
       importFromDirectory: directory => browserProfiles.importFromDirectory(directory),
     },
