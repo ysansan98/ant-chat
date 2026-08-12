@@ -1,5 +1,125 @@
 @import './assets/scroll-style.css';
 
+/* 右侧栏文件管理器的 Markdown 预览（渲染模式）样式，全部使用语义色 token */
+.markdown-preview {
+  color: var(--foreground);
+  font-size: 0.875rem;
+  line-height: 1.7;
+  overflow-wrap: break-word;
+}
+
+.markdown-preview > :first-child {
+  margin-top: 0;
+}
+
+.markdown-preview h1,
+.markdown-preview h2,
+.markdown-preview h3,
+.markdown-preview h4 {
+  font-weight: 600;
+  line-height: 1.35;
+  margin: 1.2em 0 0.55em;
+}
+
+.markdown-preview h1 {
+  font-size: 1.25rem;
+}
+
+.markdown-preview h2 {
+  font-size: 1.125rem;
+}
+
+.markdown-preview h3 {
+  font-size: 1rem;
+}
+
+.markdown-preview h4 {
+  font-size: 0.9rem;
+}
+
+.markdown-preview p,
+.markdown-preview ul,
+.markdown-preview ol,
+.markdown-preview blockquote,
+.markdown-preview pre {
+  margin: 0.6em 0;
+}
+
+.markdown-preview ul,
+.markdown-preview ol {
+  padding-left: 1.4em;
+}
+
+.markdown-preview li {
+  margin: 0.2em 0;
+}
+
+.markdown-preview a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.markdown-preview blockquote {
+  border-left: 3px solid var(--border);
+  color: var(--muted-foreground);
+  padding-left: 0.9em;
+}
+
+.markdown-preview code {
+  background: var(--muted);
+  border-radius: 0.25rem;
+  font-size: 0.85em;
+  padding: 0.15em 0.35em;
+}
+
+.markdown-preview pre {
+  background: var(--muted);
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  padding: 0.75rem 0.9rem;
+}
+
+.markdown-preview pre code {
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+}
+
+.markdown-preview table {
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  margin: 0.8em 0;
+  width: 100%;
+}
+
+.markdown-preview th,
+.markdown-preview td {
+  border: 1px solid var(--border);
+  padding: 0.35em 0.6em;
+  text-align: left;
+}
+
+.markdown-preview th {
+  background: var(--muted);
+  font-weight: 600;
+}
+
+.markdown-preview img {
+  max-width: 100%;
+}
+
+.markdown-preview hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 1.2em 0;
+}
+
+.markdown-preview input[type='checkbox'] {
+  accent-color: var(--primary);
+  margin-right: 0.4em;
+}
+
 .pending-message-enter {
   animation: pending-message-enter 160ms ease-out;
 }

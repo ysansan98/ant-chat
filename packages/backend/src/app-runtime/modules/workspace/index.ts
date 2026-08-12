@@ -2,7 +2,7 @@ import type { AppRpcInput } from '@ant-chat/shared'
 import type { PermissionsFileStore, WorkspaceService } from '../../../data'
 import type { RuntimeEventBus } from '../../../events'
 import type { RuntimeModuleMethods } from '../../routeRegistry'
-import { searchWorkspaceFiles } from '../../../data'
+import { listDirectoryEntries, openPathWithDefaultApp, readTextFile, resolveWorkspaceFilePath, searchWorkspaceFiles } from '../../../data'
 import { canonicalizeWorkspacePath } from '../../../workspace/workspaceIdentity'
 import { Method, Module } from '../../decorators'
 
@@ -85,6 +85,44 @@ export class WorkspaceModule implements RuntimeModuleMethods<'workspace'> {
       throw new Error('workspacePath is required')
     }
     return await searchWorkspaceFiles(input.workspacePath, input.query ?? '', input.limit ?? 50)
+  }
+
+  @Method()
+  async listDirectoryEntries(input: AppRpcInput<'workspace.listDirectoryEntries'>) {
+    const workspacePath = this.requireWorkspace(input.workspacePath)
+    return await listDirectoryEntries(workspacePath, input.relPath)
+  }
+
+  @Method()
+  async readTextFile(input: AppRpcInput<'workspace.readTextFile'>) {
+    const workspacePath = this.requireWorkspace(input.workspacePath)
+    return await readTextFile(workspacePath, input.relPath)
+  }
+
+  @Method()
+  async openWithDefaultApp(input: AppRpcInput<'workspace.openWithDefaultApp'>) {
+    const workspacePath = this.requireWorkspace(input.workspacePath)
+    const absolutePath = resolveWorkspaceFilePath(workspacePath, input.relPath)
+    await openPathWithDefaultApp(absolutePath)
+  }
+
+  /** 校验 workspacePath 为已注册且真实存在的工作区，返回规范化后的真实路径。 */
+  private requireWorkspace(workspacePath: string): string {
+    if (!workspacePath) {
+      throw new Error('workspacePath is required')
+    }
+    let normalized: string
+    try {
+      normalized = canonicalizeWorkspacePath(workspacePath)
+    }
+    catch {
+      throw new Error('工作区不可用')
+    }
+    const registered = this.workspaceService.listWorkspaces().workspaces.some(item => item.path === normalized)
+    if (!registered) {
+      throw new Error('工作区未注册')
+    }
+    return normalized
   }
 
   private emitWorkspaceResult(result: ReturnType<WorkspaceService['listWorkspaces']>) {

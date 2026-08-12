@@ -78,8 +78,8 @@ function CollapseChevron({ open }: { open: boolean }) {
   )
 }
 
-/** header 主文案：执行中用 shimmer 表达活动态；失败用文字标红（不带图标） */
-function HeaderLabel({ text, active, error }: { text: string, active?: boolean, error?: boolean }) {
+/** header 主文案：执行中用 shimmer 表达活动态；失败不额外凸显 */
+function HeaderLabel({ text, active }: { text: string, active?: boolean }) {
   if (active) {
     return (
       <span className="min-w-0 truncate text-xs" aria-label={`${text}，执行中`}>
@@ -87,7 +87,7 @@ function HeaderLabel({ text, active, error }: { text: string, active?: boolean, 
       </span>
     )
   }
-  return <span className={cn('min-w-0 truncate text-xs', error && 'text-destructive')}>{text}</span>
+  return <span className="min-w-0 truncate text-xs">{text}</span>
 }
 
 const triggerClass = cn(
@@ -171,7 +171,7 @@ function ToolBody({ item }: { item: ToolRunToolItem }) {
 
   if (toolResult?.isError) {
     return (
-      <div className="rounded-sm bg-destructive/10 px-2 py-1.5 text-xs whitespace-pre-wrap text-destructive">
+      <div className="px-2 py-1.5 text-xs whitespace-pre-wrap">
         {resultText ?? '工具执行失败'}
       </div>
     )
@@ -217,7 +217,6 @@ function ToolCallItem({
   onToggle: (id: string) => void
 }) {
   const label = getToolLabel(item.toolCall)
-  const error = !!item.toolResult?.isError
   const { isMcp, shortName } = splitToolName(item.toolCall)
   const showTerminalIcon = !isMcp && shortName === 'execute_command'
 
@@ -227,7 +226,7 @@ function ToolCallItem({
         {showTerminalIcon && (
           <TerminalIcon role="img" aria-label="终端" className="size-3 shrink-0" />
         )}
-        <HeaderLabel text={label.primary} active={active || item.isExecuting} error={error} />
+        <HeaderLabel text={label.primary} active={active || item.isExecuting} />
         {label.diff && (
           <span className="shrink-0 text-xs tabular-nums">
             <span className="text-emerald-700 dark:text-emerald-400">
@@ -276,7 +275,7 @@ function ToolRunPanel({
   return (
     <Collapsible open={open} onOpenChange={() => onToggle(run.id)}>
       <CollapsibleTrigger className={triggerClass}>
-        <HeaderLabel text={header} active={active} error={!active && run.hasError} />
+        <HeaderLabel text={header} active={active} />
         <CollapseChevron open={open} />
       </CollapsibleTrigger>
       <CollapsibleContent className={cn('space-y-1', contentAnimationClass)}>

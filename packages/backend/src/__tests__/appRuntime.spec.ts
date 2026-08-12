@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -341,6 +341,60 @@ describe('app runtime', () => {
     const defaultPath = await runtime.invoke('workspace.getDefaultWorkspacePath', undefined)
     const results = await runtime.invoke('workspace.searchWorkspaceFiles', { workspacePath: defaultPath, query: '', limit: 10 })
     expect(Array.isArray(results)).toBe(true)
+  })
+
+  it('workspace 文件树 RPC 拒绝未注册与不可用工作区', async () => {
+    const unregistered = mkdtempSync(path.join(tmpdir(), 'ant-chat-ws-unreg-'))
+    const missing = path.join(tmpdir(), 'ant-chat-ws-missing')
+    try {
+      await expect(runtime.invoke('workspace.listDirectoryEntries', { workspacePath: unregistered, relPath: '' }))
+        .rejects
+        .toThrow('工作区未注册')
+      await expect(runtime.invoke('workspace.readTextFile', { workspacePath: unregistered, relPath: 'a.txt' }))
+        .rejects
+        .toThrow('工作区未注册')
+      await expect(runtime.invoke('workspace.listDirectoryEntries', { workspacePath: missing, relPath: '' }))
+        .rejects
+        .toThrow('工作区不可用')
+    }
+    finally {
+      rmSync(unregistered, { force: true, recursive: true })
+    }
+  })
+
+  it('workspace 文件树与文本预览 RPC 走注册工作区', async () => {
+    const workspacePath = mkdtempSync(path.join(tmpdir(), 'ant-chat-ws-rpc-'))
+    try {
+      await runtime.invoke('workspace.addWorkspace', { path: workspacePath })
+      writeFileSync(path.join(workspacePath, 'hello.txt'), 'hello')
+
+      const listing = await runtime.invoke('workspace.listDirectoryEntries', { workspacePath, relPath: '' })
+      expect(listing.files).toContainEqual({ name: 'hello.txt', relPath: 'hello.txt', type: 'file' })
+
+      const content = await runtime.invoke('workspace.readTextFile', { workspacePath, relPath: 'hello.txt' })
+      expect(content).toEqual({ content: 'hello', size: 5 })
+    }
+    finally {
+      rmSync(workspacePath, { force: true, recursive: true })
+    }
+  })
+
+  it('openWithDefaultApp 拒绝越界路径（不触发系统打开）', async () => {
+    const workspacePath = mkdtempSync(path.join(tmpdir(), 'ant-chat-ws-open-'))
+    try {
+      await runtime.invoke('workspace.addWorkspace', { path: workspacePath })
+      writeFileSync(path.join(workspacePath, 'hello.txt'), 'hello')
+
+      await expect(runtime.invoke('workspace.openWithDefaultApp', { workspacePath, relPath: '../outside.txt' }))
+        .rejects
+        .toThrow('路径超出工作区范围')
+      await expect(runtime.invoke('workspace.openWithDefaultApp', { workspacePath: '/no/such/workspace', relPath: 'hello.txt' }))
+        .rejects
+        .toThrow('工作区不可用')
+    }
+    finally {
+      rmSync(workspacePath, { force: true, recursive: true })
+    }
   })
 
   it('重启运行时后仍能读取自动化定义', async () => {

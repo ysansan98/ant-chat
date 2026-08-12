@@ -62,11 +62,11 @@ describe('executionTracePanel', () => {
   })
 
   it('关闭时不查询，打开后只加载摘要并默认展开最新 Turn', async () => {
-    const view = render(<ExecutionTracePanel conversationId="conversation-1" isOpen={false} onClose={vi.fn()} />)
+    const view = render(<ExecutionTracePanel conversationId="conversation-1" isOpen={false} />)
     expect(observabilityApi.listTurns).not.toHaveBeenCalled()
     expect(eventBoundary.handler).toBeUndefined()
 
-    view.rerender(<ExecutionTracePanel conversationId="conversation-1" isOpen onClose={vi.fn()} />)
+    view.rerender(<ExecutionTracePanel conversationId="conversation-1" isOpen />)
 
     expect(await screen.findByText('Turn turn-2')).toBeInTheDocument()
     expect(eventBoundary.handler).toBeTypeOf('function')
@@ -74,13 +74,13 @@ describe('executionTracePanel', () => {
     expect(observabilityApi.getTurnTimeline).toHaveBeenCalledWith('conversation-1', 'turn-2')
     expect(observabilityApi.getEvidence).not.toHaveBeenCalled()
 
-    view.rerender(<ExecutionTracePanel conversationId="conversation-1" isOpen={false} onClose={vi.fn()} />)
+    view.rerender(<ExecutionTracePanel conversationId="conversation-1" isOpen={false} />)
     expect(eventBoundary.handler).toBeUndefined()
   })
 
   it('执行中的 Turn 可见但不可展开，完成后才按需读取时间线', async () => {
     vi.mocked(observabilityApi.listTurns).mockResolvedValue([collectingSummary('turn-running', 3_000), first])
-    render(<ExecutionTracePanel conversationId="conversation-1" isOpen onClose={vi.fn()} />)
+    render(<ExecutionTracePanel conversationId="conversation-1" isOpen />)
 
     expect(await screen.findByText('执行中，完成后可查看')).toBeInTheDocument()
     expect(screen.getByText('Turn turn-running')).toBeInTheDocument()
@@ -90,14 +90,14 @@ describe('executionTracePanel', () => {
 
   it('失败 Turn 展示终态错误摘要', async () => {
     vi.mocked(observabilityApi.listTurns).mockResolvedValue([{ ...second, errorSummary: 'API 请求失败：429 Too Many Requests' }])
-    render(<ExecutionTracePanel conversationId="conversation-1" isOpen onClose={vi.fn()} />)
+    render(<ExecutionTracePanel conversationId="conversation-1" isOpen />)
 
     expect(await screen.findByText('API 请求失败：429 Too Many Requests')).toBeInTheDocument()
     expect(screen.getByText('失败')).toBeInTheDocument()
   })
 
   it('允许同时展开多个 Turn，点击步骤后才读取原始证据', async () => {
-    render(<ExecutionTracePanel conversationId="conversation-1" isOpen onClose={vi.fn()} />)
+    render(<ExecutionTracePanel conversationId="conversation-1" isOpen />)
     await screen.findByText('Turn turn-2')
 
     fireEvent.click(screen.getByRole('button', { name: /Turn turn-1/ }))
@@ -115,7 +115,7 @@ describe('executionTracePanel', () => {
     vi.mocked(observabilityApi.getEvidence).mockImplementation(async (_conversationId, _turnId, recordId) => {
       return recordId === 'model-1' ? modelEvidence.promise : toolEvidence.promise
     })
-    render(<ExecutionTracePanel conversationId="conversation-1" isOpen onClose={vi.fn()} />)
+    render(<ExecutionTracePanel conversationId="conversation-1" isOpen />)
     await screen.findByRole('button', { name: '模型请求' })
 
     fireEvent.click(screen.getByRole('button', { name: '模型请求' }))
@@ -132,7 +132,7 @@ describe('executionTracePanel', () => {
   it('默认时间线读取失败时结束 loading 并展示错误', async () => {
     vi.mocked(observabilityApi.getTurnTimeline).mockRejectedValue(new Error('默认时间线失败'))
 
-    render(<ExecutionTracePanel conversationId="conversation-1" isOpen onClose={vi.fn()} />)
+    render(<ExecutionTracePanel conversationId="conversation-1" isOpen />)
 
     expect(await screen.findByText('读取时间线失败：默认时间线失败')).toBeInTheDocument()
     expect(screen.queryByText('正在加载时间线…')).not.toBeInTheDocument()
@@ -144,7 +144,7 @@ describe('executionTracePanel', () => {
         throw new Error('手动时间线失败')
       return timeline(turnId)
     })
-    render(<ExecutionTracePanel conversationId="conversation-1" isOpen onClose={vi.fn()} />)
+    render(<ExecutionTracePanel conversationId="conversation-1" isOpen />)
     await screen.findByRole('button', { name: '模型请求' })
 
     fireEvent.click(screen.getByRole('button', { name: /Turn turn-1/ }))
@@ -155,7 +155,7 @@ describe('executionTracePanel', () => {
 
   it('原始证据读取失败时结束 loading 并展示错误', async () => {
     vi.mocked(observabilityApi.getEvidence).mockRejectedValue(new Error('证据失败'))
-    render(<ExecutionTracePanel conversationId="conversation-1" isOpen onClose={vi.fn()} />)
+    render(<ExecutionTracePanel conversationId="conversation-1" isOpen />)
     const modelRequest = await screen.findByRole('button', { name: '模型请求' })
 
     fireEvent.click(modelRequest)
@@ -165,7 +165,7 @@ describe('executionTracePanel', () => {
   })
 
   it('实时失效只重查当前会话摘要', async () => {
-    render(<ExecutionTracePanel conversationId="conversation-1" isOpen onClose={vi.fn()} />)
+    render(<ExecutionTracePanel conversationId="conversation-1" isOpen />)
     await screen.findByText('Turn turn-2')
     vi.mocked(observabilityApi.listTurns).mockClear()
     vi.mocked(observabilityApi.getTurnTimeline).mockClear()
@@ -184,7 +184,7 @@ describe('executionTracePanel', () => {
       .mockResolvedValueOnce([first, second])
       .mockImplementationOnce(() => older.promise)
       .mockImplementationOnce(() => newer.promise)
-    render(<ExecutionTracePanel conversationId="conversation-1" isOpen onClose={vi.fn()} />)
+    render(<ExecutionTracePanel conversationId="conversation-1" isOpen />)
     await screen.findByText('Turn turn-2')
 
     eventBoundary.handler?.({ conversationId: 'conversation-1', turnId: 'turn-2' })
@@ -202,7 +202,7 @@ describe('executionTracePanel', () => {
     vi.mocked(observabilityApi.getTurnTimeline)
       .mockImplementationOnce(() => older.promise)
       .mockImplementationOnce(() => newer.promise)
-    render(<ExecutionTracePanel conversationId="conversation-1" isOpen onClose={vi.fn()} />)
+    render(<ExecutionTracePanel conversationId="conversation-1" isOpen />)
     const turn = await screen.findByRole('button', { name: /Turn turn-2/ })
 
     fireEvent.click(turn)
@@ -215,7 +215,7 @@ describe('executionTracePanel', () => {
   })
 
   it('从 Turn 入口打开时直接聚焦对应时间线', async () => {
-    render(<ExecutionTracePanel conversationId="conversation-1" focusTurnId="turn-1" isOpen onClose={vi.fn()} />)
+    render(<ExecutionTracePanel conversationId="conversation-1" focusTurnId="turn-1" isOpen />)
 
     await screen.findByText('Turn turn-1')
     await waitFor(() => expect(observabilityApi.getTurnTimeline).toHaveBeenCalledWith('conversation-1', 'turn-1'))
@@ -224,12 +224,12 @@ describe('executionTracePanel', () => {
   it('展示不完整、过期和不支持提示', async () => {
     vi.mocked(observabilityApi.listTurns).mockResolvedValue([{ ...first, completeness: 'incomplete', incompleteReasons: ['disk'] }])
     vi.mocked(observabilityApi.getTurnTimeline).mockResolvedValue(null)
-    const view = render(<ExecutionTracePanel conversationId="conversation-1" isOpen onClose={vi.fn()} />)
+    const view = render(<ExecutionTracePanel conversationId="conversation-1" isOpen />)
     expect(await screen.findByText('Trace 不完整')).toBeInTheDocument()
     expect(await screen.findByText('Trace 已过期')).toBeInTheDocument()
 
     vi.mocked(observabilityApi.listTurns).mockRejectedValue(new Error('unsupported schema version'))
-    view.rerender(<ExecutionTracePanel conversationId="conversation-2" isOpen onClose={vi.fn()} />)
+    view.rerender(<ExecutionTracePanel conversationId="conversation-2" isOpen />)
     expect(await screen.findByText('Trace 版本不受支持')).toBeInTheDocument()
   })
 
@@ -250,7 +250,7 @@ describe('executionTracePanel', () => {
         }),
       ],
     })
-    render(<ExecutionTracePanel conversationId="conversation-1" isOpen onClose={vi.fn()} />)
+    render(<ExecutionTracePanel conversationId="conversation-1" isOpen />)
 
     fireEvent.click(await screen.findByRole('button', { name: '模型请求' }))
 
@@ -270,7 +270,7 @@ describe('executionTracePanel', () => {
         toolCompleted('failed', undefined, { status: 'failed', error: '磁盘已满', exitCode: 1, durationMs: 30 }),
       ],
     })
-    render(<ExecutionTracePanel conversationId="conversation-1" isOpen onClose={vi.fn()} />)
+    render(<ExecutionTracePanel conversationId="conversation-1" isOpen />)
 
     fireEvent.click(await screen.findByRole('button', { name: '工具调用' }))
 
@@ -320,7 +320,7 @@ describe('executionTracePanel', () => {
         },
       ],
     })
-    render(<ExecutionTracePanel conversationId="conversation-1" isOpen onClose={vi.fn()} />)
+    render(<ExecutionTracePanel conversationId="conversation-1" isOpen />)
 
     fireEvent.click(await screen.findByRole('button', { name: '策略判断' }))
 
@@ -342,7 +342,7 @@ describe('executionTracePanel', () => {
         modelCompleted({ text: '回复', durationMs: 10 }),
       ],
     })
-    render(<ExecutionTracePanel conversationId="conversation-1" isOpen onClose={vi.fn()} />)
+    render(<ExecutionTracePanel conversationId="conversation-1" isOpen />)
     fireEvent.click(await screen.findByRole('button', { name: '模型请求' }))
 
     fireEvent.click(await screen.findByRole('tab', { name: '详情' }))
@@ -355,7 +355,7 @@ describe('executionTracePanel', () => {
   it('原始证据支持复制单条记录', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
-    render(<ExecutionTracePanel conversationId="conversation-1" isOpen onClose={vi.fn()} />)
+    render(<ExecutionTracePanel conversationId="conversation-1" isOpen />)
     fireEvent.click(await screen.findByRole('button', { name: '模型请求' }))
     fireEvent.click(await screen.findByRole('tab', { name: '原始证据' }))
 
@@ -363,19 +363,6 @@ describe('executionTracePanel', () => {
 
     await waitFor(() => expect(writeText).toHaveBeenCalledOnce())
     expect(writeText.mock.calls[0][0]).toContain('model-1')
-  })
-
-  it('窄屏使用全屏 Sheet 展示', async () => {
-    window.matchMedia = vi.fn().mockReturnValue({
-      matches: true,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    } as unknown as MediaQueryList)
-
-    render(<ExecutionTracePanel conversationId="conversation-1" isOpen onClose={vi.fn()} />)
-
-    expect(await screen.findByRole('dialog')).toBeInTheDocument()
-    expect(screen.queryByRole('complementary', { name: '执行轨迹' })).not.toBeInTheDocument()
   })
 })
 
