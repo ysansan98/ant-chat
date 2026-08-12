@@ -37,7 +37,14 @@ import type { McpConnection, McpServerLifecycleResult, McpServerTestResult, McpT
 import type { MemoryCatalogListEntry, MemoryRecord } from './memory-catalog'
 import type { ModelsDevProvider } from './modelsDev'
 import type { ProviderAuthStatus } from './providerAuth'
-import type { ImportSkillOptions, SetSkillEnabledOptions, SkillIndex, SkillManifest } from './skill'
+import type {
+  GithubSkillPreview,
+  ImportGithubSkillsResult,
+  ImportSkillOptions,
+  SetSkillEnabledOptions,
+  SkillIndex,
+  SkillManifest,
+} from './skill'
 import type { UpdateConfig, UpdateInfo, UpdateStatus } from './update'
 import type { ListWorkspacesData, WorkspaceDirectoryListing, WorkspaceFileSearchResult } from './workspace'
 
@@ -126,6 +133,8 @@ export interface AppRpcContract {
 
   'skills.listSkills': RpcEndpoint<undefined, SkillIndex>
   'skills.importSkill': RpcEndpoint<{ options: ImportSkillOptions }, SkillManifest>
+  'skills.previewGithubSkills': RpcEndpoint<{ options: { url: string } }, GithubSkillPreview[]>
+  'skills.importGithubSkills': RpcEndpoint<{ options: { url: string, paths: string[] } }, ImportGithubSkillsResult>
   'skills.setSkillEnabled': RpcEndpoint<{ options: SetSkillEnabledOptions }, SkillManifest>
   'skills.deleteSkill': RpcEndpoint<{ name: string }, null>
   'skills.rebuildSkillIndex': RpcEndpoint<undefined, SkillIndex>

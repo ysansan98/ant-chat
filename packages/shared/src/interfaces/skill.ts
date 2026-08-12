@@ -9,7 +9,7 @@ export interface SkillFrontmatter {
   allowedTools?: string
 }
 
-export type SkillSource = 'zip' | 'github' | 'builtin'
+export type SkillSource = 'zip' | 'github' | 'builtin' | 'local'
 
 /** 应用层可变状态（仅持久化在 .index.json 中） */
 export interface SkillAppState {
@@ -47,6 +47,23 @@ export interface ImportSkillFromGithubOptions {
 export type ImportSkillOptions
   = | { source: 'zip', zipBase64: string, name?: string }
     | { source: 'github', url: string, name?: string }
+
+/** GitHub 仓库预览出的单个 skill（用于多 skill 仓库选择导入）。 */
+export interface GithubSkillPreview {
+  /** 仓库内相对路径（SKILL.md 所在目录），如 skills/engineering/code-review */
+  path: string
+  /** skill 名（目录名） */
+  name: string
+  /** 分类（路径倒数第三段），无分类目录时为 undefined */
+  category?: string
+  description: string
+}
+
+export interface ImportGithubSkillsResult {
+  installed: SkillManifest[]
+  /** 因重名或目录非法被跳过的 skill 路径 */
+  skipped: string[]
+}
 
 export interface SetSkillEnabledOptions {
   name: string

@@ -27,6 +27,16 @@ export class SkillsModule implements RuntimeModuleMethods<'skills'> {
   }
 
   @Method()
+  previewGithubSkills(input: AppRpcInput<'skills.previewGithubSkills'>) {
+    return this.service.previewGithubSkills(input.options.url)
+  }
+
+  @Method()
+  importGithubSkills(input: AppRpcInput<'skills.importGithubSkills'>) {
+    return this.service.importGithubSkills(input.options.url, input.options.paths)
+  }
+
+  @Method()
   setSkillEnabled(input: AppRpcInput<'skills.setSkillEnabled'>) {
     return this.service.setEnabled(input.options.name, input.options.enabled)
   }

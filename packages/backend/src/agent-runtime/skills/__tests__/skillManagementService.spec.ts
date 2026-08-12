@@ -10,10 +10,17 @@ const VALID_SKILL_ZIP = 'UEsDBBQAAAAIAK1YnlxVUSklIgAAACQAAAAIAAAAU0tJTEwubWRTVgg
 const UNSAFE_SKILL_ZIP = 'UEsDBBQAAAAIAK9Ynly7JMeZCgAAAAgAAAALAAAALi4vU0tJTEwubWRTVgjNK05MSwUAUEsBAhQAFAAAAAgAr1ieXLskx5kKAAAACAAAAAsAAAAAAAAAAAAAAAAAAAAAAC4uL1NLSUxMLm1kUEsFBgAAAAABAAEAOQAAADMAAAAAAA=='
 const FRONTMATTER_SKILL_ZIP = 'UEsDBBQAAAAAAHx8plzIj6ltcwAAAHMAAAAIAAAAU0tJTEwubWQtLS0KbmFtZToga2FtaQpkZXNjcmlwdGlvbjogVHlwZXNldCBwcm9mZXNzaW9uYWwgZG9jdW1lbnRzLgotLS0KCiMga2FtaSDCtyDntJkKCldyaXRlIHByb2Zlc3Npb25hbCBQREZzIHdpdGgga2FtaS4KUEsBAhQDFAAAAAAAfHymXMiPqW1zAAAAcwAAAAgAAAAAAAAAAAAAAIABAAAAAFNLSUxMLm1kUEsFBgAAAAABAAEANgAAAJkAAAAAAA=='
 
-/** 构造 codeload 风格的 github zip：仓库目录前缀 + SKILL.md。 */
-function githubArchiveZip(skillMarkdown: string): string {
-  const zip = zipSync({ 'writer-main/SKILL.md': strToU8(skillMarkdown) })
-  return Buffer.from(zip).toString('base64')
+/** 构造 codeload 风格的 github zip：仓库目录前缀 + 多个文件。 */
+function githubArchiveZip(entries: Record<string, string>): string {
+  const files: Record<string, Uint8Array> = {}
+  for (const [entryPath, content] of Object.entries(entries)) {
+    files[entryPath] = strToU8(content)
+  }
+  return Buffer.from(zipSync(files)).toString('base64')
+}
+
+function skillMarkdown(name: string, description: string): string {
+  return `---\nname: ${name}\ndescription: ${description}\n---\n\n# ${name}\n`
 }
 
 describe('skillManagementService', () => {
@@ -100,16 +107,9 @@ describe('skillManagementService', () => {
       if (url.includes('/zip/abc123def456')) {
         return {
           ok: true,
-          arrayBuffer: async () => Buffer.from(githubArchiveZip([
-            '---',
-            'name: writer',
-            'description: Write short release notes.',
-            '---',
-            '',
-            '# Writer',
-            '',
-            'Write short release notes.',
-          ].join('\n')), 'base64'),
+          arrayBuffer: async () => Buffer.from(githubArchiveZip({
+            'writer-main/SKILL.md': skillMarkdown('writer', 'Write short release notes.'),
+          }), 'base64'),
         } as unknown as Response
       }
       throw new Error(`unexpected fetch: ${url}`)
@@ -152,6 +152,85 @@ describe('skillManagementService', () => {
         source: 'github',
         url: 'https://github.com/acme/writer/tree/main',
       })).rejects.toThrow('failed to resolve commit')
+    }
+    finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('github 预览只扫描仓库根与 skills/ 容器，跳过其他目录', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === 'https://api.github.com/repos/acme/writer') {
+        return { ok: true, json: async () => ({ default_branch: 'main' }) } as unknown as Response
+      }
+      if (url.includes('/zip/main')) {
+        return {
+          ok: true,
+          arrayBuffer: async () => Buffer.from(githubArchiveZip({
+            'writer-main/SKILL.md': skillMarkdown('writer', 'Write release notes.'),
+            'writer-main/skills/engineering/code-review/SKILL.md': skillMarkdown('code-review', 'Review code.'),
+            'writer-main/skills/productivity/todo/SKILL.md': skillMarkdown('todo', 'Track todos.'),
+            'writer-main/skills/in-progress/writing-beats/SKILL.md': skillMarkdown('writing-beats', 'Write beats.'),
+            'writer-main/docs/guide/SKILL.md': skillMarkdown('guide', 'Docs only.'),
+            'writer-main/node_modules/pkg/SKILL.md': skillMarkdown('pkg', 'Dependency.'),
+          }), 'base64'),
+        } as unknown as Response
+      }
+      throw new Error(`unexpected fetch: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      const previews = await reader.previewGithubSkills('https://github.com/acme/writer')
+
+      expect(previews.map(item => item.path)).toEqual([
+        '',
+        'skills/engineering/code-review',
+        'skills/in-progress/writing-beats',
+        'skills/productivity/todo',
+      ])
+      expect(previews.find(item => item.path === 'skills/engineering/code-review')).toMatchObject({
+        name: 'code-review',
+        category: 'engineering',
+        description: 'Review code.',
+      })
+      expect(previews.find(item => item.path === '')?.name).toBe('writer')
+    }
+    finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('github 批量导入选中的 skill，重名的跳过并汇报', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === 'https://api.github.com/repos/acme/writer') {
+        return { ok: true, json: async () => ({ default_branch: 'main' }) } as unknown as Response
+      }
+      if (url.includes('/commits/main')) {
+        return { ok: true, json: async () => ({ sha: 'abc123def456' }) } as unknown as Response
+      }
+      if (url.includes('/zip/abc123def456')) {
+        return {
+          ok: true,
+          arrayBuffer: async () => Buffer.from(githubArchiveZip({
+            'writer-main/skills/engineering/code-review/SKILL.md': skillMarkdown('code-review', 'Review code.'),
+            'writer-main/skills/productivity/todo/SKILL.md': skillMarkdown('todo', 'Track todos.'),
+          }), 'base64'),
+        } as unknown as Response
+      }
+      throw new Error(`unexpected fetch: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      const url = 'https://github.com/acme/writer'
+      await reader.importGithubSkills(url, ['skills/engineering/code-review'])
+
+      const result = await reader.importGithubSkills(url, [
+        'skills/engineering/code-review',
+        'skills/productivity/todo',
+      ])
+
+      expect(result.installed.map(item => item.name)).toEqual(['todo'])
+      expect(result.skipped).toEqual(['skills/engineering/code-review'])
     }
     finally {
       vi.unstubAllGlobals()
@@ -264,6 +343,6 @@ describe('skillManagementService', () => {
     expect(manual).toBeDefined()
     expect(manual!.description).toBe('Manually added.')
     expect(manual!.enabled).toBe(true)
-    expect(manual!.source).toBe('zip')
+    expect(manual!.source).toBe('local')
   })
 })

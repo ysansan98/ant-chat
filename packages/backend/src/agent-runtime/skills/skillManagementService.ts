@@ -1,4 +1,15 @@
-import type { ImportSkillFromGithubOptions, ImportSkillOptions, SkillAppState, SkillFrontmatter, SkillIndex, SkillIndexFile, SkillManifest } from '@ant-chat/shared'
+import type {
+  GithubSkillPreview,
+  ImportGithubSkillsResult,
+  ImportSkillFromGithubOptions,
+  ImportSkillOptions,
+  SkillAppState,
+  SkillFrontmatter,
+  SkillIndex,
+  SkillIndexFile,
+  SkillManifest,
+  SkillSource,
+} from '@ant-chat/shared'
 import { Buffer } from 'node:buffer'
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
@@ -114,7 +125,7 @@ export class SkillManagementService {
       }
       // 发现新 skill 目录但 .index.json 中无记录时，追加默认 appState
       if (!appState[entry.name]) {
-        appState[entry.name] = createDefaultAppState('zip')
+        appState[entry.name] = createDefaultAppState('local')
         dirty = true
       }
       skills.push(skill)
@@ -174,6 +185,76 @@ export class SkillManagementService {
         name: options.name,
       })
       return manifest
+    }
+    finally {
+      await removePath(tempDir)
+    }
+  }
+
+  /** 预览 GitHub 仓库中的全部 skill，供用户勾选导入。 */
+  async previewGithubSkills(url: string): Promise<GithubSkillPreview[]> {
+    const parsed = parseGithubUrl(url)
+    const ref = parsed.ref ?? await fetchDefaultBranch(parsed.owner, parsed.repo)
+    const archive = await downloadGithubArchive(parsed.owner, parsed.repo, ref)
+    const tempDir = await this.createTempDir()
+    try {
+      await extractZip(archive, tempDir)
+      const repoRoot = await getOnlyChildDirectory(tempDir)
+      const skillRoots = collectSkillRoots(repoRoot)
+      const previews = await Promise.all(
+        skillRoots.map(async (skillPath): Promise<GithubSkillPreview | null> => {
+          try {
+            const frontmatter = await this.readFrontmatter(skillPath)
+            const relativePath = path.relative(repoRoot, skillPath).split(path.sep).join('/')
+            return {
+              path: relativePath,
+              name: frontmatter.name,
+              category: categoryFromPath(relativePath),
+              description: frontmatter.description,
+            }
+          }
+          catch {
+            return null
+          }
+        }),
+      )
+      return previews
+        .filter((item): item is GithubSkillPreview => item !== null)
+        .sort((a, b) => (a.category ?? '').localeCompare(b.category ?? '') || a.name.localeCompare(b.name))
+    }
+    finally {
+      await removePath(tempDir)
+    }
+  }
+
+  /** 一次下载解压，安装用户选中的多个 skill，重名/非法的跳过并汇报。 */
+  async importGithubSkills(url: string, paths: string[]): Promise<ImportGithubSkillsResult> {
+    await this.ensureInitialized()
+    const parsed = parseGithubUrl(url)
+    const ref = parsed.ref ?? await fetchDefaultBranch(parsed.owner, parsed.repo)
+    const commitSha = await fetchCommitSha(parsed.owner, parsed.repo, ref)
+    const archive = await downloadGithubArchive(parsed.owner, parsed.repo, commitSha)
+    const tempDir = await this.createTempDir()
+    try {
+      await extractZip(archive, tempDir)
+      const repoRoot = await getOnlyChildDirectory(tempDir)
+      const installed: SkillManifest[] = []
+      const skipped: string[] = []
+      for (const skillPath of paths) {
+        try {
+          const sourceRoot = findSkillRoot(path.join(repoRoot, skillPath))
+          const manifest = await this.importFromDirectory(sourceRoot, {
+            source: 'github',
+            sourceUrl: url,
+            commitSha,
+          })
+          installed.push(manifest)
+        }
+        catch {
+          skipped.push(skillPath)
+        }
+      }
+      return { installed, skipped }
     }
     finally {
       await removePath(tempDir)
@@ -250,7 +331,7 @@ export class SkillManagementService {
       }
       activeNames.add(entry.name)
       if (!appState[entry.name]) {
-        appState[entry.name] = createDefaultAppState('zip')
+        appState[entry.name] = createDefaultAppState('local')
       }
       skills.push(skill)
     }
@@ -318,7 +399,7 @@ export class SkillManagementService {
       if (frontmatter.name !== dirName) {
         frontmatter.name = dirName
       }
-      const appState = state ?? createDefaultAppState('zip')
+      const appState = state ?? createDefaultAppState('local')
       return { ...frontmatter, ...appState }
     }
     catch {
@@ -575,7 +656,7 @@ export class SkillManagementService {
           await removePath(manifestPath)
         }
         else {
-          appState[entry.name] = createDefaultAppState('zip')
+          appState[entry.name] = createDefaultAppState('local')
         }
       }
     }
@@ -591,7 +672,7 @@ export class SkillManagementService {
 
 // ── 工具函数 ─────────────────────────────────────────────────
 
-function createDefaultAppState(source: 'zip' | 'github' | 'builtin'): SkillAppState {
+function createDefaultAppState(source: SkillSource): SkillAppState {
   const now = Date.now()
   return { enabled: true, builtin: false, source, installedAt: now, updatedAt: now }
 }
@@ -661,6 +742,55 @@ function findSkillRoot(inputPath: string, depth = 0): string {
     catch {}
   }
   throw new Error('AGENT_SKILL_INVALID: missing SKILL.md')
+}
+
+/** 扫描时跳过的目录（防构建产物/依赖被误判为 skill）。 */
+const SKILL_SCAN_SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', '__pycache__'])
+
+/**
+ * 收集 GitHub 仓库中可导入的全部 skill：
+ * - 仓库根（depth 1）：根自身 + 直接子目录，覆盖单 skill 仓库；
+ * - skills/ 容器（depth 4 递归）：覆盖 skills/<分类>/<skill> 分类布局。
+ * 其余目录（docs/.agents 等）不扫描，避免仓库自带文件污染选择列表。
+ */
+function collectSkillRoots(repoRoot: string): string[] {
+  const roots: string[] = []
+  if (fs.existsSync(path.join(repoRoot, 'SKILL.md'))) {
+    roots.push(repoRoot)
+  }
+  const rootEntries = fs.readdirSync(repoRoot, { withFileTypes: true })
+    .filter(entry => entry.isDirectory() && !entry.name.startsWith('.') && !SKILL_SCAN_SKIP_DIRS.has(entry.name))
+  for (const entry of rootEntries) {
+    if (fs.existsSync(path.join(repoRoot, entry.name, 'SKILL.md'))) {
+      roots.push(path.join(repoRoot, entry.name))
+    }
+  }
+  const skillsContainer = path.join(repoRoot, 'skills')
+  if (fs.existsSync(skillsContainer)) {
+    collectSkillDirs(skillsContainer, 0, 4, roots)
+  }
+  return roots
+}
+
+function collectSkillDirs(dir: string, depth: number, maxDepth: number, roots: string[]): void {
+  if (fs.existsSync(path.join(dir, 'SKILL.md'))) {
+    roots.push(dir)
+    return
+  }
+  if (depth >= maxDepth) {
+    return
+  }
+  const entries = fs.readdirSync(dir, { withFileTypes: true })
+    .filter(entry => entry.isDirectory() && !entry.name.startsWith('.') && !SKILL_SCAN_SKIP_DIRS.has(entry.name))
+  for (const entry of entries) {
+    collectSkillDirs(path.join(dir, entry.name), depth + 1, maxDepth, roots)
+  }
+}
+
+/** 从仓库相对路径推断分类：SKILL.md 所在目录的上一级目录，如 skills/engineering/code-review → engineering。 */
+function categoryFromPath(relativePath: string): string | undefined {
+  const parts = relativePath.split('/').filter(Boolean)
+  return parts.length >= 2 ? parts[parts.length - 2] : undefined
 }
 
 async function getOnlyChildDirectory(inputPath: string): Promise<string> {
