@@ -16,7 +16,6 @@
     "predev": "node ../../scripts/native-abi.mjs --sync electron",
     "dev:debug": "cross-env ANT_CHAT_ENV=development electron-vite dev -- --remote-debugging-port=9222",
     "predev:debug": "node ../../scripts/native-abi.mjs --sync electron",
-    "debug:check": "node scripts/check-remote-debugging.cjs",
     "rg:prepare": "tsx scripts/fetch-rg.ts",
     "prebuild": "electron-vite build",
     "type-check": "tsc -b",
