@@ -4,17 +4,19 @@ import { Button } from '@workspace/ui/components/button'
 import { EmptyState } from '@workspace/ui/components/empty-state'
 import { Spinner } from '@workspace/ui/components/spinner'
 import { ChevronRightIcon, ExternalLinkIcon, FileTextIcon } from 'lucide-react'
-import { Fragment } from 'react'
+import { Fragment, lazy, Suspense } from 'react'
 import { detectFileLanguage } from '../Workspace/fileLanguage'
 import { detectFileKind, isMarkdownFileName } from './fileView'
 import { MarkdownPreview } from './MarkdownPreview'
 import { AudioPreview } from './previews/AudioPreview'
-import { DocxPreview } from './previews/DocxPreview'
-import { ExcelPreview } from './previews/ExcelPreview'
 import { ImagePreview } from './previews/ImagePreview'
-import { PdfPreview } from './previews/PdfPreview'
 import { UnsupportedPreview } from './previews/UnsupportedPreview'
 import { VideoPreview } from './previews/VideoPreview'
+
+// PDF/Excel/DOCX 预览引擎体积大（WASM 引擎，约 12MB），仅在打开对应文件时才加载
+const PdfPreview = lazy(() => import('./previews/PdfPreview').then(m => ({ default: m.PdfPreview })))
+const ExcelPreview = lazy(() => import('./previews/ExcelPreview').then(m => ({ default: m.ExcelPreview })))
+const DocxPreview = lazy(() => import('./previews/DocxPreview').then(m => ({ default: m.DocxPreview })))
 
 export type MarkdownMode = 'preview' | 'source'
 
@@ -121,7 +123,15 @@ export function FileContentArea({
         />
       )}
       <div className="min-h-0 flex-1 overflow-hidden pb-1">
-        <ContentView file={file} view={view} />
+        <Suspense
+          fallback={(
+            <div className="flex h-full items-center justify-center" data-testid="file-preview-loading">
+              <Spinner />
+            </div>
+          )}
+        >
+          <ContentView file={file} view={view} />
+        </Suspense>
       </div>
     </div>
   )
