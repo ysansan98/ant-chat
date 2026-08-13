@@ -18,14 +18,6 @@ const config: Configuration = {
   ],
   extraResources: [
     {
-      from: 'app-icons/mac/icon-macos-default.png',
-      to: 'icon-macos-default.png',
-    },
-    {
-      from: 'app-icons/mac/icon-macos-dark.png',
-      to: 'icon-macos-dark.png',
-    },
-    {
       from: 'resources/ant-chat',
       to: 'ant-chat',
     },

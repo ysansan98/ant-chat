@@ -4,7 +4,6 @@ import { resolveAppDataRoot } from '@ant-chat/shared'
 import { app } from 'electron'
 import { activateDesktopAppRuntime, disposeDesktopAppRuntime } from './app-runtime-host/appRuntime'
 import { UpdateService } from './domains/update/updateService'
-import { setupDockIcon } from './utils/dockIcon'
 import { logger } from './utils/logger'
 import { MainWindow } from './windows/window'
 import { registerWorkspaceFileProtocol, registerWorkspaceFileScheme } from './workspace-file-protocol'
@@ -37,8 +36,6 @@ else {
 
     // 注册工作区文件流式预览 protocol（图片/音视频/Excel 预览所需）
     registerWorkspaceFileProtocol()
-
-    setupDockIcon()
 
     const mainWindow = new MainWindow()
     await mainWindow.createWindow()
