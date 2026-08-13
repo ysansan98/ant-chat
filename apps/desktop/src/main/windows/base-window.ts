@@ -53,7 +53,7 @@ export abstract class BaseWindow {
         preload,
       },
       titleBarStyle: isMacOS ? 'hidden' : 'default',
-      trafficLightPosition: { x: 19, y: 19 },
+      trafficLightPosition: { x: 19, y: 12 },
     })
 
     this.setupWindow(this.window)

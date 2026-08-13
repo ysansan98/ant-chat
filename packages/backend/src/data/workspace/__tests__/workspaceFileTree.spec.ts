@@ -100,16 +100,38 @@ describe('workspaceFileTree', () => {
     })
   })
 
-  it('超过 1MB 的文件拒绝预览', async () => {
+  it('超过 1MB 的纯文本返回 oversize 标记（正常边界，非错误）', async () => {
     await fs.promises.writeFile(path.join(workspacePath, 'big.txt'), Buffer.alloc(MAX_PREVIEW_BYTES + 1, 0x61))
 
-    await expect(readTextFile(workspacePath, 'big.txt')).rejects.toThrow('文件超过 1MB')
+    await expect(readTextFile(workspacePath, 'big.txt')).resolves.toEqual({
+      content: '',
+      size: MAX_PREVIEW_BYTES + 1,
+      oversize: true,
+    })
   })
 
-  it('文件头含 NUL 字节的二进制文件拒绝预览', async () => {
+  it('文件头含 NUL 字节的二进制文件返回 binary 标记（优先于大小判断）', async () => {
     await fs.promises.writeFile(path.join(workspacePath, 'image.png'), Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x00, 0x01]))
 
-    await expect(readTextFile(workspacePath, 'image.png')).rejects.toThrow('二进制文件无法预览')
+    await expect(readTextFile(workspacePath, 'image.png')).resolves.toEqual({
+      content: '',
+      size: 6,
+      binary: true,
+    })
+  })
+
+  it('超过 1MB 的二进制文件仍返回 binary 标记（不做大小错误）', async () => {
+    // 1MB 纯 'a' 前插入 NUL：旧实现会先抛「超过 1MB」，新实现应先判定二进制
+    await fs.promises.writeFile(path.join(workspacePath, 'big.bin'), Buffer.concat([
+      Buffer.from([0x00]),
+      Buffer.alloc(MAX_PREVIEW_BYTES + 1, 0x61),
+    ]))
+
+    await expect(readTextFile(workspacePath, 'big.bin')).resolves.toEqual({
+      content: '',
+      size: MAX_PREVIEW_BYTES + 2,
+      binary: true,
+    })
   })
 
   it('不存在的文件抛明确错误', async () => {

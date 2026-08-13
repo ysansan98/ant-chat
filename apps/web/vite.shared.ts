@@ -134,10 +134,13 @@ export function createWebRendererViteConfig({
       ],
       // Vite 8 用 Rolldown 预构建依赖；Node 内置模块在浏览器环境需 shim
       // （wasm-bindgen glue code 引用 util / async_hooks）
+      // 注意：rolldown 的 alias 属于 resolve 子选项（顶层 alias 仅旧版本支持）
       rolldownOptions: {
-        alias: {
-          'util': resolve(rootDir, 'src/lib/util-shim.ts'),
-          'async_hooks': resolve(rootDir, 'src/lib/util-shim.ts'),
+        resolve: {
+          alias: {
+            util: resolve(rootDir, 'src/lib/util-shim.ts'),
+            async_hooks: resolve(rootDir, 'src/lib/util-shim.ts'),
+          },
         },
       },
     },

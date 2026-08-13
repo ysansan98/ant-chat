@@ -19,7 +19,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from '
 import { toast } from 'sonner'
 import workspaceApi from '@/api/workspaceApi'
 import { useWorkspaceStore } from '@/store/workspace'
-import { loadClampedNumber, toErrorMessage } from '@/utils/util'
+import { toErrorMessage } from '@/utils/util'
 import { ExecutionTracePanel } from '../ExecutionTrace'
 import { FilesPanel } from './FilesPanel'
 import { detectFileKind, isMarkdownFileName } from './fileView'
@@ -40,7 +40,6 @@ export interface RightSidebarProps {
 }
 
 const NARROW_QUERY = '(max-width: 767px)'
-const WIDTH_STORAGE_KEY = 'ant-chat:right-sidebar-width'
 const DEFAULT_PANEL_WIDTH = 520
 const MIN_PANEL_WIDTH = 360
 
@@ -59,7 +58,9 @@ export function RightSidebar({
   onClose,
 }: RightSidebarProps) {
   const narrow = useMediaQuery(NARROW_QUERY)
-  const [width, setWidth] = useState(loadSavedWidth)
+  // 宽度不持久化：窗口大小每次启动会恢复默认，若记住上次的拖拽宽度，
+  // 在默认窗口下会挤压主对话区，因此每次启动回到 DEFAULT_PANEL_WIDTH。
+  const [width, setWidth] = useState(DEFAULT_PANEL_WIDTH)
   const workspacePath = useWorkspaceStore(state => state.currentWorkspacePath)
   const [tabs, setTabs] = useState<SidebarTab[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -69,15 +70,6 @@ export function RightSidebar({
   const [filesRevealMap, setFilesRevealMap] = useState<Record<string, string | null>>({})
   const fileRequestIdsRef = useRef<Record<string, number>>({})
   const nextFilesTabIdRef = useRef(1)
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(WIDTH_STORAGE_KEY, String(width))
-    }
-    catch {
-      // localStorage 不可用时忽略，仅本次会话内有效
-    }
-  }, [width])
 
   // 工作区切换时清空文件内容与标签，并作废进行中的读取
   useEffect(() => {
@@ -460,8 +452,4 @@ function useMediaQuery(query: string): boolean {
   }, [query])
   const snapshot = useCallback(() => window.matchMedia(query).matches, [query])
   return useSyncExternalStore(subscribe, snapshot, () => false)
-}
-
-function loadSavedWidth(): number {
-  return loadClampedNumber(WIDTH_STORAGE_KEY, MIN_PANEL_WIDTH, undefined, DEFAULT_PANEL_WIDTH)
 }

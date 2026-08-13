@@ -13,6 +13,7 @@ import { DocxPreview } from './previews/DocxPreview'
 import { ExcelPreview } from './previews/ExcelPreview'
 import { ImagePreview } from './previews/ImagePreview'
 import { PdfPreview } from './previews/PdfPreview'
+import { UnsupportedPreview } from './previews/UnsupportedPreview'
 import { VideoPreview } from './previews/VideoPreview'
 
 export type MarkdownMode = 'preview' | 'source'
@@ -108,7 +109,7 @@ export function FileContentArea({
   hideHeader = false,
 }: FileContentAreaProps) {
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-testid="file-content-area">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-testid="file-content-area pl-1">
       {!hideHeader && (
         <FileHeader
           file={file}
@@ -119,7 +120,7 @@ export function FileContentArea({
           onOpenWithDefaultApp={onOpenWithDefaultApp}
         />
       )}
-      <div className="min-h-0 flex-1 overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-hidden pb-1">
         <ContentView file={file} view={view} />
       </div>
     </div>
@@ -148,7 +149,20 @@ function ContentView({ file, view }: {
   }
   const kind = detectFileKind(file.name)
 
-  // 媒体类型：走流式 URL 预览（content 为空属于预期）
+  // 二进制/超大文件（后端嗅探判定）：优先展示中性「暂不支持预览」占位（不做大小判断、不渲染为文本、非错误态）
+  if (view.content?.binary) {
+    return <UnsupportedPreview />
+  }
+  if (view.content?.oversize) {
+    return (
+      <UnsupportedPreview
+        title="文件过大，暂不支持预览"
+        description="文件超过 1MB，可用系统默认软件打开查看"
+      />
+    )
+  }
+
+  // 媒体类型：走流式（图片/音视频/Excel）预览
   if (kind === 'image' && view.url) {
     return <ImagePreview url={view.url} fileName={file.name} />
   }
@@ -194,16 +208,8 @@ function Breadcrumb({ file, workspaceName, onNavigateDir }: {
   const dirSegments = segments.slice(0, -1)
   const fileName = segments.at(-1) ?? file.name
   return (
-    <div className="flex min-w-0 items-center gap-0.5" data-testid="file-breadcrumb">
-      <Button
-        type="button"
-        variant="ghost"
-        size="xs"
-        className="px-1 text-muted-foreground"
-        onClick={() => onNavigateDir('')}
-      >
-        {workspaceName}
-      </Button>
+    <div className="flex min-w-0 items-center gap-0.5 select-none" data-testid="file-breadcrumb">
+      {workspaceName}
       {dirSegments.map((segment, index) => {
         const dirPath = segments.slice(0, index + 1).join('/')
         return (
