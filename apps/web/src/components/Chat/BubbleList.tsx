@@ -4,6 +4,7 @@ import { ArrowDownIcon } from 'lucide-react'
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useSyncExternalStore,
@@ -11,6 +12,7 @@ import {
 import { useAutoScroll } from '@/hooks/useAutoScroll'
 import { useMessageActions } from '@/hooks/useMessageActions'
 import { useAgentRuntimeStore } from '@/store/agentRuntime'
+import { useChatJumpStore } from '@/store/chatJump'
 import { InfiniteScroll } from '../InfiniteScroll'
 import { buildConversationItems, getRootUserMessages } from './conversationItems'
 import { ConversationTurn } from './ConversationTurn'
@@ -76,17 +78,23 @@ function BubbleList({ messages, initialJumpMessageId }: Props) {
         top: Math.max(0, offsetTop),
         behavior: 'smooth',
       })
-
-      // 高亮效果
-      target.style.transition = 'box-shadow 0.3s ease-in-out'
-      target.style.boxShadow = '0 0 0 2px var(--ring)'
-      target.style.borderRadius = 'var(--radius-lg)'
-      setTimeout(() => {
-        target.style.boxShadow = ''
-      }, 1500)
     },
     [infiniteScrollRef, disableAutoScroll],
   )
+
+  // 批注编辑等场景的跳转请求：消费后滚动到目标消息
+  const jumpRequestId = useChatJumpStore(state => state.messageId)
+  const consumeJump = useChatJumpStore(state => state.consume)
+  // 用 layout effect：必须在本轮渲染的 layout 阶段先同步 disableAutoScroll 再发起滚动。
+  // useAutoScroll 的 layout effect 会在"在底部"时把滚动拉回底部，若在 passive effect
+  // 才 disable，从底部触发编辑跳转时 smooth 滚动会被下一轮渲染拉回（表现为"跳不过去"）
+  useLayoutEffect(() => {
+    if (!jumpRequestId) {
+      return
+    }
+    handleJumpToMessage(jumpRequestId)
+    consumeJump()
+  }, [jumpRequestId, handleJumpToMessage, consumeJump, infiniteScrollRef])
 
   // 证据回跳：目标消息可能在异步加载后才渲染，用 MutationObserver 轮询等待
   useEffect(() => {

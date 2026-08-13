@@ -77,4 +77,17 @@ describe('messageTransform', () => {
       { type: 'text', text: '第二段' },
     ]), { skipAttachmentBlocks: true })).toBe('第一段\n第二段')
   })
+
+  it('annotation 块渲染为引用与评论', () => {
+    expect(transformMessageContent(createMessage([
+      { type: 'annotation', quote: '原回复内容', comment: '这里要改', targetMessageId: 'msg-1' },
+      { type: 'text', text: '另外的问题' },
+    ]))).toBe('引用：原回复内容\n评论：这里要改\n另外的问题')
+  })
+
+  it('annotation 块无评论（只引用）时只渲染引用', () => {
+    expect(transformMessageContent(createMessage([
+      { type: 'annotation', quote: '原回复内容', comment: '', targetMessageId: 'msg-1' },
+    ]))).toBe('引用：原回复内容')
+  })
 })

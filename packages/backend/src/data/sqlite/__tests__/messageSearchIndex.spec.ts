@@ -12,6 +12,20 @@ import { SqliteMessageRepository } from '../repositories/sqliteMessageRepository
 const BetterSqlite = requireBetterSqlite()
 
 describe('搜索投影抽取', () => {
+  it('annotation 块的引用与评论进入 text 投影', () => {
+    const projection = extractSearchProjection([
+      { type: 'annotation', quote: '原回复内容', comment: '这里要改', targetMessageId: 'msg-1' },
+    ] as never)
+    expect(projection.text).toBe('原回复内容\n这里要改')
+  })
+
+  it('annotation 块无评论时只收录引用原文', () => {
+    const projection = extractSearchProjection([
+      { type: 'annotation', quote: '原回复内容', comment: '', targetMessageId: 'msg-1' },
+    ] as never)
+    expect(projection.text).toBe('原回复内容')
+  })
+
   it('text 与 error block 进入 text，附件 block 忽略', () => {
     const projection = extractSearchProjection([
       { type: 'text', text: '第一段' },

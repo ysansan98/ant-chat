@@ -40,6 +40,21 @@ export async function contentBlocksToLoopMessageContent(
         result.push({ type: 'text', text: block.text })
         break
 
+      case 'annotation':
+        // 批注块渲染为「引用原文 + 评论」的结构化文本，让模型能区分引用的内容与用户的新评论
+        result.push({
+          type: 'text',
+          text: [
+            '<annotation>',
+            '<quote>',
+            block.quote,
+            '</quote>',
+            block.comment ? `<comment>\n${block.comment}\n</comment>` : '',
+            '</annotation>',
+          ].filter(Boolean).join('\n'),
+        })
+        break
+
       case 'image': {
         if (placeholder && imageBlocks.length > 0) {
           if (!placeholderEmitted) {

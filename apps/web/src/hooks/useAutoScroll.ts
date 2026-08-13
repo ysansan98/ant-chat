@@ -65,6 +65,53 @@ export function useAutoScroll() {
   }, [])
 
   /**
+   * wheel/touch 在滚动发生前同步标记"用户离开底部"。
+   *
+   * scroll 事件是异步派发的：流式渲染时，用户向上滚动后下一次渲染的
+   * useLayoutEffect 可能在 scroll 事件更新 ref 之前执行，读到旧值（仍在底部）
+   * 并强制 scrollToBottom 拉回——表现为"列表在底部时无法向上滑动"。
+   * wheel/touch 先于实际滚动触发，可消除该竞态。
+   */
+  useEffect(() => {
+    const container = infiniteScrollRef.current?.containerRef.current
+    if (!container) {
+      return
+    }
+    let touchStartY = 0
+    const leaveBottom = () => {
+      if (isUserScrollingRef.current || !isAtBottomRef.current) {
+        return
+      }
+      isAtBottomRef.current = false
+      setAutoScrollToBottom(false)
+    }
+    const onWheel = (event: WheelEvent) => {
+      // deltaY < 0：向上滚动（查看更早内容）
+      if (event.deltaY < 0) {
+        leaveBottom()
+      }
+    }
+    const onTouchStart = (event: TouchEvent) => {
+      touchStartY = event.touches[0]?.clientY ?? 0
+    }
+    const onTouchMove = (event: TouchEvent) => {
+      // 手指下滑（clientY 增大）＝ 列表内容向上移动，即向上滚动
+      const y = event.touches[0]?.clientY ?? touchStartY
+      if (y > touchStartY) {
+        leaveBottom()
+      }
+    }
+    container.addEventListener('wheel', onWheel, { passive: true })
+    container.addEventListener('touchstart', onTouchStart, { passive: true })
+    container.addEventListener('touchmove', onTouchMove, { passive: true })
+    return () => {
+      container.removeEventListener('wheel', onWheel)
+      container.removeEventListener('touchstart', onTouchStart)
+      container.removeEventListener('touchmove', onTouchMove)
+    }
+  }, [])
+
+  /**
    * 流式输出、tool 面板展开等持续改变内容高度时，必须在 paint 前即时锚定底部。
    *
    * 若改用 useEffect（paint 后），内容增高后浏览器先 paint 再滚动，

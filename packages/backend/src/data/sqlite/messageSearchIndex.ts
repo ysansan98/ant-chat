@@ -56,6 +56,18 @@ export function extractSearchProjection(content: MessageContent): SearchProjecti
         }
         break
       }
+      case 'annotation': {
+        // 批注的引用原文与评论都进入搜索投影，保证批注消息可被搜索命中
+        const quote = (block as { quote?: unknown }).quote
+        const comment = (block as { comment?: unknown }).comment
+        if (typeof quote === 'string' && quote) {
+          text = appendLine(text, quote)
+        }
+        if (typeof comment === 'string' && comment) {
+          text = appendLine(text, comment)
+        }
+        break
+      }
       case 'tool-call': {
         const call = block as { toolName?: unknown, toolCallId?: unknown, args?: unknown, serverName?: unknown }
         const toolName = typeof call.toolName === 'string' ? call.toolName : ''

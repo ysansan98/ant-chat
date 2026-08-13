@@ -25,7 +25,7 @@ export type ToolRunItem = ToolRunToolItem | ToolRunReasoningItem
 export type TurnStep
   = | { type: 'tool-run', id: string, items: ToolRunItem[], isExecuting: boolean, hasError: boolean }
     | { type: 'reasoning', id: string, content: string, isStreaming: boolean }
-    | { type: 'text', id: string, text: string }
+    | { type: 'text', id: string, text: string, status: IMessage['status'] }
     | { type: 'visualization', id: string, block: VisualizationBlockLike, convId: string, messageId: string }
     | { type: 'error-block', id: string, error: string, messageStatus: IMessage['status'] }
     | { type: 'steering', id: string, message: IMessage }
@@ -168,7 +168,12 @@ export function buildTurnSteps(messages: IMessage[], toolResultMap: Map<string, 
         })
       }
       else if (block.type === 'text') {
-        steps.push({ type: 'text', id: `${message.id}:text:${textIndex++}`, text: block.text })
+        steps.push({
+          type: 'text',
+          id: `${message.id}:text:${textIndex++}`,
+          text: block.text,
+          status: message.status,
+        })
       }
       else if (block.type === 'error') {
         steps.push({

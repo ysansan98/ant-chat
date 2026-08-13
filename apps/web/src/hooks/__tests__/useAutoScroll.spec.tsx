@@ -77,6 +77,36 @@ describe('useAutoScroll', () => {
     expect(scrollToBottomSpy).not.toHaveBeenCalled()
   })
 
+  it('向上滚动（wheel deltaY<0）立即关闭自动滚动', () => {
+    const { results } = setup()
+    const container = results.current!.infiniteScrollRef.current!.containerRef.current!
+    act(() => {
+      container.dispatchEvent(new WheelEvent('wheel', { deltaY: -100, bubbles: true }))
+    })
+    expect(results.current?.autoScrollToBottom).toBe(false)
+  })
+
+  it('向上滚动后新增内容不再触发 scrollToBottom（不会被拉回底部）', () => {
+    const { results, view, TestComponent, scrollToBottomSpy } = setup()
+    const container = results.current!.infiniteScrollRef.current!.containerRef.current!
+    act(() => {
+      container.dispatchEvent(new WheelEvent('wheel', { deltaY: -100, bubbles: true }))
+    })
+    scrollToBottomSpy.mockClear()
+    // 模拟流式新增内容触发 rerender：此前向上滚动标记应阻止拉回
+    view.rerender(<TestComponent trigger={2} />)
+    expect(scrollToBottomSpy).not.toHaveBeenCalled()
+  })
+
+  it('向下滚动（wheel deltaY>0）不改变自动滚动状态', () => {
+    const { results } = setup()
+    const container = results.current!.infiniteScrollRef.current!.containerRef.current!
+    act(() => {
+      container.dispatchEvent(new WheelEvent('wheel', { deltaY: 100, bubbles: true }))
+    })
+    expect(results.current?.autoScrollToBottom).toBe(true)
+  })
+
   it('在底部时新增内容触发 scrollToBottom("auto")', () => {
     const { view, TestComponent, scrollToBottomSpy } = setup()
 

@@ -3,6 +3,30 @@ import { describe, expect, it, vi } from 'vitest'
 import { contentBlocksToLoopMessageContent } from '../attachmentUtils'
 
 describe('contentBlocksToLoopMessageContent 行为', () => {
+  it('将 annotation 块渲染为引用原文 + 评论的结构化文本', async () => {
+    const content = await contentBlocksToLoopMessageContent([
+      { type: 'annotation', quote: '原回复内容', comment: '这里要改', targetMessageId: 'msg-1' },
+    ])
+    expect(content).toEqual([
+      {
+        type: 'text',
+        text: '<annotation>\n<quote>\n原回复内容\n</quote>\n<comment>\n这里要改\n</comment>\n</annotation>',
+      },
+    ])
+  })
+
+  it('annotation 块无评论时只渲染引用原文', async () => {
+    const content = await contentBlocksToLoopMessageContent([
+      { type: 'annotation', quote: '原回复内容', comment: '', targetMessageId: 'msg-1' },
+    ])
+    expect(content).toEqual([
+      {
+        type: 'text',
+        text: '<annotation>\n<quote>\n原回复内容\n</quote>\n</annotation>',
+      },
+    ])
+  })
+
   it('将图片文件引用加载为 base64 image content', async () => {
     const loadFileData = vi.fn(async () => 'image-base64')
 

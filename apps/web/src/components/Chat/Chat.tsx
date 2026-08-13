@@ -9,6 +9,7 @@ import { skillApi } from '@/api/skillApi'
 import { AgentApprovalCard, AgentSecretRequestCard } from '@/components/Agent'
 import { useChatSettingsContext } from '@/contexts/chatSettings'
 import { abortConversationRuntime, approveAgentAction, rejectAgentAction, rejectSecretRequestAction, resolveSecretRequestAction, useAgentRuntimeStore } from '@/store/agentRuntime'
+import { useAnnotationDraftsStore } from '@/store/annotations'
 import { useConversationsStore } from '@/store/conversation'
 import { useMessagesStore } from '@/store/messages'
 import {
@@ -111,6 +112,21 @@ export default function Chat() {
     content: IMessageContent,
     agentMode: AgentMode,
   ): Promise<boolean> {
+    // 批注随消息发送：把当前待发送批注组装为 annotation blocks，置于用户文本之前；
+    // 命令/技能解析只基于 text 块，不受批注影响
+    const annotationDrafts = useAnnotationDraftsStore.getState().drafts
+    if (annotationDrafts.length > 0) {
+      content = [
+        ...annotationDrafts.map(draft => ({
+          type: 'annotation' as const,
+          quote: draft.quote,
+          comment: draft.comment,
+          targetMessageId: draft.targetMessageId,
+        })),
+        ...content,
+      ]
+    }
+
     const textBlocks = content.filter(block => block.type === 'text')
     const draftText = textBlocks.map(block => block.text).join('\n')
     const knownSkillNames = await resolveKnownSkillNames(draftText)
@@ -140,6 +156,9 @@ export default function Chat() {
 
       if (result.kind !== 'regular')
         return true
+
+      // 批注已随消息发出，清空发送前草稿
+      useAnnotationDraftsStore.getState().clear()
 
       // FLIP 动画：输入框从居中位置平滑过渡到底部
       if (oldRect && el) {

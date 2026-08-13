@@ -1,5 +1,6 @@
 import type { IMessage } from '@ant-chat/shared'
 import type { ReactNode } from 'react'
+import type { AnnotationState } from './TurnTrace'
 import {
   MessageContent as AiMessageContent,
   Message,
@@ -18,8 +19,9 @@ import { cn } from '@workspace/ui/lib/utils'
 import { Loader2Icon, ShrinkIcon } from 'lucide-react'
 import { useMemo } from 'react'
 import { Role } from '@/constants'
+import { useAnnotationDraftsStore } from '@/store/annotations'
 import { extractMessageAttachments } from '@/utils/extractMessageAttachments'
-import { transformMessageContent } from '@/utils/messageTransform'
+import { AnnotationSummaryBlock } from './annotations/AnnotationSummaryBlock'
 import BubbleFooter from './BubbleFooter'
 import MessageContent, { MessageAttachments } from './MessageContent'
 import { buildToolResultMap } from './turnSteps'
@@ -32,6 +34,29 @@ interface MessageBubbleProps {
 }
 
 export function MessageBubble({ messages, onCopyMessage, turnStatus }: MessageBubbleProps) {
+  // 批注编辑态：发送前临时状态，由全局 store 持有（Sender 发送前预览同源）
+  const annotationDrafts = useAnnotationDraftsStore(state => state.drafts)
+  const activeAnnotationId = useAnnotationDraftsStore(state => state.activeId)
+  const addAnnotation = useAnnotationDraftsStore(state => state.add)
+  const updateAnnotation = useAnnotationDraftsStore(state => state.update)
+  const removeAnnotation = useAnnotationDraftsStore(state => state.remove)
+  const activateAnnotation = useAnnotationDraftsStore(state => state.activate)
+  const editingDraftId = useAnnotationDraftsStore(state => state.editingDraftId)
+  const requestDraftEdit = useAnnotationDraftsStore(state => state.requestDraftEdit)
+
+  const annotationState: AnnotationState = {
+    drafts: annotationDrafts,
+    activeId: activeAnnotationId,
+    onAdd: addAnnotation,
+    onUpdate: updateAnnotation,
+    onRemove: removeAnnotation,
+    onActivate: activateAnnotation,
+    editingDraftId,
+    onDraftEditConsumed: () => {
+      requestDraftEdit(null)
+    },
+  }
+
   const message = messages[0]
   const isUser = message.role === Role.USER
   const isAI = message.role === Role.AI
@@ -165,6 +190,7 @@ export function MessageBubble({ messages, onCopyMessage, turnStatus }: MessageBu
                       messages={nonToolMessages}
                       toolResultMap={toolResultMap}
                       turnRunning={isRunning}
+                      annotationState={annotationState}
                     />
                     {statusAlertMessages.map(item => (
                       <TurnStatusAlert key={item.id} message={item} />
@@ -201,10 +227,26 @@ export function MessageBubble({ messages, onCopyMessage, turnStatus }: MessageBu
 
 function UserMessageBubble({ item }: { item: IMessage }) {
   const { images, attachments } = extractMessageAttachments(item)
-  const text = transformMessageContent(item, { skipAttachmentBlocks: true })
+  // 批注由 AnnotationSummaryBlock 独立渲染，这里只保留普通文本，避免平铺"引用：…"
+  const text = item.content
+    .filter(block => block.type === 'text')
+    .map(block => block.text)
+    .join('\n')
+  const annotations = item.content
+    .map((block, index) => ({ block, index }))
+    .filter((item2): item2 is { block: IMessage['content'][number] & { type: 'annotation' }, index: number } => item2.block.type === 'annotation')
 
   return (
     <div className="flex flex-col items-end gap-2" data-message-id={item.id}>
+      {/* 已发送批注只读展示：对话历史是真相源，不允许在消息列表中改写 */}
+      <AnnotationSummaryBlock
+        items={annotations.map(({ block, index }) => ({
+          id: String(index),
+          quote: block.quote,
+          comment: block.comment,
+          targetMessageId: block.targetMessageId,
+        }))}
+      />
       {text.length > 0 && (
         <AiMessageContent>
           <MessageContent

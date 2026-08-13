@@ -1,5 +1,6 @@
 import type { IMessage } from '@ant-chat/shared'
 import type { ComponentProps } from 'react'
+import type { AnnotationDraft } from './annotations/annotationDraft'
 import type { ToolRunStep, ToolRunToolItem, TurnStep } from './turnSteps'
 import { CodeBlock } from '@workspace/ui/components/ai-elements/code-block'
 import { MessageResponse } from '@workspace/ui/components/ai-elements/message'
@@ -22,6 +23,7 @@ import { formatTime } from '@/utils'
 import { transformMessageContent } from '@/utils/messageTransform'
 import { isNetworkError } from '@/utils/networkError'
 import { VisualizationFrame } from '../Visualization/VisualizationFrame'
+import { AnnotationLayer } from './annotations/AnnotationLayer'
 import MessageContent from './MessageContent'
 import {
   buildCommandSessionText,
@@ -348,12 +350,26 @@ interface TurnTraceProps {
   toolResultMap: Map<string, IMessage>
   /** turn 仍在运行：末尾 run 的 header 按执行中展示（shimmer） */
   turnRunning?: boolean
+  /** 批注编辑态（发送前临时状态，由 MessageBubble 持有） */
+  annotationState?: AnnotationState
+}
+
+export interface AnnotationState {
+  drafts: AnnotationDraft[]
+  activeId: string | null
+  onAdd: (draft: Omit<AnnotationDraft, 'id'>) => void
+  onUpdate: (id: string, comment: string) => void
+  onRemove: (id: string) => void
+  onActivate: (id: string | null) => void
+  /** Sender 预览发起的草稿原位编辑请求 */
+  editingDraftId: string | null
+  onDraftEditConsumed: () => void
 }
 
 /**
  * 按时间序渲染整个 turn 的 assistant 输出，连续的 trace 类 step（tool-run / reasoning）紧凑归组。
  */
-export function TurnTrace({ messages, toolResultMap, turnRunning = false }: TurnTraceProps) {
+export function TurnTrace({ messages, toolResultMap, turnRunning = false, annotationState }: TurnTraceProps) {
   const steps = useMemo(() => buildTurnSteps(messages, toolResultMap), [messages, toolResultMap])
   const isStreaming = useMemo(
     () => messages.some(m => m.role === 'assistant' && (m.status === 'loading' || m.status === 'typing')),
@@ -419,12 +435,37 @@ export function TurnTrace({ messages, toolResultMap, turnRunning = false }: Turn
 
   function renderInlineStep(step: TurnStep) {
     switch (step.type) {
-      case 'text':
+      case 'text': {
+        if (!annotationState) {
+          return (
+            <MessageResponse key={step.id} isAnimating={isStreaming}>
+              {step.text}
+            </MessageResponse>
+          )
+        }
         return (
-          <MessageResponse key={step.id} isAnimating={isStreaming}>
-            {step.text}
-          </MessageResponse>
+          <AnnotationLayer
+            key={step.id}
+            stepId={step.id}
+            text={step.text}
+            // 批注只对终态消息开放：历史消息即使含工具调用、缺 durationMs，
+            // 也不能被 turnRunning 推断误判为执行中而禁用
+            enabled={step.status === 'success' || step.status === 'cancel'}
+            drafts={annotationState.drafts}
+            activeId={annotationState.activeId}
+            onAdd={annotationState.onAdd}
+            onUpdate={annotationState.onUpdate}
+            onRemove={annotationState.onRemove}
+            onActivate={annotationState.onActivate}
+            editingDraftId={annotationState.editingDraftId}
+            onDraftEditConsumed={annotationState.onDraftEditConsumed}
+          >
+            <MessageResponse isAnimating={isStreaming}>
+              {step.text}
+            </MessageResponse>
+          </AnnotationLayer>
         )
+      }
       case 'visualization':
         return <VisualizationFrame key={step.id} block={step.block} conversationId={step.convId} messageId={step.messageId} />
       case 'error-block':

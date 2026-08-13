@@ -9,6 +9,7 @@ import {
 import { PendingMessageQueue } from './PendingMessageQueue'
 import { ReferenceInputOverlay } from './ReferenceInputOverlay'
 import { ReferenceSuggestionPanel } from './ReferenceSuggestionPanel'
+import { SenderAnnotationPreview } from './SenderAnnotationPreview'
 import { SenderAttachmentsPreview } from './SenderAttachments'
 import { SenderSubmitButton } from './SenderSubmitButton'
 import { SenderToolbar } from './SenderToolbar'
@@ -65,6 +66,7 @@ export function SenderComposer({
         onSubmit={onSubmit}
       >
         <PromptInputBody className="bg-transparent px-1 pt-1">
+          <SenderAnnotationPreview />
           <SenderAttachmentsPreview />
           <div className="relative w-full">
             <ReferenceInputOverlay

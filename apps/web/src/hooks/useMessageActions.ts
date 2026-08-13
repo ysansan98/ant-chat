@@ -1,42 +1,13 @@
 import type { IMessage } from '@ant-chat/shared'
 import { useCallback } from 'react'
 import { toast } from 'sonner'
-import { clipboardWrite, toImageDataUrl } from '@/utils'
+import { clipboardWrite } from '@/utils'
+import { transformMessageContent } from '@/utils/messageTransform'
 
 export function useMessageActions() {
   const copyMessage = useCallback(async (message: IMessage) => {
-    const data = { text: '', html: '' }
-    message.content.forEach((b, index) => {
-      if (index !== 0) {
-        data.text += '\n'
-      }
-      if (b.type === 'image') {
-        data.text += b.data
-          ? `![](${toImageDataUrl(b.data, b.mimeType)})\n`
-          : `[Image: ${b.name || 'image'}]`
-      }
-      else if (b.type === 'document') {
-        data.text += `[Document: ${b.name || b.title || 'document'}]`
-      }
-      else if (b.type === 'file') {
-        data.text += `[File: ${b.filename || b.name || 'file'}]`
-      }
-      else if (b.type === 'visualization') {
-        data.text += `[可视化：${b.title}]`
-      }
-      else if (b.type === 'error') {
-        data.text += `${b.error}`
-      }
-      else if (b.type === 'tool-call') {
-        data.text += `[Tool: ${b.toolName}]`
-      }
-      else if (b.type === 'tool-result') {
-        data.text += `[Result: ${b.toolName}]`
-      }
-      else {
-        data.text += `${b.text}`
-      }
-    })
+    // 与气泡展示共用同一套内容转文本逻辑，批注/附件/工具块的文案保持一致
+    const data = { text: transformMessageContent(message), html: '' }
 
     try {
       await clipboardWrite(data)

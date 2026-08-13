@@ -58,6 +58,10 @@ export function transformMessageContent(
     else if (block.type === 'visualization') {
       return `${acc}${prefix}[可视化：${block.title}]`
     }
+    else if (block.type === 'annotation') {
+      const comment = block.comment ? `\n评论：${block.comment}` : ''
+      return `${acc}${prefix}引用：${block.quote}${comment}`
+    }
     else {
       return `${acc}${prefix}${block.text}`
     }

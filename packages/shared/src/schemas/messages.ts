@@ -184,11 +184,29 @@ export const ToolResultContentSchema = z.object({
 
 export type ToolResultContent = z.infer<typeof ToolResultContentSchema>
 
+// ============================ 批注内容块 ============================
+
+// 批注：用户选中模型回复的文本后附带的评论。quote 为选中原文快照，
+// comment 为针对该引用的评论（可为空串，即只引用不评论）。
+// 只出现在 user 消息中，作为发送给模型的引用+评论单元。
+export const AnnotationContentSchema = z.object({
+  type: z.literal('annotation'),
+  /** 选中的原文快照 */
+  quote: z.string(),
+  /** 针对该引用的评论 */
+  comment: z.string(),
+  /** 引用原文所在的 assistant 消息 id（编辑时定位/滚动用） */
+  targetMessageId: z.string(),
+})
+
+export type AnnotationContent = z.infer<typeof AnnotationContentSchema>
+
 // ============================ 消息内容 Schema ============================
 
 // 消息内容
 export const MessageContentSchema = z.array(z.union([
   TextContentSchema,
+  AnnotationContentSchema,
   ImageContentSchema,
   ErrorContentSchema,
   ToolCallContentSchema,
