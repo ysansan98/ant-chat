@@ -139,7 +139,7 @@ describe('fileContentArea 文件类型分发', () => {
     expect(screen.getByTestId('video-player')).toHaveAttribute('src', 'https://example.com/clip.mp4')
   })
 
-  it('excel 文件分发到 ExcelPreview', () => {
+  it('excel 文件分发到 ExcelPreview', async () => {
     const file = makeFile('data.xlsx')
     render(
       <FileContentArea
@@ -151,10 +151,10 @@ describe('fileContentArea 文件类型分发', () => {
         hideHeader
       />,
     )
-    expect(screen.getByTestId('excel-preview')).toBeInTheDocument()
+    expect(await screen.findByTestId('excel-preview')).toBeInTheDocument()
   })
 
-  it('pdf 文件分发到 PdfPreview', () => {
+  it('pdf 文件分发到 PdfPreview', async () => {
     const file = makeFile('document.pdf')
     render(
       <FileContentArea
@@ -166,10 +166,10 @@ describe('fileContentArea 文件类型分发', () => {
         hideHeader
       />,
     )
-    expect(screen.getByTestId('pdf-preview')).toBeInTheDocument()
+    expect(await screen.findByTestId('pdf-preview')).toBeInTheDocument()
   })
 
-  it('docx 文件分发到 DocxPreview', () => {
+  it('docx 文件分发到 DocxPreview', async () => {
     const file = makeFile('report.docx')
     render(
       <FileContentArea
@@ -181,7 +181,7 @@ describe('fileContentArea 文件类型分发', () => {
         hideHeader
       />,
     )
-    expect(screen.getByTestId('docx-preview')).toBeInTheDocument()
+    expect(await screen.findByTestId('docx-preview')).toBeInTheDocument()
   })
 
   it('文件超过 1MB 展示「文件过大暂不支持预览」中性占位（非错误）', () => {
