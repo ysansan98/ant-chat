@@ -13,6 +13,7 @@
   "changesets": [
     "agent-message-search-memory-catalog",
     "ai-sdk-v7-multi-provider",
+    "automation-run-status-inbox",
     "bright-agents-manage",
     "browser-cookies-import",
     "calm-browsers-connect",
@@ -23,9 +24,11 @@
     "codex-subscription-integration",
     "common-kiwis-search",
     "deep-runtime-boundaries",
+    "dev-prod-data-keychain-isolation",
     "fast-pets-bake",
     "feishu-card-footer-subtle",
     "fix-fork-message-order",
+    "image-recognition-cli",
     "lazy-browser-identity-keychain",
     "mcp-server-enabled-switch",
     "quiet-products-release",
@@ -34,6 +37,8 @@
     "remove-conversation-temperature-config",
     "safe-tool-approval-grants",
     "settings-route-inline",
-    "weixin-ilink-channel-desktop"
+    "side-panel-file-preview",
+    "weixin-ilink-channel-desktop",
+    "weixin-typing-heartbeat-fix"
   ]
 }
