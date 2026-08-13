@@ -1,6 +1,6 @@
 import type { IMessageContent } from '@ant-chat/shared'
 
-/** 生成 turn 校验、标题和任务快照共用的规范文本，避免各层产生不同结果。 */
+/** turn 入口（startTurn / prepareTask）的文本校验：提取可发送文本（text + 批注块），空消息拒绝。 */
 export function extractMessageText(content: IMessageContent): string {
   return content
     .filter((block): block is { type: 'text', text: string } | { type: 'annotation', quote: string, comment: string, targetMessageId: string } =>
