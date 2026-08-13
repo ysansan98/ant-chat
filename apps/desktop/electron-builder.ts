@@ -29,15 +29,6 @@ const config: Configuration = {
       from: 'resources/ant-chat',
       to: 'ant-chat',
     },
-    {
-      from: 'node_modules/better-sqlite3/build/Release/',
-      to: 'better-sqlite3',
-      filter: ['*.node'], // 只复制原生模块
-    },
-    {
-      from: 'resources/rg',
-      to: 'rg',
-    },
   ],
   afterPack: async (context) => {
     await writeCliLaunchers(context)
@@ -80,7 +71,13 @@ const config: Configuration = {
     'node_modules/undici',
 
     '!**/*.map', // 排除所有 .map 文件
-    '!**/node_modules/better-sqlite3/deps/**', // 排除 better-sqlite3 的 C 源码
+    // 排除 better-sqlite3 的构建中间产物（smart-unpack 会把整个模块目录解包，
+    // 这些 C 源码/头文件/测试产物运行时不需要，约 10MB）
+    '!**/node_modules/better-sqlite3/build/Release/obj/**', // sqlite amalgamation 源码
+    '!**/node_modules/better-sqlite3/build/Release/test_extension.node', // 测试扩展
+    '!**/node_modules/better-sqlite3/build/deps/**', // 构建期 Makefile（原排除路径少了 build/ 前缀，从未生效）
+    '!**/node_modules/better-sqlite3/deps/**', // npm 包自带的 sqlite 源码（electron-builder rebuild 后会出现，9.2M）
+    '!**/node_modules/better-sqlite3/src/**', // C++ 头文件
 
     //
     '!**/node_modules/**/*.cpp',
@@ -125,6 +122,12 @@ const config: Configuration = {
   mac: {
     icon: 'app-icons/mac/logo-mac.icns',
     category: 'public.app-category.productivity',
+    extraResources: [
+      {
+        from: 'resources/rg/darwin-arm64/rg',
+        to: 'rg/darwin-arm64/rg',
+      },
+    ],
     target: [
       {
         target: 'dmg',
@@ -158,6 +161,12 @@ const config: Configuration = {
   },
   win: {
     icon: 'app-icons/win/logo-win.ico',
+    extraResources: [
+      {
+        from: 'resources/rg/win32-x64/rg.exe',
+        to: 'rg/win32-x64/rg.exe',
+      },
+    ],
     target: [
       {
         target: 'nsis',
