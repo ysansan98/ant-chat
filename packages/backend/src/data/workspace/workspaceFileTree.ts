@@ -1,4 +1,5 @@
 import type { WorkspaceDirectoryEntries, WorkspaceFileStreamInfo, WorkspaceTextFileContent, WorkspaceTreeEntry } from '@ant-chat/shared'
+import { Buffer } from 'node:buffer'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -95,6 +96,8 @@ const EXTENSION_MEDIA_TYPES: Record<string, string> = {
   '.xls': 'application/vnd.ms-excel',
   '.pdf': 'application/pdf',
   '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  '.ppt': 'application/vnd.ms-powerpoint',
 }
 
 /** 根据文件名推断 MIME 类型，未知时回退 application/octet-stream。 */
@@ -239,7 +242,9 @@ export async function listDirectoryEntries(
 
 /**
  * 读取工作区内文本文件内容用于预览。
- * 超过 1MB 或包含二进制内容（文件头 NUL 字节探测）时拒绝。
+ * 二进制判定（文件头 NUL 字节嗅探）优先于大小限制：
+ * - 二进制文件返回 binary 标记，前端展示「该文件类型暂不支持预览」中性提示；
+ * - 纯文本超过 1MB 返回 oversize 标记，前端同样展示「文件过大暂不支持预览」中性提示（二者均非错误）。
  */
 export async function readTextFile(
   workspacePath: string,
@@ -266,13 +271,22 @@ export async function readTextFile(
   if (!stat.isFile()) {
     throw new Error('路径不是文件')
   }
-  if (stat.size > MAX_PREVIEW_BYTES) {
-    throw new Error(`文件超过 1MB，无法预览（${stat.size} bytes）`)
+  const handle = await fs.promises.open(target, 'r')
+  try {
+    const sniffBuffer = Buffer.alloc(Math.min(stat.size, BINARY_SNIFF_BYTES))
+    const { bytesRead } = await handle.read(sniffBuffer, 0, sniffBuffer.length, 0)
+    // 二进制判定（文件头 NUL 嗅探）优先于大小限制：二进制文件由前端展示「不支持预览」中性提示
+    if (sniffBuffer.subarray(0, bytesRead).includes(0)) {
+      return { content: '', size: stat.size, binary: true }
+    }
+    if (stat.size > MAX_PREVIEW_BYTES) {
+      return { content: '', size: stat.size, oversize: true }
+    }
+    const buffer = Buffer.alloc(stat.size)
+    await handle.read(buffer, 0, buffer.length, 0)
+    return { content: buffer.toString('utf8'), size: buffer.length }
   }
-
-  const buffer = await fs.promises.readFile(target)
-  if (buffer.subarray(0, Math.min(BINARY_SNIFF_BYTES, buffer.length)).includes(0)) {
-    throw new Error('二进制文件无法预览')
+  finally {
+    await handle.close()
   }
-  return { content: buffer.toString('utf8'), size: buffer.length }
 }

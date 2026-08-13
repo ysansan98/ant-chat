@@ -57,6 +57,10 @@ export interface WorkspaceDirectoryEntries {
 export interface WorkspaceTextFileContent {
   content: string
   size: number
+  /** binary 标记：由后端 NUL 嗅探判定，前端据此展示「该文件类型暂不支持预览」的中性提示 */
+  binary?: boolean
+  /** oversize 标记：文件超过单次预览上限（1MB），前端据此展示中性提示而非错误 */
+  oversize?: boolean
 }
 
 /** 文件预览类型分类（决定前端分发到哪种预览组件）。 */

@@ -46,7 +46,7 @@ export function ChatLayout() {
         {/* 桌面端侧边栏控制 + 快捷入口（保持原有浮动定位） */}
         <div
           className={`
-            absolute top-4 z-9990 hidden cursor-pointer items-center gap-2
+            absolute top-2.5 z-9990 hidden cursor-pointer items-center gap-2
             md:flex
             ${isElectronMacOS() ? 'left-22.5' : 'left-4'}
           `}

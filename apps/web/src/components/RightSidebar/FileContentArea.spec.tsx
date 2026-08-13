@@ -63,6 +63,14 @@ vi.mock('./previews/DocxPreview', () => ({
   ),
 }))
 
+vi.mock('./previews/UnsupportedPreview', () => ({
+  UnsupportedPreview: (props: { title?: string }) => (
+    <div data-testid="unsupported-preview">
+      {props.title}
+    </div>
+  ),
+}))
+
 function makeFile(name: string, relPath = ''): WorkspaceTreeEntry {
   return { name, relPath: relPath || name, type: 'file' }
 }
@@ -174,6 +182,42 @@ describe('fileContentArea 文件类型分发', () => {
       />,
     )
     expect(screen.getByTestId('docx-preview')).toBeInTheDocument()
+  })
+
+  it('文件超过 1MB 展示「文件过大暂不支持预览」中性占位（非错误）', () => {
+    const file = makeFile('big.txt')
+    render(
+      <FileContentArea
+        file={file}
+        view={makeView(file, { content: { content: '', size: 1024 * 1024 + 1, oversize: true } })}
+        workspaceName="ws"
+        onNavigateDir={() => {}}
+        onModeChange={() => {}}
+        hideHeader
+      />,
+    )
+    expect(screen.getByTestId('unsupported-preview')).toBeInTheDocument()
+    expect(screen.getByText('文件过大，暂不支持预览')).toBeInTheDocument()
+    expect(screen.queryByTestId('file-preview-error')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('mock-code-block')).not.toBeInTheDocument()
+  })
+
+  it('pptx 文件展示「不支持预览」占位（非错误、非文本回退）', () => {
+    const file = makeFile('deck.pptx')
+    render(
+      <FileContentArea
+        file={file}
+        view={makeView(file, { content: { content: '', size: 12, binary: true } })}
+        workspaceName="ws"
+        onNavigateDir={() => {}}
+        onModeChange={() => {}}
+        hideHeader
+      />,
+    )
+    expect(screen.getByTestId('unsupported-preview')).toBeInTheDocument()
+    expect(screen.queryByTestId('pptx-preview')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('mock-code-block')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('file-preview-error')).not.toBeInTheDocument()
   })
 
   it('文本文件分发到 CodeBlock', () => {
