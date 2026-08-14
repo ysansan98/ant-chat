@@ -46,6 +46,7 @@ export function SenderAnnotationPreview() {
           type: 'file',
           mediaType: 'text/plain',
           filename: `${drafts.length}条注释`,
+          url: '',
         }}
         onRemove={() => clear()}
       >
