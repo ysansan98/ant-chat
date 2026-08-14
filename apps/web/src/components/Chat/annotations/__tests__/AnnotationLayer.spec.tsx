@@ -141,6 +141,8 @@ describe('annotationLayer 批注编辑态', () => {
     selectText(container, 0, 5)
     fireEvent.mouseDown(screen.getByRole('menuitem', { name: '添加批注' }))
     expect(screen.getByRole('dialog', { name: '添加批注' })).toBeInTheDocument()
+    // 浮层水平位置锚定选区（left 定位类缺失会让 fixed 元素回落到文档流位置）
+    expect(screen.getByRole('dialog', { name: '添加批注' })).toHaveClass('left-(--annotation-x)')
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
     // 打开即聚焦输入框，并保留选中内容的高亮（不依赖浏览器原生选区）
     expect(screen.getByLabelText('评论内容')).toHaveFocus()

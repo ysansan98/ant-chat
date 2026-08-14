@@ -70,6 +70,7 @@ export function AnnotationPopover({
       className={cn(
         // 容器即输入框的壳：无内边距、输入框去边框，避免双层边框的堆叠感
         'fixed z-50 w-72 overflow-hidden rounded-lg border border-border bg-popover shadow-md',
+        'left-(--annotation-x)',
         flip ? 'top-(--annotation-y)' : 'bottom-(--annotation-y)',
       )}
       style={{
