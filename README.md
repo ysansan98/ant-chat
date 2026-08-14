@@ -1,3 +1,5 @@
+
+
 <div align="center">
 
 <img height="160" src="./apps/web/public/logo.svg" />
@@ -66,7 +68,7 @@ ant-chat settings show --json
 
 环境要求：
 
-- Node.js 20+
+- Node.js 22+
 - pnpm 11+
 - Python 3.x，用于编译 `better-sqlite3` 等原生依赖
 
