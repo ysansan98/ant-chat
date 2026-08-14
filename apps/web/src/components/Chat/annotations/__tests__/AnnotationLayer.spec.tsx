@@ -182,6 +182,26 @@ describe('annotationLayer 批注编辑态', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 
+  it('输入法合成期间按 Enter 不触发保存（中文拼音确认落字）', () => {
+    const { container, onAdd } = renderLayer({})
+    openComposer(container)
+    fireEvent.change(screen.getByLabelText('评论内容'), { target: { value: 'nihao' } })
+    fireEvent.keyDown(screen.getByLabelText('评论内容'), {
+      key: 'Enter',
+      isComposing: true,
+      keyCode: 229,
+    })
+    expect(onAdd).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog', { name: '添加批注' })).toBeInTheDocument()
+  })
+
+  it('输入法合成期间按 Escape 不关闭浮层（取消输入法候选窗）', () => {
+    const { container } = renderLayer({})
+    openComposer(container)
+    fireEvent.keyDown(window, { key: 'Escape', isComposing: true, keyCode: 229 })
+    expect(screen.getByRole('dialog', { name: '添加批注' })).toBeInTheDocument()
+  })
+
   it('点击浮层外部关闭批注弹窗', () => {
     const { container } = renderLayer({})
     openComposer(container)

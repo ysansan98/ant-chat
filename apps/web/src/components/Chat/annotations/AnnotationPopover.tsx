@@ -54,7 +54,8 @@ export function AnnotationPopover({
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      // 输入法合成期间（候选窗/拼音确认）的 Escape 属于输入法操作，不关闭浮层
+      if (event.key === 'Escape' && !event.isComposing && event.keyCode !== 229) {
         onCancel()
       }
     }
@@ -84,8 +85,10 @@ export function AnnotationPopover({
           value={comment}
           onChange={event => setComment(event.target.value)}
           onKeyDown={(event) => {
-            // Enter 保存、Shift+Enter 换行（textarea 默认行为，field-sizing 自动撑高）
-            if (event.key === 'Enter' && !event.shiftKey) {
+            // Enter 保存、Shift+Enter 换行（textarea 默认行为，field-sizing 自动撑高）。
+            // 输入法合成期间的 Enter 用于确认拼音/候选，不触发保存：isComposing 为标准属性，
+            // keyCode 229 兜底旧浏览器。
+            if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) {
               event.preventDefault()
               onSave(comment)
             }
