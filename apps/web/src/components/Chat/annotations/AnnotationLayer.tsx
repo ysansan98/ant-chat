@@ -38,8 +38,12 @@ const MENU_WIDTH = 80
 const MENU_HEIGHT = 30
 const MENU_GAP = 2
 /** 批注弹窗与选区的间距；高度估算用于上方空间不足时的翻转判定 */
-const POPOVER_GAP = 8
+const POPOVER_GAP = 12
 const POPOVER_HEIGHT_ESTIMATE = 180
+/** 序号气泡直径（size-4） */
+const BADGE_SIZE = 16
+/** 气泡角标尖端与选中文本首行的间距：需容纳角标高度（4px）再加少量间隙 */
+const BADGE_TEXT_GAP = 6
 
 interface AnnotationLayerProps {
   /** turnSteps 生成的 text step id，批注归属单元 */
@@ -201,7 +205,11 @@ export function AnnotationLayer({
         // clamp 到容器内：首行文字靠近容器边缘时，气泡超出部分会被父级
         // overflow-hidden 裁剪（表现为"被两边截断"）
         x: Math.min(rect.right - containerRect.left + index * 12, containerRect.width - 12),
-        y: Math.max(8, Math.min(rect.top - containerRect.top, containerRect.height - 20)),
+        // 气泡整体悬于文本首行上方（中心上移半个气泡 + 间距），不遮挡选中文字
+        y: Math.max(
+          BADGE_SIZE / 2,
+          Math.min(rect.top - containerRect.top - BADGE_TEXT_GAP - BADGE_SIZE / 2, containerRect.height - BADGE_SIZE / 2),
+        ),
       }
     })
     setBadgePositions(next)
@@ -456,11 +464,15 @@ export function AnnotationLayer({
             data-annotation-badge={draft.id}
             aria-label={`批注 ${globalIndex + 1}`}
             className={cn(
+              // 聊天气泡形态：圆角主体 + 指向下方选中文本的角标（三角），序号居中
               'absolute z-10 flex size-4 -translate-1/2 items-center justify-center rounded-full text-[11px] font-medium transition-colors',
+              'bg-amber-500 text-white after:absolute after:top-full after:left-1/2 after:-translate-x-1/2',
+              'after:border-x-4 after:border-t-4 after:border-x-transparent after:border-t-amber-500',
+              'hover:bg-amber-600 dark:bg-amber-400 dark:text-amber-950 dark:after:border-t-amber-400 dark:hover:bg-amber-300',
               'top-(--annotation-badge-y) left-(--annotation-badge-x)',
               isActive
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-primary/80 text-primary-foreground hover:bg-primary',
+                ? 'ring-2 ring-amber-300 dark:ring-amber-200'
+                : '',
             )}
             style={{
               '--annotation-badge-x': `${pos.x}px`,

@@ -66,8 +66,11 @@ export function SenderComposer({
         onSubmit={onSubmit}
       >
         <PromptInputBody className="bg-transparent px-1 pt-1">
-          <SenderAnnotationPreview />
-          <SenderAttachmentsPreview />
+          {/* 批注与附件共享一行预览区（横向排列、溢出换行），避免各自独占整行 */}
+          <div className="mb-2 flex w-full flex-wrap items-start gap-2">
+            <SenderAnnotationPreview />
+            <SenderAttachmentsPreview />
+          </div>
           <div className="relative w-full">
             <ReferenceInputOverlay
               text={referenceInput.draft}
