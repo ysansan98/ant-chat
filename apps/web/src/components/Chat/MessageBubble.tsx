@@ -23,6 +23,7 @@ import { useAnnotationDraftsStore } from '@/store/annotations'
 import { extractMessageAttachments } from '@/utils/extractMessageAttachments'
 import { AnnotationSummaryBlock } from './annotations/AnnotationSummaryBlock'
 import BubbleFooter from './BubbleFooter'
+import { CollapsibleMessageText } from './CollapsibleMessageText'
 import MessageContent, { MessageAttachments } from './MessageContent'
 import { buildToolResultMap } from './turnSteps'
 import { TurnErrorAlert, TurnTrace } from './TurnTrace'
@@ -249,11 +250,13 @@ function UserMessageBubble({ item }: { item: IMessage }) {
       />
       {text.length > 0 && (
         <AiMessageContent>
-          <MessageContent
-            content={text}
-            status={item.status}
-            enableReferenceTokens
-          />
+          <CollapsibleMessageText>
+            <MessageContent
+              content={text}
+              status={item.status}
+              enableReferenceTokens
+            />
+          </CollapsibleMessageText>
         </AiMessageContent>
       )}
       {(images.length > 0 || attachments.length > 0) && (

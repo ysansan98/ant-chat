@@ -56,6 +56,14 @@ apps/desktop/.ant-chat/
 .worktreeinclude
 skills-lock.json
 AGENTS.md
+# 渐进式文档重构产物：细则文件暂时忽略
+docs/agents/communication.md
+docs/agents/execution.md
+docs/agents/code.md
+docs/agents/testing.md
+docs/agents/git-workflow.md
+docs/agents/tooling.md
+docs/agents/architecture.md
 CLAUDE.md
 
 # bundled ripgrep binaries (build-time downloaded)
