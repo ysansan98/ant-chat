@@ -19,7 +19,7 @@ export function SenderAttachmentsPreview() {
   }
 
   return (
-    <Attachments className="mb-2 w-full justify-start px-1 pt-1" variant="inline">
+    <Attachments className="justify-start" variant="inline">
       {attachments.files.map(file => (
         <Attachment
           key={file.id}
