@@ -118,6 +118,20 @@ describe('localControlServer', () => {
 
     await expect(second.start()).rejects.toMatchObject({ code: 'EADDRINUSE' })
   })
+
+  it('不同数据目录的实例可同时监听（Windows 管道名按数据根隔离）', async () => {
+    if (process.platform !== 'win32')
+      return // POSIX 下 socket 文件本就位于各自数据根内，无需额外验证
+    const rootA = await mkdtemp(path.join(os.tmpdir(), 'ant-chat-control-a-'))
+    const rootB = await mkdtemp(path.join(os.tmpdir(), 'ant-chat-control-b-'))
+    roots.push(rootA, rootB)
+    const first = new LocalControlServer({ execute: vi.fn() }, { appDataRoot: rootA })
+    const second = new LocalControlServer({ execute: vi.fn() }, { appDataRoot: rootB })
+    servers.push(first, second)
+
+    await expect(first.start()).resolves.toBeUndefined()
+    await expect(second.start()).resolves.toBeUndefined()
+  })
 })
 
 function sendRequest(endpoint: string, request: object): Promise<unknown> {
