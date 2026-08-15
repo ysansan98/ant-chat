@@ -31,10 +31,23 @@ export interface WorkspaceDirectoryEntry {
   path: string
 }
 
+/** 目录选择器中的顶层入口（Windows 盘符或 POSIX 根目录），label 用于展示。 */
+export interface WorkspaceDirectoryRoot {
+  path: string
+  label: string
+}
+
+/** 从根到当前目录的每一级面包屑，path 可直接传给 listDirectories。 */
+export interface WorkspaceDirectoryBreadcrumb {
+  name: string
+  path: string
+}
+
 export interface WorkspaceDirectoryListing {
   currentPath: string
   parentPath: string | null
-  roots: string[]
+  roots: WorkspaceDirectoryRoot[]
+  breadcrumbs: WorkspaceDirectoryBreadcrumb[]
   directories: WorkspaceDirectoryEntry[]
 }
 

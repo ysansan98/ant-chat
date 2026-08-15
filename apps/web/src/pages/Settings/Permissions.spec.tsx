@@ -141,7 +141,12 @@ describe('权限管理页', () => {
     vi.mocked(workspaceApi.listDirectories).mockResolvedValue({
       currentPath: '/workspace/app',
       parentPath: '/workspace',
-      roots: ['/'],
+      roots: [{ path: '/', label: '/' }],
+      breadcrumbs: [
+        { name: '/', path: '/' },
+        { name: 'workspace', path: '/workspace' },
+        { name: 'app', path: '/workspace/app' },
+      ],
       directories: [{ name: 'docs', path: '/workspace/app/docs' }],
     })
     render(<PermissionsPage />)

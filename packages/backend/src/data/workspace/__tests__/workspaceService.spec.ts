@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -149,3 +149,58 @@ function readWorkspaceFile(filePath: string): {
 } {
   return JSON.parse(readFileSync(filePath, 'utf8'))
 }
+
+describe('workspaceService listDirectories listing', () => {
+  let configPath: string
+  let service: WorkspaceService
+
+  beforeEach(() => {
+    configPath = path.join(mkdtempSync(path.join(tmpdir(), 'ant-chat-ws-')), 'workspace.json')
+    service = new WorkspaceService({ filePath: configPath })
+  })
+
+  afterEach(() => {
+    rmSync(path.dirname(configPath), { force: true, recursive: true })
+  })
+
+  it('返回平台正确的根目录、面包屑与父子路径', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'ant-chat-ws-listing-'))
+    const subDir = path.join(dir, 'nested')
+    mkdirSync(subDir)
+    try {
+      const listing = service.listDirectories(dir)
+
+      const root = path.parse(listing.currentPath).root
+      // 面包屑首项为根（POSIX '/'，Windows 'C:'），末项为当前目录
+      expect(listing.breadcrumbs.length).toBeGreaterThanOrEqual(2)
+      expect(listing.breadcrumbs[0].path).toBe(root)
+      expect(listing.breadcrumbs[0].name.length).toBeGreaterThan(0)
+      const last = listing.breadcrumbs[listing.breadcrumbs.length - 1]
+      expect(last.path).toBe(listing.currentPath)
+      expect(last.name).toBe(path.basename(listing.currentPath))
+      // 从根逐级拼接即当前路径，供前端直接跳转使用
+      const joined = listing.breadcrumbs
+        .slice(1)
+        .reduce((acc, crumb) => path.join(acc, crumb.name), listing.breadcrumbs[0].path)
+      expect(joined).toBe(listing.currentPath)
+
+      expect(listing.parentPath).toBe(path.dirname(listing.currentPath))
+      expect(listing.roots.length).toBeGreaterThan(0)
+      expect(listing.roots.every(item => path.isAbsolute(item.path) && item.label.length > 0)).toBe(true)
+      expect(listing.directories.some(item => item.path === subDir && item.name === 'nested')).toBe(true)
+    }
+    finally {
+      rmSync(dir, { force: true, recursive: true })
+    }
+  })
+
+  it('根目录层面 parentPath 为 null 且面包屑只有根一项', () => {
+    const root = path.parse(tmpdir()).root
+    const listing = service.listDirectories(root)
+
+    expect(listing.currentPath).toBe(root)
+    expect(listing.parentPath).toBeNull()
+    expect(listing.breadcrumbs).toHaveLength(1)
+    expect(listing.breadcrumbs[0].path).toBe(root)
+  })
+})
