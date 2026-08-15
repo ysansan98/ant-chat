@@ -34,8 +34,13 @@ export default defineConfig(({ command, mode }) => {
         {
           name: 'copy-builtin-skills',
           async closeBundle() {
+            // dev 时 backend 从源码解析（development 条件），dist 可能尚未构建；
+            // 打包构建依赖 build:packages 产出的 dist，保持与 npm 产物一致。
+            const skillsSource = isDev
+              ? resolve('../../packages/backend/builtin-skills')
+              : resolve('../../packages/backend/dist/builtin-skills')
             await fs.cp(
-              resolve('../../packages/backend/dist/builtin-skills'),
+              skillsSource,
               resolve('out/main/builtin-skills'),
               { recursive: true },
             )
