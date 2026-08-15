@@ -1,4 +1,4 @@
-import type { ListWorkspacesData, WorkspaceConfig, WorkspaceDirectoryEntry, WorkspaceDirectoryListing, WorkspaceItem } from '@ant-chat/shared'
+import type { ListWorkspacesData, WorkspaceConfig, WorkspaceDirectoryBreadcrumb, WorkspaceDirectoryEntry, WorkspaceDirectoryListing, WorkspaceDirectoryRoot, WorkspaceItem } from '@ant-chat/shared'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -206,6 +206,7 @@ export class WorkspaceService {
       currentPath: normalizedPath,
       parentPath: resolvedParent,
       roots,
+      breadcrumbs: this.buildBreadcrumbs(normalizedPath),
       directories,
     }
   }
@@ -233,20 +234,48 @@ export class WorkspaceService {
     return { name, path: newPath }
   }
 
-  private getRoots(): string[] {
+  private getRoots(): WorkspaceDirectoryRoot[] {
     if (process.platform === 'win32') {
-      const drives: string[] = []
+      const roots: WorkspaceDirectoryRoot[] = []
       for (let i = 65; i <= 90; i++) {
-        const drive = `${String.fromCharCode(i)}:\\`
+        const label = `${String.fromCharCode(i)}:`
+        const drive = `${label}${path.sep}`
         try {
           fs.statSync(drive)
-          drives.push(drive)
+          roots.push({ path: drive, label })
         }
         catch {}
       }
-      return drives
+      return roots
     }
-    return ['/']
+    return [{ path: '/', label: '/' }]
+  }
+
+  /**
+   * 从根到 currentPath 逐级生成面包屑。前端不应自行按平台分隔符解析路径，
+   * 因此这里直接给出每级的展示名与可跳转的绝对路径（如 C: / Users / foo）。
+   */
+  private buildBreadcrumbs(normalizedPath: string): WorkspaceDirectoryBreadcrumb[] {
+    const root = path.parse(normalizedPath).root
+    const segments: string[] = []
+    let cursor = normalizedPath
+    while (cursor !== root) {
+      segments.unshift(path.basename(cursor))
+      const parent = path.dirname(cursor)
+      if (parent === cursor) {
+        break
+      }
+      cursor = parent
+    }
+
+    const rootLabel = root === '/' ? '/' : root.replace(/[/\\]+$/, '')
+    const breadcrumbs: WorkspaceDirectoryBreadcrumb[] = [{ name: rootLabel, path: root }]
+    let current = root
+    for (const segment of segments) {
+      current = path.join(current, segment)
+      breadcrumbs.push({ name: segment, path: current })
+    }
+    return breadcrumbs
   }
 
   private getConfig(): WorkspaceConfig {

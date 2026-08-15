@@ -7,9 +7,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@workspace/ui/components/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@workspace/ui/components/dropdown-menu'
 import { EmptyState } from '@workspace/ui/components/empty-state'
 import { Input } from '@workspace/ui/components/input'
 import {
+  ChevronDownIcon,
   ChevronRightIcon,
   FolderIcon,
   FolderPlusIcon,
@@ -134,6 +141,10 @@ export function WorkspaceDirectoryPickerDialog({
       if (newFolderInputRef.current === event.target) {
         return
       }
+      // 盘符下拉菜单打开时由菜单自己接管方向键/Tab，避免目录导航抢走按键
+      if (document.querySelector('[role="menu"]')) {
+        return
+      }
 
       switch (event.key) {
         case 'ArrowDown':
@@ -214,9 +225,8 @@ export function WorkspaceDirectoryPickerDialog({
     void loadDirectory(path)
   }
 
-  function handleBreadcrumbClick(index: number, segments: string[]) {
-    const target = `/${segments.slice(0, index + 1).join('/')}`
-    void loadDirectory(target)
+  function handleBreadcrumbClick(path: string) {
+    void loadDirectory(path)
   }
 
   async function handleCreateFolder() {
@@ -252,9 +262,8 @@ export function WorkspaceDirectoryPickerDialog({
     onOpenChange(nextOpen)
   }
 
-  const breadcrumbSegments = listing
-    ? listing.currentPath.split('/').filter(Boolean)
-    : []
+  const breadcrumbs = listing?.breadcrumbs ?? []
+  const roots = listing?.roots ?? []
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -267,33 +276,55 @@ export function WorkspaceDirectoryPickerDialog({
         <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden px-4 py-3">
           {/* Breadcrumb and navigation */}
           <div className="flex shrink-0 items-center gap-1">
-            {listing?.roots.map(root => (
-              <Button
-                key={root}
-                variant="ghost"
-                size="icon-xs"
-                disabled={loading}
-                onClick={() => handleNavigate(root)}
-                title={root}
-              >
-                <HomeIcon className="size-3.5" />
-              </Button>
-            ))}
-
             <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto text-sm text-muted-foreground">
-              {breadcrumbSegments.map((segment, index) => (
-                <span key={`/${breadcrumbSegments.slice(0, index + 1).join('/')}`} className="flex items-center gap-0.5">
-                  {index > 0 && <ChevronRightIcon className="size-3 shrink-0" />}
-                  <button
-                    type="button"
-                    className="shrink-0 truncate hover:text-foreground"
-                    disabled={loading}
-                    onClick={() => handleBreadcrumbClick(index, breadcrumbSegments)}
-                  >
-                    {index === 0 ? '/' : segment}
-                  </button>
-                </span>
-              ))}
+              {breadcrumbs.map((crumb, index) => {
+                // 多盘符时盘符切换合并进面包屑首段，避免与面包屑根重复展示
+                const isDriveMenu = index === 0 && roots.length > 1
+                return (
+                  <span key={crumb.path} className="flex items-center gap-0.5">
+                    {index > 0 && <ChevronRightIcon className="size-3 shrink-0" />}
+                    {isDriveMenu
+                      ? (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger
+                              render={(
+                                <button
+                                  type="button"
+                                  className="flex shrink-0 items-center gap-0.5 truncate hover:text-foreground"
+                                  disabled={loading}
+                                  title="切换盘符"
+                                >
+                                  {crumb.name}
+                                  <ChevronDownIcon className="size-3" />
+                                </button>
+                              )}
+                            />
+                            <DropdownMenuContent align="start">
+                              {roots.map(root => (
+                                <DropdownMenuItem
+                                  key={root.path}
+                                  onClick={() => handleNavigate(root.path)}
+                                >
+                                  <HomeIcon className="size-4" />
+                                  {root.label}
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )
+                      : (
+                          <button
+                            type="button"
+                            className="shrink-0 truncate hover:text-foreground"
+                            disabled={loading}
+                            onClick={() => handleBreadcrumbClick(crumb.path)}
+                          >
+                            {crumb.name}
+                          </button>
+                        )}
+                  </span>
+                )
+              })}
             </div>
 
             {listing?.parentPath && (

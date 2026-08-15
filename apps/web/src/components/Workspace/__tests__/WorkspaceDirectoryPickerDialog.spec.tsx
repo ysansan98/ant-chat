@@ -6,7 +6,8 @@ import { WorkspaceDirectoryPickerDialog } from '../WorkspaceDirectoryPickerDialo
 const rootListing: WorkspaceDirectoryListing = {
   currentPath: '/',
   parentPath: null,
-  roots: ['/'],
+  roots: [{ path: '/', label: '/' }],
+  breadcrumbs: [{ name: '/', path: '/' }],
   directories: [
     { name: 'src', path: '/src' },
     { name: 'docs', path: '/docs' },
@@ -16,8 +17,28 @@ const rootListing: WorkspaceDirectoryListing = {
 const srcListing: WorkspaceDirectoryListing = {
   currentPath: '/src',
   parentPath: '/',
-  roots: ['/'],
+  roots: [{ path: '/', label: '/' }],
+  breadcrumbs: [
+    { name: '/', path: '/' },
+    { name: 'src', path: '/src' },
+  ],
   directories: [{ name: 'assets', path: '/src/assets' }],
+}
+
+/** Windows 下的 listing：currentPath 使用反斜杠，breadcrumbs/roots 由后端按平台生成 */
+const windowsListing: WorkspaceDirectoryListing = {
+  currentPath: 'C:\\Users\\me',
+  parentPath: 'C:\\Users',
+  roots: [
+    { path: 'C:\\', label: 'C:' },
+    { path: 'D:\\', label: 'D:' },
+  ],
+  breadcrumbs: [
+    { name: 'C:', path: 'C:\\' },
+    { name: 'Users', path: 'C:\\Users' },
+    { name: 'me', path: 'C:\\Users\\me' },
+  ],
+  directories: [{ name: 'projects', path: 'C:\\Users\\me\\projects' }],
 }
 
 const { listDirectories } = vi.hoisted(() => ({ listDirectories: vi.fn() }))
@@ -180,5 +201,39 @@ describe('workspaceDirectoryPickerDialog 键盘导航', () => {
     fireEvent.keyDown(newFolderInput, { key: 'Enter' })
 
     expect(onConfirm).not.toHaveBeenCalled()
+  })
+
+  it('win32 下按后端提供的面包屑逐级导航，不自行按 / 解析路径', async () => {
+    listDirectories
+      .mockResolvedValueOnce(windowsListing)
+      .mockResolvedValueOnce(windowsListing)
+
+    renderDialog()
+    await screen.findByPlaceholderText('搜索目录...')
+    await waitFor(() => expect(screen.getByRole('button', { name: 'projects' })).toBeInTheDocument())
+
+    // 面包屑展示 C: / Users / me，而不是把整个反斜杠路径当一段；
+    // 盘符下拉已合并进面包屑首段，C: 只出现一次
+    expect(screen.getByRole('button', { name: 'C:' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Users' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'me' })).toBeInTheDocument()
+
+    // 点击 Users 直接跳转到后端给出的绝对路径
+    fireEvent.click(screen.getByRole('button', { name: 'Users' }))
+    await waitFor(() => expect(listDirectories).toHaveBeenLastCalledWith('C:\\Users'))
+  })
+
+  it('win32 下通过合并进面包屑的盘符下拉切换到对应驱动器', async () => {
+    listDirectories.mockResolvedValue(windowsListing)
+
+    renderDialog()
+    await screen.findByPlaceholderText('搜索目录...')
+    await waitFor(() => expect(screen.getByRole('button', { name: 'projects' })).toBeInTheDocument())
+
+    // 点击面包屑首段 C: 打开盘符下拉并选择 D:
+    fireEvent.click(screen.getByRole('button', { name: 'C:' }))
+    const dMenuItem = await screen.findByRole('menuitem', { name: 'D:' })
+    fireEvent.click(dMenuItem)
+    await waitFor(() => expect(listDirectories).toHaveBeenLastCalledWith('D:\\'))
   })
 })
