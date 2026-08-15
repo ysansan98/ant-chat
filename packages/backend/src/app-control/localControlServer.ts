@@ -1,7 +1,7 @@
 import type { AppControlCommand, AppControlResult } from '@ant-chat/shared'
 import type { Socket } from 'node:net'
 import { Buffer } from 'node:buffer'
-import { randomBytes } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { chmodSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import * as os from 'node:os'
@@ -156,8 +156,13 @@ export class LocalControlServer {
 
     this.acquireRuntimeLock(appDataRoot)
 
-    const socketName = 'ant-chat-control.sock'
     const isWindows = os.platform() === 'win32'
+    // Windows 命名管道是机器级全局命名空间，固定名会让不同数据根（dev/prod、自定义
+    // --data-dir）的实例争用同一管道（macOS/Linux 的 socket 文件在 appDataRoot 内天然隔离）。
+    // 按数据根派生管道名，使控制端点与单实例锁一样以数据根为界。
+    const socketName = isWindows
+      ? `ant-chat-control-${createHash('sha256').update(appDataRoot).digest('hex').slice(0, 16)}.sock`
+      : 'ant-chat-control.sock'
     const socketPath = isWindows
       ? `\\\\.\\pipe\\${socketName}`
       : path.join(appDataRoot, socketName)
