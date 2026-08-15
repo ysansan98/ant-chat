@@ -29,10 +29,17 @@ const tmpRoot = path.join(os.tmpdir(), `ant-chat-rg-${Date.now()}`)
 
 async function main() {
   const lock = loadLockFile(rgLockPath)
+  // 本地构建只需当前平台的 rg（Windows 上 GNU tar 无法解压 macOS 的 tar.gz 包）；
+  // RG_FETCH_ALL=1 保留全量抓取，主机不在清单时回退为全量以维持旧行为。
+  const fetchAll = process.env.RG_FETCH_ALL === '1'
+  const hostTarget = `${process.platform}-${process.arch}`
+  const hostTargets = lock.targets.filter(target => target.platformArch === hostTarget)
+  const targets = fetchAll || hostTargets.length === 0 ? lock.targets : hostTargets
+
   fs.mkdirSync(rgOutputRoot, { recursive: true })
   fs.mkdirSync(tmpRoot, { recursive: true })
 
-  for (const target of lock.targets) {
+  for (const target of targets) {
     await prepareTarget(target)
   }
 }
