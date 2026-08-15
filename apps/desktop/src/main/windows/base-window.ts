@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import process from 'node:process'
 import { BrowserWindow, shell } from 'electron'
-import { isDev, isMacOS, isWindows } from '../utils/env'
+import { isDev, isMacOS } from '../utils/env'
 import { logger } from '../utils/logger'
 
 export interface BaseWindowOptions {
@@ -45,7 +45,7 @@ export abstract class BaseWindow {
     this.window = new BrowserWindow({
       width: this.options.width,
       height: this.options.height,
-      frame: !(isWindows),
+      frame: true,
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
