@@ -56,7 +56,10 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
         memoryCatalog: core.data.memoryCatalog,
         skillReader: dependencies.skills,
         mcpClientHub: dependencies.mcpClientHub,
-        browser: core.browserPaths,
+        browser: {
+          ...core.browserPaths,
+          env: core.commandEnvironment,
+        },
         browserAuthState: core.browserIdentity,
         commandHost: core.commandHost,
         loadFileData: core.data.loadAttachmentData,

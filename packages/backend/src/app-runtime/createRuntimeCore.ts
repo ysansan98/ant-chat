@@ -24,6 +24,8 @@ export interface RuntimeCore {
   browserPaths: AgentBrowserPaths
   browserIdentityPaths: BrowserIdentityPaths
   browserIdentity: BrowserIdentityStore
+  /** 宿主注入的命令环境（PATH 等），供命令宿主与浏览器工具解析外部 CLI。 */
+  commandEnvironment?: Readonly<Record<string, string>>
   data: AppDataContext
   db: RuntimeDatabase
   events: RuntimeEventBus
@@ -59,6 +61,7 @@ export function createRuntimeCore(options: CreateAppRuntimeOptions, commandHost:
       keyStore: secretStore,
       logger,
     }),
+    commandEnvironment: options.commandEnvironment,
     data,
     db,
     events: new RuntimeEventBusImpl(),

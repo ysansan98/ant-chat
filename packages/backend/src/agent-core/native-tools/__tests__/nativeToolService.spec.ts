@@ -128,6 +128,36 @@ describe('native tool service 行为', () => {
     expect(browserNavigate?.inferScope({ url: 'https://example.com', headed: true, profile: 'Default' })).toBe('outside')
   })
 
+  it('browser 工具用配置 env 的 PATH 解析 agent-browser（打包版 login shell PATH 场景）', async () => {
+    const binRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ant-chat-browser-bin-'))
+    const agentBrowserPath = path.join(binRoot, 'agent-browser')
+    fs.writeFileSync(agentBrowserPath, '#!/bin/sh\nexit 0\n')
+    fs.chmodSync(agentBrowserPath, 0o755)
+    try {
+      const service = new NativeToolService(workspacePath, false, {
+        browser: {
+          artifactsPath: path.join(workspacePath, 'artifacts'),
+          env: { PATH: binRoot },
+        },
+        browserSession: {
+          sessionName: 'env-test',
+          socketPath: path.join(binRoot, 'socket'),
+          headed: false,
+          started: false,
+          queue: Promise.resolve(),
+        },
+      })
+      const tool = service.getTools().find(t => t.name === 'browser_navigate')!
+
+      const result = await tool.execute({ url: 'https://example.com' })
+
+      expect(result.ok).toBe(true)
+    }
+    finally {
+      fs.rmSync(binRoot, { recursive: true, force: true })
+    }
+  })
+
   it('tool execute 遇到越界路径返回 AGENT_POLICY_BLOCKED', async () => {
     const service = new NativeToolService(workspacePath)
     const readFile = service.getTools().find(tool => tool.name === 'read_file')!

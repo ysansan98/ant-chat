@@ -32,6 +32,7 @@ interface NativeToolServiceOptions {
   browser?: {
     artifactsPath: string
     proxyUrl?: string
+    env?: Readonly<Record<string, string>>
   }
   browserSession?: BrowserSessionState
   browserAuthState?: BrowserAuthStateProvider

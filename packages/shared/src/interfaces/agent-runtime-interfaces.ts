@@ -269,6 +269,8 @@ export interface AgentBrowserRuntimeConfig {
   artifactsPath: string
   /** Explicit proxy URL; when set, overrides environment proxy variables. */
   proxyUrl?: string
+  /** 命令解析与子进程环境（PATH 等）。打包版桌面宿主传入合并 login shell PATH 的环境；缺省回退 process.env。 */
+  env?: Readonly<Record<string, string>>
 }
 
 export type AgentCommandHost

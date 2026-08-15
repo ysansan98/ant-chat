@@ -640,6 +640,17 @@ process.stdout.write('page content\\n⚠ --profile, --headed ignored: daemon alr
   }
 
   function browserPath(): string {
-    return [root, path.dirname(process.execPath)].join(path.delimiter)
+    // PATH 只保留测试根目录：fake 脚本经 env node 运行，把 node 放进根目录即可。
+    // 不引入真实 node bin 目录，避免测试受用户全局安装的 agent-browser 干扰。
+    const nodePath = path.join(root, 'node')
+    if (!fs.existsSync(nodePath)) {
+      try {
+        fs.symlinkSync(process.execPath, nodePath)
+      }
+      catch {
+        fs.copyFileSync(process.execPath, nodePath)
+      }
+    }
+    return root
   }
 })
