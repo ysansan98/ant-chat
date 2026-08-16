@@ -34,6 +34,12 @@ export class MainWindow extends BaseWindow {
   }
 
   private createMenu() {
+    // 生产环境 Windows/Linux：不显示原生菜单栏；复制/粘贴等编辑快捷键由渲染层内置，不受影响。
+    // macOS 仍需保留应用菜单（Cmd+C/V 等依赖 role 加速器）。
+    if (!isDev && !isMacOS) {
+      Menu.setApplicationMenu(null)
+      return
+    }
     const template = [
       // macOS 应用菜单
       ...(isMacOS
