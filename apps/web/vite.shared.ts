@@ -3,7 +3,7 @@ import { resolve } from 'node:path'
 
 import process from 'node:process'
 import tailwindcss from '@tailwindcss/vite'
-import react from '@vitejs/plugin-react'
+import reactSwc from '@vitejs/plugin-react-swc'
 import { codeInspectorPlugin } from 'code-inspector-plugin'
 import { analyzer } from 'vite-bundle-analyzer'
 import svgr from 'vite-plugin-svgr'
@@ -52,11 +52,11 @@ export function createWebRendererViteConfig({
         ? visualizerPlugin('renderer')
         : codeInspectorPlugin({ bundler: 'vite' }),
       ...extraPlugins,
-      react({
-        babel: {
-          plugins: [
-            ['babel-plugin-react-compiler', {}],
-          ],
+      // 统一使用 SWC 原生转换 + SWC 版 React Compiler（Rust 实现，毫秒级，
+      // 同时保留 memo 优化），dev 冷启动与生产构建共用一条工具链
+      reactSwc({
+        useAtYourOwnRisk_mutateSwcOptions: (options) => {
+          options.jsc.transform.reactCompiler = true
         },
       }),
       tailwindcss(),
