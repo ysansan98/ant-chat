@@ -1,6 +1,7 @@
 import type { AppControlCommand, AppControlResult } from '@ant-chat/shared'
 import type { Socket } from 'node:net'
 import { Buffer } from 'node:buffer'
+import { execFileSync } from 'node:child_process'
 import { createHash, randomBytes } from 'node:crypto'
 import { chmodSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
@@ -14,10 +15,16 @@ const CONTROL_PROTOCOL_VERSION = 1
 const MAX_MESSAGE_BYTES = 1024 * 1024 // 1 MiB
 const MESSAGE_TIMEOUT_MS = 30_000
 const RUNTIME_LOCK_FILE = '.runtime.lock'
+/** 本进程启动时刻（epoch ms），写入锁与端点元数据供身份校验 */
+const PROCESS_STARTED_AT_MS = Date.now() - process.uptime() * 1000
+/** 启动时刻身份校验容差（毫秒），吸收测量误差与时钟调整 */
+const PROCESS_START_TOLERANCE_MS = 10_000
 
 export interface ControlEndpointMeta {
   protocolVersion: number
   pid: number
+  /** 进程启动时刻（epoch ms），用于识别 PID 是否已被系统复用 */
+  startedAt: number
   endpoint: string
   authToken: string
 }
@@ -188,14 +195,14 @@ export class LocalControlServer {
 
     // 先读取旧 endpoint，给用户返回已有实例的端点；原子 lock 负责解决并发启动竞态。
     const existing = readEndpointMeta(metaPath)
-    if (existing && typeof existing.pid === 'number' && isProcessAlive(existing.pid))
+    if (existing && typeof existing.pid === 'number' && isLockHolderAlive(existing.pid, existing.startedAt))
       throw duplicateRuntimeError(existing.pid, existing.endpoint)
 
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const fd = openSync(lockPath, 'wx', 0o600)
         try {
-          writeFileSync(fd, JSON.stringify({ pid: process.pid }), 'utf8')
+          writeFileSync(fd, JSON.stringify({ pid: process.pid, startedAt: PROCESS_STARTED_AT_MS }), 'utf8')
         }
         finally {
           closeSync(fd)
@@ -209,7 +216,7 @@ export class LocalControlServer {
           throw error
 
         const lock = readEndpointMeta(lockPath)
-        if (lock && typeof lock.pid === 'number' && isProcessAlive(lock.pid))
+        if (lock && typeof lock.pid === 'number' && isLockHolderAlive(lock.pid, lock.startedAt))
           throw duplicateRuntimeError(lock.pid)
 
         // 崩溃遗留或损坏的锁只清理一次，随后重新走 open('wx') 的原子竞争。
@@ -229,6 +236,7 @@ export class LocalControlServer {
     const meta: ControlEndpointMeta = {
       protocolVersion: CONTROL_PROTOCOL_VERSION,
       pid: process.pid,
+      startedAt: PROCESS_STARTED_AT_MS,
       endpoint: socketPath,
       authToken,
     }
@@ -383,13 +391,51 @@ function duplicateRuntimeError(pid: number | undefined, endpoint?: string): Node
   return error
 }
 
-function isProcessAlive(pid: number): boolean {
+/**
+ * 判断锁记录的持有者是否仍然存活。
+ *
+ * PID 会被操作系统复用：仅凭 process.kill(pid, 0) 无法区分"ant-chat 仍在运行"与
+ * "锁是崩溃残留、PID 已被其他进程占用"。Windows 上对受保护的系统进程探测还会返回
+ * EPERM 而非 ESRCH，此前被误判为存活，陈旧锁会永久卡死启动。因此当锁携带
+ * startedAt 时，进一步比对 PID 当前进程的真实启动时刻。
+ */
+function isLockHolderAlive(pid: number, startedAt?: number): boolean {
   try {
     process.kill(pid, 0)
-    return true
   }
   catch (error) {
-    return (error as NodeJS.ErrnoException).code !== 'ESRCH'
+    if ((error as NodeJS.ErrnoException).code === 'ESRCH')
+      return false
+    // EPERM 等错误说明进程存在但无法探测，继续走身份校验
+  }
+
+  if (typeof startedAt === 'number') {
+    const actualStart = queryProcessStartMs(pid)
+    if (actualStart !== undefined)
+      return Math.abs(actualStart - startedAt) <= PROCESS_START_TOLERANCE_MS
+    // 查询失败（工具缺失/权限不足）时保持保守：视为存活，避免同一数据目录出现两个 Runtime
+  }
+  return true
+}
+
+/** 查询指定 PID 进程的启动时刻（epoch ms）；无法获取时返回 undefined。 */
+function queryProcessStartMs(pid: number): number | undefined {
+  try {
+    // Windows 的 Get-Process 读不到系统进程的启动时刻，改用 CIM；输出含时区偏移的 ISO 时间。
+    // 仅在本进程启动时发现锁冲突才调用，数百毫秒的额外开销可接受。
+    const output = os.platform() === 'win32'
+      ? execFileSync('powershell.exe', [
+          '-NoProfile',
+          '-NonInteractive',
+          '-Command',
+          `try { (Get-CimInstance Win32_Process -Filter 'ProcessId=${pid}').CreationDate.ToString('o') } catch { }`,
+        ], { encoding: 'utf8', timeout: 5_000, windowsHide: true })
+      : execFileSync('ps', ['-p', String(pid), '-o', 'lstart='], { encoding: 'utf8', timeout: 5_000 })
+    const startedAt = Date.parse(output.toString().trim())
+    return Number.isNaN(startedAt) ? undefined : startedAt
+  }
+  catch {
+    return undefined
   }
 }
 
