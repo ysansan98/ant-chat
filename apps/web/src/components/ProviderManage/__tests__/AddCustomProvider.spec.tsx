@@ -4,15 +4,13 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AddCustomProvider } from '../AddCustomProvider'
 
-const { getModelsDevProviders, listIntegrations } = vi.hoisted(() => ({
+const { getModelsDevProviders } = vi.hoisted(() => ({
   getModelsDevProviders: vi.fn(),
-  listIntegrations: vi.fn(),
 }))
 
 vi.mock('@/api/providerApi', () => ({
   providerApi: {
     getModelsDevProviders,
-    listIntegrations,
   },
 }))
 
@@ -32,7 +30,7 @@ async function submitForm() {
   await userEvent.click(within(screen.getByRole('dialog', { name: '添加自定义提供商' })).getByRole('button', { name: '添加' }))
 }
 
-describe('addCustomProvider 产品集成表单', () => {
+describe('addCustomProvider 添加表单', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     getModelsDevProviders.mockResolvedValue([
@@ -41,22 +39,6 @@ describe('addCustomProvider 产品集成表单', () => {
         name: 'Anthropic Cloud',
         apiMode: 'anthropic',
         baseUrl: 'https://api.anthropic.example',
-      },
-    ])
-    listIntegrations.mockResolvedValue([
-      {
-        id: 'api-key',
-        label: 'API Key',
-        authentication: 'api-key',
-        defaultApiMode: 'openai',
-      },
-      {
-        id: 'codex-subscription',
-        label: 'Codex 订阅',
-        authentication: 'oauth',
-        defaultApiMode: 'openai',
-        fixedApiMode: 'openai',
-        fixedBaseUrl: 'https://chatgpt.com/backend-api/codex',
       },
     ])
   })
@@ -69,7 +51,6 @@ describe('addCustomProvider 产品集成表单', () => {
     await selectOption('从 Models.dev 选择', 'Anthropic Cloud (anthropic-cloud)')
 
     expect(screen.getByRole('combobox', { name: 'API 模式 *' })).toHaveTextContent('Anthropic 兼容')
-    expect(screen.getByRole('combobox', { name: '产品集成 *' })).toHaveTextContent('API Key')
     expect(screen.getByLabelText('API 地址 *')).toHaveValue('https://api.anthropic.example')
     await userEvent.type(screen.getByLabelText('API Key *'), 'anthropic-key')
     await submitForm()
@@ -86,48 +67,40 @@ describe('addCustomProvider 产品集成表单', () => {
     })
   })
 
-  it('切到 Codex 后清除 Models.dev 来源，并提交 descriptor 规范化后的配置', async () => {
+  it('不展示产品集成选择器，始终按 API Key 集成提交', async () => {
     const onAdd = vi.fn(async (_provider: CreateProviderConfigSchema) => {})
     render(<AddCustomProvider onAdd={onAdd} />)
     await openDialog()
-    await selectOption('从 Models.dev 选择', 'Anthropic Cloud (anthropic-cloud)')
 
-    await selectOption('产品集成 *', 'Codex 订阅')
+    expect(screen.queryByRole('combobox', { name: '产品集成 *' })).not.toBeInTheDocument()
+    // API Key 认证的表单字段固定展示
+    expect(screen.getByLabelText('API 地址 *')).toBeInTheDocument()
+    expect(screen.getByLabelText('API Key *')).toBeInTheDocument()
 
-    expect(screen.getByRole('combobox', { name: '从 Models.dev 选择' })).toHaveTextContent('选择服务商')
-    expect(screen.getByRole('combobox', { name: 'API 模式 *' })).toHaveTextContent('OpenAI 兼容')
-    // fixed endpoint（Codex 订阅）不展示 API 地址输入框，提交时由 descriptor 提供。
-    expect(screen.queryByLabelText('API 地址 *')).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('API Key *')).not.toBeInTheDocument()
-
-    const nameInput = screen.getByLabelText('提供商名称 *')
-    await userEvent.clear(nameInput)
-    await userEvent.type(nameInput, '我的 Codex')
+    await userEvent.type(screen.getByLabelText('提供商名称 *'), '我的服务商')
+    await userEvent.type(screen.getByLabelText('API 地址 *'), 'https://api.example.com')
+    await userEvent.type(screen.getByLabelText('API Key *'), 'my-key')
     await submitForm()
 
     await waitFor(() => expect(onAdd).toHaveBeenCalledTimes(1))
     expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({
-      name: '我的 Codex',
-      baseUrl: 'https://chatgpt.com/backend-api/codex',
-      integrationId: 'codex-subscription',
+      name: '我的服务商',
+      baseUrl: 'https://api.example.com',
+      integrationId: 'api-key',
       apiMode: 'openai',
+      apiKey: 'my-key',
       isEnabled: true,
     }))
-    const payload = onAdd.mock.calls[0][0]
-    expect(payload.id).not.toBe('anthropic-cloud')
-    expect(payload).not.toHaveProperty('apiKey')
   })
 
   it('取消后重新打开时，所有 Select 和输入框恢复同一组默认值', async () => {
     render(<AddCustomProvider onAdd={vi.fn()} />)
     await openDialog()
-    await selectOption('产品集成 *', 'Codex 订阅')
-    await userEvent.type(screen.getByLabelText('提供商名称 *'), '临时 Codex')
+    await userEvent.type(screen.getByLabelText('提供商名称 *'), '临时服务商')
 
     await userEvent.click(screen.getByRole('button', { name: '取消' }))
     await openDialog()
 
-    expect(screen.getByRole('combobox', { name: '产品集成 *' })).toHaveTextContent('API Key')
     expect(screen.getByRole('combobox', { name: 'API 模式 *' })).toHaveTextContent('OpenAI 兼容')
     expect(screen.getByRole('combobox', { name: '从 Models.dev 选择' })).toHaveTextContent('选择服务商')
     expect(screen.getByLabelText('提供商名称 *')).toHaveValue('')

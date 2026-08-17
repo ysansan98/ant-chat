@@ -27,6 +27,18 @@ describe('model capabilities schema', () => {
     const parsed = ModelCapabilitiesSchema.parse({ reasoning: true })
     expect(parsed.reasoningLevels).toBeUndefined()
   })
+
+  it('outputModalities 接受 models.dev 的全部输出枚举（含 video/audio/pdf）', () => {
+    const parsed = ModelCapabilitiesSchema.parse({
+      outputModalities: ['text', 'image', 'video', 'audio', 'pdf'],
+    })
+    expect(parsed.outputModalities).toEqual(['text', 'image', 'video', 'audio', 'pdf'])
+  })
+
+  it('拒绝未知的输入/输出模态枚举', () => {
+    expect(ModelCapabilitiesSchema.safeParse({ inputModalities: ['haptic'] }).success).toBe(false)
+    expect(ModelCapabilitiesSchema.safeParse({ outputModalities: ['haptic'] }).success).toBe(false)
+  })
 })
 
 describe('reasoning effort schema', () => {

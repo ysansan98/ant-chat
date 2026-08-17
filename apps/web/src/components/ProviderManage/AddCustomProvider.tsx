@@ -1,4 +1,4 @@
-import type { CreateProviderConfigSchema, ProviderFormat, ProviderIntegrationId } from '@ant-chat/shared'
+import type { CreateProviderConfigSchema, ProviderFormat } from '@ant-chat/shared'
 import { Button } from '@workspace/ui/components/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@workspace/ui/components/dialog'
 import { Field, FieldError, FieldLabel } from '@workspace/ui/components/field'
@@ -24,14 +24,12 @@ interface ProviderFormValues {
   baseUrl: string
   apiKey: string
   apiMode: ProviderFormat
-  integrationId: ProviderIntegrationId
   isEnabled: boolean
 }
 
 const DEFAULT_PROVIDER_FORM_VALUES: ProviderFormValues = {
   name: '',
   apiMode: 'openai',
-  integrationId: 'api-key',
   baseUrl: '',
   apiKey: '',
   isEnabled: true,
@@ -59,10 +57,7 @@ export function AddCustomProvider({ onAdd, existingProviderIds, loading }: AddCu
   const [isModalOpen, setIsModalOpen] = React.useState(false)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [selectedModelsDevProviderId, setSelectedModelsDevProviderId] = React.useState<string | null>(null)
-  const integrationId = watch('integrationId')
   const apiMode = watch('apiMode')
-  const { data: integrationCatalog } = useRequest(providerApi.listIntegrations)
-  const integrationDescriptor = integrationCatalog?.find(descriptor => descriptor.id === integrationId)
   const { data: modelsDevProviders, run } = useRequest(
     providerApi.getModelsDevProviders,
     { manual: true },
@@ -79,18 +74,15 @@ export function AddCustomProvider({ onAdd, existingProviderIds, loading }: AddCu
   const handleSubmitForm = handleSubmit(async (values) => {
     try {
       setIsSubmitting(true)
-      const descriptor = integrationCatalog?.find(item => item.id === values.integrationId)
-      if (!descriptor) {
-        throw new Error('产品集成目录尚未加载，请稍后重试。')
-      }
 
       const providerData: CreateProviderConfigSchema = {
         id: selectedModelsDevProviderId || nanoid(),
         name: values.name,
-        baseUrl: descriptor.fixedBaseUrl ?? values.baseUrl,
-        integrationId: descriptor.id,
-        ...(descriptor.authentication === 'api-key' && values.apiKey ? { apiKey: values.apiKey } : {}),
-        apiMode: descriptor.fixedApiMode ?? values.apiMode,
+        baseUrl: values.baseUrl,
+        // 自定义提供商统一走 API Key 认证；订阅（OAuth）服务商是内置的，不走此入口。
+        integrationId: 'api-key',
+        ...(values.apiKey ? { apiKey: values.apiKey } : {}),
+        apiMode: values.apiMode,
         isEnabled: values.isEnabled ?? true,
       }
 
@@ -168,7 +160,6 @@ export function AddCustomProvider({ onAdd, existingProviderIds, loading }: AddCu
                   setSelectedModelsDevProviderId(provider.id)
                   setValue('name', provider.name)
                   setValue('apiMode', provider.apiMode)
-                  setValue('integrationId', 'api-key')
                   setValue('baseUrl', provider.baseUrl)
                 }}
               >
@@ -204,46 +195,39 @@ export function AddCustomProvider({ onAdd, existingProviderIds, loading }: AddCu
               <FieldError errors={[errors.name]} />
             </Field>
 
-            {
-              // fixed endpoint（如 Codex 订阅）由 descriptor 固定，提交时自动使用 fixedBaseUrl，无需用户填写也不展示。
-              !integrationDescriptor?.fixedBaseUrl && (
-                <Field>
-                  <FieldLabel htmlFor="provider-base-url">API 地址 *</FieldLabel>
-                  <Input
-                    id="provider-base-url"
-                    placeholder="https://api.example.com"
-                    aria-invalid={!!errors.baseUrl}
-                    {...register('baseUrl', {
-                      required: '请输入 API 地址',
-                    })}
-                  />
-                  <FieldError errors={[errors.baseUrl]} />
-                </Field>
-              )
-            }
+            {/* 自定义提供商统一使用 API Key 认证，endpoint 由用户填写。 */}
+            <Field>
+              <FieldLabel htmlFor="provider-base-url">API 地址 *</FieldLabel>
+              <Input
+                id="provider-base-url"
+                placeholder="https://api.example.com"
+                aria-invalid={!!errors.baseUrl}
+                {...register('baseUrl', {
+                  required: '请输入 API 地址',
+                })}
+              />
+              <FieldError errors={[errors.baseUrl]} />
+            </Field>
 
-            {integrationDescriptor?.authentication === 'api-key' && (
-              <Field>
-                <FieldLabel htmlFor="provider-api-key">API Key *</FieldLabel>
-                <Input
-                  id="provider-api-key"
-                  type="password"
-                  placeholder="输入你的API Key"
-                  aria-invalid={!!errors.apiKey}
-                  {...register('apiKey', {
-                    required: '请输入 API Key',
-                  })}
-                />
-                <FieldError errors={[errors.apiKey]} />
-              </Field>
-            )}
+            <Field>
+              <FieldLabel htmlFor="provider-api-key">API Key *</FieldLabel>
+              <Input
+                id="provider-api-key"
+                type="password"
+                placeholder="输入你的API Key"
+                aria-invalid={!!errors.apiKey}
+                {...register('apiKey', {
+                  required: '请输入 API Key',
+                })}
+              />
+              <FieldError errors={[errors.apiKey]} />
+            </Field>
 
             <Field>
               <FieldLabel htmlFor="provider-api-mode">API 模式 *</FieldLabel>
               <Select
                 items={API_MODE_OPTIONS}
                 value={apiMode}
-                disabled={Boolean(integrationDescriptor?.fixedApiMode)}
                 onValueChange={(value) => {
                   if (value) {
                     setValue('apiMode', value as ProviderFormat)
@@ -258,40 +242,6 @@ export function AddCustomProvider({ onAdd, existingProviderIds, loading }: AddCu
                   <SelectItem value="anthropic">Anthropic 兼容</SelectItem>
                   <SelectItem value="google">Google 兼容</SelectItem>
                   <SelectItem value="deepseek">DeepSeek 兼容</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-
-            <Field>
-              <FieldLabel htmlFor="provider-integration">产品集成 *</FieldLabel>
-              <Select
-                items={(integrationCatalog ?? []).map(descriptor => ({
-                  label: descriptor.label,
-                  value: descriptor.id,
-                }))}
-                value={integrationId}
-                onValueChange={(value) => {
-                  if (!value) {
-                    return
-                  }
-                  const descriptor = integrationCatalog?.find(item => item.id === value)
-                  if (!descriptor) {
-                    return
-                  }
-                  setSelectedModelsDevProviderId(null)
-                  setValue('integrationId', descriptor.id)
-                  setValue('apiMode', descriptor.fixedApiMode ?? descriptor.defaultApiMode)
-                  setValue('baseUrl', descriptor.fixedBaseUrl ?? '')
-                  setValue('apiKey', '')
-                }}
-              >
-                <SelectTrigger id="provider-integration">
-                  <SelectValue placeholder="选择产品集成" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(integrationCatalog ?? []).map(descriptor => (
-                    <SelectItem key={descriptor.id} value={descriptor.id}>{descriptor.label}</SelectItem>
-                  ))}
                 </SelectContent>
               </Select>
             </Field>

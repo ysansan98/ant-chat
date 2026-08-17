@@ -64,6 +64,24 @@ describe('provider integration 行为', () => {
     }])
   })
 
+  it('models.dev 模型没有 modalities 数据时不写 inputModalities/outputModalities（空数组会被语义化为不支持任何输入）', async () => {
+    const models: ModelsDevModel[] = [{
+      id: 'no-modalities-model',
+      name: 'No Modalities Model',
+      providerId: 'openai',
+      model: 'no-modalities-model',
+      contextLength: 128_000,
+      maxOutputTokens: 8_000,
+      toolCall: true,
+      reasoning: false,
+    }]
+    const source = createModelsDevModelSource(async () => models)
+
+    const [definition] = await source.listModels({ ...provider, id: 'openai', apiMode: 'openai' })
+    expect(definition.capabilities).not.toHaveProperty('inputModalities')
+    expect(definition.capabilities).not.toHaveProperty('outputModalities')
+  })
+
   it('订阅 Integration 暴露通用 OAuth 和 provider 模型源能力', () => {
     const integration = createCodexProviderIntegration({
       getProviderIntegrationCredential: vi.fn(),

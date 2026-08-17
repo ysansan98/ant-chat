@@ -51,7 +51,8 @@ export const ModelCostSchema = z.object({
 export type ModelCostSchema = z.infer<typeof ModelCostSchema>
 
 const InputModalitiesSchema = z.array(z.enum(['text', 'image', 'pdf', 'video', 'audio']))
-const OutputModalitiesSchema = z.array(z.enum(['text', 'image']))
+// 与 models.dev 的 output 枚举对齐（含 video/audio/pdf 输出模型）；当前无运行时消费方。
+const OutputModalitiesSchema = z.array(z.enum(['text', 'image', 'video', 'audio', 'pdf']))
 
 export const ModelCapabilitiesSchema = z.object({
   functionCall: z.boolean().optional(),

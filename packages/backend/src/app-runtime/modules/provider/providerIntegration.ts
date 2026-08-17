@@ -100,6 +100,14 @@ export function createDefaultProviderIntegration(
 }
 
 function toModelsDevModelDefinition(model: ModelsDevModel): ProviderModelDefinition {
+  // modalities 为可选字段：无数据时不写（undefined = 未声明），
+  // 避免空数组被语义化为"确认不支持任何输入"（与 Codex 路径的 length 保护一致）。
+  const inputModalities = model.modalities?.input?.length
+    ? model.modalities.input as NonNullable<ProviderConfigModelSchema['capabilities']>['inputModalities']
+    : undefined
+  const outputModalities = model.modalities?.output?.length
+    ? model.modalities.output as NonNullable<ProviderConfigModelSchema['capabilities']>['outputModalities']
+    : undefined
   return {
     id: model.model,
     name: model.name,
@@ -111,8 +119,8 @@ function toModelsDevModelDefinition(model: ModelsDevModel): ProviderModelDefinit
       reasoningLevels: model.reasoningLevels,
       supportsTemperature: model.supportsTemperature ?? false,
       structuredOutput: model.structuredOutput ?? false,
-      inputModalities: (model.modalities?.input ?? []) as NonNullable<ProviderConfigModelSchema['capabilities']>['inputModalities'],
-      outputModalities: (model.modalities?.output ?? []) as NonNullable<ProviderConfigModelSchema['capabilities']>['outputModalities'],
+      ...(inputModalities ? { inputModalities } : {}),
+      ...(outputModalities ? { outputModalities } : {}),
     },
     cost: model.cost,
   }
