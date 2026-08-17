@@ -52,8 +52,13 @@ jobs:
       - name: Verify bundled rg binaries
         shell: bash
         run: |
-          test -f apps/desktop/resources/rg/darwin-arm64/rg
-          test -f apps/desktop/resources/rg/win32-x64/rg.exe
+          # fetch-rg.ts 每个 runner 只准备当前平台的 rg（Windows 上 GNU tar 无法解压 macOS tar.gz），
+          # 因此校验也必须按当前矩阵平台检查对应的二进制
+          if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            test -f apps/desktop/resources/rg/darwin-arm64/rg
+          else
+            test -f apps/desktop/resources/rg/win32-x64/rg.exe
+          fi
 
       - name: Build workspace packages
         run: pnpm build:packages
