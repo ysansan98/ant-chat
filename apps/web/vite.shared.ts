@@ -56,6 +56,10 @@ export function createWebRendererViteConfig({
       // 同时保留 memo 优化），dev 冷启动与生产构建共用一条工具链
       reactSwc({
         useAtYourOwnRisk_mutateSwcOptions: (options) => {
+          // @swc/core 的 Options.jsc / jsc.transform 类型均为可选字段，
+          // strict 模式下直接链式赋值会报 TS18048，先初始化再写入
+          options.jsc = options.jsc ?? {}
+          options.jsc.transform = options.jsc.transform ?? {}
           options.jsc.transform.reactCompiler = true
         },
       }),
