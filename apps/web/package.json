@@ -45,8 +45,6 @@
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "@vitejs/plugin-react": "catalog:",
-    "babel-plugin-react-compiler": "^1.0.0",
     "code-inspector-plugin": "catalog:",
     "jsdom": "^26.0.0",
     "tailwindcss": "catalog:",
