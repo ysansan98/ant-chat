@@ -239,6 +239,7 @@ export interface AppIpcServices {
     clipboardWrite: (data: ElectronData, type?: 'selection' | 'clipboard') => Promise<boolean>
     minimizeWindow: () => Promise<void>
     maximizeOrRestoreWindow: () => Promise<void>
+    focusWindow: () => Promise<void>
     quitApp: () => Promise<void>
   }
   runtime: {

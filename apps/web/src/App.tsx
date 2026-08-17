@@ -3,6 +3,7 @@ import { Outlet } from 'react-router'
 import { AppProviders } from './AppProviders'
 import { UpdateNotification } from './components/UpdateNotification/UpdateNotification'
 import { useAppEventListener } from './hooks/useAppEventListener'
+import { useTurnFinishedNotification } from './hooks/useTurnFinishedNotification'
 import { useUpdateNotification } from './hooks/useUpdateNotification'
 
 function AppWrapper() {
@@ -23,6 +24,7 @@ function AppWrapper() {
  */
 function AntChatApp() {
   useAppEventListener()
+  useTurnFinishedNotification()
   const { updateInfo, showNotification, hideNotification } = useUpdateNotification()
 
   return (

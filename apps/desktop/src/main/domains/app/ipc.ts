@@ -44,6 +44,23 @@ export class AppIpcService extends IpcService {
     }
   }
 
+  /**
+   * 系统通知点击后恢复窗口：最小化时还原，隐藏时显示，并抢回焦点。
+   */
+  @IpcMethod()
+  async focusWindow(): Promise<void> {
+    const window = getMainWindow()
+    if (!window) {
+      return
+    }
+
+    if (window.isMinimized()) {
+      window.restore()
+    }
+    window.show()
+    window.focus()
+  }
+
   @IpcMethod()
   async quitApp(): Promise<void> {
     app.quit()
