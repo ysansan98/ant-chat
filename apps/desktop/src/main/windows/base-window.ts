@@ -112,13 +112,14 @@ export abstract class BaseWindow {
 
   private setupDevShortcuts(window: BrowserWindow) {
     window.webContents.on('before-input-event', (event, input) => {
+      // 带 Shift 时 input.key 为大写（Ctrl+Shift+I → 'I'），统一转小写匹配
       // Command+Option+I (Mac) 或 Ctrl+Shift+I (Windows/Linux)
-      if (input.key === 'i' && input.control && input.shift) {
+      if (input.key.toLowerCase() === 'i' && input.control && input.shift) {
         window.webContents.toggleDevTools()
         event.preventDefault()
       }
       // 刷新页面: Command+R (Mac) 或 Ctrl+R (Windows/Linux)
-      if (input.key === 'r' && (input.control || input.meta)) {
+      if (input.key.toLowerCase() === 'r' && (input.control || input.meta)) {
         window.webContents.reload()
         event.preventDefault()
       }

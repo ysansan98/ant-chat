@@ -34,9 +34,10 @@ export class MainWindow extends BaseWindow {
   }
 
   private createMenu() {
-    // 生产环境 Windows/Linux：不显示原生菜单栏；复制/粘贴等编辑快捷键由渲染层内置，不受影响。
+    // Windows/Linux（开发/生产一致）：不显示原生菜单栏；复制/粘贴等编辑快捷键由渲染层内置，
+    // Ctrl+R/DevTools/退出等 dev 快捷键由 before-input-event 兜底，均不受影响。
     // macOS 仍需保留应用菜单（Cmd+C/V 等依赖 role 加速器）。
-    if (!isDev && !isMacOS) {
+    if (!isMacOS) {
       Menu.setApplicationMenu(null)
       return
     }
@@ -120,7 +121,7 @@ export class MainWindow extends BaseWindow {
   private setupDevEvents(window: BrowserWindow) {
     window.webContents.on('before-input-event', (event, input) => {
       // 退出应用: Command+Q (Mac) 或 Ctrl+Q (Windows/Linux)
-      if (input.key === 'q' && (input.control || input.meta)) {
+      if (input.key.toLowerCase() === 'q' && (input.control || input.meta)) {
         app.quit()
         event.preventDefault()
       }
