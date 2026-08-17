@@ -1,5 +1,34 @@
 # @ant-chat/web
 
+## 1.0.0-alpha.5
+
+### Minor Changes
+
+- b412a08: 模型回复批注：支持对模型回复选中文本添加批注（引用 + 评论），随用户消息发送给模型
+
+  - 发送前编辑态：选区批注、序号气泡、点击复现高亮、编辑/删除（临时状态，不落库）
+  - 发送：批注组装为 `annotation` blocks 随用户消息落库，上下文渲染为 `<annotation><quote>/<comment>` 结构化文本注入模型
+  - 发送后展示：用户消息渲染"n条注释"按钮 + hover 列表；Sender 输入框上方预览，可跳转回引用消息原位编辑
+  - 消息内容新增 `annotation` block 类型（schema 扩展，无数据库迁移）
+
+### Patch Changes
+
+- 73cef66: 批注发送前体验收尾：Sender 批注预览改为附件 chip 形态（与附件同高、hover 显示关闭按钮一键清空全部草稿），序号标记改为气泡+角标形态并换 amber 强调色
+- 579b295: 用户消息超长内容收起时恢复视口锚点：
+  点击「收起」后按钮保持在原视口位置，避免内容收缩把后续消息顶上来
+- f1b3d1e: 系统通知：应用失焦时 turn 执行完成发送系统级通知（Web 与桌面端均支持），点击通知聚焦应用并跳转到对应会话页
+
+  - 渲染层新增 `useTurnFinishedNotification`：监听 `agent:turn-finished`，仅当应用失焦（`document.hasFocus()` 为 false）时通过系统 Notification 提醒，success/error 均通知、cancel 不通知；同一会话的通知互斥替换（tag）。
+  - Web 端在首次用户交互时申请 Notification 权限，未授权时发送前再补一次申请。
+  - 桌面端新增 `app.focusWindow` IPC：点击通知时主进程恢复最小化/隐藏窗口并聚焦；路由跳转到 `/chat` 并激活对应会话（含跨工作区）。
+
+- 1cc5300: 修复添加工作区时目录选择器对 Windows 的适配：面包屑不再在前端按 '/' 拆分路径（此前 Windows 路径被折叠成单个 "/"、点击后跳到无效路径），改由后端按平台返回逐级面包屑；多盘符时切换盘符的下拉合并进面包屑首段（如 C: ▾ / Users / me），可直接切换盘符。
+- Updated dependencies [b412a08]
+- Updated dependencies [36d7239]
+- Updated dependencies [f1b3d1e]
+- Updated dependencies [1cc5300]
+  - @ant-chat/shared@1.0.0-alpha.5
+
 ## 1.0.0-alpha.4
 
 ### Minor Changes

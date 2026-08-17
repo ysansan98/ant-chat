@@ -1,5 +1,28 @@
 # @ant-chat/backend
 
+## 1.0.0-alpha.5
+
+### Minor Changes
+
+- b412a08: 模型回复批注：支持对模型回复选中文本添加批注（引用 + 评论），随用户消息发送给模型
+
+  - 发送前编辑态：选区批注、序号气泡、点击复现高亮、编辑/删除（临时状态，不落库）
+  - 发送：批注组装为 `annotation` blocks 随用户消息落库，上下文渲染为 `<annotation><quote>/<comment>` 结构化文本注入模型
+  - 发送后展示：用户消息渲染"n条注释"按钮 + hover 列表；Sender 输入框上方预览，可跳转回引用消息原位编辑
+  - 消息内容新增 `annotation` block 类型（schema 扩展，无数据库迁移）
+
+### Patch Changes
+
+- 36d7239: 修复打包版 macOS 桌面端浏览器工具找不到 agent-browser CLI 的问题：打包版 GUI 由 launchd 启动，进程 PATH 不含用户 shell 注入的目录（nvm/homebrew 等），浏览器工具解析外部 CLI 时未使用与 execute_command 相同的合并 PATH。现在宿主注入的 commandEnvironment（login shell PATH + 应用自带目录）会透传到浏览器工具的命令解析与子进程环境，打包版也能找到全局安装的 agent-browser；同时 browserRunner 测试改为不依赖真实 node bin 目录，避免被全局安装的 agent-browser 干扰。
+- 0c30b2e: 修复 Windows 下控制管道名固定导致 dev 与 prod（或不同数据目录）实例同时运行时 EADDRINUSE 冲突：管道名改为按数据根派生，与 macOS/Linux 的 socket 文件隔离行为对齐。
+- b3a26f7: 修复 Windows 下 fsync 只读/目录句柄导致的 EPERM 崩溃（首次启动与每次设置写入必现），让桌面端 dev 在 backend 未构建时从源码目录拷贝内置技能，并让 rg:prepare 在本地只抓取当前平台的 ripgrep（避免 Windows 上 GNU tar 解压 macOS 包失败）。
+- 1cc5300: 修复添加工作区时目录选择器对 Windows 的适配：面包屑不再在前端按 '/' 拆分路径（此前 Windows 路径被折叠成单个 "/"、点击后跳到无效路径），改由后端按平台返回逐级面包屑；多盘符时切换盘符的下拉合并进面包屑首段（如 C: ▾ / Users / me），可直接切换盘符。
+- Updated dependencies [b412a08]
+- Updated dependencies [36d7239]
+- Updated dependencies [f1b3d1e]
+- Updated dependencies [1cc5300]
+  - @ant-chat/shared@1.0.0-alpha.5
+
 ## 1.0.0-alpha.4
 
 ### Minor Changes

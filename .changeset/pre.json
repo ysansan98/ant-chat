@@ -13,7 +13,10 @@
   "changesets": [
     "agent-message-search-memory-catalog",
     "ai-sdk-v7-multi-provider",
+    "annotation-quote-comment",
+    "annotation-sender-preview-followup",
     "automation-run-status-inbox",
+    "brave-pugs-browse",
     "bright-agents-manage",
     "browser-cookies-import",
     "calm-browsers-connect",
@@ -31,6 +34,7 @@
     "image-recognition-cli",
     "lazy-browser-identity-keychain",
     "mcp-server-enabled-switch",
+    "quiet-hide-menubar",
     "quiet-products-release",
     "quiet-traces-settle",
     "reasoning-effort-config",
@@ -38,7 +42,13 @@
     "safe-tool-approval-grants",
     "settings-route-inline",
     "side-panel-file-preview",
+    "tidy-planes-collapse-anchor",
+    "turn-finished-system-notification",
     "weixin-ilink-channel-desktop",
-    "weixin-typing-heartbeat-fix"
+    "weixin-typing-heartbeat-fix",
+    "windows-control-pipe-env-scoping",
+    "windows-fsync-dev-boot",
+    "windows-show-window-frame",
+    "windows-workspace-picker-drives"
   ]
 }

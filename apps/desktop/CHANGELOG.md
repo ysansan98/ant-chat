@@ -1,5 +1,33 @@
 # Ant Chat Desktop
 
+## 1.0.0-alpha.7
+
+### Patch Changes
+
+- b412a08: 模型回复批注：支持对模型回复选中文本添加批注（引用 + 评论），随用户消息发送给模型
+
+  - 发送前编辑态：选区批注、序号气泡、点击复现高亮、编辑/删除（临时状态，不落库）
+  - 发送：批注组装为 `annotation` blocks 随用户消息落库，上下文渲染为 `<annotation><quote>/<comment>` 结构化文本注入模型
+  - 发送后展示：用户消息渲染"n条注释"按钮 + hover 列表；Sender 输入框上方预览，可跳转回引用消息原位编辑
+  - 消息内容新增 `annotation` block 类型（schema 扩展，无数据库迁移）
+
+- 73cef66: 批注发送前体验收尾：Sender 批注预览改为附件 chip 形态（与附件同高、hover 显示关闭按钮一键清空全部草稿），序号标记改为气泡+角标形态并换 amber 强调色
+- 36d7239: 修复打包版 macOS 桌面端浏览器工具找不到 agent-browser CLI 的问题：打包版 GUI 由 launchd 启动，进程 PATH 不含用户 shell 注入的目录（nvm/homebrew 等），浏览器工具解析外部 CLI 时未使用与 execute_command 相同的合并 PATH。现在宿主注入的 commandEnvironment（login shell PATH + 应用自带目录）会透传到浏览器工具的命令解析与子进程环境，打包版也能找到全局安装的 agent-browser；同时 browserRunner 测试改为不依赖真实 node bin 目录，避免被全局安装的 agent-browser 干扰。
+- d46ce9b: 生产环境 Windows/Linux 隐藏原生菜单栏；复制/粘贴等编辑快捷键由渲染层内置，不受影响。macOS 保留应用菜单（Cmd+C/V 等依赖菜单 role 加速器）。
+- f1b3d1e: 系统通知：应用失焦时 turn 执行完成发送系统级通知（Web 与桌面端均支持），点击通知聚焦应用并跳转到对应会话页
+
+  - 渲染层新增 `useTurnFinishedNotification`：监听 `agent:turn-finished`，仅当应用失焦（`document.hasFocus()` 为 false）时通过系统 Notification 提醒，success/error 均通知、cancel 不通知；同一会话的通知互斥替换（tag）。
+  - Web 端在首次用户交互时申请 Notification 权限，未授权时发送前再补一次申请。
+  - 桌面端新增 `app.focusWindow` IPC：点击通知时主进程恢复最小化/隐藏窗口并聚焦；路由跳转到 `/chat` 并激活对应会话（含跨工作区）。
+
+- 0c30b2e: 修复 Windows 下控制管道名固定导致 dev 与 prod（或不同数据目录）实例同时运行时 EADDRINUSE 冲突：管道名改为按数据根派生，与 macOS/Linux 的 socket 文件隔离行为对齐。
+- b3a26f7: 修复 Windows 下 fsync 只读/目录句柄导致的 EPERM 崩溃（首次启动与每次设置写入必现），让桌面端 dev 在 backend 未构建时从源码目录拷贝内置技能，并让 rg:prepare 在本地只抓取当前平台的 ripgrep（避免 Windows 上 GNU tar 解压 macOS 包失败）。
+- 17e532c: Windows 下显示原生窗口边框
+
+  - 移除 Windows 无边框窗口特殊处理（`frame: false`），Windows 窗口恢复标准标题栏与最小化/最大化/关闭按钮；macOS 保持隐藏标题栏 + 红绿灯按钮设计不变
+
+- 1cc5300: 修复添加工作区时目录选择器对 Windows 的适配：面包屑不再在前端按 '/' 拆分路径（此前 Windows 路径被折叠成单个 "/"、点击后跳到无效路径），改由后端按平台返回逐级面包屑；多盘符时切换盘符的下拉合并进面包屑首段（如 C: ▾ / Users / me），可直接切换盘符。
+
 ## 1.0.0-alpha.6
 
 ### Patch Changes
