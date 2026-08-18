@@ -33,6 +33,7 @@ catalog:
   '@types/react': ^19.2.10
   '@types/react-dom': ^19.2.3
   '@types/wicg-file-system-access': ^2023.10.5
+  '@vitejs/plugin-react-swc': ^4.3.3
   ai: ^7.0.18
   better-sqlite3: ^12.6.2
   code-inspector-plugin: ^1.5.1

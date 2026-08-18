@@ -47,7 +47,7 @@
     "@tailwindcss/vite": "catalog:",
     "@types/node": "catalog:",
     "@types/wicg-file-system-access": "catalog:",
-    "@vitejs/plugin-react-swc": "^4.3.3",
+    "@vitejs/plugin-react-swc": "catalog:",
     "code-inspector-plugin": "catalog:",
     "cross-env": "^7.0.3",
     "electron": "catalog:",

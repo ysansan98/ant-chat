@@ -71,7 +71,7 @@ export function createWebRendererViteConfig({
     worker: {
       format: 'es',
     },
-    // dev server 启动时预热首屏模块，让 babel+react-compiler 的 transform
+    // dev server 启动时预热首屏模块，让 swc+react-compiler 的 transform
     // 在窗口加载前开始执行，缩短首次白屏
     server: {
       warmup: {

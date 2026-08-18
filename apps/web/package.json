@@ -45,6 +45,7 @@
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react-swc": "catalog:",
     "code-inspector-plugin": "catalog:",
     "jsdom": "^26.0.0",
     "tailwindcss": "catalog:",
