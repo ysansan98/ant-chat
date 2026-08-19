@@ -4,7 +4,6 @@ import { useMessagesStore } from '@/store/messages'
 import { useWorkspaceStore } from '@/store/workspace'
 import { archiveConversationAction, restoreConversationAction } from '../actions'
 import { useConversationsStore } from '../conversationsStore'
-import { createInitialState } from '../initialState'
 
 const mocks = vi.hoisted(() => ({
   archiveConversation: vi.fn(),
@@ -35,17 +34,11 @@ describe('会话归档状态', () => {
     vi.clearAllMocks()
     useWorkspaceStore.setState({ currentWorkspacePath: '/workspace', workspaceData: null, loading: false })
     useMessagesStore.setState({ activeConversationsId: 'c1', messages: [], pendingSteeringByConversation: {} })
-    const initial = createInitialState()
     const conversations = [conversation('c1', 5), conversation('c2', 4), conversation('c3', 3), conversation('c4', 2), conversation('c5', 1)]
     useConversationsStore.setState({
-      ...initial,
-      activeWorkspacePath: '/workspace',
-      activeConversationsId: 'c1',
       conversations,
-      conversationsTotal: 6,
-      workspaceConversations: {
-        '/workspace': { conversations, conversationsTotal: 6, pageIndex: 1, loadVersion: 0, loaded: true },
-      },
+      conversationsTotal: { '/workspace': 6 },
+      conversationStates: {},
     })
   })
 
@@ -61,6 +54,17 @@ describe('会话归档状态', () => {
     expect(result.wasActive).toBe(true)
     expect(useMessagesStore.getState().activeConversationsId).toBe('')
     expect(useConversationsStore.getState().conversations.map(item => item.id)).toEqual(['c2', 'c3', 'c4', 'c5', 'c6'])
+    expect(useConversationsStore.getState().conversationsTotal['/workspace']).toBe(5)
+  })
+
+  it('取消归档增加对应工作区总数', async () => {
+    const restored = conversation('old', 0, false)
+    mocks.restoreConversation.mockResolvedValue(restored)
+    useConversationsStore.setState(state => ({ ...state, conversationsTotal: { '/workspace': 5 } }))
+
+    await restoreConversationAction('old')
+
+    expect(useConversationsStore.getState().conversationsTotal['/workspace']).toBe(6)
   })
 
   it('取消归档按原更新时间插回原工作区，不会置顶旧会话', async () => {

@@ -30,7 +30,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
-import { archiveConversationAction, deleteConversationsAction, ensureWorkspaceConversationsAction, loadAllWorkspaceConversationsAction, renameConversationsAction, restoreConversationAction, useConversationsStore } from '@/store/conversation'
+import { archiveConversationAction, deleteConversationsAction, ensureWorkspaceConversationsAction, initWorkspaceConversationTotals, isWorkspaceLoaded, loadAllWorkspaceConversationsAction, renameConversationsAction, restoreConversationAction, useConversationsStore } from '@/store/conversation'
 import { useMessagesStore } from '@/store/messages'
 import { useWorkspaceStore } from '@/store/workspace'
 import { activateWorkspaceSession } from '@/store/workspaceSession'
@@ -52,14 +52,11 @@ const EMPTY_WORKSPACES: WorkspaceItem[] = []
 
 export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
   const navigate = useNavigate()
-  const currentConversations = useConversationsStore(
+  const conversations = useConversationsStore(
     state => state.conversations,
   )
-  const currentConversationsTotal = useConversationsStore(
+  const conversationsTotal = useConversationsStore(
     state => state.conversationsTotal,
-  )
-  const workspaceConversations = useConversationsStore(
-    state => state.workspaceConversations,
   )
   const workspaceData = useWorkspaceStore(state => state.workspaceData)
   const currentWorkspacePath = useWorkspaceStore(state => state.currentWorkspacePath)
@@ -92,6 +89,7 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
 
     initializedRef.current = true
     await refreshWorkspace()
+    await initWorkspaceConversationTotals()
     const data = useWorkspaceStore.getState().workspaceData
     if (data) {
       const currentPath = useWorkspaceStore.getState().currentWorkspacePath
@@ -146,7 +144,7 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
 
     if (
       item.path !== currentWorkspacePath
-      && !workspaceConversations[item.path]?.loaded
+      && !isWorkspaceLoaded(item.path)
     ) {
       await ensureWorkspaceConversationsAction(item.path)
     }
@@ -295,10 +293,8 @@ export function WorkspacePanels({ onNavigate }: WorkspacePanelsProps) {
                                   expanded={expandedPaths.has(item.path)}
                                   state={getWorkspaceConversationState(
                                     item.path,
-                                    currentWorkspacePath,
-                                    currentConversations,
-                                    currentConversationsTotal,
-                                    workspaceConversations,
+                                    conversations,
+                                    conversationsTotal,
                                   )}
                                   showAll={showAllPaths.has(item.path)}
                                   loadingAll={loadingAllPaths.has(item.path)}
@@ -685,24 +681,13 @@ function ConversationListItem({ conversation, active, running, completed, onOpen
 
 function getWorkspaceConversationState(
   workspacePath: string,
-  currentWorkspacePath: string | undefined,
-  currentConversations: IConversations[],
-  currentConversationsTotal: number,
-  workspaceConversations: ReturnType<typeof useConversationsStore.getState>['workspaceConversations'],
+  conversations: IConversations[],
+  conversationsTotal: Record<string, number>,
 ): WorkspaceConversationState {
-  if (workspacePath === currentWorkspacePath) {
-    return {
-      data: currentConversations,
-      total: currentConversationsTotal,
-      loading: false,
-    }
-  }
-
-  const slice = workspaceConversations[workspacePath]
   return {
-    data: slice?.conversations || [],
-    total: slice?.conversationsTotal || 0,
-    loading: !slice?.loaded,
+    data: conversations.filter(conversation => conversation.workspacePath === workspacePath),
+    total: conversationsTotal[workspacePath] ?? 0,
+    loading: false,
   }
 }
 

@@ -1,120 +1,52 @@
-import type { StoreState, WorkspaceConversationsState } from './initialState'
+import type { IConversations } from '@ant-chat/shared'
+import type { ConversationsStoreState } from './initialState'
 
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { useWorkspaceStore } from '@/store/workspace'
-import {
-  createInitialState,
-  createWorkspaceConversationsState,
-  initialState,
-} from './initialState'
+import { createInitialState, initialState } from './initialState'
 
 interface StoreActions {
   reset: () => void
-  setActiveConversationsId: (id: string) => void
-  switchWorkspaceSlice: (workspacePath: string) => void
-  saveCurrentWorkspaceSlice: () => void
 }
-export type ConversationsStore = StoreState & StoreActions
+export type ConversationsStore = ConversationsStoreState & StoreActions
 
-/**
- * 跨 store 读取当前工作区路径(SSOT 在 workspaceStore)。
- * conversationsStore 不再持有 currentWorkspacePath,需要时统一从此取。
- */
-function getCurrentWorkspacePath(): string {
-  return useWorkspaceStore.getState().currentWorkspacePath ?? ''
+// ---- 派生 selector ----
+
+export function selectWorkspaceConversations(
+  state: ConversationsStoreState,
+  workspacePath: string,
+): IConversations[] {
+  return state.conversations.filter(conversation => conversation.workspacePath === workspacePath)
 }
 
-function getWorkspaceSlice(state: StoreState, workspacePath: string): WorkspaceConversationsState {
-  return state.workspaceConversations[workspacePath] || createWorkspaceConversationsState()
+export function selectWorkspaceTotal(state: ConversationsStoreState, workspacePath: string): number {
+  return state.conversationsTotal[workspacePath] ?? 0
+}
+
+// ---- 工作区首屏加载标记（模块级，不参与响应式更新）----
+
+const loadedWorkspaces = new Set<string>()
+
+export function isWorkspaceLoaded(workspacePath: string): boolean {
+  return loadedWorkspaces.has(workspacePath)
+}
+
+export function markWorkspaceLoaded(workspacePath: string): void {
+  loadedWorkspaces.add(workspacePath)
+}
+
+export function clearLoadedWorkspaces(): void {
+  loadedWorkspaces.clear()
 }
 
 // 创建基础 store
 export const useConversationsStore = create<ConversationsStore>()(
   devtools(
-    (set, get) => ({
+    set => ({
       ...initialState,
       reset: () => {
-        const currentPath = getCurrentWorkspacePath()
-        set((state) => {
-          const nextState = createInitialState()
-          nextState.pageSize = state.pageSize
-
-          if (currentPath) {
-            const currentSlice = getWorkspaceSlice(state, currentPath)
-            const nextSlice: WorkspaceConversationsState = {
-              ...currentSlice,
-              conversations: [],
-              pageIndex: 0,
-              conversationsTotal: 0,
-              loadVersion: currentSlice.loadVersion + 1,
-              loaded: true,
-            }
-            nextState.workspaceConversations = {
-              ...state.workspaceConversations,
-              [currentPath]: nextSlice,
-            }
-            nextState.conversations = nextSlice.conversations
-            nextState.pageIndex = nextSlice.pageIndex
-            nextState.conversationsTotal = nextSlice.conversationsTotal
-            nextState.loadVersion = nextSlice.loadVersion
-          }
-
-          return nextState
-        })
-      },
-      setActiveConversationsId: (id: string) => {
-        set({ activeConversationsId: id })
-      },
-      saveCurrentWorkspaceSlice: () => {
-        const state = get()
-        const currentPath = getCurrentWorkspacePath()
-        if (!currentPath) {
-          return
-        }
-
-        set({
-          workspaceConversations: {
-            ...state.workspaceConversations,
-            [currentPath]: {
-              conversations: state.conversations,
-              pageIndex: state.pageIndex,
-              conversationsTotal: state.conversationsTotal,
-              loadVersion: state.loadVersion,
-              loaded: true,
-            },
-          },
-        })
-      },
-      switchWorkspaceSlice: (workspacePath: string) => {
-        set((state) => {
-          const nextWorkspaceConversations = { ...state.workspaceConversations }
-          const previousPath = state.activeWorkspacePath
-
-          if (previousPath) {
-            nextWorkspaceConversations[previousPath] = {
-              conversations: state.conversations,
-              pageIndex: state.pageIndex,
-              conversationsTotal: state.conversationsTotal,
-              loadVersion: state.loadVersion,
-              loaded: true,
-            }
-          }
-
-          const nextSlice = nextWorkspaceConversations[workspacePath] || createWorkspaceConversationsState()
-
-          return {
-            ...state,
-            workspaceConversations: nextWorkspaceConversations,
-            conversations: nextSlice.conversations,
-            pageIndex: nextSlice.pageIndex,
-            conversationsTotal: nextSlice.conversationsTotal,
-            loadVersion: nextSlice.loadVersion,
-            activeWorkspacePath: workspacePath,
-            activeConversationsId: '',
-            abortCallbacks: [],
-          }
-        })
+        clearLoadedWorkspaces()
+        set(createInitialState())
       },
     }),
     {

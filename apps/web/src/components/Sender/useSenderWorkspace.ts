@@ -27,7 +27,7 @@ export function useSenderWorkspace(): SenderWorkspaceController {
   const activeConversationId = useMessagesStore(state => state.activeConversationsId)
   const hasMessage = useMessagesStore(state => !!state.messages.length)
   const isRunning = useConversationsStore(
-    state => state.conversationStates[state.activeConversationsId] === 'running',
+    state => state.conversationStates[activeConversationId] === 'running',
   )
 
   useEffect(() => {

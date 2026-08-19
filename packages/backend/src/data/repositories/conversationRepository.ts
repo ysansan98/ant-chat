@@ -14,6 +14,7 @@ export interface ConversationRepository {
   list: (pageIndex: number, pageSize: number, workspacePath?: string, includeNullWorkspace?: boolean) => Promise<PaginatedResult<IConversations>>
   listArchived: (pageIndex: number, pageSize: number, workspacePath: string | null, query?: string) => Promise<PaginatedResult<IConversations>>
   listArchivedWorkspaces: (query?: string) => Promise<ArchivedWorkspaceCount[]>
+  countConversationsByWorkspace: () => Promise<Array<{ workspacePath: string, total: number }>>
   getById: (id: string) => Promise<IConversations>
   create: (conversation: AddConversationsSchema) => Promise<IConversations>
   update: (conversation: UpdateConversationsSchema) => Promise<IConversations>

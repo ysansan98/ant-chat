@@ -166,6 +166,40 @@ describe('app runtime', () => {
     expect(result.data).toEqual([expect.objectContaining({ id: conversation.id, workspacePath })])
   })
 
+  it('chat.getWorkspaceConversationTotals 返回各工作区非归档会话总数', async () => {
+    const workspacePath = await runtime.invoke('workspace.getDefaultWorkspacePath', undefined)
+    const otherPathRoot = path.join(appDataRoot, 'totals-ws')
+    mkdirSync(otherPathRoot)
+    const added = await runtime.invoke('workspace.addWorkspace', { path: otherPathRoot })
+    const otherPath = added.workspaces.find(item => item.displayName === 'totals-ws')!.path
+
+    await runtime.invoke('chat.addConversation', {
+      conversation: {
+        title: 'visible',
+        createdAt: 1,
+        updatedAt: 1,
+        settings: { modelId: '', providerId: '' },
+        conversationInstructions: '',
+        workspacePath,
+      },
+    })
+    await runtime.invoke('chat.addConversation', {
+      conversation: {
+        title: 'other',
+        createdAt: 2,
+        updatedAt: 2,
+        settings: { modelId: '', providerId: '' },
+        conversationInstructions: '',
+        workspacePath: otherPath,
+      },
+    })
+
+    const totals = await runtime.invoke('chat.getWorkspaceConversationTotals', undefined)
+    const byPath = new Map(totals.map(item => [item.workspacePath, item.total]))
+    expect(byPath.get(workspacePath)).toBe(1)
+    expect(byPath.get(otherPath)).toBe(1)
+  })
+
   it('listConversations 未传 workspacePath 时返回跨工作区全量', async () => {
     const defaultPath = await runtime.invoke('workspace.getDefaultWorkspacePath', undefined)
     await runtime.invoke('chat.addConversation', {

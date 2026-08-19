@@ -1,49 +1,23 @@
 import type { IConversations } from '@ant-chat/shared'
 
-export interface WorkspaceConversationsState {
+export interface ConversationsStoreState {
+  /** 全部已加载会话的平铺列表（唯一真相），每条自带 workspacePath，按 updatedAt 降序。 */
   conversations: IConversations[]
-  pageIndex: number
-  conversationsTotal: number
-  loadVersion: number
-  loaded: boolean
-}
-
-export interface StoreState {
-  conversations: IConversations[]
-  abortCallbacks: (() => void)[]
-  pageIndex: number
-  pageSize: number
-  conversationsTotal: number
-  activeConversationsId: string
-  activeWorkspacePath: string
+  /** 各工作区会话总数（服务端 totals 初始化 + 本地增删修正）。 */
+  conversationsTotal: Record<string, number>
+  /** 会话运行时状态；无条目 = idle。 */
   conversationStates: Record<string, 'running' | 'completed'>
-  loadVersion: number
-  workspaceConversations: Record<string, WorkspaceConversationsState>
 }
 
-export function createWorkspaceConversationsState(): WorkspaceConversationsState {
-  return {
-    conversations: [],
-    pageIndex: 0,
-    conversationsTotal: 1,
-    loadVersion: 0,
-    loaded: false,
-  }
-}
+/** 工作区会话预览每页条数（"最近 N 条"）。 */
+export const PAGE_SIZE = 5
 
-export function createInitialState(): StoreState {
+export function createInitialState(): ConversationsStoreState {
   return {
     conversations: [],
-    abortCallbacks: [],
+    conversationsTotal: {},
     conversationStates: {},
-    pageIndex: 0,
-    pageSize: 5,
-    conversationsTotal: 1,
-    activeConversationsId: '',
-    activeWorkspacePath: '',
-    loadVersion: 0,
-    workspaceConversations: {},
   }
 }
 
-export const initialState: StoreState = createInitialState()
+export const initialState: ConversationsStoreState = createInitialState()

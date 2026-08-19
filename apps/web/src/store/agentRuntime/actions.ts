@@ -7,7 +7,8 @@ import type {
   StartAgentTurnOptions,
 } from '@ant-chat/shared'
 import agentApi from '@/api/agentApi'
-import { removeConversationState, setConversationState, useConversationsStore } from '@/store/conversation'
+import { removeConversationState, setConversationState } from '@/store/conversation'
+import { useMessagesStore } from '@/store/messages'
 import { isTaskActive } from './predicates'
 import { useAgentRuntimeStore } from './store'
 
@@ -102,7 +103,7 @@ export function applyTaskUpdate(task: AgentTaskSnapshot) {
     setConversationState(task.conversationId, 'running')
   }
   else {
-    const activeId = useConversationsStore.getState().activeConversationsId
+    const activeId = useMessagesStore.getState().activeConversationsId
     if (task.conversationId === activeId)
       removeConversationState(task.conversationId)
     else

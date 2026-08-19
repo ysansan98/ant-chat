@@ -5,7 +5,6 @@ describe('conversation state management', () => {
   beforeEach(() => {
     useConversationsStore.setState({
       conversationStates: {},
-      activeConversationsId: '',
     })
   })
 

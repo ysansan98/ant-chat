@@ -19,6 +19,11 @@ async function getWorkspaceConversations(workspacePath: string, pageIndex: numbe
   return getAppRpcClient().call('chat.getWorkspaceConversations', { workspacePath, pageIndex, pageSize })
 }
 
+async function getWorkspaceConversationTotals(): Promise<Record<string, number>> {
+  const totals = await getAppRpcClient().call('chat.getWorkspaceConversationTotals', undefined)
+  return Object.fromEntries(totals.map(item => [item.workspacePath, item.total]))
+}
+
 async function getArchivedConversationWorkspaces(query = '', pageSize = 20): Promise<ArchivedConversationWorkspaceResult> {
   return getAppRpcClient().call('chat.getArchivedConversationWorkspaces', { query, pageSize })
 }
@@ -95,6 +100,7 @@ export default {
   initConversationsTitle,
   getConversations,
   getWorkspaceConversations,
+  getWorkspaceConversationTotals,
   getArchivedConversationWorkspaces,
   getArchivedConversations,
   getConversationById,

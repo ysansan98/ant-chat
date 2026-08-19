@@ -30,23 +30,19 @@ describe('clearConversationsAction 跨 store 取路径', () => {
     useWorkspaceStore.setState({ currentWorkspacePath: '/cur', workspaceData: null, loading: false })
     useConversationsStore.setState({
       conversations: [makeConversation('c1', '/cur')],
-      abortCallbacks: [],
-      pageIndex: 0,
-      pageSize: 20,
-      conversationsTotal: 1,
-      activeConversationsId: '',
+      conversationsTotal: { '/cur': 1 },
       conversationStates: {},
-      loadVersion: 0,
-      workspaceConversations: {},
     })
   })
 
   it('用 workspaceStore 当前路径清空,不再读 conversationsStore.currentWorkspacePath', async () => {
     chatMocks.clearWorkspaceConversations.mockResolvedValue([])
+    useConversationsStore.setState(state => ({ ...state, conversationsTotal: { '/cur': 1 } }))
 
     await clearConversationsAction()
 
     expect(chatMocks.clearWorkspaceConversations).toHaveBeenCalledWith('/cur')
+    expect(useConversationsStore.getState().conversationsTotal['/cur']).toBe(0)
   })
 
   it('workspaceStore 路径为空时抛错', async () => {

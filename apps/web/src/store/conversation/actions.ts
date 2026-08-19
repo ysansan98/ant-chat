@@ -3,6 +3,7 @@ import type { AntChatFileStructure } from '@/constants'
 import { produce } from 'immer'
 import chatApi from '@/api/chatApi'
 import { useGeneralSettingsStore } from '@/store/generalSettings'
+import { useMessagesStore } from '@/store/messages'
 import {
   cancelPendingMessageDeletion,
   completePendingMessageDeletion,
@@ -10,139 +11,175 @@ import {
 } from '@/store/pendingMessages'
 import { useWorkspaceStore } from '@/store/workspace'
 import { clearConversationSession } from '../workspaceSession/conversationSession'
-import { useConversationsStore } from './conversationsStore'
+import {
+  isWorkspaceLoaded,
+  markWorkspaceLoaded,
+  selectWorkspaceConversations,
+  useConversationsStore,
+} from './conversationsStore'
+import { PAGE_SIZE } from './initialState'
 
-const loadingConversationPages = new Set<string>()
+const loadingKeys = new Set<string>()
 
 export function getConversationByIdAction(id: string) {
   return useConversationsStore.getState().conversations.find(c => c.id === id)
-}
-
-function saveCurrentSlice() {
-  useConversationsStore.getState().saveCurrentWorkspaceSlice()
 }
 
 function getCurrentWorkspacePath(): string {
   return useWorkspaceStore.getState().currentWorkspacePath ?? ''
 }
 
+function sortByUpdatedAtDesc(conversations: IConversations[]): void {
+  conversations.sort((left, right) => right.updatedAt - left.updatedAt)
+}
+
+/**
+ * 用服务端返回的 `data` 替换某工作区在平铺列表中的全部条目，并按 updatedAt 降序重排。
+ * conversations 平铺后，一条会话只属于一个工作区，其他工作区条目不受影响。
+ */
+function replaceWorkspace(conversations: IConversations[], workspacePath: string, data: IConversations[]): void {
+  const others = conversations.filter(c => c.workspacePath !== workspacePath)
+  conversations.splice(0, conversations.length, ...others, ...data)
+  sortByUpdatedAtDesc(conversations)
+}
+
+function bumpWorkspaceTotal(totals: Record<string, number>, workspacePath: string, delta: number): void {
+  totals[workspacePath] = Math.max(0, (totals[workspacePath] ?? 0) + delta)
+}
+
 export async function ensureWorkspaceConversationsAction(workspacePath: string) {
-  const state = useConversationsStore.getState()
-  const existingSlice = state.workspaceConversations[workspacePath]
-  if (existingSlice?.loaded) {
+  if (isWorkspaceLoaded(workspacePath)) {
     return
   }
 
-  useConversationsStore.setState(prev => ({
-    ...prev,
-    workspaceConversations: {
-      ...prev.workspaceConversations,
-      [workspacePath]: {
-        conversations: existingSlice?.conversations || [],
-        pageIndex: existingSlice?.pageIndex || 0,
-        conversationsTotal: existingSlice?.conversationsTotal || 0,
-        loadVersion: existingSlice?.loadVersion || 0,
-        loaded: false,
-      },
-    },
-  }))
-
-  const pageIndex = 0
-  const pageSize = state.pageSize
-  const loadVersion = existingSlice?.loadVersion || 0
-  const loadingKey = `${workspacePath}:${loadVersion}:${pageIndex}:${pageSize}`
-
-  if (loadingConversationPages.has(loadingKey)) {
+  const loadingKey = `ensure:${workspacePath}`
+  if (loadingKeys.has(loadingKey)) {
     return
   }
-  loadingConversationPages.add(loadingKey)
+  loadingKeys.add(loadingKey)
 
   try {
-    const { data, total } = await chatApi.getWorkspaceConversations(workspacePath, 0, pageSize)
-    useConversationsStore.setState(prev => ({
-      ...prev,
-      workspaceConversations: {
-        ...prev.workspaceConversations,
-        [workspacePath]: {
-          conversations: data,
-          conversationsTotal: total,
-          pageIndex: data.length < total ? 1 : 0,
-          loadVersion,
-          loaded: true,
-        },
-      },
+    const { data, total } = await chatApi.getWorkspaceConversations(workspacePath, 0, PAGE_SIZE)
+    useConversationsStore.setState(prev => produce(prev, (draft) => {
+      replaceWorkspace(draft.conversations, workspacePath, data)
+      draft.conversationsTotal[workspacePath] = total
     }))
+    markWorkspaceLoaded(workspacePath)
   }
   finally {
-    loadingConversationPages.delete(loadingKey)
+    loadingKeys.delete(loadingKey)
   }
 }
 
 export async function loadAllWorkspaceConversationsAction(workspacePath: string) {
   const state = useConversationsStore.getState()
-  const slice = workspacePath === getCurrentWorkspacePath()
-    ? { conversations: state.conversations, conversationsTotal: state.conversationsTotal }
-    : state.workspaceConversations[workspacePath]
-  if (!slice || slice.conversations.length >= slice.conversationsTotal) {
+  const loaded = selectWorkspaceConversations(state, workspacePath)
+  const total = state.conversationsTotal[workspacePath] ?? loaded.length
+  if (loaded.length >= total) {
     return
   }
 
-  const { data, total } = await chatApi.getWorkspaceConversations(workspacePath, 0, slice.conversationsTotal)
-  useConversationsStore.setState(prev => produce(prev, (draft) => {
-    const target = draft.workspaceConversations[workspacePath]
-    if (target) {
-      target.conversations = data
-      target.conversationsTotal = total
-      target.pageIndex = 0
-      target.loaded = true
-    }
-    if (workspacePath === getCurrentWorkspacePath()) {
-      draft.conversations = data
-      draft.conversationsTotal = total
-      draft.pageIndex = 0
-    }
-  }))
-  saveCurrentSlice()
+  const loadingKey = `load-all:${workspacePath}`
+  if (loadingKeys.has(loadingKey)) {
+    return
+  }
+  loadingKeys.add(loadingKey)
+
+  try {
+    const { data, total: nextTotal } = await chatApi.getWorkspaceConversations(
+      workspacePath,
+      0,
+      Math.max(total, PAGE_SIZE),
+    )
+    useConversationsStore.setState(prev => produce(prev, (draft) => {
+      replaceWorkspace(draft.conversations, workspacePath, data)
+      draft.conversationsTotal[workspacePath] = nextTotal
+    }))
+    markWorkspaceLoaded(workspacePath)
+  }
+  finally {
+    loadingKeys.delete(loadingKey)
+  }
+}
+
+export async function initWorkspaceConversationTotals() {
+  try {
+    const totals = await chatApi.getWorkspaceConversationTotals()
+    useConversationsStore.setState(prev => produce(prev, (draft) => {
+      draft.conversationsTotal = totals
+    }))
+  }
+  catch (error) {
+    // 失败静默：运行期 total 仍可由本地修正与后台事件兜底
+    console.error('初始化工作区会话总数失败', error)
+  }
 }
 
 export async function addConversationsAction(conversation: AddConversationsSchema) {
   const data = await chatApi.addConversation(conversation)
 
   useConversationsStore.setState(state => produce(state, (draft) => {
-    draft.conversations.splice(0, 0, data)
-    draft.conversationsTotal += 1
+    draft.conversations.unshift(data)
+    if (data.workspacePath) {
+      bumpWorkspaceTotal(draft.conversationsTotal, data.workspacePath, 1)
+    }
   }))
-  saveCurrentSlice()
 
   return data
 }
 
 export function upsertConversationAction(conversation: IConversations) {
   useConversationsStore.setState(state => produce(state, (draft) => {
-    syncConversationList(draft.conversations, conversation, draft.activeWorkspacePath, draft)
-    for (const [workspacePath, slice] of Object.entries(draft.workspaceConversations)) {
-      syncConversationList(slice.conversations, conversation, workspacePath, slice)
-    }
+    syncConversationList(draft.conversations, conversation)
   }))
-  saveCurrentSlice()
+}
+
+/** 平铺列表只保留未归档会话；已归档会话从列表移除（total 由归档/恢复动作维护）。 */
+function syncConversationList(conversations: IConversations[], conversation: IConversations) {
+  const index = conversations.findIndex(item => item.id === conversation.id)
+  if (conversation.archived) {
+    if (index > -1) {
+      conversations.splice(index, 1)
+    }
+    return
+  }
+  if (index > -1) {
+    conversations[index] = conversation
+  }
+  else {
+    conversations.push(conversation)
+  }
+  sortByUpdatedAtDesc(conversations)
 }
 
 export async function archiveConversationAction(id: ConversationsId) {
-  const wasActive = useConversationsStore.getState().activeConversationsId === id
+  const wasActive = useMessagesStore.getState().activeConversationsId === id
   const conversation = await chatApi.archiveConversation(id)
+  const workspacePath = conversation.workspacePath
+  if (workspacePath) {
+    useConversationsStore.setState(state => produce(state, (draft) => {
+      bumpWorkspaceTotal(draft.conversationsTotal, workspacePath, -1)
+    }))
+  }
   upsertConversationAction(conversation)
   removeConversationState(id)
   if (wasActive) {
     clearConversationSession()
   }
-  if (conversation.workspacePath) {
-    await backfillWorkspacePreview(conversation.workspacePath)
+  if (workspacePath) {
+    await backfillWorkspacePreview(workspacePath)
   }
   return { conversation, wasActive }
 }
 
 export async function restoreConversationAction(id: ConversationsId) {
   const conversation = await chatApi.restoreConversation(id)
+  const workspacePath = conversation.workspacePath
+  if (workspacePath) {
+    useConversationsStore.setState(state => produce(state, (draft) => {
+      bumpWorkspaceTotal(draft.conversationsTotal, workspacePath, 1)
+    }))
+  }
   upsertConversationAction(conversation)
   return conversation
 }
@@ -152,11 +189,7 @@ export async function renameConversationsAction(id: ConversationsId, title: stri
 
   useConversationsStore.setState(state => produce(state, (draft) => {
     replaceConversation(draft.conversations, data)
-    for (const slice of Object.values(draft.workspaceConversations)) {
-      replaceConversation(slice.conversations, data)
-    }
   }))
-  saveCurrentSlice()
 }
 
 export async function deleteConversationsAction(id: ConversationsId) {
@@ -170,26 +203,21 @@ export async function deleteConversationsAction(id: ConversationsId) {
     throw error
   }
 
-  if (useConversationsStore.getState().activeConversationsId === id) {
+  if (useMessagesStore.getState().activeConversationsId === id) {
     clearConversationSession()
   }
 
   useConversationsStore.setState(state => produce(state, (draft) => {
-    const previousLength = draft.conversations.length
-    draft.conversations = draft.conversations.filter(c => c.id !== id)
-    if (draft.conversations.length !== previousLength) {
-      draft.conversationsTotal = Math.max(0, draft.conversationsTotal - 1)
-    }
-    for (const slice of Object.values(draft.workspaceConversations)) {
-      const previousLength = slice.conversations.length
-      slice.conversations = slice.conversations.filter(c => c.id !== id)
-      if (slice.conversations.length !== previousLength) {
-        slice.conversationsTotal = Math.max(0, slice.conversationsTotal - 1)
+    const index = draft.conversations.findIndex(c => c.id === id)
+    if (index > -1) {
+      const [removed] = draft.conversations.splice(index, 1)
+      const workspacePath = removed.workspacePath
+      if (workspacePath) {
+        bumpWorkspaceTotal(draft.conversationsTotal, workspacePath, -1)
       }
     }
   }))
   removeConversationState(id)
-  saveCurrentSlice()
 }
 
 export async function importConversationsAction(_: AntChatFileStructure) {
@@ -202,7 +230,10 @@ export async function clearConversationsAction() {
     throw new Error('当前工作区路径不存在，无法清空对话')
   }
 
-  const loadedConversationIds = useConversationsStore.getState().conversations.map(conversation => conversation.id)
+  const loadedConversationIds = selectWorkspaceConversations(
+    useConversationsStore.getState(),
+    currentWorkspacePath,
+  ).map(conversation => conversation.id)
   const loadedDeletion = await preparePendingMessageDeletion(loadedConversationIds)
   let deletedConversationIds: string[]
   try {
@@ -223,58 +254,11 @@ export async function clearConversationsAction() {
   clearConversationSession()
 
   useConversationsStore.setState(state => produce(state, (draft) => {
-    draft.conversations = []
-    draft.pageIndex = 0
-    draft.conversationsTotal = 0
-    draft.loadVersion += 1
+    draft.conversations = draft.conversations.filter(
+      conversation => conversation.workspacePath !== currentWorkspacePath,
+    )
+    draft.conversationsTotal[currentWorkspacePath] = 0
   }))
-  saveCurrentSlice()
-}
-
-export async function nextPageConversationsAction() {
-  const { pageIndex, pageSize, loadVersion } = useConversationsStore.getState()
-  const currentWorkspacePath = getCurrentWorkspacePath()
-  if (!currentWorkspacePath) {
-    return
-  }
-
-  const loadingKey = `${currentWorkspacePath}:${loadVersion}:${pageIndex}:${pageSize}`
-
-  if (loadingConversationPages.has(loadingKey)) {
-    return
-  }
-
-  loadingConversationPages.add(loadingKey)
-
-  try {
-    const { data: conversations, total } = await chatApi.getWorkspaceConversations(currentWorkspacePath, pageIndex, pageSize)
-
-    useConversationsStore.setState(state => produce(state, (draft) => {
-      // 分页加载是异步的:加载期间用户可能切了工作区,加载回来时若 workspaceStore
-      // 当前路径已不是发起时的路径,则丢弃结果,不污染新工作区顶层 conversations。
-      if (
-        useWorkspaceStore.getState().currentWorkspacePath !== currentWorkspacePath
-        || draft.loadVersion !== loadVersion
-        || draft.pageIndex !== pageIndex
-      ) {
-        return
-      }
-
-      const existingIds = new Set(draft.conversations.map(item => item.id))
-      const nextConversations = conversations.filter(item => !existingIds.has(item.id))
-
-      draft.conversations.push(...nextConversations)
-      draft.conversationsTotal = total
-
-      if (draft.conversations.length < total) {
-        draft.pageIndex = pageIndex + 1
-      }
-    }))
-    saveCurrentSlice()
-  }
-  finally {
-    loadingConversationPages.delete(loadingKey)
-  }
 }
 
 export async function initConversationsTitle(conversationsId: string) {
@@ -308,7 +292,6 @@ export async function initConversationsTitle(conversationsId: string) {
       draft.conversations[index] = data
     }
   }))
-  saveCurrentSlice()
 }
 
 export async function updateConversationsSettingsAction(id: ConversationsId, config: Partial<ConversationsSettingsSchema>) {
@@ -325,7 +308,6 @@ export async function updateConversationsSettingsAction(id: ConversationsId, con
       }
     }
   }))
-  saveCurrentSlice()
 }
 
 export async function updateConversationInstructionsAction(id: ConversationsId, conversationInstructions: string) {
@@ -355,9 +337,7 @@ export function removeConversationState(id: string) {
 export function touchConversationUpdatedAt(id: string, updatedAt: number) {
   useConversationsStore.setState(state => produce(state, (draft) => {
     touchConversation(draft.conversations, id, updatedAt)
-    for (const slice of Object.values(draft.workspaceConversations)) {
-      touchConversation(slice.conversations, id, updatedAt)
-    }
+    sortByUpdatedAtDesc(draft.conversations)
   }))
 }
 
@@ -375,53 +355,17 @@ function touchConversation(conversations: IConversations[], id: string, updatedA
   }
 }
 
-function syncConversationList(
-  conversations: IConversations[],
-  conversation: IConversations,
-  listWorkspacePath: string,
-  totals: { conversationsTotal: number },
-) {
-  const index = conversations.findIndex(item => item.id === conversation.id)
-  const belongsToList = !conversation.archived && conversation.workspacePath === listWorkspacePath
-
-  if (!belongsToList) {
-    if (index > -1) {
-      conversations.splice(index, 1)
-      totals.conversationsTotal = Math.max(0, totals.conversationsTotal - 1)
-    }
-    return
-  }
-
-  if (index > -1) {
-    conversations[index] = conversation
-  }
-  else {
-    conversations.push(conversation)
-    totals.conversationsTotal += 1
-  }
-  conversations.sort((left, right) => right.updatedAt - left.updatedAt)
-}
-
 async function backfillWorkspacePreview(workspacePath: string) {
   const state = useConversationsStore.getState()
-  const slice = workspacePath === getCurrentWorkspacePath()
-    ? { conversations: state.conversations, conversationsTotal: state.conversationsTotal }
-    : state.workspaceConversations[workspacePath]
-  if (!slice || slice.conversations.length >= Math.min(state.pageSize, slice.conversationsTotal)) {
+  const loaded = selectWorkspaceConversations(state, workspacePath)
+  const total = state.conversationsTotal[workspacePath] ?? loaded.length
+  if (loaded.length >= Math.min(PAGE_SIZE, total)) {
     return
   }
 
-  const { data, total } = await chatApi.getWorkspaceConversations(workspacePath, 0, state.pageSize)
+  const { data, total: nextTotal } = await chatApi.getWorkspaceConversations(workspacePath, 0, PAGE_SIZE)
   useConversationsStore.setState(prev => produce(prev, (draft) => {
-    const target = draft.workspaceConversations[workspacePath]
-    if (target) {
-      target.conversations = data
-      target.conversationsTotal = total
-    }
-    if (workspacePath === getCurrentWorkspacePath()) {
-      draft.conversations = data
-      draft.conversationsTotal = total
-    }
+    replaceWorkspace(draft.conversations, workspacePath, data)
+    draft.conversationsTotal[workspacePath] = nextTotal
   }))
-  saveCurrentSlice()
 }

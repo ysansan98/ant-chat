@@ -42,7 +42,7 @@ function Sender({ disabled = false, ...props }: SenderProps) {
   const activeConversationId = useMessagesStore(state => state.activeConversationsId)
   const hasMessage = useMessagesStore(state => !!state.messages.length)
   const loading = useConversationsStore(
-    state => state.conversationStates[state.activeConversationsId] === 'running',
+    state => state.conversationStates[activeConversationId] === 'running',
   )
   const agentMode = useChatSttingsStore(state => state.agentMode)
 

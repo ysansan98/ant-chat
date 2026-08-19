@@ -174,6 +174,23 @@ describe('sqlite repositories', () => {
     await expect(repository.getById(unassigned.id)).rejects.toThrow(`${unassigned.id} 不存在`)
   })
 
+  it('countConversationsByWorkspace 排除归档与会话，并按工作区汇总', async () => {
+    const repository = new SqliteConversationRepository(sqlite)
+    await repository.create({ title: '可见 A', workspacePath: '/ws-a', createdAt: 1, updatedAt: 1, conversationInstructions: '', settings: { modelId: 'm', providerId: '' } })
+    const archived = await repository.create({ title: '归档 A', workspacePath: '/ws-a', createdAt: 2, updatedAt: 2, conversationInstructions: '', settings: { modelId: 'm', providerId: '' } })
+    await repository.create({ title: '可见 B', workspacePath: '/ws-b', createdAt: 3, updatedAt: 3, conversationInstructions: '', settings: { modelId: 'm', providerId: '' } })
+    await repository.create({ title: '未关联', workspacePath: null, createdAt: 4, updatedAt: 4, conversationInstructions: '', settings: { modelId: 'm', providerId: '' } })
+    await repository.setArchived(archived.id, true)
+
+    const totals = await repository.countConversationsByWorkspace()
+    expect(totals).toEqual(expect.arrayContaining([
+      { workspacePath: '/ws-a', total: 1 },
+      { workspacePath: '/ws-b', total: 1 },
+    ]))
+    expect(totals).not.toEqual(expect.arrayContaining([expect.objectContaining({ workspacePath: null })]))
+    expect(totals.length).toBe(2)
+  })
+
   it('uses a caller-provided message id', async () => {
     const conversationRepository = new SqliteConversationRepository(sqlite)
     const messageRepository = new SqliteMessageRepository(sqlite, { attachmentsRoot })

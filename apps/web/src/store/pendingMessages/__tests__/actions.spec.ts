@@ -43,7 +43,7 @@ describe('pending message actions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     usePendingMessagesStore.setState({ itemsByConversation: {} })
-    useConversationsStore.setState({ conversations: [conversation], activeWorkspacePath: '/workspace' })
+    useConversationsStore.setState({ conversations: [conversation] })
     useMessagesStore.setState({ activeConversationsId: 'conv-1', messages: [], pendingSteeringByConversation: {} })
     useWorkspaceStore.setState({ currentWorkspacePath: '/workspace' })
     useChatSttingsStore.setState({ agentMode: 'hybrid' })
@@ -51,7 +51,7 @@ describe('pending message actions', () => {
     mocks.clearWorkspaceConversations.mockResolvedValue(['conv-1'])
     mocks.deleteConversation.mockResolvedValue(null)
     mocks.getMessagesByConvId.mockResolvedValue([])
-    mocks.startTurn.mockResolvedValue({ conversation, conversationId: 'conv-1', taskId: 'task-2', userMessageId: 'user-2' })
+    mocks.startTurn.mockResolvedValue({ conversationId: 'conv-1', taskId: 'task-2', userMessageId: 'user-2' })
   })
 
   it('重复 drain 只启动一个 FIFO 队首且不会连续发送第二项', async () => {

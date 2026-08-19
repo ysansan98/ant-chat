@@ -4,7 +4,6 @@ import workspaceApi from '@/api/workspaceApi'
 import { useAgentRuntimeStore } from '@/store/agentRuntime'
 import {
   ensureWorkspaceConversationsAction,
-  nextPageConversationsAction,
   useConversationsStore,
 } from '@/store/conversation'
 import { useWorkspaceStore } from '@/store/workspace'
@@ -58,12 +57,6 @@ async function activateWorkspaceSessionOnce(options: ActivateWorkspaceSessionOpt
     useWorkspaceStore.setState({ workspaceData, currentWorkspacePath: workspacePath })
 
     await ensureWorkspaceConversationsAction(workspacePath)
-    useConversationsStore.getState().switchWorkspaceSlice(workspacePath)
-
-    const nextState = useConversationsStore.getState()
-    if (nextState.conversations.length === 0 && nextState.conversationsTotal > 0)
-      await nextPageConversationsAction()
-
     await activateConversationSession(conversationId as ConversationsId)
   }
   catch (error) {

@@ -2,7 +2,6 @@ import type { ConversationsId } from '@ant-chat/shared'
 import { produce } from 'immer'
 import chatApi from '@/api/chatApi'
 import { syncConversationRuntime } from '@/store/agentRuntime'
-import { useConversationsStore } from '@/store/conversation/conversationsStore'
 import { useMessagesStore } from '@/store/messages'
 
 let loadVersion = 0
@@ -15,7 +14,6 @@ export function clearConversationSession(): void {
     draft.activeConversationsId = '' as ConversationsId
     draft.messages = []
   }))
-  useConversationsStore.getState().setActiveConversationsId('')
 }
 
 /**
@@ -52,7 +50,6 @@ export async function activateConversationSession(id: ConversationsId | ''): Pro
     draft.activeConversationsId = id
     draft.messages.splice(0, draft.messages.length, ...messagesResult.value, ...pendingSteering)
   }))
-  useConversationsStore.getState().setActiveConversationsId(id)
 }
 
 /**
@@ -65,5 +62,4 @@ export function commitConversationSelection(id: ConversationsId): void {
     draft.activeConversationsId = id
     draft.messages = []
   }))
-  useConversationsStore.getState().setActiveConversationsId(id)
 }

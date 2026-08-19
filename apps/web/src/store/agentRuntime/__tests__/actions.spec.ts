@@ -2,6 +2,7 @@ import type { AgentTaskSnapshot } from '@ant-chat/shared'
 
 import { describe, expect, it, vi } from 'vitest'
 import { useConversationsStore } from '@/store/conversation'
+import { useMessagesStore } from '@/store/messages'
 import {
   applyApprovalRequired,
   applyTaskUpdate,
@@ -31,7 +32,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/api/agentApi', () => ({
   default: {
-    startTurn: vi.fn(async () => ({ taskId: 't1', conversationId: 'c1', userMessageId: 'm1', conversation: { id: 'c1' } })),
+    startTurn: vi.fn(async () => ({ taskId: 't1', conversationId: 'c1', userMessageId: 'm1' })),
     approvePendingAction: vi.fn(async () => null),
     rejectPendingAction: vi.fn(async () => null),
     cancelTask: vi.fn(async () => null),
@@ -91,12 +92,14 @@ describe('agentRuntime 事件对账', () => {
     useAgentRuntimeStore.setState({ tasks: {}, pendingByTask: {}, executionPhaseByTurn: {}, secretRequests: {} })
 
     // 后台会话（非 activeConversationsId）转终态 → completed
-    useConversationsStore.setState({ activeConversationsId: 'c-foreground' as never, conversationStates: {} })
+    useMessagesStore.setState({ activeConversationsId: 'c-foreground' })
+    useConversationsStore.setState({ conversationStates: {} })
     applyTaskUpdate(createTask({ taskId: 't-bg', conversationId: 'c-background', status: 'success' }))
     expect(useConversationsStore.getState().conversationStates['c-background']).toBe('completed')
 
     // 活跃会话转终态 → 移除 running（idle）
-    useConversationsStore.setState({ activeConversationsId: 'c-foreground' as never, conversationStates: { 'c-foreground': 'running' } })
+    useMessagesStore.setState({ activeConversationsId: 'c-foreground' })
+    useConversationsStore.setState({ conversationStates: { 'c-foreground': 'running' } })
     applyTaskUpdate(createTask({ taskId: 't-fg', conversationId: 'c-foreground', status: 'success' }))
     expect(useConversationsStore.getState().conversationStates['c-foreground']).toBeUndefined()
   })

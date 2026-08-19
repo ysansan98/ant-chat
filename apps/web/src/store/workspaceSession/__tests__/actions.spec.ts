@@ -32,17 +32,11 @@ describe('activateWorkspaceSession', () => {
       workspaceData: makeWorkspaces('/old', '/target'),
       loading: false,
     })
+    useConversationsStore.getState().reset()
     useConversationsStore.setState({
       conversations: [makeConversation('old-conv', '/old')],
-      abortCallbacks: [],
-      pageIndex: 0,
-      pageSize: 20,
-      conversationsTotal: 1,
-      activeConversationsId: 'old-conv',
-      activeWorkspacePath: '/old',
+      conversationsTotal: { '/old': 1 },
       conversationStates: {},
-      loadVersion: 0,
-      workspaceConversations: {},
     })
     useMessagesStore.setState({
       activeConversationsId: 'old-conv' as ConversationsId,
@@ -81,8 +75,7 @@ describe('activateWorkspaceSession', () => {
 
     expect(mocks.openWorkspace).toHaveBeenCalledWith('/target')
     expect(useWorkspaceStore.getState().currentWorkspacePath).toBe('/target')
-    expect(useConversationsStore.getState().activeWorkspacePath).toBe('/target')
-    expect(useConversationsStore.getState().conversations.map(item => item.id)).toEqual(['target-conv'])
+    expect(useConversationsStore.getState().conversations.filter(item => item.workspacePath === '/target').map(item => item.id)).toEqual(['target-conv'])
     expect(useMessagesStore.getState().activeConversationsId).toBe('target-conv')
     expect(useMessagesStore.getState().messages.map(item => item.id)).toEqual(['target-message'])
     expect(mocks.listActiveTasks).toHaveBeenCalledWith('target-conv')
@@ -119,7 +112,6 @@ describe('activateWorkspaceSession', () => {
     })).rejects.toThrow('消息加载失败')
 
     expect(useWorkspaceStore.getState().currentWorkspacePath).toBe('/old')
-    expect(useConversationsStore.getState().activeWorkspacePath).toBe('/old')
     expect(useConversationsStore.getState().conversations.map(item => item.id)).toEqual(['old-conv'])
     expect(useMessagesStore.getState().activeConversationsId).toBe('old-conv')
     expect(useMessagesStore.getState().messages.map(item => item.id)).toEqual(['old-message'])

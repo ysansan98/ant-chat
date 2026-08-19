@@ -40,6 +40,11 @@ export class ChatModule implements RuntimeModuleMethods<'chat'> {
   }
 
   @Method()
+  getWorkspaceConversationTotals(_input: AppRpcInput<'chat.getWorkspaceConversationTotals'>) {
+    return this.conversationRepository.countConversationsByWorkspace()
+  }
+
+  @Method()
   async getArchivedConversationWorkspaces(input: AppRpcInput<'chat.getArchivedConversationWorkspaces'>) {
     const query = input.query?.trim() ?? ''
     const pageSize = Math.min(Math.max(input.pageSize, 1), 100)

@@ -118,15 +118,8 @@ describe('sender reference token overlay', () => {
       messages: [],
     })
     useConversationsStore.setState({
-      activeConversationsId: '',
       conversations: [],
-      abortCallbacks: [],
-      pageIndex: 0,
-      pageSize: 20,
-      conversationsTotal: 1,
       conversationStates: {},
-      loadVersion: 0,
-      workspaceConversations: {},
     })
     useWorkspaceStore.setState({ currentWorkspacePath: '/tmp/workspace', workspaceData: null, loading: false })
     useChatSttingsStore.setState({
@@ -380,15 +373,8 @@ describe('【契约】Sender 提交签名', () => {
       messages: [],
     })
     useConversationsStore.setState({
-      activeConversationsId: '',
       conversations: [],
-      abortCallbacks: [],
-      pageIndex: 0,
-      pageSize: 20,
-      conversationsTotal: 1,
       conversationStates: {},
-      loadVersion: 0,
-      workspaceConversations: {},
     })
     useWorkspaceStore.setState({ currentWorkspacePath: '/tmp/workspace', workspaceData: null, loading: false })
     useChatSttingsStore.setState({

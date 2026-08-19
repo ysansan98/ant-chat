@@ -94,6 +94,7 @@ export interface AppRpcContract {
   'chat.createConversationsTitle': RpcEndpoint<handleInitConversationTitleOptions, IConversations>
   'chat.getConversations': RpcEndpoint<{ pageIndex: number, pageSize: number }, { data: IConversations[], total: number }>
   'chat.getWorkspaceConversations': RpcEndpoint<{ workspacePath: string, pageIndex: number, pageSize: number }, { data: IConversations[], total: number }>
+  'chat.getWorkspaceConversationTotals': RpcEndpoint<undefined, Array<{ workspacePath: string, total: number }>>
   'chat.getArchivedConversationWorkspaces': RpcEndpoint<{ query?: string, pageSize: number }, ArchivedConversationWorkspaceResult>
   'chat.getArchivedConversations': RpcEndpoint<{ workspacePath: string | null, pageIndex: number, pageSize: number, query?: string }, { data: IConversations[], total: number }>
   'chat.getConversationById': RpcEndpoint<{ id: string }, IConversations>

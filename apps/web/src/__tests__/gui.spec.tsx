@@ -13,7 +13,6 @@ import { MemorySettings } from '../pages/Settings/Memory'
 import SettingsPage from '../pages/Settings/Settings'
 import { useAgentRuntimeStore } from '../store/agentRuntime'
 import { useConversationsStore } from '../store/conversation'
-import { createInitialState } from '../store/conversation/initialState'
 import { useMessagesStore } from '../store/messages'
 import { usePendingMessagesStore } from '../store/pendingMessages'
 import { useWorkspaceStore } from '../store/workspace'
@@ -41,6 +40,7 @@ const mocks = vi.hoisted(() => ({
     getMessagesByConvId: vi.fn<(id: string) => Promise<IMessage[]>>(async () => []),
     getMessagesByConvIdWithPagination: vi.fn(),
     getWorkspaceConversations: vi.fn(async () => ({ data: [], total: 0 })),
+    getWorkspaceConversationTotals: vi.fn(async () => ({})),
     initConversationsTitle: vi.fn(async () => ({ success: true, data: null })),
     updateConversation: vi.fn(),
   },
@@ -153,7 +153,7 @@ describe('gui ui flow', () => {
       activeConversationsId: '' as any,
       messages: [],
     })
-    useConversationsStore.setState(createInitialState())
+    useConversationsStore.getState().reset()
     useAgentRuntimeStore.setState({ pendingByTask: {}, tasks: {}, executionPhaseByTurn: {} })
     usePendingMessagesStore.setState({ itemsByConversation: {} })
 
@@ -663,7 +663,6 @@ function seedActiveConversation(conversationId: string) {
     messages: [],
   })
   useConversationsStore.setState({
-    activeConversationsId: conversationId,
     conversations: [conversation],
   })
   useWorkspaceStore.setState({ currentWorkspacePath: guiWorkspacePath })

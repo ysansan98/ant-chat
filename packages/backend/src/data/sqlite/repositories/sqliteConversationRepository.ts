@@ -90,6 +90,18 @@ export class SqliteConversationRepository implements ConversationRepository {
     return rows.map(row => ({ workspacePath: row.workspace_path, total: row.total }))
   }
 
+  async countConversationsByWorkspace(): Promise<Array<{ workspacePath: string, total: number }>> {
+    const rows = this.db.prepare<unknown[], { workspace_path: string, total: number }>(`
+      SELECT workspace_path, count(1) AS total
+      FROM conversations
+      WHERE archived = 0
+        AND workspace_path IS NOT NULL
+      GROUP BY workspace_path
+    `).all()
+
+    return rows.map(row => ({ workspacePath: row.workspace_path, total: row.total }))
+  }
+
   async getById(id: string): Promise<IConversations> {
     const result = this.db.prepare<unknown[], ConversationRow>(`
       SELECT ${CONVERSATION_COLUMNS}
