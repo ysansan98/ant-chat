@@ -25,7 +25,7 @@ export function About() {
           <CardContent className="space-y-3 text-center">
             <div className="flex justify-center">
               <div className="flex size-16 items-center justify-center rounded-xl bg-white p-2">
-                <img src="./logo.svg" alt="logo" className="size-full" draggable={false} />
+                <img src="./logo.png" alt="logo" className="size-full" draggable={false} />
               </div>
             </div>
 

@@ -2,7 +2,7 @@
 
 <div align="center">
 
-<img height="160" src="./apps/web/public/logo.svg" />
+<img height="160" src="./apps/web/public/logo.png" />
 
 # Ant Chat
 

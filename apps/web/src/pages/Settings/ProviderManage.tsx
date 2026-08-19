@@ -106,7 +106,7 @@ export default function ProviderManage() {
                         const content = (
                           <ProviderLogo id={item.id} name={item.name} size={14} className="size-3.5" />
                         )
-                        return content || <img src="/logo.svg" alt="" className="size-3.5" draggable={false} />
+                        return content || <img src="/logo.png" alt="" className="size-3.5" draggable={false} />
                       })()}
                     </div>
 
