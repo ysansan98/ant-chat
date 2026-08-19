@@ -30,7 +30,7 @@ export class AgentRuntime {
   async startSessionTask(options: AgentRuntimeStartTaskOptions): Promise<AgentRuntimeStartTaskResult> {
     const prepared = await this.sessionRuntime.prepareTask(options)
     const task = await this.startPreparedTask(prepared.input, { eventEmitterFactory: prepared.createEventEmitter })
-    return { ...task, conversationId: options.conversationId, userMessageId: options.userMessageId, conversation: prepared.conversation! }
+    return { ...task, conversationId: options.conversationId, userMessageId: options.userMessageId }
   }
 
   async startPreparedTask(

@@ -535,6 +535,32 @@ describe('agentRuntime 行为', () => {
       expect(store.createUserMessage).not.toHaveBeenCalled()
     })
 
+    it('memoryReader 抛错时 turn 照常启动、无 memory 上下文', async () => {
+      const store = createSessionStore()
+      const logger = createMockLogger()
+      const config = createSessionConfig({
+        sessionStore: store,
+        logger,
+        memoryReader: {
+          readUserMemory: vi.fn(async () => '§Prefer concise Chinese.'),
+          readMemory: vi.fn(async () => { throw new Error('memory read failed') }),
+          readSoul: vi.fn(async () => '# SOUL\n\n- Verify before reporting.'),
+          editMemory: vi.fn(),
+          updateSoul: vi.fn(),
+        },
+      })
+      const runtime = new AgentRuntime(config)
+
+      const _result = await runtime.startSessionTask(createValidSessionStartInput())
+
+      const calls = vi.mocked(runAgentLoop).mock.calls
+      const lastCall = calls[calls.length - 1]
+      expect(lastCall?.[0].options.systemPrompt).not.toContain('memory read failed')
+      expect(lastCall?.[0].options.systemPrompt).not.toContain('Use pnpm check')
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('读取 prompt memory 快照失败'), expect.any(Error))
+      lastCall?.[0].execution.finish()
+    })
+
     it('在 loop system prompt 中使用会话级 USER.md 和 MEMORY.md 快照', async () => {
       const store = createSessionStore()
       let userMarkdown = '§Prefer concise Chinese.'

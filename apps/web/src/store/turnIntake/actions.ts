@@ -2,7 +2,6 @@ import type {
   AgentMode,
   ConversationsId,
   ConversationsSettingsSchema,
-  IConversations,
   IMessageContent,
   StartAgentTurnOptions,
 } from '@ant-chat/shared'
@@ -15,7 +14,7 @@ import {
   parseBuiltinCommand,
 } from '@/components/Sender/builtinCommandParser'
 import { isTaskActive } from '@/store/agentRuntime'
-import { upsertConversationAction } from '@/store/conversation'
+import { useConversationsStore } from '@/store/conversation'
 import { addPendingSteeringMessage } from '@/store/messages'
 import { enqueuePendingMessage, enqueueVisualizationNextTurn } from '@/store/pendingMessages/queue'
 import { activateConversationSession, commitConversationSelection } from '@/store/workspaceSession'
@@ -69,7 +68,7 @@ export async function submitTurnIntake(options: SubmitTurnIntakeOptions): Promis
     throw new Error('请选择模型')
 
   const result = await agentApi.startTurn(toStartTurnOptions(options))
-  const projectionWarning = await reconcileCommittedConversation(result.conversationId, result.conversation)
+  const projectionWarning = await reconcileCommittedConversation(result.conversationId)
   return { kind: 'regular', conversationId: result.conversationId, projectionWarning }
 }
 
@@ -78,7 +77,9 @@ export async function cancelTurnCommand(conversationId: string): Promise<void> {
     return
   await commandsApi.cancelCommand(conversationId)
   const conversation = await chatApi.getConversationById(conversationId)
-  await reconcileCommittedConversation(conversationId, conversation)
+  if (conversation) {
+    reconcileCommittedConversation(conversationId)
+  }
 }
 
 async function submitWhileRunning(
@@ -138,15 +139,17 @@ async function runCommand(
     let projectedConversationId = options.conversationId
     let projectionWarning: string | undefined
 
-    if (result.status === 'success' && result.conversation) {
-      projectionWarning = await reconcileCommittedConversation(result.conversation.id, result.conversation)
-      projectedConversationId = result.conversation.id
+    if (result.status === 'success' && result.conversationId) {
+      projectionWarning = await reconcileCommittedConversation(result.conversationId)
+      projectedConversationId = result.conversationId
     }
 
     if (command.id === 'compact' && options.conversationId) {
       try {
         const conversation = await chatApi.getConversationById(options.conversationId)
-        projectionWarning = await reconcileCommittedConversation(options.conversationId, conversation)
+        if (conversation) {
+          projectionWarning = await reconcileCommittedConversation(options.conversationId)
+        }
       }
       catch {
         commitConversationSelection(options.conversationId as ConversationsId)
@@ -163,18 +166,27 @@ async function runCommand(
 
 async function reconcileCommittedConversation(
   conversationId: string,
-  conversation?: IConversations,
 ): Promise<string | undefined> {
-  if (conversation)
-    upsertConversationAction(conversation)
   try {
     await activateConversationSession(conversationId)
+    reorderConversationToTopIfPresent(conversationId)
     return undefined
   }
   catch {
     commitConversationSelection(conversationId as ConversationsId)
     return projectionFailureWarning()
   }
+}
+
+function reorderConversationToTopIfPresent(conversationId: string): void {
+  const state = useConversationsStore.getState()
+  if (!state.conversations.some(c => c.id === conversationId)) {
+    return
+  }
+  useConversationsStore.setState(prev => ({
+    ...prev,
+    conversations: [...prev.conversations].sort((left, right) => right.updatedAt - left.updatedAt),
+  }))
 }
 
 function projectionFailureWarning(): string {

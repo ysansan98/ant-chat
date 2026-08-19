@@ -1,5 +1,6 @@
-import type { AgentCommandHost, AgentRuntimeConfig, AgentTool, CommandInterpreter, IAgentEventEmitter, RuntimeMcpClientHub, SecretRef, SkillManifest, SkillReader } from '@ant-chat/shared'
+import type { AgentCommandHost, AgentRuntimeConfig, AgentTool, CommandInterpreter, IAgentEventEmitter, ILogger, McpTool, RuntimeMcpClientHub, SecretRef, SkillManifest, SkillReader } from '@ant-chat/shared'
 import { DEFAULT_MCP_TOOL_NAME_SEPARATOR } from '@ant-chat/shared'
+import { createMcpTools } from '../mcpToolAdapter'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -654,5 +655,44 @@ describe('toolRegistry Skill 白名单', () => {
     }))
     expect(registry.prepare(`github${DEFAULT_MCP_TOOL_NAME_SEPARATOR}list_issues`, {})).toMatchObject({ operationType: 'mcp', scope: 'external' })
     expect(registry.prepare(`github${DEFAULT_MCP_TOOL_NAME_SEPARATOR}create_issue`, {})).toMatchObject({ operationType: 'mcp', scope: 'external' })
+  })
+
+  it('mcp 源抛错时 turn 照常启动、工具集不含该源并记录 warn', async () => {
+    const logger: ILogger = {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }
+    const brokenTools: McpTool[] = [{
+      name: 'fail',
+      description: '必然失败',
+      inputSchema: { type: 'object', properties: {}, required: [] },
+    }]
+    const brokenHub: RuntimeMcpClientHub = {
+      connections: [{
+        server: {
+          name: 'broken',
+          status: 'connected',
+          tools: brokenTools,
+        },
+      }],
+      callTool: vi.fn(),
+    }
+    const originalCreateMcpTools = createMcpTools
+    vi.spyOn(await import('../mcpToolAdapter'), 'createMcpTools').mockImplementation((hub) => {
+      if (hub === brokenHub)
+        throw new Error('mcp broken')
+      return originalCreateMcpTools(hub)
+    })
+
+    const registry = await ToolRegistry.create({
+      config: { ...createConfig(), logger, mcpClientHub: brokenHub },
+      mode: 'hybrid',
+      turnSource: { type: 'interactive' },
+      workspacePath,
+    })
+
+    expect(registry.listTools().some(tool => tool.source === 'mcp')).toBe(false)
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('工具源 mcp 初始化失败'), expect.any(Error))
   })
 })

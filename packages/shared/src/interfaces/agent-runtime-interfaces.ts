@@ -402,5 +402,4 @@ export interface AgentRuntimeStartTaskResult {
   taskId: string
   conversationId: string
   userMessageId: string
-  conversation: IConversations
 }

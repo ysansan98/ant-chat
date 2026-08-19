@@ -226,7 +226,13 @@ export class SessionRuntime {
 
   private async getPromptMemorySnapshot(conversationId: string): Promise<{ memory?: string, soul?: string, user?: string } | undefined> {
     if (!this.promptMemorySnapshots.has(conversationId)) {
-      this.promptMemorySnapshots.set(conversationId, await readPromptMemory(this.config))
+      try {
+        this.promptMemorySnapshots.set(conversationId, await readPromptMemory(this.config))
+      }
+      catch (error) {
+        getAgentLogger(this.config).warn('读取 prompt memory 快照失败，以空记忆继续', error)
+        this.promptMemorySnapshots.set(conversationId, undefined)
+      }
     }
     return this.promptMemorySnapshots.get(conversationId)
   }

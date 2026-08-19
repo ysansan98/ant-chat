@@ -146,6 +146,36 @@ describe('contentBlocksToLoopMessageContent 行为', () => {
     ])
   })
 
+  it('附件缺失时产出占位文本块', async () => {
+    const loadFileData = vi.fn(async () => null)
+
+    const content = await contentBlocksToLoopMessageContent([
+      {
+        type: 'image',
+        source: { type: 'file_id', file_id: 'img-missing' },
+        name: 'missing.png',
+        mimeType: 'image/png',
+      },
+      {
+        type: 'document',
+        source: { type: 'file_id', file_id: 'doc-missing' },
+        name: 'missing.txt',
+        media_type: 'text/plain',
+      },
+      {
+        type: 'file',
+        source: { type: 'file_id', file_id: 'file-missing' },
+        name: 'missing.bin',
+        media_type: 'application/octet-stream',
+      },
+    ], loadFileData)
+
+    expect(content).toHaveLength(3)
+    expect(content[0]).toEqual({ type: 'text', text: expect.stringContaining('图片 missing.png|file_id=img-missing 不存在或无法加载') })
+    expect(content[1]).toEqual({ type: 'text', text: expect.stringContaining('文档 missing.txt|file_id=doc-missing 不存在或无法加载') })
+    expect(content[2]).toEqual({ type: 'text', text: expect.stringContaining('文件 missing.bin|file_id=file-missing 不存在或无法加载') })
+  })
+
   it('保留已有 inline image content 且不要求 url', async () => {
     const content = await contentBlocksToLoopMessageContent([
       {

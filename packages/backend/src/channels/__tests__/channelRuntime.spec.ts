@@ -3,7 +3,7 @@ import type { IMessage } from '@ant-chat/shared'
 import type { AppDataContext } from '../../data'
 import { ChannelRuntime } from '../channelRuntime'
 
-function createHarness() {
+function createHarness(options?: { onConversationUpdated?: (conversation: { id: string, workspacePath: string }) => void }) {
   const account = { id: 'a1', channelType: 'feishu' as const, displayName: '飞书', credentialRef: 'ref', defaultWorkspacePath: '/workspace', permissionMode: 'hybrid' as const, enabled: true, status: 'connected' as const, createdAt: 1, updatedAt: 1 }
   const conversation = { id: 'c1', workspacePath: '/workspace', title: 'Untitled', conversationInstructions: '', createdAt: 1, updatedAt: 1, settings: { modelId: 'm1', providerId: 'p1' }, sourceType: 'feishu' as const, sourceChannelAccountId: 'a1', sourceExternalChatId: 'chat-1' }
   const data = {
@@ -21,8 +21,13 @@ function createHarness() {
   } as unknown as AppDataContext
   const startTurn = vi.fn(async () => ({ taskId: 't1', conversationId: 'c1', userMessageId: 'm1', conversation }))
   const updateConversation = vi.fn(input => data.conversationRepository.update(input))
+  const createConversation = vi.fn(async (input: { title: string, workspacePath: string }) => {
+    const created = { id: 'c2', ...input, conversationInstructions: '', createdAt: 1, updatedAt: 1, settings: { modelId: 'm1', providerId: 'p1' }, sourceType: 'feishu' as const, sourceChannelAccountId: 'a1', sourceExternalChatId: 'chat-1' }
+    options?.onConversationUpdated?.(created)
+    return created
+  })
   const injectSteering = vi.fn(async (_conversationId: string, _text: string): Promise<IMessage | null> => null)
-  return { runtime: new ChannelRuntime({ data, turnService: { startTurn }, updateConversation, injectSteering }), data, startTurn, updateConversation, injectSteering }
+  return { runtime: new ChannelRuntime({ data, turnService: { startTurn }, updateConversation, createConversation, injectSteering }), data, startTurn, updateConversation, createConversation, injectSteering }
 }
 
 describe('channelRuntime 入站行为', () => {
@@ -170,6 +175,7 @@ describe('channelRuntime 入站行为', () => {
       data,
       turnService: { startTurn },
       updateConversation,
+      createConversation: vi.fn(async input => ({ id: 'c-model', ...input })),
       listModels: () => [{
         modelId: 'model-1',
         providerId: 'provider-1',
@@ -197,7 +203,7 @@ describe('channelRuntime 入站行为', () => {
     })
   })
 
-  it('新频道会话不把助手模型当作默认模型', async () => {
+  it('新频道会话不把助手模型当作默认模型，并触发 conversation:updated', async () => {
     const { data, startTurn, updateConversation } = createHarness()
     const newConversation = {
       id: 'new-channel-conversation',
@@ -228,11 +234,17 @@ describe('channelRuntime 入站行为', () => {
     }))
     data.conversationRepository.create = vi.fn(async () => newConversation)
     data.conversationRepository.getById = vi.fn(async () => newConversation)
+    const emittedConversations: { id: string, workspacePath: string }[] = []
+    const createConversation = vi.fn(async (input: { title: string, workspacePath: string }) => {
+      emittedConversations.push({ id: newConversation.id, workspacePath: input.workspacePath })
+      return newConversation
+    })
 
     const runtime = new ChannelRuntime({
       data,
       turnService: { startTurn },
       updateConversation,
+      createConversation,
       listModels: () => [{
         modelId: 'channel-model',
         providerId: 'channel-provider',
@@ -251,12 +263,11 @@ describe('channelRuntime 入站行为', () => {
       text: '你好',
     })).resolves.toMatchObject({ kind: 'turn' })
 
-    expect(data.conversationRepository.create).toHaveBeenCalledWith(expect.objectContaining({
+    expect(createConversation).toHaveBeenCalledOnce()
+    expect(createConversation).toHaveBeenCalledWith(expect.objectContaining({
       settings: expect.objectContaining({ modelId: 'channel-model', providerId: 'channel-provider' }),
     }))
-    expect(startTurn).toHaveBeenCalledWith(expect.objectContaining({
-      modelConfig: expect.objectContaining({ modelId: 'channel-model', providerId: 'channel-provider' }),
-    }))
+    expect(emittedConversations).toEqual([{ id: newConversation.id, workspacePath: '/workspace' }])
   })
 
   it('/model 按用户可见名称同时保存 provider 和 model', async () => {
@@ -265,6 +276,7 @@ describe('channelRuntime 入站行为', () => {
       data,
       turnService: { startTurn: vi.fn() },
       updateConversation,
+      createConversation: vi.fn(async input => ({ id: 'c2', ...input })),
       listModels: () => [{
         modelId: 'model-2',
         providerId: 'provider-2',
@@ -307,6 +319,7 @@ describe('channelRuntime 入站行为', () => {
       data,
       turnService: { startTurn: vi.fn() },
       updateConversation,
+      createConversation: vi.fn(async input => ({ id: 'c2', ...input })),
       listModels: () => models,
       injectSteering: vi.fn(async () => null),
     })
@@ -339,6 +352,7 @@ describe('channelRuntime 入站行为', () => {
       data,
       turnService: { startTurn: vi.fn() },
       updateConversation,
+      createConversation: vi.fn(async input => ({ id: 'c2', ...input })),
       listModels: () => [
         { modelId: 'model-1', providerId: 'provider-1', name: '模型一', providerName: '服务一' },
         { modelId: 'model-2', providerId: 'provider-2', name: '模型二', providerName: '服务二' },
@@ -375,6 +389,7 @@ describe('channelRuntime 入站行为', () => {
       data,
       turnService: { startTurn: vi.fn() },
       updateConversation,
+      createConversation: vi.fn(async input => ({ id: 'c2', ...input })),
       listModels: () => [
         { modelId: 'model-1', providerId: 'provider-1', name: '模型一', providerName: '服务一' },
       ],
@@ -498,13 +513,8 @@ describe('channelRuntime 入站行为', () => {
     })
   })
 
-  it('/new 返回新会话的工作区、模型和权限模式', async () => {
-    const { runtime, data } = createHarness()
-    data.conversationRepository.create = vi.fn(async input => ({
-      id: 'c2',
-      ...input,
-    }))
-    data.channelSessionRepository.upsert = vi.fn(async input => input)
+  it('/new 返回新会话的工作区、模型和权限模式，并走创建入口', async () => {
+    const { runtime, createConversation } = createHarness()
 
     await expect(runtime.handleInbound({
       channelAccountId: 'a1',
@@ -519,6 +529,9 @@ describe('channelRuntime 入站行为', () => {
       message: '已创建新会话\n工作区：/workspace\n当前模型：p1/m1\n权限模式：自动审查',
       conversationId: 'c2',
     })
+
+    expect(createConversation).toHaveBeenCalledOnce()
+    expect(createConversation).toHaveBeenCalledWith(expect.objectContaining({ workspacePath: '/workspace' }))
   })
 
   it('重复控制命令由 inbound receipt 阻止再次执行', async () => {

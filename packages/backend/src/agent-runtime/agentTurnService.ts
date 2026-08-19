@@ -1,6 +1,7 @@
 import type {
   AgentRuntimeStartTaskResult,
   AIProviderFactory,
+  IConversations,
   ILogger,
   IMessage,
   StartAgentTurnOptions,
@@ -60,7 +61,7 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
         : await createProvider(provider)
 
       let creation: ConversationCreation | undefined
-      let conversation: AgentRuntimeStartTaskResult['conversation']
+      let conversation: IConversations
       let created: boolean
       if (options.conversationId) {
         conversation = await conversationLifecycle.get(options.conversationId)

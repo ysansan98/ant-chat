@@ -1,6 +1,6 @@
 /* eslint-disable style/max-statements-per-line */
 
-import type { AddMessage, AgentMode, AgentRuntimeStartTaskResult, ChannelAccount, ChannelPairing, ChannelType, ConversationsSettingsSchema, IMessage, StartAgentTurnOptions } from '@ant-chat/shared'
+import type { AddMessage, AgentMode, AgentRuntimeStartTaskResult, ChannelAccount, ChannelPairing, ChannelType, ConversationsSettingsSchema, IConversations, IMessage, StartAgentTurnOptions } from '@ant-chat/shared'
 import type { AgentTurnService } from '../agent-runtime/agentTurnService'
 import type { AppDataContext } from '../data'
 import type { ChannelCommand } from './channelCommandParser'
@@ -64,6 +64,7 @@ export interface ChannelRuntimeDeps {
   data: ChannelRuntimeData
   turnService: Pick<AgentTurnService, 'startTurn'>
   updateConversation: (input: { id: string, settings: ConversationsSettingsSchema }) => Promise<unknown>
+  createConversation: (input: { title: string, workspacePath: string, createdAt: number, updatedAt: number, conversationInstructions: string, settings: ConversationsSettingsSchema, sourceType: ChannelType, sourceChannelAccountId: string, sourceExternalChatId: string }) => Promise<IConversations>
   listModels?: () => ChannelModelOption[]
   stopTask?: (conversationId: string) => Promise<void>
   approvePending?: (conversationId: string) => Promise<void>
@@ -170,7 +171,7 @@ export class ChannelRuntime {
       case 'new': {
         const workspacePath = command.path ? this.validateWorkspace(command.path) : session.currentWorkspacePath
         const current = await this.deps.data.conversationRepository.getById(session.activeConversationId)
-        const conversation = await this.deps.data.conversationRepository.create({ title: 'Untitled', workspacePath, createdAt: this.now(), updatedAt: this.now(), conversationInstructions: '', settings: current.settings, sourceType: event.channelType, sourceChannelAccountId: event.channelAccountId, sourceExternalChatId: event.externalChatId })
+        const conversation = await this.deps.createConversation({ title: 'Untitled', workspacePath, createdAt: this.now(), updatedAt: this.now(), conversationInstructions: '', settings: current.settings, sourceType: event.channelType, sourceChannelAccountId: event.channelAccountId, sourceExternalChatId: event.externalChatId })
         await this.deps.data.channelSessionRepository.upsert({ channelAccountId: event.channelAccountId, externalChatId: event.externalChatId, activeConversationId: conversation.id, currentWorkspacePath: workspacePath, createdAt: sessionCreatedAt(session), updatedAt: this.now() })
         const account = await this.deps.data.channelAccountRepository.getById(event.channelAccountId)
         return result(`已创建新会话\n${this.formatContext(conversation, workspacePath, account.permissionMode)}`, conversation.id)
@@ -259,7 +260,7 @@ export class ChannelRuntime {
     // 频道会话拥有自己的模型状态；助手模型只服务于辅助任务（如标题生成），
     // 不能作为频道新会话的默认模型。频道没有可用会话模型时按频道模型列表兜底。
     const preferred = this.getModels()[0]
-    const conversation = await this.deps.data.conversationRepository.create({ title: 'Untitled', workspacePath: account.defaultWorkspacePath!, createdAt: this.now(), updatedAt: this.now(), conversationInstructions: '', settings: preferred ? toModelConfig(preferred, settings.reasoningEffort) : { modelId: '', providerId: '', reasoningEffort: settings.reasoningEffort }, sourceType: event.channelType, sourceChannelAccountId: account.id, sourceExternalChatId: event.externalChatId })
+    const conversation = await this.deps.createConversation({ title: 'Untitled', workspacePath: account.defaultWorkspacePath!, createdAt: this.now(), updatedAt: this.now(), conversationInstructions: '', settings: preferred ? toModelConfig(preferred, settings.reasoningEffort) : { modelId: '', providerId: '', reasoningEffort: settings.reasoningEffort }, sourceType: event.channelType, sourceChannelAccountId: account.id, sourceExternalChatId: event.externalChatId })
     return this.deps.data.channelSessionRepository.upsert({ channelAccountId: account.id, externalChatId: event.externalChatId, activeConversationId: conversation.id, currentWorkspacePath: account.defaultWorkspacePath!, createdAt: this.now(), updatedAt: this.now() })
   }
 

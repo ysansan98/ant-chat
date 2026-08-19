@@ -188,6 +188,21 @@ describe('桌面端应用事件订阅', () => {
     expect(removeListener).toHaveBeenCalledWith('provider:changed', nativeListener)
   })
 
+  it('bindChannel 对同一 channel 重复绑定先解绑旧监听，保证至多一个原生 listener', () => {
+    const on = vi.fn()
+    const removeListener = vi.fn()
+    window.electron = { ipcRenderer: { on, removeListener } } as unknown as Window['electron']
+    const subscriptions = getAppEventSubscriptions()
+
+    const first = subscriptions.subscribe('provider:changed', vi.fn())
+    first()
+    // 全部释放后再次订阅会重新 bindChannel，模拟 HMR / StrictMode 双挂载场景。
+    subscriptions.subscribe('provider:changed', vi.fn())
+
+    expect(on).toHaveBeenCalledTimes(2)
+    expect(removeListener).toHaveBeenCalledOnce()
+  })
+
   it('运行时没有可用 transport 时明确失败', () => {
     const originalEventSource = window.EventSource
     window.electron = undefined as unknown as Window['electron']

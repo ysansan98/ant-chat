@@ -1,6 +1,6 @@
 import type { ReasoningEffortLevel } from '../schemas/providerConfigModels'
 import type { AgentMode, AgentTurnSource } from './agent-runtime'
-import type { IConversations, IMessageContent } from './db-types'
+import type { IMessageContent } from './db-types'
 
 /**
  * App transport input for starting an agent turn.
@@ -26,5 +26,4 @@ export interface AgentTurnResult {
   taskId: string
   conversationId: string
   userMessageId: string
-  conversation: IConversations
 }

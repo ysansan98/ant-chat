@@ -49,7 +49,8 @@ function createManagedEventSubscriptions(adapter: EventTransportAdapter): Manage
   let disposed = false
 
   function dispatch(channel: AppEventChannel, payload: unknown): void {
-    for (const subscriber of [...(subscribers.get(channel) ?? [])])
+    const subscribersArr = [...(subscribers.get(channel) ?? [])]
+    for (const subscriber of subscribersArr)
       subscriber.deliver(payload)
   }
 
@@ -106,6 +107,10 @@ function createElectronTransportAdapter(renderer: Window['electron']['ipcRendere
 
   return {
     bindChannel(channel, dispatch) {
+      const existing = nativeListeners.get(channel)
+      if (existing) {
+        renderer.removeListener(channel, existing)
+      }
       const listener = (_event: unknown, payload: unknown) => dispatch(payload)
       renderer.on(channel, listener)
       nativeListeners.set(channel, listener)

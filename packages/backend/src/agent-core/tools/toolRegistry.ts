@@ -1,9 +1,10 @@
-import type { AgentMode, AgentRuntimeConfig, AgentTool, AgentToolResult, AgentTurnSource, RuntimeToolDefinition, SkillManifest, SkillReader, ToolOperationType, ToolScope } from '@ant-chat/shared'
+import type { AgentMode, AgentRuntimeConfig, AgentTool, AgentToolResult, AgentTurnSource, ILogger, RuntimeToolDefinition, SkillManifest, SkillReader, ToolOperationType, ToolScope } from '@ant-chat/shared'
 import type { BrowserSessionState } from '../native-tools/tools/browserSessionManager'
 import type { PreparedNativeTool } from '../native-tools/tools/toolFactory'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { getAgentLogger } from '../logger'
 import { getNativeToolService } from '../native-tools/nativeToolService'
 import { createMcpTools } from './mcpToolAdapter'
 import { createMemoryCatalogTools } from './memoryCatalogTools'
@@ -42,6 +43,7 @@ export class ToolRegistry {
   private readonly relaxedTools: Map<string, AgentTool>
   static async create(options: CreateRegistryOptions): Promise<ToolRegistry> {
     const { config, workspacePath, mode, browserSession, turnSource, runId } = options
+    const logger = getAgentLogger(config)
     const unrestricted = mode === 'full_managed'
     const skillReader = resolveSkillReader(config)
     const trustedPaths = turnSource?.type === 'automation'
@@ -72,7 +74,7 @@ export class ToolRegistry {
           channelAttachmentSender: config.channelAttachmentSender,
         }).getTools(), turnSource)
     const skillTools = skillReader
-      ? await makeSkillTools(skillReader, turnSource)
+      ? await catchToolSourceError('skill', () => makeSkillTools(skillReader, turnSource), logger)
       : []
     // 自动化能力在 Turn 创建时固定；记忆修改等交互能力不进入自动化能力集合。
     const agentLoopTools: AgentTool[] = []
@@ -80,17 +82,19 @@ export class ToolRegistry {
       agentLoopTools.push(createMemoryTool(config.memoryReader))
     }
     if (config.messageSearch) {
-      agentLoopTools.push(...createMessageSearchTools(config.messageSearch, workspacePath))
+      agentLoopTools.push(...catchToolSourceErrorSync('message-search', () => createMessageSearchTools(config.messageSearch!, workspacePath), logger))
     }
     if (config.memoryCatalog) {
-      agentLoopTools.push(...createMemoryCatalogTools(config.memoryCatalog, { workspacePath, turnSource }))
+      agentLoopTools.push(...catchToolSourceErrorSync('memory-catalog', () => createMemoryCatalogTools(config.memoryCatalog!, { workspacePath, turnSource }), logger))
     }
     if (config.secretRequester) {
       agentLoopTools.push(createRequestSecretTool())
     }
     const mcpTools = config.mcpClientHub
-      ? createMcpTools(config.mcpClientHub)
+      ? catchToolSourceErrorSync('mcp', () => createMcpTools(config.mcpClientHub!), logger)
       : []
+    // native 工具失败维持熔断，不做捕错剔除。
+    // 构造器 description/inputSchema 校验保留。
     const allowedMcpServers = turnSource?.type === 'automation'
       ? (turnSource.permissionPolicy.allowMcpTools ? turnSource.allowedMcpServers : [])
       : undefined
@@ -355,6 +359,28 @@ function safeInferScope(tool: AgentTool, input: Record<string, unknown>): ToolSc
     return 'blocked'
   }
 }
+
+async function catchToolSourceError<T>(source: string, factory: () => Promise<T>, logger: ILogger): Promise<T> {
+  try {
+    return await factory()
+  }
+  catch (error) {
+    logger.warn(`工具源 ${source} 初始化失败，已剔除该源工具`, error)
+    return [] as unknown as T
+  }
+}
+
+function catchToolSourceErrorSync<T>(source: string, factory: () => T, logger: ILogger): T {
+  try {
+    return factory()
+  }
+  catch (error) {
+    logger.warn(`工具源 ${source} 初始化失败，已剔除该源工具`, error)
+    return [] as unknown as T
+  }
+}
+
+// native 工具失败维持熔断，不做捕错剔除；构造器 description/inputSchema 校验保留。
 
 function resolveSkillReader(config: AgentRuntimeConfig): SkillReader | null {
   if (config.skillReader) {

@@ -78,6 +78,9 @@ export async function contentBlocksToLoopMessageContent(
             data,
           })
         }
+        else {
+          result.push({ type: 'text', text: buildAttachmentMissingPlaceholder('image', block.name, block.source?.type === 'file_id' ? block.source.file_id : undefined) })
+        }
         break
       }
 
@@ -91,6 +94,9 @@ export async function contentBlocksToLoopMessageContent(
               data,
             })
           }
+          else {
+            result.push({ type: 'text', text: buildAttachmentMissingPlaceholder('document', block.name, block.source.file_id) })
+          }
         }
         break
 
@@ -103,6 +109,9 @@ export async function contentBlocksToLoopMessageContent(
               mimeType: block.media_type || 'application/octet-stream',
               data,
             })
+          }
+          else {
+            result.push({ type: 'text', text: buildAttachmentMissingPlaceholder('file', block.name, block.source.file_id) })
           }
         }
         break
@@ -122,6 +131,11 @@ export async function contentBlocksToLoopMessageContent(
   }
 
   return result
+}
+
+function buildAttachmentMissingPlaceholder(kind: 'image' | 'document' | 'file', name?: string, fileId?: string): string {
+  const label = name || fileId || '未知附件'
+  return `（${kind === 'image' ? '图片' : kind === 'document' ? '文档' : '文件'} ${label}${fileId ? `|file_id=${fileId}` : ''} 不存在或无法加载）`
 }
 
 function buildImageListPlaceholder(items: ImagePlaceholderItem[]): string {

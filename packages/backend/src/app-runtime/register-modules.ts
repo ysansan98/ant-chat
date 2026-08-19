@@ -1,4 +1,4 @@
-import type { BrowserIdentityStatus, ChannelAttachmentSender } from '@ant-chat/shared'
+import type { AddConversationsSchema, BrowserIdentityStatus, ChannelAttachmentSender } from '@ant-chat/shared'
 import type { RuntimeCore } from './createRuntimeCore'
 import type { ChannelAgentDependencies } from './modules/channel'
 import type { RegisteredRoute } from './routeRegistry'
@@ -68,6 +68,7 @@ export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModu
   const channelAgent: ChannelAgentDependencies = {
     turnService: agent.turnService,
     updateConversation: input => agent.conversationLifecycle.update(input),
+    createConversation: input => agent.conversationLifecycle.create(input as AddConversationsSchema),
     listActiveTasks,
     cancelTask: options => agent.cancelTask(options),
     approvePendingAction: options => agent.approvePendingAction({ options }),

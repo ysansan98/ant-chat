@@ -174,7 +174,7 @@ describe('submitTurnIntake', () => {
   })
 
   it('内置命令由 intake 分类并完成命令结果投影', async () => {
-    mocks.runBuiltinCommand.mockResolvedValue({ status: 'success', conversation })
+    mocks.runBuiltinCommand.mockResolvedValue({ status: 'success', conversationId: 'conv-1' })
 
     const result = await submitTurnIntake({
       origin: 'chat',
@@ -196,7 +196,7 @@ describe('submitTurnIntake', () => {
   })
 
   it('/new 已成功后投影失败不抛错，避免重复创建会话', async () => {
-    mocks.runBuiltinCommand.mockResolvedValue({ status: 'success', conversation })
+    mocks.runBuiltinCommand.mockResolvedValue({ status: 'success', conversationId: 'conv-1' })
     mocks.getMessagesByConvId.mockRejectedValueOnce(new Error('消息加载失败'))
 
     const result = await submitTurnIntake({

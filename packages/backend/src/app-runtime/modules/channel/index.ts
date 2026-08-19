@@ -1,6 +1,6 @@
 /* eslint-disable style/max-statements-per-line */
 
-import type { AgentTaskSnapshot, ApprovePendingActionOptions, AppRpcInput, CancelTaskOptions, ChannelAccount, ChannelAccountView, ChannelAttachmentSender, ChannelSetupResult, ChannelType, ConversationsSettingsSchema, IMessage, RejectPendingActionOptions } from '@ant-chat/shared'
+import type { AgentTaskSnapshot, ApprovePendingActionOptions, AppRpcInput, CancelTaskOptions, ChannelAccount, ChannelAccountView, ChannelAttachmentSender, ChannelSetupResult, ChannelType, ConversationsSettingsSchema, IConversations, IMessage, RejectPendingActionOptions } from '@ant-chat/shared'
 import type { AgentTurnService } from '../../../agent-runtime/agentTurnService'
 import type { ChannelActionEvent, ChannelActionResult, ChannelConnector } from '../../../channels'
 import type { RuntimeCore } from '../../createRuntimeCore'
@@ -15,6 +15,7 @@ import { Method, Module } from '../../decorators'
 export interface ChannelAgentDependencies {
   turnService: Pick<AgentTurnService, 'startTurn'>
   updateConversation: (input: { id: string, settings: ConversationsSettingsSchema }) => Promise<unknown>
+  createConversation: (input: { title: string, workspacePath: string, createdAt: number, updatedAt: number, conversationInstructions: string, settings: ConversationsSettingsSchema, sourceType: ChannelType, sourceChannelAccountId: string, sourceExternalChatId: string }) => Promise<IConversations>
   listActiveTasks: (conversationId?: string) => AgentTaskSnapshot[]
   cancelTask: (options: CancelTaskOptions) => void
   approvePendingAction: (options: ApprovePendingActionOptions) => void
@@ -40,6 +41,7 @@ export class ChannelModule implements RuntimeModuleMethods<'channel'>, RuntimeMo
       data: core.data,
       turnService: agent.turnService,
       updateConversation: agent.updateConversation,
+      createConversation: agent.createConversation,
       stopTask: async (conversationId) => {
         const task = agent.listActiveTasks(conversationId)
           .find(item => ['running', 'awaiting_approval'].includes(item.status))
