@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { runBrowserTool, validateBrowserInput } from '../browserRunner'
 import type { BrowserSessionState } from '../browserSessionManager'
 
+const PROXY_ENV_KEYS = ['HTTPS_PROXY', 'HTTP_PROXY', 'https_proxy', 'http_proxy', 'ALL_PROXY', 'all_proxy'] as const
+
 describe('browserRunner 行为', () => {
   let root: string
   let agentBrowserPath: string
@@ -12,6 +14,11 @@ describe('browserRunner 行为', () => {
   let invocationsPath: string
 
   beforeEach(() => {
+    // createBrowserEnv 会合并 process.env 并按 HTTPS_PROXY → HTTP_PROXY 取代理，
+    // 宿主机的代理变量会覆盖用例传入的 env，先清空以保证输入完全由用例决定。
+    for (const key of PROXY_ENV_KEYS) {
+      vi.stubEnv(key, undefined)
+    }
     root = fs.mkdtempSync(path.join(os.tmpdir(), 'ant-chat-browser-'))
     agentBrowserPath = path.join(root, 'agent-browser')
     artifactsPath = path.join(root, 'artifacts')
@@ -44,6 +51,7 @@ process.stdin.on('data', chunk => stdin += chunk)
   })
 
   afterEach(() => {
+    vi.unstubAllEnvs()
     fs.rmSync(root, { recursive: true, force: true })
   })
 
