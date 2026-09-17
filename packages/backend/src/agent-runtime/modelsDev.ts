@@ -99,7 +99,7 @@ function createModel(model: Record<string, any>, providerId: string): ModelsDevM
   }
 }
 
-const FETCH_TIMEOUT_MS = 5000
+const FETCH_TIMEOUT_MS = 60000
 
 let cachedDatabase: ModelsDevDatabase | null = null
 let fetchPromise: Promise<ModelsDevDatabase> | null = null
