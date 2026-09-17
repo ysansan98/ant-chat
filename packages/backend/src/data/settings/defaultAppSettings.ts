@@ -108,5 +108,16 @@ export const DEFAULT_APP_SETTINGS: AppSettingsState = {
       isEnabled: false,
       models: {},
     },
+    {
+      id: 'openrouter',
+      name: 'Openrouter',
+      baseUrl: 'https://openrouter.ai/api/v1',
+      apiKeySecretId: 'provider:openrouter:api_key',
+      apiMode: 'openai',
+      integrationId: 'api-key',
+      isOfficial: false,
+      isEnabled: false,
+      models: {},
+    },
   ],
 }
