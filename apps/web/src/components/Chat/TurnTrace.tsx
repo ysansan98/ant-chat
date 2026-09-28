@@ -24,7 +24,7 @@ import { transformMessageContent } from '@/utils/messageTransform'
 import { isNetworkError } from '@/utils/networkError'
 import { VisualizationFrame } from '../Visualization/VisualizationFrame'
 import { AnnotationLayer } from './annotations/AnnotationLayer'
-import MessageContent from './MessageContent'
+import MessageContent, { MessageAttachments } from './MessageContent'
 import {
   buildCommandSessionText,
   buildEditDiff,
@@ -468,6 +468,10 @@ export function TurnTrace({ messages, toolResultMap, turnRunning = false, annota
       }
       case 'visualization':
         return <VisualizationFrame key={step.id} block={step.block} conversationId={step.convId} messageId={step.messageId} />
+      case 'attachment':
+        return step.kind === 'image'
+          ? <MessageAttachments key={step.id} images={[step.item]} />
+          : <MessageAttachments key={step.id} attachments={[step.item]} />
       case 'error-block':
         return <TurnErrorAlert key={step.id} error={step.error} />
       case 'steering':

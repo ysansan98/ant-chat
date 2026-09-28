@@ -1,6 +1,12 @@
-import type { IAttachment, IMessage, IMessageContent } from '@ant-chat/shared'
+import type { IAttachment, IMessage } from '@ant-chat/shared'
 
-interface BlockWithData {
+/** 单个 content 块转换出的附件条目（kind 决定渲染通道：图片走 ImageViewer，其余走文件卡片）。 */
+export interface AttachmentItem {
+  kind: 'image' | 'document' | 'file'
+  item: IAttachment
+}
+
+interface BlockWithSource {
   type: string
   source: { type: string, file_id: string }
   name?: string
@@ -11,51 +17,69 @@ interface BlockWithData {
   data?: string
 }
 
-/**
- * 从 IMessage.content 中提取图片内容块，转换为 IAttachment[]
- */
-function extractImageBlocks(content: IMessageContent): IAttachment[] {
-  return content
-    .filter((b): b is BlockWithData & typeof b => b.type === 'image' && 'source' in b)
-    .map((b, i) => {
-      const data = b.data || ''
-      return {
-        uid: b.source?.type === 'file_id' ? b.source.file_id : `image-${i}`,
-        name: b.name || 'Image',
-        size: b.size ?? 0,
-        type: b.mimeType || 'image/png',
-        data,
-      }
-    })
+function isBlockWithSource(value: unknown): value is BlockWithSource {
+  return Boolean(value) && typeof value === 'object' && 'source' in (value as object)
 }
 
 /**
- * 从 IMessage.content 中提取 document/file 内容块，转换为 IAttachment[]
+ * 单个 content 块 → 附件条目；文本、工具调用、可视化等非附件块返回 null。
+ * 与持久化形态对齐：file_id 提供附件标识，data 仅在 transport 形态携带（持久化后被剥离）。
  */
-function extractAttachmentBlocks(content: IMessageContent): IAttachment[] {
-  return content
-    .filter((b): b is BlockWithData & typeof b =>
-      (b.type === 'document' || b.type === 'file') && 'source' in b,
-    )
-    .map((b, i) => ({
-      uid: b.source?.type === 'file_id' ? b.source.file_id : `attach-${i}`,
-      name: b.name || b.filename || 'File',
-      size: b.size ?? 0,
-      type: b.media_type || 'application/octet-stream',
-      data: b.data || '',
-    }))
+export function attachmentBlockToItem(block: unknown, index = 0): AttachmentItem | null {
+  if (!isBlockWithSource(block)) {
+    return null
+  }
+
+  if (block.type === 'image') {
+    return {
+      kind: 'image',
+      item: {
+        uid: block.source?.type === 'file_id' ? block.source.file_id : `image-${index}`,
+        name: block.name || 'Image',
+        size: block.size ?? 0,
+        type: block.mimeType || 'image/png',
+        data: block.data || '',
+      },
+    }
+  }
+
+  if (block.type === 'document' || block.type === 'file') {
+    return {
+      kind: block.type,
+      item: {
+        uid: block.source?.type === 'file_id' ? block.source.file_id : `attach-${index}`,
+        name: block.name || block.filename || 'File',
+        size: block.size ?? 0,
+        type: block.media_type || 'application/octet-stream',
+        data: block.data || '',
+      },
+    }
+  }
+
+  return null
 }
 
 /**
- * 从用户消息中提取 images 和 attachments 数据
+ * 从 IMessage.content 中提取图片与文件内容块，转换为 IAttachment[]
  */
 export function extractMessageAttachments(message: IMessage): {
   images: IAttachment[]
   attachments: IAttachment[]
 } {
   const content = Array.isArray(message.content) ? message.content : []
-  return {
-    images: extractImageBlocks(content),
-    attachments: extractAttachmentBlocks(content),
-  }
+  const images: IAttachment[] = []
+  const attachments: IAttachment[] = []
+  content.forEach((block, index) => {
+    const converted = attachmentBlockToItem(block, index)
+    if (!converted) {
+      return
+    }
+    if (converted.kind === 'image') {
+      images.push(converted.item)
+    }
+    else {
+      attachments.push(converted.item)
+    }
+  })
+  return { images, attachments }
 }

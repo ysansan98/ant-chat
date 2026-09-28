@@ -17,18 +17,27 @@ const userLink = resolve(os.homedir(), '.local/bin/ant-chat')
 const wrapper = [
   '#!/usr/bin/env node',
   'import { spawnSync } from "node:child_process"',
+  'import { createRequire } from "node:module"',
   'import p from "node:path"',
+  'import { pathToFileURL } from "node:url"',
   '',
   `// 仓库根在链接生成时固化，避免 wrapper 被链接到仓库外（如 ~/.local/bin）后路径推断失效`,
   `const root = ${JSON.stringify(root)}`,
-  // tsx 是 ant-chat 包的 devDependency（pnpm 未 hoist 到仓库根），
-  // cwd 必须指向该包目录才能让 node --import tsx 解析到 loader。
-  'const cwd = p.resolve(root, "packages/ant-chat")',
+  // tsx 是 ant-chat 包的 devDependency（pnpm 未 hoist 到仓库根），用包解析拿
+  // loader 绝对路径再喂给 --import，避免依赖 cwd 解析裸包名（否则 cwd 必须指向包目录）。
+  'const requireFromPackage = createRequire(p.resolve(root, "packages/ant-chat/package.json"))',
+  'const tsxLoader = pathToFileURL(requireFromPackage.resolve("tsx")).href',
+  'const tsconfigPath = p.resolve(root, "packages/ant-chat/tsconfig.json")',
   'const entry = p.resolve(root, "packages/ant-chat/src/cli.ts")',
   'const result = spawnSync(',
   '  process.execPath,',
-  '  ["--conditions=development", "--import", "tsx", entry, ...process.argv.slice(2)],',
-  '  { stdio: "inherit", cwd },',
+  '  ["--conditions=development", "--import", tsxLoader, entry, ...process.argv.slice(2)],',
+  '  {',
+  '    stdio: "inherit",',
+  // cwd 保持调用者目录：CLI 的相对路径参数（如 image generate --output ./generated）
+  // 必须相对调用者解析；tsconfig 显式传包内配置，与 cwd=包目录时的默认行为一致。
+  '    env: { ...process.env, TSX_TSCONFIG_PATH: tsconfigPath },',
+  '  },',
   ')',
   'process.exit(result.status ?? 1)',
   '',

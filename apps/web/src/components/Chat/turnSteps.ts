@@ -1,5 +1,6 @@
-import type { IMessage, ToolCallContent, ToolResultContent } from '@ant-chat/shared'
+import type { IAttachment, IMessage, ToolCallContent, ToolResultContent } from '@ant-chat/shared'
 import type { VisualizationBlockLike } from '../Visualization/types'
+import { attachmentBlockToItem } from '../../utils/extractMessageAttachments'
 import { isVisualizationBlock } from '../Visualization/types'
 import { getToolCategory, TOOL_CATEGORY_SUMMARY } from './toolDisplay'
 
@@ -27,6 +28,7 @@ export type TurnStep
     | { type: 'reasoning', id: string, content: string, isStreaming: boolean }
     | { type: 'text', id: string, text: string, status: IMessage['status'] }
     | { type: 'visualization', id: string, block: VisualizationBlockLike, convId: string, messageId: string }
+    | { type: 'attachment', id: string, kind: 'image' | 'document' | 'file', item: IAttachment }
     | { type: 'error-block', id: string, error: string, messageStatus: IMessage['status'] }
     | { type: 'steering', id: string, message: IMessage }
 
@@ -70,7 +72,8 @@ function isStreamingStatus(message: IMessage): boolean {
  *   `role:'tool'` 的结果消息不可见，不阻断 run
  * - reasoning 不阻断 run：已有 run 时直接并入；尚无 run 时延迟归属，遇到工具则并入组内，
  *   只有遇到阻断或 turn 结束仍无工具时才独立成 step
- * - text / visualization / error / steering 阻断 run
+ * - text / visualization / attachment / error / steering 阻断 run
+ * - 附件块展示时延后到本消息末尾（排在工具调用之后），呈现「工具执行 → 产出附件」的顺序
  */
 export function buildTurnSteps(messages: IMessage[], toolResultMap: Map<string, IMessage>): TurnStep[] {
   const steps: TurnStep[] = []
@@ -114,6 +117,7 @@ export function buildTurnSteps(messages: IMessage[], toolResultMap: Map<string, 
 
   let textIndex = 0
   let visualizationIndex = 0
+  let attachmentIndex = 0
   let errorIndex = 0
 
   for (const message of messages) {
@@ -150,6 +154,10 @@ export function buildTurnSteps(messages: IMessage[], toolResultMap: Map<string, 
       }
     }
 
+    // 附件块统一延后到本消息其它步骤之后：attachment 是工具（send_attachment）注入的
+    // 产出，持久化顺序可能先于 tool-call 出现——展示时统一按「工具 → 附件」排列。
+    const attachmentSteps: TurnStep[] = []
+
     for (const block of message.content) {
       if (block.type === 'tool-call') {
         pushToolCall(block)
@@ -183,6 +191,25 @@ export function buildTurnSteps(messages: IMessage[], toolResultMap: Map<string, 
           messageStatus: message.status,
         })
       }
+      else {
+        const attachment = attachmentBlockToItem(block, attachmentIndex)
+        if (attachment) {
+          attachmentSteps.push({
+            type: 'attachment',
+            id: `${message.id}:attachment:${attachmentIndex++}`,
+            kind: attachment.kind,
+            item: attachment.item,
+          })
+        }
+      }
+    }
+
+    // 附件落位时闭合当前 run：后续消息的工具调用不能并入附件之前的工具组，
+    // 否则运行中的工具组会包住附件、把已显示的附件顶回工具面板之前。
+    if (attachmentSteps.length > 0) {
+      openRun = null
+      flushPendingReasoningAsSteps()
+      steps.push(...attachmentSteps)
     }
   }
 

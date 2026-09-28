@@ -1,7 +1,12 @@
 import type { IMessage, IMessageContent, ToolCallContent } from '@ant-chat/shared'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+import { getAppRpcClient } from '@/api/transports/appRpc'
 import { MessageBubble } from '../MessageBubble'
+
+vi.mock('@/api/transports/appRpc', () => ({
+  getAppRpcClient: vi.fn(() => ({ call: vi.fn(async () => null) })),
+}))
 
 let seq = 0
 
@@ -357,6 +362,43 @@ describe('消息气泡', () => {
 
     expect(screen.getByText('data.zip')).toBeInTheDocument()
     expect(screen.queryByText(/\[File:/)).not.toBeInTheDocument()
+  })
+
+  it('助手消息中的附件原位渲染：排在工具调用之后，图片缩略图与文档卡片可见', () => {
+    const call = createToolCall('send_attachment', { path: '/workspace/generated/cat.png' })
+    renderBubble([
+      createAssistantMessage('with-attachment', [
+        { type: 'image', source: { type: 'file_id', file_id: 'att-1' }, name: '小猫插画.png', mimeType: 'image/png', size: 668000, data: 'data:image/png;base64,iVBORw0KGgo=' },
+        { type: 'document', source: { type: 'file_id', file_id: 'doc-1' }, name: '生成说明.pdf', media_type: 'application/pdf', size: 1024 },
+        call,
+      ]),
+      createToolResult(call, '{"success":true,"status":"attached"}'),
+      createAssistantMessage('final', [{ type: 'text', text: '图已生成' }]),
+    ])
+
+    const img = screen.getByAltText('小猫插画.png')
+    expect(img).toBeInTheDocument()
+    expect(screen.getByText('生成说明.pdf')).toBeInTheDocument()
+    expect(screen.getByText('application/pdf')).toBeInTheDocument()
+    expect(screen.getByText('图已生成')).toBeInTheDocument()
+    // 附件块在 content 中先于 tool-call，展示时必须排在 send_attachment 工具卡片之后
+    const toolCard = screen.getByText('send_attachment')
+    expect(toolCard.compareDocumentPosition(img) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('助手消息附件为 file_id 引用（持久化形态）时经 RPC 加载数据后渲染图片', async () => {
+    vi.mocked(getAppRpcClient).mockReturnValueOnce({
+      call: vi.fn(async (method: string) => method === 'files.getAttachmentData' ? 'iVBORw0KGgo=' : null),
+    } as never)
+
+    renderBubble([
+      createAssistantMessage('att-rpc', [
+        { type: 'image', source: { type: 'file_id', file_id: 'att-9' }, name: '生成图.png', mimeType: 'image/png', size: 128 },
+      ]),
+    ])
+
+    const img = await screen.findByAltText('生成图.png')
+    expect(img).toHaveAttribute('src', 'data:image/png;base64,iVBORw0KGgo=')
   })
 
   it('仅有错误内容时展示失败 Alert，不出现执行过程面板', () => {

@@ -232,6 +232,68 @@ describe('工具组执行与错误状态', () => {
   })
 })
 
+describe('附件步骤', () => {
+  it('助手消息中的图片附件排在该消息工具调用之后，并阻断前后工具组', () => {
+    const before = toolCall('execute_command', { command: 'ls' })
+    const after = toolCall('send_attachment', { path: '/workspace/generated/cat.png' })
+    const steps = stepsOf([
+      assistant([before]),
+      toolResultMessage(before, 'stdout:\nexitCode=0'),
+      assistant([
+        { type: 'image', source: { type: 'file_id', file_id: 'att-1' }, name: 'cat.png', mimeType: 'image/png', size: 668000 },
+        after,
+      ]),
+      toolResultMessage(after, '{"success":true,"status":"attached"}'),
+    ])
+
+    // 附件块在 content 中位于 tool-call 之前，展示时延后：send_attachment 工具在前、图片紧随其后
+    expect(steps.map(s => s.type)).toEqual(['tool-run', 'tool-run', 'attachment'])
+    const step = steps[2]
+    if (step.type !== 'attachment')
+      throw new Error('预期得到附件步骤')
+    expect(step.kind).toBe('image')
+    expect(step.item).toMatchObject({
+      uid: 'att-1',
+      name: 'cat.png',
+      size: 668000,
+      type: 'image/png',
+    })
+    expect(step.id).toContain(':attachment:0')
+  })
+
+  it('document/file 附件生成对应类型的文件步骤，并排在工具调用之后', () => {
+    const call = toolCall('send_attachment', { path: '/workspace/report.pdf' })
+    const steps = stepsOf([
+      assistant([
+        { type: 'document', source: { type: 'file_id', file_id: 'doc-1' }, name: '报告.pdf', media_type: 'application/pdf', size: 2048 },
+        { type: 'file', source: { type: 'file_id', file_id: 'file-1' }, filename: 'data.zip', name: 'data.zip', media_type: 'application/zip', size: 4096 },
+        call,
+      ]),
+      toolResultMessage(call, '{"success":true,"status":"attached"}'),
+    ])
+
+    expect(steps.map(s => s.type)).toEqual(['tool-run', 'attachment', 'attachment'])
+    const [run, doc, file] = steps
+    if (doc.type !== 'attachment' || file.type !== 'attachment')
+      throw new Error('预期得到附件步骤')
+    if (run.type !== 'tool-run')
+      throw new Error('预期得到工具组')
+    expect(run.items[0]?.kind === 'tool' && run.items[0].toolCall.toolName).toBe('send_attachment')
+    expect(doc.kind).toBe('document')
+    expect(doc.item).toMatchObject({ uid: 'doc-1', name: '报告.pdf', type: 'application/pdf' })
+    expect(file.kind).toBe('file')
+    expect(file.item).toMatchObject({ uid: 'file-1', name: 'data.zip', type: 'application/zip' })
+  })
+
+  it('没有 source 的图片块不生成附件步骤', () => {
+    const steps = stepsOf([
+      assistant([{ type: 'image', name: '无来源.png', mimeType: 'image/png' }]),
+    ])
+
+    expect(steps.map(s => s.type)).toEqual([])
+  })
+})
+
 describe('工具组汇总', () => {
   it('按类别和固定顺序计数，省略零次类别与思考过程', () => {
     const calls = [
