@@ -129,4 +129,178 @@ describe('runControlCli 控制 Socket 集成', () => {
     expect(result.exitCode).toBe(0)
     expect(result.output).toContain('fallback-model')
   })
+
+  it('image generate 解析为命令并透传目录、尺寸与超时；JSON 输出返回产物路径', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'ant-chat-control-client-'))
+    roots.push(root)
+    const endpoint = path.join(root, 'control.sock')
+    const authToken = 'test-auth-token'
+    const server = createServer((socket) => {
+      let request = ''
+      socket.on('data', (chunk) => {
+        request += chunk.toString()
+        if (!request.endsWith('\n'))
+          return
+        const parsed = JSON.parse(request) as { auth: string, command: unknown }
+        expect(parsed.auth).toBe(authToken)
+        expect(parsed.command).toEqual({
+          type: 'image',
+          action: 'generate',
+          prompt: '一只金色小猫',
+          width: 1024,
+          height: 1024,
+          // CLI 在发送前把产物目录解析为绝对路径（后端进程 cwd 与 CLI 不同）。
+          outputDir: path.resolve('./out'),
+          timeoutMs: 60_000,
+        })
+        socket.end(`${JSON.stringify({
+          ok: true,
+          result: {
+            providerId: 'modelscope',
+            modelId: 'Qwen/Qwen-Image',
+            files: [{ path: '/abs/generated/a.png', mediaType: 'image/png', bytes: 2048 }],
+            taskId: 'task-1',
+            elapsedMs: 12_345,
+          },
+        })}\n`)
+      })
+    })
+    servers.push(server)
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject)
+      server.listen(endpoint, resolve)
+    })
+    await writeFile(path.join(root, '.control-endpoint.json'), JSON.stringify({
+      protocolVersion: 1,
+      pid: process.pid,
+      endpoint,
+      authToken,
+    }))
+
+    const result = await runControlCli([
+      'image',
+      'generate',
+      '--prompt',
+      '一只金色小猫',
+      '--width',
+      '1024',
+      '--height',
+      '1024',
+      '--output',
+      './out',
+      '--timeout',
+      '60000',
+      '--json',
+    ], { appDataRoot: root })
+
+    expect(result.exitCode).toBe(0)
+    expect(JSON.parse(result.output!)).toMatchObject({
+      taskId: 'task-1',
+      files: [{ path: '/abs/generated/a.png', mediaType: 'image/png', bytes: 2048 }],
+      elapsedMs: 12_345,
+    })
+  })
+
+  it('image generate 缺省产物目录为 ./generated，人类可读输出列出生图结果', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'ant-chat-control-client-'))
+    roots.push(root)
+    const endpoint = path.join(root, 'control.sock')
+    const authToken = 'test-auth-token'
+    const server = createServer((socket) => {
+      let request = ''
+      socket.on('data', (chunk) => {
+        request += chunk.toString()
+        if (!request.endsWith('\n'))
+          return
+        const parsed = JSON.parse(request) as { command: { outputDir?: string } }
+        expect(parsed.command.outputDir).toBe(path.resolve('./generated'))
+        socket.end(`${JSON.stringify({
+          ok: true,
+          result: {
+            providerId: 'modelscope',
+            modelId: 'Qwen/Qwen-Image',
+            files: [{ path: '/abs/generated/a.png', mediaType: 'image/png', bytes: 2048 }],
+            taskId: 'task-1',
+            elapsedMs: 12_345,
+          },
+        })}\n`)
+      })
+    })
+    servers.push(server)
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject)
+      server.listen(endpoint, resolve)
+    })
+    await writeFile(path.join(root, '.control-endpoint.json'), JSON.stringify({
+      protocolVersion: 1,
+      pid: process.pid,
+      endpoint,
+      authToken,
+    }))
+
+    const result = await runControlCli(['image', 'generate', '--prompt', 'cat'], { appDataRoot: root })
+
+    expect(result.exitCode).toBe(0)
+    expect(result.output).toContain('生成模型：modelscope/Qwen/Qwen-Image')
+    expect(result.output).toContain('任务：task-1')
+    expect(result.output).toContain('文件：/abs/generated/a.png（2KB）')
+    expect(result.output).toContain('耗时：12.3s')
+  })
+
+  it('--timeout 到点后 CLI 报等待响应超时', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'ant-chat-control-client-'))
+    roots.push(root)
+    const endpoint = path.join(root, 'control.sock')
+    const authToken = 'test-auth-token'
+    const server = createServer((socket) => {
+      // 故意延迟响应，模拟生图阻塞等待超过调用方给的超时。
+      socket.on('data', () => {
+        setTimeout(() => socket.end(`${JSON.stringify({ ok: true, result: {} })}\n`), 300)
+      })
+    })
+    servers.push(server)
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject)
+      server.listen(endpoint, resolve)
+    })
+    await writeFile(path.join(root, '.control-endpoint.json'), JSON.stringify({
+      protocolVersion: 1,
+      pid: process.pid,
+      endpoint,
+      authToken,
+    }))
+
+    const result = await runControlCli(['image', 'recognize', '--file-id', 'img-1', '--timeout', '50'], { appDataRoot: root })
+
+    expect(result.exitCode).toBe(1)
+    expect(result.error).toContain('等待响应超时')
+  })
+
+  it('未传 --timeout 时不设响应超时（慢响应仍可成功返回）', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'ant-chat-control-client-'))
+    roots.push(root)
+    const endpoint = path.join(root, 'control.sock')
+    const authToken = 'test-auth-token'
+    const server = createServer((socket) => {
+      socket.on('data', () => {
+        setTimeout(() => socket.end(`${JSON.stringify({ ok: true, result: { settings: { assistantModelId: 'slow-model' } } })}\n`), 150)
+      })
+    })
+    servers.push(server)
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject)
+      server.listen(endpoint, resolve)
+    })
+    await writeFile(path.join(root, '.control-endpoint.json'), JSON.stringify({
+      protocolVersion: 1,
+      pid: process.pid,
+      endpoint,
+      authToken,
+    }))
+
+    const result = await runControlCli(['settings', 'show', '--json'], { appDataRoot: root })
+
+    expect(result.exitCode).toBe(0)
+    expect(result.output).toContain('slow-model')
+  })
 })

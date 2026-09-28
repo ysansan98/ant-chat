@@ -3,6 +3,7 @@ import type { RuntimeCore } from './createRuntimeCore'
 import type { ChannelAgentDependencies } from './modules/channel'
 import type { RegisteredRoute } from './routeRegistry'
 import type { RuntimeModule } from './runtimeModule'
+import { getModelsDevModelsByProviderId } from '../agent-runtime'
 import { AppControl } from '../app-control/appControl'
 import { createFeishuTransport, FeishuConnector } from '../channels/feishu'
 import { createWeixinTransport, WeixinConnector } from '../channels/weixin'
@@ -13,11 +14,13 @@ import { ChannelModule } from './modules/channel'
 import { ChatModule } from './modules/chat'
 import { CommandsModule } from './modules/commands'
 import { createDataRoutes } from './modules/dataRoutes'
+import { GenerationModule } from './modules/generation'
 import { ImageModule } from './modules/image'
 import { McpModule } from './modules/mcp'
 import { PermissionsModule } from './modules/permissions'
 import { ProviderModule } from './modules/provider'
 import { createCodexProviderIntegration } from './modules/provider/codexIntegration'
+import { createModelScopeProviderIntegration } from './modules/provider/modelscopeIntegration'
 import { RuntimeStatusModule } from './modules/runtime'
 import { SettingsModule } from './modules/settings'
 import { SkillsModule } from './modules/skills'
@@ -45,7 +48,14 @@ export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModu
     logger,
     core.oauthCallbackHost,
     // 厂商 Integration 在此注册；新增订阅只需追加 entry，不改 Provider 通用流程。
-    [['codex-subscription', createCodexProviderIntegration(secretStore)]],
+    [
+      ['codex-subscription', createCodexProviderIntegration(secretStore)],
+      ['modelscope', createModelScopeProviderIntegration({
+        listModelsDevModels: getModelsDevModelsByProviderId,
+        credentialStore: secretStore,
+        clientInfo: core.clientInfo,
+      })],
+    ],
     core.clientInfo,
   )
   const browserProfiles = new BrowserProfilesModule(core.browserIdentity)
@@ -110,8 +120,14 @@ export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModu
     loadAttachmentData: data.loadAttachmentData,
     logger,
   })
+  const generation = new GenerationModule({
+    providerSettingsRepository: data.providerSettingsRepository,
+    settingsRepository: data.settingsRepository,
+    resolveMediaGenerator: (config, kind) => provider.getMediaGenerator(config, kind),
+    logger,
+  })
 
-  const appControl = new AppControl({ settings, provider, mcp, automation, channel, image })
+  const appControl = new AppControl({ settings, provider, mcp, automation, channel, image, generation })
 
   return {
     routes: [chat, settings, provider, mcp, skills, workspace, permissions, runtimeStatus, browserProfiles, agent, automation, commands, channel],

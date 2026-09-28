@@ -280,6 +280,8 @@ describe('createAgentTurnService 行为', () => {
       assistantProviderId: 'provider-1',
       visionModelId: '',
       visionProviderId: '',
+      imageGenModelId: '',
+      imageGenProviderId: '',
       defaultModelId: '',
       defaultProviderId: '',
       autoGenerateTitle: true,

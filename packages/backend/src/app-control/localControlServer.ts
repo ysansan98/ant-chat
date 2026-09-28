@@ -35,7 +35,11 @@ export interface LocalControlServerOptions {
 
 /** LocalControlServer 只需要执行命令，不应依赖控制层的具体类。 */
 export interface AppControlExecutor {
-  execute: (command: AppControlCommand) => Promise<AppControlResult>
+  /**
+   * 执行控制命令。`signal` 在当前连接的请求执行中、响应尚未写回时断开
+   * 时触发，用于把断连传播到长任务（如生图轮询）并释放上游资源。
+   */
+  execute: (command: AppControlCommand, options?: { signal?: AbortSignal }) => Promise<AppControlResult>
 }
 
 /**
@@ -274,6 +278,11 @@ export class LocalControlServer {
   private handleConnection(socket: Socket): void {
     let buffer = Buffer.alloc(0)
     let timedOut = false
+    // 每个连接持有 AbortController：断连（超时自杀 / Ctrl-C / 进程被杀）时
+    // 传播为 AbortSignal 停止执行中的长任务。CLI 正常收到响应后 end() 也会触发
+    // 服务端 close，因此只在「请求执行中、响应尚未写回」时判为断连。
+    const abortController = new AbortController()
+    const lifecycle = { executing: false, responded: false }
 
     const timer = setTimeout(() => {
       timedOut = true
@@ -308,7 +317,7 @@ export class LocalControlServer {
       // 保留剩余数据（理论上对于单行请求为空）
       buffer = Buffer.alloc(0)
 
-      this.handleRequest(socket, line)
+      this.handleRequest(socket, line, abortController.signal, lifecycle)
     })
 
     socket.on('error', () => {
@@ -318,10 +327,18 @@ export class LocalControlServer {
 
     socket.on('close', () => {
       clearTimeout(timer)
+      if (lifecycle.executing && !lifecycle.responded) {
+        abortController.abort(new Error('调用方连接已断开'))
+      }
     })
   }
 
-  private async handleRequest(socket: Socket, raw: string): Promise<void> {
+  private async handleRequest(
+    socket: Socket,
+    raw: string,
+    signal: AbortSignal,
+    lifecycle: { executing: boolean, responded: boolean },
+  ): Promise<void> {
     let parsed: { auth: string, command: AppControlCommand }
     try {
       const payload = z.object({
@@ -348,11 +365,14 @@ export class LocalControlServer {
     try {
       if (!this.appControl)
         throw new Error('AppControl 尚未完成激活')
-      const result = await this.appControl.execute(parsed.command)
+      lifecycle.executing = true
+      const result = await this.appControl.execute(parsed.command, { signal })
+      lifecycle.responded = true
       this.sendResponse(socket, { ok: true, result } as ControlResponse)
     }
     catch (err) {
       const message = err instanceof Error ? err.message : String(err)
+      lifecycle.responded = true
       this.sendError(socket, 'EXECUTION_ERROR', message)
     }
   }

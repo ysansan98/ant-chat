@@ -11,6 +11,8 @@ const DEFAULT_SETTINGS: GeneralSettingsState = {
   assistantProviderId: '',
   visionModelId: '',
   visionProviderId: '',
+  imageGenModelId: '',
+  imageGenProviderId: '',
   defaultModelId: '',
   defaultProviderId: '',
   autoGenerateTitle: false,

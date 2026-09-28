@@ -3,10 +3,20 @@ import type { SocketClient } from '../socket-client'
 import { Buffer } from 'node:buffer'
 import { spawnSync } from 'node:child_process'
 import * as fs from 'node:fs'
+import * as path from 'node:path'
 import process from 'node:process'
 
 export interface CliOptions {
   json: boolean
+}
+
+interface ParsedCommand {
+  command: AppControlCommand
+  /**
+   * CLI 响应等待超时（ms）。调用方决定、无系统默认：未设置时阻塞等待，
+   * 由外层调用者兜底（execute_command 的 timeoutMs / 人工 Ctrl-C）。
+   */
+  responseTimeoutMs?: number
 }
 
 /**
@@ -18,8 +28,8 @@ export async function executeCommand(
   options: CliOptions,
 ): Promise<{ exitCode: number, output?: string, error?: string }> {
   try {
-    const command = parseArgv(argv)
-    const response = await client.send(command)
+    const { command, responseTimeoutMs } = parseArgv(argv)
+    const response = await client.send(command, { timeoutMs: responseTimeoutMs })
 
     if (!response.ok) {
       const errorMsg = response.error?.message ?? '未知错误'
@@ -41,22 +51,22 @@ export async function executeCommand(
   }
 }
 
-function parseArgv(argv: string[]): AppControlCommand {
+function parseArgv(argv: string[]): ParsedCommand {
   if (argv.length === 0) {
-    throw new Error('用法：ant-chat <命令> [选项]\n\n命令：\n  settings    管理设置\n  provider    管理 AI Provider\n  mcp         管理 MCP 服务\n  automation  管理自动化任务\n  image       图像识别')
+    throw new Error('用法：ant-chat <命令> [选项]\n\n命令：\n  settings    管理设置\n  provider    管理 AI Provider\n  mcp         管理 MCP 服务\n  automation  管理自动化任务\n  image       图像识别与生成')
   }
 
   const [type, ...rest] = argv
 
   switch (type) {
     case 'settings':
-      return parseSettings(rest)
+      return { command: parseSettings(rest) }
     case 'provider':
-      return parseProvider(rest)
+      return { command: parseProvider(rest) }
     case 'mcp':
-      return parseMcp(rest)
+      return { command: parseMcp(rest) }
     case 'automation':
-      return parseAutomation(rest)
+      return { command: parseAutomation(rest) }
     case 'image':
       return parseImage(rest)
     default:
@@ -421,9 +431,9 @@ function parseAutomation(args: string[]): AppControlCommand {
   }
 }
 
-function parseImage(args: string[]): AppControlCommand {
+function parseImage(args: string[]): ParsedCommand {
   if (args.length === 0) {
-    throw new Error('用法：ant-chat image <recognize> [...]')
+    throw new Error('用法：ant-chat image <recognize|generate> [...]')
   }
 
   const [action, ...rest] = args
@@ -439,9 +449,9 @@ function parseImage(args: string[]): AppControlCommand {
         return !(prev?.startsWith('--') && !prev.includes('='))
       })
       if (positional.length === 0 && !parsed.fileId) {
-        throw new Error('用法：ant-chat image recognize [<path> | --file-id <id>] [--prompt <指令>] [--provider-id <id> --model-id <id>]')
+        throw new Error('用法：ant-chat image recognize [<path> | --file-id <id>] [--prompt <指令>] [--provider-id <id> --model-id <id>] [--timeout <毫秒>]')
       }
-      return {
+      const command: AppControlCommand = {
         type: 'image',
         action: 'recognize',
         ...(positional.length > 0 ? { path: positional[0] } : {}),
@@ -450,10 +460,37 @@ function parseImage(args: string[]): AppControlCommand {
         ...(parsed.providerId ? { providerId: parsed.providerId } : {}),
         ...(parsed.modelId ? { modelId: parsed.modelId } : {}),
       }
+      return {
+        command,
+        responseTimeoutMs: parsed.timeout ? parsePositiveInteger(parsed.timeout, '--timeout') : undefined,
+      }
+    }
+
+    case 'generate': {
+      const parsed = parseNamedArgs(rest)
+      if (!parsed.prompt) {
+        throw new Error('用法：ant-chat image generate --prompt <提示词> [--width <像素> --height <像素>] [--output <目录>] [--timeout <毫秒>]')
+      }
+      const timeoutMs = parsed.timeout ? parsePositiveInteger(parsed.timeout, '--timeout') : undefined
+      return {
+        command: {
+          type: 'image',
+          action: 'generate',
+          prompt: parsed.prompt,
+          ...(parsed.width ? { width: parsePositiveInteger(parsed.width, '--width') } : {}),
+          ...(parsed.height ? { height: parsePositiveInteger(parsed.height, '--height') } : {}),
+          // 缺省产物目录相对 CLI 进程 cwd（agent 场景即 workspace），在这里解析成
+          // 绝对路径再传给后端——后端进程 cwd 与 CLI 不同，不能由后端解析相对路径。
+          outputDir: path.resolve(parsed.output ?? './generated'),
+          ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+        },
+        // 同一数值双生效：CLI 响应等待 + 后端生成总超时（透传）。
+        responseTimeoutMs: timeoutMs,
+      }
     }
 
     default:
-      throw new Error(`未知 image 子命令：${action}。可用命令：recognize`)
+      throw new Error(`未知 image 子命令：${action}。可用命令：recognize、generate`)
   }
 }
 
@@ -474,6 +511,7 @@ function formatResult(command: AppControlCommand, result: AppControlResult, opti
         `Theme: ${s.appearance?.mode ?? 'unknown'}`,
         `Assistant: ${s.assistantProviderId ?? '-'} / ${s.assistantModelId ?? '-'}`,
         `Vision: ${s.visionProviderId || '-'} / ${s.visionModelId || '-'}`,
+        `Image generation: ${s.imageGenProviderId || '-'} / ${s.imageGenModelId || '-'}`,
         `Proxy: ${s.proxySettings?.mode ?? 'none'}`,
       ].join('\n')
     }
@@ -628,6 +666,20 @@ function formatResult(command: AppControlCommand, result: AppControlResult, opti
       ].join('\n')
     }
 
+    case 'generate': {
+      if (!('files' in result))
+        return JSON.stringify(result, null, 2)
+      const lines = [
+        `生成模型：${result.providerId}/${result.modelId}`,
+        `文件：${result.files.map(file => `${file.path}（${formatBytes(file.bytes)}）`).join('、')}`,
+        `耗时：${(result.elapsedMs / 1000).toFixed(1)}s`,
+      ]
+      if (result.taskId) {
+        lines.splice(1, 0, `任务：${result.taskId}`)
+      }
+      return lines.join('\n')
+    }
+
     default:
       return JSON.stringify(result, null, 2)
   }
@@ -674,6 +726,21 @@ function parsePositiveNumber(value: string | undefined, option: string): number 
     throw new Error(`${option} must be a positive number`)
   }
   return parsed
+}
+
+/** 正整数参数（像素尺寸、毫秒超时）；与命令 schema 的 z.number().int() 对齐。 */
+function parsePositiveInteger(value: string | undefined, option: string): number {
+  const parsed = Number(value)
+  if (!value || !Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`${option} 必须是正整数`)
+  }
+  return parsed
+}
+
+function formatBytes(bytes: number): string {
+  return bytes >= 1024 * 1024
+    ? `${(bytes / 1024 / 1024).toFixed(1)}MB`
+    : `${Math.ceil(bytes / 1024)}KB`
 }
 
 function parseApiMode(value: string | undefined): 'openai' | 'anthropic' | 'google' | 'deepseek' | undefined {

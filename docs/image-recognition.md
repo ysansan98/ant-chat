@@ -9,7 +9,8 @@
 
 方案决策（用户拍板）：
 
-- 只做**图像识别**（图片内容理解）；OCR、生图、编辑、增强一律不做。
+- 只做**图像识别**（图片内容理解）；OCR、图像编辑、增强不做。
+  生图边界已单独打开，见[图像生成能力](./plan/image-generation.md)（`ant-chat image generate`）。
 - 实现形式 = **`ant-chat` CLI 子命令 + bundled SKILL**，由 agent 通过 `execute_command` 主动调用；
   **不做** runtime 自动识别兜底、**不做**内置 native tool。
 - 识别模型**必须由用户在设置页预先配置**（视觉模型），agent 不自己选模型。
@@ -54,6 +55,8 @@ ant-chat image recognize --file-id img-1 --json
 
 > **调用方超时**：识别是同步模型调用，`execute_command` 默认 10 秒超时会杀死命令（实测
 > 10~30 秒常见）；agent 调用时必须显式传 `timeoutMs: 150000`（SKILL 内已含示例）。
+> CLI 侧已无默认响应超时（超时调用方化）：未传 `--timeout` 时阻塞等待，由调用方的
+> `timeoutMs` / Ctrl-C 兜底；断连会传播为后端取消。
 
 ### 3. 视觉模型用户预配置
 
@@ -91,7 +94,8 @@ ant-chat image recognize --file-id img-1 --json
 
 ## 边界（明确不做）
 
-- OCR、图像生成/编辑/增强：不做。
+- OCR、图像编辑/增强：不做。图像生成已单独打开边界，见
+  [图像生成能力](./plan/image-generation.md)（`ant-chat image generate`）。
 - runtime 自动识别兜底：不做（识别由 agent 按 SKILL 主动触发，避免消息级隐式换模型的花费与不可见失败）。
 - 内置 native tool：不做（不好扩展）。
 

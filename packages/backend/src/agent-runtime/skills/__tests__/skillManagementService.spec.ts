@@ -42,12 +42,13 @@ describe('skillManagementService', () => {
     const index = await reader.listSkills()
 
     expect(index.rootPath).toBe(skillsRoot)
-    expect(index.skills).toHaveLength(4)
+    expect(index.skills).toHaveLength(5)
     expect(index.skills).toEqual(expect.arrayContaining([
       expect.objectContaining({ name: 'skill-installer', source: 'builtin', enabled: true, builtin: true }),
       expect.objectContaining({ name: 'ant-chat-manager', source: 'builtin', enabled: true, builtin: true }),
       expect.objectContaining({ name: 'visualize', source: 'builtin', enabled: true, builtin: true }),
       expect.objectContaining({ name: 'image-recognition', source: 'builtin', enabled: true, builtin: true }),
+      expect.objectContaining({ name: 'image-generation', source: 'builtin', enabled: true, builtin: true }),
     ]))
   })
 
@@ -95,7 +96,7 @@ describe('skillManagementService', () => {
       source: 'zip',
       enabled: true,
     })
-    expect(index.skills.map(item => item.name)).toEqual(['ant-chat-manager', 'image-recognition', 'skill-installer', 'visualize', 'writer'])
+    expect(index.skills.map(item => item.name)).toEqual(['ant-chat-manager', 'image-generation', 'image-recognition', 'skill-installer', 'visualize', 'writer'])
     expect(markdown).toContain('Write short release notes.')
   })
 
@@ -275,7 +276,7 @@ describe('skillManagementService', () => {
 
     expect(fs.existsSync(path.join(skillsRoot, 'writer'))).toBe(false)
     const index = await reader.listSkills()
-    expect(index.skills.map(item => item.name)).toEqual(['ant-chat-manager', 'image-recognition', 'skill-installer', 'visualize'])
+    expect(index.skills.map(item => item.name)).toEqual(['ant-chat-manager', 'image-generation', 'image-recognition', 'skill-installer', 'visualize'])
   })
 
   it('.index.json 使用新版格式（version: 1, skills map）', async () => {

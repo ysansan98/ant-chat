@@ -14,10 +14,16 @@ export interface ControlEndpointMeta {
   authToken: string
 }
 
+export interface SocketSendOptions {
+  /**
+   * 响应等待超时（ms）。调用方决定超时、无系统默认：
+   * 未设置时阻塞等待（由外层调用者兜底：execute_command 的 timeoutMs / 人工 Ctrl-C），
+   * 断连会传播为后端 AbortSignal 停止任务。
+   */
+  timeoutMs?: number
+}
+
 const CONNECT_TIMEOUT_MS = 5_000
-// 视觉模型识别是同步调用，慢模型可能超过 60 秒；与 image-recognition SKILL 建议的
-// execute_command timeoutMs 对齐，避免 CLI 比调用方更早放弃。
-const RESPONSE_TIMEOUT_MS = 120_000
 
 export class SocketClient {
   private meta?: ControlEndpointMeta
@@ -81,7 +87,7 @@ export class SocketClient {
   }
 
   /** 发送命令并等待响应 */
-  async send(command: AppControlCommand): Promise<{ ok: boolean, result?: AppControlResult, error?: { code: string, message: string } }> {
+  async send(command: AppControlCommand, options: SocketSendOptions = {}): Promise<{ ok: boolean, result?: AppControlResult, error?: { code: string, message: string } }> {
     const meta = this.loadMeta()
     const { endpoint, authToken } = meta
 
@@ -114,10 +120,13 @@ export class SocketClient {
         const request = `${JSON.stringify({ auth: authToken, command })}\n`
         socket.write(request)
 
-        responseTimer = setTimeout(() => {
-          cleanup()
-          reject(new Error('等待响应超时'))
-        }, RESPONSE_TIMEOUT_MS)
+        // 未设置 timeoutMs 时不设响应超时：阻塞等待，由调用方决定何时放弃。
+        if (options.timeoutMs !== undefined) {
+          responseTimer = setTimeout(() => {
+            cleanup()
+            reject(new Error('等待响应超时'))
+          }, options.timeoutMs)
+        }
       })
 
       socket.on('data', (chunk: Buffer) => {

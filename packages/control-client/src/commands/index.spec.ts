@@ -1,10 +1,11 @@
 import type { AppControlCommand } from '@ant-chat/shared'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import path from 'node:path'
 import { executeCommand } from './index'
 
 function createClient(result: object = { deleted: true }) {
   return {
-    send: vi.fn(async (_command: AppControlCommand) => ({ ok: true as const, result })),
+    send: vi.fn(async (_command: AppControlCommand, _options?: { timeoutMs?: number }) => ({ ok: true as const, result })),
   }
 }
 
@@ -35,7 +36,7 @@ describe('ant-chat CLI 命令', () => {
       baseUrl: 'https://api.openai.com/v1',
       name: 'OpenAI',
       type: 'provider',
-    }))
+    }), { timeoutMs: undefined })
   })
 
   it('将自动化的调度与上下文参数完整传给控制面', async () => {
@@ -68,7 +69,7 @@ describe('ant-chat CLI 命令', () => {
       allowedSkills: ['writer', 'review'],
       type: 'automation',
       workspacePath: '/workspace',
-    })
+    }, { timeoutMs: undefined })
   })
 
   it('允许外部 CLI 显式提交真实 API Key', async () => {
@@ -88,7 +89,7 @@ describe('ant-chat CLI 命令', () => {
       apiKey: 'sk-local',
       id: 'provider-1',
       type: 'provider',
-    })
+    }, { timeoutMs: undefined })
   })
 
   it('允许 Skill 通过 bash.secretEnv 给 provider key:set 注入 API Key', async () => {
@@ -108,7 +109,7 @@ describe('ant-chat CLI 命令', () => {
       apiKey: 'sk-from-env',
       id: 'provider-1',
       type: 'provider',
-    })
+    }, { timeoutMs: undefined })
   })
 
   it('允许 Skill 通过 bash.secretEnv 给 SSE MCP headers 注入敏感值', async () => {
@@ -130,7 +131,7 @@ describe('ant-chat CLI 命令', () => {
       headers: { Authorization: 'Bearer secret' },
       serverName: 'remote',
       type: 'mcp',
-    }))
+    }), { timeoutMs: undefined })
   })
 
   it('更新 provider 时转换 kebab-case 参数和布尔值', async () => {
@@ -153,7 +154,7 @@ describe('ant-chat CLI 命令', () => {
       id: 'provider-1',
       isEnabled: false,
       type: 'provider',
-    })
+    }, { timeoutMs: undefined })
   })
 
   it('解析 image recognize 的位置参数与可选参数', async () => {
@@ -176,7 +177,7 @@ describe('ant-chat CLI 命令', () => {
       prompt: '描述这张图',
       providerId: 'provider-1',
       modelId: 'gpt-vision',
-    })
+    }, { timeoutMs: undefined })
   })
 
   it('image recognize 缺省可选参数时只传 path', async () => {
@@ -188,7 +189,7 @@ describe('ant-chat CLI 命令', () => {
       type: 'image',
       action: 'recognize',
       path: './photo.png',
-    })
+    }, { timeoutMs: undefined })
   })
 
   it('image recognize 支持 --file-id 识别聊天附件', async () => {
@@ -206,7 +207,7 @@ describe('ant-chat CLI 命令', () => {
       action: 'recognize',
       fileId: 'img-1',
       prompt: '描述这张图',
-    })
+    }, { timeoutMs: undefined })
   })
 
   it('image recognize 支持空格形式 --file-id <id>（值不泄漏为 path）', async () => {
@@ -223,7 +224,7 @@ describe('ant-chat CLI 命令', () => {
       type: 'image',
       action: 'recognize',
       fileId: 'img-1',
-    })
+    }, { timeoutMs: undefined })
   })
 
   it('image recognize 缺少 path 和 --file-id 时报用法错误', async () => {
@@ -242,5 +243,90 @@ describe('ant-chat CLI 命令', () => {
 
     expect(result.exitCode).toBe(1)
     expect(result.error).toContain('ant-chat image recognize')
+  })
+
+  it('image generate 解析参数并把响应超时同时透传给命令与 socket 选项', async () => {
+    const client = createClient({ providerId: 'modelscope', modelId: 'Qwen/Qwen-Image', files: [], taskId: 'task-1', elapsedMs: 100 })
+
+    const result = await executeCommand(client as never, [
+      'image',
+      'generate',
+      '--prompt=一只金色小猫',
+      '--width=1024',
+      '--height=1024',
+      '--output=./imgs',
+      '--timeout=60000',
+    ], { json: true })
+
+    expect(result.exitCode).toBe(0)
+    expect(client.send).toHaveBeenCalledWith({
+      type: 'image',
+      action: 'generate',
+      prompt: '一只金色小猫',
+      width: 1024,
+      height: 1024,
+      outputDir: path.resolve('./imgs'),
+      timeoutMs: 60_000,
+    }, { timeoutMs: 60_000 })
+  })
+
+  it('image generate 缺省产物目录为 ./generated，未传超时时不设响应超时', async () => {
+    const client = createClient({ providerId: 'modelscope', modelId: 'Qwen/Qwen-Image', files: [], elapsedMs: 100 })
+
+    await executeCommand(client as never, ['image', 'generate', '--prompt=cat'], { json: false })
+
+    expect(client.send).toHaveBeenCalledWith({
+      type: 'image',
+      action: 'generate',
+      prompt: 'cat',
+      outputDir: path.resolve('./generated'),
+    }, { timeoutMs: undefined })
+  })
+
+  it('image recognize 的 --timeout 只约束响应等待，不透传进命令', async () => {
+    const client = createClient({ providerId: 'provider-1', modelId: 'vision-model', text: 'ok' })
+
+    await executeCommand(client as never, [
+      'image',
+      'recognize',
+      '--file-id=img-1',
+      '--timeout=150000',
+    ], { json: true })
+
+    expect(client.send).toHaveBeenCalledWith({
+      type: 'image',
+      action: 'recognize',
+      fileId: 'img-1',
+    }, { timeoutMs: 150_000 })
+  })
+
+  it('image generate 尺寸非整数时报可读错误且不发送命令', async () => {
+    const client = createClient()
+
+    const result = await executeCommand(client as never, ['image', 'generate', '--prompt=cat', '--width=1024.5'], { json: false })
+
+    expect(result.exitCode).toBe(1)
+    expect(result.error).toContain('--width 必须是正整数')
+    expect(client.send).not.toHaveBeenCalled()
+  })
+
+  it('settings show 人类可读输出包含图像生成模型', async () => {
+    const client = createClient({
+      settings: {
+        appearance: { mode: 'dark' },
+        assistantProviderId: 'provider-1',
+        assistantModelId: 'model-1',
+        visionProviderId: '',
+        visionModelId: '',
+        imageGenProviderId: 'modelscope',
+        imageGenModelId: 'Qwen/Qwen-Image',
+        proxySettings: { mode: 'none' },
+      },
+    })
+
+    const result = await executeCommand(client as never, ['settings', 'show'], { json: false })
+
+    expect(result.exitCode).toBe(0)
+    expect(result.output).toContain('Image generation: modelscope / Qwen/Qwen-Image')
   })
 })

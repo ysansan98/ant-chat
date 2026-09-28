@@ -12,7 +12,19 @@ import type { KeychainSecretStore } from '../../../../secretStore'
 import type { SystemLogger } from '../../../../systemLogger'
 import { ProviderModule, resolveProviderApiKey } from '../index'
 import { createCodexProviderIntegration } from '../codexIntegration'
+import { createModelScopeProviderIntegration } from '../modelscopeIntegration'
 import type { ProviderIntegration } from '../providerIntegration'
+
+/** 与真实 composition root 一致的内置 Integration 注册面（DEFAULT_APP_SETTINGS 含对应 Provider）。 */
+function createRegisteredIntegrations(secretStore: KeychainSecretStore): Array<[string, ProviderIntegration]> {
+  return [
+    ['codex-subscription', createCodexProviderIntegration(secretStore)],
+    ['modelscope', createModelScopeProviderIntegration({
+      listModelsDevModels: vi.fn(async () => []),
+      credentialStore: secretStore,
+    })],
+  ]
+}
 
 describe('provider module 模型同步行为', () => {
   let directory: string
@@ -76,7 +88,7 @@ describe('provider module 模型同步行为', () => {
       { emit } as unknown as RuntimeEventBus,
       { info: vi.fn(), warn: vi.fn(), error: vi.fn() } as unknown as SystemLogger,
       undefined,
-      [['codex-subscription', createCodexProviderIntegration(secretStore)]],
+      createRegisteredIntegrations(secretStore),
     )
 
     const models = await module.syncModels({ providerId: 'codex' })
@@ -123,7 +135,7 @@ describe('provider module 模型同步行为', () => {
       { emit } as unknown as RuntimeEventBus,
       { info: vi.fn(), warn: vi.fn(), error: vi.fn() } as unknown as SystemLogger,
       undefined,
-      [['codex-subscription', createCodexProviderIntegration(secretStore)]],
+      createRegisteredIntegrations(secretStore),
     )
 
     const created = await module.createProvider({
@@ -146,6 +158,13 @@ describe('provider module 模型同步行为', () => {
         authentication: 'oauth',
         fixedApiMode: 'openai',
         fixedBaseUrl: 'https://chatgpt.com/backend-api/codex',
+      }),
+      expect.objectContaining({
+        id: 'modelscope',
+        label: 'ModelScope',
+        authentication: 'api-key',
+        fixedApiMode: 'openai',
+        fixedBaseUrl: 'https://api-inference.modelscope.cn/v1',
       }),
     ])
     expect(created.capabilities).toEqual(expect.objectContaining({
@@ -182,7 +201,7 @@ describe('provider module 模型同步行为', () => {
       { emit: vi.fn() } as unknown as RuntimeEventBus,
       { info: vi.fn(), warn: vi.fn(), error: vi.fn() } as unknown as SystemLogger,
       undefined,
-      [['codex-subscription', createCodexProviderIntegration(secretStore)]],
+      createRegisteredIntegrations(secretStore),
     )
 
     const created = await module.createProvider({
@@ -254,7 +273,7 @@ describe('provider module 认证生命周期撤销', () => {
       { emit } as unknown as RuntimeEventBus,
       { info: vi.fn(), warn: vi.fn(), error: vi.fn() } as unknown as SystemLogger,
       undefined,
-      [['codex-subscription', createCodexProviderIntegration(completeSecretStore)]],
+      createRegisteredIntegrations(completeSecretStore),
     )
     return { module, repository }
   }
@@ -647,5 +666,80 @@ describe('provider module 认证生命周期撤销', () => {
       undefined,
       [['codex-subscription', inconsistent]],
     )).toThrow('没有 auth adapter')
+  })
+
+  it('getMediaGenerator 按 Integration 声明的能力返回生成器，未声明时 fail closed', () => {
+    const mediaProvider = {
+      ...DEFAULT_APP_SETTINGS.providers[0],
+      id: 'modelscope',
+      name: 'ModelScope',
+      baseUrl: 'https://api-inference.modelscope.cn/v1',
+      integrationId: 'modelscope',
+    }
+    const repository = new ProviderSettingsRepository(new AppSettingsStore({
+      filePath: join(directory, 'settings.json'),
+      initialSettings: { ...DEFAULT_APP_SETTINGS, providers: [mediaProvider] },
+    }))
+    const secretStore = { deleteProviderApiKey: vi.fn(async () => {}) } as unknown as KeychainSecretStore
+    const generator = { generate: vi.fn() }
+    const integration = {
+      descriptor: { label: 'ModelScope', defaultApiMode: 'openai' as const },
+      capabilities: {
+        authentication: 'api-key' as const,
+        modelSource: 'provider' as const,
+        localAuthImport: false,
+        usage: 'none' as const,
+        endpoint: 'fixed' as const,
+      },
+      modelSource: { listModels: vi.fn(async () => []) },
+      validateConfig: vi.fn(),
+      prepareRevoke: vi.fn(async () => ({ commit: vi.fn(), rollback: vi.fn() })),
+      mediaGeneration: { image: () => generator },
+    } as unknown as ProviderIntegration
+    const module = new ProviderModule(
+      repository,
+      secretStore,
+      { emit: vi.fn() } as unknown as RuntimeEventBus,
+      { info: vi.fn(), warn: vi.fn(), error: vi.fn() } as unknown as SystemLogger,
+      undefined,
+      [['modelscope', integration]],
+    )
+
+    const provider = repository.getProviderById('modelscope')!
+    expect(module.getMediaGenerator(provider, 'image')).toBe(generator)
+    // 未声明的能力（video）必须返回 undefined，由调用方给出可读错误。
+    expect(module.getMediaGenerator(provider, 'video')).toBeUndefined()
+  })
+
+  it('注册期拒绝 mediaGeneration 声明为非工厂函数的 Integration', () => {
+    const repository = new ProviderSettingsRepository(new AppSettingsStore({
+      filePath: join(directory, 'settings.json'),
+      initialSettings: DEFAULT_APP_SETTINGS,
+    }))
+    const secretStore = { deleteProviderApiKey: vi.fn(async () => {}) } as unknown as KeychainSecretStore
+    const inconsistent = {
+      descriptor: { label: 'Broken', defaultApiMode: 'openai' },
+      capabilities: {
+        authentication: 'api-key',
+        modelSource: 'provider',
+        localAuthImport: false,
+        usage: 'none',
+        endpoint: 'custom',
+      },
+      modelSource: { listModels: vi.fn(async () => []) },
+      validateConfig: vi.fn(),
+      prepareRevoke: vi.fn(async () => ({ commit: vi.fn(), rollback: vi.fn() })),
+      // 故意把工厂写成字符串，验证注册期 fail-fast。
+      mediaGeneration: { image: 'not-a-factory' },
+    } as unknown as ProviderIntegration
+
+    expect(() => new ProviderModule(
+      repository,
+      secretStore,
+      { emit: vi.fn() } as unknown as RuntimeEventBus,
+      { info: vi.fn(), warn: vi.fn(), error: vi.fn() } as unknown as SystemLogger,
+      undefined,
+      [['modelscope', inconsistent]],
+    )).toThrow('mediaGeneration.image 必须是 generator 工厂函数')
   })
 })

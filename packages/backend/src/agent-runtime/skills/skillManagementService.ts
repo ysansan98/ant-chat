@@ -24,6 +24,7 @@ const BUILTIN_SKILL_INSTALLER = 'skill-installer'
 const BUILTIN_SKILL_MANAGER = 'ant-chat-manager'
 const BUILTIN_SKILL_VISUALIZE = 'visualize'
 const BUILTIN_SKILL_IMAGE_RECOGNITION = 'image-recognition'
+const BUILTIN_SKILL_IMAGE_GENERATION = 'image-generation'
 /** base64 大小上限（约 24MB 的 zip 内容），防止超大上传拖垮本地服务。 */
 const MAX_SKILL_ZIP_BASE64 = 32 * 1024 * 1024
 
@@ -104,8 +105,9 @@ export class SkillManagementService {
     await this.migrateFromManifestJson()
     await this.ensureBuiltinSkillInstaller()
     await this.ensureBuiltinAntChatManager()
-    await this.ensureBuiltinVisualize()
-    await this.ensureBuiltinImageRecognition()
+    await this.ensureBuiltinSkill(BUILTIN_SKILL_VISUALIZE)
+    await this.ensureBuiltinSkill(BUILTIN_SKILL_IMAGE_RECOGNITION)
+    await this.ensureBuiltinSkill(BUILTIN_SKILL_IMAGE_GENERATION)
   }
 
   async listSkills(): Promise<SkillIndex> {
@@ -546,36 +548,17 @@ export class SkillManagementService {
     }
   }
 
-  /** 确保可视化 Skill 的协议文件存在，并保持用户启用状态不被初始化覆盖。 */
-  private async ensureBuiltinVisualize(): Promise<void> {
-    const skillPath = path.join(this.skillsRoot, BUILTIN_SKILL_VISUALIZE)
-    const sourcePath = path.join(this.builtinSkillsSourceRoot, BUILTIN_SKILL_VISUALIZE)
-    await copyDirectory(sourcePath, skillPath)
+  /** 安装/更新一个「目录复制」型内置 Skill，并保持用户启用状态不被初始化覆盖。 */
+  private async ensureBuiltinSkill(name: string): Promise<void> {
+    await copyDirectory(
+      path.join(this.builtinSkillsSourceRoot, name),
+      path.join(this.skillsRoot, name),
+    )
 
     const appState = await this.readAppState()
-    if (!appState[BUILTIN_SKILL_VISUALIZE]) {
+    if (!appState[name]) {
       const now = Date.now()
-      appState[BUILTIN_SKILL_VISUALIZE] = {
-        enabled: true,
-        builtin: true,
-        source: 'builtin',
-        installedAt: now,
-        updatedAt: now,
-      }
-      await this.writeAppState(appState)
-    }
-  }
-
-  /** 确保内置图像识别 Skill 存在（纯文本主模型收到图片时由 agent 调用识别命令）。 */
-  private async ensureBuiltinImageRecognition(): Promise<void> {
-    const skillPath = path.join(this.skillsRoot, BUILTIN_SKILL_IMAGE_RECOGNITION)
-    const sourcePath = path.join(this.builtinSkillsSourceRoot, BUILTIN_SKILL_IMAGE_RECOGNITION)
-    await copyDirectory(sourcePath, skillPath)
-
-    const appState = await this.readAppState()
-    if (!appState[BUILTIN_SKILL_IMAGE_RECOGNITION]) {
-      const now = Date.now()
-      appState[BUILTIN_SKILL_IMAGE_RECOGNITION] = {
+      appState[name] = {
         enabled: true,
         builtin: true,
         source: 'builtin',

@@ -1,4 +1,5 @@
 import type { AppControlResult } from '@ant-chat/shared'
+import type { AppControlExecutor } from './localControlServer'
 import { connect } from 'node:net'
 import fs from 'node:fs'
 import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
@@ -27,6 +28,8 @@ describe('localControlServer', () => {
           assistantProviderId: 'provider-1',
           visionModelId: '',
           visionProviderId: '',
+          imageGenModelId: '',
+          imageGenProviderId: '',
           defaultModelId: '',
           defaultProviderId: '',
           autoGenerateTitle: true,
@@ -192,6 +195,71 @@ describe('localControlServer', () => {
 
     await expect(first.start()).resolves.toBeUndefined()
     await expect(second.start()).resolves.toBeUndefined()
+  })
+
+  it('请求执行中断开连接时把断连传播为 AbortSignal', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'ant-chat-control-'))
+    roots.push(root)
+    let observedSignal: AbortSignal | undefined
+    let releaseExecution!: () => void
+    const appControl: AppControlExecutor = {
+      execute: vi.fn(async (_command, options): Promise<AppControlResult> => {
+        observedSignal = options?.signal
+        await new Promise<void>((resolve) => {
+          releaseExecution = resolve
+        })
+        return { settings: { assistantModelId: 'model-1' } } as unknown as AppControlResult
+      }),
+    }
+    const server = new LocalControlServer(appControl, { appDataRoot: root })
+    servers.push(server)
+    await server.start()
+
+    const meta = JSON.parse(await readFile(path.join(root, '.control-endpoint.json'), 'utf8')) as {
+      authToken: string
+      endpoint: string
+    }
+    const socket = connect(meta.endpoint)
+    await new Promise<void>((resolve, reject) => {
+      socket.once('connect', () => resolve())
+      socket.once('error', reject)
+    })
+    socket.write(`${JSON.stringify({ auth: meta.authToken, command: { action: 'show', type: 'settings' } })}\n`)
+    await vi.waitFor(() => expect(observedSignal).toBeDefined())
+
+    // CLI 进程被杀 / 超时自杀：连接断开，执行中的命令必须收到 abort。
+    socket.destroy()
+    await vi.waitFor(() => expect(observedSignal?.aborted).toBe(true))
+    expect(observedSignal?.reason).toBeInstanceOf(Error)
+    releaseExecution()
+  })
+
+  it('正常响应写回后关闭连接不触发取消', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'ant-chat-control-'))
+    roots.push(root)
+    let observedSignal: AbortSignal | undefined
+    const appControl: AppControlExecutor = {
+      execute: vi.fn(async (_command, options): Promise<AppControlResult> => {
+        observedSignal = options?.signal
+        return { settings: { assistantModelId: 'model-1' } } as unknown as AppControlResult
+      }),
+    }
+    const server = new LocalControlServer(appControl, { appDataRoot: root })
+    servers.push(server)
+    await server.start()
+
+    const meta = JSON.parse(await readFile(path.join(root, '.control-endpoint.json'), 'utf8')) as {
+      authToken: string
+      endpoint: string
+    }
+    await expect(sendRequest(meta.endpoint, { auth: meta.authToken, command: { action: 'show', type: 'settings' } }))
+      .resolves
+      .toMatchObject({ ok: true })
+    // 客户端收到响应后会立即关闭连接；等 close 事件处理完再断言未被误判为断连。
+    await new Promise(resolve => setTimeout(resolve, 20))
+
+    expect(observedSignal).toBeDefined()
+    expect(observedSignal?.aborted).toBe(false)
   })
 })
 

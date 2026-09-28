@@ -1,5 +1,55 @@
 import type { IAIProvider, ModelsDevModel, ProviderAuthStatus, ProviderCapabilities, ProviderConfigModelSchema, ProviderConfigSchema, ProviderFormat, ProviderIntegrationId, ProviderUsageStatus } from '@ant-chat/shared'
 
+/** 媒体生成种类；Integration 按能力分类声明，实例自知种类。 */
+export type MediaKind = 'image' | 'video'
+
+/**
+ * 媒体生成请求。
+ *
+ * 不带 `kind` 字段：generator 由 `Partial<Record<MediaKind, MediaGeneratorFactory>>`
+ * 按能力分类创建，请求再带 `kind` 存在不一致风险（`kind: 'image'` 打到 video generator）。
+ */
+export interface MediaGenerationRequest {
+  model: string
+  prompt: string
+  /**
+   * 目标尺寸（像素）。通用接口用数字对，厂商格式（如 ModelScope 的 '1024x1024'）
+   * 由 Integration 内部转换——接第二家厂商时尺寸表达分歧不再侵入调用方。
+   */
+  width?: number
+  height?: number
+  negativePrompt?: string
+  steps?: number
+  guidance?: number
+  seed?: number
+  /** 产物落地目录（绝对路径），由调用方显式传入（CLI `--output`），后端必填校验、无默认。 */
+  outputDir: string
+  /** 总超时（ms）；未传时不主动超时，依赖 AbortSignal 取消（调用方决定超时）。 */
+  timeoutMs?: number
+  signal?: AbortSignal
+}
+
+export interface MediaGenerationResult {
+  providerId: string
+  modelId: string
+  /** 已下载到本地的产物。 */
+  files: Array<{ path: string, mediaType: string, bytes: number }>
+  taskId?: string
+  elapsedMs: number
+}
+
+/**
+ * 单一 provider 的媒体生成器。
+ *
+ * 异步协议（submit + poll）封在 Integration 内部，对上层是带 `AbortSignal`
+ * 的 Promise——上层不需要知道 ModelScope 是异步的、OpenAI 是同步的。
+ */
+export interface MediaGenerator {
+  generate: (request: MediaGenerationRequest) => Promise<MediaGenerationResult>
+}
+
+export type MediaGeneratorFactory = (provider: ProviderConfigSchema) => MediaGenerator
+
 export interface ProviderModelDefinition {
   id: string
   name: string
@@ -42,6 +92,8 @@ export interface ProviderIntegration {
   prepareRevoke: (provider: ProviderConfigSchema) => Promise<PreparedCredentialRevocation>
   auth?: ProviderAuthAdapter
   createAIProvider?: (provider: ProviderConfigSchema) => Promise<IAIProvider>
+  /** 生成类能力通道；未实现的能力不声明，调用方 fail closed。 */
+  mediaGeneration?: Partial<Record<MediaKind, MediaGeneratorFactory>>
   getUsage?: (provider: ProviderConfigSchema) => Promise<ProviderUsageStatus>
   /** 卸载单个 Provider 的内存状态（会话/coordinator），不删除持久化凭据。 */
   discard?: (providerId: string) => void

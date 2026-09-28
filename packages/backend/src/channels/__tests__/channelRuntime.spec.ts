@@ -224,6 +224,8 @@ describe('channelRuntime 入站行为', () => {
       assistantProviderId: 'assistant-provider',
       visionModelId: '',
       visionProviderId: '',
+      imageGenModelId: '',
+      imageGenProviderId: '',
       defaultModelId: '',
       defaultProviderId: '',
       autoGenerateTitle: false,

@@ -28,7 +28,7 @@ import type { ControlPlaneModules } from './controlPlane'
 export class AppControl {
   constructor(private readonly modules: ControlPlaneModules) {}
 
-  async execute(command: AppControlCommand): Promise<AppControlResult> {
+  async execute(command: AppControlCommand, options: { signal?: AbortSignal } = {}): Promise<AppControlResult> {
     switch (command.type) {
       case 'settings':
         return await this.executeSettings(command)
@@ -41,7 +41,7 @@ export class AppControl {
       case 'channel':
         return await this.executeChannel(command)
       case 'image':
-        return await this.executeImage(command)
+        return await this.executeImage(command, options)
     }
   }
 
@@ -270,7 +270,10 @@ export class AppControl {
     }
   }
 
-  private async executeImage(command: ImageCommand): Promise<AppControlResultFor<ImageCommand>> {
+  private async executeImage(
+    command: ImageCommand,
+    options: { signal?: AbortSignal } = {},
+  ): Promise<AppControlResultFor<ImageCommand>> {
     switch (command.action) {
       case 'recognize': {
         if (!this.modules.image) {
@@ -284,6 +287,19 @@ export class AppControl {
           ...(command.modelId ? { modelId: command.modelId } : {}),
         })
         return result
+      }
+      case 'generate': {
+        if (!this.modules.generation) {
+          throw new Error('图像生成能力未启用')
+        }
+        return await this.modules.generation.generateImage({
+          prompt: command.prompt,
+          ...(command.width !== undefined ? { width: command.width } : {}),
+          ...(command.height !== undefined ? { height: command.height } : {}),
+          outputDir: command.outputDir,
+          ...(command.timeoutMs !== undefined ? { timeoutMs: command.timeoutMs } : {}),
+          ...(options.signal ? { signal: options.signal } : {}),
+        })
       }
     }
   }

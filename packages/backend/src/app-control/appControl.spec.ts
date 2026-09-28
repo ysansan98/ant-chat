@@ -118,6 +118,55 @@ describe('appControl 行为', () => {
     })
   })
 
+  it('image generate 转发到 GenerationModule 并透传尺寸、目录、超时与断连信号', async () => {
+    const generation = {
+      generateImage: vi.fn(async () => ({
+        providerId: 'modelscope',
+        modelId: 'Qwen/Qwen-Image',
+        files: [{ path: '/tmp/generated/a.png', mediaType: 'image/png', bytes: 2048 }],
+        taskId: 'task-1',
+        elapsedMs: 12_345,
+      })),
+    }
+    const control = new AppControl({ automation, generation, image, mcp, provider, settings })
+    const controller = new AbortController()
+
+    const result = await control.execute({
+      type: 'image',
+      action: 'generate',
+      prompt: '一只金色小猫',
+      width: 1024,
+      height: 1024,
+      outputDir: './generated',
+      timeoutMs: 300_000,
+    }, { signal: controller.signal })
+
+    expect(generation.generateImage).toHaveBeenCalledWith({
+      prompt: '一只金色小猫',
+      width: 1024,
+      height: 1024,
+      outputDir: './generated',
+      timeoutMs: 300_000,
+      signal: controller.signal,
+    })
+    expect(result).toEqual({
+      providerId: 'modelscope',
+      modelId: 'Qwen/Qwen-Image',
+      files: [{ path: '/tmp/generated/a.png', mediaType: 'image/png', bytes: 2048 }],
+      taskId: 'task-1',
+      elapsedMs: 12_345,
+    })
+  })
+
+  it('未启用 GenerationModule 时 image generate 报可读错误', async () => {
+    await expect(createControl().execute({
+      type: 'image',
+      action: 'generate',
+      prompt: '猫',
+      outputDir: './generated',
+    })).rejects.toThrow('图像生成能力未启用')
+  })
+
   it('保存真实 API Key 时交由 provider module 管理密钥生命周期', async () => {
     provider.updateProvider.mockResolvedValue({ id: 'provider-1', hasApiKey: true })
 

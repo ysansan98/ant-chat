@@ -5,11 +5,21 @@ import { Input } from '@workspace/ui/components/input'
 import { InputNumber } from '@workspace/ui/components/input-number'
 import { Switch } from '@workspace/ui/components/switch'
 import React from 'react'
-import { INPUT_MODALITY_LABELS } from './modelCapabilities'
+import { INPUT_MODALITY_OPTIONS, OUTPUT_MODALITY_OPTIONS } from './modelCapabilities'
 
 type AddModelForm = Omit<CreateProviderConfigModelSchema, 'providerId'>
 
-const INPUT_MODALITY_OPTIONS = Object.entries(INPUT_MODALITY_LABELS).map(([value, label]) => ({ value, label }))
+/** 切换 Set 中的一项（含/不含），返回新 Set。 */
+function toggledSet<T>(prev: Set<T>, value: T, checked: boolean): Set<T> {
+  const next = new Set(prev)
+  if (checked) {
+    next.add(value)
+  }
+  else {
+    next.delete(value)
+  }
+  return next
+}
 
 // 与 ModelSelect 的推理强度文案保持一致；provider-default 是运行时默认值，不属于模型能力档位。
 const REASONING_EFFORT_OPTIONS: { value: ReasoningEffortLevel, label: string }[] = [
@@ -38,6 +48,7 @@ export function AddModelFormModal({ open, title, onCancel, onSave }: AddModelFor
   const [reasoning, setReasoning] = React.useState(false)
   const [reasoningLevels, setReasoningLevels] = React.useState<Set<ReasoningEffortLevel>>(new Set())
   const [inputModalities, setInputModalities] = React.useState<Set<string>>(new Set(['text']))
+  const [outputModalities, setOutputModalities] = React.useState<Set<string>>(new Set())
   const [prevOpen, setPrevOpen] = React.useState(open)
 
   // 弹窗关闭（取消/X/ESC/父组件置 false）时清空表单，避免下次打开残留数据；
@@ -59,6 +70,7 @@ export function AddModelFormModal({ open, title, onCancel, onSave }: AddModelFor
     setReasoning(false)
     setReasoningLevels(new Set())
     setInputModalities(new Set(['text']))
+    setOutputModalities(new Set())
   }
 
   const handleClose = () => {
@@ -66,33 +78,20 @@ export function AddModelFormModal({ open, title, onCancel, onSave }: AddModelFor
   }
 
   const toggleModality = (modality: string, checked: boolean) => {
-    setInputModalities((prev) => {
-      const next = new Set(prev)
-      if (checked) {
-        next.add(modality)
-      }
-      else {
-        next.delete(modality)
-      }
-      return next
-    })
+    setInputModalities(prev => toggledSet(prev, modality, checked))
+  }
+
+  const toggleOutputModality = (modality: string, checked: boolean) => {
+    setOutputModalities(prev => toggledSet(prev, modality, checked))
   }
 
   const toggleReasoningLevel = (level: ReasoningEffortLevel, checked: boolean) => {
-    setReasoningLevels((prev) => {
-      const next = new Set(prev)
-      if (checked) {
-        next.add(level)
-      }
-      else {
-        next.delete(level)
-      }
-      return next
-    })
+    setReasoningLevels(prev => toggledSet(prev, level, checked))
   }
 
   const hasInputModalities = inputModalities.size > 0
-  const hasFeatures = functionCall || reasoning || hasInputModalities
+  const hasOutputModalities = outputModalities.size > 0
+  const hasFeatures = functionCall || reasoning || hasInputModalities || hasOutputModalities
 
   const handleSave = () => {
     onSave?.({
@@ -108,6 +107,8 @@ export function AddModelFormModal({ open, title, onCancel, onSave }: AddModelFor
             reasoning: reasoning || undefined,
             reasoningLevels: reasoningLevels.size > 0 ? Array.from(reasoningLevels) : undefined,
             inputModalities: hasInputModalities ? Array.from(inputModalities) as ('text' | 'image' | 'pdf' | 'video' | 'audio')[] : undefined,
+            // 输出类型标注（图片/视频）驱动生图/生视频选择器按 outputModalities 过滤。
+            outputModalities: hasOutputModalities ? Array.from(outputModalities) as ('text' | 'image' | 'video' | 'audio' | 'pdf')[] : undefined,
           }
         : undefined,
     } as AddModelForm)
@@ -191,6 +192,24 @@ export function AddModelFormModal({ open, title, onCancel, onSave }: AddModelFor
                   aria-pressed={inputModalities.has(opt.value)}
                   aria-label={`输入类型 ${opt.label}`}
                   onClick={() => toggleModality(opt.value, !inputModalities.has(opt.value))}
+                >
+                  {opt.label}
+                </Button>
+              ))}
+            </div>
+          </div>
+          <div className="col-span-2 flex items-center justify-between gap-4">
+            <span className="shrink-0 text-sm font-medium">支持输出类型</span>
+            <div className="flex flex-wrap justify-end gap-1.5">
+              {OUTPUT_MODALITY_OPTIONS.map(opt => (
+                <Button
+                  key={opt.value}
+                  type="button"
+                  size="xs"
+                  variant={outputModalities.has(opt.value) ? 'default' : 'outline'}
+                  aria-pressed={outputModalities.has(opt.value)}
+                  aria-label={`输出类型 ${opt.label}`}
+                  onClick={() => toggleOutputModality(opt.value, !outputModalities.has(opt.value))}
                 >
                   {opt.label}
                 </Button>

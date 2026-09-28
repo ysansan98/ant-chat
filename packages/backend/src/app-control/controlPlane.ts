@@ -37,6 +37,7 @@ export interface ControlPlaneModules {
   automation: AutomationControlPlane
   channel?: ChannelControlPlane
   image?: ImageControlPlane
+  generation?: GenerationControlPlane
 }
 
 export interface ChannelControlPlane {
@@ -113,5 +114,23 @@ export interface ImageControlPlane {
       reasoningTokens?: number
       cachedInputTokens?: number
     }
+  }>
+}
+
+export interface GenerationControlPlane {
+  /** 阻塞生成到完成；产物落盘即交付终点（agent 用 send_attachment 显式转发）。 */
+  generateImage: (input: {
+    prompt: string
+    width?: number
+    height?: number
+    outputDir: string
+    timeoutMs?: number
+    signal?: AbortSignal
+  }) => Promise<{
+    providerId: string
+    modelId: string
+    files: Array<{ path: string, mediaType: string, bytes: number }>
+    taskId?: string
+    elapsedMs: number
   }>
 }

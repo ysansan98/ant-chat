@@ -185,6 +185,20 @@ const ImageRecognizeCommandSchema = z.object({
   message: '图片路径与附件 file_id 必须且只能提供其一',
 })
 
+const ImageGenerateCommandSchema = z.object({
+  type: z.literal('image'),
+  action: z.literal('generate'),
+  /** 生成提示词。 */
+  prompt: z.string().trim().min(1),
+  /** 目标宽度（像素）；与 height 同时提供时生效，厂商格式由 Integration 内部转换。 */
+  width: z.number().int().positive().optional(),
+  height: z.number().int().positive().optional(),
+  /** 产物落地目录；由 CLI 显式传入（缺省 ./generated 相对 CLI 进程 cwd），后端不做 workspace 默认推导。 */
+  outputDir: NonEmptyStringSchema,
+  /** 总超时（ms）：同时约束 CLI 响应等待与后端生成总超时；未传时不设默认，由调用方兜底。 */
+  timeoutMs: z.number().int().positive().optional(),
+})
+
 export const AppControlCommandSchema = z.union([
   SettingsShowCommandSchema,
   SettingsThemeSetCommandSchema,
@@ -226,6 +240,7 @@ export const AppControlCommandSchema = z.union([
   ChannelStatusCommandSchema,
   ChannelToggleCommandSchema,
   ImageRecognizeCommandSchema,
+  ImageGenerateCommandSchema,
 ])
 
 export type AppControlCommand = z.infer<typeof AppControlCommandSchema>
@@ -289,6 +304,14 @@ export interface AppControlResultMap {
       reasoningTokens?: number
       cachedInputTokens?: number
     }
+  }
+  'image:generate': {
+    providerId: string
+    modelId: string
+    /** 已下载到本地的产物（供 agent 用 send_attachment 转发）。 */
+    files: Array<{ path: string, mediaType: string, bytes: number }>
+    taskId?: string
+    elapsedMs: number
   }
 }
 

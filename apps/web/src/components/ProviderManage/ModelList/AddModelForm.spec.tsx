@@ -100,6 +100,28 @@ describe('addModelFormModal 推理强度', () => {
   })
 })
 
+describe('addModelFormModal 输出类型标注', () => {
+  it('勾选输出类型后保存时提交 outputModalities（手填生图模型闭环）', () => {
+    const { onSave } = renderModal()
+    fireEvent.click(screen.getByRole('button', { name: '输出类型 图片' }))
+    fireEvent.click(screen.getByRole('button', { name: '确认' }))
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      capabilities: expect.objectContaining({
+        outputModalities: ['image'],
+      }),
+    }))
+  })
+
+  it('未勾选输出类型时不提交 outputModalities', () => {
+    const { onSave } = renderModal()
+    fireEvent.click(screen.getByRole('button', { name: '确认' }))
+
+    const payload = onSave.mock.calls[0][0]
+    expect(payload.capabilities?.outputModalities).toBeUndefined()
+  })
+})
+
 describe('addModelFormModal 表单清空', () => {
   it('关闭弹窗后重新打开，所有字段恢复默认值', () => {
     const { onSave } = renderHarness()
@@ -110,6 +132,7 @@ describe('addModelFormModal 表单清空', () => {
     fireEvent.click(screen.getByRole('switch', { name: '推理' }))
     fireEvent.click(screen.getByRole('button', { name: '推理强度 高' }))
     fireEvent.click(screen.getByRole('button', { name: '输入类型 图片' }))
+    fireEvent.click(screen.getByRole('button', { name: '输出类型 图片' }))
 
     // 点取消关闭
     fireEvent.click(screen.getByRole('button', { name: '取消' }))
@@ -122,6 +145,7 @@ describe('addModelFormModal 表单清空', () => {
     expect(screen.getByRole('switch', { name: '推理' })).not.toBeChecked()
     expect(screen.queryByText('推理强度')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '输入类型 图片' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: '输出类型 图片' })).toHaveAttribute('aria-pressed', 'false')
     expect(onSave).not.toHaveBeenCalled()
   })
 

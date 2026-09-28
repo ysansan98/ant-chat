@@ -6,7 +6,7 @@ import type { KeychainSecretStore } from '../../../secretStore'
 import type { SystemLogger } from '../../../systemLogger'
 import type { RuntimeModuleMethods } from '../../routeRegistry'
 import type { OAuthCallbackHost } from '../../types'
-import type { ProviderAuthAdapter, ProviderIntegration, ProviderIntegrationRegistry } from './providerIntegration'
+import type { MediaGenerator, MediaKind, ProviderAuthAdapter, ProviderIntegration, ProviderIntegrationRegistry } from './providerIntegration'
 import { randomUUID } from 'node:crypto'
 import { CreateProviderConfigSchema as CreateProviderConfigValidator, UpdateProviderConfigSchema as UpdateProviderConfigValidator } from '@ant-chat/shared'
 import { createProvider } from '../../../agent-core'
@@ -242,6 +242,15 @@ export class ProviderModule implements RuntimeModuleMethods<'provider'> {
     return syncedModels
   }
 
+  /**
+   * 解析 Integration 声明的媒体生成器（生图/生视频）；未声明该能力时返回
+   * undefined，由调用方 fail closed 给出可读错误，而不是静默回退。
+   */
+  getMediaGenerator(provider: ProviderConfigSchema, kind: MediaKind): MediaGenerator | undefined {
+    const factory = this.getIntegration(provider).mediaGeneration?.[kind]
+    return factory?.(provider)
+  }
+
   @Method()
   async startOAuthLogin(input: AppRpcInput<'provider.startOAuthLogin'>) {
     const provider = this.requireProvider(input.providerId)
@@ -351,7 +360,7 @@ export class ProviderModule implements RuntimeModuleMethods<'provider'> {
 }
 
 export async function resolveProviderApiKey(
-  secretStore: KeychainSecretStore,
+  secretStore: Pick<KeychainSecretStore, 'getProviderApiKey'>,
   provider: { id: string, apiKeySecretId?: string },
 ) {
   if (provider.apiKeySecretId) {
@@ -432,6 +441,11 @@ function assertIntegrationConsistent(id: string, integration: ProviderIntegratio
   }
   if (integration.capabilities.usage === 'quota' && !integration.getUsage) {
     throw new Error(`Integration ${id} 声明额度能力但没有 getUsage 方法。`)
+  }
+  for (const [kind, factory] of Object.entries(integration.mediaGeneration ?? {})) {
+    if (typeof factory !== 'function') {
+      throw new TypeError(`Integration ${id} 的 mediaGeneration.${kind} 必须是 generator 工厂函数。`)
+    }
   }
 }
 

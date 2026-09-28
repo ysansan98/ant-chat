@@ -8,6 +8,8 @@ export const DEFAULT_GENERAL_SETTINGS: GeneralSettingsState = {
   assistantProviderId: '',
   visionModelId: '',
   visionProviderId: '',
+  imageGenModelId: '',
+  imageGenProviderId: '',
   defaultModelId: '',
   defaultProviderId: '',
   autoGenerateTitle: false,

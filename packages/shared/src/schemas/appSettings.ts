@@ -46,6 +46,9 @@ export const AppSettingsSchema = z.object({
   /** 全局视觉模型（图像识别等视觉任务默认使用）。未设置时识别命令可回退到默认模型。 */
   visionModelId: z.string().default(''),
   visionProviderId: z.string().default(''),
+  /** 全局图像生成模型（图像生成命令默认使用）。未配置时生图命令报错并提示到设置页配置。 */
+  imageGenModelId: z.string().default(''),
+  imageGenProviderId: z.string().default(''),
   /** 用户最近一次在普通对话中显式选择的模型，用作新会话起始值。 */
   defaultModelId: z.string().default(''),
   defaultProviderId: z.string().default(''),

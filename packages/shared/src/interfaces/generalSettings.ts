@@ -8,6 +8,8 @@ export const GeneralSettingsSchema = AppSettingsSchema.pick({
   assistantProviderId: true,
   visionModelId: true,
   visionProviderId: true,
+  imageGenModelId: true,
+  imageGenProviderId: true,
   defaultModelId: true,
   defaultProviderId: true,
   autoGenerateTitle: true,
