@@ -62,8 +62,8 @@ export interface SettingsControlPlane {
 }
 
 export interface ProviderControlPlane {
-  listProviders: () => ProviderConfigSchema[]
-  getProviderById: (input: { id: string }) => ProviderConfigSchema
+  listProviders: () => Promise<ProviderConfigSchema[]>
+  getProviderById: (input: { id: string }) => Promise<ProviderConfigSchema>
   createProvider: (input: { config: CreateProviderConfigSchema }) => Promise<ProviderConfigSchema>
   updateProvider: (input: { config: UpdateProviderConfigSchema }) => Promise<ProviderConfigSchema>
   deleteProvider: (input: { id: string }) => Promise<null>

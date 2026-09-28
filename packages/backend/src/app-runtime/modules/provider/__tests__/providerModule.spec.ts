@@ -95,7 +95,7 @@ describe('provider module 模型同步行为', () => {
     expect(new Headers(fetchImpl.mock.calls[0][1]?.headers).get('ChatGPT-Account-ID')).toBeNull()
     expect(fetchImpl.mock.calls.every(([url]) => !String(url).includes('attacker.example'))).toBe(true)
     expect(emit).toHaveBeenCalledTimes(1)
-    const publicProvider = module.getProviderById({ id: 'codex' })
+    const publicProvider = await module.getProviderById({ id: 'codex' })
     expect(publicProvider).not.toHaveProperty('apiKey')
     expect(publicProvider).not.toHaveProperty('apiKeySecretId')
     expect(publicProvider.capabilities).toEqual(expect.objectContaining({
@@ -155,7 +155,7 @@ describe('provider module 模型同步行为', () => {
     }))
 
     // 重新从持久化状态读取，integrationId 不应因 repository 构造遗漏而丢失。
-    const reloaded = module.getProviderById({ id: 'custom-codex' })
+    const reloaded = await module.getProviderById({ id: 'custom-codex' })
     expect(reloaded.integrationId).toBe('codex-subscription')
     expect(reloaded.capabilities?.authentication).toBe('oauth')
 
@@ -341,6 +341,44 @@ describe('provider module 认证生命周期撤销', () => {
     expect(deleteProviderIntegrationCredential).toHaveBeenCalledWith({ providerId: 'codex', integrationId: 'codex-subscription' })
   })
 
+  it('updateProvider 提交空 API Key 时删除 Keychain 密钥并清除引用', async () => {
+    let storedKey: string | null = 'existing-key'
+    const deleteProviderApiKey = vi.fn(async () => {
+      storedKey = null
+    })
+    const { module, repository } = createModule({
+      getProviderApiKey: vi.fn(async () => storedKey),
+      saveProviderApiKey: vi.fn(async ({ providerId, apiKey }) => {
+        storedKey = apiKey
+        return { kind: 'secret_ref' as const, id: `provider:${providerId}:api_key`, scope: 'persistent' as const }
+      }),
+      deleteProviderApiKey,
+    })
+
+    await module.updateProvider({ config: { id: 'openai', apiKey: 'existing-key' } })
+    await expect(module.getProviderById({ id: 'openai' })).resolves.toMatchObject({ hasApiKey: true })
+    deleteProviderApiKey.mockClear()
+
+    await module.updateProvider({ config: { id: 'openai', apiKey: '' } })
+
+    expect(deleteProviderApiKey).toHaveBeenCalledWith('openai')
+    expect(repository.getProviderSettingsById('openai')).not.toHaveProperty('apiKeySecretId')
+    await expect(module.getProviderById({ id: 'openai' })).resolves.toMatchObject({ hasApiKey: false })
+  })
+
+  it('内置 Provider 预置 secret ref 但 Keychain 无密钥时 hasApiKey 为 false', async () => {
+    const { module } = createModule({
+      getProviderApiKey: vi.fn(async () => null),
+      deleteProviderApiKey: vi.fn(async () => {}),
+    })
+
+    await expect(module.listProviders()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'openai', hasApiKey: false }),
+      ]),
+    )
+  })
+
   it('updateProvider 从 API Key 切到订阅 Integration 时清除旧 API Key 引用', async () => {
     const deleteProviderApiKey = vi.fn(async () => {})
     const { module, repository } = createModule({
@@ -360,7 +398,7 @@ describe('provider module 认证生命周期撤销', () => {
 
     expect(deleteProviderApiKey).toHaveBeenCalledWith('openai')
     expect(repository.getProviderSettingsById('openai')).not.toHaveProperty('apiKeySecretId')
-    expect(module.getProviderById({ id: 'openai' }).hasApiKey).toBe(false)
+    await expect(module.getProviderById({ id: 'openai' })).resolves.toMatchObject({ hasApiKey: false })
   })
 
   it('updateProvider 按合并后的完整配置校验目标 Integration', async () => {

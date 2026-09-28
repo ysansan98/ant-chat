@@ -92,9 +92,95 @@ describe('providerSettingsPanel 状态隔离', () => {
     const keyInputB = screen.getByLabelText('API Key')
     expect(keyInputB).toHaveValue('')
 
-    fireEvent.blur(keyInputB)
-    // A 的 Key 草稿不得通过 blur 写入 B。
-    expect(onChange).not.toHaveBeenCalledWith(expect.objectContaining({ id: 'provider-b', apiKey: 'secret-for-a' }))
+    // A 的草稿被丢弃：B 上的保存入口消失，也没有任何提交。
+    expect(screen.queryByRole('button', { name: '保存' })).not.toBeInTheDocument()
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('占位符明确区分 API Key 已配置与未配置，且不回显明文', () => {
+    listProviderModels.mockResolvedValue([])
+    const { rerender } = render(<ProviderSettingsPanel item={apiKeyProvider('provider-a', { hasApiKey: true })} />)
+    expect(screen.getByLabelText('API Key')).toHaveAttribute('placeholder', '已配置，输入新 Key 可替换')
+    // 不再提供"显示密码"入口，输入始终掩码。
+    expect(screen.getByLabelText('API Key')).toHaveAttribute('type', 'password')
+
+    rerender(<ProviderSettingsPanel item={apiKeyProvider('provider-a')} />)
+    expect(screen.getByLabelText('API Key')).toHaveAttribute('placeholder', '未配置')
+  })
+
+  it('只聚焦不输入时，API Key 输入框失焦不提交空密钥', () => {
+    listProviderModels.mockResolvedValue([])
+    const onChange = vi.fn()
+    render(<ProviderSettingsPanel item={apiKeyProvider('provider-a', { hasApiKey: true })} onChange={onChange} />)
+
+    const keyInput = screen.getByLabelText('API Key')
+    fireEvent.focus(keyInput)
+    fireEvent.blur(keyInput)
+
+    expect(onChange).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: '保存' })).not.toBeInTheDocument()
+  })
+
+  it('输入过程中失焦不落盘，点击保存才提交新密钥', async () => {
+    listProviderModels.mockResolvedValue([])
+    const onChange = vi.fn<() => Promise<void>>(async () => {})
+    render(<ProviderSettingsPanel item={apiKeyProvider('provider-a', { hasApiKey: true })} onChange={onChange} />)
+
+    const keyInput = screen.getByLabelText('API Key')
+    fireEvent.change(keyInput, { target: { value: 'new-secret' } })
+    fireEvent.blur(keyInput)
+
+    // 输入后失焦只是草稿，不写任何配置。
+    expect(onChange).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ id: 'provider-a', apiKey: 'new-secret' })))
+    // 保存成功后草稿清空，保存入口隐藏。
+    expect(screen.getByLabelText('API Key')).toHaveValue('')
+    expect(screen.queryByRole('button', { name: '保存' })).not.toBeInTheDocument()
+  })
+
+  it('点击取消丢弃草稿且不提交', () => {
+    listProviderModels.mockResolvedValue([])
+    const onChange = vi.fn()
+    render(<ProviderSettingsPanel item={apiKeyProvider('provider-a', { hasApiKey: true })} onChange={onChange} />)
+
+    const keyInput = screen.getByLabelText('API Key')
+    fireEvent.change(keyInput, { target: { value: 'half-typed' } })
+    fireEvent.click(screen.getByRole('button', { name: '取消' }))
+
+    expect(onChange).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('API Key')).toHaveValue('')
+    expect(screen.queryByRole('button', { name: '取消' })).not.toBeInTheDocument()
+  })
+
+  it('回车保存、Esc 取消', async () => {
+    listProviderModels.mockResolvedValue([])
+    const onChange = vi.fn<() => Promise<void>>(async () => {})
+    render(<ProviderSettingsPanel item={apiKeyProvider('provider-a', { hasApiKey: true })} onChange={onChange} />)
+
+    const keyInput = screen.getByLabelText('API Key')
+    fireEvent.change(keyInput, { target: { value: 'typed-then-esc' } })
+    fireEvent.keyDown(keyInput, { key: 'Escape' })
+    expect(onChange).not.toHaveBeenCalled()
+    expect(keyInput).toHaveValue('')
+
+    fireEvent.change(keyInput, { target: { value: 'typed-then-enter' } })
+    fireEvent.keyDown(keyInput, { key: 'Enter' })
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ id: 'provider-a', apiKey: 'typed-then-enter' })))
+  })
+
+  it('已配置密钥时清空草稿后按钮显示清除密钥，并提交空值', async () => {
+    listProviderModels.mockResolvedValue([])
+    const onChange = vi.fn<() => Promise<void>>(async () => {})
+    render(<ProviderSettingsPanel item={apiKeyProvider('provider-a', { hasApiKey: true })} onChange={onChange} />)
+
+    const keyInput = screen.getByLabelText('API Key')
+    fireEvent.change(keyInput, { target: { value: 'draft-secret' } })
+    fireEvent.change(keyInput, { target: { value: '' } })
+
+    fireEvent.click(screen.getByRole('button', { name: '清除密钥' }))
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ id: 'provider-a', apiKey: '' })))
   })
 
   it('切换 OAuth Provider 时重置登录状态与额度显示', async () => {

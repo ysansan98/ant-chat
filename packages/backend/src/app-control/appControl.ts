@@ -64,7 +64,7 @@ export class AppControl {
       }
       case 'assistant:set': {
         // 这是跨 settings/provider 的业务约束，控制面保留编排职责。
-        const provider = this.modules.provider.getProviderById({ id: command.providerId })
+        const provider = await this.modules.provider.getProviderById({ id: command.providerId })
         if (!provider.isEnabled)
           throw new Error(`Provider is disabled: ${command.providerId}`)
 
@@ -105,9 +105,9 @@ export class AppControl {
   private async executeProvider(command: ProviderCommand): Promise<AppControlResultFor<ProviderCommand>> {
     switch (command.action) {
       case 'list':
-        return { providers: this.modules.provider.listProviders().map(toPublicProvider) }
+        return { providers: (await this.modules.provider.listProviders()).map(toPublicProvider) }
       case 'get':
-        return { provider: toPublicProvider(this.modules.provider.getProviderById({ id: command.id })) }
+        return { provider: toPublicProvider(await this.modules.provider.getProviderById({ id: command.id })) }
       case 'create': {
         const provider = await this.modules.provider.createProvider({
           config: {

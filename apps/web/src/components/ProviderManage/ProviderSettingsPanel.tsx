@@ -3,7 +3,6 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Button } from '@workspace/ui/components/button'
 import { Input } from '@workspace/ui/components/input'
 import { Progress } from '@workspace/ui/components/progress'
-import { Eye, EyeOff } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { providerApi } from '@/api/providerApi'
@@ -13,25 +12,25 @@ import { AI_OFFICIAL_API_INFO } from '@/constants'
 export interface ProviderSettingsPanelProps {
   item: ProviderPublicView | null
   isOffcial?: boolean
-  onChange?: (e: UpdateProviderConfigSchema) => void
+  onChange?: (e: UpdateProviderConfigSchema) => void | Promise<void>
   onDelete?: () => void
 }
 
 export function ProviderSettingsPanel({ item, onChange, onDelete }: ProviderSettingsPanelProps) {
   const [apiKeyValue, setApiKeyValue] = useState<string>('')
-  const [showKey, setShowKey] = useState(false)
+  const [apiKeyDirty, setApiKeyDirty] = useState(false)
+  const [isSavingApiKey, setIsSavingApiKey] = useState(false)
   const [authStatus, setAuthStatus] = useState<ProviderAuthStatus | null>(null)
   const [usage, setUsage] = useState<ProviderUsageStatus | null>(null)
   const [authLoading, setAuthLoading] = useState(false)
   const [prevProviderId, setPrevProviderId] = useState<string | undefined>(item?.id)
 
-  // Provider 切换时（组件复用、不卸载）在渲染期清空 API Key 输入状态：
-  // 否则上一个 Provider 的密钥草稿会串显到下一个 Provider 的输入框，
-  // 并被 onBlur 误保存为当前 Provider 的密钥。
+  // Provider 切换时（组件复用、不卸载）在渲染期清空 API Key 草稿：
+  // 否则上一个 Provider 的密钥草稿会串到下一个 Provider 的输入框。
   if (prevProviderId !== item?.id) {
     setPrevProviderId(item?.id)
     setApiKeyValue('')
-    setShowKey(false)
+    setApiKeyDirty(false)
   }
 
   useEffect(() => {
@@ -68,6 +67,34 @@ export function ProviderSettingsPanel({ item, onChange, onDelete }: ProviderSett
   const usagePercent = primaryUsageWindow
     ? Math.min(Math.max(primaryUsageWindow.usedPercent, 0), 100)
     : 0
+
+  /**
+   * API Key 只在显式点击「保存」/回车时提交：输入过程中失焦、切换都不落盘，
+   * 后端把空 apiKey 视为"删除密钥"，因此草稿为空时按钮显示为「清除密钥」。
+   */
+  const handleSaveApiKey = async () => {
+    if (isSavingApiKey) {
+      return
+    }
+    setIsSavingApiKey(true)
+    try {
+      await onChange?.({ id: item.id, apiKey: apiKeyValue })
+      // 保存成功后清空草稿：面板不回显真实密钥，靠 placeholder 表示已配置。
+      setApiKeyValue('')
+      setApiKeyDirty(false)
+    }
+    catch (error) {
+      toast.error(`保存 API Key 失败: ${error instanceof Error ? error.message : String(error)}`)
+    }
+    finally {
+      setIsSavingApiKey(false)
+    }
+  }
+
+  const handleCancelApiKey = () => {
+    setApiKeyValue('')
+    setApiKeyDirty(false)
+  }
 
   return (
     <div className="h-full min-w-0 flex-1 overflow-y-auto p-4">
@@ -247,30 +274,38 @@ export function ProviderSettingsPanel({ item, onChange, onDelete }: ProviderSett
           : (
               <div className="flex flex-col gap-1">
                 <label htmlFor="provider-api-key" className="text-sm font-medium">API Key</label>
-                <div className="relative">
-                  <Input
-                    id="provider-api-key"
-                    type={showKey ? 'text' : 'password'}
-                    value={apiKeyValue}
-                    placeholder={hasKey ? '••••••••••••••••' : '未配置 API Key'}
-                    onChange={(e) => {
-                      setApiKeyValue(e.target.value)
-                    }}
-                    onBlur={(e) => {
-                      onChange?.({ id: item.id, apiKey: e.target.value })
-                    }}
-                    className="pr-10"
-                  />
-                  <button
-                    type="button"
-                    className="absolute inset-y-0 right-0 flex items-center justify-center px-3 text-muted-foreground hover:text-foreground"
-                    onClick={() => setShowKey(!showKey)}
-                    tabIndex={-1}
-                    aria-label={showKey ? '隐藏 API Key' : '显示 API Key'}
-                  >
-                    {showKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                  </button>
-                </div>
+                <Input
+                  id="provider-api-key"
+                  type="password"
+                  value={apiKeyValue}
+                  placeholder={hasKey ? '已配置，输入新 Key 可替换' : '未配置'}
+                  onChange={(e) => {
+                    setApiKeyValue(e.target.value)
+                    setApiKeyDirty(true)
+                  }}
+                  onKeyDown={(e) => {
+                    // IME 组合输入中的回车用于确认候选词，不能当作保存。
+                    if (e.nativeEvent.isComposing) {
+                      return
+                    }
+                    if (e.key === 'Enter') {
+                      void handleSaveApiKey()
+                    }
+                    else if (e.key === 'Escape') {
+                      handleCancelApiKey()
+                    }
+                  }}
+                />
+                {apiKeyDirty && (
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="outline" disabled={isSavingApiKey} onClick={() => void handleSaveApiKey()}>
+                      {hasKey && !apiKeyValue ? '清除密钥' : '保存'}
+                    </Button>
+                    <Button size="sm" variant="ghost" disabled={isSavingApiKey} onClick={handleCancelApiKey}>
+                      取消
+                    </Button>
+                  </div>
+                )}
                 {officialKeyUrl && (
                   <a className="mt-1 text-xs" href={officialKeyUrl}>
                     获取API Key

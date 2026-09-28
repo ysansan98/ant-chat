@@ -76,8 +76,9 @@ export class ProviderModule implements RuntimeModuleMethods<'provider'> {
   }
 
   @Method()
-  listProviders(_input?: AppRpcInput<'provider.listProviders'>) {
-    return this.providerSettingsRepository.listProviders().map(provider => this.toPublicProvider(provider))
+  async listProviders(_input?: AppRpcInput<'provider.listProviders'>) {
+    const providers = this.providerSettingsRepository.listProviders()
+    return await Promise.all(providers.map(provider => this.toPublicProvider(provider)))
   }
 
   @Method()
@@ -117,7 +118,7 @@ export class ProviderModule implements RuntimeModuleMethods<'provider'> {
       return await rollbackProviderTransition(error, [secretCreate])
     }
     this.events.emit('provider:changed', { providerId: provider.id })
-    return this.toPublicProvider(provider)
+    return await this.toPublicProvider(provider)
   }
 
   @Method()
@@ -144,7 +145,7 @@ export class ProviderModule implements RuntimeModuleMethods<'provider'> {
       await revocation?.commit()
       const provider = this.providerSettingsRepository.updateProvider(config)
       this.events.emit('provider:changed', { providerId: provider.id })
-      return this.toPublicProvider(provider)
+      return await this.toPublicProvider(provider)
     }
     catch (error) {
       return await rollbackProviderTransition(error, [revocation, secretUpdate])
@@ -171,8 +172,8 @@ export class ProviderModule implements RuntimeModuleMethods<'provider'> {
   }
 
   @Method()
-  getProviderById(input: AppRpcInput<'provider.getProviderById'>) {
-    return this.toPublicProvider(requireValue(
+  async getProviderById(input: AppRpcInput<'provider.getProviderById'>) {
+    return await this.toPublicProvider(requireValue(
       this.providerSettingsRepository.getProviderById(input.id),
       `Provider not found: ${input.id}`,
     ))
@@ -319,11 +320,21 @@ export class ProviderModule implements RuntimeModuleMethods<'provider'> {
     return auth
   }
 
-  private toPublicProvider(provider: ProviderConfigSchema): ProviderPublicView {
+  /**
+   * hasApiKey 以 Keychain 中实际存在密钥为准。
+   * 内置 Provider 在默认配置里预置了固定的 secret ref（如 provider:openai:api_key），
+   * 引用存在只说明"密钥该存哪里"，不等于用户配置过；只有查得到值才算已配置。
+   */
+  private async toPublicProvider(provider: ProviderConfigSchema): Promise<ProviderPublicView> {
     const { apiKey: _apiKey, apiKeySecretId: _apiKeySecretId, ...publicProvider } = provider
+    const capabilities = this.getIntegration(provider).capabilities
+    const hasApiKey = capabilities.authentication === 'api-key'
+      ? (await this.secretStore.getProviderApiKey(provider.id)) !== null
+      : false
     return {
       ...publicProvider,
-      capabilities: this.getIntegration(provider).capabilities,
+      capabilities,
+      hasApiKey,
     }
   }
 
