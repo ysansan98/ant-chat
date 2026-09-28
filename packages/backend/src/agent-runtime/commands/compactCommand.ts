@@ -42,7 +42,7 @@ export async function runCompact(params: {
     return { status: 'success', summaryText: '当前上下文不足，无需压缩。' }
   }
 
-  const compactionStrategy = createCompactionStrategy(modelConfig.reasoningEffort)
+  const compactionStrategy = createCompactionStrategy(modelConfig.reasoningEffort, conversationId)
   const transaction = await runCompactionTransaction({
     trigger: 'manual',
     conversationId,

@@ -1,3 +1,4 @@
+import type { ClientInfo } from '../agent-core/ai-providers/requestHeaders'
 import type { CommandHost } from '../agent-core/native-tools/command/types'
 import type { AppRuntimeLoggerOptions } from '../runtimeLogger'
 import type { SystemLogger } from '../systemLogger'
@@ -42,4 +43,6 @@ export interface CreateAppRuntimeOptions {
   commandHostDetector?: (options: DetectCommandHostOptions) => CommandHost
   /** 由桌面宿主在激活 Runtime 前启动的 OAuth 回调能力。 */
   oauthCallbackHost?: OAuthCallbackHost
+  /** 宿主产品身份（名称/版本），用于统一 LLM 出站请求的 User-Agent。 */
+  clientInfo?: ClientInfo
 }

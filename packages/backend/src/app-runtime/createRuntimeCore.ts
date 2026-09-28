@@ -1,3 +1,4 @@
+import type { ClientInfo } from '../agent-core/ai-providers/requestHeaders'
 import type { CommandHost } from '../agent-core/native-tools/command/types'
 import type { AgentBrowserPaths, BrowserIdentityPaths } from '../agentBrowser'
 import type { AppDataContext, AppDataDatabase } from '../data'
@@ -26,6 +27,8 @@ export interface RuntimeCore {
   browserIdentity: BrowserIdentityStore
   /** 宿主注入的命令环境（PATH 等），供命令宿主与浏览器工具解析外部 CLI。 */
   commandEnvironment?: Readonly<Record<string, string>>
+  /** 宿主产品身份（名称/版本），用于统一 LLM 出站请求的 User-Agent。 */
+  clientInfo?: ClientInfo
   data: AppDataContext
   db: RuntimeDatabase
   events: RuntimeEventBus
@@ -62,6 +65,7 @@ export function createRuntimeCore(options: CreateAppRuntimeOptions, commandHost:
       logger,
     }),
     commandEnvironment: options.commandEnvironment,
+    clientInfo: options.clientInfo,
     data,
     db,
     events: new RuntimeEventBusImpl(),

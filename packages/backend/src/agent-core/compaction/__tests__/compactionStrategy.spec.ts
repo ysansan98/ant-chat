@@ -21,4 +21,13 @@ describe('createCompactionStrategy 推理强度透传', () => {
 
     expect(complete.mock.calls[0][0].modelSettings.reasoningEffort).toBeUndefined()
   })
+
+  it('将 conversationId 透传到 complete', async () => {
+    const complete = vi.fn<IAIProvider['complete']>(async () => ({ text: 'summary' }))
+    const aiProvider = { complete } as unknown as IAIProvider
+
+    await createCompactionStrategy('high', 'conv-42').summarize('history', aiProvider, 'model-x')
+
+    expect(complete.mock.calls[0][0].conversationId).toBe('conv-42')
+  })
 })

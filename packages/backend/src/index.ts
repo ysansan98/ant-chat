@@ -1,3 +1,4 @@
+export type { ClientInfo } from './agent-core/ai-providers/requestHeaders'
 export { createAgentBrowserPaths, createBrowserIdentityPaths } from './agentBrowser'
 export type { AgentBrowserPaths, BrowserIdentityPaths } from './agentBrowser'
 export { BrowserProfilesModule } from './app-runtime/modules/browserProfiles'

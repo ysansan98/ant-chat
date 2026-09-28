@@ -4,6 +4,7 @@ import type { GoogleProvider } from '@ai-sdk/google'
 import type { OpenAIProvider } from '@ai-sdk/openai'
 import type { IAIStreamChunk, ILogger, ProviderConfigSchema, ReasoningEffortLevel } from '@ant-chat/shared'
 import type { LanguageModel, LanguageModelUsage, ModelMessage } from 'ai'
+import type { ClientInfo } from './requestHeaders'
 import type { ProviderFormat } from './types'
 import process from 'node:process'
 import { createAnthropic } from '@ai-sdk/anthropic'
@@ -12,6 +13,7 @@ import { createGoogle } from '@ai-sdk/google'
 import { createOpenAI } from '@ai-sdk/openai'
 import { dynamicTool, generateText, jsonSchema, streamText } from 'ai'
 import { AgentError } from '../AgentError'
+import { buildProviderFetch, buildSessionHeaders, buildUserAgent } from './requestHeaders'
 
 type ProviderLogger = ILogger & {
   debug?: (msg: string, ...args: unknown[]) => void
@@ -23,6 +25,9 @@ const noopLogger: ProviderLogger = {
   info: () => {},
   warn: () => {},
 }
+
+/** 未注入宿主身份时的回退标识。 */
+const FALLBACK_CLIENT_INFO: ClientInfo = { name: 'ant-chat' }
 
 // 工厂表：取代构造函数里的 switch，所有厂商统一返回 LanguageModel 接口（无 any）
 const PROVIDER_FACTORIES = {
@@ -46,6 +51,8 @@ export class MultiProvider {
   private client?: DeepSeekProvider | OpenAIProvider | GoogleProvider | AnthropicProvider
   private format: ProviderFormat
   private logger: ProviderLogger
+  private readonly baseUrl: string
+  private readonly clientInfo: ClientInfo
 
   private normalizeUsage(usage?: LanguageModelUsage) {
     if (!usage) {
@@ -71,9 +78,11 @@ export class MultiProvider {
     apiKey?: string
     format?: ProviderFormat
     logger?: ILogger
+    clientInfo?: ClientInfo
   }) {
     this.format = options.format || 'openai'
     this.logger = options.logger ?? noopLogger
+    this.clientInfo = options.clientInfo ?? FALLBACK_CLIENT_INFO
 
     this.logger.info(`Initialized with ${this.format} format for ${options.baseUrl}`)
     this.logger.info(`Using proxy: ${process.env.HTTP_PROXY || 'none'}`)
@@ -91,11 +100,15 @@ export class MultiProvider {
       throw new Error(errorMsg)
     }
 
+    this.baseUrl = options.baseUrl
+
     const factory = PROVIDER_FACTORIES[this.format]
     this.client = factory({
       apiKey: options.apiKey,
       baseURL: options.baseUrl,
+      fetch: buildProviderFetch(this.clientInfo),
     })
+    this.logger.debug?.(`Provider user-agent: ${buildUserAgent(this.clientInfo)}`)
   }
 
   /**
@@ -184,6 +197,19 @@ export class MultiProvider {
   }
 
   /**
+   * 会话级请求头：仅 OpenCode 端点且携带会话标识时注入 x-opencode-session。
+   * User-Agent 由 buildProviderFetch 在 fetch 层统一覆盖，不在此处处理。
+   */
+  private resolveRequestHeaders(conversationId?: string): Record<string, string> | undefined {
+    const headers = buildSessionHeaders(this.baseUrl, conversationId)
+    if (Object.keys(headers).length === 0) {
+      return undefined
+    }
+    this.logger.debug?.(`Inject x-opencode-session for ${this.baseUrl}`)
+    return headers
+  }
+
+  /**
    * Stream model output.
    */
   async* streamModel(options: {
@@ -200,8 +226,10 @@ export class MultiProvider {
       serverName?: string
     }>
     abortSignal?: AbortSignal
+    /** 会话标识；OpenCode 端点会将其透出为 x-opencode-session。 */
+    conversationId?: string
   }): AsyncGenerator<IAIStreamChunk> {
-    const { messages, modelSettings, abortSignal, tools } = options
+    const { messages, modelSettings, abortSignal, tools, conversationId } = options
     const { model, systemPrompt, reasoningEffort } = modelSettings
 
     // 构建 AI SDK 格式的消息（系统提示已通过 instructions 传入，不在此构造）
@@ -225,6 +253,7 @@ export class MultiProvider {
       // v7：统一推理强度参数；未设置时不传，走厂商默认
       ...(reasoningEffort ? { reasoning: reasoningEffort } : {}),
       tools: aiTools,
+      headers: this.resolveRequestHeaders(conversationId),
       abortSignal,
     })
 
@@ -284,8 +313,10 @@ export class MultiProvider {
       reasoningEffort?: ReasoningEffortLevel
     }
     abortSignal?: AbortSignal
+    /** 会话标识；OpenCode 端点会将其透出为 x-opencode-session。 */
+    conversationId?: string
   }): Promise<{ text: string, usage?: ReturnType<MultiProvider['normalizeUsage']> }> {
-    const { messages, modelSettings, abortSignal } = options
+    const { messages, modelSettings, abortSignal, conversationId } = options
     const { model, systemPrompt, maxOutputTokens, reasoningEffort } = modelSettings
 
     const aiSdkMessages: ModelMessage[] = messages.map(msg => ({
@@ -301,6 +332,7 @@ export class MultiProvider {
       maxOutputTokens,
       // v7：统一推理强度参数；未设置时不传，走厂商默认
       ...(reasoningEffort ? { reasoning: reasoningEffort } : {}),
+      headers: this.resolveRequestHeaders(conversationId),
       abortSignal,
     })
 
@@ -392,7 +424,7 @@ export class MultiProvider {
  */
 export async function createAProvider(
   provider: ProviderConfigSchema,
-  options: { logger?: ILogger } = {},
+  options: { logger?: ILogger, clientInfo?: ClientInfo } = {},
 ): Promise<MultiProvider> {
   const format = provider.apiMode
 
@@ -401,5 +433,6 @@ export async function createAProvider(
     apiKey: provider.apiKey || '',
     format,
     logger: options.logger,
+    clientInfo: options.clientInfo,
   })
 }

@@ -46,6 +46,7 @@ export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModu
     core.oauthCallbackHost,
     // 厂商 Integration 在此注册；新增订阅只需追加 entry，不改 Provider 通用流程。
     [['codex-subscription', createCodexProviderIntegration(secretStore)]],
+    core.clientInfo,
   )
   const browserProfiles = new BrowserProfilesModule(core.browserIdentity)
   const skills = new SkillsModule(core)

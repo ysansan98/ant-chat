@@ -1,4 +1,5 @@
 import type { AIProviderFactory, AppRpcInput, CreateProviderConfigSchema, ProviderAuthStatus, ProviderConfigSchema, ProviderIntegrationId, ProviderPublicView, ProviderUsageStatus, UpdateProviderConfigSchema } from '@ant-chat/shared'
+import type { ClientInfo } from '../../../agent-core'
 import type { ProviderSettingsRepository } from '../../../data'
 import type { RuntimeEventBus } from '../../../events'
 import type { KeychainSecretStore } from '../../../secretStore'
@@ -32,6 +33,8 @@ export class ProviderModule implements RuntimeModuleMethods<'provider'> {
     oauthCallbackHost?: OAuthCallbackHost,
     /** 厂商 Integration 在 composition root 注册；新增订阅只追加这里，不改通用流程。 */
     integrations: Array<[ProviderIntegrationId, ProviderIntegration]> = [],
+    /** 宿主产品身份（名称/版本），用于统一 LLM 出站请求的 User-Agent。 */
+    clientInfo?: ClientInfo,
   ) {
     this.oauthCallbackHost = oauthCallbackHost
     this.modelsDevImporter = createModelsDevImporter()
@@ -64,7 +67,7 @@ export class ProviderModule implements RuntimeModuleMethods<'provider'> {
         return await integration.createAIProvider(provider)
       }
       const apiKey = await resolveProviderApiKey(secretStore, provider)
-      return await createProvider({ ...provider, apiKey }, { logger })
+      return await createProvider({ ...provider, apiKey }, { logger, clientInfo })
     }
   }
 

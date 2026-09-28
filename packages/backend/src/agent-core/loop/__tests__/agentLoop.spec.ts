@@ -239,6 +239,7 @@ describe('runAgentLoop 行为', () => {
 
     expect(turnRecorder.startModelRequest).toHaveBeenCalledTimes(1)
     expect(turnRecorder.startModelRequest.mock.calls[0][0]).toBe(streamModel.mock.calls[0][0])
+    expect(streamModel.mock.calls[0][0].conversationId).toBe('conv-loop-1')
     expect(span.complete).toHaveBeenCalledWith(expect.objectContaining({ text: 'Done', toolCalls: [] }))
     expect(turnRecorder.finish).toHaveBeenCalledWith(expect.objectContaining({ status: 'success' }))
   })

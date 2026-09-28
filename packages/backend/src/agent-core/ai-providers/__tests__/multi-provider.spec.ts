@@ -132,3 +132,79 @@ describe('multiProvider 行为', () => {
     })
   })
 })
+
+describe('opencode 会话请求头', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.createOpenAI.mockReturnValue({
+      chat: vi.fn(model => ({ model })),
+    })
+  })
+
+  /** 驱动一次完整的 streamModel 消费。 */
+  async function consumeStream(provider: MultiProvider, conversationId: string) {
+    for await (const _chunk of provider.streamModel({
+      messages: [],
+      modelSettings: { model: 'test-model', systemPrompt: '' },
+      conversationId,
+    })) {
+      // 消费流以触发请求构造。
+    }
+  }
+
+  it('opencode 端点携带 x-opencode-session，并注入覆盖 UA 的 fetch', async () => {
+    async function* streamGen() {
+      yield { type: 'finish', finishReason: 'stop' }
+    }
+    mocks.streamText.mockReturnValue({ stream: streamGen() })
+
+    const provider = new MultiProvider({
+      apiKey: 'test-key',
+      baseUrl: 'https://opencode.ai/zen/go/v1',
+      format: 'openai',
+    })
+
+    await consumeStream(provider, 'conv-1')
+
+    expect(mocks.streamText.mock.calls[0][0].headers).toEqual({ 'x-opencode-session': 'conv-1' })
+    expect(mocks.createOpenAI).toHaveBeenCalledWith(expect.objectContaining({
+      baseURL: 'https://opencode.ai/zen/go/v1',
+      fetch: expect.any(Function),
+    }))
+  })
+
+  it('非 OpenCode 端点不携带会话头', async () => {
+    async function* streamGen() {
+      yield { type: 'finish', finishReason: 'stop' }
+    }
+    mocks.streamText.mockReturnValue({ stream: streamGen() })
+
+    const provider = new MultiProvider({
+      apiKey: 'test-key',
+      baseUrl: 'https://api.example.test/v1',
+      format: 'openai',
+    })
+
+    await consumeStream(provider, 'conv-1')
+
+    expect(mocks.streamText.mock.calls[0][0].headers).toBeUndefined()
+  })
+
+  it('complete 在 OpenCode 端点透传 conversationId', async () => {
+    mocks.generateText.mockResolvedValue({ text: 'ok', usage: undefined })
+
+    const provider = new MultiProvider({
+      apiKey: 'test-key',
+      baseUrl: 'https://opencode.ai/zen/go/v1',
+      format: 'openai',
+    })
+
+    await provider.complete({
+      messages: [{ role: 'user', content: 'hi' }],
+      modelSettings: { model: 'test-model', systemPrompt: '' },
+      conversationId: 'conv-9',
+    })
+
+    expect(mocks.generateText.mock.calls[0][0].headers).toEqual({ 'x-opencode-session': 'conv-9' })
+  })
+})

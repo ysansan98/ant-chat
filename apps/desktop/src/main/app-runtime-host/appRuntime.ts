@@ -51,6 +51,8 @@ async function createDesktopAppRuntime(): Promise<AppRuntime> {
           || '',
       },
       oauthCallbackHost: oauthCallbackServer.host,
+      // LLM 出站请求的产品标识（OpenCode 等要求专属 User-Agent）。
+      clientInfo: { name: 'ant-chat', version: app.getVersion() },
     })
   }
   catch (error) {

@@ -33,7 +33,7 @@ Rules:
 
 const MAX_SUMMARY_TOKENS = 16384
 
-export function createCompactionStrategy(reasoningEffort?: ReasoningEffortLevel): CompactionStrategy {
+export function createCompactionStrategy(reasoningEffort?: ReasoningEffortLevel, conversationId?: string): CompactionStrategy {
   return {
     async summarize(serialized: string, aiProvider: IAIProvider, model: string, abortSignal?: AbortSignal, instruction?: string) {
       const instructionBlock = instruction
@@ -64,6 +64,7 @@ export function createCompactionStrategy(reasoningEffort?: ReasoningEffortLevel)
           ...(reasoningEffort ? { reasoningEffort } : {}),
         },
         abortSignal,
+        conversationId,
       })
       return result
     },

@@ -74,6 +74,8 @@ export interface IAIProvider {
     }
     tools?: RuntimeToolDefinition[]
     abortSignal?: AbortSignal
+    /** 会话标识；OpenCode 端点会将其透出为 x-opencode-session。 */
+    conversationId?: string
   }) => AsyncGenerator<IAIStreamChunk>
 
   complete: (options: {
@@ -86,6 +88,8 @@ export interface IAIProvider {
       reasoningEffort?: ReasoningEffortLevel
     }
     abortSignal?: AbortSignal
+    /** 会话标识；OpenCode 端点会将其透出为 x-opencode-session。 */
+    conversationId?: string
   }) => Promise<{ text: string, usage?: LanguageModelUsage }>
 }
 

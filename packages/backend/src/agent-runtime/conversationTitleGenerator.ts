@@ -75,6 +75,7 @@ export function createConversationTitleGenerator(
           maxOutputTokens: 80,
         },
         abortSignal: new AbortController().signal,
+        conversationId: conversationsId,
       })
 
       return deps.updateConversation({ id: conversationsId, title })

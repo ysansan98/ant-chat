@@ -6,4 +6,6 @@
 
 export * from './codex'
 export { createAProvider, MultiProvider } from './multi-provider'
+export { buildProviderFetch, buildSessionHeaders, buildUserAgent, isOpenCodeEndpoint } from './requestHeaders'
+export type { ClientInfo } from './requestHeaders'
 export type { ProviderFormat } from './types'

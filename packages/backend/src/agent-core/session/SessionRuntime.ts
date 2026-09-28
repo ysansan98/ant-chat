@@ -124,7 +124,7 @@ export class SessionRuntime {
       aiProvider,
       modelName: model.model,
       contextLength: model.contextLength,
-      summarize: (this.config.compactionStrategy ?? createCompactionStrategy()).summarize,
+      summarize: (this.config.compactionStrategy ?? createCompactionStrategy(undefined, conversation.id)).summarize,
       logger: getAgentLogger(this.config),
       conversationId: conversation.id,
       modelInfo: {

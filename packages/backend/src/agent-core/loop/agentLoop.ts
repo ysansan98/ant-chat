@@ -89,6 +89,7 @@ export async function runAgentLoop(input: {
         modelSettings,
         tools: toolDefs.map(item => ({ ...item, serverName: item.serverName || 'native' })),
         abortSignal: task.abortController.signal,
+        conversationId: options.conversationId,
       }
       const modelSpan = startObservationSpan(config, recorder => recorder.startModelRequest(modelRequest))
 

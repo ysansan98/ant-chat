@@ -1,9 +1,12 @@
 import type { ILogger, ProviderConfigSchema } from '@ant-chat/shared'
 import type { MultiProvider } from './multi-provider'
+import type { ClientInfo } from './requestHeaders'
 import { createAProvider } from './multi-provider'
 
 export interface CreateProviderOptions {
   logger?: ILogger
+  /** 宿主身份，用于统一出站请求的 User-Agent。 */
+  clientInfo?: ClientInfo
 }
 
 /**

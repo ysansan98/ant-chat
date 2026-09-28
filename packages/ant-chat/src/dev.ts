@@ -3,6 +3,7 @@ import process from 'node:process'
 import { parseArgs } from 'node:util'
 import { activateAppRuntime } from '@ant-chat/backend'
 import { resolveAppDataRoot } from '@ant-chat/shared'
+import { clientInfo } from './clientInfo'
 import { listen } from './serverHost'
 
 async function main() {
@@ -23,6 +24,7 @@ async function main() {
       fileName: 'ant-chat.log',
       source: 'ant-chat',
     },
+    clientInfo,
   })
   // 开发模式使用 Vite 中间件，同时提供 HMR 和前端页面。
   let webHandler: Parameters<typeof listen>[1]['webHandler']

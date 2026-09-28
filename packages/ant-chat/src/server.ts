@@ -1,5 +1,6 @@
 import path from 'node:path'
 import { activateAppRuntime } from '@ant-chat/backend'
+import { clientInfo } from './clientInfo'
 import { listen } from './serverHost'
 
 export interface StartLocalServerOptions {
@@ -25,6 +26,7 @@ export async function startLocalServer(options: StartLocalServerOptions): Promis
       fileName: 'ant-chat.log',
       source: 'ant-chat',
     },
+    clientInfo,
   })
 
   try {
