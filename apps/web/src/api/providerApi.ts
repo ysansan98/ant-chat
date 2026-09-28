@@ -51,6 +51,12 @@ export const providerApi = {
     return result
   },
 
+  setModelsEnabledStatus: async (providerId: string, modelIds: string[], status: boolean): Promise<ProviderConfigModelSchema[]> => {
+    const result = await getAppRpcClient().call('provider.setModelsEnabledStatus', { providerId, modelIds, status })
+    emitProviderChanged()
+    return result
+  },
+
   createProviderModel: async (config: CreateProviderConfigModelSchema): Promise<ProviderConfigModelSchema> => {
     const result = await getAppRpcClient().call('provider.createProviderModel', { config })
     emitProviderChanged()

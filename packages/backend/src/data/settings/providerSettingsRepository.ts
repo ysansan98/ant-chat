@@ -203,30 +203,40 @@ export class ProviderSettingsRepository {
   }
 
   setModelEnabledStatus(providerId: string, modelId: string, status: boolean): ProviderConfigModelSchema {
-    let updatedModel: ProviderConfigModelSchema | null = null
+    return this.setModelsEnabledStatus(providerId, [modelId], status)[0]
+  }
+
+  /**
+   * 批量启停：一次落盘、一个 provider:changed 事件，避免逐模型重复写设置文件。
+   * 任一模型不存在即整体失败，调用方需先刷新列表再重试。
+   */
+  setModelsEnabledStatus(providerId: string, modelIds: string[], status: boolean): ProviderConfigModelSchema[] {
+    const targetIds = [...new Set(modelIds)]
+    let updatedModels: ProviderConfigModelSchema[] = []
     this.store.update((settings) => {
-      const providers = settings.providers.map((provider) => {
-        if (provider.id !== providerId) {
-          return provider
-        }
-        const currentModel = provider.models[modelId]
-        if (!currentModel) {
-          return provider
-        }
-        const nextModel = { ...currentModel, isEnabled: status }
-        updatedModel = toProviderConfigModel(provider.id, modelId, nextModel)
-        const models = { ...provider.models, [modelId]: nextModel }
-        return { ...provider, models }
-      })
-      if (!updatedModel) {
-        throw new Error(`Model not found: ${providerId}/${modelId}`)
+      const provider = settings.providers.find(item => item.id === providerId)
+      if (!provider) {
+        throw new Error(`Provider not found: ${providerId}`)
       }
-      return { ...settings, providers }
+      for (const modelId of targetIds) {
+        if (!provider.models[modelId]) {
+          throw new Error(`Model not found: ${providerId}/${modelId}`)
+        }
+      }
+
+      const models = { ...provider.models }
+      updatedModels = targetIds.map((modelId) => {
+        const nextModel = { ...models[modelId], isEnabled: status }
+        models[modelId] = nextModel
+        return toProviderConfigModel(providerId, modelId, nextModel)
+      })
+
+      return {
+        ...settings,
+        providers: settings.providers.map(item => item.id === providerId ? { ...item, models } : item),
+      }
     })
-    if (!updatedModel) {
-      throw new Error(`Model not found: ${providerId}/${modelId}`)
-    }
-    return updatedModel
+    return updatedModels
   }
 
   createProviderModel(config: CreateProviderConfigModelSchema): ProviderConfigModelSchema {

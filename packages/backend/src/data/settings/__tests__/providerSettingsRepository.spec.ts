@@ -137,6 +137,44 @@ describe('provider settings repository', () => {
     expect(scopedRepository.getModel('provider-2', 'test-model')).not.toBeNull()
   })
 
+  it('批量启停一次生效，且不波及其他 Provider', () => {
+    const scopedRepository = new ProviderSettingsRepository(new AppSettingsStore({
+      filePath: path.join(dir, 'batch-model-settings.json'),
+      initialSettings: {
+        ...initialSettings,
+        providers: [
+          {
+            ...initialSettings.providers[0],
+            models: {
+              ...initialSettings.providers[0].models,
+              'second-model': { isEnabled: true, temperature: 0.7, name: 'Second Model' },
+            },
+          },
+          {
+            ...initialSettings.providers[0],
+            id: 'provider-2',
+            name: 'Provider 2',
+            models: { 'test-model': { isEnabled: true, temperature: 0.7, name: 'Test Model' } },
+          },
+        ],
+      },
+    }))
+
+    const updated = scopedRepository.setModelsEnabledStatus('provider-1', ['test-model', 'second-model'], false)
+
+    expect(updated.map(model => model.id)).toEqual(['test-model', 'second-model'])
+    expect(updated.every(model => !model.isEnabled)).toBe(true)
+    expect(scopedRepository.getModel('provider-1', 'second-model')?.isEnabled).toBe(false)
+    expect(scopedRepository.getModel('provider-2', 'test-model')?.isEnabled).toBe(true)
+  })
+
+  it('批量启停遇到不存在的模型时整体失败，已启用状态不落盘', () => {
+    expect(() => repository.setModelsEnabledStatus('provider-1', ['test-model', 'missing-model'], false))
+      .toThrow('Model not found: provider-1/missing-model')
+
+    expect(repository.getModel('provider-1', 'test-model')?.isEnabled).toBe(true)
+  })
+
   it('一次同步保留用户配置、刷新远端元数据，并按首次出现处理重复 ID', () => {
     const models = repository.syncProviderModels('provider-1', [
       {

@@ -20,6 +20,7 @@ vi.mock('@/api/providerApi', () => ({
     syncModels: vi.fn(),
     deleteProviderModel: vi.fn(),
     setModelEnabledStatus: vi.fn(),
+    setModelsEnabledStatus: vi.fn(),
     createProviderModel: vi.fn(),
   },
 }))

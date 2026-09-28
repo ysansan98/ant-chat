@@ -128,6 +128,7 @@ export interface AppRpcContract {
   'provider.getAllAbvailableModels': RpcEndpoint<undefined, AllAvailableModelsSchema[]>
   'provider.listProviderModels': RpcEndpoint<{ id: string }, ProviderConfigModelSchema[]>
   'provider.setModelEnabledStatus': RpcEndpoint<{ providerId: string, modelId: string, status: boolean }, ProviderConfigModelSchema>
+  'provider.setModelsEnabledStatus': RpcEndpoint<{ providerId: string, modelIds: string[], status: boolean }, ProviderConfigModelSchema[]>
   'provider.createProviderModel': RpcEndpoint<{ config: CreateProviderConfigModelSchema }, ProviderConfigModelSchema>
   'provider.deleteProviderModel': RpcEndpoint<{ providerId: string, modelId: string }, null>
   'provider.getModel': RpcEndpoint<{ providerId: string, modelId: string }, ProviderConfigModelSchema>

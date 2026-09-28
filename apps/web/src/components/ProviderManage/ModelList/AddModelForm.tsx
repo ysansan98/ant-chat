@@ -5,16 +5,11 @@ import { Input } from '@workspace/ui/components/input'
 import { InputNumber } from '@workspace/ui/components/input-number'
 import { Switch } from '@workspace/ui/components/switch'
 import React from 'react'
+import { INPUT_MODALITY_LABELS } from './modelCapabilities'
 
 type AddModelForm = Omit<CreateProviderConfigModelSchema, 'providerId'>
 
-const INPUT_MODALITY_OPTIONS = [
-  { value: 'text', label: '文本' },
-  { value: 'image', label: '图片' },
-  { value: 'pdf', label: 'PDF' },
-  { value: 'video', label: '视频' },
-  { value: 'audio', label: '音频' },
-] as const
+const INPUT_MODALITY_OPTIONS = Object.entries(INPUT_MODALITY_LABELS).map(([value, label]) => ({ value, label }))
 
 // 与 ModelSelect 的推理强度文案保持一致；provider-default 是运行时默认值，不属于模型能力档位。
 const REASONING_EFFORT_OPTIONS: { value: ReasoningEffortLevel, label: string }[] = [

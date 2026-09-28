@@ -196,6 +196,13 @@ export class ProviderModule implements RuntimeModuleMethods<'provider'> {
   }
 
   @Method()
+  setModelsEnabledStatus(input: AppRpcInput<'provider.setModelsEnabledStatus'>) {
+    const models = this.providerSettingsRepository.setModelsEnabledStatus(input.providerId, input.modelIds, input.status)
+    this.events.emit('provider:changed', { providerId: input.providerId })
+    return models
+  }
+
+  @Method()
   createProviderModel(input: AppRpcInput<'provider.createProviderModel'>) {
     const model = this.providerSettingsRepository.createProviderModel(input.config)
     this.events.emit('provider:changed', { providerId: model.providerId })
