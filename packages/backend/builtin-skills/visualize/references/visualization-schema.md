@@ -82,8 +82,9 @@ declare const sendFollowUpMessage: (input: FollowUpInput) => Promise<void>
 
 - prompt 非空且最多 4,000 个字符；title 最多 250 个字符。
 - 必须由真实用户 click 或 submit 触发，短时 gesture token 过期后调用会失败。
-- 调用先经过宿主确认，再进入同一会话的下一轮 user message。
-- 不修改历史消息，不注入当前 turn；每次真实重复提交都是独立消息。
+- 调用先经过宿主确认，再作为一条普通用户消息提交。
+- 任务空闲时立即开始新一轮；任务运行中则进入待处理队列，等当前任务结束或由用户引导注入。
+- 不修改历史消息；每次真实重复提交都是独立消息。
 - 不要调用 window.openai、window.parent、window.electron 或任何未列出的对象。
 
 ## 样式与主题

@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   getMessagesByConvId: vi.fn(),
   injectSteering: vi.fn(),
   listActiveTasks: vi.fn(),
+  listPendingMessages: vi.fn(async (conversationId: string) => ({ conversationId, revision: 0, messages: [] })),
   runBuiltinCommand: vi.fn(),
   startTurn: vi.fn(),
 }))
@@ -20,6 +21,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/api/agentApi', () => ({ default: {
   injectSteering: mocks.injectSteering,
   listActiveTasks: mocks.listActiveTasks,
+  listPendingMessages: mocks.listPendingMessages,
   startTurn: mocks.startTurn,
 } }))
 vi.mock('@/api/chatApi', () => ({ default: {
@@ -53,14 +55,14 @@ describe('submitTurnIntake', () => {
     })
     useConversationsStore.getState().reset()
     useMessagesStore.getState().reset()
-    usePendingMessagesStore.setState({ itemsByConversation: {} })
+    usePendingMessagesStore.setState({ itemsByConversation: {}, revisionByConversation: {} })
     useWorkspaceStore.setState({ currentWorkspacePath: '/workspace', workspaceData: null, loading: false })
     useChatSttingsStore.setState({ agentMode: 'hybrid' })
     mocks.getMessagesByConvId.mockResolvedValue([createMessage('user-1', 'conv-1')])
     mocks.getConversationById.mockResolvedValue(conversation)
     mocks.listActiveTasks.mockResolvedValue([])
     mocks.startTurn.mockResolvedValue({
-      conversation,
+      kind: 'started',
       conversationId: 'conv-1',
       taskId: 'task-1',
       userMessageId: 'user-1',
@@ -103,13 +105,22 @@ describe('submitTurnIntake', () => {
     expect(useConversationsStore.getState().conversationStates['conv-1']).toBe('running')
   })
 
-  it('聊天入口在任务运行中归类为 steering 并进入待处理队列', async () => {
+  it('聊天入口在任务运行中提交时由后端入队并投影快照', async () => {
     mocks.listActiveTasks.mockResolvedValue([{
       conversationId: 'conv-1',
       taskId: 'task-1',
       userMessageId: 'user-1',
       status: 'running',
     }])
+    mocks.startTurn.mockResolvedValue({
+      kind: 'queued',
+      conversationId: 'conv-1',
+      snapshot: {
+        conversationId: 'conv-1',
+        revision: 1,
+        messages: [{ id: 'p1', conversationId: 'conv-1', text: '调整实现', source: 'sender', createdAt: 1 }],
+      },
+    })
 
     const result = await submitTurnIntake({
       origin: 'chat',
@@ -120,11 +131,30 @@ describe('submitTurnIntake', () => {
       settings: conversation.settings,
     })
 
-    expect(result.kind).toBe('steering')
-    expect(mocks.startTurn).not.toHaveBeenCalled()
+    expect(result.kind).toBe('queued')
+    expect(mocks.startTurn).toHaveBeenCalledTimes(1)
     expect(usePendingMessagesStore.getState().itemsByConversation['conv-1']).toEqual([
-      expect.objectContaining({ text: '调整实现', delivery: 'steering', source: 'sender' }),
+      expect.objectContaining({ text: '调整实现', source: 'sender' }),
     ])
+  })
+
+  it('任务运行中附件与引用不支持排队，直接拒绝', async () => {
+    mocks.listActiveTasks.mockResolvedValue([{
+      conversationId: 'conv-1',
+      taskId: 'task-1',
+      userMessageId: 'user-1',
+      status: 'running',
+    }])
+
+    await expect(submitTurnIntake({
+      origin: 'chat',
+      conversationId: 'conv-1',
+      messageContent: [{ type: 'text', text: '看下这个' }, { type: 'file', fileId: 'f1' } as never],
+      mode: 'hybrid',
+      workspacePath: '/workspace',
+      settings: conversation.settings,
+    })).rejects.toThrow('任务进行中，待处理消息暂不支持附件或引用')
+    expect(mocks.startTurn).not.toHaveBeenCalled()
   })
 
   it('turn 已提交后投影失败仍返回成功，避免用户重试产生重复轮次', async () => {
@@ -148,13 +178,22 @@ describe('submitTurnIntake', () => {
     expect(useMessagesStore.getState().activeConversationsId).toBe('conv-1')
   })
 
-  it('可视化入口在任务运行中始终归类为 next-turn', async () => {
+  it('可视化入口在任务运行中按普通提交处理，由后端入队', async () => {
     mocks.listActiveTasks.mockResolvedValue([{
       conversationId: 'conv-1',
       taskId: 'task-1',
       userMessageId: 'user-1',
       status: 'running',
     }])
+    mocks.startTurn.mockResolvedValue({
+      kind: 'queued',
+      conversationId: 'conv-1',
+      snapshot: {
+        conversationId: 'conv-1',
+        revision: 1,
+        messages: [{ id: 'p1', conversationId: 'conv-1', text: '姓名：张三', source: 'sender', createdAt: 1 }],
+      },
+    })
 
     const result = await submitTurnIntake({
       origin: 'visualization',
@@ -165,11 +204,10 @@ describe('submitTurnIntake', () => {
       settings: conversation.settings,
     })
 
-    expect(result.kind).toBe('next-turn')
+    expect(result.kind).toBe('queued')
     expect(mocks.injectSteering).not.toHaveBeenCalled()
-    expect(mocks.startTurn).not.toHaveBeenCalled()
     expect(usePendingMessagesStore.getState().itemsByConversation['conv-1']).toEqual([
-      expect.objectContaining({ text: '姓名：张三', delivery: 'next-turn', source: 'visualization' }),
+      expect.objectContaining({ text: '姓名：张三' }),
     ])
   })
 

@@ -5,12 +5,12 @@ import { toast } from 'sonner'
 import { getAppEventSubscriptions } from '@/api/transports/appEventSubscriptions'
 import { emitAutomationChanged, emitAutomationRunChanged } from '@/constants/automationEvents'
 import { emitProviderChanged } from '@/constants/providerEvents'
-import { applyApprovalRequired, applySecretRequest, applyTaskUpdate, isTaskActive } from '@/store/agentRuntime'
+import { applyApprovalRequired, applySecretRequest, applyTaskUpdate } from '@/store/agentRuntime'
 import { touchConversationUpdatedAt, upsertConversationAction } from '@/store/conversation'
 import { refreshGeneralSettings } from '@/store/generalSettings/actions'
 import { onMcpServerStatusChanged, refreshMcpConfigs } from '@/store/mcpConfigs/action'
 import { updateMessageActionV2 } from '@/store/messages'
-import { drainPendingMessages } from '@/store/pendingMessages'
+import { applyPendingMessageSnapshot } from '@/store/pendingMessages'
 import { useWorkspaceStore } from '@/store/workspace'
 
 /**
@@ -55,19 +55,16 @@ export function useAppEventListener() {
 
       eventSubscriptions.subscribe('agent:task-updated', (payload) => {
         applyTaskUpdate(payload.task)
-        // 任务完成时排空待处理消息队列
-        // turn 完成与 task-updated 在时序上紧邻（turn-finished 总在 task-updated 之前），
-        // 此处统一处理，无需额外监听 agent:turn-finished
-        if (!isTaskActive(payload.task)) {
-          if (payload.task.status !== 'cancelled')
-            void drainPendingMessages(payload.task.conversationId)
-        }
+        // 任务终态后的排队接力由后端执行，前端只负责投影
       }),
       eventSubscriptions.subscribe('agent:approval-required', (payload) => {
         applyApprovalRequired(payload.taskId, payload.pendingAction)
       }),
       eventSubscriptions.subscribe('agent:secret-requested', (payload) => {
         applySecretRequest(payload.request)
+      }),
+      eventSubscriptions.subscribe('agent:pending-messages-updated', (payload) => {
+        applyPendingMessageSnapshot(payload)
       }),
       eventSubscriptions.subscribe('settings:updated', () => {
         void refreshGeneralSettings()

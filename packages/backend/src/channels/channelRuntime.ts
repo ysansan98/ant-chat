@@ -22,6 +22,7 @@ export type ChannelInboundResult
     | { kind: 'pairing-required', message: string }
     | { kind: 'configuration-required', message: string }
     | { kind: 'command', message: string, conversationId?: string, presentation?: ChannelCommandPresentation }
+    | { kind: 'queued', message: string, conversationId: string }
     | { kind: 'turn', result: AgentRuntimeStartTaskResult }
 
 export type ChannelCommandPresentation
@@ -133,6 +134,14 @@ export class ChannelRuntime {
     try {
       const result = await this.deps.turnService.startTurn(options)
       await this.deps.data.channelReceiptRepository.updateStatus(receipt.id, 'received', undefined, result.userMessageId)
+      if (result.kind === 'queued') {
+        // 会话已有运行中任务：消息持久化并进入待处理队列，任务终态后由后端接力。
+        return {
+          kind: 'queued',
+          message: '当前任务运行中，消息已排队，将在当前任务结束后处理。',
+          conversationId: session.activeConversationId,
+        }
+      }
       return { kind: 'turn', result }
     }
     catch (error) {

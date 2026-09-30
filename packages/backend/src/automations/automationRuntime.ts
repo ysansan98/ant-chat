@@ -1,4 +1,5 @@
 import type {
+  AgentTurnStartedResult,
   AutomationDefinition,
   AutomationInput,
   AutomationRun,
@@ -35,7 +36,7 @@ export interface AutomationClock {
 
 export function createAutomationRuntime(options: {
   repository: AutomationRepository
-  startTurn: (input: StartAgentTurnOptions) => Promise<{ taskId: string, conversationId: string, userMessageId: string }>
+  startTurn: (input: StartAgentTurnOptions) => Promise<Omit<AgentTurnStartedResult, 'kind'>>
   cancelTask: (taskId: string) => void
   events: Pick<RuntimeEventBus, 'on' | 'emit'>
   logger?: ILogger

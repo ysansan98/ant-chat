@@ -104,7 +104,13 @@ export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModu
   const permissions = new PermissionsModule(data.permissionsFileStore)
   const runtimeStatus = new RuntimeStatusModule(core)
   const automation = new AutomationModule(data.automationRepository, events, logger, {
-    startTurn: agent.turnService.startTurn,
+    startTurn: async (options) => {
+      const result = await agent.turnService.startTurn(options)
+      // 自动化不会与交互式任务并发在同一会话，进入队列说明状态异常，直接报错。
+      if (result.kind !== 'started')
+        throw new Error('自动化任务不应进入待处理消息队列')
+      return result
+    },
     cancelTask: taskId => agent.runtime.cancelTask({ taskId }),
   })
   const commands = new CommandsModule(core, {

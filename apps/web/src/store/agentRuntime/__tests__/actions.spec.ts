@@ -32,7 +32,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/api/agentApi', () => ({
   default: {
-    startTurn: vi.fn(async () => ({ taskId: 't1', conversationId: 'c1', userMessageId: 'm1' })),
+    startTurn: vi.fn(async () => ({ kind: 'started', taskId: 't1', conversationId: 'c1', userMessageId: 'm1' })),
     approvePendingAction: vi.fn(async () => null),
     rejectPendingAction: vi.fn(async () => null),
     cancelTask: vi.fn(async () => null),
@@ -136,7 +136,7 @@ describe('agentRuntime RPC 转发与远程对账', () => {
         providerId: 'provider-1',
       },
     })
-    expect(created.taskId).toBe('t1')
+    expect(created).toMatchObject({ kind: 'started', taskId: 't1' })
     await expect(approveAgentAction({ taskId: 't1', actionId: 'a1' })).resolves.toBeUndefined()
     await expect(rejectAgentAction({ taskId: 't1', actionId: 'a1', reason: 'r' })).resolves.toBeUndefined()
     await expect(cancelAgentTask('t1')).resolves.toBeUndefined()

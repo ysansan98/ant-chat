@@ -36,6 +36,7 @@ import type { SearchResult } from './global-search'
 import type { McpConnection, McpServerLifecycleResult, McpServerTestResult, McpTool, McpToolCallResponse } from './mcp'
 import type { MemoryCatalogListEntry, MemoryRecord } from './memory-catalog'
 import type { ModelsDevProvider } from './modelsDev'
+import type { AppPendingMessageSnapshot } from './pending-messages'
 import type { ProviderAuthStatus } from './providerAuth'
 import type {
   GithubSkillPreview,
@@ -188,6 +189,10 @@ export interface AppRpcContract {
   'workspace.resolveFileForStream': RpcEndpoint<{ workspacePath: string, relPath: string }, WorkspaceFileStreamInfo>
 
   'agent.startTurn': RpcEndpoint<{ options: StartAgentTurnOptions }, AgentTurnResult>
+  'agent.listPendingMessages': RpcEndpoint<{ conversationId: string }, AppPendingMessageSnapshot>
+  'agent.editPendingMessage': RpcEndpoint<{ conversationId: string, id: string, text: string }, AppPendingMessageSnapshot>
+  'agent.removePendingMessage': RpcEndpoint<{ conversationId: string, id: string }, AppPendingMessageSnapshot>
+  'agent.steerPendingMessage': RpcEndpoint<{ conversationId: string, id: string }, { message: IMessage, snapshot: AppPendingMessageSnapshot }>
   'agent.approvePendingAction': RpcEndpoint<{ options: ApprovePendingActionOptions }, null>
   'agent.rejectPendingAction': RpcEndpoint<{ options: RejectPendingActionOptions }, null>
   'agent.resolveSecretRequest': RpcEndpoint<{ options: { requestId: string, value?: string, values?: Record<string, string> } }, null>

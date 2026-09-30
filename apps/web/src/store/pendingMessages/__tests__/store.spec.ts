@@ -1,45 +1,53 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { clearConversationPendingMessages, editPendingMessage, enqueuePendingMessage, removePendingMessage } from '../actions'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { usePendingMessagesStore } from '../store'
 
-describe('pending messages store', () => {
+function snapshot(conversationId: string, revision: number, texts: string[]) {
+  return {
+    conversationId,
+    revision,
+    messages: texts.map((text, index) => ({
+      id: `${conversationId}-${revision}-${index}`,
+      conversationId,
+      text,
+      source: 'sender' as const,
+      createdAt: index + 1,
+    })),
+  }
+}
+
+describe('pending messages 投影 store', () => {
   beforeEach(() => {
-    localStorage.clear()
-    usePendingMessagesStore.setState({ itemsByConversation: {} })
+    usePendingMessagesStore.setState({ itemsByConversation: {}, revisionByConversation: {} })
   })
 
-  afterEach(() => vi.restoreAllMocks())
+  it('按会话覆盖快照并保持服务端顺序', () => {
+    usePendingMessagesStore.getState().applySnapshot(snapshot('conv-a', 1, ['第一条', '第二条']))
+    usePendingMessagesStore.getState().applySnapshot(snapshot('conv-b', 1, ['其他会话']))
 
-  it('按会话隔离并保持 FIFO', () => {
-    const first = enqueuePendingMessage('conv-a', '第一条')
-    const second = enqueuePendingMessage('conv-a', '第二条')
-    enqueuePendingMessage('conv-b', '其他会话')
-    expect(usePendingMessagesStore.getState().itemsByConversation['conv-a'].map(item => item.id)).toEqual([first.id, second.id])
-    expect(usePendingMessagesStore.getState().itemsByConversation['conv-b']).toHaveLength(1)
+    const state = usePendingMessagesStore.getState()
+    expect(state.itemsByConversation['conv-a']?.map(item => item.text)).toEqual(['第一条', '第二条'])
+    expect(state.itemsByConversation['conv-b']).toHaveLength(1)
   })
 
-  it('编辑和删除正常运行', () => {
-    const queued = enqueuePendingMessage('conv-a', '原文')
-    editPendingMessage('conv-a', queued.id, '新文本')
-    expect(usePendingMessagesStore.getState().itemsByConversation['conv-a'][0].text).toBe('新文本')
-    removePendingMessage('conv-a', queued.id)
-    expect(usePendingMessagesStore.getState().itemsByConversation['conv-a']).toEqual([])
-    enqueuePendingMessage('conv-a', '再次添加')
-    clearConversationPendingMessages('conv-a')
-    expect(usePendingMessagesStore.getState().itemsByConversation['conv-a']).toBeUndefined()
+  it('revision 回退的快照被丢弃，force 时强制应用', () => {
+    usePendingMessagesStore.getState().applySnapshot(snapshot('conv-a', 5, ['新版']))
+    usePendingMessagesStore.getState().applySnapshot(snapshot('conv-a', 4, ['旧版']))
+    expect(usePendingMessagesStore.getState().itemsByConversation['conv-a']?.map(item => item.text)).toEqual(['新版'])
+
+    usePendingMessagesStore.getState().applySnapshot(snapshot('conv-a', 1, ['对账']), { force: true })
+    expect(usePendingMessagesStore.getState().itemsByConversation['conv-a']?.map(item => item.text)).toEqual(['对账'])
+    expect(usePendingMessagesStore.getState().revisionByConversation['conv-a']).toBe(1)
   })
 
-  it.each([
-    ['无法解析的 JSON', '{bad json'],
-    ['合法 JSON 中的损坏结构', JSON.stringify({ state: { itemsByConversation: { 'conv-a': [{ id: 1 }] } }, version: 2 })],
-  ])('%s 在恢复时回退为空队列并记录 warning', async (_, storedValue) => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    usePendingMessagesStore.setState({ itemsByConversation: { stale: [] } })
-    localStorage.setItem('ant-chat:pending-messages:v1', storedValue)
+  it('clearConversation 只清理目标会话投影', () => {
+    usePendingMessagesStore.getState().applySnapshot(snapshot('conv-a', 1, ['A']))
+    usePendingMessagesStore.getState().applySnapshot(snapshot('conv-b', 1, ['B']))
 
-    await usePendingMessagesStore.persist.rehydrate()
+    usePendingMessagesStore.getState().clearConversation('conv-a')
 
-    expect(usePendingMessagesStore.getState().itemsByConversation).toEqual({})
-    expect(warn).toHaveBeenCalledWith('恢复待处理消息失败，已回退为空队列', expect.anything())
+    const state = usePendingMessagesStore.getState()
+    expect(state.itemsByConversation['conv-a']).toBeUndefined()
+    expect(state.revisionByConversation['conv-a']).toBeUndefined()
+    expect(state.itemsByConversation['conv-b']).toHaveLength(1)
   })
 })

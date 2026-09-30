@@ -13,9 +13,9 @@ import { useAnnotationDraftsStore } from '@/store/annotations'
 import { useConversationsStore } from '@/store/conversation'
 import { useMessagesStore } from '@/store/messages'
 import {
-  editPendingMessage,
-  injectPendingMessage,
-  removePendingMessage,
+  editPendingMessageAction,
+  removePendingMessageAction,
+  steerPendingMessageAction,
 } from '@/store/pendingMessages'
 import { cancelTurnCommand, submitTurnIntake } from '@/store/turnIntake'
 import { useWorkspaceStore } from '@/store/workspace'
@@ -226,10 +226,10 @@ export default function Chat() {
               <Sender
                 disabled={commandRunning}
                 onSubmit={onSubmit}
-                canInjectPendingMessage={true}
-                onInjectPendingMessage={id => void injectPendingMessage(activeConversationsId, id)}
-                onEditPendingMessage={(id, text) => editPendingMessage(activeConversationsId, id, text)}
-                onRemovePendingMessage={id => removePendingMessage(activeConversationsId, id)}
+                canSteerPendingMessage={true}
+                onSteerPendingMessage={id => void steerPendingMessageAction(activeConversationsId, id)}
+                onEditPendingMessage={(id, text) => void editPendingMessageAction(activeConversationsId, id, text)}
+                onRemovePendingMessage={id => void removePendingMessageAction(activeConversationsId, id)}
                 onCancel={async () => {
                   if (commandRunning) {
                     await cancelTurnCommand(activeConversationsId)

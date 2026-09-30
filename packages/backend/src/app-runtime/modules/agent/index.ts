@@ -9,6 +9,7 @@ import {
   createAgentTurnService,
   createAppDataSessionStore,
   createConversationTitleGenerator,
+  createPendingMessageService,
 } from '../../../agent-runtime'
 import { createAgentObservability } from '../../../agent-runtime/observability'
 import { createConversationLifecycle } from '../../../conversations/conversationLifecycle'
@@ -30,6 +31,7 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
   readonly eventEmitter: IAgentEventEmitter
   readonly titleGenerator: ReturnType<typeof createConversationTitleGenerator>
   readonly observability: ReturnType<typeof createAgentObservability>
+  private readonly pendingMessages: ReturnType<typeof createPendingMessageService>
   private readonly secretRequester: RuntimeSecretRequestController
 
   constructor(private readonly core: RuntimeCore, dependencies: AgentModuleDependencies) {
@@ -46,6 +48,8 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
       onTurnSettled: event => core.events.emit('observability:turn-settled', event),
     })
 
+    // 任务终态回调在 turnService 就绪前只做占位；构造期不会有任务终结。
+    let relayOnTaskSettled: ((conversationId: string) => void) | undefined
     this.runtime = createAgentRuntime({
       host: {
         eventEmitter: this.eventEmitter,
@@ -68,6 +72,12 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
         secretStore: core.secretStore,
         secretRequester: this.secretRequester,
         channelAttachmentSender: dependencies.channelAttachmentSender,
+        // 任务终态（非取消）后由待处理队列接力；取消的任务保留队列等待用户处理。
+        onTaskSettled: (event) => {
+          if (event.status === 'cancelled')
+            return
+          relayOnTaskSettled?.(event.conversationId)
+        },
       },
       overrides: {
         logger: core.logger,
@@ -86,10 +96,17 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
       updateConversation: input => this.conversationLifecycle.update(input),
       aiProviderFactory: dependencies.aiProviderFactory,
     })
+    this.pendingMessages = createPendingMessageService({
+      repository: core.data.pendingMessageRepository,
+      injectSteering: (conversationId, text) => this.runtime.injectSteering(conversationId, text),
+      emitUpdated: snapshot => core.events.emit('agent:pending-messages-updated', snapshot),
+      logger: core.logger,
+    })
     const turnService = createAgentTurnService({
       runtime: this.runtime,
       appDataContext: core.data,
       conversationLifecycle: this.conversationLifecycle,
+      pendingMessages: this.pendingMessages,
       aiProviderFactory: dependencies.aiProviderFactory,
       titleGenerator: this.titleGenerator,
       emitMessageUpdated: message => core.events.emit('message:updated', { message }),
@@ -100,6 +117,13 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
         await this.refreshObservabilitySetting()
         return turnService.startTurn(options)
       },
+      relayPendingMessages: async (conversationId) => {
+        await this.refreshObservabilitySetting()
+        return turnService.relayPendingMessages(conversationId)
+      },
+    }
+    relayOnTaskSettled = (conversationId) => {
+      void this.turnService.relayPendingMessages(conversationId).catch(error => core.logger.warn('待处理消息接力执行失败', error))
     }
   }
 
@@ -158,6 +182,26 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
   @Method()
   injectSteering(input: AppRpcInput<'agent.injectSteering'>) {
     return this.runtime.injectSteering(input.conversationId, input.text)
+  }
+
+  @Method()
+  listPendingMessages(input: AppRpcInput<'agent.listPendingMessages'>) {
+    return this.pendingMessages.snapshot(input.conversationId)
+  }
+
+  @Method()
+  editPendingMessage(input: AppRpcInput<'agent.editPendingMessage'>) {
+    return this.pendingMessages.edit(input.conversationId, input.id, input.text)
+  }
+
+  @Method()
+  removePendingMessage(input: AppRpcInput<'agent.removePendingMessage'>) {
+    return this.pendingMessages.remove(input.conversationId, input.id)
+  }
+
+  @Method()
+  steerPendingMessage(input: AppRpcInput<'agent.steerPendingMessage'>) {
+    return this.pendingMessages.steer(input.conversationId, input.id)
   }
 
   @Method()

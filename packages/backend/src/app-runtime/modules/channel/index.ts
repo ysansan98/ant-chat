@@ -374,6 +374,9 @@ export class ChannelModule implements RuntimeModuleMethods<'channel'>, RuntimeMo
           else if (result.kind === 'configuration-required') {
             await this.delivery.deliverResponse(event, result.message)
           }
+          else if (result.kind === 'queued') {
+            await this.delivery.deliverResponse(event, result.message)
+          }
           else if (result.kind === 'turn') {
             keepTyping = true
           }

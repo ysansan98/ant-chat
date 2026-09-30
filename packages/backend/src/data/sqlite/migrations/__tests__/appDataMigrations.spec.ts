@@ -37,6 +37,7 @@ describe('app-data SQLite 迁移', () => {
       'automations',
       'conversations',
       'messages',
+      'pending_messages',
       'channel_accounts',
       'channel_pairings',
       'channel_sessions',
@@ -59,6 +60,7 @@ describe('app-data SQLite 迁移', () => {
       { version: 9, name: '消息搜索投影、FTS 与长期记忆目录' },
       { version: 10, name: '记录微信扫码登录 owner 身份' },
       { version: 11, name: '自动化 run 状态收窄并增加已读标记' },
+      { version: 12, name: '增加待处理消息队列表' },
     ])
   })
 
@@ -112,7 +114,42 @@ describe('app-data SQLite 迁移', () => {
     expect(messageColumnNames).not.toEqual(expect.arrayContaining(['images', 'attachments']))
     const conversationColumns = sqlite.prepare('PRAGMA table_info(conversations)').all() as Array<{ name: string }>
     expect(conversationColumns.map(column => column.name)).toContain('archived')
-    expect(sqlite.prepare('SELECT version FROM app_data_migrations').all()).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }, { version: 7 }, { version: 8 }, { version: 9 }, { version: 10 }, { version: 11 }])
+    expect(sqlite.prepare('SELECT version FROM app_data_migrations').all()).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }, { version: 7 }, { version: 8 }, { version: 9 }, { version: 10 }, { version: 11 }, { version: 12 }])
+  })
+
+  // ===== 测试：version 11 → 12 迁移 =====
+
+  describe('version 11→12 迁移', () => {
+    it('从 v11 升级创建待处理消息队列表并支持级联删除', () => {
+      runSqliteMigrations(sqlite, createAppDataMigrations({ attachmentsRootPath }))
+      sqlite.prepare(`
+        INSERT INTO conversations (id, workspace_path, title, created_at, updated_at, archived, settings)
+        VALUES ('conv-p', '/ws', '队列', 1, 1, 0, '{}')
+      `).run()
+
+      // 模拟 v11 → v12 升级：清空迁移历史到 v11 后重建
+      sqlite.prepare('DELETE FROM app_data_migrations WHERE version > 11').run()
+      runSqliteMigrations(sqlite, createAppDataMigrations({ attachmentsRootPath }))
+
+      const columns = (sqlite.prepare('PRAGMA table_info(pending_messages)').all() as Array<{ name: string }>).map(column => column.name)
+      expect(columns).toEqual(expect.arrayContaining(['id', 'conversation_id', 'text', 'source', 'mode', 'user_message_id', 'turn_source', 'created_at']))
+      expect(sqlite.prepare(`
+        SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_pending_messages_conversation'
+      `).get()).toBeDefined()
+
+      sqlite.prepare(`
+        INSERT INTO pending_messages (id, conversation_id, text, source, mode, user_message_id, turn_source, created_at)
+        VALUES ('p1', 'conv-p', '待处理', 'sender', 'hybrid', NULL, NULL, 10)
+      `).run()
+      // 外键级联：删除会话时队列项一并删除
+      sqlite.prepare('DELETE FROM conversations WHERE id = ?').run('conv-p')
+      expect(sqlite.prepare('SELECT COUNT(*) AS count FROM pending_messages').get()).toEqual({ count: 0 })
+
+      // 重复运行不重复应用
+      runSqliteMigrations(sqlite, createAppDataMigrations({ attachmentsRootPath }))
+      const applied = sqlite.prepare('SELECT COUNT(*) AS count FROM app_data_migrations WHERE version = 12').get() as { count: number }
+      expect(applied.count).toBe(1)
+    })
   })
 
   // ===== 测试：version 8 → 9 迁移 =====

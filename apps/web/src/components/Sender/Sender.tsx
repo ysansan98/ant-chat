@@ -22,8 +22,8 @@ interface SenderProps {
     agentMode: AgentMode,
   ) => Promise<boolean | void> | boolean | void
   onCancel?: () => void
-  canInjectPendingMessage?: boolean
-  onInjectPendingMessage?: (id: string) => void
+  canSteerPendingMessage?: boolean
+  onSteerPendingMessage?: (id: string) => void
   onEditPendingMessage?: (id: string, text: string) => void
   onRemovePendingMessage?: (id: string) => void
 }
@@ -76,8 +76,8 @@ function Sender({ disabled = false, ...props }: SenderProps) {
 
       <SenderComposer
         conversationId={activeConversationId}
-        canInjectPendingMessage={props.canInjectPendingMessage ?? false}
-        onInjectPendingMessage={id => props.onInjectPendingMessage?.(id)}
+        canSteerPendingMessage={props.canSteerPendingMessage ?? false}
+        onSteerPendingMessage={id => props.onSteerPendingMessage?.(id)}
         onEditPendingMessage={(id, text) => props.onEditPendingMessage?.(id, text)}
         onRemovePendingMessage={id => props.onRemovePendingMessage?.(id)}
         referenceInput={referenceInput}

@@ -278,6 +278,41 @@ describe('agentRuntime 行为', () => {
       )
     })
 
+    it('任务进入终态并完成收尾后触发 onTaskSettled 通知', async () => {
+      const { runAgentLoop } = await import('../loop/agentLoop')
+      const onTaskSettled = vi.fn()
+      const config: AgentRuntimeConfig = { ...createConfig(), onTaskSettled }
+      const runtime = new AgentRuntime(config)
+
+      vi.mocked(runAgentLoop).mockImplementationOnce(async ({ execution }) => {
+        execution.task.snapshot.status = 'success'
+        execution.finish()
+      })
+
+      const result = await runtime.startPreparedTask(createValidStartInput())
+
+      await vi.waitFor(() => {
+        expect(onTaskSettled).toHaveBeenCalledWith({
+          taskId: result.taskId,
+          conversationId: 'conv-1',
+          status: 'success',
+        })
+      })
+      // 通知发生在任务离开活跃集合之后，同会话可以安全启动下一轮
+      expect(runtime.listActiveTasks('conv-1')).toEqual([])
+    })
+
+    it('启动期清理任务（未进入终态）不触发 onTaskSettled', async () => {
+      const emitter = createMockEmitter()
+      ;(emitter.emitTaskUpdated as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('emit failed'))
+      const onTaskSettled = vi.fn()
+      const runtime = new AgentRuntime({ eventEmitter: emitter, logger: createMockLogger(), onTaskSettled })
+
+      await expect(runtime.startPreparedTask(createValidStartInput())).rejects.toThrow('emit failed')
+      expect(onTaskSettled).not.toHaveBeenCalled()
+      expect(runtime.listActiveTasks('conv-1')).toEqual([])
+    })
+
     it('模型不支持图片输入时把用户图片附件替换为识别占位符文本', async () => {
       const sessionStore = createSessionStore({
         getMessages: vi.fn(async () => [{

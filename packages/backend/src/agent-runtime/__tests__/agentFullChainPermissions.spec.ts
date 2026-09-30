@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createAgentTurnService } from '../agentTurnService'
+import { createPendingMessageService } from '../pendingMessageService'
 import { createAppDataSessionStore } from '../sessionStore'
 
 const TEST_MODEL_ID = 'mock-model'
@@ -185,6 +186,7 @@ describe('agent 真实链路权限行为', () => {
 interface BetterSqliteDatabase { close: () => void }
 type BetterSqliteConstructor = new (filename: string) => BetterSqliteDatabase
 type StartTurnResult = Awaited<ReturnType<ReturnType<typeof createAgentTurnService>['startTurn']>>
+type StartedTurnResult = Extract<StartTurnResult, { kind: 'started' }>
 
 interface CapturedApproval {
   taskId: string
@@ -197,7 +199,7 @@ interface AgentRuntimeHarness {
   approvals: CapturedApproval[]
   runtime: ReturnType<typeof createAgentRuntime>
   provider: ScriptedProvider
-  startTurn: (prompt: string, mode: AgentMode) => Promise<StartTurnResult>
+  startTurn: (prompt: string, mode: AgentMode) => Promise<StartedTurnResult>
   waitForApproval: () => Promise<CapturedApproval>
   waitForFinish: (conversationId: string) => Promise<void>
   workspaceFile: (relativePath: string) => string
@@ -312,7 +314,12 @@ function createHarness(): AgentRuntimeHarness {
     events: { emit() {} },
     runtime,
   })
-  const turnService = createAgentTurnService({ runtime, appDataContext, conversationLifecycle, aiProviderFactory: async () => provider })
+  const pendingMessages = createPendingMessageService({
+    repository: appDataContext.pendingMessageRepository,
+    injectSteering: () => { throw new Error('该测试不涉及待处理队列引导') },
+    emitUpdated: () => {},
+  })
+  const turnService = createAgentTurnService({ runtime, appDataContext, conversationLifecycle, pendingMessages, aiProviderFactory: async () => provider })
 
   return {
     workspacePath,
@@ -320,7 +327,7 @@ function createHarness(): AgentRuntimeHarness {
     runtime,
     provider,
     async startTurn(prompt, mode) {
-      return await turnService.startTurn({
+      const result = await turnService.startTurn({
         messageContent: [{ type: 'text', text: prompt }],
         workspacePath,
         mode,
@@ -329,6 +336,9 @@ function createHarness(): AgentRuntimeHarness {
           providerId: 'mock-provider',
         },
       })
+      if (result.kind !== 'started')
+        throw new Error('测试预期任务立即启动，而不是进入待处理队列')
+      return result
     },
     async waitForApproval() {
       return await waitFor(() => approvals[0], '等待审批事件超时')

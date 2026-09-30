@@ -1,5 +1,6 @@
 import type { AgentMode, AgentRuntimeConfig, AgentRuntimeOptions, AgentRuntimeStartTaskOptions, AgentRuntimeStartTaskResult, AgentTaskSnapshot, ApprovePendingActionOptions, CancelTaskOptions, IMessage, RejectPendingActionOptions } from '@ant-chat/shared'
 import type { RuntimeStartInput, RuntimeStartResult } from './session/types'
+import type { TaskExecution } from './taskStore'
 import type { ToolAuthorization } from './tools/types'
 import { randomUUID } from 'node:crypto'
 import { AgentError } from './AgentError'
@@ -78,6 +79,31 @@ export class AgentRuntime {
 
     const task = { snapshot, abortController: new AbortController() }
     const execution = this.taskStore.reserve(task)
+    // 任务终态后（已从任务存储移除）通知外层，供待处理队列接力等收尾动作使用；
+    // 回调抛错被捕获，不影响循环收尾与后续任务。
+    let settled = false
+    const onTaskSettled = this.config.onTaskSettled
+    const taskExecution: TaskExecution = onTaskSettled
+      ? {
+          ...execution,
+          finish: () => {
+            if (settled)
+              return
+            settled = true
+            execution.finish()
+            const status = task.snapshot.status
+            // 仅真正进入终态的任务通知外层；启动期失败清理（status 仍为 running）不触发。
+            if (status !== 'success' && status !== 'failed' && status !== 'cancelled')
+              return
+            try {
+              onTaskSettled({ taskId, conversationId: options.conversationId, status })
+            }
+            catch (error) {
+              this.config.logger?.warn('任务终态回调执行失败', error)
+            }
+          },
+        }
+      : execution
     const turnRecorder = beginTurnObservation(baseConfig, {
       conversationId: options.conversationId,
       turnId: options.userMessageId,
@@ -92,11 +118,11 @@ export class AgentRuntime {
     }
     catch (error) {
       finishTurnObservation(config, { status: 'failed', error })
-      execution.finish()
+      taskExecution.finish()
       throw error
     }
     void runAgentLoop({
-      execution,
+      execution: taskExecution,
       options,
       config,
       beforeToolExecute: this.beforeToolExecuteHook,

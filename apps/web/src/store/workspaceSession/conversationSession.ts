@@ -3,6 +3,7 @@ import { produce } from 'immer'
 import chatApi from '@/api/chatApi'
 import { syncConversationRuntime } from '@/store/agentRuntime'
 import { useMessagesStore } from '@/store/messages'
+import { syncPendingMessages } from '@/store/pendingMessages'
 
 let loadVersion = 0
 
@@ -27,9 +28,10 @@ export async function activateConversationSession(id: ConversationsId | ''): Pro
   }
 
   const version = ++loadVersion
-  const [messagesResult, runtimeResult] = await Promise.allSettled([
+  const [messagesResult, runtimeResult, pendingResult] = await Promise.allSettled([
     chatApi.getMessagesByConvId(id),
     syncConversationRuntime(id),
+    syncPendingMessages(id),
   ])
 
   if (version !== loadVersion)
@@ -38,6 +40,9 @@ export async function activateConversationSession(id: ConversationsId | ''): Pro
     throw messagesResult.reason
   if (runtimeResult.status === 'rejected')
     throw runtimeResult.reason
+  // 队列投影失败不阻塞会话打开，等待后续事件对账
+  if (pendingResult.status === 'rejected')
+    console.warn('同步待处理消息队列失败', pendingResult.reason)
 
   useMessagesStore.setState(state => produce(state, (draft) => {
     const persistedMessageIds = new Set(messagesResult.value.map(message => message.id))

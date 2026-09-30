@@ -1,4 +1,5 @@
 import type { AgentPendingAction, AgentTaskSnapshot, AutomationDefinition, AutomationRun, IConversations, IMessage, NotificationOption, ProgressInfo, UpdateError, UpdateInfo, UpdateStatus } from './interfaces'
+import type { AppPendingMessageSnapshot } from './interfaces/pending-messages'
 import type { SecretRequest } from './schemas'
 
 export function createIpcResponse<T>(success: boolean, data: T, msg?: string): IpcResponse<T> | ErrorIpcResponse {
@@ -69,6 +70,7 @@ export interface AppRendererEvents {
   'agent:turn-finished': { conversationId: string, turnId: string, status: 'success' | 'error' | 'cancel' }
   'agent:approval-required': { taskId: string, conversationId: string, pendingAction: AgentPendingAction }
   'agent:secret-requested': { request: SecretRequest }
+  'agent:pending-messages-updated': AppPendingMessageSnapshot
   'workspace:changed': Record<string, never>
   'settings:updated': { keys: string[] }
   'mcp:status-changed': { serverName: string, status: 'connected' | 'connecting' | 'disconnected', error?: string }
@@ -86,6 +88,7 @@ export const APP_RENDERER_EVENT_NAMES = [
   'agent:turn-finished',
   'agent:approval-required',
   'agent:secret-requested',
+  'agent:pending-messages-updated',
   'workspace:changed',
   'settings:updated',
   'mcp:status-changed',

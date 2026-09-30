@@ -25,7 +25,10 @@ vi.mock('@/api/chatApi', () => ({ default: {
   getWorkspaceConversations: vi.fn(async () => ({ data: [], total: 0 })),
   getMessagesByConvId: vi.fn(async () => []),
 } }))
-vi.mock('@/api/agentApi', () => ({ default: { listActiveTasks: vi.fn(async () => []) } }))
+vi.mock('@/api/agentApi', () => ({ default: {
+  listActiveTasks: vi.fn(async () => []),
+  listPendingMessages: vi.fn(async (conversationId: string) => ({ conversationId, revision: 0, messages: [] })),
+} }))
 
 const automation = {
   id: 'automation-1',

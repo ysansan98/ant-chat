@@ -1,4 +1,4 @@
-import type { PendingMessage } from '@/store/pendingMessages'
+import type { AppPendingMessage } from '@ant-chat/shared'
 import { Button } from '@workspace/ui/components/button'
 import { Textarea } from '@workspace/ui/components/textarea'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@workspace/ui/components/tooltip'
@@ -6,14 +6,14 @@ import { CornerDownLeftIcon, GripVerticalIcon, PencilIcon, Trash2Icon } from 'lu
 import { useState } from 'react'
 
 interface PendingMessageItemProps {
-  item: PendingMessage
-  canInject: boolean
-  onInject: (id: string) => void
+  item: AppPendingMessage
+  canSteer: boolean
+  onSteer: (id: string) => void
   onEdit: (id: string, text: string) => void
   onRemove: (id: string) => void
 }
 
-export function PendingMessageItem({ item, canInject, onInject, onEdit, onRemove }: PendingMessageItemProps) {
+export function PendingMessageItem({ item, canSteer, onSteer, onEdit, onRemove }: PendingMessageItemProps) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(item.text)
 
@@ -55,12 +55,12 @@ export function PendingMessageItem({ item, canInject, onInject, onEdit, onRemove
       <div className="flex shrink-0 items-center opacity-60 transition-opacity duration-150 hover:opacity-100">
         <Tooltip>
           <TooltipTrigger render={(
-            <Button className="active:scale-[0.96]" size="icon" variant="ghost" aria-label={item.delivery === 'next-turn' ? '等待当前任务结束' : '引导'} disabled={!canInject || item.delivery === 'next-turn'} onClick={() => onInject(item.id)}>
+            <Button className="active:scale-[0.96]" size="icon" variant="ghost" aria-label="引导" disabled={!canSteer} onClick={() => onSteer(item.id)}>
               <CornerDownLeftIcon className="size-4 cursor-pointer" />
             </Button>
           )}
           />
-          <TooltipContent side="top">{item.delivery === 'next-turn' ? '当前任务结束后发送' : '引导'}</TooltipContent>
+          <TooltipContent side="top">引导</TooltipContent>
         </Tooltip>
         <Button className="active:scale-[0.96]" size="icon" variant="ghost" aria-label="编辑待处理消息" onClick={() => setEditing(true)}>
           <PencilIcon className="size-4 cursor-pointer" />

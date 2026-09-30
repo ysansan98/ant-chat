@@ -1,5 +1,6 @@
 import type {
   AgentMode,
+  AgentTurnQueuedResult,
   ConversationsId,
   ConversationsSettingsSchema,
   IMessageContent,
@@ -15,12 +16,11 @@ import {
 } from '@/components/Sender/builtinCommandParser'
 import { isTaskActive } from '@/store/agentRuntime'
 import { useConversationsStore } from '@/store/conversation'
-import { addPendingSteeringMessage } from '@/store/messages'
-import { enqueuePendingMessage, enqueueVisualizationNextTurn } from '@/store/pendingMessages/queue'
+import { usePendingMessagesStore } from '@/store/pendingMessages/store'
 import { activateConversationSession, commitConversationSelection } from '@/store/workspaceSession'
 
-export type TurnOrigin = 'chat' | 'visualization' | 'pending'
-export type TurnKind = 'regular' | 'command' | 'steering' | 'next-turn'
+export type TurnOrigin = 'chat' | 'visualization'
+export type TurnKind = 'regular' | 'command' | 'queued'
 
 export interface SubmitTurnIntakeOptions {
   origin: TurnOrigin
@@ -31,8 +31,6 @@ export interface SubmitTurnIntakeOptions {
   settings: ConversationsSettingsSchema
   conversationInstructions?: string
   knownSkillNames?: ReadonlySet<string>
-  /** pending queue 的既定投递语义；其他入口由 intake 自行分类。 */
-  delivery?: 'steering' | 'next-turn'
   onCommandRunningChange?: (running: boolean) => void
 }
 
@@ -44,10 +42,10 @@ export interface SubmitTurnIntakeResult {
 }
 
 /**
- * 统一接收 Chat、Visualization 与 pending queue 的轮次意图。
+ * 统一接收 Chat 与 Visualization 的轮次意图。
  *
- * 调用者只描述来源和内容；本模块拥有 command/steering/next-turn 分类、
- * 运行时启动，以及 conversation/messages/runtime 投影对账。
+ * 调用者只描述来源和内容；本模块拥有「命令解析、提交、运行中排队（由后端判定）」，
+ * 以及 conversation/messages/runtime 投影对账。运行中提交的排队与接力语义都在后端。
  */
 export async function submitTurnIntake(options: SubmitTurnIntakeOptions): Promise<SubmitTurnIntakeResult> {
   const text = extractText(options.messageContent)
@@ -55,19 +53,32 @@ export async function submitTurnIntake(options: SubmitTurnIntakeOptions): Promis
     ? (await agentApi.listActiveTasks(options.conversationId)).find(isTaskActive)
     : undefined
 
-  if (activeTask)
-    return submitWhileRunning(options, text)
-
-  if (options.origin === 'chat') {
-    const command = parseBuiltinCommand(text, options.knownSkillNames)
-    if (command)
-      return runCommand(options, command)
+  if (activeTask) {
+    // 任务运行中：附件与引用不支持排队，直接拒绝；纯文本交给后端入队。
+    const hasAttachment = options.messageContent.some(block => block.type !== 'text')
+    if (
+      hasAttachment
+      || hasWorkspacePathReference(text)
+      || hasSkillReference(text, options.knownSkillNames)
+    ) {
+      throw new Error('任务进行中，待处理消息暂不支持附件或引用')
+    }
+  }
+  else {
+    if (options.origin === 'chat') {
+      const command = parseBuiltinCommand(text, options.knownSkillNames)
+      if (command)
+        return runCommand(options, command)
+    }
+    // 排队不依赖模型；只有立即启动的轮次才要求已选择模型
+    if (!options.settings.modelId)
+      throw new Error('请选择模型')
   }
 
-  if (!options.settings.modelId)
-    throw new Error('请选择模型')
-
   const result = await agentApi.startTurn(toStartTurnOptions(options))
+  if (result.kind === 'queued')
+    return applyQueuedResult(result)
+
   const projectionWarning = await reconcileCommittedConversation(result.conversationId)
   return { kind: 'regular', conversationId: result.conversationId, projectionWarning }
 }
@@ -82,38 +93,10 @@ export async function cancelTurnCommand(conversationId: string): Promise<void> {
   }
 }
 
-async function submitWhileRunning(
-  options: SubmitTurnIntakeOptions,
-  text: string,
-): Promise<SubmitTurnIntakeResult> {
-  const conversationId = options.conversationId
-  if (!conversationId)
-    throw new Error('运行中的任务缺少会话 ID')
-
-  if (options.origin === 'visualization') {
-    enqueueVisualizationNextTurn(conversationId, text)
-    return { kind: 'next-turn', conversationId }
-  }
-
-  if (options.origin === 'pending') {
-    if (options.delivery === 'next-turn')
-      return { kind: 'next-turn', conversationId }
-    const message = await agentApi.injectSteering(conversationId, text)
-    addPendingSteeringMessage(message)
-    return { kind: 'steering', conversationId }
-  }
-
-  const hasAttachment = options.messageContent.some(block => block.type !== 'text')
-  if (
-    hasAttachment
-    || hasWorkspacePathReference(text)
-    || hasSkillReference(text, options.knownSkillNames)
-  ) {
-    throw new Error('任务进行中，待处理消息暂不支持附件或引用')
-  }
-
-  enqueuePendingMessage(conversationId, text)
-  return { kind: 'steering', conversationId }
+/** 运行中（或提交竞态下）入队：把后端返回的队列快照写入投影。 */
+function applyQueuedResult(result: AgentTurnQueuedResult): SubmitTurnIntakeResult {
+  usePendingMessagesStore.getState().applySnapshot(result.snapshot)
+  return { kind: 'queued', conversationId: result.conversationId }
 }
 
 async function runCommand(

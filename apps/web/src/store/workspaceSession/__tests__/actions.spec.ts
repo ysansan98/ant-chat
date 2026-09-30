@@ -10,11 +10,13 @@ const mocks = vi.hoisted(() => ({
   getMessagesByConvId: vi.fn(),
   getWorkspaceConversations: vi.fn(),
   listActiveTasks: vi.fn(),
+  listPendingMessages: vi.fn(async (conversationId: string) => ({ conversationId, revision: 0, messages: [] })),
   openWorkspace: vi.fn(),
 }))
 
 vi.mock('@/api/agentApi', () => ({ default: {
   listActiveTasks: mocks.listActiveTasks,
+  listPendingMessages: mocks.listPendingMessages,
 } }))
 vi.mock('@/api/chatApi', () => ({ default: {
   getMessagesByConvId: mocks.getMessagesByConvId,

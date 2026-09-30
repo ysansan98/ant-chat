@@ -32,8 +32,12 @@ const mocks = vi.hoisted(() => ({
       turnId: 'user-1',
     })),
     listActiveTasks: vi.fn<() => Promise<AgentTaskSnapshot[]>>(async () => []),
+    listPendingMessages: vi.fn(async (conversationId: string) => ({ conversationId, revision: 0, messages: [] })),
+    editPendingMessage: vi.fn(),
+    removePendingMessage: vi.fn(),
     rejectPendingAction: vi.fn(async () => null),
     startTurn: vi.fn(),
+    steerPendingMessage: vi.fn(),
   },
   chat: {
     getConversationById: vi.fn(),
@@ -155,7 +159,7 @@ describe('gui ui flow', () => {
     })
     useConversationsStore.getState().reset()
     useAgentRuntimeStore.setState({ pendingByTask: {}, tasks: {}, executionPhaseByTurn: {} })
-    usePendingMessagesStore.setState({ itemsByConversation: {} })
+    usePendingMessagesStore.setState({ itemsByConversation: {}, revisionByConversation: {} })
 
     mocks.provider.getAllAbvailableModels.mockResolvedValue([])
     mocks.skill.listSkills.mockResolvedValue({ rootPath: '/tmp/skills', skills: [] })
@@ -185,10 +189,10 @@ describe('gui ui flow', () => {
       conversationsById.set(conversation.id, conversation)
       messagesByConversation.set(conversation.id, [])
       return {
+        kind: 'started',
         taskId: 'task-gui',
         conversationId: conversation.id,
         userMessageId: 'user-gui',
-        conversation,
       }
     })
   })
@@ -321,10 +325,10 @@ describe('gui ui flow', () => {
         createMessage({ id: 'assistant-1', convId: conversation.id, role: 'assistant', text: '目录检查完成。' }),
       ])
       return {
+        kind: 'started',
         taskId: 'task-agent',
         conversationId: conversation.id,
         userMessageId: 'user-1',
-        conversation,
       }
     })
 
@@ -475,7 +479,7 @@ describe('gui ui flow', () => {
     })
   })
 
-  it('运行中的输入先排队，用户点击立即追加后才进入当前任务', async () => {
+  it('运行中的输入先进后端队列，用户点击引导后注入当前任务', async () => {
     seedActiveConversation('conv-steering')
     const task = createTask({
       conversationId: 'conv-steering',
@@ -483,14 +487,36 @@ describe('gui ui flow', () => {
       taskId: 'task-steering',
     })
     mocks.agent.listActiveTasks.mockResolvedValue([task])
-    mocks.agent.injectSteering.mockResolvedValue({
-      id: 'msg-steering-1',
-      convId: 'conv-steering',
-      createdAt: 10,
-      role: 'user',
-      status: 'success',
-      content: [{ type: 'text', text: '先修复类型错误，再继续实现' }],
-      turnId: 'user-1',
+    mocks.agent.startTurn.mockResolvedValue({
+      kind: 'queued',
+      conversationId: 'conv-steering',
+      snapshot: {
+        conversationId: 'conv-steering',
+        revision: 1,
+        messages: [{
+          id: 'pending-1',
+          conversationId: 'conv-steering',
+          text: '先修复类型错误，再继续实现',
+          source: 'sender',
+          createdAt: 1,
+        }],
+      },
+    })
+    mocks.agent.steerPendingMessage.mockResolvedValue({
+      message: {
+        id: 'msg-steering-1',
+        convId: 'conv-steering',
+        createdAt: 10,
+        role: 'user',
+        status: 'success',
+        content: [{ type: 'text', text: '先修复类型错误，再继续实现' }],
+        turnId: 'user-1',
+      },
+      snapshot: {
+        conversationId: 'conv-steering',
+        revision: 2,
+        messages: [],
+      },
     })
 
     await activateConversationSession('conv-steering' as ConversationsId)
@@ -507,27 +533,28 @@ describe('gui ui flow', () => {
     expect(screen.queryByTestId('chat-cancel')).not.toBeInTheDocument()
     fireEvent.click(screen.getByTestId('chat-submit'))
 
-    await screen.findByText('先修复类型错误，再继续实现')
+    // 提交后输入框清空、队列项渲染；运行中的普通消息交给后端排队
+    await waitFor(() => {
+      expect(input).toHaveValue('')
+      expect(screen.getByText('先修复类型错误，再继续实现')).toBeInTheDocument()
+    })
+    expect(mocks.agent.startTurn).toHaveBeenCalledTimes(1)
     expect(mocks.agent.injectSteering).not.toHaveBeenCalled()
-    expect(mocks.agent.startTurn).not.toHaveBeenCalled()
-    expect(input).toHaveValue('')
     expect(screen.getByTestId('chat-cancel')).toBeEnabled()
 
     fireEvent.click(screen.getByRole('button', { name: '引导' }))
 
     await waitFor(() => {
-      expect(mocks.agent.injectSteering).toHaveBeenCalledWith(
-        'conv-steering',
-        '先修复类型错误，再继续实现',
-      )
+      expect(mocks.agent.steerPendingMessage).toHaveBeenCalledWith('conv-steering', 'pending-1')
     })
-    expect(mocks.agent.startTurn).not.toHaveBeenCalled()
-    expect(useMessagesStore.getState().messages).toEqual([
-      expect.objectContaining({
-        id: 'msg-steering-1',
-        content: [{ type: 'text', text: '先修复类型错误，再继续实现' }],
-      }),
-    ])
+    await waitFor(() => {
+      expect(useMessagesStore.getState().messages).toEqual([
+        expect.objectContaining({
+          id: 'msg-steering-1',
+          content: [{ type: 'text', text: '先修复类型错误，再继续实现' }],
+        }),
+      ])
+    })
   })
 
   it('运行中的任务拒绝包含工作区路径引用的待处理消息', async () => {

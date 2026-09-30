@@ -119,6 +119,26 @@ describe('listen', () => {
     expect(payload).toContain('"requestId":"request-1"')
   })
 
+  it('通过 SSE 推送待处理消息队列快照事件', async () => {
+    const payload = await readSseEvent('agent:pending-messages-updated', () => {
+      eventEmitter.emit('agent:pending-messages-updated', {
+        conversationId: 'conversation-1',
+        revision: 3,
+        messages: [{
+          id: 'pending-1',
+          conversationId: 'conversation-1',
+          text: '排队消息',
+          source: 'sender',
+          createdAt: 1,
+        }],
+      })
+    })
+
+    expect(payload).toContain('event: agent:pending-messages-updated')
+    expect(payload).toContain('"revision":3')
+    expect(payload).toContain('"text":"排队消息"')
+  })
+
   it('重复关闭时只释放一次 Runtime', async () => {
     await server.close()
     await server.close()

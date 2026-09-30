@@ -1,5 +1,4 @@
-import type { AppRpcInput } from '@ant-chat/shared'
-import type { AgentTurnService } from '../../../agent-runtime'
+import type { AgentTurnStartedResult, AppRpcInput, StartAgentTurnOptions } from '@ant-chat/shared'
 import type { AutomationRepository } from '../../../data'
 import type { RuntimeEventBus } from '../../../events'
 import type { SystemLogger } from '../../../systemLogger'
@@ -16,7 +15,7 @@ export class AutomationModule implements RuntimeModuleMethods<'automation'> {
     events: RuntimeEventBus,
     logger: SystemLogger,
     dependencies: {
-      startTurn: AgentTurnService['startTurn']
+      startTurn: (options: StartAgentTurnOptions) => Promise<Omit<AgentTurnStartedResult, 'kind'>>
       cancelTask: (taskId: string) => void
     },
   ) {

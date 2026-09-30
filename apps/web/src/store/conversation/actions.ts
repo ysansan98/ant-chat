@@ -4,11 +4,7 @@ import { produce } from 'immer'
 import chatApi from '@/api/chatApi'
 import { useGeneralSettingsStore } from '@/store/generalSettings'
 import { useMessagesStore } from '@/store/messages'
-import {
-  cancelPendingMessageDeletion,
-  completePendingMessageDeletion,
-  preparePendingMessageDeletion,
-} from '@/store/pendingMessages'
+import { clearConversationPendingMessages } from '@/store/pendingMessages'
 import { useWorkspaceStore } from '@/store/workspace'
 import { clearConversationSession } from '../workspaceSession/conversationSession'
 import {
@@ -193,15 +189,9 @@ export async function renameConversationsAction(id: ConversationsId, title: stri
 }
 
 export async function deleteConversationsAction(id: ConversationsId) {
-  const deletion = await preparePendingMessageDeletion([id])
-  try {
-    await chatApi.deleteConversation(id)
-    completePendingMessageDeletion(deletion)
-  }
-  catch (error) {
-    cancelPendingMessageDeletion(deletion)
-    throw error
-  }
+  await chatApi.deleteConversation(id)
+  // 会话删除后服务端队列已随外键级联清理，这里同步清掉本地投影
+  clearConversationPendingMessages(id)
 
   if (useMessagesStore.getState().activeConversationsId === id) {
     clearConversationSession()
@@ -234,22 +224,9 @@ export async function clearConversationsAction() {
     useConversationsStore.getState(),
     currentWorkspacePath,
   ).map(conversation => conversation.id)
-  const loadedDeletion = await preparePendingMessageDeletion(loadedConversationIds)
-  let deletedConversationIds: string[]
-  try {
-    deletedConversationIds = await chatApi.clearWorkspaceConversations(currentWorkspacePath)
-    const deletedIds = new Set(deletedConversationIds)
-    const loadedIds = new Set(loadedConversationIds)
-    const unloadedDeletedIds = deletedConversationIds.filter(id => !loadedIds.has(id))
-    const unloadedDeletion = await preparePendingMessageDeletion(unloadedDeletedIds)
-    completePendingMessageDeletion(loadedDeletion, loadedConversationIds.filter(id => deletedIds.has(id)))
-    cancelPendingMessageDeletion(loadedDeletion, loadedConversationIds.filter(id => !deletedIds.has(id)))
-    completePendingMessageDeletion(unloadedDeletion)
-  }
-  catch (error) {
-    cancelPendingMessageDeletion(loadedDeletion)
-    throw error
-  }
+  const deletedConversationIds = await chatApi.clearWorkspaceConversations(currentWorkspacePath)
+  for (const conversationId of new Set([...loadedConversationIds, ...deletedConversationIds]))
+    clearConversationPendingMessages(conversationId)
 
   clearConversationSession()
 

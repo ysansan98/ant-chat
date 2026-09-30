@@ -16,8 +16,8 @@ import { SenderToolbar } from './SenderToolbar'
 
 interface SenderComposerProps {
   conversationId: string
-  canInjectPendingMessage: boolean
-  onInjectPendingMessage: (id: string) => void
+  canSteerPendingMessage: boolean
+  onSteerPendingMessage: (id: string) => void
   onEditPendingMessage: (id: string, text: string) => void
   onRemovePendingMessage: (id: string) => void
   referenceInput: ReferenceInputController
@@ -32,8 +32,8 @@ interface SenderComposerProps {
 
 export function SenderComposer({
   conversationId,
-  canInjectPendingMessage,
-  onInjectPendingMessage,
+  canSteerPendingMessage,
+  onSteerPendingMessage,
   onEditPendingMessage,
   onRemovePendingMessage,
   referenceInput,
@@ -50,8 +50,8 @@ export function SenderComposer({
     <div className="overflow-hidden rounded-xl bg-secondary">
       <PendingMessageQueue
         conversationId={conversationId}
-        canInject={canInjectPendingMessage}
-        onInject={onInjectPendingMessage}
+        canSteer={canSteerPendingMessage}
+        onSteer={onSteerPendingMessage}
         onEdit={onEditPendingMessage}
         onRemove={onRemovePendingMessage}
       />

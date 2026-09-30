@@ -1,5 +1,6 @@
 import type { AgentRuntime } from '../../agent-core'
 import type { AppDataContext } from '../../data'
+import type { PendingMessageService } from '../pendingMessageService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createConversationLifecycle } from '../../conversations/conversationLifecycle'
 import { createAgentTurnService } from '../agentTurnService'
@@ -76,6 +77,7 @@ const appDataContext = {
   },
   messageRepository: {
     create: vi.fn(async () => userMessage),
+    getById: vi.fn(async () => userMessage),
     delete: vi.fn(async () => true),
   },
   settingsRepository: {
@@ -83,8 +85,33 @@ const appDataContext = {
   },
 } as unknown as AppDataContext
 
+const pendingMessages = {
+  listRecords: vi.fn(async () => []),
+  snapshot: vi.fn(async (conversationId: string) => ({ conversationId, revision: 0, messages: [] })),
+  enqueue: vi.fn(async (input: { conversationId: string }) => ({ conversationId: input.conversationId, revision: 1, messages: [] })),
+  edit: vi.fn(async (conversationId: string) => ({ conversationId, revision: 1, messages: [] })),
+  remove: vi.fn(async (conversationId: string) => ({ conversationId, revision: 1, messages: [] })),
+  steer: vi.fn(),
+} as unknown as PendingMessageService
+
+const runningTask = {
+  taskId: 'task-running',
+  conversationId: 'c1',
+  userMessageId: 'm0',
+  workspacePath: '/workspace',
+  mode: 'hybrid' as const,
+  status: 'running' as const,
+  createdAt: 1,
+  updatedAt: 2,
+  prompt: 'running',
+}
+
+function mockRunningTasksOnce(tasks: unknown[] = [runningTask]) {
+  (runtime.listActiveTasks as unknown as ReturnType<typeof vi.fn>).mockReturnValueOnce(tasks)
+}
+
 function createService(
-  deps: Omit<Parameters<typeof createAgentTurnService>[0], 'runtime' | 'appDataContext' | 'conversationLifecycle'> & {
+  deps: Omit<Parameters<typeof createAgentTurnService>[0], 'runtime' | 'appDataContext' | 'conversationLifecycle' | 'pendingMessages'> & {
     onConversationUpdated?: (value: typeof conversation) => void
   } = {},
 ) {
@@ -100,7 +127,7 @@ function createService(
     },
     runtime,
   })
-  return createAgentTurnService({ runtime, appDataContext, conversationLifecycle, ...serviceDeps })
+  return createAgentTurnService({ runtime, appDataContext, conversationLifecycle, pendingMessages, ...serviceDeps })
 }
 
 describe('createAgentTurnService 行为', () => {
@@ -173,7 +200,9 @@ describe('createAgentTurnService 行为', () => {
       },
     })).rejects.toThrow('AGENT_TASK_ALREADY_RUNNING')
 
-    expect(runtime.listActiveTasks).not.toHaveBeenCalled()
+    // 启动前会先探测活跃任务（用于排队判定）；竞态下仍按启动失败回滚消息
+    expect(runtime.listActiveTasks).toHaveBeenCalledWith('c1')
+    expect(pendingMessages.enqueue).not.toHaveBeenCalled()
     expect(appDataContext.messageRepository.delete).toHaveBeenCalledWith('m1')
     expect(emitMessageUpdated).not.toHaveBeenCalled()
   })
@@ -530,5 +559,121 @@ describe('createAgentTurnService 行为', () => {
     // userText 仅从 messageContent 提取并用于标题和校验，不进入 startTask payload。
     const callArg = startTask.mock.calls[0]?.[0] as { workspacePath: string }
     expect(callArg.workspacePath).toBe('/workspace')
+  })
+
+  it('会话运行中提交时进入待处理队列而不启动任务', async () => {
+    mockRunningTasksOnce()
+    const service = createService({ aiProviderFactory })
+
+    const result = await service.startTurn({
+      conversationId: 'c1',
+      messageContent: [{ type: 'text', text: '调整实现' }],
+      workspacePath: '/workspace',
+      mode: 'strict',
+      modelConfig: {
+        modelId: 'model-1',
+        providerId: 'provider-1',
+      },
+    })
+
+    expect(result.kind).toBe('queued')
+    expect(startTask).not.toHaveBeenCalled()
+    expect(pendingMessages.enqueue).toHaveBeenCalledWith(expect.objectContaining({
+      conversationId: 'c1',
+      text: '调整实现',
+      source: 'sender',
+      mode: 'strict',
+    }))
+  })
+
+  it('频道消息运行中入队时先持久化 user message 供接力复用', async () => {
+    mockRunningTasksOnce()
+    const emitMessageUpdated = vi.fn()
+    const service = createService({ aiProviderFactory, emitMessageUpdated })
+
+    const result = await service.startTurn({
+      conversationId: 'c1',
+      messageContent: [{ type: 'text', text: '频道消息' }],
+      turnSource: {
+        type: 'channel',
+        channelType: 'feishu',
+        channelAccountId: 'a1',
+        externalUserId: 'u1',
+        externalChatId: 'chat-1',
+        externalMessageId: 'e1',
+      },
+      workspacePath: '/workspace',
+      modelConfig: {
+        modelId: 'model-1',
+        providerId: 'provider-1',
+      },
+    })
+
+    expect(result).toMatchObject({ kind: 'queued', userMessageId: 'm1' })
+    expect(startTask).not.toHaveBeenCalled()
+    expect(appDataContext.messageRepository.create).toHaveBeenCalledWith(expect.objectContaining({
+      convId: 'c1',
+      role: 'user',
+      originType: 'feishu',
+      originExternalChatId: 'chat-1',
+    }))
+    expect(emitMessageUpdated).toHaveBeenCalledWith(expect.objectContaining({ id: 'm1' }))
+    expect(pendingMessages.enqueue).toHaveBeenCalledWith(expect.objectContaining({
+      source: 'channel',
+      userMessageId: 'm1',
+    }))
+  })
+
+  it('接力：无活跃任务时把队首消息作为新一轮发出并出队', async () => {
+    const record = {
+      id: 'p1',
+      conversationId: 'c1',
+      text: '接力内容',
+      source: 'sender' as const,
+      mode: 'strict' as const,
+      userMessageId: 'm1',
+      createdAt: 1,
+    }
+    vi.mocked(pendingMessages.listRecords).mockResolvedValueOnce([record])
+    const service = createService({ aiProviderFactory })
+
+    await service.relayPendingMessages('c1')
+
+    expect(startTask).toHaveBeenCalledWith(expect.objectContaining({
+      conversationId: 'c1',
+      userMessageId: 'm1',
+      mode: 'strict',
+      workspacePath: '/workspace',
+    }))
+    expect(pendingMessages.remove).toHaveBeenCalledWith('c1', 'p1')
+  })
+
+  it('接力：启动失败时保留队列项，不重试不丢失', async () => {
+    vi.mocked(pendingMessages.listRecords).mockResolvedValueOnce([{
+      id: 'p1',
+      conversationId: 'c1',
+      text: '接力内容',
+      source: 'sender' as const,
+      createdAt: 1,
+    }])
+    startTask.mockRejectedValueOnce(new Error('Model not found'))
+    const service = createService({ aiProviderFactory })
+
+    await service.relayPendingMessages('c1')
+
+    expect(startTask).toHaveBeenCalledTimes(1)
+    expect(pendingMessages.remove).not.toHaveBeenCalled()
+  })
+
+  it('接力：会话仍有活跃任务或队列为空时直接跳过', async () => {
+    mockRunningTasksOnce()
+    const service = createService({ aiProviderFactory })
+
+    await service.relayPendingMessages('c1')
+    expect(pendingMessages.listRecords).not.toHaveBeenCalled()
+
+    vi.mocked(pendingMessages.listRecords).mockResolvedValueOnce([])
+    await service.relayPendingMessages('c1')
+    expect(startTask).not.toHaveBeenCalled()
   })
 })

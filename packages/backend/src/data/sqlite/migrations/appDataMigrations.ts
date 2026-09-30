@@ -221,6 +221,26 @@ export function createAppDataMigrations(
         `)
       },
     },
+    {
+      version: 12,
+      name: '增加待处理消息队列表',
+      migrate(db) {
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS pending_messages (
+            id text PRIMARY KEY NOT NULL,
+            conversation_id text NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+            text text NOT NULL,
+            source text NOT NULL DEFAULT 'sender',
+            mode text,
+            user_message_id text,
+            turn_source text,
+            created_at integer NOT NULL
+          );
+          CREATE INDEX IF NOT EXISTS idx_pending_messages_conversation
+            ON pending_messages (conversation_id, created_at);
+        `)
+      },
+    },
   ]
 }
 

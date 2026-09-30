@@ -1,6 +1,6 @@
 import type { AddMessage, CommandInterpreter, LanguageModelUsage, ModelCapabilitiesSchema, ModelInfo, ProviderConfigSchema, ReasoningEffortLevel, SecretRef, SecretRequest, SecretRequestField, SecretRequestResult, ToolApprovalRule, ToolCallContent, ToolResultContent, UpdateMessageSchema } from '../schemas'
 import type { AgentMemoryReader } from './agent-memory'
-import type { AgentMode, AgentPendingAction, AgentTaskSnapshot, AgentTurnSource } from './agent-runtime'
+import type { AgentMode, AgentPendingAction, AgentTaskSnapshot, AgentTaskStatus, AgentTurnSource } from './agent-runtime'
 import type { AgentTool } from './agent-tools'
 import type { BrowserAuthStateProvider } from './browser-profiles'
 import type { ChannelAttachmentSender } from './channels'
@@ -342,6 +342,18 @@ export interface AgentRuntimeHost {
   getPermissionRules?: (workspacePath: string) => { global: ToolApprovalRule[], workspace: ToolApprovalRule[] }
   /** 原子保存一组规则到指定分组；全部成功或全部不保存 */
   savePermissionRules?: (scope: 'workspace' | 'global', workspacePath: string, rules: ToolApprovalRule[]) => void
+  /**
+   * 任务进入终态（success / failed / cancelled）且已从任务存储移除后触发。
+   * 供外层执行待处理队列接力等收尾动作；回调抛错被捕获，不影响循环收尾。
+   */
+  onTaskSettled?: (event: AgentTaskSettledEvent) => void
+}
+
+/** 任务终态通知：任务已离开活跃集合，同会话可以安全启动下一轮。 */
+export interface AgentTaskSettledEvent {
+  taskId: string
+  conversationId: string
+  status: AgentTaskStatus
 }
 
 export interface AgentRuntimeOverrides {
@@ -384,6 +396,8 @@ export interface AgentRuntimeConfig extends AgentRuntimeOverrides {
   loadFileData?: (fileId: string) => Promise<string | null>
   /** 频道附件发送能力：channel turn 中工具直接发送到当前会话。 */
   channelAttachmentSender?: ChannelAttachmentSender
+  /** 任务终态（已从任务存储移除）后的通知回调；见 AgentRuntimeHost.onTaskSettled。 */
+  onTaskSettled?: (event: AgentTaskSettledEvent) => void
 }
 
 export interface AgentRuntimeStartTaskOptions {

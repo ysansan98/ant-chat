@@ -19,7 +19,7 @@ function createHarness(options?: { onConversationUpdated?: (conversation: { id: 
     conversationRepository: { getById: vi.fn(async () => conversation), create: vi.fn(), update: vi.fn() },
     messageRepository: { create: vi.fn(async () => ({ id: 'm-local' })), getById: vi.fn() },
   } as unknown as AppDataContext
-  const startTurn = vi.fn(async () => ({ taskId: 't1', conversationId: 'c1', userMessageId: 'm1', conversation }))
+  const startTurn = vi.fn(async () => ({ kind: 'started' as const, taskId: 't1', conversationId: 'c1', userMessageId: 'm1' }))
   const updateConversation = vi.fn(input => data.conversationRepository.update(input))
   const createConversation = vi.fn(async (input: { title: string, workspacePath: string }) => {
     const created = { id: 'c2', ...input, conversationInstructions: '', createdAt: 1, updatedAt: 1, settings: { modelId: 'm1', providerId: 'p1' }, sourceType: 'feishu' as const, sourceChannelAccountId: 'a1', sourceExternalChatId: 'chat-1' }
@@ -169,7 +169,7 @@ describe('channelRuntime 入站行为', () => {
     const startTurn = vi.fn(async (options) => {
       if (options.modelConfig.modelId !== 'model-1' || options.modelConfig.providerId !== 'provider-1')
         throw new Error(`Model not found: ${options.modelConfig.providerId}/${options.modelConfig.modelId}`)
-      return { taskId: 't1', conversationId: 'c1', userMessageId: 'm1', conversation: await data.conversationRepository.getById('c1') }
+      return { kind: 'started' as const, taskId: 't1', conversationId: 'c1', userMessageId: 'm1' }
     })
     const runtime = new ChannelRuntime({
       data,
