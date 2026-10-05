@@ -118,6 +118,7 @@ export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModu
     aiProviderFactory: provider.aiProviderFactory,
     eventEmitter: agent.eventEmitter,
     conversationLifecycle: agent.conversationLifecycle,
+    hooks: agent.hooks,
   })
   const image = new ImageModule({
     providerSettingsRepository: data.providerSettingsRepository,

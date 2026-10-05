@@ -14,6 +14,8 @@ export interface AppRuntimePaths {
   logsRoot: string
   observabilityRoot: string
   permissionsFile: string
+  /** 外部 hooks 全局配置（~/.ant-chat/hooks.json）。 */
+  hooksFile: string
 }
 
 export function createAppRuntimePaths(root: string): AppRuntimePaths {
@@ -32,5 +34,6 @@ export function createAppRuntimePaths(root: string): AppRuntimePaths {
     logsRoot,
     observabilityRoot: path.join(logsRoot, 'observability'),
     permissionsFile: path.join(root, 'permissions.json'),
+    hooksFile: path.join(root, 'hooks.json'),
   }
 }

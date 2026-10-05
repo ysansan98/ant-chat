@@ -23,6 +23,7 @@ export type ChannelInboundResult
     | { kind: 'configuration-required', message: string }
     | { kind: 'command', message: string, conversationId?: string, presentation?: ChannelCommandPresentation }
     | { kind: 'queued', message: string, conversationId: string }
+    | { kind: 'blocked', message: string, conversationId: string }
     | { kind: 'turn', result: AgentRuntimeStartTaskResult }
 
 export type ChannelCommandPresentation
@@ -133,6 +134,10 @@ export class ChannelRuntime {
     }
     try {
       const result = await this.deps.turnService.startTurn(options)
+      if (result.kind === 'blocked') {
+        await this.deps.data.channelReceiptRepository.updateStatus(receipt.id, 'failed', result.reason)
+        return { kind: 'blocked', message: result.reason, conversationId: session.activeConversationId }
+      }
       await this.deps.data.channelReceiptRepository.updateStatus(receipt.id, 'received', undefined, result.userMessageId)
       if (result.kind === 'queued') {
         // 会话已有运行中任务：消息持久化并进入待处理队列，任务终态后由后端接力。

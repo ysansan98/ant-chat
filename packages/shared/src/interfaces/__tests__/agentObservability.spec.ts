@@ -136,7 +136,7 @@ describe('智能体可观测性合同', () => {
       appearance: { mode: 'system', lightThemeId: 'default', darkThemeId: 'default' },
     })
 
-    expect(settings.developerTools).toEqual({ agentObservabilityEnabled: false })
+    expect(settings.developerTools).toEqual({ agentObservabilityEnabled: false, agentHooksEnabled: true })
   })
 
   it('注册轻量实时失效事件并携带 Turn 身份', () => {

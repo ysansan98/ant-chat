@@ -42,4 +42,14 @@ export interface AgentTurnQueuedResult {
   userMessageId?: string
 }
 
-export type AgentTurnResult = AgentTurnStartedResult | AgentTurnQueuedResult
+/**
+ * UserPromptSubmit hook 阻止本轮提交：turn 未启动，也没有消息入队。
+ * 调用方应把 reason 直接展示给用户。
+ */
+export interface AgentTurnBlockedResult {
+  kind: 'blocked'
+  reason: string
+  conversationId?: string
+}
+
+export type AgentTurnResult = AgentTurnStartedResult | AgentTurnQueuedResult | AgentTurnBlockedResult

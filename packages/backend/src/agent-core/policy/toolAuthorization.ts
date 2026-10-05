@@ -5,6 +5,7 @@ import type { PreparedToolCall } from '../tools/toolRegistry'
 import type { ToolAuthorization } from '../tools/types'
 import { randomUUID } from 'node:crypto'
 import { AgentError } from '../AgentError'
+import { emitNotificationHook, runPermissionRequestHook } from '../hooks/lifecycleHooks'
 import { isPreparedCommandState } from '../native-tools/command/types'
 import { buildFileResource, createFilesystemCandidate, FILE_TOOLS, matchFilesystemRule } from '../native-tools/tools/fileResourceBuilder'
 import { cancelObservation, completeObservation, failObservation, startObservationSpan } from '../observation'
@@ -189,6 +190,53 @@ export function createToolAuthorization(
       approvalCandidates: approvalCandidates ?? undefined,
       createdAt: Date.now(),
     }
+
+    // PermissionRequest hook：审批卡片弹出前给 hook 一次拒绝机会（v1 只支持 deny）。
+    // 未配置 hooks 时完全同步短路，保持与现状一致（含同步可观测行为）。
+    if (config.hooks) {
+      const permissionHook = await runPermissionRequestHook({
+        config,
+        task,
+        toolName: prepared.toolName,
+        toolInput: prepared.input,
+        operationType: prepared.operationType,
+        scope: prepared.scope,
+        description: '工具调用需要人工审批',
+        step: input.step,
+        toolCallId: input.toolCallId,
+      })
+      if (permissionHook.denied) {
+        completeObservation(policySpan, {
+          status: 'block',
+          outcome: 'block',
+          effectiveDecision: { outcome: 'block', basis: 'hook.permission-request-deny' },
+          approval: { approved: false, pendingAction, reason: permissionHook.reason },
+          reason: permissionHook.reason,
+        }, config.logger)
+        return {
+          outcome: 'block',
+          errorCode: 'AGENT_HOOK_DENIED',
+          reason: permissionHook.reason!,
+          continueAgent: true,
+        }
+      }
+    }
+
+    if (config.hooks) {
+      emitNotificationHook({
+        config,
+        conversationId: task.snapshot.conversationId,
+        workspacePath: task.snapshot.workspacePath,
+        type: 'approval_required',
+        payload: {
+          actionId: pendingAction.actionId,
+          toolName: prepared.toolName,
+          operationType: prepared.operationType,
+          scope: prepared.scope,
+        },
+      })
+    }
+
     let decisionResult: Awaited<ReturnType<TaskStore['requestApproval']>>
     try {
       decisionResult = await taskStore.requestApproval(

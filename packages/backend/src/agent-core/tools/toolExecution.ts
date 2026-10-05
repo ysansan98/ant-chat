@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto'
 import { AGENT_TOOL_EXEC_FAILED, ToolOutputBlocksSchema } from '@ant-chat/shared'
 import { AgentError } from '../AgentError'
 import { isPreparedCommandState } from '../native-tools/command/types'
-import { cancelObservation, completeObservation, failObservation, startObservationSpan } from '../observation'
+import { cancelObservation, completeObservation, failObservation, recordContextObservation, startObservationSpan } from '../observation'
 import { createVisualizationToolFailureResult } from './publishVisualizationTool'
 
 export interface RequestedToolCall {
@@ -40,7 +40,7 @@ export interface ExecuteToolStepResult {
 // ============================================================
 
 type ToolPreparation
-  = | { kind: 'ready', prepared: PreparedToolCall, lastToolCallContext: ToolCallContext }
+  = | { kind: 'ready', prepared: PreparedToolCall, lastToolCallContext: ToolCallContext, additionalContext?: string }
     | { kind: 'error', status: 'failed' | 'blocked' | 'cancelled', error: string, policyErrorCode?: string, continueAgent?: boolean, toolResultText: string, lastToolCallContext: ToolCallContext }
 
 interface ToolExecutionOutcome {
@@ -141,6 +141,18 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
     const safeResult = redactEvidence(execution.result.result)
     const safeDiagnostics = redactEvidence(execution.result.diagnostics)
     failObservation(toolSpan, { status: 'failed', error: safeFailureReason, output: safeResult, diagnostics: safeDiagnostics, exitCode: execution.result.diagnostics?.exitCode, durationMs }, config.logger)
+    emitPostToolUse({
+      config,
+      task,
+      toolName: prepared.toolName,
+      input: prepared.input,
+      toolCallId: currentToolCall.id,
+      step,
+      parentSpanId: options.parentSpanId,
+      isError: true,
+      result: safeResult,
+      error: safeFailureReason,
+    })
     return finalizeToolStep(currentToolCall, {
       kind: 'error',
       status: 'failed',
@@ -150,6 +162,17 @@ export async function executeToolStep(options: ExecuteToolStepOptions): Promise<
     }, task.snapshot.conversationId, config, currentModelText, currentToolMessages)
   }
 
+  emitPostToolUse({
+    config,
+    task,
+    toolName: prepared.toolName,
+    input: prepared.input,
+    toolCallId: currentToolCall.id,
+    step,
+    parentSpanId: options.parentSpanId,
+    isError: false,
+    result: redactEvidence(execution.result.result),
+  })
   return finalizeSuccessToolStep(currentToolCall, preparation, execution.result, toolSpan, task.snapshot.conversationId, config, currentModelText, currentToolMessages, durationMs, redactEvidence)
 }
 
@@ -212,7 +235,13 @@ async function prepareToolStep(input: PrepareToolStepInput): Promise<ToolPrepara
     }
   }
 
-  return { kind: 'ready', prepared: prepared as PreparedToolCall, lastToolCallContext }
+  // PreToolUse hook 的 additionalContext 随 allow 结果返回，追加到工具结果上下文。
+  return {
+    kind: 'ready',
+    prepared: prepared as PreparedToolCall,
+    lastToolCallContext,
+    ...(beforeResult.additionalContext ? { additionalContext: beforeResult.additionalContext } : {}),
+  }
 }
 
 // ============================================================
@@ -324,7 +353,7 @@ async function finalizeSuccessToolStep(
   redactEvidence: ToolEvidenceRedactor,
 ): Promise<ExecuteToolStepResult> {
   const { lastToolCallContext } = preparation
-  const toolOutputText = redactEvidence(result.result)
+  const toolOutputText = withHookContext(redactEvidence(result.result), preparation.additionalContext)
   const outputBlocks = extractToolOutputBlocks(result.diagnostics?.data)
   if (outputBlocks.length > 0) {
     currentToolCall.outputBlocks = outputBlocks
@@ -552,4 +581,72 @@ export async function createInvalidToolArgsResult(options: {
 
 function formatToolFailureResult(toolName: string, message: string): string {
   return toolName === 'publish_visualization' ? createVisualizationToolFailureResult(message) : message
+}
+
+function withHookContext(text: string, additionalContext: string | undefined): string {
+  if (!additionalContext)
+    return text
+  return text ? `${text}\n\n${additionalContext}` : additionalContext
+}
+
+/**
+ * PostToolUse 是观察类钩子：fire-and-forget，输出不改变工具结果。
+ * 失败只记日志，绝不阻塞主流程（D5）。
+ */
+function emitPostToolUse(params: {
+  config: AgentRuntimeConfig
+  task: RuntimeTask
+  toolName: string
+  input: Record<string, unknown>
+  toolCallId: string
+  step: number
+  parentSpanId?: string
+  isError: boolean
+  result?: string
+  error?: string
+}): void {
+  const hooks = params.config.hooks
+  if (!hooks)
+    return
+  const conversationId = params.task.snapshot.conversationId
+  void hooks.run('PostToolUse', {
+    hook_event_name: 'PostToolUse',
+    session_id: conversationId,
+    conversation_id: conversationId,
+    cwd: params.task.snapshot.workspacePath,
+    timestamp: Date.now(),
+    tool_name: params.toolName,
+    tool_input: params.input,
+    tool_call_id: params.toolCallId,
+    step: params.step,
+    is_error: params.isError,
+    ...(params.result !== undefined ? { result: params.result } : {}),
+    ...(params.error !== undefined ? { error: params.error } : {}),
+  }, {
+    cwd: params.task.snapshot.workspacePath,
+    signal: params.task.abortController.signal,
+  })
+    .then((hookResult) => {
+      recordContextObservation(params.config, {
+        kind: 'hook',
+        hook_event_name: hookResult.event,
+        tool_name: params.toolName,
+        tool_call_id: params.toolCallId,
+        step: params.step,
+        is_error: params.isError,
+        decision: hookResult.decision,
+        executions: hookResult.executions.map(execution => ({
+          source: execution.source,
+          command: execution.command,
+          decision: execution.decision,
+          exitCode: execution.exitCode,
+          timedOut: execution.timedOut,
+          error: execution.error,
+          durationMs: execution.durationMs,
+        })),
+      })
+    })
+    .catch((error) => {
+      params.config.logger?.warn('PostToolUse hook 执行失败，已忽略', error)
+    })
 }

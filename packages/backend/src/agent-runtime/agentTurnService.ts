@@ -2,7 +2,9 @@ import type {
   AgentTurnQueuedResult,
   AgentTurnResult,
   AIProviderFactory,
+  HookAggregateResult,
   IConversations,
+  IHookDispatcher,
   ILogger,
   IMessage,
   StartAgentTurnOptions,
@@ -28,12 +30,15 @@ export interface AgentTurnServiceDeps {
   titleGenerator?: ConversationTitleGenerator
   emitMessageUpdated?: (message: IMessage) => void
   logger?: ILogger
+  /** UserPromptSubmit hook：可 block 本轮或注入附加上下文。 */
+  hooks?: IHookDispatcher
 }
 
 export interface AgentTurnService {
   /**
    * 提交一轮用户消息：会话空闲时直接启动任务；已有活跃任务时自动进入
    * 待处理队列（返回 queued），等任务终态后由后端接力发出。
+   * UserPromptSubmit hook 可 block 本轮（返回 blocked）。
    */
   startTurn: (options: StartAgentTurnOptions) => Promise<AgentTurnResult>
   /**
@@ -43,8 +48,11 @@ export interface AgentTurnService {
   relayPendingMessages: (conversationId: string) => Promise<void>
 }
 
+/** hook 上下文只在立即启动路径透传，不进入待处理队列。 */
+type TurnOptionsWithHookContext = StartAgentTurnOptions & { hookAdditionalContext?: string }
+
 export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnService {
-  const { runtime, appDataContext, conversationLifecycle, pendingMessages, aiProviderFactory, titleGenerator, emitMessageUpdated, logger } = deps
+  const { runtime, appDataContext, conversationLifecycle, pendingMessages, aiProviderFactory, titleGenerator, emitMessageUpdated, logger, hooks } = deps
 
   /**
    * 落库本轮 user message：频道来源附加 origin 字段，供消息溯源与回执关联。
@@ -66,7 +74,7 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
     })
   }
 
-  async function startTurnImmediately(options: StartAgentTurnOptions): Promise<AgentTurnResult> {
+  async function startTurnImmediately(options: TurnOptionsWithHookContext): Promise<AgentTurnResult> {
     const userText = extractMessageText(options.messageContent)
     if (!userText) {
       throw new Error('invalid start turn options: missing message text')
@@ -135,6 +143,7 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
         aiProvider,
         mode: options.mode ?? 'hybrid',
         turnSource: options.turnSource,
+        hookAdditionalContext: options.hookAdditionalContext,
         modelSettings: {
           reasoningEffort,
         },
@@ -175,7 +184,7 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
    * 频道入站消息在排队时即持久化 user message（已收到的消息不丢，接力时复用）；
    * 交互式消息只进入队列，接力时才创建 user message。
    */
-  async function enqueuePendingTurn(options: StartAgentTurnOptions, conversationId: string): Promise<AgentTurnQueuedResult> {
+  async function enqueuePendingTurn(options: TurnOptionsWithHookContext, conversationId: string): Promise<AgentTurnQueuedResult> {
     const userText = extractMessageText(options.messageContent)
     if (!userText) {
       throw new Error('invalid start turn options: missing message text')
@@ -214,10 +223,24 @@ export function createAgentTurnService(deps: AgentTurnServiceDeps): AgentTurnSer
 
   return {
     async startTurn(options) {
-      if (options.conversationId && runtime.listActiveTasks(options.conversationId).length > 0) {
-        return await enqueuePendingTurn(options, options.conversationId)
+      // UserPromptSubmit hook：入口处先问一次，可 block 或注入附加上下文。
+      // steering（injectSteering）与待处理队列接力不走此入口（v1 决策）。
+      const hookResult = await runUserPromptSubmitHook({ hooks, logger, options })
+      if (hookResult?.decision === 'deny') {
+        return {
+          kind: 'blocked',
+          reason: hookResult.reason || '本轮提示被 hook 阻止',
+          ...(options.conversationId ? { conversationId: options.conversationId } : {}),
+        }
       }
-      return await startTurnImmediately(options)
+      const effectiveOptions = hookResult?.additionalContext
+        ? { ...options, hookAdditionalContext: hookResult.additionalContext }
+        : options
+
+      if (effectiveOptions.conversationId && runtime.listActiveTasks(effectiveOptions.conversationId).length > 0) {
+        return await enqueuePendingTurn(effectiveOptions, effectiveOptions.conversationId)
+      }
+      return await startTurnImmediately(effectiveOptions)
     },
     async relayPendingMessages(conversationId) {
       // 并发防御：接力启动前再次确认没有活跃任务（用户可能已抢先发起新一轮）。
@@ -351,5 +374,33 @@ async function rollbackStartedTurn(params: {
   }
   catch (rollbackError) {
     logger?.warn('回滚发送会话失败', rollbackError)
+  }
+}
+
+/** UserPromptSubmit hook：失败隔离，block 走 deny 语义（协议兼容 `block`）。 */
+async function runUserPromptSubmitHook(params: {
+  hooks?: IHookDispatcher
+  logger?: ILogger
+  options: StartAgentTurnOptions
+}): Promise<HookAggregateResult | undefined> {
+  const { hooks, logger, options } = params
+  if (!hooks)
+    return undefined
+  const prompt = extractMessageText(options.messageContent)
+  try {
+    return await hooks.run('UserPromptSubmit', {
+      hook_event_name: 'UserPromptSubmit',
+      session_id: options.conversationId ?? '',
+      conversation_id: options.conversationId ?? '',
+      cwd: options.workspacePath,
+      timestamp: Date.now(),
+      prompt,
+      turn_source: options.turnSource?.type ?? 'interactive',
+      workspace_path: options.workspacePath,
+    }, { cwd: options.workspacePath })
+  }
+  catch (error) {
+    logger?.warn('UserPromptSubmit hook 执行失败，按无决策继续', error)
+    return undefined
   }
 }

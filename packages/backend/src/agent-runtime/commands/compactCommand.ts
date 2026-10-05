@@ -1,6 +1,7 @@
-import type { AIProviderFactory, IAgentEventEmitter, ILogger, ReasoningEffortLevel, RunBuiltinCommandResult } from '@ant-chat/shared'
+import type { AIProviderFactory, IAgentEventEmitter, IHookDispatcher, ILogger, ReasoningEffortLevel, RunBuiltinCommandResult } from '@ant-chat/shared'
 import type { AppDataContext } from '../../data'
 import { buildConversationContextEntries, createCompactionStrategy, createProvider, DEFAULT_COMPACTION_SETTINGS, runCompactionTransaction } from '../../agent-core'
+import { runPostCompactHook, runPreCompactHook } from '../../agent-core/hooks/lifecycleHooks'
 
 export async function runCompact(params: {
   appDataContext: AppDataContext
@@ -10,9 +11,11 @@ export async function runCompact(params: {
   modelConfig: { modelId: string, reasoningEffort?: ReasoningEffortLevel }
   logger?: ILogger
   aiProviderFactory?: AIProviderFactory
+  hooks?: IHookDispatcher
   abortSignal?: AbortSignal
 }): Promise<RunBuiltinCommandResult> {
-  const { appDataContext, eventEmitter, conversationId, instruction, modelConfig, logger, aiProviderFactory, abortSignal } = params
+  const { appDataContext, eventEmitter, conversationId, instruction, modelConfig, logger, aiProviderFactory, hooks, abortSignal } = params
+  const hookConfig = { hooks, logger }
 
   function log(msg: string) {
     logger?.info(`[compact] ${msg}`)
@@ -40,6 +43,26 @@ export async function runCompact(params: {
   log(`contextMessages built: total=${loopMessages.length}`)
   if (loopMessages.length === 0) {
     return { status: 'success', summaryText: '当前上下文不足，无需压缩。' }
+  }
+
+  // PreCompact hook：deny 或 continue:false 阻止本次手动压缩。
+  const preCompact = await runPreCompactHook({
+    config: hookConfig,
+    conversationId,
+    workspacePath: conversation.workspacePath ?? '',
+    trigger: 'manual',
+    signal: abortSignal,
+  })
+  if (!preCompact.allowed) {
+    log(`compaction blocked by hook: ${preCompact.reason ?? 'no reason'}`)
+    await runPostCompactHook({
+      config: hookConfig,
+      conversationId,
+      workspacePath: conversation.workspacePath ?? '',
+      trigger: 'manual',
+      status: 'blocked',
+    })
+    return { status: 'success', summaryText: `上下文压缩已被 hook 阻止${preCompact.reason ? `：${preCompact.reason}` : '。'}` }
   }
 
   const compactionStrategy = createCompactionStrategy(modelConfig.reasoningEffort, conversationId)
@@ -79,6 +102,14 @@ export async function runCompact(params: {
       },
       delete: async (eventId) => { await appDataContext.messageRepository.delete(eventId) },
     },
+  })
+  await runPostCompactHook({
+    config: hookConfig,
+    conversationId,
+    workspacePath: conversation.workspacePath ?? '',
+    trigger: 'manual',
+    status: transaction.status,
+    summaryText: transaction.status === 'compacted' ? transaction.summaryText : undefined,
   })
   if (transaction.status === 'cancelled')
     return { status: 'cancelled', summaryText: '' }

@@ -3,6 +3,8 @@ import type { RuntimeStartInput } from '../session/types'
 import type { RuntimeTask, TaskExecution } from '../taskStore'
 import type { ToolAuthorization, ToolCallContext } from '../tools/types'
 import { AgentError } from '../AgentError'
+import { emitInterruptHook, emitNotificationHook } from '../hooks/lifecycleHooks'
+import { recordHookObservation } from '../hooks/observability'
 import { cancelObservation, completeObservation, failObservation, finishTurnObservation, recordContextObservation, startObservationSpan } from '../observation'
 import { createInvalidToolArgsResult, executeToolStep } from '../tools/toolExecution'
 import { transformErrorMessage } from '../utils/errorMessages'
@@ -178,6 +180,15 @@ export async function runAgentLoop(input: {
           status: 'success',
           durationMs: Date.now() - taskStartedAt,
         })
+        // Stop 是观察类钩子；v1 不消费其 decision（"block 继续"语义后置）。
+        await runStopHook(config, task, options, finalAnswer)
+        emitNotificationHook({
+          config,
+          conversationId: options.conversationId,
+          workspacePath: task.snapshot.workspacePath,
+          type: 'turn_finished',
+          payload: { turnId: options.userMessageId, status: 'success', text: finalAnswer },
+        })
         break
       }
 
@@ -333,6 +344,13 @@ async function handleLoopFailure(options: {
   if (cancelled) {
     task.snapshot.status = 'cancelled'
     task.snapshot.summary = '任务已取消'
+    emitInterruptHook({
+      config,
+      conversationId: task.snapshot.conversationId,
+      workspacePath: task.snapshot.workspacePath,
+      turnId: task.snapshot.userMessageId,
+      reason: 'loop_cancelled',
+    })
     await config.eventEmitter.emitTurnFinished({
       conversationId: task.snapshot.conversationId,
       turnId: task.snapshot.userMessageId,
@@ -354,6 +372,13 @@ async function handleLoopFailure(options: {
       durationMs,
     })
   }
+  emitNotificationHook({
+    config,
+    conversationId: task.snapshot.conversationId,
+    workspacePath: task.snapshot.workspacePath,
+    type: 'turn_finished',
+    payload: { turnId: task.snapshot.userMessageId, status: cancelled ? 'cancel' : 'error', error: error.message },
+  })
   await config.eventEmitter.emitTaskUpdated(task.snapshot)
   finishTurnObservation(config, cancelled
     ? { status: 'cancelled', error: failurePayload }
@@ -372,4 +397,34 @@ function finishModelSpan(span: AgentObservationSpan | undefined, signal: AbortSi
 function isCancellation(error: unknown, signal: AbortSignal): boolean {
   return signal.aborted
     || (error instanceof AgentError && error.code === 'AGENT_CANCELLED')
+}
+
+/** Stop hook：正常回合结束的观察点，失败只记日志，不改变 turn 结果。 */
+async function runStopHook(
+  config: AgentRuntimeConfig,
+  task: RuntimeTask,
+  options: RuntimeStartInput,
+  finalAnswer: string,
+): Promise<void> {
+  const hooks = config.hooks
+  if (!hooks)
+    return
+  const conversationId = task.snapshot.conversationId
+  try {
+    const result = await hooks.run('Stop', {
+      hook_event_name: 'Stop',
+      session_id: conversationId,
+      conversation_id: conversationId,
+      cwd: task.snapshot.workspacePath,
+      timestamp: Date.now(),
+      turn_id: options.userMessageId,
+      turn_source: options.turnSource?.type ?? 'interactive',
+      status: 'success',
+      last_assistant_text: finalAnswer,
+    }, { cwd: task.snapshot.workspacePath, signal: task.abortController.signal })
+    recordHookObservation(config, 'Stop', result, { turn_id: options.userMessageId })
+  }
+  catch (error) {
+    config.logger?.warn('Stop hook 执行失败，已忽略', error)
+  }
 }

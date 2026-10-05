@@ -12,8 +12,11 @@ export type AppearanceSettingsState = z.infer<typeof AppearanceSettingsSchema>
 
 export const DeveloperToolsSettingsSchema = z.object({
   agentObservabilityEnabled: z.boolean().default(false),
+  /** 外部 hooks 总开关；关闭时不加载任何 hooks 配置。未设置时视为开启。 */
+  agentHooksEnabled: z.boolean().optional(),
 }).default({
   agentObservabilityEnabled: false,
+  agentHooksEnabled: true,
 })
 
 export type DeveloperToolsSettingsState = z.infer<typeof DeveloperToolsSettingsSchema>
