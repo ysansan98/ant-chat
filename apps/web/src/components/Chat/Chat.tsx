@@ -216,7 +216,7 @@ export default function Chat() {
         )}
         <div className={`flex min-h-0 min-w-0 flex-1 flex-col ${!hasMessages ? 'justify-center' : ''}`}>
           {hasMessages && (
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
               <Suspense fallback={<BubbleSkeleton />}>
                 <BubbleList
                   key={currentConversations?.id}
