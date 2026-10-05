@@ -4,6 +4,7 @@ import type { PreparedNativeTool } from '../native-tools/tools/toolFactory'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { WORKSPACE_SKILLS_DIR } from '@ant-chat/shared'
 import { getAgentLogger } from '../logger'
 import { getNativeToolService } from '../native-tools/nativeToolService'
 import { createMcpTools } from './mcpToolAdapter'
@@ -46,8 +47,11 @@ export class ToolRegistry {
     const logger = getAgentLogger(config)
     const unrestricted = mode === 'full_managed'
     const skillReader = resolveSkillReader(config)
+    const skillEntries = skillReader
+      ? await catchToolSourceError('skill', () => resolveSkillEntriesForTurn(skillReader, workspacePath, turnSource), logger)
+      : []
     const trustedPaths = turnSource?.type === 'automation'
-      ? await resolveAutomationTrustedPaths(skillReader, turnSource)
+      ? await resolveAutomationTrustedPaths(skillReader, turnSource, workspacePath, skillEntries)
       : []
     const nativeTools = filterNativeToolsForTurn(getNativeToolService(workspacePath, unrestricted, {
       trustedPaths,
@@ -74,7 +78,7 @@ export class ToolRegistry {
           channelAttachmentSender: config.channelAttachmentSender,
         }).getTools(), turnSource)
     const skillTools = skillReader
-      ? await catchToolSourceError('skill', () => makeSkillTools(skillReader, turnSource), logger)
+      ? await catchToolSourceError('skill', () => makeSkillTools(skillReader, workspacePath, skillEntries, turnSource), logger)
       : []
     // 自动化能力在 Turn 创建时固定；记忆修改等交互能力不进入自动化能力集合。
     const agentLoopTools: AgentTool[] = []
@@ -189,7 +193,12 @@ function filterNativeToolsForTurn(tools: AgentTool[], turnSource?: AgentTurnSour
   return tools.filter(tool => !tool.name.startsWith('browser_'))
 }
 
-async function resolveAutomationTrustedPaths(skillReader: SkillReader | null, turnSource: AutomationTurnSource): Promise<string[]> {
+async function resolveAutomationTrustedPaths(
+  skillReader: SkillReader | null,
+  turnSource: AutomationTurnSource,
+  workspacePath: string,
+  skillEntries: ResolvedSkillEntry[],
+): Promise<string[]> {
   const roots = turnSource.permissionPolicy.extraFileRoots
     .map(root => root.trim())
     .filter(Boolean)
@@ -198,15 +207,11 @@ async function resolveAutomationTrustedPaths(skillReader: SkillReader | null, tu
     return roots
   }
 
-  const allowed = new Set(turnSource.allowedSkills.map(name => name.trim()).filter(Boolean))
-  if (allowed.size === 0) {
-    return roots
-  }
-  const skills = await skillReader.getEnabledSkills()
-  for (const skill of skills) {
-    if (allowed.has(skill.name)) {
-      roots.push(path.join(skillReader.getSkillsRoot(), skill.name))
-    }
+  // skillEntries 已按 allowedSkills 过滤；按其来源把技能目录加入受信路径。
+  for (const entry of skillEntries) {
+    roots.push(entry.origin === 'workspace'
+      ? path.join(workspacePath, WORKSPACE_SKILLS_DIR, entry.manifest.name)
+      : path.join(skillReader.getSkillsRoot(), entry.manifest.name))
   }
   return roots
 }
@@ -395,31 +400,83 @@ interface ResolvedSkillCapability {
   files: string[]
 }
 
-async function makeSkillTools(reader: SkillReader, turnSource?: AgentTurnSource): Promise<AgentTool[]> {
-  const skills = await reader.getEnabledSkills()
+/** 合并后的技能条目：origin 决定读取位置（全局技能根 vs 当前工作区 `.agents/skills`）。 */
+interface ResolvedSkillEntry {
+  manifest: SkillManifest
+  origin: 'global' | 'workspace'
+}
+
+/** 计算本 Turn 可见技能：全局 enabled + 当前工作区技能（工作区同名覆盖全局），自动化再按 allowedSkills 过滤。 */
+async function resolveSkillEntriesForTurn(
+  reader: SkillReader,
+  workspacePath: string,
+  turnSource?: AgentTurnSource,
+): Promise<ResolvedSkillEntry[]> {
+  const globalSkills = await reader.getEnabledSkills()
+  const byName = new Map<string, ResolvedSkillEntry>(
+    globalSkills.map(manifest => [manifest.name, { manifest, origin: 'global' }]),
+  )
+  let workspaceSkills: SkillManifest[] = []
+  try {
+    workspaceSkills = await reader.listWorkspaceSkills(workspacePath)
+  }
+  catch {
+    // 工作区技能读取失败不影响全局技能。
+  }
+  for (const manifest of workspaceSkills) {
+    // 工作区优先：同名覆盖全局版本。
+    byName.set(manifest.name, { manifest, origin: 'workspace' })
+  }
+
+  let entries = [...byName.values()]
   if (turnSource?.type === 'automation') {
     const allowed = new Set(turnSource.allowedSkills.map(name => name.trim()).filter(Boolean))
-    if (allowed.size === 0)
+    entries = entries.filter(entry => allowed.has(entry.manifest.name))
+  }
+  entries.sort((a, b) => a.manifest.name.localeCompare(b.manifest.name, 'en'))
+  return entries
+}
+
+/** 技能来源的根目录（全局技能根 vs 当前工作区 `.agents/skills`），供 listSkillFiles 拼技能名。 */
+function skillRootForEntry(reader: SkillReader, entry: ResolvedSkillEntry, workspacePath: string): string {
+  return entry.origin === 'workspace'
+    ? path.join(workspacePath, WORKSPACE_SKILLS_DIR)
+    : reader.getSkillsRoot()
+}
+
+/** 按来源读取技能的 SKILL.md 全文。 */
+function readSkillContentForEntry(reader: SkillReader, entry: ResolvedSkillEntry, workspacePath: string): Promise<string> {
+  return entry.origin === 'workspace'
+    ? reader.readWorkspaceSkillMarkdown(workspacePath, entry.manifest.name)
+    : reader.readSkillMarkdown(entry.manifest.name)
+}
+
+async function makeSkillTools(
+  reader: SkillReader,
+  workspacePath: string,
+  entries: ResolvedSkillEntry[],
+  turnSource?: AgentTurnSource,
+): Promise<AgentTool[]> {
+  if (turnSource?.type === 'automation') {
+    if (entries.length === 0) {
       return []
-    const matchedSkills = skills.filter(skill => allowed.has(skill.name))
-    if (matchedSkills.length === 0)
-      return []
-    const capabilities = await Promise.all(matchedSkills.map(async manifest => ({
-      manifest,
-      content: await reader.readSkillMarkdown(manifest.name),
-      files: await listSkillFiles(reader.getSkillsRoot(), manifest.name),
+    }
+    const capabilities = await Promise.all(entries.map(async (entry): Promise<ResolvedSkillCapability> => ({
+      manifest: entry.manifest,
+      content: await readSkillContentForEntry(reader, entry, workspacePath),
+      files: await listSkillFiles(skillRootForEntry(reader, entry, workspacePath), entry.manifest.name),
     })))
     const tools: AgentTool[] = [createResolvedUseSkillTool(capabilities)]
-    if (matchedSkills.some(skill => skill.name === 'visualize' && skill.enabled)) {
+    if (entries.some(entry => entry.manifest.name === 'visualize' && entry.manifest.enabled)) {
       tools.push(createPublishVisualizationTool())
     }
     return tools
   }
   const tools: AgentTool[] = [
-    createUseSkillTool(skills, reader),
+    createUseSkillTool(reader, workspacePath, entries),
     createInstallSkillFromGithubTool(reader),
   ]
-  if (skills.some(skill => skill.name === 'visualize' && skill.enabled)) {
+  if (entries.some(entry => entry.manifest.name === 'visualize' && entry.manifest.enabled)) {
     tools.push(createPublishVisualizationTool())
   }
   return tools
@@ -441,17 +498,21 @@ function createResolvedUseSkillTool(capabilities: ResolvedSkillCapability[]): Ag
 
 // ---- Skill tool factories ----
 
-function createUseSkillTool(skills: SkillManifest[], skillReader: SkillReader): AgentTool {
-  const enabled = skills.filter(s => s.enabled)
-  const skillsRoot = skillReader.getSkillsRoot()
-  const tool = createUseSkillToolDefinition(enabled)
+function createUseSkillTool(skillReader: SkillReader, workspacePath: string, entries: ResolvedSkillEntry[]): AgentTool {
+  const enabled = entries.filter(entry => entry.manifest.enabled)
+  const entryByName = new Map(enabled.map(entry => [entry.manifest.name, entry]))
+  const tool = createUseSkillToolDefinition(enabled.map(entry => entry.manifest))
   return {
     ...tool,
     execute: async (input) => {
       const name = String(input.name || '').trim()
+      const entry = entryByName.get(name)
+      if (!entry) {
+        return { ok: false, result: formatSkillError(new Error('AGENT_SKILL_INVALID: skill not found')) }
+      }
       try {
-        const content = await skillReader.readSkillMarkdown(name)
-        const files = await listSkillFiles(skillsRoot, name)
+        const content = await readSkillContentForEntry(skillReader, entry, workspacePath)
+        const files = await listSkillFiles(skillRootForEntry(skillReader, entry, workspacePath), name)
         return { ok: true, result: formatSkillContent(name, content, files) }
       }
       catch (error) {

@@ -22,6 +22,7 @@ const SKILL_SOURCE_LABELS: Record<SkillSource, string> = {
   github: 'GitHub',
   builtin: '内置',
   local: '本地',
+  workspace: '工作区',
 }
 
 type SkillAction

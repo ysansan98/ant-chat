@@ -1,3 +1,4 @@
+import type { SkillManifest } from '@ant-chat/shared'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { TooltipProvider } from '@workspace/ui/components/tooltip'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -12,6 +13,8 @@ const mocks = vi.hoisted(() => ({
   searchWorkspaceFiles: vi.fn(),
   listWorkspaces: vi.fn(),
   getAllAbvailableModels: vi.fn(),
+  listSkills: vi.fn(async () => ({ rootPath: '/tmp/skills', skills: [] as SkillManifest[] })),
+  listWorkspaceSkills: vi.fn(async () => [] as SkillManifest[]),
 }))
 
 class ResizeObserverMock {
@@ -30,7 +33,8 @@ vi.mock('@/api/workspaceApi', () => ({
 
 vi.mock('@/api/skillApi', () => ({
   skillApi: {
-    listSkills: vi.fn(async () => ({ skills: [] })),
+    listSkills: mocks.listSkills,
+    listWorkspaceSkills: mocks.listWorkspaceSkills,
   },
 }))
 
@@ -125,6 +129,8 @@ describe('sender reference token overlay', () => {
     useChatSttingsStore.setState({
       agentMode: 'hybrid',
     })
+    mocks.listSkills.mockResolvedValue({ rootPath: '/tmp/skills', skills: [] })
+    mocks.listWorkspaceSkills.mockResolvedValue([])
   })
 
   afterEach(() => {
@@ -141,6 +147,47 @@ describe('sender reference token overlay', () => {
 
     expect(screen.queryByTestId('reference-token')).toBeNull()
     expect(textarea.value).toBe('看 @resume.md')
+  })
+
+  it('/ 面板合并工作区技能，同名时工作区版本优先', async () => {
+    mocks.listSkills.mockResolvedValue({
+      rootPath: '/tmp/skills',
+      skills: [
+        { name: 'review', description: '全局审查', enabled: true, builtin: false, source: 'zip', installedAt: 1, updatedAt: 1 },
+        { name: 'deploy', description: '发布部署', enabled: true, builtin: false, source: 'zip', installedAt: 1, updatedAt: 1 },
+      ],
+    })
+    mocks.listWorkspaceSkills.mockResolvedValue([
+      { name: 'review', description: '工作区审查', enabled: true, builtin: false, source: 'workspace', installedAt: 0, updatedAt: 0 },
+      { name: 'ws-only', description: '工作区专属', enabled: true, builtin: false, source: 'workspace', installedAt: 0, updatedAt: 0 },
+    ])
+
+    renderSender()
+    await screen.findByText('workspace')
+    await waitFor(() => {
+      expect(mocks.listWorkspaceSkills).toHaveBeenCalledWith('/tmp/workspace')
+    })
+
+    const textarea = screen.getByTestId('chat-input') as HTMLTextAreaElement
+    setTextareaValue(textarea, '/')
+
+    // 工作区专属技能出现在面板，全局同名技能被工作区版本覆盖，其余全局技能保留
+    expect(await screen.findByText('ws-only')).toBeInTheDocument()
+    expect(await screen.findByText('工作区审查')).toBeInTheDocument()
+    expect(screen.queryByText('全局审查')).toBeNull()
+    expect(await screen.findByText('deploy')).toBeInTheDocument()
+  })
+
+  it('无工作区时不加载工作区技能', async () => {
+    mocks.listWorkspaces.mockResolvedValue({ workspaces: [] })
+    useWorkspaceStore.setState({ currentWorkspacePath: '', workspaceData: null, loading: false })
+
+    renderSender()
+
+    await waitFor(() => {
+      expect(mocks.listSkills).toHaveBeenCalled()
+    })
+    expect(mocks.listWorkspaceSkills).not.toHaveBeenCalled()
   })
 
   it('使用模型上下文长度计算上下文占用', async () => {

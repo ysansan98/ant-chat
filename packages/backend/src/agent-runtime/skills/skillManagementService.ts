@@ -15,11 +15,17 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { WORKSPACE_SKILLS_DIR } from '@ant-chat/shared'
 import { unzipSync } from 'fflate'
 import yaml from 'js-yaml'
+import { canonicalizeWorkspacePath } from '../../workspace/workspaceIdentity'
 
 const INDEX_FILE = '.index.json'
 const SKILL_NAME_PATTERN = /^[\w.-]+$/
+/** 工作区技能目录树的最大扫描深度（与 GitHub 导入的 skills/ 容器一致）。 */
+const WORKSPACE_SKILL_MAX_DEPTH = 4
+/** 扫描时跳过的目录（防构建产物/依赖被误判为 skill）。 */
+const SKILL_SCAN_SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', '__pycache__'])
 const BUILTIN_SKILL_INSTALLER = 'skill-installer'
 const BUILTIN_SKILL_MANAGER = 'ant-chat-manager'
 const BUILTIN_SKILL_VISUALIZE = 'visualize'
@@ -314,6 +320,108 @@ export class SkillManagementService {
     }
     const skillFile = path.join(this.skillsRoot, name, 'SKILL.md')
     return fs.promises.readFile(skillFile, 'utf8')
+  }
+
+  /**
+   * 列出工作区 `.agents/skills` 下的技能（免管理：存在即启用，不写任何状态）。
+   * 工作区不可用或无技能时返回空列表，不抛错。
+   */
+  async listWorkspaceSkills(workspacePath: string): Promise<SkillManifest[]> {
+    let workspaceRoot: string
+    try {
+      workspaceRoot = canonicalizeWorkspacePath(workspacePath)
+    }
+    catch {
+      return []
+    }
+
+    const skillsRoot = resolveInsideWorkspace(workspaceRoot, path.join(workspaceRoot, WORKSPACE_SKILLS_DIR))
+    if (!skillsRoot) {
+      return []
+    }
+    try {
+      if (!fs.statSync(skillsRoot).isDirectory()) {
+        return []
+      }
+    }
+    catch {
+      return []
+    }
+
+    // `.agents/skills` 根自身不作为技能，只扫描其子目录树。
+    const roots: string[] = []
+    let entries: fs.Dirent[]
+    try {
+      entries = fs.readdirSync(skillsRoot, { withFileTypes: true })
+    }
+    catch {
+      return []
+    }
+    for (const entry of entries) {
+      if (entry.name.startsWith('.') || SKILL_SCAN_SKIP_DIRS.has(entry.name)) {
+        continue
+      }
+      if (!entry.isDirectory() && !entry.isSymbolicLink()) {
+        continue
+      }
+      collectWorkspaceSkillDirs(workspaceRoot, path.join(skillsRoot, entry.name), 0, roots)
+    }
+
+    const skills: SkillManifest[] = []
+    for (const root of roots) {
+      const name = path.basename(root)
+      if (!SKILL_NAME_PATTERN.test(name)) {
+        continue
+      }
+      // SKILL.md 经 realpath 后必须仍位于工作区内（防 symlink 逃逸）。
+      if (!resolveInsideWorkspace(workspaceRoot, path.join(root, 'SKILL.md'))) {
+        continue
+      }
+      try {
+        const frontmatter = await this.readFrontmatter(root)
+        skills.push({
+          ...frontmatter,
+          name,
+          enabled: true,
+          builtin: false,
+          source: 'workspace',
+          installedAt: 0,
+          updatedAt: 0,
+        })
+      }
+      catch {
+        // 单个技能读取失败不影响其它技能。
+      }
+    }
+
+    skills.sort((a, b) => a.name.localeCompare(b.name, 'en'))
+    return skills
+  }
+
+  /** 读取工作区技能的 SKILL.md 全文；名称非法、工作区不可用或文件缺失时抛 AGENT_SKILL_INVALID。 */
+  async readWorkspaceSkillMarkdown(workspacePath: string, name: string): Promise<string> {
+    assertSkillName(name)
+    let workspaceRoot: string
+    try {
+      workspaceRoot = canonicalizeWorkspacePath(workspacePath)
+    }
+    catch {
+      throw new Error('AGENT_SKILL_INVALID: workspace unavailable')
+    }
+    const skillDir = resolveInsideWorkspace(workspaceRoot, path.join(workspaceRoot, WORKSPACE_SKILLS_DIR, name))
+    if (!skillDir) {
+      throw new Error('AGENT_SKILL_INVALID: skill not found')
+    }
+    const skillFile = resolveInsideWorkspace(workspaceRoot, path.join(skillDir, 'SKILL.md'))
+    if (!skillFile) {
+      throw new Error('AGENT_SKILL_INVALID: skill not found')
+    }
+    try {
+      return await fs.promises.readFile(skillFile, 'utf8')
+    }
+    catch {
+      throw new Error('AGENT_SKILL_INVALID: skill not found')
+    }
   }
 
   async rebuildIndex(): Promise<SkillManifest[]> {
@@ -727,8 +835,68 @@ function findSkillRoot(inputPath: string, depth = 0): string {
   throw new Error('AGENT_SKILL_INVALID: missing SKILL.md')
 }
 
-/** 扫描时跳过的目录（防构建产物/依赖被误判为 skill）。 */
-const SKILL_SCAN_SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', '__pycache__'])
+/** 解析 target 的 realpath；仅当结果仍位于 workspaceRoot 内时返回，否则返回 null。 */
+function resolveInsideWorkspace(workspaceRoot: string, target: string): string | null {
+  try {
+    const realPath = fs.realpathSync.native(target)
+    const relative = path.relative(workspaceRoot, realPath)
+    if (relative && !relative.startsWith('..') && !path.isAbsolute(relative)) {
+      return realPath
+    }
+  }
+  catch {
+    // 目标不存在或不可解析
+  }
+  return null
+}
+
+/**
+ * 递归收集工作区技能根目录：目录含 SKILL.md 即视为技能根，不再深入。
+ * 只跟随 realpath 校验后仍位于工作区内的目录（含 symlink），越界即跳过；
+ * 收集结果保留入口路径（symlink 名即技能名）。
+ */
+function collectWorkspaceSkillDirs(
+  workspaceRoot: string,
+  dir: string,
+  depth: number,
+  roots: string[],
+): void {
+  const realDir = resolveInsideWorkspace(workspaceRoot, dir)
+  if (!realDir) {
+    return
+  }
+  try {
+    if (!fs.statSync(realDir).isDirectory()) {
+      return
+    }
+  }
+  catch {
+    return
+  }
+  if (fs.existsSync(path.join(realDir, 'SKILL.md'))) {
+    roots.push(dir)
+    return
+  }
+  if (depth >= WORKSPACE_SKILL_MAX_DEPTH) {
+    return
+  }
+  let entries: fs.Dirent[]
+  try {
+    entries = fs.readdirSync(realDir, { withFileTypes: true })
+  }
+  catch {
+    return
+  }
+  for (const entry of entries) {
+    if (entry.name.startsWith('.') || SKILL_SCAN_SKIP_DIRS.has(entry.name)) {
+      continue
+    }
+    if (!entry.isDirectory() && !entry.isSymbolicLink()) {
+      continue
+    }
+    collectWorkspaceSkillDirs(workspaceRoot, path.join(dir, entry.name), depth + 1, roots)
+  }
+}
 
 /**
  * 收集 GitHub 仓库中可导入的全部 skill：

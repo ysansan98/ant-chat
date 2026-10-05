@@ -26,7 +26,7 @@ describe('toolRegistry Skill 白名单', () => {
     rmSync(workspacePath, { recursive: true, force: true })
   })
 
-  function createSkillReader(): SkillReader {
+  function createSkillReader(workspaceSkills: SkillManifest[] = []): SkillReader {
     const skills: SkillManifest[] = [
       { name: 'review', description: '代码审查', enabled: true, builtin: false, source: 'zip', installedAt: 1, updatedAt: 1 },
       { name: 'deploy', description: '发布部署', enabled: true, builtin: false, source: 'zip', installedAt: 1, updatedAt: 1 },
@@ -36,6 +36,8 @@ describe('toolRegistry Skill 白名单', () => {
       getEnabledSkills: vi.fn(async () => skills),
       readSkillMarkdown: vi.fn(async name => `# ${name}`),
       importFromGithub: vi.fn(),
+      listWorkspaceSkills: vi.fn(async () => workspaceSkills),
+      readWorkspaceSkillMarkdown: vi.fn(async (_workspacePath: string, name: string) => `# ${name} (workspace)`),
     }
   }
 
@@ -281,6 +283,103 @@ describe('toolRegistry Skill 白名单', () => {
 
     expect(registry.prepare('read_file', { path: path.join(skillsRoot, 'review', 'SKILL.md') }).scope).toBe('outside')
     expect(registry.prepare('execute_command', { command: `node ${path.join(skillsRoot, 'review', 'scripts', 'run.js')}` }).scope).toBe('outside')
+  })
+
+  it('工作区 .agents/skills 技能并入 use_skill，同名时工作区版本优先', async () => {
+    const workspaceSkills: SkillManifest[] = [
+      { name: 'review', description: '工作区审查', enabled: true, builtin: false, source: 'workspace', installedAt: 0, updatedAt: 0 },
+      { name: 'ws-only', description: '工作区专属', enabled: true, builtin: false, source: 'workspace', installedAt: 0, updatedAt: 0 },
+    ]
+    await mkdir(path.join(workspacePath, '.agents', 'skills', 'review'), { recursive: true })
+    writeFileSync(path.join(workspacePath, '.agents', 'skills', 'review', 'SKILL.md'), '# Review (workspace)\n')
+    await mkdir(path.join(workspacePath, '.agents', 'skills', 'ws-only'), { recursive: true })
+    writeFileSync(path.join(workspacePath, '.agents', 'skills', 'ws-only', 'SKILL.md'), '# WS Only\n')
+
+    const config = { ...createConfig(), skillReader: createSkillReader(workspaceSkills) }
+    const registry = await ToolRegistry.create({
+      config,
+      workspacePath,
+      mode: 'hybrid',
+      turnSource: { type: 'interactive' },
+    })
+
+    const useSkill = registry.listTools().find(tool => tool.name === 'use_skill')
+    expect(useSkill?.description).toContain('工作区审查')
+    expect(useSkill?.description).toContain('ws-only')
+    expect(useSkill?.description).not.toContain('代码审查')
+    expect(useSkill?.description).toContain('发布部署')
+
+    // 同名 review 从工作区读取，不触碰全局技能目录
+    await expect(registry.prepare('use_skill', { name: 'review' }).execute()).resolves.toEqual(expect.objectContaining({
+      ok: true,
+      result: expect.stringContaining('# review (workspace)'),
+    }))
+    expect(config.skillReader?.readWorkspaceSkillMarkdown).toHaveBeenCalledWith(workspacePath, 'review')
+    expect(config.skillReader?.readSkillMarkdown).not.toHaveBeenCalled()
+
+    // 非同名全局技能不受影响
+    await expect(registry.prepare('use_skill', { name: 'deploy' }).execute()).resolves.toEqual(expect.objectContaining({
+      ok: true,
+      result: expect.stringContaining('# deploy'),
+    }))
+    expect(config.skillReader?.readSkillMarkdown).toHaveBeenCalledWith('deploy')
+  })
+
+  it('工作区技能列举失败时降级为仅全局技能', async () => {
+    const skillReader = createSkillReader()
+    vi.mocked(skillReader.listWorkspaceSkills).mockRejectedValue(new Error('workspace broken'))
+    const config = { ...createConfig(), skillReader }
+    const registry = await ToolRegistry.create({
+      config,
+      workspacePath,
+      mode: 'hybrid',
+      turnSource: { type: 'interactive' },
+    })
+
+    const useSkill = registry.listTools().find(tool => tool.name === 'use_skill')
+    expect(useSkill?.description).toContain('代码审查')
+    expect(useSkill?.description).toContain('发布部署')
+    await expect(registry.prepare('use_skill', { name: 'deploy' }).execute()).resolves.toEqual(expect.objectContaining({ ok: true }))
+  })
+
+  it('自动化 allowedSkills 可命中工作区技能', async () => {
+    const workspaceSkills: SkillManifest[] = [
+      { name: 'ws-only', description: '工作区专属', enabled: true, builtin: false, source: 'workspace', installedAt: 0, updatedAt: 0 },
+    ]
+    await mkdir(path.join(workspacePath, '.agents', 'skills', 'ws-only'), { recursive: true })
+    writeFileSync(path.join(workspacePath, '.agents', 'skills', 'ws-only', 'SKILL.md'), '# WS Only\n')
+
+    const config = { ...createConfig(), skillReader: createSkillReader(workspaceSkills) }
+    const registry = await ToolRegistry.create({
+      config,
+      workspacePath,
+      mode: 'strict',
+      turnSource: {
+        type: 'automation',
+        automationId: 'automation-1',
+        runId: 'run-1',
+        allowedSkills: ['ws-only'],
+        allowedMcpServers: [],
+        permissionPolicy: {
+          workspaceAccess: 'read',
+          allowSelectedSkillRuntime: false,
+          allowBrowser: false,
+          allowMcpTools: false,
+          extraFileRoots: [],
+          allowCommandExecution: false,
+          commandPatterns: [],
+        },
+      },
+    })
+
+    const useSkill = registry.listTools().find(tool => tool.name === 'use_skill')
+    expect(useSkill?.description).toContain('ws-only')
+    expect(useSkill?.description).not.toContain('review')
+
+    await expect(registry.prepare('use_skill', { name: 'ws-only' }).execute()).resolves.toEqual(expect.objectContaining({
+      ok: true,
+      result: expect.stringContaining('# ws-only (workspace)'),
+    }))
   })
 
   it('普通交互 Turn 不注册 ant_chat 工具', async () => {

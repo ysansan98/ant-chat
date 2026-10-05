@@ -22,6 +22,11 @@ export class SkillsModule implements RuntimeModuleMethods<'skills'> {
   }
 
   @Method()
+  listWorkspaceSkills(input: AppRpcInput<'skills.listWorkspaceSkills'>) {
+    return this.service.listWorkspaceSkills(input.workspacePath)
+  }
+
+  @Method()
   importSkill(input: AppRpcInput<'skills.importSkill'>) {
     return this.service.importSkill(input.options)
   }
