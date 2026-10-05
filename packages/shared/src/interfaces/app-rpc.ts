@@ -142,6 +142,7 @@ export interface AppRpcContract {
   'provider.logoutAuth': RpcEndpoint<{ providerId: string }, null>
 
   'skills.listSkills': RpcEndpoint<undefined, SkillIndex>
+  'skills.listWorkspaceSkills': RpcEndpoint<{ workspacePath: string }, SkillManifest[]>
   'skills.importSkill': RpcEndpoint<{ options: ImportSkillOptions }, SkillManifest>
   'skills.previewGithubSkills': RpcEndpoint<{ options: { url: string } }, GithubSkillPreview[]>
   'skills.importGithubSkills': RpcEndpoint<{ options: { url: string, paths: string[] } }, ImportGithubSkillsResult>

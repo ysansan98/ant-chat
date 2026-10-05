@@ -6,6 +6,11 @@ export const skillApi = {
     return getAppRpcClient().call('skills.listSkills', undefined)
   },
 
+  /** 列出指定工作区 `.agents/skills` 下的技能（存在即启用）。 */
+  listWorkspaceSkills: async (workspacePath: string): Promise<SkillManifest[]> => {
+    return getAppRpcClient().call('skills.listWorkspaceSkills', { workspacePath })
+  },
+
   importSkill: async (options: ImportSkillOptions): Promise<SkillManifest> => {
     return getAppRpcClient().call('skills.importSkill', { options })
   },

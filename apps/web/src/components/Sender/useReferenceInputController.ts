@@ -19,14 +19,16 @@ import {
 } from './inputReferences'
 
 interface SenderDataState {
-  skills: SkillManifest[]
+  globalSkills: SkillManifest[]
+  workspaceSkills: SkillManifest[]
   fileResults: WorkspaceFileSearchResult[]
   suggestionAnchorRect: DOMRect | null
   highlightedIndex: number
 }
 
 type SenderDataAction
-  = | { type: 'SET_SKILLS', skills: SkillManifest[] }
+  = | { type: 'SET_GLOBAL_SKILLS', skills: SkillManifest[] }
+    | { type: 'SET_WORKSPACE_SKILLS', skills: SkillManifest[] }
     | { type: 'CLEAR_FILE_RESULTS' }
     | { type: 'SET_FILE_RESULTS', results: WorkspaceFileSearchResult[] }
     | { type: 'CLEAR_ANCHOR_RECT' }
@@ -35,8 +37,10 @@ type SenderDataAction
 
 function senderDataReducer(state: SenderDataState, action: SenderDataAction): SenderDataState {
   switch (action.type) {
-    case 'SET_SKILLS':
-      return { ...state, skills: action.skills }
+    case 'SET_GLOBAL_SKILLS':
+      return { ...state, globalSkills: action.skills }
+    case 'SET_WORKSPACE_SKILLS':
+      return { ...state, workspaceSkills: action.skills }
     case 'CLEAR_FILE_RESULTS':
       return { ...state, fileResults: [] }
     case 'SET_FILE_RESULTS':
@@ -48,6 +52,18 @@ function senderDataReducer(state: SenderDataState, action: SenderDataAction): Se
     case 'SET_HIGHLIGHTED_INDEX':
       return { ...state, highlightedIndex: action.index }
   }
+}
+
+/** 合并全局与工作区技能：同名时工作区版本优先（与后端 Turn 可见技能一致）。 */
+function mergeSkills(globalSkills: SkillManifest[], workspaceSkills: SkillManifest[]): SkillManifest[] {
+  const byName = new Map<string, SkillManifest>()
+  for (const skill of globalSkills) {
+    byName.set(skill.name, skill)
+  }
+  for (const skill of workspaceSkills) {
+    byName.set(skill.name, skill)
+  }
+  return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name, 'en'))
 }
 
 export interface ReferenceInputController {
@@ -95,7 +111,8 @@ export function useReferenceInputController({
   const [confirmedSkillReference, setConfirmedSkillReference] = useState<string>()
   const [scrollTop, setScrollTop] = useState(0)
   const [senderData, dispatchSenderData] = useReducer(senderDataReducer, {
-    skills: [],
+    globalSkills: [],
+    workspaceSkills: [],
     fileResults: [],
     suggestionAnchorRect: null,
     highlightedIndex: 0,
@@ -109,8 +126,8 @@ export function useReferenceInputController({
   }, [draft, cursor, confirmedFileReferences, confirmedSkillReference])
 
   const enabledSkills = useMemo(
-    () => senderData.skills.filter(skill => skill.enabled),
-    [senderData.skills],
+    () => mergeSkills(senderData.globalSkills, senderData.workspaceSkills).filter(skill => skill.enabled),
+    [senderData.globalSkills, senderData.workspaceSkills],
   )
   const skills = useMemo(() => {
     if (!trigger || trigger.type !== 'skill') {
@@ -151,10 +168,39 @@ export function useReferenceInputController({
       : 0
 
   useEffect(() => {
-    void skillApi.listSkills().then((data) => {
-      dispatchSenderData({ type: 'SET_SKILLS', skills: data.skills })
-    })
+    void skillApi.listSkills()
+      .then((data) => {
+        dispatchSenderData({ type: 'SET_GLOBAL_SKILLS', skills: data.skills })
+      })
+      .catch((error) => {
+        console.error('listSkills failed', error)
+      })
   }, [])
+
+  useEffect(() => {
+    if (!workspacePath) {
+      dispatchSenderData({ type: 'SET_WORKSPACE_SKILLS', skills: [] })
+      return
+    }
+
+    let cancelled = false
+    void skillApi.listWorkspaceSkills(workspacePath)
+      .then((skills) => {
+        if (!cancelled) {
+          dispatchSenderData({ type: 'SET_WORKSPACE_SKILLS', skills })
+        }
+      })
+      .catch((error) => {
+        console.error('listWorkspaceSkills failed', error)
+        if (!cancelled) {
+          dispatchSenderData({ type: 'SET_WORKSPACE_SKILLS', skills: [] })
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [workspacePath])
 
   useEffect(() => {
     if (!trigger || trigger.type !== 'file' || !workspacePath) {

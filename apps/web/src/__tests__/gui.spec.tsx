@@ -1,4 +1,4 @@
-import type { AgentTaskSnapshot, ConversationsId, IConversations, IMessage, SkillIndex } from '@ant-chat/shared'
+import type { AgentTaskSnapshot, ConversationsId, IConversations, IMessage, SkillIndex, SkillManifest } from '@ant-chat/shared'
 
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -90,6 +90,7 @@ const mocks = vi.hoisted(() => ({
   },
   skill: {
     listSkills: vi.fn<() => Promise<SkillIndex>>(async () => ({ rootPath: '/tmp/skills', skills: [] })),
+    listWorkspaceSkills: vi.fn<() => Promise<SkillManifest[]>>(async () => []),
   },
   workspace: {
     chooseWorkspace: vi.fn(async () => null),

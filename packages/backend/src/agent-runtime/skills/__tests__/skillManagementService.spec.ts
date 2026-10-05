@@ -347,3 +347,125 @@ describe('skillManagementService', () => {
     expect(manual!.source).toBe('local')
   })
 })
+
+describe('工作区技能（.agents/skills）', () => {
+  let workspaceRoot: string
+  let workspaceReader: SkillManagementService
+
+  beforeEach(async () => {
+    workspaceRoot = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'ant-chat-workspace-'))
+    workspaceReader = new SkillManagementService({ skillsRoot: path.join(workspaceRoot, '.ant-chat', 'skills') })
+  })
+
+  afterEach(async () => {
+    await fs.promises.rm(workspaceRoot, { recursive: true, force: true })
+  })
+
+  async function writeWorkspaceSkill(relativeDir: string, name: string, description: string): Promise<void> {
+    const skillDir = path.join(workspaceRoot, '.agents', 'skills', relativeDir)
+    await fs.promises.mkdir(skillDir, { recursive: true })
+    await fs.promises.writeFile(path.join(skillDir, 'SKILL.md'), skillMarkdown(name, description))
+  }
+
+  it('发现工作区 .agents/skills 下的技能并按名称排序', async () => {
+    await writeWorkspaceSkill('beta', 'beta', 'Second skill.')
+    await writeWorkspaceSkill('alpha', 'alpha', 'First skill.')
+
+    const skills = await workspaceReader.listWorkspaceSkills(workspaceRoot)
+
+    expect(skills.map(skill => skill.name)).toEqual(['alpha', 'beta'])
+    expect(skills[0]).toMatchObject({
+      name: 'alpha',
+      description: 'First skill.',
+      source: 'workspace',
+      enabled: true,
+      builtin: false,
+    })
+  })
+
+  it('支持 skills/<分类>/<技能> 嵌套布局', async () => {
+    await writeWorkspaceSkill(path.join('engineering', 'code-review'), 'code-review', 'Review code.')
+
+    const skills = await workspaceReader.listWorkspaceSkills(workspaceRoot)
+
+    expect(skills.map(skill => skill.name)).toEqual(['code-review'])
+  })
+
+  it('跳过非法名称、隐藏目录、构建产物目录与无 SKILL.md 的目录', async () => {
+    await writeWorkspaceSkill('valid-skill', 'valid-skill', 'Valid.')
+    await writeWorkspaceSkill('中文技能', '中文技能', 'Invalid name.')
+    await writeWorkspaceSkill('.hidden', '.hidden', 'Hidden.')
+    await writeWorkspaceSkill(path.join('node_modules', 'pkg'), 'pkg', 'Dependency.')
+    await fs.promises.mkdir(path.join(workspaceRoot, '.agents', 'skills', 'no-manifest'), { recursive: true })
+
+    const skills = await workspaceReader.listWorkspaceSkills(workspaceRoot)
+
+    expect(skills.map(skill => skill.name)).toEqual(['valid-skill'])
+  })
+
+  it('symlink 指向工作区内时可用，并可用入口名读取', async () => {
+    const targetDir = path.join(workspaceRoot, 'shared-skills', 'my-tool')
+    await fs.promises.mkdir(targetDir, { recursive: true })
+    await fs.promises.writeFile(path.join(targetDir, 'SKILL.md'), skillMarkdown('my-tool', 'Shared tool.'))
+    await fs.promises.mkdir(path.join(workspaceRoot, '.agents', 'skills'), { recursive: true })
+    await fs.promises.symlink(targetDir, path.join(workspaceRoot, '.agents', 'skills', 'my-tool'), 'dir')
+
+    const skills = await workspaceReader.listWorkspaceSkills(workspaceRoot)
+    expect(skills.map(skill => skill.name)).toEqual(['my-tool'])
+
+    const markdown = await workspaceReader.readWorkspaceSkillMarkdown(workspaceRoot, 'my-tool')
+    expect(markdown).toContain('# my-tool')
+  })
+
+  it('symlink 指向工作区外时被跳过且不可读取', async () => {
+    const outsideRoot = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'ant-chat-outside-'))
+    try {
+      const outsideSkill = path.join(outsideRoot, 'outside-skill')
+      await fs.promises.mkdir(outsideSkill, { recursive: true })
+      await fs.promises.writeFile(path.join(outsideSkill, 'SKILL.md'), skillMarkdown('outside-skill', 'Outside.'))
+      await fs.promises.mkdir(path.join(workspaceRoot, '.agents', 'skills'), { recursive: true })
+      await fs.promises.symlink(outsideSkill, path.join(workspaceRoot, '.agents', 'skills', 'outside-skill'), 'dir')
+
+      expect(await workspaceReader.listWorkspaceSkills(workspaceRoot)).toEqual([])
+      await expect(workspaceReader.readWorkspaceSkillMarkdown(workspaceRoot, 'outside-skill')).rejects.toThrow('AGENT_SKILL_INVALID')
+    }
+    finally {
+      await fs.promises.rm(outsideRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('当 SKILL.md 为 symlink 且指向工作区外时被跳过', async () => {
+    const outsideRoot = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'ant-chat-outside-'))
+    try {
+      const secretFile = path.join(outsideRoot, 'secret.md')
+      await fs.promises.writeFile(secretFile, skillMarkdown('tricky', 'Escape.'))
+      const skillDir = path.join(workspaceRoot, '.agents', 'skills', 'tricky')
+      await fs.promises.mkdir(skillDir, { recursive: true })
+      await fs.promises.symlink(secretFile, path.join(skillDir, 'SKILL.md'), 'file')
+
+      expect(await workspaceReader.listWorkspaceSkills(workspaceRoot)).toEqual([])
+      await expect(workspaceReader.readWorkspaceSkillMarkdown(workspaceRoot, 'tricky')).rejects.toThrow('AGENT_SKILL_INVALID')
+    }
+    finally {
+      await fs.promises.rm(outsideRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('readWorkspaceSkillMarkdown 校验名称并读取内容', async () => {
+    await writeWorkspaceSkill('writer', 'writer', 'Write release notes.')
+
+    const markdown = await workspaceReader.readWorkspaceSkillMarkdown(workspaceRoot, 'writer')
+    expect(markdown).toContain('name: writer')
+    expect(markdown).toContain('# writer')
+
+    await expect(workspaceReader.readWorkspaceSkillMarkdown(workspaceRoot, '../escape')).rejects.toThrow('AGENT_SKILL_INVALID')
+    await expect(workspaceReader.readWorkspaceSkillMarkdown(workspaceRoot, 'missing')).rejects.toThrow('AGENT_SKILL_INVALID')
+  })
+
+  it('工作区不可用或无 .agents/skills 时返回空列表、读取报错', async () => {
+    expect(await workspaceReader.listWorkspaceSkills(path.join(workspaceRoot, 'not-exists'))).toEqual([])
+    expect(await workspaceReader.listWorkspaceSkills(workspaceRoot)).toEqual([])
+
+    await expect(workspaceReader.readWorkspaceSkillMarkdown(workspaceRoot, 'writer')).rejects.toThrow('AGENT_SKILL_INVALID')
+  })
+})

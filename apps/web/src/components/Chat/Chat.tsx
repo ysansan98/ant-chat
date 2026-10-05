@@ -25,17 +25,34 @@ import { ConversationTitleBar } from './ConversationTitleBar'
 
 const BubbleList = lazy(() => import('./BubbleList'))
 
-async function resolveKnownSkillNames(text: string): Promise<ReadonlySet<string>> {
+async function resolveKnownSkillNames(text: string, workspacePath: string): Promise<ReadonlySet<string>> {
   if (!text.trimStart().startsWith('/')) {
     return new Set()
   }
+  const names = new Set<string>()
   try {
     const { skills } = await skillApi.listSkills()
-    return new Set(skills.filter(skill => skill.enabled).map(skill => skill.name))
+    for (const skill of skills) {
+      if (skill.enabled) {
+        names.add(skill.name)
+      }
+    }
   }
   catch {
-    return new Set()
+    // 全局技能不可用时仍尝试工作区技能
   }
+  if (workspacePath) {
+    try {
+      const workspaceSkills = await skillApi.listWorkspaceSkills(workspacePath)
+      for (const skill of workspaceSkills) {
+        names.add(skill.name)
+      }
+    }
+    catch {
+      // 工作区技能读取失败不影响全局技能
+    }
+  }
+  return names
 }
 
 export default function Chat() {
@@ -129,7 +146,7 @@ export default function Chat() {
 
     const textBlocks = content.filter(block => block.type === 'text')
     const draftText = textBlocks.map(block => block.text).join('\n')
-    const knownSkillNames = await resolveKnownSkillNames(draftText)
+    const knownSkillNames = await resolveKnownSkillNames(draftText, currentWorkspacePath)
 
     await updateConversationInstructions(conversationInstructions)
 

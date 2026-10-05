@@ -230,6 +230,10 @@ export interface SkillReader {
   getEnabledSkills: () => Promise<SkillManifest[]>
   readSkillMarkdown: (name: string) => Promise<string>
   importFromGithub: (options: ImportSkillFromGithubOptions) => Promise<SkillManifest>
+  /** 列出指定工作区 `.agents/skills` 下的技能（免管理：存在即启用）。 */
+  listWorkspaceSkills: (workspacePath: string) => Promise<SkillManifest[]>
+  /** 读取指定工作区技能的 SKILL.md 全文。 */
+  readWorkspaceSkillMarkdown: (workspacePath: string, name: string) => Promise<string>
 }
 
 export interface RuntimeMcpClientHub {

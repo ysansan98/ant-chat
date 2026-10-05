@@ -1,3 +1,6 @@
+/** 工作区级技能目录（相对工作区根的 POSIX 路径）。 */
+export const WORKSPACE_SKILLS_DIR = '.agents/skills'
+
 /** Agent Skills 标准 frontmatter 字段（来源：SKILL.md YAML frontmatter） */
 export interface SkillFrontmatter {
   name: string
@@ -9,7 +12,7 @@ export interface SkillFrontmatter {
   allowedTools?: string
 }
 
-export type SkillSource = 'zip' | 'github' | 'builtin' | 'local'
+export type SkillSource = 'zip' | 'github' | 'builtin' | 'local' | 'workspace'
 
 /** 应用层可变状态（仅持久化在 .index.json 中） */
 export interface SkillAppState {
