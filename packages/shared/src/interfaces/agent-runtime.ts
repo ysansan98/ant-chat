@@ -58,6 +58,8 @@ export interface AgentPendingAction {
   scope: ToolScope
   inputPreview: string
   createdAt: number
+  /** hook `ask` 决策的原因；仅用于审批卡片展示，不参与规则重建。 */
+  hookReason?: string
   /** 后端构造的候选规则和重建上下文；用户审批时从快照重建并校验 */
   approvalCandidates?: ApprovalGrantCandidates
 }

@@ -727,3 +727,95 @@ describe('runAgentLoop 行为', () => {
     }))
   })
 })
+
+describe('runAgentLoop Stop hook', () => {
+  it('正常回合结束时触发 Stop，并带上最终文本', async () => {
+    const emitter = createMockEmitter()
+    const logger = createMockLogger()
+    const run = vi.fn(async (event: string) => ({ event, executions: [] }))
+    const aiProvider = createMockAIProvider([[makeTextChunk('Done')]])
+    const { taskId, options } = createBaseInput({ aiProvider: aiProvider as unknown as IAIProvider })
+    const task = createTask(taskId, options.conversationId)
+    const { execution } = createExecution(task)
+
+    await runAgentLoop({
+      execution,
+      options,
+      config: { eventEmitter: emitter, logger, hooks: { run } as never },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
+    })
+
+    expect(run).toHaveBeenCalledWith('Stop', expect.objectContaining({ status: 'success', last_assistant_text: 'Done' }), expect.anything())
+  })
+
+  it('stop hook 抛错不影响 turn 成功', async () => {
+    const emitter = createMockEmitter()
+    const logger = createMockLogger()
+    const aiProvider = createMockAIProvider([[makeTextChunk('Done')]])
+    const { taskId, options } = createBaseInput({ aiProvider: aiProvider as unknown as IAIProvider })
+    const task = createTask(taskId, options.conversationId)
+    const { execution, finish } = createExecution(task)
+
+    await runAgentLoop({
+      execution,
+      options,
+      config: {
+        eventEmitter: emitter,
+        logger,
+        hooks: { run: vi.fn(async () => { throw new Error('stop hook exploded') }) } as never,
+      },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
+    })
+
+    expect(task.snapshot.status).toBe('success')
+    expect(finish).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('runAgentLoop Interrupt / Notification hook', () => {
+  it('回合成功时触发 Notification(turn_finished/success)', async () => {
+    const emitter = createMockEmitter()
+    const logger = createMockLogger()
+    const run = vi.fn(async (event: string) => ({ event, executions: [] }))
+    const aiProvider = createMockAIProvider([[makeTextChunk('Done')]])
+    const { taskId, options } = createBaseInput({ aiProvider: aiProvider as unknown as IAIProvider })
+    const { execution } = createExecution(createTask(taskId, options.conversationId))
+
+    await runAgentLoop({
+      execution,
+      options,
+      config: { eventEmitter: emitter, logger, hooks: { run } as never },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
+    })
+
+    expect(run).toHaveBeenCalledWith('Notification', expect.objectContaining({
+      type: 'turn_finished',
+      payload: expect.objectContaining({ status: 'success' }),
+    }), expect.anything())
+  })
+
+  it('取消时触发 Interrupt(loop_cancelled) 与 Notification(cancel)', async () => {
+    const emitter = createMockEmitter()
+    const logger = createMockLogger()
+    const run = vi.fn(async (event: string) => ({ event, executions: [] }))
+    const aiProvider = createMockAIProvider([[makeTextChunk('never')]])
+    const { taskId, options } = createBaseInput({ aiProvider: aiProvider as unknown as IAIProvider })
+    const task = createTask(taskId, options.conversationId)
+    const { execution } = createExecution(task)
+    task.abortController.abort()
+
+    await runAgentLoop({
+      execution,
+      options,
+      config: { eventEmitter: emitter, logger, hooks: { run } as never },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
+    })
+
+    expect(task.snapshot.status).toBe('cancelled')
+    expect(run).toHaveBeenCalledWith('Interrupt', expect.objectContaining({ reason: 'loop_cancelled' }), expect.anything())
+    expect(run).toHaveBeenCalledWith('Notification', expect.objectContaining({
+      type: 'turn_finished',
+      payload: expect.objectContaining({ status: 'cancel' }),
+    }), expect.anything())
+  })
+})

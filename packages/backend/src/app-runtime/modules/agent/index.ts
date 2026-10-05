@@ -1,10 +1,11 @@
-import type { AgentTurnSummary, AIProviderFactory, AppRpcInput, ChannelAttachmentSender, IAgentEventEmitter } from '@ant-chat/shared'
+import type { AgentTurnSummary, AIProviderFactory, AppRpcInput, ChannelAttachmentSender, IAgentEventEmitter, IHookDispatcher } from '@ant-chat/shared'
 import type { SkillManagementService } from '../../../agent-runtime'
 import type { McpConnectionManager } from '../../../mcp'
 import type { RuntimeCore } from '../../createRuntimeCore'
 import type { RuntimeModuleMethods } from '../../routeRegistry'
 import path from 'node:path'
-import { createAgentRuntime } from '../../../agent-core'
+import { emptyHookResult } from '@ant-chat/shared'
+import { createAgentRuntime, createHookSystem } from '../../../agent-core'
 import {
   createAgentTurnService,
   createAppDataSessionStore,
@@ -31,8 +32,11 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
   readonly eventEmitter: IAgentEventEmitter
   readonly titleGenerator: ReturnType<typeof createConversationTitleGenerator>
   readonly observability: ReturnType<typeof createAgentObservability>
+  /** 外部 hooks 运行时（受 developerTools.agentHooksEnabled 总开关约束）。 */
+  readonly hooks: IHookDispatcher
   private readonly pendingMessages: ReturnType<typeof createPendingMessageService>
   private readonly secretRequester: RuntimeSecretRequestController
+  private hooksEnabled = true
 
   constructor(private readonly core: RuntimeCore, dependencies: AgentModuleDependencies) {
     this.eventEmitter = createAgentEventEmitter(core)
@@ -47,6 +51,18 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
       logger: core.logger,
       onTurnSettled: event => core.events.emit('observability:turn-settled', event),
     })
+
+    const hookSystem = createHookSystem({
+      globalFilePath: core.paths.hooksFile,
+      commandHost: core.commandHost,
+      logger: core.logger,
+    })
+    this.hooks = {
+      run: async (event, input, options) =>
+        this.hooksEnabled
+          ? await hookSystem.dispatcher.run(event, input, options)
+          : emptyHookResult(event),
+    }
 
     // 任务终态回调在 turnService 就绪前只做占位；构造期不会有任务终结。
     let relayOnTaskSettled: ((conversationId: string) => void) | undefined
@@ -72,6 +88,7 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
         secretStore: core.secretStore,
         secretRequester: this.secretRequester,
         channelAttachmentSender: dependencies.channelAttachmentSender,
+        hooks: this.hooks,
         // 任务终态（非取消）后由待处理队列接力；取消的任务保留队列等待用户处理。
         onTaskSettled: (event) => {
           if (event.status === 'cancelled')
@@ -110,6 +127,7 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
       aiProviderFactory: dependencies.aiProviderFactory,
       titleGenerator: this.titleGenerator,
       emitMessageUpdated: message => core.events.emit('message:updated', { message }),
+      hooks: this.hooks,
       logger: core.logger,
     })
     this.turnService = {
@@ -252,9 +270,12 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
     try {
       const settings = await this.core.data.settingsRepository.getGeneralSettings()
       this.observability.setEnabled(settings.developerTools.agentObservabilityEnabled)
+      this.hooksEnabled = settings.developerTools.agentHooksEnabled ?? true
     }
     catch (error) {
       this.observability.setEnabled(false)
+      // 设置读取失败时保守禁用 hooks，避免执行未经确认的外部命令。
+      this.hooksEnabled = false
       this.core.logger.warn('读取 Agent Observability 设置失败，当前 Turn 不采集', error)
     }
   }

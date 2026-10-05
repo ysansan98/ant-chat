@@ -1,4 +1,4 @@
-import type { AgentTaskSnapshot, AIProviderFactory, AppRpcInput, IAgentEventEmitter } from '@ant-chat/shared'
+import type { AgentTaskSnapshot, AIProviderFactory, AppRpcInput, IAgentEventEmitter, IHookDispatcher } from '@ant-chat/shared'
 import type { ConversationLifecycle } from '../../../conversations/conversationLifecycle'
 import type { RuntimeCore } from '../../createRuntimeCore'
 import type { RuntimeModuleMethods } from '../../routeRegistry'
@@ -16,6 +16,7 @@ export class CommandsModule implements RuntimeModuleMethods<'commands'> {
       aiProviderFactory: AIProviderFactory
       eventEmitter: IAgentEventEmitter
       conversationLifecycle: ConversationLifecycle
+      hooks?: IHookDispatcher
     },
   ) {
     this.controller = createCommandController({
@@ -25,6 +26,7 @@ export class CommandsModule implements RuntimeModuleMethods<'commands'> {
       aiProviderFactory: dependencies.aiProviderFactory,
       listActiveTasks: dependencies.listActiveTasks,
       conversationLifecycle: dependencies.conversationLifecycle,
+      hooks: dependencies.hooks,
     })
   }
 

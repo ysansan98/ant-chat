@@ -5,6 +5,7 @@ import type { AgentTool } from './agent-tools'
 import type { BrowserAuthStateProvider } from './browser-profiles'
 import type { ChannelAttachmentSender } from './channels'
 import type { IConversations, IMessage, IMessageContent } from './db-types'
+import type { IHookDispatcher } from './hooks'
 import type { McpServer, McpToolCallResponse } from './mcp'
 import type { MemoryCatalogPort } from './memory-catalog'
 import type { MessageSearchPort } from './message-search'
@@ -351,6 +352,8 @@ export interface AgentRuntimeHost {
    * 供外层执行待处理队列接力等收尾动作；回调抛错被捕获，不影响循环收尾。
    */
   onTaskSettled?: (event: AgentTaskSettledEvent) => void
+  /** 外部 hooks 运行时；缺省时 AgentRuntime 使用 no-op，行为与未启用 hooks 一致。 */
+  hooks?: IHookDispatcher
 }
 
 /** 任务终态通知：任务已离开活跃集合，同会话可以安全启动下一轮。 */
@@ -402,6 +405,8 @@ export interface AgentRuntimeConfig extends AgentRuntimeOverrides {
   channelAttachmentSender?: ChannelAttachmentSender
   /** 任务终态（已从任务存储移除）后的通知回调；见 AgentRuntimeHost.onTaskSettled。 */
   onTaskSettled?: (event: AgentTaskSettledEvent) => void
+  /** 外部 hooks 运行时；缺省或注入 no-op 时行为与未启用 hooks 一致。 */
+  hooks?: IHookDispatcher
 }
 
 export interface AgentRuntimeStartTaskOptions {
@@ -414,6 +419,8 @@ export interface AgentRuntimeStartTaskOptions {
   aiProvider?: IAIProvider
   mode?: AgentMode
   turnSource?: AgentTurnSource
+  /** UserPromptSubmit hook 注入的附加上下文：只进入本轮 loop，不持久化为用户消息。 */
+  hookAdditionalContext?: string
   modelSettings?: {
     /** 推理强度档位（ai-sdk v7 统一参数）。未设置时由厂商默认决定。 */
     reasoningEffort?: ReasoningEffortLevel

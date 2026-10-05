@@ -4,6 +4,8 @@ import type { TaskExecution } from './taskStore'
 import type { ToolAuthorization } from './tools/types'
 import { randomUUID } from 'node:crypto'
 import { AgentError } from './AgentError'
+import { createHookAwareToolAuthorization } from './hooks/hookToolAuthorization'
+import { emitInterruptHook } from './hooks/lifecycleHooks'
 import { runAgentLoop } from './loop/agentLoop'
 import { finishTurnObservation, recordContextObservation } from './observation'
 import { rebuildRulesFromApproval } from './policy/approvalRuleRebuilder'
@@ -19,11 +21,14 @@ export class AgentRuntime {
 
   constructor(config: AgentRuntimeConfig) {
     this.config = config
-    this.beforeToolExecuteHook = createToolAuthorization(
-      this.taskStore,
-      {
-        getRules: config.getPermissionRules,
-      },
+    this.beforeToolExecuteHook = createHookAwareToolAuthorization(
+      createToolAuthorization(
+        this.taskStore,
+        {
+          getRules: config.getPermissionRules,
+        },
+      ),
+      { taskStore: this.taskStore },
     )
     this.sessionRuntime = new SessionRuntime(config, this.taskStore)
   }
@@ -156,6 +161,14 @@ export class AgentRuntime {
 
   cancelTask(options: CancelTaskOptions): void {
     const task = this.taskStore.cancel(options.taskId)
+    // Interrupt 是观察类钩子；输出不可阻止中断。
+    emitInterruptHook({
+      config: this.config,
+      conversationId: task.snapshot.conversationId,
+      workspacePath: task.snapshot.workspacePath,
+      turnId: task.snapshot.userMessageId,
+      reason: 'user_cancel',
+    })
     void this.config.eventEmitter.emitTaskUpdated(task.snapshot)
   }
 

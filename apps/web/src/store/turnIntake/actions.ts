@@ -76,6 +76,8 @@ export async function submitTurnIntake(options: SubmitTurnIntakeOptions): Promis
   }
 
   const result = await agentApi.startTurn(toStartTurnOptions(options))
+  if (result.kind === 'blocked')
+    throw new Error(result.reason)
   if (result.kind === 'queued')
     return applyQueuedResult(result)
 

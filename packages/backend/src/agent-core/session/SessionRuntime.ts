@@ -15,12 +15,15 @@ import type { TaskStore } from '../taskStore'
 import type { ImagePlaceholderItem } from '../utils/attachmentUtils'
 import type { RuntimeStartInput } from './types'
 import { randomUUID } from 'node:crypto'
+import process from 'node:process'
 import { canonicalizeWorkspacePath } from '../../workspace/workspaceIdentity'
 import {
   DEFAULT_COMPACTION_SETTINGS,
 } from '../compaction/compaction'
 import { createCompactionStrategy } from '../compaction/compactionStrategy'
 import { runCompactionTransaction } from '../compaction/compactionTransaction'
+import { runPostCompactHook, runPreCompactHook } from '../hooks/lifecycleHooks'
+import { recordHookObservation } from '../hooks/observability'
 import { getAgentLogger } from '../logger'
 import {
   buildConversationContextEntries,
@@ -107,6 +110,12 @@ export class SessionRuntime {
       userContent = [{ type: 'text', text: userText }]
     }
 
+    // UserPromptSubmit hook 的 additionalContext：只进入本轮 loop，不持久化为用户消息。
+    const hookAdditionalContext = options.hookAdditionalContext?.trim()
+    if (hookAdditionalContext) {
+      userContent = [...userContent, { type: 'text', text: hookAdditionalContext }]
+    }
+
     const historyMessages = allMessages.filter(message => message.id !== userMessage.id)
     const contextEntries = await buildConversationContextEntries(
       historyMessages,
@@ -117,23 +126,44 @@ export class SessionRuntime {
 
     const apiMode = provider.apiMode || 'openai'
     const compactionSettings: CompactionSettingsSchema = currentConversation?.settings?.compaction ?? DEFAULT_COMPACTION_SETTINGS
-    const preTurnCompaction = await compactPersistedHistoryBeforeTurn({
-      contextEntries,
-      pendingUserMessage: { role: 'user', content: userContent },
-      settings: compactionSettings,
-      aiProvider,
-      modelName: model.model,
-      contextLength: model.contextLength,
-      summarize: (this.config.compactionStrategy ?? createCompactionStrategy(undefined, conversation.id)).summarize,
-      logger: getAgentLogger(this.config),
+    // PreCompact hook：deny 或 continue:false 阻止本次自动压缩；失败隔离后按允许处理。
+    const preCompact = await runPreCompactHook({
+      config: this.config,
       conversationId: conversation.id,
-      modelInfo: {
-        provider: provider.name,
-        providerId: provider.id,
-        model: model.model,
-      },
-      store,
+      workspacePath,
+      trigger: 'automatic',
     })
+    const preTurnCompaction = preCompact.allowed
+      ? await compactPersistedHistoryBeforeTurn({
+          contextEntries,
+          pendingUserMessage: { role: 'user', content: userContent },
+          settings: compactionSettings,
+          aiProvider,
+          modelName: model.model,
+          contextLength: model.contextLength,
+          summarize: (this.config.compactionStrategy ?? createCompactionStrategy(undefined, conversation.id)).summarize,
+          logger: getAgentLogger(this.config),
+          conversationId: conversation.id,
+          modelInfo: {
+            provider: provider.name,
+            providerId: provider.id,
+            model: model.model,
+          },
+          store,
+        })
+      : { compacted: false, messages: contextEntries.map(entry => entry.message) }
+    if (preCompact.allowed) {
+      await runPostCompactHook({
+        config: this.config,
+        conversationId: conversation.id,
+        workspacePath,
+        trigger: 'automatic',
+        status: preTurnCompaction.compacted ? 'compacted' : 'skipped',
+      })
+    }
+    else {
+      getAgentLogger(this.config).warn(`PreCompact hook 阻止自动压缩：${preCompact.reason ?? '未提供原因'}`)
+    }
     if (preTurnCompaction.compacted) {
       this.promptMemorySnapshots.delete(conversation.id)
     }
@@ -153,11 +183,20 @@ export class SessionRuntime {
       runId: userMessage.id,
     })
     const memory = await this.getPromptMemorySnapshot(conversation.id)
-    const systemPrompt = createLoopSystemPrompt(
+    let systemPrompt = createLoopSystemPrompt(
       workspacePath,
       currentConversation?.conversationInstructions,
       memory,
     )
+
+    // SessionStart hook：additionalContext 追加到 systemPrompt；失败只记日志。
+    const sessionStartContext = await this.runSessionStartHook({
+      conversationId: conversation.id,
+      workspacePath,
+      turnSource: options.turnSource,
+    })
+    if (sessionStartContext)
+      systemPrompt = `${systemPrompt}\n\n${sessionStartContext}`
 
     const turnId = userMessage.id
 
@@ -179,7 +218,7 @@ export class SessionRuntime {
       apiMode,
       reasoningEffort: options.modelSettings?.reasoningEffort,
       compaction: compactionSettings,
-      preTurnContextEvents: preTurnCompaction.contextEvent ? [preTurnCompaction.contextEvent] : undefined,
+      preTurnContextEvents: buildPreTurnContextEvents(preTurnCompaction.contextEvent, sessionStartContext, hookAdditionalContext),
       projectedUnsupportedImages,
     }
 
@@ -215,13 +254,82 @@ export class SessionRuntime {
   }
 
   async closeConversation(conversationId: string): Promise<void> {
+    await this.runSessionEndHook(conversationId, 'close')
     this.promptMemorySnapshots.delete(conversationId)
     await this.browserSessions?.close(conversationId, true)
   }
 
   async dispose(): Promise<void> {
+    const conversationIds = [...this.promptMemorySnapshots.keys()]
+    await Promise.all(conversationIds.map(conversationId => this.runSessionEndHook(conversationId, 'dispose')))
     this.promptMemorySnapshots.clear()
     await this.browserSessions?.dispose()
+  }
+
+  /** SessionStart hook：仅消费 additionalContext，失败只记日志。 */
+  private async runSessionStartHook(params: {
+    conversationId: string
+    workspacePath: string
+    turnSource?: AgentRuntimeStartTaskOptions['turnSource']
+  }): Promise<string | undefined> {
+    const hooks = this.config.hooks
+    if (!hooks)
+      return undefined
+    try {
+      const result = await hooks.run('SessionStart', {
+        hook_event_name: 'SessionStart',
+        session_id: params.conversationId,
+        conversation_id: params.conversationId,
+        cwd: params.workspacePath,
+        timestamp: Date.now(),
+        source: params.turnSource?.type ?? 'interactive',
+        workspace_path: params.workspacePath,
+      }, { cwd: params.workspacePath })
+      recordHookObservation(this.config, 'SessionStart', result)
+      if (result.decision && result.decision !== 'allow') {
+        // SessionStart 不提供收紧能力；deny/ask 无对应语义，按无决策继续。
+        getAgentLogger(this.config).warn(`SessionStart hook 返回了不支持的决策 ${result.decision}，已忽略`)
+      }
+      return result.additionalContext
+    }
+    catch (error) {
+      getAgentLogger(this.config).warn('SessionStart hook 执行失败，按无决策继续', error)
+      return undefined
+    }
+  }
+
+  /** SessionEnd hook：观察类，输出不可干预会话关闭，3s 超时。 */
+  private async runSessionEndHook(conversationId: string, reason: 'close' | 'dispose'): Promise<void> {
+    const hooks = this.config.hooks
+    if (!hooks)
+      return
+    const workspacePath = await this.resolveWorkspacePath(conversationId)
+    try {
+      const result = await hooks.run('SessionEnd', {
+        hook_event_name: 'SessionEnd',
+        session_id: conversationId,
+        conversation_id: conversationId,
+        cwd: workspacePath,
+        timestamp: Date.now(),
+        reason,
+      }, { cwd: workspacePath })
+      recordHookObservation(this.config, 'SessionEnd', result)
+    }
+    catch (error) {
+      getAgentLogger(this.config).warn('SessionEnd hook 执行失败，已忽略', error)
+    }
+  }
+
+  private async resolveWorkspacePath(conversationId: string): Promise<string> {
+    try {
+      const conversation = await this.config.sessionStore?.getConversation(conversationId)
+      if (conversation?.workspacePath)
+        return conversation.workspacePath
+    }
+    catch (error) {
+      getAgentLogger(this.config).warn('解析会话工作区失败，SessionEnd hook 使用进程工作目录', error)
+    }
+    return process.cwd()
   }
 
   private async getPromptMemorySnapshot(conversationId: string): Promise<{ memory?: string, soul?: string, user?: string } | undefined> {
@@ -343,4 +451,20 @@ async function getExistingConversation(store: ISessionStore, id: string) {
     throw new Error(`Conversation not found: ${id}`)
   }
   return conversation
+}
+
+/** hook 注入的上下文记入 trace，便于排查"模型为什么看到了这段文本"。 */
+function buildPreTurnContextEvents(
+  compactionEvent: unknown | undefined,
+  sessionStartContext: string | undefined,
+  userPromptContext: string | undefined,
+): unknown[] | undefined {
+  const events: unknown[] = []
+  if (compactionEvent)
+    events.push(compactionEvent)
+  if (sessionStartContext)
+    events.push({ kind: 'hook', hook_event_name: 'SessionStart', additional_context: sessionStartContext })
+  if (userPromptContext)
+    events.push({ kind: 'hook', hook_event_name: 'UserPromptSubmit', additional_context: userPromptContext })
+  return events.length > 0 ? events : undefined
 }
