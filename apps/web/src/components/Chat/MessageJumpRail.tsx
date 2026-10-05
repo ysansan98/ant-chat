@@ -56,12 +56,12 @@ export function MessageJumpRail({
 
   return (
     <>
-      {/* 桌面：右侧垂直 rail */}
+      {/* 桌面：右侧垂直 rail（绝对定位在消息列表容器内，随右侧栏伸缩移动） */}
       <nav
         aria-label="Message navigation"
         className={`
-          fixed top-1/2 right-3 z-20 hidden
-          -translate-y-1/2 flex-col items-center gap-1.5 opacity-[0.42]
+          absolute top-1/2 right-3 z-20 hidden -translate-y-1/2
+          flex-col items-center gap-1.5 opacity-[0.42]
           transition-opacity duration-200 focus-within:opacity-100
           hover:opacity-100 md:flex
         `}
