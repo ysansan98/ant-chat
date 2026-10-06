@@ -1,5 +1,53 @@
 # Ant Chat Desktop
 
+## 1.0.0-alpha.8
+
+### Patch Changes
+
+- d649a8e: 修复图像生成的产物交付与开发环境路径：
+
+  - 桌面会话中 `send_attachment` 的附件此前只写入消息、不参与渲染：助手消息 content 里的图片/文档/文件附件块现在在回复中原位展示（图片走缩略图与全屏预览、文档/文件走卡片），不再静默消失。
+  - `ant-chat image generate` 的 `--output` 相对路径改为按调用者 cwd 解析：开发环境 wrapper 此前把 CLI 进程 cwd 固定在 `packages/ant-chat`，导致缺省 `./generated` 落到包目录而非工作区。
+  - `GenerationModule` 对非绝对路径的产物目录直接报错，不再静默按后端进程 cwd 解析（后端与调用者 cwd 不同）。
+
+- 4f72585: 修复消息跳转导航（消息列表右侧的圆点 rail）定位：改为锚定消息列表容器而非视口，右侧栏展开后不再被压在侧栏上，并随侧栏伸缩同步移动。
+- 96dd8d0: ModelScope 图像生成能力与超时/取消调用方化
+
+  - 内置服务商新增 **ModelScope（魔搭）**：固定 `https://api-inference.modelscope.cn/v1` endpoint、API Key 认证；「同步模型」合并 models.dev 的 chat 模型与内置生图清单（`Qwen/Qwen-Image`、`Tongyi-MAI/Z-Image-Turbo`），老配置启动时自动补上该预置 Provider。
+  - 新增 CLI 命令 `ant-chat image generate --prompt <提示词> [--width --height] [--output <目录>] [--timeout <毫秒>] [--json]`：阻塞等待生成完成，产物落盘到 `--output`（缺省 `./generated`，按 CLI 进程 cwd 解析为绝对路径）并在 `--json` 返回 `files[].path`；模型一律来自设置页「图像生成模型」配置（CLI 不暴露模型参数）。
+  - Provider 语义升级：`ProviderIntegration` 新增 `mediaGeneration` 能力通道（按 image/video 分类，未声明能力 fail closed）；新增 ModelScope（魔搭）Integration——固定 endpoint + API Key 认证，models.dev chat 模型与内置生图清单合并，异步 submit + 3s 轮询 + 独立下载（同 host 才带凭据）。
+  - 设置页新增「图像 → 图像生成模型」选择器（按 `outputModalities` 含 image 过滤）；「添加模型」表单支持标注输出类型（图片/视频），手填生图模型（决策 1）可进入选择器。
+  - bundled SKILL `image-generation`：agent 通过 `execute_command` 调用（必须显式传 `timeoutMs`，如 300000）；生成完成后必须用 `send_attachment` 把图发给用户（桌面附加到回复、频道直接发送）。
+  - 超时调用方化：CLI 响应等待不再有 120s 系统默认——`--timeout` 显式设置并同时透传后端生成总超时；未传时阻塞等待，由外层调用者（`execute_command timeoutMs` / Ctrl-C）兜底。
+  - 断连传播为 AbortSignal：CLI 超时自杀 / Ctrl-C / 进程被杀时，控制面仅在「请求执行中、响应尚未写回」时取消执行，停止后端轮询，避免额度白扣；`image recognize` 迁移到同一超时规则。
+
+- ef91576: 服务商模型列表支持过滤与批量启停：新增按模型名称/ID 搜索、全选 checkbox（作用于当前筛选结果，一次落盘）与行内启停开关；模型名称后展示能力标签（工具调用、推理、图片、PDF、视频、音频）。配套新增 `provider.setModelsEnabledStatus` 批量 RPC，避免逐个模型重复写设置文件。
+- a54dcf3: LLM 请求适配 OpenCode Go 标识要求：
+
+  - 所有 Provider 出站请求的 `User-Agent` 统一为 `ant-chat/<version>`（fetch 层覆盖，不再出现 AI SDK 默认标识）；版本由宿主注入：desktop 取 `app.getVersion()`，npm 包取构建期注入版本。
+  - 发往 `opencode.ai` 的会话内请求新增 `x-opencode-session: <conversationId>` 请求头（主循环、标题生成、自动/手动压缩统一透传，同一对话内稳定）。
+  - `IAIProvider.streamModel/complete` 新增可选 `conversationId` 字段（向后兼容）；`createCompactionStrategy` 工厂新增可选 `conversationId` 参数。
+
+- 7c03e23: 服务商 API Key 配置修复与体验调整：
+
+  - 修复失焦误删密钥：API Key 输入框在聚焦后失焦（含点击「显示密码」按钮导致的失焦）会提交空值，而后端把空 `apiKey` 视为"删除密钥"，导致已保存的 Key 被清掉。现在输入过程与失焦都不落盘，编辑后才出现「保存 / 取消」，Enter 保存、Esc 取消，清空后按钮显示「清除密钥」。
+  - 占位符明确显示「已配置，输入新 Key 可替换」/「未配置」，不再用 `••••••••` 表示状态；移除右侧「显示密码」入口，输入框始终掩码。
+  - `hasApiKey` 改为以 Keychain 中实际存在密钥为准：内置 Provider 预置的 `apiKeySecretId` 只表示密钥存放位置，此前被误当成"已配置"，导致从未配置过的服务商也显示已配置（`ant-chat provider list` 的 KEY 列同步修正）。
+
+- de1f01f: 修复单实例锁把"PID 已被系统复用"误判为"ant-chat 仍在运行"导致的启动卡死
+
+  - 锁文件（`.runtime.lock`）与端点元数据（`.control-endpoint.json`）现在记录进程启动时刻 `startedAt`
+  - 冲突检测除 `process.kill(pid, 0)` 探测外，比对 PID 当前进程的真实启动时刻（Windows 用 PowerShell CIM 读 CreationDate，macOS/Linux 用 `ps lstart`）：不匹配说明锁是崩溃残留且 PID 已被其他进程占用，视为陈旧锁自动清理并接管
+  - Windows 上对受保护系统进程探测返回 EPERM 不再无条件视为存活，同样走身份校验；查询失败或旧版锁缺少 `startedAt` 时保持保守拒绝，避免同一数据目录出现两个 Runtime
+
+- 5f8de46: 开发环境 Windows/Linux 同样隐藏原生菜单栏（与生产环境行为一致）；Ctrl+R 刷新、Ctrl+Shift+I DevTools、Ctrl+Q 退出等 dev 快捷键由 before-input-event 兜底，不受影响。macOS 保留应用菜单（Cmd+C/V 等依赖 role 加速器）。
+- 377ba35: 支持工作区技能（`.agents/skills`）：工作区目录内的技能存在即启用、免安装管理，同名时覆盖全局技能，随工作区切换。
+
+  - Turn 技能可见性与 `use_skill` 读取按来源（全局/工作区）分别解析；自动化 `allowedSkills` 与受信路径同样支持工作区技能（backend）。
+  - Sender 的 `/` 技能面板与发送链路的已知技能解析均合并工作区技能，同名工作区版本优先（web）。
+  - 新增 `skills.listWorkspaceSkills` RPC、`SkillReader.listWorkspaceSkills` / `readWorkspaceSkillMarkdown` 接口，`SkillSource` 新增 `workspace`（shared）。
+  - 安全：realpath 校验防 symlink 逃逸、跳过隐藏与构建目录、名称白名单、扫描深度上限 4。
+
 ## 1.0.0-alpha.7
 
 ### Patch Changes

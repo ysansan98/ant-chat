@@ -11,11 +11,13 @@
     "@workspace/ui": "0.0.0"
   },
   "changesets": [
+    "agent-hooks-runtime",
     "agent-message-search-memory-catalog",
     "ai-sdk-v7-multi-provider",
     "annotation-quote-comment",
     "annotation-sender-preview-followup",
     "automation-run-status-inbox",
+    "background-command-execution",
     "brave-pugs-browse",
     "bright-agents-manage",
     "browser-cookies-import",
@@ -31,14 +33,22 @@
     "fast-pets-bake",
     "feishu-card-footer-subtle",
     "fix-fork-message-order",
+    "fix-image-generation-delivery",
+    "fix-message-jump-rail-anchor",
+    "image-generation-modelscope",
     "image-recognition-cli",
     "lazy-browser-identity-keychain",
     "mcp-server-enabled-switch",
+    "model-list-filter-bulk-toggle",
+    "opencode-request-identity",
+    "provider-api-key-config-fix",
+    "provider-model-reasoning-settings",
     "quiet-hide-menubar",
     "quiet-products-release",
     "quiet-traces-settle",
     "reasoning-effort-config",
     "remove-conversation-temperature-config",
+    "runtime-lock-pid-reuse",
     "safe-tool-approval-grants",
     "settings-route-inline",
     "side-panel-file-preview",
@@ -48,7 +58,9 @@
     "weixin-typing-heartbeat-fix",
     "windows-control-pipe-env-scoping",
     "windows-fsync-dev-boot",
+    "windows-hide-menubar-dev",
     "windows-show-window-frame",
-    "windows-workspace-picker-drives"
+    "windows-workspace-picker-drives",
+    "workspace-skills"
   ]
 }

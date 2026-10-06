@@ -1,5 +1,52 @@
 # @ant-chat/web
 
+## 1.0.0-alpha.6
+
+### Minor Changes
+
+- ff50775: 支持会话级后台命令执行（P1 全范围）：
+
+  - `execute_command` 新增 `runInBackground`：命令在会话级 `BackgroundCommandManager` 中运行并跨 turn 存活；后台模式忽略默认 10s 超时，显式 `timeoutMs` 降级为看门狗。
+  - 新增三个工具：`read_command_output`（按字节 offset 增量读取、`waitMs` 有界等待）、`kill_command`（终止进程组，SIGTERM → 1s 宽限 → SIGKILL）、`list_commands`。
+  - 日志落盘 `<appDataRoot>/commands/logs/<commandId>.log`，合并 stdout/stderr、20MB 上限截断、密钥按块流式脱敏；会话关闭与 Runtime dispose 回收进程，App 启动时扫描状态文件按命令指纹回收孤儿进程组。
+  - agent 感知：命令结束（自然退出 / 用户终止 / 看门狗超时）进入会话通知队列。Turn 运行中在每轮模型调用前注入 `<background_command_notices>` 上下文；Turn 之间在下一次 systemPrompt 呈现一次，不自动唤醒新 turn。agent 自己发起的 `kill_command` 与会话关闭 / 应用退出不回队；agent 已通过 `read_command_output` 读到终态时通知被消费。
+  - 会话级 RPC 与事件：`agent.listBackgroundCommands` / `agent.killBackgroundCommand` / `agent.readBackgroundCommandOutput` 与 `agent:background-commands-updated`；Sender 新增后台命令面板（横向胶囊组 + 悬停日志与终止）。
+  - 后台命令与前台共用同一风险判定与审批路径；持有 Turn 密钥的后台进程在日志头部、工具结果与 UI 中标注审计。
+
+- 96dd8d0: ModelScope 图像生成能力与超时/取消调用方化
+
+  - 内置服务商新增 **ModelScope（魔搭）**：固定 `https://api-inference.modelscope.cn/v1` endpoint、API Key 认证；「同步模型」合并 models.dev 的 chat 模型与内置生图清单（`Qwen/Qwen-Image`、`Tongyi-MAI/Z-Image-Turbo`），老配置启动时自动补上该预置 Provider。
+  - 新增 CLI 命令 `ant-chat image generate --prompt <提示词> [--width --height] [--output <目录>] [--timeout <毫秒>] [--json]`：阻塞等待生成完成，产物落盘到 `--output`（缺省 `./generated`，按 CLI 进程 cwd 解析为绝对路径）并在 `--json` 返回 `files[].path`；模型一律来自设置页「图像生成模型」配置（CLI 不暴露模型参数）。
+  - Provider 语义升级：`ProviderIntegration` 新增 `mediaGeneration` 能力通道（按 image/video 分类，未声明能力 fail closed）；新增 ModelScope（魔搭）Integration——固定 endpoint + API Key 认证，models.dev chat 模型与内置生图清单合并，异步 submit + 3s 轮询 + 独立下载（同 host 才带凭据）。
+  - 设置页新增「图像 → 图像生成模型」选择器（按 `outputModalities` 含 image 过滤）；「添加模型」表单支持标注输出类型（图片/视频），手填生图模型（决策 1）可进入选择器。
+  - bundled SKILL `image-generation`：agent 通过 `execute_command` 调用（必须显式传 `timeoutMs`，如 300000）；生成完成后必须用 `send_attachment` 把图发给用户（桌面附加到回复、频道直接发送）。
+  - 超时调用方化：CLI 响应等待不再有 120s 系统默认——`--timeout` 显式设置并同时透传后端生成总超时；未传时阻塞等待，由外层调用者（`execute_command timeoutMs` / Ctrl-C）兜底。
+  - 断连传播为 AbortSignal：CLI 超时自杀 / Ctrl-C / 进程被杀时，控制面仅在「请求执行中、响应尚未写回」时取消执行，停止后端轮询，避免额度白扣；`image recognize` 迁移到同一超时规则。
+
+### Patch Changes
+
+- d649a8e: 修复图像生成的产物交付与开发环境路径：
+
+  - 桌面会话中 `send_attachment` 的附件此前只写入消息、不参与渲染：助手消息 content 里的图片/文档/文件附件块现在在回复中原位展示（图片走缩略图与全屏预览、文档/文件走卡片），不再静默消失。
+  - `ant-chat image generate` 的 `--output` 相对路径改为按调用者 cwd 解析：开发环境 wrapper 此前把 CLI 进程 cwd 固定在 `packages/ant-chat`，导致缺省 `./generated` 落到包目录而非工作区。
+  - `GenerationModule` 对非绝对路径的产物目录直接报错，不再静默按后端进程 cwd 解析（后端与调用者 cwd 不同）。
+
+- 0e68fc2: AI 服务商设置优化：添加模型弹窗新增"推理强度"档位配置（reasoningLevels），布局改为两列紧凑排布并加宽弹窗，关闭时清空表单；移除"默认temperature"字段（保存默认 0.7）。添加服务商弹窗移除"产品集成"选择，统一按 API Key 集成提交（订阅/OAuth 服务商为内置，不走此入口）。models.dev 同步不再把空 modalities 写入 capabilities；OutputModalitiesSchema 枚举扩展为与 models.dev 对齐（text/image/video/audio/pdf），避免同步含视频/音频输出模型后 settings 校验失败。
+- 377ba35: 支持工作区技能（`.agents/skills`）：工作区目录内的技能存在即启用、免安装管理，同名时覆盖全局技能，随工作区切换。
+
+  - Turn 技能可见性与 `use_skill` 读取按来源（全局/工作区）分别解析；自动化 `allowedSkills` 与受信路径同样支持工作区技能（backend）。
+  - Sender 的 `/` 技能面板与发送链路的已知技能解析均合并工作区技能，同名工作区版本优先（web）。
+  - 新增 `skills.listWorkspaceSkills` RPC、`SkillReader.listWorkspaceSkills` / `readWorkspaceSkillMarkdown` 接口，`SkillSource` 新增 `workspace`（shared）。
+  - 安全：realpath 校验防 symlink 逃逸、跳过隐藏与构建目录、名称白名单、扫描深度上限 4。
+
+- Updated dependencies [c631d22]
+- Updated dependencies [ff50775]
+- Updated dependencies [96dd8d0]
+- Updated dependencies [a54dcf3]
+- Updated dependencies [0e68fc2]
+- Updated dependencies [377ba35]
+  - @ant-chat/shared@1.0.0-alpha.6
+
 ## 1.0.0-alpha.5
 
 ### Minor Changes

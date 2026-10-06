@@ -1,5 +1,72 @@
 # @ant-chat/backend
 
+## 1.0.0-alpha.6
+
+### Minor Changes
+
+- c631d22: 新增外部可扩展的 hooks 机制（P0–P1，共 11 个事件）：
+
+  - 运行时内核：两层配置（`~/.ant-chat/hooks.json` + `<workspace>/.agents/hooks.json`）、command handler 执行、stdin JSON 协议、超时与失败隔离、deny/ask 聚合；`developerTools.agentHooksEnabled` 总开关（默认开启）。
+  - P0 事件：`SessionStart`、`SessionEnd`、`UserPromptSubmit`、`PreToolUse`、`PostToolUse`、`Stop`。
+  - P1 事件：`PermissionRequest`、`PreCompact`、`PostCompact`、`Interrupt`、`Notification`。
+  - 安全顺序：policy 先行，hook 只收紧；`PreToolUse` 的 `deny` 直接阻断，`ask` 复用现有审批流（automation 降级为阻断）。
+  - 配置损坏按"无 hook"处理并隔离损坏文件；hook 超时/崩溃/解析失败不阻塞主流程。
+
+- ff50775: 支持会话级后台命令执行（P1 全范围）：
+
+  - `execute_command` 新增 `runInBackground`：命令在会话级 `BackgroundCommandManager` 中运行并跨 turn 存活；后台模式忽略默认 10s 超时，显式 `timeoutMs` 降级为看门狗。
+  - 新增三个工具：`read_command_output`（按字节 offset 增量读取、`waitMs` 有界等待）、`kill_command`（终止进程组，SIGTERM → 1s 宽限 → SIGKILL）、`list_commands`。
+  - 日志落盘 `<appDataRoot>/commands/logs/<commandId>.log`，合并 stdout/stderr、20MB 上限截断、密钥按块流式脱敏；会话关闭与 Runtime dispose 回收进程，App 启动时扫描状态文件按命令指纹回收孤儿进程组。
+  - agent 感知：命令结束（自然退出 / 用户终止 / 看门狗超时）进入会话通知队列。Turn 运行中在每轮模型调用前注入 `<background_command_notices>` 上下文；Turn 之间在下一次 systemPrompt 呈现一次，不自动唤醒新 turn。agent 自己发起的 `kill_command` 与会话关闭 / 应用退出不回队；agent 已通过 `read_command_output` 读到终态时通知被消费。
+  - 会话级 RPC 与事件：`agent.listBackgroundCommands` / `agent.killBackgroundCommand` / `agent.readBackgroundCommandOutput` 与 `agent:background-commands-updated`；Sender 新增后台命令面板（横向胶囊组 + 悬停日志与终止）。
+  - 后台命令与前台共用同一风险判定与审批路径；持有 Turn 密钥的后台进程在日志头部、工具结果与 UI 中标注审计。
+
+- 96dd8d0: ModelScope 图像生成能力与超时/取消调用方化
+
+  - 内置服务商新增 **ModelScope（魔搭）**：固定 `https://api-inference.modelscope.cn/v1` endpoint、API Key 认证；「同步模型」合并 models.dev 的 chat 模型与内置生图清单（`Qwen/Qwen-Image`、`Tongyi-MAI/Z-Image-Turbo`），老配置启动时自动补上该预置 Provider。
+  - 新增 CLI 命令 `ant-chat image generate --prompt <提示词> [--width --height] [--output <目录>] [--timeout <毫秒>] [--json]`：阻塞等待生成完成，产物落盘到 `--output`（缺省 `./generated`，按 CLI 进程 cwd 解析为绝对路径）并在 `--json` 返回 `files[].path`；模型一律来自设置页「图像生成模型」配置（CLI 不暴露模型参数）。
+  - Provider 语义升级：`ProviderIntegration` 新增 `mediaGeneration` 能力通道（按 image/video 分类，未声明能力 fail closed）；新增 ModelScope（魔搭）Integration——固定 endpoint + API Key 认证，models.dev chat 模型与内置生图清单合并，异步 submit + 3s 轮询 + 独立下载（同 host 才带凭据）。
+  - 设置页新增「图像 → 图像生成模型」选择器（按 `outputModalities` 含 image 过滤）；「添加模型」表单支持标注输出类型（图片/视频），手填生图模型（决策 1）可进入选择器。
+  - bundled SKILL `image-generation`：agent 通过 `execute_command` 调用（必须显式传 `timeoutMs`，如 300000）；生成完成后必须用 `send_attachment` 把图发给用户（桌面附加到回复、频道直接发送）。
+  - 超时调用方化：CLI 响应等待不再有 120s 系统默认——`--timeout` 显式设置并同时透传后端生成总超时；未传时阻塞等待，由外层调用者（`execute_command timeoutMs` / Ctrl-C）兜底。
+  - 断连传播为 AbortSignal：CLI 超时自杀 / Ctrl-C / 进程被杀时，控制面仅在「请求执行中、响应尚未写回」时取消执行，停止后端轮询，避免额度白扣；`image recognize` 迁移到同一超时规则。
+
+### Patch Changes
+
+- d649a8e: 修复图像生成的产物交付与开发环境路径：
+
+  - 桌面会话中 `send_attachment` 的附件此前只写入消息、不参与渲染：助手消息 content 里的图片/文档/文件附件块现在在回复中原位展示（图片走缩略图与全屏预览、文档/文件走卡片），不再静默消失。
+  - `ant-chat image generate` 的 `--output` 相对路径改为按调用者 cwd 解析：开发环境 wrapper 此前把 CLI 进程 cwd 固定在 `packages/ant-chat`，导致缺省 `./generated` 落到包目录而非工作区。
+  - `GenerationModule` 对非绝对路径的产物目录直接报错，不再静默按后端进程 cwd 解析（后端与调用者 cwd 不同）。
+
+- a54dcf3: LLM 请求适配 OpenCode Go 标识要求：
+
+  - 所有 Provider 出站请求的 `User-Agent` 统一为 `ant-chat/<version>`（fetch 层覆盖，不再出现 AI SDK 默认标识）；版本由宿主注入：desktop 取 `app.getVersion()`，npm 包取构建期注入版本。
+  - 发往 `opencode.ai` 的会话内请求新增 `x-opencode-session: <conversationId>` 请求头（主循环、标题生成、自动/手动压缩统一透传，同一对话内稳定）。
+  - `IAIProvider.streamModel/complete` 新增可选 `conversationId` 字段（向后兼容）；`createCompactionStrategy` 工厂新增可选 `conversationId` 参数。
+
+- 0e68fc2: AI 服务商设置优化：添加模型弹窗新增"推理强度"档位配置（reasoningLevels），布局改为两列紧凑排布并加宽弹窗，关闭时清空表单；移除"默认temperature"字段（保存默认 0.7）。添加服务商弹窗移除"产品集成"选择，统一按 API Key 集成提交（订阅/OAuth 服务商为内置，不走此入口）。models.dev 同步不再把空 modalities 写入 capabilities；OutputModalitiesSchema 枚举扩展为与 models.dev 对齐（text/image/video/audio/pdf），避免同步含视频/音频输出模型后 settings 校验失败。
+- de1f01f: 修复单实例锁把"PID 已被系统复用"误判为"ant-chat 仍在运行"导致的启动卡死
+
+  - 锁文件（`.runtime.lock`）与端点元数据（`.control-endpoint.json`）现在记录进程启动时刻 `startedAt`
+  - 冲突检测除 `process.kill(pid, 0)` 探测外，比对 PID 当前进程的真实启动时刻（Windows 用 PowerShell CIM 读 CreationDate，macOS/Linux 用 `ps lstart`）：不匹配说明锁是崩溃残留且 PID 已被其他进程占用，视为陈旧锁自动清理并接管
+  - Windows 上对受保护系统进程探测返回 EPERM 不再无条件视为存活，同样走身份校验；查询失败或旧版锁缺少 `startedAt` 时保持保守拒绝，避免同一数据目录出现两个 Runtime
+
+- 377ba35: 支持工作区技能（`.agents/skills`）：工作区目录内的技能存在即启用、免安装管理，同名时覆盖全局技能，随工作区切换。
+
+  - Turn 技能可见性与 `use_skill` 读取按来源（全局/工作区）分别解析；自动化 `allowedSkills` 与受信路径同样支持工作区技能（backend）。
+  - Sender 的 `/` 技能面板与发送链路的已知技能解析均合并工作区技能，同名工作区版本优先（web）。
+  - 新增 `skills.listWorkspaceSkills` RPC、`SkillReader.listWorkspaceSkills` / `readWorkspaceSkillMarkdown` 接口，`SkillSource` 新增 `workspace`（shared）。
+  - 安全：realpath 校验防 symlink 逃逸、跳过隐藏与构建目录、名称白名单、扫描深度上限 4。
+
+- Updated dependencies [c631d22]
+- Updated dependencies [ff50775]
+- Updated dependencies [96dd8d0]
+- Updated dependencies [a54dcf3]
+- Updated dependencies [0e68fc2]
+- Updated dependencies [377ba35]
+  - @ant-chat/shared@1.0.0-alpha.6
+
 ## 1.0.0-alpha.5
 
 ### Minor Changes
