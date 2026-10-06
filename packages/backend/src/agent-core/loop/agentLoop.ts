@@ -5,6 +5,7 @@ import type { ToolAuthorization, ToolCallContext } from '../tools/types'
 import { AgentError } from '../AgentError'
 import { emitInterruptHook, emitNotificationHook } from '../hooks/lifecycleHooks'
 import { recordHookObservation } from '../hooks/observability'
+import { formatBackgroundCommandNotices } from '../native-tools/command/noticeFormat'
 import { cancelObservation, completeObservation, failObservation, finishTurnObservation, recordContextObservation, startObservationSpan } from '../observation'
 import { createInvalidToolArgsResult, executeToolStep } from '../tools/toolExecution'
 import { transformErrorMessage } from '../utils/errorMessages'
@@ -68,6 +69,22 @@ export async function runAgentLoop(input: {
           messageId: steering.messageId,
           turnId: steering.turnId,
           text: steering.text,
+        })
+      }
+
+      // === 后台命令结束通知：本 Turn 运行期间结束/被用户终止的命令 ===
+      // 出队即清；注入为带系统标注的 user 文本（loop 消息只支持 user/assistant/tool），
+      // 不落库、不显示在消息列表，也不额外开启新 turn。
+      const commandNotices = config.backgroundCommandNotices?.take(options.conversationId) ?? []
+      if (commandNotices.length > 0) {
+        loopMessages.push({
+          role: 'user',
+          content: [{ type: 'text', text: formatBackgroundCommandNotices(commandNotices) }],
+        })
+        recordContextObservation(config, {
+          kind: 'background-command-notice',
+          conversationId: options.conversationId,
+          commandIds: commandNotices.map(notice => notice.commandId),
         })
       }
 

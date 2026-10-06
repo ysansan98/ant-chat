@@ -64,9 +64,17 @@ export function getToolLabel(toolCall: ToolCallContent): ToolLabel {
       return { primary: `查找 ${str(args.pattern)}` }
     case 'list_dir':
       return { primary: `列出 ${str(args.path) || '.'}` }
-    case 'execute_command':
+    case 'execute_command': {
       // description 由模型填写，说明命令意图；缺省时回退到命令本体
-      return { primary: str(args.description) || str(args.command) || 'execute_command' }
+      const label = str(args.description) || str(args.command) || 'execute_command'
+      return { primary: args.runInBackground === true ? `${label}（后台）` : label }
+    }
+    case 'read_command_output':
+      return { primary: `读取命令输出 ${str(args.commandId)}` }
+    case 'kill_command':
+      return { primary: `终止命令 ${str(args.commandId)}` }
+    case 'list_commands':
+      return { primary: '列出后台命令' }
     case 'browser': {
       const firstArg = Array.isArray(args.args) && typeof args.args[0] === 'string'
         ? ` ${args.args[0]}`
@@ -124,6 +132,9 @@ const CATEGORY_BY_TOOL: Record<string, ToolCategory> = {
   glob_files: 'glob',
   list_dir: 'list',
   execute_command: 'command',
+  read_command_output: 'command',
+  kill_command: 'command',
+  list_commands: 'command',
   browser: 'browser',
   use_skill: 'skill',
   install_skill_from_github: 'skill',

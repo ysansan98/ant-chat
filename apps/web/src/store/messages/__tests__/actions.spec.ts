@@ -20,6 +20,7 @@ vi.mock('@/api/chatApi', () => ({
 vi.mock('@/api/agentApi', () => ({
   default: {
     listActiveTasks: mocks.listActiveTasks,
+    listBackgroundCommands: vi.fn(async () => []),
     listPendingMessages: mocks.listPendingMessages,
   },
 }))

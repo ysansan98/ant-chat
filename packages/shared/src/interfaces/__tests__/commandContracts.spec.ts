@@ -135,6 +135,7 @@ describe('平台命令公共合同', () => {
       cwd?: string
       timeoutMs?: number
       secretEnv?: Record<string, SecretRef>
+      runInBackground?: boolean
     }>()
 
     const operationTypes: ToolOperationType[] = ['command', 'command_read']

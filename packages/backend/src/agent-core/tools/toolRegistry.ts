@@ -1,4 +1,5 @@
 import type { AgentMode, AgentRuntimeConfig, AgentTool, AgentToolResult, AgentTurnSource, ILogger, RuntimeToolDefinition, SkillManifest, SkillReader, ToolOperationType, ToolScope } from '@ant-chat/shared'
+import type { BackgroundCommandManager } from '../native-tools/command/backgroundCommandManager'
 import type { BrowserSessionState } from '../native-tools/tools/browserSessionManager'
 import type { PreparedNativeTool } from '../native-tools/tools/toolFactory'
 import fs from 'node:fs'
@@ -35,6 +36,10 @@ export interface CreateRegistryOptions {
   browserSession?: BrowserSessionState
   turnSource?: AgentTurnSource
   runId?: string
+  /** 会话级后台命令管理器；跨 turn 复用。 */
+  backgroundCommands?: BackgroundCommandManager
+  /** 当前会话 id；后台命令按会话隔离。 */
+  conversationId?: string
 }
 
 type AutomationTurnSource = Extract<AgentTurnSource, { type: 'automation' }>
@@ -43,7 +48,7 @@ export class ToolRegistry {
   private readonly tools: Map<string, AgentTool>
   private readonly relaxedTools: Map<string, AgentTool>
   static async create(options: CreateRegistryOptions): Promise<ToolRegistry> {
-    const { config, workspacePath, mode, browserSession, turnSource, runId } = options
+    const { config, workspacePath, mode, browserSession, turnSource, runId, backgroundCommands, conversationId } = options
     const logger = getAgentLogger(config)
     const unrestricted = mode === 'full_managed'
     const skillReader = resolveSkillReader(config)
@@ -58,6 +63,8 @@ export class ToolRegistry {
       browser: config.browser,
       browserAuthState: config.browserAuthState,
       commandHost: config.commandHost,
+      backgroundCommands,
+      conversationId,
       browserSession,
       secretStore: config.secretStore,
       runId,
@@ -71,6 +78,8 @@ export class ToolRegistry {
           browser: config.browser,
           browserAuthState: config.browserAuthState,
           commandHost: config.commandHost,
+          backgroundCommands,
+          conversationId,
           browserSession,
           secretStore: config.secretStore,
           runId,

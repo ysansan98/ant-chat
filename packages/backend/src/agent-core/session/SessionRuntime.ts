@@ -1,6 +1,7 @@
 import type {
   AgentRuntimeConfig,
   AgentRuntimeStartTaskOptions,
+  BackgroundCommandNoticePort,
   CompactionSettingsSchema,
   IAgentEventEmitter,
   IAIProvider,
@@ -29,6 +30,8 @@ import {
   buildConversationContextEntries,
   createLoopSystemPrompt,
 } from '../loop/loopContext'
+import { BackgroundCommandManager } from '../native-tools/command/backgroundCommandManager'
+import { formatBackgroundCommandNotices } from '../native-tools/command/noticeFormat'
 import { BrowserSessionManager } from '../native-tools/tools/browserSessionManager'
 import { ToolRegistry } from '../tools/toolRegistry'
 import { contentBlocksToLoopMessageContent } from '../utils/attachmentUtils'
@@ -38,12 +41,63 @@ import { createPersistedTurnEmitter } from './persistedTurn'
 export class SessionRuntime {
   private readonly promptMemorySnapshots = new Map<string, { memory?: string, soul?: string, user?: string } | undefined>()
   private readonly browserSessions: BrowserSessionManager | null
+  private readonly backgroundCommands: BackgroundCommandManager | null
 
   constructor(
     private readonly config: AgentRuntimeConfig,
     private readonly taskStore: TaskStore,
   ) {
     this.browserSessions = config.browser ? new BrowserSessionManager(config.browser, config.browserAuthState) : null
+    this.backgroundCommands = config.commandPaths
+      ? new BackgroundCommandManager(config.commandPaths, {
+          logger: getAgentLogger(config),
+          onChanged: (conversationId, commands) => {
+            try {
+              void config.eventEmitter.emitBackgroundCommandsUpdated?.(conversationId, commands)
+            }
+            catch (error) {
+              getAgentLogger(config).warn('后台命令变更事件推送失败', error)
+            }
+          },
+        })
+      : null
+  }
+
+  /** App 启动时回收上次崩溃残留的后台命令进程。 */
+  async initialize(): Promise<void> {
+    await this.backgroundCommands?.initialize()
+  }
+
+  listBackgroundCommands(conversationId: string) {
+    return this.backgroundCommands?.list(conversationId) ?? []
+  }
+
+  async killBackgroundCommand(
+    conversationId: string,
+    commandId: string,
+    signal?: 'SIGTERM' | 'SIGKILL',
+    actor: 'user' | 'agent' = 'user',
+  ) {
+    if (!this.backgroundCommands)
+      return null
+    return await this.backgroundCommands.kill(conversationId, commandId, signal, actor)
+  }
+
+  /** agent 侧的后台命令结束通知出队口；Turn 运行中与 Turn 之间共用。 */
+  get backgroundCommandNotices(): BackgroundCommandNoticePort {
+    return {
+      take: conversationId => this.backgroundCommands?.takeNotices(conversationId) ?? [],
+    }
+  }
+
+  async readBackgroundCommandOutput(
+    conversationId: string,
+    commandId: string,
+    options: { offset?: number, maxChars?: number, tail?: number } = {},
+  ) {
+    if (!this.backgroundCommands)
+      throw new Error('后台命令不可用：当前运行环境未启用会话级后台命令管理器')
+    return await this.backgroundCommands.read(conversationId, commandId, options)
   }
 
   async prepareTask(options: AgentRuntimeStartTaskOptions): Promise<{ input: RuntimeStartInput, createEventEmitter: (taskId: string) => IAgentEventEmitter, conversation: Awaited<ReturnType<ISessionStore['getConversation']>> }> {
@@ -181,6 +235,8 @@ export class SessionRuntime {
       browserSession: this.browserSessions?.get(conversation.id),
       turnSource: options.turnSource,
       runId: userMessage.id,
+      backgroundCommands: this.backgroundCommands ?? undefined,
+      conversationId: conversation.id,
     })
     const memory = await this.getPromptMemorySnapshot(conversation.id)
     let systemPrompt = createLoopSystemPrompt(
@@ -197,6 +253,12 @@ export class SessionRuntime {
     })
     if (sessionStartContext)
       systemPrompt = `${systemPrompt}\n\n${sessionStartContext}`
+
+    // 用户不在时（turn 之间）结束的后台命令：随下一轮 systemPrompt 呈现一次。
+    // 这里只呈现，不主动开启新 turn —— 避免在用户没提要求时替他烧 token。
+    const pendingCommandNotices = this.backgroundCommands?.takeNotices(conversation.id) ?? []
+    if (pendingCommandNotices.length > 0)
+      systemPrompt = `${systemPrompt}\n\n${formatBackgroundCommandNotices(pendingCommandNotices)}`
 
     const turnId = userMessage.id
 
@@ -256,6 +318,7 @@ export class SessionRuntime {
   async closeConversation(conversationId: string): Promise<void> {
     await this.runSessionEndHook(conversationId, 'close')
     this.promptMemorySnapshots.delete(conversationId)
+    await this.backgroundCommands?.closeConversation(conversationId)
     await this.browserSessions?.close(conversationId, true)
   }
 
@@ -263,6 +326,7 @@ export class SessionRuntime {
     const conversationIds = [...this.promptMemorySnapshots.keys()]
     await Promise.all(conversationIds.map(conversationId => this.runSessionEndHook(conversationId, 'dispose')))
     this.promptMemorySnapshots.clear()
+    await this.backgroundCommands?.dispose()
     await this.browserSessions?.dispose()
   }
 

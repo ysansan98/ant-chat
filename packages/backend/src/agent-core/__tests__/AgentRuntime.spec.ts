@@ -6,6 +6,8 @@ import { AgentRuntime } from '../AgentRuntime'
 import { runAgentLoop } from '../loop/agentLoop'
 import { ToolRegistry } from '../tools/toolRegistry'
 import type { AgentRuntimeConfig, AgentRuntimeStartTaskOptions, IAgentEventEmitter, ILogger, IMessage, ISessionStore } from '@ant-chat/shared'
+import type { BackgroundCommandManager } from '../native-tools/command/backgroundCommandManager'
+import type { PreparedCommandState } from '../native-tools/command/types'
 import type { RuntimeStartInput } from '../session/types'
 
 const TEST_WORKSPACE_INPUT = fs.mkdtempSync(path.join(os.tmpdir(), 'ant-chat-agent-runtime-'))
@@ -155,6 +157,28 @@ function createSessionConfig(overrides: Partial<AgentRuntimeConfig> = {}): Agent
   } as AgentRuntimeConfig)
 }
 
+function createExitingCommand(): PreparedCommandState {
+  return {
+    kind: 'command',
+    interpreter: 'bash',
+    input: { command: 'node -e process.exit(3)' },
+    command: 'node -e process.exit(3)',
+    cwd: TEST_WORKSPACE_INPUT,
+    segments: [],
+    resourceScope: 'workspace',
+    isReadOnly: false,
+    hasSecretEnv: false,
+    risk: 'ordinary',
+    executionPlan: {
+      executablePath: process.execPath,
+      args: ['-e', 'process.exit(3)'],
+      cwd: TEST_WORKSPACE_INPUT,
+      environment: { PATH: process.env.PATH ?? '', HOME: os.homedir() },
+    },
+    adapterState: {},
+  }
+}
+
 function createValidStartInput(overrides: Partial<RuntimeStartInput> = {}): RuntimeStartInput {
   return {
     conversationId: 'conv-1',
@@ -202,6 +226,45 @@ function createPersistedUserMessage(text: string, id = 'user-msg-1') {
 
 describe('agentRuntime 行为', () => {
   describe('startTask 行为', () => {
+    it('turn 之间结束的后台命令在下一次 systemPrompt 中呈现一次', async () => {
+      const commandRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ant-chat-cmd-notice-'))
+      try {
+        const runtime = new AgentRuntime(createSessionConfig({
+          sessionStore: createSessionStore(),
+          commandPaths: {
+            root: commandRoot,
+            logsPath: path.join(commandRoot, 'logs'),
+            statePath: path.join(commandRoot, 'state'),
+          },
+        }))
+        const manager = (runtime as unknown as {
+          sessionRuntime: { backgroundCommands: BackgroundCommandManager }
+        }).sessionRuntime.backgroundCommands
+        const started = manager.start('conv-session', createExitingCommand(), {})
+        expect(started.ok).toBe(true)
+        if (!started.ok)
+          return
+
+        await vi.waitFor(() => {
+          expect(manager.peekNotices('conv-session')).toHaveLength(1)
+        }, { timeout: 3000 })
+
+        vi.mocked(runAgentLoop).mockClear()
+        await runtime.startSessionTask(createValidSessionStartInput())
+        await vi.waitFor(() => {
+          expect(runAgentLoop).toHaveBeenCalled()
+        })
+        const calls = vi.mocked(runAgentLoop).mock.calls
+        const input = calls[calls.length - 1]![0]
+        expect(input.options.systemPrompt).toContain(started.summary.commandId)
+        // 消费即清：同一批通知不会在后续 Turn 重复出现
+        expect(manager.peekNotices('conv-session')).toEqual([])
+      }
+      finally {
+        fs.rmSync(commandRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 20 })
+      }
+    })
+
     it('不同 runtime 实例的 task 状态互不影响', async () => {
       const firstRuntime = new AgentRuntime(createConfig())
       const secondRuntime = new AgentRuntime(createConfig())

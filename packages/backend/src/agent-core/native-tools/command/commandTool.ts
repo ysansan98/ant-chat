@@ -1,8 +1,10 @@
 import type { AgentToolResult, CommandToolInput, SecretRef, SecretStore } from '@ant-chat/shared'
+import type { BackgroundCommandManager } from './backgroundCommandManager'
 import type { AvailableCommandHost, PreparedCommandState } from './types'
 import { createNativeTool } from '../tools/toolFactory'
 import { prepareBashCommand } from './bashCommandAdapter'
 import { runPreparedCommand } from './commandRunner'
+import { redactSecrets } from './redactSecrets'
 import { prepareWindowsCommand } from './windowsCommandAdapter'
 
 export interface CreateCommandToolOptions {
@@ -10,6 +12,10 @@ export interface CreateCommandToolOptions {
   runId?: string
   secretStore?: SecretStore
   trustedPaths?: string[]
+  /** 会话级后台命令管理器；缺省时 runInBackground 不可用。 */
+  backgroundCommands?: BackgroundCommandManager
+  /** 当前会话 id；后台命令按会话隔离。 */
+  conversationId?: string
 }
 
 const COMMAND_INPUT_SCHEMA = {
@@ -31,6 +37,10 @@ const COMMAND_INPUT_SCHEMA = {
         },
         required: ['kind', 'id', 'scope'],
       },
+    },
+    runInBackground: {
+      type: 'boolean',
+      description: 'true 时命令在后台运行并立即返回 commandId（用于 dev server、watch、长构建/测试）；用 read_command_output 读取增量输出，用 kill_command 终止。后台模式忽略默认 10s 超时。',
     },
   },
   required: ['command'],
@@ -66,7 +76,7 @@ export function createCommandTool(
     },
     async execute(input) {
       const prepared = prepareCommand(input)
-      return executeCommand(prepared, unrestricted, options.secretStore, options.runId)
+      return executeCommand(prepared, unrestricted, options)
     },
     prepare(input) {
       const prepared = prepareCommand(input)
@@ -74,8 +84,8 @@ export function createCommandTool(
         scope: prepared.risk === 'bottomline_block' ? 'blocked' : prepared.resourceScope,
         operationType: prepared.isReadOnly ? 'command_read' : 'command',
         state: prepared,
-        execute: (_input, abortSignal) => executeCommand(prepared, unrestricted, options.secretStore, options.runId, abortSignal),
-        executeRelaxed: (_input, abortSignal) => executeCommand(prepared, true, options.secretStore, options.runId, abortSignal),
+        execute: (_input, abortSignal) => executeCommand(prepared, unrestricted, options, abortSignal),
+        executeRelaxed: (_input, abortSignal) => executeCommand(prepared, true, options, abortSignal),
       }
     },
   })
@@ -130,6 +140,8 @@ function validateCommandInput(input: Record<string, unknown>): string | null {
     return 'cwd 必须是字符串'
   if (input.timeoutMs !== undefined && (typeof input.timeoutMs !== 'number' || !Number.isFinite(input.timeoutMs) || input.timeoutMs <= 0))
     return 'timeoutMs 必须是正数'
+  if (input.runInBackground !== undefined && typeof input.runInBackground !== 'boolean')
+    return 'runInBackground 必须是布尔值'
   if (input.secretEnv === undefined)
     return null
   if (!isPlainRecord(input.secretEnv))
@@ -149,35 +161,77 @@ function validateCommandInput(input: Record<string, unknown>): string | null {
 async function executeCommand(
   prepared: PreparedCommandState,
   unrestricted: boolean,
-  secretStore?: SecretStore,
-  runId?: string,
+  options: CreateCommandToolOptions,
   abortSignal?: AbortSignal,
 ): Promise<AgentToolResult> {
-  const resolvedSecrets: Record<string, string> = {}
+  const secretEnv: Record<string, string> = {}
   for (const [key, ref] of Object.entries(prepared.input.secretEnv || {})) {
-    const value = runId && secretStore?.resolveTurnSecret
-      ? await secretStore.resolveTurnSecret(ref, runId)
+    const value = options.runId && options.secretStore?.resolveTurnSecret
+      ? await options.secretStore.resolveTurnSecret(ref, options.runId)
       : null
     if (!value)
       return { ok: false, result: `SecretRef 已失效或不存在：${ref.id}` }
-    resolvedSecrets[key] = value
+    secretEnv[key] = value
   }
-  const result = await runPreparedCommand(prepared, unrestricted, { secretEnv: resolvedSecrets, abortSignal })
-  return redactSecrets(result, Object.values(resolvedSecrets))
+  if (prepared.input.runInBackground === true) {
+    return executeBackgroundCommand(prepared, unrestricted, options, secretEnv)
+  }
+  const result = await runPreparedCommand(prepared, unrestricted, { secretEnv, abortSignal })
+  return redactSecrets(result, Object.values(secretEnv))
 }
 
-function redactSecrets<T>(value: T, secrets: string[]): T {
-  const replacements = secrets.filter(Boolean).sort((left, right) => right.length - left.length)
-  const visit = (current: unknown): unknown => {
-    if (typeof current === 'string')
-      return replacements.reduce((text, secret) => text.split(secret).join('[secret]'), current)
-    if (Array.isArray(current))
-      return current.map(visit)
-    if (isPlainRecord(current))
-      return Object.fromEntries(Object.entries(current).map(([key, item]) => [key, visit(item)]))
-    return current
+async function executeBackgroundCommand(
+  prepared: PreparedCommandState,
+  unrestricted: boolean,
+  options: CreateCommandToolOptions,
+  secretEnv: Record<string, string>,
+): Promise<AgentToolResult> {
+  if (prepared.risk === 'bottomline_block')
+    return { ok: false, result: `工具 execute_command 执行失败：${prepared.riskReason || '命令命中不可覆盖的底线保护'}` }
+  if (!unrestricted && prepared.resourceScope === 'outside')
+    return { ok: false, result: '命令涉及工作区外资源' }
+  const manager = options.backgroundCommands
+  const conversationId = options.conversationId
+  if (!manager || !conversationId)
+    return { ok: false, result: '后台命令不可用：当前运行环境未启用会话级后台命令管理器' }
+
+  const started = manager.start(conversationId, prepared, {
+    secretEnv,
+    watchdogMs: prepared.input.timeoutMs,
+  })
+  if (!started.ok)
+    return { ok: false, result: `后台命令启动失败：${started.reason}` }
+  const summary = started.summary
+
+  let output = ''
+  try {
+    const read = await manager.read(conversationId, summary.commandId, { tail: 4096 })
+    output = redactSecrets(read.text, Object.values(secretEnv))
   }
-  return visit(value) as T
+  catch {
+    // 首段输出读取失败不影响启动结果
+  }
+
+  const lines = [
+    `后台命令已启动：${summary.commandId}`,
+    `pid=${summary.pid ?? 'unknown'} status=running`,
+    summary.hasSecretEnv ? `审计：该后台进程持有 Turn 密钥（${summary.secretEnvKeys.join(', ')}）` : '',
+    `日志：${summary.logPath}`,
+    '使用 read_command_output 读取增量输出，使用 kill_command 终止。',
+  ].filter(Boolean)
+  if (output)
+    lines.push('', '--- 首段输出 ---', output)
+
+  return {
+    ok: true,
+    result: lines.join('\n'),
+    diagnostics: {
+      commandId: summary.commandId,
+      pid: summary.pid,
+      status: 'running',
+      logPath: summary.logPath,
+    },
+  }
 }
 
 function isTurnSecretRef(value: unknown): value is SecretRef {

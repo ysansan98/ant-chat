@@ -82,6 +82,7 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
         },
         browserAuthState: core.browserIdentity,
         commandHost: core.commandHost,
+        commandPaths: core.commandPaths,
         loadFileData: core.data.loadAttachmentData,
         getPermissionRules: (workspacePath: string) => core.data.permissionsFileStore.getEffectiveRules(workspacePath),
         savePermissionRules: (scope, workspacePath, rules) => core.data.permissionsFileStore.saveRules(scope, workspacePath, rules),
@@ -147,6 +148,7 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
 
   async initialize() {
     await this.observability.initialize()
+    await this.runtime.initialize()
     await this.refreshObservabilitySetting()
   }
 
@@ -228,6 +230,26 @@ export class AgentModule implements RuntimeModuleMethods<'agent'> {
   }
 
   @Method()
+  listBackgroundCommands(input: AppRpcInput<'agent.listBackgroundCommands'>) {
+    return this.runtime.listBackgroundCommands(input.conversationId)
+  }
+
+  @Method()
+  killBackgroundCommand(input: AppRpcInput<'agent.killBackgroundCommand'>) {
+    // 用户直接操作：actor=user，结束后会进入 agent 通知队列
+    return this.runtime.killBackgroundCommand(input.conversationId, input.commandId, input.signal, 'user')
+  }
+
+  @Method()
+  readBackgroundCommandOutput(input: AppRpcInput<'agent.readBackgroundCommandOutput'>) {
+    return this.runtime.readBackgroundCommandOutput(input.conversationId, input.commandId, {
+      offset: input.offset,
+      maxChars: input.maxChars,
+      tail: input.tail,
+    })
+  }
+
+  @Method()
   async listTurns(input: AppRpcInput<'agent.listTurns'>) {
     const summaries = await this.observability.listTurns(input.conversationId)
     const summariesByTurn = new Map(summaries.map(summary => [summary.turnId, summary]))
@@ -302,6 +324,9 @@ function createAgentEventEmitter(core: Pick<RuntimeCore, 'events'>): IAgentEvent
         turnId: params.turnId,
         status: params.status,
       })
+    },
+    emitBackgroundCommandsUpdated(conversationId, commands) {
+      core.events.emit('agent:background-commands-updated', { conversationId, commands })
     },
   }
 }

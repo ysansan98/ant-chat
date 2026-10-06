@@ -32,6 +32,7 @@ const mocks = vi.hoisted(() => ({
       turnId: 'user-1',
     })),
     listActiveTasks: vi.fn<() => Promise<AgentTaskSnapshot[]>>(async () => []),
+    listBackgroundCommands: vi.fn(async () => []),
     listPendingMessages: vi.fn(async (conversationId: string) => ({ conversationId, revision: 0, messages: [] })),
     editPendingMessage: vi.fn(),
     removePendingMessage: vi.fn(),

@@ -13,9 +13,11 @@ import type {
   SecretStore,
   WriteFileToolInput,
 } from '@ant-chat/shared'
+import type { BackgroundCommandManager } from './command/backgroundCommandManager'
 import type { BrowserSessionState } from './tools/browserSessionManager'
 import os from 'node:os'
 import path from 'node:path'
+import { createBackgroundCommandTools } from './command/backgroundCommandTools'
 import { createCommandTool } from './command/commandTool'
 import { createPathPolicyByMode } from './pathPolicy'
 import { createBrowserBackTool, createBrowserClickTool, createBrowserCloseTool, createBrowserDialogTool, createBrowserEvalTool, createBrowserNavigateTool, createBrowserPressTool, createBrowserReloadTool, createBrowserScrollTool, createBrowserSnapshotTool, createBrowserTypeTool } from './tools/browserTool'
@@ -37,6 +39,10 @@ interface NativeToolServiceOptions {
   browserSession?: BrowserSessionState
   browserAuthState?: BrowserAuthStateProvider
   commandHost?: AgentCommandHost
+  /** 会话级后台命令管理器；提供后注册 read_command_output/kill_command/list_commands。 */
+  backgroundCommands?: BackgroundCommandManager
+  /** 当前会话 id；后台命令按会话隔离。 */
+  conversationId?: string
   secretStore?: SecretStore
   runId?: string
   turnSource?: AgentTurnSource
@@ -88,7 +94,15 @@ export class NativeToolService {
             secretStore: this.options.secretStore,
             runId: this.options.runId,
             trustedPaths: this.options.trustedPaths ?? [],
+            backgroundCommands: this.options.backgroundCommands,
+            conversationId: this.options.conversationId,
           })]
+        : []),
+      ...(this.options.commandHost?.status === 'available' && this.options.backgroundCommands && this.options.conversationId
+        ? createBackgroundCommandTools({
+            manager: this.options.backgroundCommands,
+            conversationId: this.options.conversationId,
+          })
         : []),
       ...(browserFactoryOptions
         ? [

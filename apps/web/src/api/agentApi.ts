@@ -4,6 +4,8 @@ import type {
   AgentTurnResult,
   AppPendingMessageSnapshot,
   ApprovePendingActionOptions,
+  BackgroundCommandReadResult,
+  BackgroundCommandSummary,
   IMessage,
   RejectPendingActionOptions,
   StartAgentTurnOptions,
@@ -38,6 +40,22 @@ async function injectSteering(conversationId: string, text: string): Promise<IMe
   return getAppRpcClient().call('agent.injectSteering', { conversationId, text })
 }
 
+async function listBackgroundCommands(conversationId: string): Promise<BackgroundCommandSummary[]> {
+  return getAppRpcClient().call('agent.listBackgroundCommands', { conversationId })
+}
+
+async function killBackgroundCommand(conversationId: string, commandId: string, signal?: 'SIGTERM' | 'SIGKILL'): Promise<BackgroundCommandSummary | null> {
+  return getAppRpcClient().call('agent.killBackgroundCommand', { conversationId, commandId, signal })
+}
+
+async function readBackgroundCommandOutput(
+  conversationId: string,
+  commandId: string,
+  options: { offset?: number, maxChars?: number, tail?: number } = {},
+): Promise<BackgroundCommandReadResult> {
+  return getAppRpcClient().call('agent.readBackgroundCommandOutput', { conversationId, commandId, ...options })
+}
+
 async function listPendingMessages(conversationId: string): Promise<AppPendingMessageSnapshot> {
   return getAppRpcClient().call('agent.listPendingMessages', { conversationId })
 }
@@ -70,6 +88,9 @@ export default {
   updateTaskMode,
   injectSteering,
   listActiveTasks,
+  listBackgroundCommands,
+  killBackgroundCommand,
+  readBackgroundCommandOutput,
   listPendingMessages,
   editPendingMessage,
   removePendingMessage,

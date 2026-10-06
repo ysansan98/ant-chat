@@ -1,7 +1,7 @@
 import type { AddMessage, CommandInterpreter, LanguageModelUsage, ModelCapabilitiesSchema, ModelInfo, ProviderConfigSchema, ReasoningEffortLevel, SecretRef, SecretRequest, SecretRequestField, SecretRequestResult, ToolApprovalRule, ToolCallContent, ToolResultContent, UpdateMessageSchema } from '../schemas'
 import type { AgentMemoryReader } from './agent-memory'
 import type { AgentMode, AgentPendingAction, AgentTaskSnapshot, AgentTaskStatus, AgentTurnSource } from './agent-runtime'
-import type { AgentTool } from './agent-tools'
+import type { AgentTool, BackgroundCommandNotice, BackgroundCommandSummary } from './agent-tools'
 import type { BrowserAuthStateProvider } from './browser-profiles'
 import type { ChannelAttachmentSender } from './channels'
 import type { IConversations, IMessage, IMessageContent } from './db-types'
@@ -208,6 +208,8 @@ export interface IAgentEventEmitter {
   emitTurnToolResults?: (params: { conversationId: string, results: ToolResultContent[] }) => void | Promise<void>
   emitTurnFinished: (params: { conversationId: string, turnId: string, text: string, status: 'success' | 'error' | 'cancel', durationMs?: number }) => void | Promise<void>
   emitSecretRequested?: (request: SecretRequest) => void | Promise<void>
+  /** 后台命令列表快照变化（启动/退出/终止）；列表规模小，推送全量。 */
+  emitBackgroundCommandsUpdated?: (conversationId: string, commands: BackgroundCommandSummary[]) => void | Promise<void>
 }
 
 // ============================================================
@@ -282,6 +284,21 @@ export interface AgentBrowserRuntimeConfig {
   env?: Readonly<Record<string, string>>
 }
 
+/**
+ * agent 侧的后台命令结束通知出队口：`take` 消费即清。
+ * 运行中的 Turn 在每轮模型调用前 drain；Turn 之间残留的通知在下一次 prepare 时呈现。
+ */
+export interface BackgroundCommandNoticePort {
+  take: (conversationId: string) => BackgroundCommandNotice[]
+}
+
+/** 后台命令的产物路径：日志文件与孤儿兜底状态文件。 */
+export interface AgentCommandStoragePaths {
+  root: string
+  logsPath: string
+  statePath: string
+}
+
 export type AgentCommandHost
   = | {
     readonly status: 'available'
@@ -337,6 +354,10 @@ export interface AgentRuntimeHost {
   browserAuthState?: BrowserAuthStateProvider
   /** App Runtime 启动时一次性固定的命令宿主。 */
   commandHost?: AgentCommandHost
+  /** 后台命令产物路径；缺省时不启用会话级后台命令。 */
+  commandPaths?: AgentCommandStoragePaths
+  /** 后台命令结束通知的出队口；缺省时 agent 只能主动查询。 */
+  backgroundCommandNotices?: BackgroundCommandNoticePort
   secretStore?: SecretStore
   secretRequester?: SecretRequestController
   /** 加载附件文件数据（用于将 file_id 转换为 base64 数据） */
@@ -397,6 +418,10 @@ export interface AgentRuntimeConfig extends AgentRuntimeOverrides {
   browserAuthState?: BrowserAuthStateProvider
   /** App Runtime 启动时一次性固定的命令宿主。 */
   commandHost?: AgentCommandHost
+  /** 后台命令产物路径；缺省时不启用会话级后台命令。 */
+  commandPaths?: AgentCommandStoragePaths
+  /** 后台命令结束通知的出队口；agentLoop 每轮模型调用前 drain。 */
+  backgroundCommandNotices?: BackgroundCommandNoticePort
   secretStore?: SecretStore
   secretRequester?: SecretRequestController
   /** 加载附件文件数据（用于将 file_id 转换为 base64 数据） */
