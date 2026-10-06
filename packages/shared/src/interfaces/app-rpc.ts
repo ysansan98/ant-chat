@@ -202,6 +202,9 @@ export interface AppRpcContract {
   'agent.updateTaskMode': RpcEndpoint<{ taskId: string, mode: AgentMode }, AgentTaskSnapshot | null>
   'agent.injectSteering': RpcEndpoint<{ conversationId: string, text: string }, IMessage>
   'agent.listActiveTasks': RpcEndpoint<{ conversationId?: string } | undefined, AgentTaskSnapshot[]>
+  'agent.listBackgroundCommands': RpcEndpoint<{ conversationId: string }, import('./agent-tools').BackgroundCommandSummary[]>
+  'agent.killBackgroundCommand': RpcEndpoint<{ conversationId: string, commandId: string, signal?: 'SIGTERM' | 'SIGKILL' }, import('./agent-tools').BackgroundCommandSummary | null>
+  'agent.readBackgroundCommandOutput': RpcEndpoint<{ conversationId: string, commandId: string, offset?: number, maxChars?: number, tail?: number }, import('./agent-tools').BackgroundCommandReadResult>
 
   'agent.listTurns': RpcEndpoint<{ conversationId: string }, AgentTurnSummary[]>
   'agent.getTurnTimeline': RpcEndpoint<AgentTurnIdentity, AgentTurnTimeline | null>

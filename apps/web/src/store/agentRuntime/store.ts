@@ -1,4 +1,4 @@
-import type { AgentExecutionPhase, AgentPendingAction, AgentTaskSnapshot, SecretRequest } from '@ant-chat/shared'
+import type { AgentExecutionPhase, AgentPendingAction, AgentTaskSnapshot, BackgroundCommandSummary, SecretRequest } from '@ant-chat/shared'
 import { create } from 'zustand'
 import { isTaskActive } from './predicates'
 
@@ -14,10 +14,13 @@ interface AgentRuntimeState {
   executionPhaseByTurn: Record<string, AgentExecutionPhase>
   pendingByTask: Record<string, AgentPendingAction>
   secretRequests: Record<string, SecretRequest>
+  /** 会话级后台命令实时列表；App 重启后清空，日志文件仍在。 */
+  backgroundCommandsByConversation: Record<string, BackgroundCommandSummary[]>
   setTask: (task: AgentTaskSnapshot) => void
   setPending: (taskId: string, pending?: AgentPendingAction) => void
   setSecretRequest: (request: SecretRequest) => void
   clearSecretRequest: (requestId: string) => void
+  setBackgroundCommands: (conversationId: string, commands: BackgroundCommandSummary[]) => void
   getActiveTaskByConversation: (conversationId: string) => AgentTaskSnapshot | null
 }
 
@@ -26,6 +29,7 @@ export const useAgentRuntimeStore = create<AgentRuntimeState>((set, get) => ({
   executionPhaseByTurn: {},
   pendingByTask: {},
   secretRequests: {},
+  backgroundCommandsByConversation: {},
   setTask: task => set((state) => {
     const executionPhaseByTurn = { ...state.executionPhaseByTurn }
     // 活跃任务记录当前执行阶段，终态任务清理对应轮次的阶段标记
@@ -53,6 +57,14 @@ export const useAgentRuntimeStore = create<AgentRuntimeState>((set, get) => ({
     const next = { ...state.secretRequests }
     delete next[requestId]
     return { secretRequests: next }
+  }),
+  setBackgroundCommands: (conversationId, commands) => set((state) => {
+    const next = { ...state.backgroundCommandsByConversation }
+    if (commands.length > 0)
+      next[conversationId] = commands
+    else
+      delete next[conversationId]
+    return { backgroundCommandsByConversation: next }
   }),
   getActiveTaskByConversation: (conversationId) => {
     const task = Object.values(get().tasks).find(item => item.conversationId === conversationId && isTaskActive(item))

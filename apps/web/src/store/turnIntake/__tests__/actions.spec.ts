@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/api/agentApi', () => ({ default: {
   injectSteering: mocks.injectSteering,
   listActiveTasks: mocks.listActiveTasks,
+  listBackgroundCommands: vi.fn(async () => []),
   listPendingMessages: mocks.listPendingMessages,
   startTurn: mocks.startTurn,
 } }))

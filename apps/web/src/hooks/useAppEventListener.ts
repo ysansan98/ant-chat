@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { getAppEventSubscriptions } from '@/api/transports/appEventSubscriptions'
 import { emitAutomationChanged, emitAutomationRunChanged } from '@/constants/automationEvents'
 import { emitProviderChanged } from '@/constants/providerEvents'
-import { applyApprovalRequired, applySecretRequest, applyTaskUpdate } from '@/store/agentRuntime'
+import { applyApprovalRequired, applyBackgroundCommandsSnapshot, applySecretRequest, applyTaskUpdate } from '@/store/agentRuntime'
 import { touchConversationUpdatedAt, upsertConversationAction } from '@/store/conversation'
 import { refreshGeneralSettings } from '@/store/generalSettings/actions'
 import { onMcpServerStatusChanged, refreshMcpConfigs } from '@/store/mcpConfigs/action'
@@ -65,6 +65,9 @@ export function useAppEventListener() {
       }),
       eventSubscriptions.subscribe('agent:pending-messages-updated', (payload) => {
         applyPendingMessageSnapshot(payload)
+      }),
+      eventSubscriptions.subscribe('agent:background-commands-updated', (payload) => {
+        applyBackgroundCommandsSnapshot(payload.conversationId, payload.commands)
       }),
       eventSubscriptions.subscribe('settings:updated', () => {
         void refreshGeneralSettings()

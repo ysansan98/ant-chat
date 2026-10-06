@@ -20,7 +20,6 @@ export class AgentRuntime {
   private readonly taskStore = new TaskStore()
 
   constructor(config: AgentRuntimeConfig) {
-    this.config = config
     this.beforeToolExecuteHook = createHookAwareToolAuthorization(
       createToolAuthorization(
         this.taskStore,
@@ -31,6 +30,11 @@ export class AgentRuntime {
       { taskStore: this.taskStore },
     )
     this.sessionRuntime = new SessionRuntime(config, this.taskStore)
+    // 后台命令结束通知由会话级 manager 持有；agentLoop 每轮模型调用前从 config 出队。
+    this.config = {
+      ...config,
+      backgroundCommandNotices: this.sessionRuntime.backgroundCommandNotices,
+    }
   }
 
   async startSessionTask(options: AgentRuntimeStartTaskOptions): Promise<AgentRuntimeStartTaskResult> {
@@ -209,6 +213,32 @@ export class AgentRuntime {
 
   async closeConversation(conversationId: string): Promise<void> {
     await this.sessionRuntime.closeConversation(conversationId)
+  }
+
+  /** App 启动时回收上次崩溃残留的后台命令进程。 */
+  async initialize(): Promise<void> {
+    await this.sessionRuntime.initialize()
+  }
+
+  listBackgroundCommands(conversationId: string) {
+    return this.sessionRuntime.listBackgroundCommands(conversationId)
+  }
+
+  async killBackgroundCommand(
+    conversationId: string,
+    commandId: string,
+    signal?: 'SIGTERM' | 'SIGKILL',
+    actor: 'user' | 'agent' = 'user',
+  ) {
+    return await this.sessionRuntime.killBackgroundCommand(conversationId, commandId, signal, actor)
+  }
+
+  async readBackgroundCommandOutput(
+    conversationId: string,
+    commandId: string,
+    options: { offset?: number, maxChars?: number, tail?: number } = {},
+  ) {
+    return await this.sessionRuntime.readBackgroundCommandOutput(conversationId, commandId, options)
   }
 
   async dispose(): Promise<void> {

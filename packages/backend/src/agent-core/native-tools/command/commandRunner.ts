@@ -4,11 +4,10 @@ import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from 'n
 import type { PreparedCommandState } from './types'
 import { spawn } from 'node:child_process'
 import process from 'node:process'
+import { scheduleHardKill, terminateProcessTree } from './processTree'
 
 const DEFAULT_TIMEOUT_MS = 10_000
 const MAX_OUTPUT_CHARS = 20_000
-/** 发 SIGTERM 后等待进程组退出的窗口，超时补 SIGKILL */
-const KILL_GRACE_MS = 1_000
 /** 子进程 exit 后等待 stdio 排空的窗口；孙进程持有管道时 close 可能永不触发 */
 const EXIT_DRAIN_MS = 200
 
@@ -76,8 +75,8 @@ export async function runPreparedCommand(
     }
 
     onAbort = () => {
-      terminateProcessTree(child, 'SIGTERM')
-      scheduleHardKill(child)
+      terminateProcessTree(child.pid, 'SIGTERM')
+      scheduleHardKill(child.pid)
       settle({
         ok: false,
         result: '任务已取消。',
@@ -86,8 +85,8 @@ export async function runPreparedCommand(
     }
 
     timer = setTimeout(() => {
-      terminateProcessTree(child, 'SIGTERM')
-      scheduleHardKill(child)
+      terminateProcessTree(child.pid, 'SIGTERM')
+      scheduleHardKill(child.pid)
       settle({
         ok: false,
         result: formatProcessResult(stdout, stderr, undefined) || '命令执行超时。',
@@ -145,32 +144,6 @@ function completeResult(
     result: formatProcessResult(stdout, stderr, code) || `command exited with code ${code}`,
     diagnostics: { stdout, stderr, exitCode: code, durationMs: Date.now() - startedAt },
   }
-}
-
-function terminateProcessTree(child: ChildProcessWithoutNullStreams, signal: NodeJS.Signals): void {
-  if (child.pid === undefined)
-    return
-  if (process.platform === 'win32') {
-    // Windows 没有 POSIX 进程组；taskkill /T /F 终止整棵命令树（含孙进程）。
-    spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
-      stdio: 'ignore',
-      windowsHide: true,
-    }).unref?.()
-    return
-  }
-  try {
-    process.kill(-child.pid, signal)
-  }
-  catch {
-    // 进程组可能已退出或尚未建立，忽略
-  }
-}
-
-function scheduleHardKill(child: ChildProcessWithoutNullStreams): void {
-  const hardKillTimer = setTimeout(() => {
-    terminateProcessTree(child, 'SIGKILL')
-  }, KILL_GRACE_MS)
-  hardKillTimer.unref?.()
 }
 
 function failure(reason: string, startedAt: number): AgentToolResult {

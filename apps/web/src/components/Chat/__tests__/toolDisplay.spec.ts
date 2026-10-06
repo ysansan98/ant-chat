@@ -59,6 +59,17 @@ describe('getToolLabel 内置工具文案', () => {
     expect(getToolLabel(toolCall('requestSecret', {})).primary).toBe('请求敏感信息 多个字段')
   })
 
+  it('后台命令工具展示 commandId，execute_command 后台模式带标注', () => {
+    expect(getToolLabel(toolCall('execute_command', { command: 'pnpm dev', description: '启动开发服务', runInBackground: true })).primary)
+      .toBe('启动开发服务（后台）')
+    expect(getToolLabel(toolCall('execute_command', { command: 'pnpm dev', runInBackground: true })).primary)
+      .toBe('pnpm dev（后台）')
+    expect(getToolLabel(toolCall('read_command_output', { commandId: 'cmd-1' })).primary).toBe('读取命令输出 cmd-1')
+    expect(getToolLabel(toolCall('kill_command', { commandId: 'cmd-1' })).primary).toBe('终止命令 cmd-1')
+    expect(getToolLabel(toolCall('list_commands')).primary).toBe('列出后台命令')
+    expect(getToolCategory(toolCall('read_command_output', { commandId: 'cmd-1' }))).toBe('command')
+  })
+
   it('publish_visualization 与未知工具', () => {
     expect(getToolLabel(toolCall('publish_visualization')).primary).toBe('发布可视化')
     expect(getToolLabel(toolCall('some_unknown_tool')).primary).toBe('some_unknown_tool')

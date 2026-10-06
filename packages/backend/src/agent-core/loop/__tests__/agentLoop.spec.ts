@@ -145,6 +145,48 @@ describe('runAgentLoop 行为', () => {
     vi.restoreAllMocks()
   })
 
+  it('后台命令结束通知在每轮模型调用前注入，且出队即清', async () => {
+    const seenMessages: LoopMessage[][] = []
+    const aiProvider = {
+      async* streamModel(opts: { messages: LoopMessage[] }) {
+        seenMessages.push(opts.messages)
+        yield makeTextChunk('done')
+      },
+      complete: vi.fn(),
+    } as unknown as IAIProvider
+    const take = vi.fn()
+      .mockReturnValueOnce([{
+        commandId: 'cmd-1',
+        command: 'pnpm dev',
+        description: '启动开发服务',
+        status: 'killed',
+        reason: 'user_killed',
+        startedAt: 1,
+        endedAt: 2,
+      }])
+      .mockReturnValue([])
+
+    const { taskId, options } = createBaseInput({ aiProvider })
+    const task = createTask(taskId, options.conversationId)
+    const { execution, finish } = createExecution(task)
+
+    await runAgentLoop({
+      execution,
+      options,
+      config: { eventEmitter: emitter, logger, backgroundCommandNotices: { take } },
+      beforeToolExecute: async () => ({ outcome: 'allow' }),
+    })
+
+    expect(finish).toHaveBeenCalledTimes(1)
+    expect(take).toHaveBeenCalledWith('conv-loop-1')
+    const injected = JSON.stringify(seenMessages[0])
+    expect(injected).toContain('<background_command_notices>')
+    expect(injected).toContain('cmd-1')
+    expect(injected).toContain('已被用户终止')
+    // 只有第一轮模型调用携带通知；后续 drain 为空
+    expect(JSON.stringify(seenMessages[0])).not.toBe(JSON.stringify(options.messages))
+  })
+
   it('模型只返回文本且没有工具调用时以最终答案完成', async () => {
     const aiProvider = createMockAIProvider([
       [makeTextChunk('Hello'), makeTextChunk(' World')],

@@ -8,6 +8,7 @@ import {
 import { useConversationsStore } from '@/store/conversation'
 import { useMessagesStore } from '@/store/messages'
 import TypingEffect from '../TypingEffect'
+import { BackgroundCommandPanel } from './BackgroundCommandPanel'
 import { SenderComposer } from './SenderComposer'
 import { useSenderModel } from './senderModel'
 import { buildMessageContent } from './senderSubmission'
@@ -73,6 +74,8 @@ function Sender({ disabled = false, ...props }: SenderProps) {
       {!activeConversationId && !hasMessage && (
         <SenderWorkspacePicker {...workspace} />
       )}
+
+      <BackgroundCommandPanel conversationId={activeConversationId} />
 
       <SenderComposer
         conversationId={activeConversationId}

@@ -1,4 +1,4 @@
-import type { AgentPendingAction, AgentTaskSnapshot, AutomationDefinition, AutomationRun, IConversations, IMessage, NotificationOption, ProgressInfo, UpdateError, UpdateInfo, UpdateStatus } from './interfaces'
+import type { AgentPendingAction, AgentTaskSnapshot, AutomationDefinition, AutomationRun, BackgroundCommandSummary, IConversations, IMessage, NotificationOption, ProgressInfo, UpdateError, UpdateInfo, UpdateStatus } from './interfaces'
 import type { AppPendingMessageSnapshot } from './interfaces/pending-messages'
 import type { SecretRequest } from './schemas'
 
@@ -71,6 +71,7 @@ export interface AppRendererEvents {
   'agent:approval-required': { taskId: string, conversationId: string, pendingAction: AgentPendingAction }
   'agent:secret-requested': { request: SecretRequest }
   'agent:pending-messages-updated': AppPendingMessageSnapshot
+  'agent:background-commands-updated': { conversationId: string, commands: BackgroundCommandSummary[] }
   'workspace:changed': Record<string, never>
   'settings:updated': { keys: string[] }
   'mcp:status-changed': { serverName: string, status: 'connected' | 'connecting' | 'disconnected', error?: string }
@@ -89,6 +90,7 @@ export const APP_RENDERER_EVENT_NAMES = [
   'agent:approval-required',
   'agent:secret-requested',
   'agent:pending-messages-updated',
+  'agent:background-commands-updated',
   'workspace:changed',
   'settings:updated',
   'mcp:status-changed',

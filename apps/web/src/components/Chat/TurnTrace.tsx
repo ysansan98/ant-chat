@@ -1,4 +1,4 @@
-import type { IMessage } from '@ant-chat/shared'
+import type { BackgroundCommandSummary, IMessage } from '@ant-chat/shared'
 import type { ComponentProps } from 'react'
 import type { AnnotationDraft } from './annotations/annotationDraft'
 import type { ToolRunStep, ToolRunToolItem, TurnStep } from './turnSteps'
@@ -19,6 +19,7 @@ import {
   XCircleIcon,
 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
+import { useAgentRuntimeStore } from '@/store/agentRuntime'
 import { formatTime } from '@/utils'
 import { transformMessageContent } from '@/utils/messageTransform'
 import { isNetworkError } from '@/utils/networkError'
@@ -207,6 +208,42 @@ function ToolBody({ item }: { item: ToolRunToolItem }) {
 
 // ---- 工具面板（内层 / 单工具时直接渲染） ----
 
+/**
+ * 从 tool-result 文本恢复后台命令 id。
+ * execute_command(runInBackground) 的返回形如「后台命令已启动：cmd-x」。
+ */
+function extractBackgroundCommandId(item: ToolRunToolItem): string | undefined {
+  const args = (item.toolCall.args ?? {}) as Record<string, unknown>
+  if (args.runInBackground !== true)
+    return undefined
+  const text = toResultText(item.toolResult?.result)
+  const match = text ? /后台命令已启动：(\S+)/.exec(text) : null
+  return match?.[1]
+}
+
+/** 后台命令的最新实时状态（来自事件投影）；进程退出后收口为已完成/已终止。 */
+function useBackgroundCommand(item: ToolRunToolItem): BackgroundCommandSummary | undefined {
+  const commandId = extractBackgroundCommandId(item)
+  return useAgentRuntimeStore((state) => {
+    if (!commandId)
+      return undefined
+    for (const commands of Object.values(state.backgroundCommandsByConversation)) {
+      const found = commands.find(command => command.commandId === commandId)
+      if (found)
+        return found
+    }
+    return undefined
+  })
+}
+
+function backgroundBadgeText(command: BackgroundCommandSummary): string {
+  if (command.status === 'running')
+    return '运行中'
+  if (command.status === 'killed')
+    return '已终止'
+  return '已完成'
+}
+
 function ToolCallItem({
   item,
   active = false,
@@ -221,6 +258,8 @@ function ToolCallItem({
   const label = getToolLabel(item.toolCall)
   const { isMcp, shortName } = splitToolName(item.toolCall)
   const showTerminalIcon = !isMcp && shortName === 'execute_command'
+  const background = useBackgroundCommand(item)
+  const backgroundRunning = background?.status === 'running'
 
   return (
     <Collapsible open={open} onOpenChange={() => onToggle(item.id)}>
@@ -228,7 +267,21 @@ function ToolCallItem({
         {showTerminalIcon && (
           <TerminalIcon role="img" aria-label="终端" className="size-3 shrink-0" />
         )}
-        <HeaderLabel text={label.primary} active={active || item.isExecuting} />
+        <HeaderLabel text={label.primary} active={active || item.isExecuting || backgroundRunning} />
+        {background && (
+          <span
+            className={cn(
+              'shrink-0 text-[11px]',
+              backgroundRunning
+                ? 'text-emerald-700 dark:text-emerald-400'
+                : background.status === 'killed'
+                  ? 'text-destructive'
+                  : 'text-muted-foreground/60',
+            )}
+          >
+            {backgroundBadgeText(background)}
+          </span>
+        )}
         {label.diff && (
           <span className="shrink-0 text-xs tabular-nums">
             <span className="text-emerald-700 dark:text-emerald-400">

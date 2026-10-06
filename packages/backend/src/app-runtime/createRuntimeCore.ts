@@ -1,6 +1,7 @@
 import type { ClientInfo } from '../agent-core/ai-providers/requestHeaders'
 import type { CommandHost } from '../agent-core/native-tools/command/types'
 import type { AgentBrowserPaths, BrowserIdentityPaths } from '../agentBrowser'
+import type { AgentCommandPaths } from '../agentCommands'
 import type { AppDataContext, AppDataDatabase } from '../data'
 import type { RuntimeEventBus } from '../events'
 import type { AppRuntimePaths } from '../paths'
@@ -9,6 +10,7 @@ import type { SystemLogger } from '../systemLogger'
 import type { CreateAppRuntimeOptions, OAuthCallbackHost } from './types'
 import { resolveKeychainServiceName } from '@ant-chat/shared'
 import { createAgentBrowserPaths, createBrowserIdentityPaths } from '../agentBrowser'
+import { createAgentCommandPaths } from '../agentCommands'
 import { BrowserIdentityStore } from '../browser-identity/browserIdentityStore'
 import { createAppDataContext } from '../data'
 import { openAppDataDatabase } from '../database'
@@ -23,6 +25,7 @@ export interface RuntimeDatabase extends AppDataDatabase {
 
 export interface RuntimeCore {
   browserPaths: AgentBrowserPaths
+  commandPaths: AgentCommandPaths
   browserIdentityPaths: BrowserIdentityPaths
   browserIdentity: BrowserIdentityStore
   /** 宿主注入的命令环境（PATH 等），供命令宿主与浏览器工具解析外部 CLI。 */
@@ -58,6 +61,7 @@ export function createRuntimeCore(options: CreateAppRuntimeOptions, commandHost:
   const browserIdentityPaths = createBrowserIdentityPaths(options.appDataRoot)
   return {
     browserPaths: createAgentBrowserPaths(options.appDataRoot),
+    commandPaths: createAgentCommandPaths(options.appDataRoot),
     browserIdentityPaths,
     browserIdentity: new BrowserIdentityStore({
       paths: browserIdentityPaths,

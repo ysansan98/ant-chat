@@ -27,6 +27,7 @@ vi.mock('@/api/chatApi', () => ({ default: {
 } }))
 vi.mock('@/api/agentApi', () => ({ default: {
   listActiveTasks: vi.fn(async () => []),
+  listBackgroundCommands: vi.fn(async () => []),
   listPendingMessages: vi.fn(async (conversationId: string) => ({ conversationId, revision: 0, messages: [] })),
 } }))
 

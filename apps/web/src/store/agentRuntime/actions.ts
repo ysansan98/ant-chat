@@ -2,6 +2,7 @@ import type {
   AgentPendingAction,
   AgentTaskSnapshot,
   ApprovePendingActionOptions,
+  BackgroundCommandSummary,
   RejectPendingActionOptions,
   SecretRequest,
   StartAgentTurnOptions,
@@ -34,6 +35,11 @@ export async function injectSteeringAction(conversationId: string, text: string)
   return await agentApi.injectSteering(conversationId, text)
 }
 
+/** 终止指定后台命令；用户直接操作，不经 agent 审批。 */
+export async function killBackgroundCommandAction(conversationId: string, commandId: string) {
+  return await agentApi.killBackgroundCommand(conversationId, commandId)
+}
+
 export async function resolveSecretRequestAction(requestId: string, values: Record<string, string>) {
   await agentApi.resolveSecretRequest({ requestId, values })
   useAgentRuntimeStore.getState().clearSecretRequest(requestId)
@@ -53,7 +59,11 @@ export async function rejectSecretRequestAction(requestId: string) {
  * 并据此派生会话 running 状态。调用方无需关心活跃判定规则。
  */
 export async function syncConversationRuntime(conversationId: string) {
-  const activeTasks = await agentApi.listActiveTasks(conversationId)
+  const [activeTasks, backgroundCommands] = await Promise.all([
+    agentApi.listActiveTasks(conversationId),
+    agentApi.listBackgroundCommands(conversationId),
+  ])
+  useAgentRuntimeStore.getState().setBackgroundCommands(conversationId, backgroundCommands)
 
   const activeTaskIds = new Set(activeTasks.map(task => task.taskId))
 
@@ -121,6 +131,11 @@ export function applyApprovalRequired(taskId: string, pendingAction: AgentPendin
 /** 应用 `agent:secret-requested` 事件。 */
 export function applySecretRequest(request: SecretRequest) {
   useAgentRuntimeStore.getState().setSecretRequest(request)
+}
+
+/** 应用 `agent:background-commands-updated` 事件：全量快照覆盖该会话。 */
+export function applyBackgroundCommandsSnapshot(conversationId: string, commands: BackgroundCommandSummary[]) {
+  useAgentRuntimeStore.getState().setBackgroundCommands(conversationId, commands)
 }
 
 /**

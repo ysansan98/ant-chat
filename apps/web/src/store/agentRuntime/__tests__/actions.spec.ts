@@ -38,6 +38,7 @@ vi.mock('@/api/agentApi', () => ({
     cancelTask: vi.fn(async () => null),
     injectSteering: mocks.injectSteering,
     listActiveTasks: mocks.listActiveTasks,
+    listBackgroundCommands: vi.fn(async () => []),
   },
 }))
 
