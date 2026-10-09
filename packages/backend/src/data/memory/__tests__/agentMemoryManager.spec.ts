@@ -1,13 +1,14 @@
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AgentMemoryManager } from '../agentMemoryManager'
 
 describe('agentMemoryManager', () => {
   let rootPath = ''
 
   afterEach(() => {
+    vi.useRealTimers()
     if (rootPath) {
       rmSync(rootPath, { recursive: true, force: true })
       rootPath = ''
@@ -142,6 +143,23 @@ describe('agentMemoryManager', () => {
     })
 
     const memory = await service.rollbackSoul()
+
+    expect(memory.soulMarkdown).toBe(original)
+    expect(memory.lastSoulUpdate).toBeUndefined()
+  })
+
+  it('rolls back when the update and rollback happen within the same millisecond', async () => {
+    const service = createService()
+    const original = await service.readSoul()
+
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'))
+    await service.updateSoul({
+      content: '# SOUL\n\n- Use concise answers.',
+      summary: 'Change style',
+    })
+    const memory = await service.rollbackSoul()
+    vi.useRealTimers()
 
     expect(memory.soulMarkdown).toBe(original)
     expect(memory.lastSoulUpdate).toBeUndefined()
