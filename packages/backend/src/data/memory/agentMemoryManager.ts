@@ -1,4 +1,5 @@
 import type { AgentMemoryEditInput, AgentMemoryEditResult, AgentMemoryFiles, AgentMemoryReader, AgentMemoryTarget, SoulUpdateMeta, SoulWriteInput, SoulWriteResult, UpdateAgentMemoryInput } from '@ant-chat/shared'
+import { randomUUID } from 'node:crypto'
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { AtomicTextFileStore } from './atomicTextFileStore'
@@ -114,7 +115,7 @@ export class AgentMemoryManager implements AgentMemoryReader {
 
     mkdirSync(this.backupDir, { recursive: true })
     const updatedAt = Date.now()
-    const backupPath = path.join(this.backupDir, `SOUL.${updatedAt}.md`)
+    const backupPath = path.join(this.backupDir, `SOUL.${uniqueSuffix(updatedAt)}.md`)
     writeFileSync(backupPath, current, 'utf8')
     this.soulStore.write(content)
 
@@ -138,11 +139,13 @@ export class AgentMemoryManager implements AgentMemoryReader {
       throw new Error('SOUL_ROLLBACK_BACKUP_MISSING')
     }
 
+    // 先取出待恢复内容，再做新的备份，避免同毫秒下备份文件互相覆盖
+    const backupContent = readFileSync(meta.backupPath, 'utf8')
     const current = this.soulStore.read()
     mkdirSync(this.backupDir, { recursive: true })
-    writeFileSync(path.join(this.backupDir, `SOUL.${Date.now()}.md`), current, 'utf8')
-    this.soulStore.write(readFileSync(meta.backupPath, 'utf8'))
-    renameSync(this.metaPath, `${this.metaPath}.${Date.now()}.rolled-back`)
+    writeFileSync(path.join(this.backupDir, `SOUL.${uniqueSuffix()}.md`), current, 'utf8')
+    this.soulStore.write(backupContent)
+    renameSync(this.metaPath, `${this.metaPath}.${uniqueSuffix()}.rolled-back`)
 
     return this.readMemoryFiles()
   }
@@ -166,6 +169,10 @@ export class AgentMemoryManager implements AgentMemoryReader {
     }
     return JSON.parse(readFileSync(this.metaPath, 'utf8')) as SoulUpdateMeta
   }
+}
+
+function uniqueSuffix(at: number = Date.now()): string {
+  return `${at}-${randomUUID().slice(0, 8)}`
 }
 
 function normalizeText(value: string): string {
