@@ -3,6 +3,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Button } from '@workspace/ui/components/button'
 import { Input } from '@workspace/ui/components/input'
 import { Progress } from '@workspace/ui/components/progress'
+import { useRequest } from 'ahooks'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { providerApi } from '@/api/providerApi'
@@ -24,6 +25,13 @@ export function ProviderSettingsPanel({ item, onChange, onDelete }: ProviderSett
   const [usage, setUsage] = useState<ProviderUsageStatus | null>(null)
   const [authLoading, setAuthLoading] = useState(false)
   const [prevProviderId, setPrevProviderId] = useState<string | undefined>(item?.id)
+
+  // 只有声明了运行时探测的 Integration（当前为 magpie）才发请求，其他服务商不产生额外开销。
+  const { data: probes, loading: probeLoading, refresh: refreshProbes } = useRequest(
+    providerApi.probeIntegrations,
+    { ready: item?.integrationId === 'magpie' },
+  )
+  const integrationProbe = probes?.find(probe => probe.id === item?.integrationId)
 
   // Provider 切换时（组件复用、不卸载）在渲染期清空 API Key 草稿：
   // 否则上一个 Provider 的密钥草稿会串到下一个 Provider 的输入框。
@@ -139,6 +147,24 @@ export function ProviderSettingsPanel({ item, onChange, onDelete }: ProviderSett
             </div>
           )
         }
+
+        {item.integrationId === 'magpie' && (
+          <div className="flex flex-col gap-2 rounded-lg border border-border/70 p-3">
+            <div className="text-sm font-medium">magpie 运行状态</div>
+            <div className="text-xs text-muted-foreground">
+              {probeLoading
+                ? '正在检测…'
+                : integrationProbe?.available
+                  ? `已检测到本机 magpie${integrationProbe.version ? ` · ${integrationProbe.version}` : ''}`
+                  : '未检测到本机 magpie。请先启动 magpie；若改过端口，请同时修改上方 API 地址。'}
+            </div>
+            <div>
+              <Button size="sm" variant="outline" disabled={probeLoading} onClick={() => void refreshProbes()}>
+                重新检测
+              </Button>
+            </div>
+          </div>
+        )}
 
         {item.capabilities?.authentication === 'oauth'
           ? (
@@ -296,6 +322,11 @@ export function ProviderSettingsPanel({ item, onChange, onDelete }: ProviderSett
                     }
                   }}
                 />
+                {item.integrationId === 'magpie' && (
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    本机网关接受任意 Key，可留空；填写后用量会记在这个名字下。
+                  </div>
+                )}
                 {apiKeyDirty && (
                   <div className="flex items-center gap-2">
                     <Button size="sm" variant="outline" disabled={isSavingApiKey} onClick={() => void handleSaveApiKey()}>

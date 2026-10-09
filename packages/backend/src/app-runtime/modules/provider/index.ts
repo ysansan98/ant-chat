@@ -1,4 +1,4 @@
-import type { AIProviderFactory, AppRpcInput, CreateProviderConfigSchema, ProviderAuthStatus, ProviderConfigSchema, ProviderIntegrationId, ProviderPublicView, ProviderUsageStatus, UpdateProviderConfigSchema } from '@ant-chat/shared'
+import type { AIProviderFactory, AppRpcInput, CreateProviderConfigSchema, ProviderAuthStatus, ProviderConfigSchema, ProviderIntegrationId, ProviderIntegrationProbe, ProviderPublicView, ProviderUsageStatus, UpdateProviderConfigSchema } from '@ant-chat/shared'
 import type { ClientInfo } from '../../../agent-core'
 import type { ProviderSettingsRepository } from '../../../data'
 import type { RuntimeEventBus } from '../../../events'
@@ -93,6 +93,25 @@ export class ProviderModule implements RuntimeModuleMethods<'provider'> {
       defaultApiMode: integration.descriptor.defaultApiMode,
       fixedApiMode: integration.descriptor.fixedApiMode,
       fixedBaseUrl: integration.capabilities.fixedBaseUrl,
+    }))
+  }
+
+  /**
+   * 探测各 Integration 的运行时可用性（如 magpie 是否在本机运行）。
+   * 单个探测失败不回滚整体、也不抛错：不可用是一种结果，不是异常。
+   */
+  @Method()
+  async probeIntegrations(_input?: AppRpcInput<'provider.probeIntegrations'>): Promise<ProviderIntegrationProbe[]> {
+    const providers = this.providerSettingsRepository.listProviders()
+    const probed = [...this.providerIntegrations.entries()].filter(([, integration]) => integration.probe)
+    return await Promise.all(probed.map(async ([id, integration]) => {
+      const provider = providers.find(item => item.integrationId === id)
+      try {
+        return await integration.probe!(provider)
+      }
+      catch {
+        return { id, label: integration.descriptor.label, available: false }
+      }
     }))
   }
 

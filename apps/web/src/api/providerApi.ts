@@ -1,4 +1,4 @@
-import type { AllAvailableModelsSchema, CreateProviderConfigModelSchema, CreateProviderConfigSchema, ModelsDevProvider, ProviderAuthStatus, ProviderConfigModelSchema, ProviderIntegrationCatalogItem, ProviderPublicView, ProviderUsageStatus, UpdateProviderConfigSchema } from '@ant-chat/shared'
+import type { AllAvailableModelsSchema, CreateProviderConfigModelSchema, CreateProviderConfigSchema, ModelsDevProvider, ProviderAuthStatus, ProviderConfigModelSchema, ProviderIntegrationCatalogItem, ProviderIntegrationProbe, ProviderPublicView, ProviderUsageStatus, UpdateProviderConfigSchema } from '@ant-chat/shared'
 import { emitProviderChanged } from '@/constants/providerEvents'
 import { getAppRpcClient } from './transports/appRpc'
 
@@ -9,6 +9,11 @@ export const providerApi = {
 
   listIntegrations: async (): Promise<ProviderIntegrationCatalogItem[]> => {
     return getAppRpcClient().call('provider.listIntegrations', undefined)
+  },
+
+  /** 探测各内置 Integration 的运行时可用性（如本机 magpie 是否在运行）。 */
+  probeIntegrations: async (): Promise<ProviderIntegrationProbe[]> => {
+    return getAppRpcClient().call('provider.probeIntegrations', undefined)
   },
 
   createProvider: async (config: CreateProviderConfigSchema): Promise<ProviderPublicView> => {

@@ -132,5 +132,16 @@ export const DEFAULT_APP_SETTINGS: AppSettingsState = {
       isEnabled: false,
       models: {},
     },
+    {
+      // 本机 magpie 网关；默认关闭，检测到 magpie 运行时由用户在设置页一键接入。
+      id: 'magpie',
+      name: 'Magpie',
+      baseUrl: 'http://127.0.0.1:3425/v1',
+      apiMode: 'openai',
+      integrationId: 'magpie',
+      isOfficial: false,
+      isEnabled: false,
+      models: {},
+    },
   ],
 }
