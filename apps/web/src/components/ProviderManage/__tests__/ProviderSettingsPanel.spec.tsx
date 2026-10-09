@@ -14,6 +14,7 @@ vi.mock('@/api/providerApi', () => ({
     getAuthStatus,
     getUsage,
     listProviderModels,
+    probeIntegrations: vi.fn(async () => []),
     startOAuthLogin: vi.fn(),
     importLocalAuth: vi.fn(),
     logoutAuth: vi.fn(),

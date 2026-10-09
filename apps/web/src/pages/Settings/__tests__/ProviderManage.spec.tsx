@@ -7,6 +7,8 @@ import ProviderManage from '../ProviderManage'
 vi.mock('@/api/providerApi', () => ({
   providerApi: {
     listProviders: vi.fn(),
+    probeIntegrations: vi.fn(),
+    syncModels: vi.fn(),
     updateProvider: vi.fn(),
     createProvider: vi.fn(),
     deleteProvider: vi.fn(),
@@ -52,12 +54,24 @@ function provider(hasApiKey: boolean): ProviderPublicView {
   }
 }
 
+function magpieProvider(isEnabled: boolean): ProviderPublicView {
+  return {
+    ...provider(false),
+    id: 'magpie',
+    name: 'Magpie',
+    baseUrl: 'http://127.0.0.1:3425/v1',
+    integrationId: 'magpie',
+    isEnabled,
+  }
+}
+
 describe('provider manage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(providerApi.listProviders)
       .mockResolvedValueOnce([provider(false)])
       .mockResolvedValue([provider(true)])
+    vi.mocked(providerApi.probeIntegrations).mockResolvedValue([])
     vi.mocked(providerApi.updateProvider).mockResolvedValue(provider(true))
   })
 
@@ -72,5 +86,40 @@ describe('provider manage', () => {
     await waitFor(() => {
       expect(screen.getByTestId('active-provider-key-state')).toHaveTextContent('有密钥')
     })
+  })
+
+  it('检测到 magpie 后一键启用并同步模型', async () => {
+    vi.mocked(providerApi.listProviders).mockReset()
+    vi.mocked(providerApi.listProviders).mockResolvedValue([magpieProvider(false)])
+    vi.mocked(providerApi.probeIntegrations).mockResolvedValue([
+      { id: 'magpie', label: 'Magpie', available: true, version: '1.0.0', baseUrl: 'http://127.0.0.1:4000/v1' },
+    ])
+    vi.mocked(providerApi.syncModels).mockResolvedValue([])
+
+    render(<ProviderManage />)
+
+    fireEvent.click(await screen.findByRole('button', { name: '启用并同步模型' }))
+
+    await waitFor(() => {
+      expect(providerApi.updateProvider).toHaveBeenCalledWith({
+        id: 'magpie',
+        isEnabled: true,
+        baseUrl: 'http://127.0.0.1:4000/v1',
+      })
+    })
+    await waitFor(() => expect(providerApi.syncModels).toHaveBeenCalledWith('magpie'))
+  })
+
+  it('未检测到 magpie 时不显示接入提示', async () => {
+    vi.mocked(providerApi.listProviders).mockReset()
+    vi.mocked(providerApi.listProviders).mockResolvedValue([magpieProvider(false)])
+    vi.mocked(providerApi.probeIntegrations).mockResolvedValue([
+      { id: 'magpie', label: 'Magpie', available: false },
+    ])
+
+    render(<ProviderManage />)
+
+    await screen.findByText('Magpie')
+    expect(screen.queryByRole('button', { name: '启用并同步模型' })).toBeNull()
   })
 })

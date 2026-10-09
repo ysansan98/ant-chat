@@ -1,4 +1,4 @@
-import type { IAIProvider, ModelsDevModel, ProviderAuthStatus, ProviderCapabilities, ProviderConfigModelSchema, ProviderConfigSchema, ProviderFormat, ProviderIntegrationId, ProviderUsageStatus } from '@ant-chat/shared'
+import type { IAIProvider, ModelsDevModel, ProviderAuthStatus, ProviderCapabilities, ProviderConfigModelSchema, ProviderConfigSchema, ProviderFormat, ProviderIntegrationId, ProviderIntegrationProbe, ProviderUsageStatus } from '@ant-chat/shared'
 
 /** 媒体生成种类；Integration 按能力分类声明，实例自知种类。 */
 export type MediaKind = 'image' | 'video'
@@ -92,6 +92,11 @@ export interface ProviderIntegration {
   prepareRevoke: (provider: ProviderConfigSchema) => Promise<PreparedCredentialRevocation>
   auth?: ProviderAuthAdapter
   createAIProvider?: (provider: ProviderConfigSchema) => Promise<IAIProvider>
+  /**
+   * 运行时探测该服务当前是否可用（如本机 magpie 是否在运行）。
+   * 传入该 Integration 现有的 Provider 配置（用户已删除条目时为 undefined）。
+   */
+  probe?: (provider: ProviderConfigSchema | undefined) => Promise<ProviderIntegrationProbe>
   /** 生成类能力通道；未实现的能力不声明，调用方 fail closed。 */
   mediaGeneration?: Partial<Record<MediaKind, MediaGeneratorFactory>>
   getUsage?: (provider: ProviderConfigSchema) => Promise<ProviderUsageStatus>

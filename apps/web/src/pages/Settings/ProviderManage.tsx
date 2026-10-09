@@ -31,7 +31,54 @@ export default function ProviderManage() {
     return Math.max(MIN_PROVIDER_LIST_WIDTH, Math.min(MAX_PROVIDER_LIST_WIDTH, stored))
   })
   const { data, error, refresh, loading } = useRequest(providerApi.listProviders)
+  const { data: probes, refresh: refreshProbes } = useRequest(providerApi.probeIntegrations)
+  const [enablingMagpie, setEnablingMagpie] = React.useState(false)
   const activeProvider: ProviderPublicView | null = data?.find(item => item.id === activeProviderId) ?? null
+
+  const magpieProbe = probes?.find(item => item.id === 'magpie')
+  const magpieProvider = data?.find(item => item.id === 'magpie')
+  const showMagpieSetup = magpieProbe?.available === true && !magpieProvider?.isEnabled
+
+  /** 一键接入：写入探测到的地址、启用条目并同步模型；失败时只提示，不改动其他状态。 */
+  const handleEnableMagpie = async () => {
+    if (!magpieProbe?.available || enablingMagpie) {
+      return
+    }
+    setEnablingMagpie(true)
+    try {
+      const baseUrl = magpieProbe.baseUrl
+      if (magpieProvider) {
+        await providerApi.updateProvider({
+          id: magpieProvider.id,
+          isEnabled: true,
+          ...(baseUrl && baseUrl !== magpieProvider.baseUrl ? { baseUrl } : {}),
+        })
+      }
+      else {
+        if (!baseUrl) {
+          throw new Error('未获取到 magpie 地址，请确认 magpie 正在运行后重新检测。')
+        }
+        await providerApi.createProvider({
+          id: 'magpie',
+          name: 'Magpie',
+          baseUrl,
+          apiMode: 'openai',
+          integrationId: 'magpie',
+          isEnabled: true,
+        })
+      }
+      await providerApi.syncModels('magpie')
+      toast.success('已启用 magpie 并同步模型')
+      refresh()
+      refreshProbes()
+    }
+    catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error))
+    }
+    finally {
+      setEnablingMagpie(false)
+    }
+  }
 
   React.useEffect(() => {
     if (typeof window !== 'undefined')
@@ -68,6 +115,18 @@ export default function ProviderManage() {
       description="配置服务商凭证、接口地址与可用模型。"
       variant="wide"
     >
+      {showMagpieSetup && (
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-xl border border-border/70 bg-card/40 px-3 py-2">
+          <div className="text-sm">
+            检测到 magpie
+            {magpieProbe?.version ? ` · ${magpieProbe.version}` : ''}
+            <span className="text-muted-foreground">：启用后可同步并选用它的模型。</span>
+          </div>
+          <Button size="sm" disabled={enablingMagpie} onClick={() => void handleEnableMagpie()}>
+            {enablingMagpie ? '接入中…' : '启用并同步模型'}
+          </Button>
+        </div>
+      )}
       <div className="flex min-h-0 flex-1 overflow-hidden rounded-xl border border-border/70 bg-card/40">
         <div
           className="relative h-full shrink-0 border-r border-border/70"

@@ -12,18 +12,34 @@ import type { KeychainSecretStore } from '../../../../secretStore'
 import type { SystemLogger } from '../../../../systemLogger'
 import { ProviderModule, resolveProviderApiKey } from '../index'
 import { createCodexProviderIntegration } from '../codexIntegration'
+import { createMagpieProviderIntegration, MAGPIE_DEFAULT_BASE_URL } from '../magpieIntegration'
 import { createModelScopeProviderIntegration } from '../modelscopeIntegration'
 import type { ProviderIntegration } from '../providerIntegration'
 
 /** 与真实 composition root 一致的内置 Integration 注册面（DEFAULT_APP_SETTINGS 含对应 Provider）。 */
-function createRegisteredIntegrations(secretStore: KeychainSecretStore): Array<[string, ProviderIntegration]> {
-  return [
+function createRegisteredIntegrations(
+  secretStore: KeychainSecretStore,
+  overrides: Partial<Record<string, ProviderIntegration>> = {},
+): Array<[string, ProviderIntegration]> {
+  const entries: Array<[string, ProviderIntegration]> = [
     ['codex-subscription', createCodexProviderIntegration(secretStore)],
     ['modelscope', createModelScopeProviderIntegration({
       listModelsDevModels: vi.fn(async () => []),
       credentialStore: secretStore,
     })],
+    // 探测隔离：不读本机 magpie 配置，也不访问真实端口。
+    ['magpie', createMagpieProviderIntegration(
+      { credentialStore: secretStore },
+      {
+        fetchImpl: vi.fn<typeof fetch>(async () => {
+          throw new Error('offline')
+        }),
+        configPaths: [],
+        readSettingsFile: async () => null,
+      },
+    )],
   ]
+  return entries.map(([id, integration]) => [id, overrides[id] ?? integration])
 }
 
 describe('provider module 模型同步行为', () => {
@@ -165,6 +181,12 @@ describe('provider module 模型同步行为', () => {
         authentication: 'api-key',
         fixedApiMode: 'openai',
         fixedBaseUrl: 'https://api-inference.modelscope.cn/v1',
+      }),
+      expect.objectContaining({
+        id: 'magpie',
+        label: 'Magpie',
+        authentication: 'api-key',
+        fixedApiMode: 'openai',
       }),
     ])
     expect(created.capabilities).toEqual(expect.objectContaining({
@@ -742,4 +764,64 @@ describe('provider module 认证生命周期撤销', () => {
       [['modelscope', inconsistent]],
     )).toThrow('mediaGeneration.image 必须是 generator 工厂函数')
   })
+
+  it('probeIntegrations 只探测声明了 probe 的 Integration', async () => {
+    const repository = new ProviderSettingsRepository(new AppSettingsStore({
+      filePath: join(directory, 'settings.json'),
+      initialSettings: DEFAULT_APP_SETTINGS,
+    }))
+    const secretStore = createProviderSecretStore()
+    const module = new ProviderModule(
+      repository,
+      secretStore,
+      { emit: vi.fn() } as unknown as RuntimeEventBus,
+      { info: vi.fn(), warn: vi.fn(), error: vi.fn() } as unknown as SystemLogger,
+      undefined,
+      createRegisteredIntegrations(secretStore),
+    )
+
+    await expect(module.probeIntegrations()).resolves.toEqual([
+      { id: 'magpie', label: 'Magpie', available: false },
+    ])
+  })
+
+  it('探测结果带上 Integration 返回的版本与地址', async () => {
+    const repository = new ProviderSettingsRepository(new AppSettingsStore({
+      filePath: join(directory, 'settings.json'),
+      initialSettings: DEFAULT_APP_SETTINGS,
+    }))
+    const secretStore = createProviderSecretStore()
+    const magpie = createMagpieProviderIntegration(
+      { credentialStore: secretStore },
+      {
+        configPaths: [],
+        readSettingsFile: async () => null,
+        fetchImpl: vi.fn<typeof fetch>(async () =>
+          new Response(JSON.stringify({ name: 'magpie', version: '9.9.9' }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })),
+      },
+    )
+    const module = new ProviderModule(
+      repository,
+      secretStore,
+      { emit: vi.fn() } as unknown as RuntimeEventBus,
+      { info: vi.fn(), warn: vi.fn(), error: vi.fn() } as unknown as SystemLogger,
+      undefined,
+      createRegisteredIntegrations(secretStore, { magpie }),
+    )
+
+    await expect(module.probeIntegrations()).resolves.toEqual([
+      { id: 'magpie', label: 'Magpie', available: true, version: '9.9.9', baseUrl: MAGPIE_DEFAULT_BASE_URL },
+    ])
+  })
 })
+
+function createProviderSecretStore(): KeychainSecretStore {
+  return {
+    getProviderApiKey: vi.fn(async () => null),
+    saveProviderApiKey: vi.fn(async () => ({ kind: 'secret_ref' as const, id: 'provider:magpie:api_key', scope: 'persistent' as const })),
+    deleteProviderApiKey: vi.fn(async () => {}),
+  } as unknown as KeychainSecretStore
+}

@@ -20,6 +20,7 @@ import { McpModule } from './modules/mcp'
 import { PermissionsModule } from './modules/permissions'
 import { ProviderModule } from './modules/provider'
 import { createCodexProviderIntegration } from './modules/provider/codexIntegration'
+import { createMagpieProviderIntegration } from './modules/provider/magpieIntegration'
 import { createModelScopeProviderIntegration } from './modules/provider/modelscopeIntegration'
 import { RuntimeStatusModule } from './modules/runtime'
 import { SettingsModule } from './modules/settings'
@@ -52,6 +53,10 @@ export function registerRuntimeModules(core: RuntimeCore): RegisteredRuntimeModu
       ['codex-subscription', createCodexProviderIntegration(secretStore)],
       ['modelscope', createModelScopeProviderIntegration({
         listModelsDevModels: getModelsDevModelsByProviderId,
+        credentialStore: secretStore,
+        clientInfo: core.clientInfo,
+      })],
+      ['magpie', createMagpieProviderIntegration({
         credentialStore: secretStore,
         clientInfo: core.clientInfo,
       })],

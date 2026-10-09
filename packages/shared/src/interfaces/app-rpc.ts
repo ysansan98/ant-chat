@@ -38,6 +38,7 @@ import type { MemoryCatalogListEntry, MemoryRecord } from './memory-catalog'
 import type { ModelsDevProvider } from './modelsDev'
 import type { AppPendingMessageSnapshot } from './pending-messages'
 import type { ProviderAuthStatus } from './providerAuth'
+import type { ProviderIntegrationProbe } from './providerProbe'
 import type {
   GithubSkillPreview,
   ImportGithubSkillsResult,
@@ -122,6 +123,7 @@ export interface AppRpcContract {
 
   'provider.listProviders': RpcEndpoint<undefined, ProviderPublicView[]>
   'provider.listIntegrations': RpcEndpoint<undefined, ProviderIntegrationCatalogItem[]>
+  'provider.probeIntegrations': RpcEndpoint<undefined, ProviderIntegrationProbe[]>
   'provider.createProvider': RpcEndpoint<{ config: CreateProviderConfigSchema }, ProviderPublicView>
   'provider.updateProvider': RpcEndpoint<{ config: UpdateProviderConfigSchema }, ProviderPublicView>
   'provider.deleteProvider': RpcEndpoint<{ id: string }, null>
