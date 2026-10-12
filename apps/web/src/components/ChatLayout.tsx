@@ -3,7 +3,7 @@ import {
   SheetContent,
   SheetTitle,
 } from '@workspace/ui/components/sheet'
-import { MenuIcon, PencilIcon, Search } from 'lucide-react'
+import { MenuIcon, MessageCirclePlus, Search } from 'lucide-react'
 import { useState } from 'react'
 import { Outlet, useNavigate } from 'react-router'
 import { SidebarProvider } from '@/contexts/sidebar'
@@ -89,7 +89,7 @@ export function ChatLayout() {
                   }
                 }}
               >
-                <PencilIcon className="size-4.5" />
+                <MessageCirclePlus className="size-4.5" />
               </span>
               <span
                 role="button"
@@ -127,7 +127,7 @@ export function ChatLayout() {
             className="ml-auto flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
             onClick={createNewConversation}
           >
-            <PencilIcon className="size-4" />
+            <MessageCirclePlus className="size-4" />
           </button>
         </div>
 

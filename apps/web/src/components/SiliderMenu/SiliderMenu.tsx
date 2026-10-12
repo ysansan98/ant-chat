@@ -1,6 +1,6 @@
 import { cn } from '@workspace/ui/lib/utils'
 import {
-  Pencil,
+  MessageCirclePlus,
   Repeat2,
   Search,
   Settings,
@@ -46,7 +46,7 @@ export function SliderMenu({ mobile = false, onNavigate }: SliderMenuProps) {
       >
         <div className="flex flex-col gap-1 py-2">
           <SidebarNavItem
-            icon={<Pencil className="size-4" />}
+            icon={<MessageCirclePlus className="size-4" />}
             label="新对话"
             dataTestId={mobile ? 'mobile-drawer-new-chat' : 'sidebar-new-chat'}
             active={location.pathname === '/chat' && !activeConversationsId}
