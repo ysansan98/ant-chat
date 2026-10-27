@@ -3,6 +3,10 @@ import process from 'node:process'
 import { BrowserWindow, shell } from 'electron'
 import { isDev, isMacOS } from '../utils/env'
 import { logger } from '../utils/logger'
+import { setupNavigationHandlers } from './navigation-handlers'
+
+/** 生产环境渲染层入口；加载与导航白名单共用，避免两处路径漂移 */
+const APP_INDEX_PATH = join(__dirname, '../renderer/index.html')
 
 export interface BaseWindowOptions {
   type: 'main'
@@ -50,6 +54,8 @@ export abstract class BaseWindow {
         nodeIntegration: false,
         contextIsolation: true,
         webSecurity: true,
+        // Electron 20+ 默认即沙箱；显式声明防止后续改动意外关闭
+        sandbox: true,
         preload,
       },
       titleBarStyle: isMacOS ? 'hidden' : 'default',
@@ -71,9 +77,8 @@ export abstract class BaseWindow {
       })
     }
     else {
-      const webDistPath = join(__dirname, '../renderer/index.html')
-      logger.info('生产环境加载文件', webDistPath)
-      this.window.loadFile(webDistPath, {
+      logger.info('生产环境加载文件', APP_INDEX_PATH)
+      this.window.loadFile(APP_INDEX_PATH, {
         hash: this.options.hash,
       })
     }
@@ -88,7 +93,7 @@ export abstract class BaseWindow {
       this.setupDevShortcuts(window)
     }
 
-    this.setupNavigationHandlers(window)
+    this.installNavigationHandlers(window)
 
     // 首次加载耗时统计：did-finish-load 在首次加载完成时触发一次
     // （含加载失败后错误页完成的情况），刷新页面不会重复统计
@@ -126,28 +131,16 @@ export abstract class BaseWindow {
     })
   }
 
-  private setupNavigationHandlers(window: BrowserWindow) {
-    window.webContents.on('will-navigate', (event, url) => {
-      logger.debug('will-navigate', url)
-
-      if (isDev && url.startsWith(process.env.ELECTRON_RENDERER_URL || '')) {
-        return
-      }
-      const isExternal = url.startsWith('http:') || url.startsWith('https:')
-      if (isExternal) {
-        event.preventDefault()
-        shell.openExternal(url)
-      }
-    })
-
-    window.webContents.setWindowOpenHandler(({ url }) => {
-      logger.debug('setWindowOpenHandler', url)
-      const isExternal = url.startsWith('http:') || url.startsWith('https:')
-      if (isExternal) {
-        shell.openExternal(url)
-        return { action: 'deny' }
-      }
-      return { action: 'allow' }
+  private installNavigationHandlers(window: BrowserWindow) {
+    setupNavigationHandlers(window.webContents, {
+      context: {
+        isDev,
+        rendererUrl: process.env.ELECTRON_RENDERER_URL,
+        appIndexPath: APP_INDEX_PATH,
+      },
+      openExternal: url => shell.openExternal(url),
+      onExternalOpenError: error => logger.error('打开外部链接失败', error),
+      log: (message, ...args) => logger.debug(message, ...args),
     })
   }
 
