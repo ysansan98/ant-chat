@@ -85,7 +85,7 @@ export function ImageViewer({ items }: { items: ImagePreviewItem[] }) {
               onIndexChange={setPreviewIndex}
             />
           )}
-          <DialogClose className="fixed top-4 right-4 z-20 rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-black/70">
+          <DialogClose aria-label="关闭图片预览" className="fixed top-4 right-4 z-20 rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-black/70">
             <XIcon className="size-6" />
           </DialogClose>
         </DialogContent>

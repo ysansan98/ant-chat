@@ -21,7 +21,7 @@ export function SenderSubmitButton({ loading, disabled, hasDraft, onCancel }: Se
             </PromptInputSubmit>
           )
         : (
-            <PromptInputButton className="sender-primary-action" size="icon-sm" type="button" variant="outline" data-testid="chat-cancel" onClick={onCancel}>
+            <PromptInputButton aria-label="停止生成" className="sender-primary-action" size="icon-sm" type="button" variant="outline" data-testid="chat-cancel" onClick={onCancel}>
               <SquareIcon className="size-4" />
             </PromptInputButton>
           )

@@ -50,6 +50,7 @@ export function SenderAddAttachmentButton({ accept }: { accept: string }) {
 
   return (
     <PromptInputButton
+      aria-label="添加附件"
       size="icon-xs"
       tooltip="附件(仅支持图片)"
       onClick={() => attachments.openFileDialog()}

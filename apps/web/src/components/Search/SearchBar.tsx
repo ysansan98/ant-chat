@@ -59,6 +59,7 @@ export function SearchBar({ onItemClick }: SearchBarProps) {
             <Search className="size-4 text-muted-foreground" />
             <input
               ref={inputRef}
+              aria-label="搜索会话"
               className="h-full min-w-0 flex-1 bg-transparent text-sm focus:outline-none"
               type="text"
               placeholder="搜索会话"

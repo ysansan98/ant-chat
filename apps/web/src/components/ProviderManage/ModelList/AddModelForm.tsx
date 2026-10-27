@@ -46,9 +46,9 @@ export function AddModelFormModal({ open, title, onCancel, onSave }: AddModelFor
   const [contextLength, setContextLength] = React.useState<number | undefined>()
   const [functionCall, setFunctionCall] = React.useState(false)
   const [reasoning, setReasoning] = React.useState(false)
-  const [reasoningLevels, setReasoningLevels] = React.useState<Set<ReasoningEffortLevel>>(new Set())
-  const [inputModalities, setInputModalities] = React.useState<Set<string>>(new Set(['text']))
-  const [outputModalities, setOutputModalities] = React.useState<Set<string>>(new Set())
+  const [reasoningLevels, setReasoningLevels] = React.useState<Set<ReasoningEffortLevel>>(() => new Set())
+  const [inputModalities, setInputModalities] = React.useState<Set<string>>(() => new Set(['text']))
+  const [outputModalities, setOutputModalities] = React.useState<Set<string>>(() => new Set())
   const [prevOpen, setPrevOpen] = React.useState(open)
 
   // 弹窗关闭（取消/X/ESC/父组件置 false）时清空表单，避免下次打开残留数据；

@@ -25,7 +25,8 @@ export default function BubbleFooter({ message, onCopy, time, modelInfo, duratio
   const startRef = useRef(startedAt)
   const [elapsedMs, dispatchElapsed] = useReducer(
     (_prev: number, action: number) => action,
-    Math.max(0, Date.now() - startedAt),
+    startedAt,
+    start => Math.max(0, Date.now() - start),
   )
 
   useEffect(() => {

@@ -71,9 +71,17 @@ export function HighlightText({
     return <span className={className}>{text}</span>
   }
 
+  // 用文本偏移构造 key，避免列表增删时高亮片段错位
+  let offset = 0
+  const partsWithKeys = parts.map((part) => {
+    const key = `${offset}:${part}`
+    offset += part.length
+    return { part, key }
+  })
+
   return (
     <span className={className}>
-      {parts.map((part, index) => {
+      {partsWithKeys.map(({ part, key }, index) => {
         // 检查当前部分是否是关键字
         const isKeyword = validKeywords.some(keyword =>
           ignoreCase
@@ -90,7 +98,7 @@ export function HighlightText({
           // 默认高亮渲染
           return (
             <span
-              key={index}
+              key={key}
               className={highlightClassName}
             >
               {part}
@@ -98,7 +106,7 @@ export function HighlightText({
           )
         }
 
-        return <span key={index}>{part}</span>
+        return <span key={key}>{part}</span>
       })}
     </span>
   )

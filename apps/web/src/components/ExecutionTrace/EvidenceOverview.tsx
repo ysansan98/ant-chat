@@ -2,6 +2,7 @@ import type { ContextEventView, EvidenceView, ModelRequestView, PolicyDecisionVi
 import { Badge } from '@workspace/ui/components/badge'
 import { ShieldAlertIcon, ShieldCheckIcon, ShieldXIcon } from 'lucide-react'
 import { formatDuration } from '@/utils'
+import { modelToolCallIdentity, withStableKeys } from './evidenceKeys'
 import { agentModeLabel, policyBasisLabel } from './evidenceModel'
 import { ErrorBlock, ExpandableText, KeyValueList, Section, StatGrid } from './evidencePrimitives'
 
@@ -47,8 +48,8 @@ function ModelRequestOverview({ view }: { view: ModelRequestView }) {
       {view.toolCalls.length > 0 && (
         <Section title="请求的工具调用">
           <div className="flex flex-wrap gap-1.5">
-            {view.toolCalls.map((call, index) => (
-              <Badge key={call.id ?? index} variant="outline" className={call.invalidArgsError ? 'border-amber-500/40 text-amber-700 dark:text-amber-400' : undefined}>
+            {withStableKeys(view.toolCalls, modelToolCallIdentity).map(({ item: call, key }) => (
+              <Badge key={key} variant="outline" className={call.invalidArgsError ? 'border-amber-500/40 text-amber-700 dark:text-amber-400' : undefined}>
                 {call.toolName}
                 {call.invalidArgsError ? '（参数错误）' : ''}
               </Badge>
