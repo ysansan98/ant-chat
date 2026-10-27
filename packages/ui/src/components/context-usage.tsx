@@ -24,10 +24,10 @@ interface ContextUsageState {
   usage?: LanguageModelUsage
 }
 
-const ContextUsageCtx = createContext<ContextUsageState | null>(null)
+const ContextUsageContext = createContext<ContextUsageState | null>(null)
 
 function useCtx() {
-  const ctx = use(ContextUsageCtx)
+  const ctx = use(ContextUsageContext)
   if (!ctx) {
     throw new Error('ContextUsage components must be used within ContextUsage')
   }
@@ -48,9 +48,9 @@ export function ContextUsage({
   )
 
   return (
-    <ContextUsageCtx value={value}>
+    <ContextUsageContext value={value}>
       <HoverCard {...props} />
-    </ContextUsageCtx>
+    </ContextUsageContext>
   )
 }
 

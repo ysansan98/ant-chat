@@ -6,6 +6,7 @@ import { writeClipboardText } from '@workspace/ui/lib/clipboard'
 import { cn } from '@workspace/ui/lib/utils'
 import { CheckIcon, CopyIcon, FileIcon, ImageIcon } from 'lucide-react'
 import { useState } from 'react'
+import { blockIdentity, messageIdentity, withStableKeys } from './evidenceKeys'
 import { spanStatusLabel, spanStatusTone } from './evidenceModel'
 
 /** 证据详情共享渲染原语：概览与开发者视图复用，保证两个 Tab 视觉语言一致。 */
@@ -122,16 +123,20 @@ const roleLabels: Record<string, string> = {
 }
 
 export function MessageList({ messages }: { messages: MessageView[] }) {
+  const keyedMessages = withStableKeys(messages, messageIdentity)
   return (
     <ol className="space-y-2">
-      {messages.map((message, index) => (
-        <li key={index} className="rounded-lg border border-border p-2.5">
-          <Badge variant="outline" className="mb-1.5">{roleLabels[message.role] ?? message.role}</Badge>
-          <div className="space-y-1.5">
-            {message.blocks.map((block, blockIndex) => <MessageBlock key={blockIndex} block={block} />)}
-          </div>
-        </li>
-      ))}
+      {keyedMessages.map(({ item: message, key }) => {
+        const keyedBlocks = withStableKeys(message.blocks, blockIdentity)
+        return (
+          <li key={key} className="rounded-lg border border-border p-2.5">
+            <Badge variant="outline" className="mb-1.5">{roleLabels[message.role] ?? message.role}</Badge>
+            <div className="space-y-1.5">
+              {keyedBlocks.map(({ item: block, key: blockKey }) => <MessageBlock key={blockKey} block={block} />)}
+            </div>
+          </li>
+        )
+      })}
     </ol>
   )
 }

@@ -511,6 +511,7 @@ export function CodeBlockCopyButton({
 
   return (
     <Button
+      aria-label={isCopied ? '已复制' : '复制代码'}
       className={cn('shrink-0', className)}
       onClick={copyToClipboard}
       size="icon"

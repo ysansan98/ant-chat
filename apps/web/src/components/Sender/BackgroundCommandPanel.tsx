@@ -139,13 +139,13 @@ function BackgroundCommandCapsule({ conversationId, command }: { conversationId:
             {command.cwd}
           </p>
           {command.hasSecretEnv && (
-            <p className="text-[11px] text-amber-600 dark:text-amber-400">
+            <p className="text-[11px] text-amber-700 dark:text-amber-400">
               该后台进程持有 Turn 密钥：
               {command.secretEnvKeys.join(', ')}
             </p>
           )}
           {command.truncated && (
-            <p className="text-[11px] text-amber-600 dark:text-amber-400">日志已达大小上限，之后不再增长</p>
+            <p className="text-[11px] text-amber-700 dark:text-amber-400">日志已达大小上限，之后不再增长</p>
           )}
         </div>
         <pre className="max-h-52 overflow-auto rounded-md bg-muted/60 p-2 font-mono text-[11px] break-all whitespace-pre-wrap">

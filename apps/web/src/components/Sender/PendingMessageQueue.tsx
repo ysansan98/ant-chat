@@ -16,7 +16,7 @@ interface PendingMessageQueueProps {
 export function PendingMessageQueue(props: PendingMessageQueueProps) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const items = usePendingMessagesStore(state => state.itemsByConversation[props.conversationId] ?? EMPTY_ITEMS)
-  const previousLength = useRef(items.length)
+  const previousLengthRef = useRef(items.length)
 
   useLayoutEffect(() => {
     if (viewportRef.current)
@@ -28,9 +28,9 @@ export function PendingMessageQueue(props: PendingMessageQueueProps) {
     const wasNearBottom = viewport
       ? viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 32
       : false
-    if (viewport && items.length > previousLength.current && wasNearBottom)
+    if (viewport && items.length > previousLengthRef.current && wasNearBottom)
       viewport.scrollTop = viewport.scrollHeight
-    previousLength.current = items.length
+    previousLengthRef.current = items.length
   }, [items.length])
 
   if (!items.length)

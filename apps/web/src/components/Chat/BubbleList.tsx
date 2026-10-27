@@ -159,6 +159,7 @@ function BubbleList({ messages, initialJumpMessageId }: Props) {
             ))}
 
         <Button
+          aria-label="滚动到底部"
           size="icon-sm"
           variant="outline"
           className={`

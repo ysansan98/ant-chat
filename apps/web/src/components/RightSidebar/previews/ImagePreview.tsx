@@ -62,7 +62,7 @@ export function ImagePreview({ url, fileName }: ImagePreviewProps) {
   const isReset = scale === 1 && rotation === 0 && offset.x === 0 && offset.y === 0
 
   return (
-    <div className="flex h-full flex-col bg-neutral-900/95" data-testid="image-preview">
+    <div className="flex h-full flex-col bg-code/95" data-testid="image-preview">
       <div className="flex shrink-0 items-center justify-center gap-1 border-b border-white/10 px-2 py-1.5">
         <ToolbarButton label="缩小" onClick={zoomOut} disabled={scale <= MIN_SCALE}>
           <ZoomOutIcon className="size-4" />

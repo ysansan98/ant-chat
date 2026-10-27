@@ -31,6 +31,8 @@ export function createWebRendererViteConfig({
   runtime,
   rootDir,
 }: WebRendererViteConfigOptions): UserConfig {
+  const swcOptionsMutatorKey = 'useAtYourOwnRisk_mutateSwcOptions' as const
+
   return {
     define: {
       __APP_RUNTIME__: JSON.stringify(runtime),
@@ -55,7 +57,9 @@ export function createWebRendererViteConfig({
       // 统一使用 SWC 原生转换 + SWC 版 React Compiler（Rust 实现，毫秒级，
       // 同时保留 memo 优化），dev 冷启动与生产构建共用一条工具链
       reactSwc({
-        useAtYourOwnRisk_mutateSwcOptions: (options) => {
+        // 键名是 @vitejs/plugin-react-swc 的固定 API，不含 Hook 语义；
+        // 用常量计算键避开 react/no-unnecessary-use-prefix 对 use 前缀的误判
+        [swcOptionsMutatorKey]: (options) => {
           // @swc/core 的 Options.jsc / jsc.transform 类型均为可选字段，
           // strict 模式下直接链式赋值会报 TS18048，先初始化再写入
           options.jsc = options.jsc ?? {}

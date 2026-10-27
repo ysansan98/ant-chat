@@ -4,6 +4,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@workspace/
 import { ChevronRightIcon } from 'lucide-react'
 import { useState } from 'react'
 import { formatDuration } from '@/utils'
+import { modelToolCallIdentity, withStableKeys } from './evidenceKeys'
 import { agentModeLabel, policyBasisLabel } from './evidenceModel'
 import { CodeBlock, ErrorBlock, KeyValueList, Section, StatGrid } from './evidencePrimitives'
 import { JsonTree } from './JsonTree'
@@ -49,8 +50,8 @@ function ModelRequestDetail({ view }: { view: ModelRequestView }) {
             {view.toolCalls.length > 0 && (
               <SubSection title={`工具调用（${view.toolCalls.length}）`}>
                 <div className="space-y-1.5">
-                  {view.toolCalls.map((call, index) => (
-                    <div key={call.id ?? index} className="rounded-lg border border-border p-2.5">
+                  {withStableKeys(view.toolCalls, modelToolCallIdentity).map(({ item: call, key }) => (
+                    <div key={key} className="rounded-lg border border-border p-2.5">
                       <div className="flex flex-wrap items-center gap-1.5 text-xs">
                         <span className="font-medium">{call.toolName}</span>
                         {call.invalidArgsError && <Badge variant="outline" className="border-amber-500/40 text-amber-700 dark:text-amber-400">参数错误</Badge>}
@@ -141,18 +142,18 @@ function PolicyDecisionDetail({ view }: { view: PolicyDecisionView }) {
   const basisText = policyBasisLabel(view.basis)
   const modeText = permissionContextLabel(view) ?? agentModeLabel(view.mode)
   const toolTags = [
-    view.toolName,
-    view.operationType,
-    view.interpreter,
-    view.scope,
-  ].filter(Boolean)
+    { key: 'toolName', value: view.toolName },
+    { key: 'operationType', value: view.operationType },
+    { key: 'interpreter', value: view.interpreter },
+    { key: 'scope', value: view.scope },
+  ].filter((tag): tag is { key: string, value: string } => tag.value != null)
 
   return (
     <div className="space-y-4">
       {toolTags.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
-          {toolTags.map((tag, i) => (
-            <Badge key={`${tag}-${i}`} variant="outline">{tag}</Badge>
+          {toolTags.map(tag => (
+            <Badge key={tag.key} variant="outline">{tag.value}</Badge>
           ))}
         </div>
       )}
