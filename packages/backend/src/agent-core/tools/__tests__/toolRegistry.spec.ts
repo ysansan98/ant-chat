@@ -598,7 +598,7 @@ describe('toolRegistry Skill 白名单', () => {
     })
 
     const prepared = registry.prepare('execute_command', {
-      command: `${process.execPath} -e "process.stdout.write(process.env.ANT_CHAT_TOKEN || '')"`,
+      command: `"${process.execPath}" -e "process.stdout.write(process.env.ANT_CHAT_TOKEN || '')"`,
       secretEnv: { ANT_CHAT_TOKEN: secretRef },
     })
     const result = await prepared.execute()

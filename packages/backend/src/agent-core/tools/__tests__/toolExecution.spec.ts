@@ -100,7 +100,7 @@ describe('executeToolStep 行为', () => {
       requestedToolCall: {
         toolName: 'execute_command',
         input: {
-          command: `${process.execPath} -e "process.stdout.write(process.env.ANT_CHAT_TOKEN || '')"`,
+          command: `"${process.execPath}" -e "process.stdout.write(process.env.ANT_CHAT_TOKEN || '')"`,
           secretEnv: { ANT_CHAT_TOKEN: secretRef },
         },
       },

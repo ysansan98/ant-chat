@@ -61,6 +61,15 @@ describe('preValidateBashScope 行为', () => {
       expect(preValidateBashScope({ command: 'printf x & rm -rf ./target' }, workspacePath)).toBe('blocked')
     })
 
+    it('命令名的引号拼接仍视为不可校验', () => {
+      expect(preValidateBashScope({ command: `"${process.execPath}"x run.js` }, workspacePath)).toBe('blocked')
+      expect(preValidateBashScope({ command: `'${process.execPath}'x run.js` }, workspacePath)).toBe('blocked')
+    })
+
+    it('完整引用的含空格命令名可正常解析', () => {
+      expect(preValidateBashScope({ command: `"${process.execPath}" run.js` }, workspacePath)).toBe('workspace')
+    })
+
     it.each([
       'rm -rf src',
       'sudo ls',
@@ -183,7 +192,7 @@ describe('preValidateBashScope 行为', () => {
   describe('workspace — 安全放行', () => {
     it('记忆授权默认生成精确命令规则', () => {
       const parsed = parseBashCommand(
-        { command: `${process.execPath} run.js issue` },
+        { command: `"${process.execPath}" run.js issue` },
         workspacePath,
       )
       const candidates = createBashCandidates(parsed)
@@ -210,11 +219,11 @@ describe('preValidateBashScope 行为', () => {
 
       expect(matchBashRule(parsed, rule)).toBe(true)
       expect(matchBashRule(parseBashCommand(
-        { command: `${process.execPath} run.js issue extra` },
+        { command: `"${process.execPath}" run.js issue extra` },
         workspacePath,
       ), rule)).toBe(false)
       expect(matchBashRule(parseBashCommand(
-        { command: `${process.execPath} run.js` },
+        { command: `"${process.execPath}" run.js` },
         workspacePath,
       ), rule)).toBe(false)
     })
@@ -372,7 +381,7 @@ describe('preValidateBashScope 行为', () => {
       fs.writeFileSync(path.join(skillPath, 'run.js'), 'console.log("ok")\n')
 
       expect(preValidateBashScope(
-        { command: `${process.execPath} run.js`, cwd: skillPath },
+        { command: `"${process.execPath}" run.js`, cwd: skillPath },
         workspacePath,
         { trustedPaths: [skillPath] },
       )).toBe('workspace')
@@ -382,7 +391,7 @@ describe('preValidateBashScope 行为', () => {
       fs.writeFileSync(path.join(skillPath, 'run.js'), 'console.log("ok")\n')
 
       expect(preValidateBashScope(
-        { command: `${process.execPath} run.js`, cwd: skillPath },
+        { command: `"${process.execPath}" run.js`, cwd: skillPath },
         workspacePath,
       )).toBe('outside')
     })

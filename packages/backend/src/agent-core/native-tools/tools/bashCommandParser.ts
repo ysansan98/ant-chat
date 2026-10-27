@@ -788,6 +788,50 @@ function findInlineEnvironmentVariable(command: string): string | undefined {
   return undefined
 }
 
+interface ShellCommandName {
+  /** 命令名 token（保留包裹引号） */
+  name: string
+  /** 整个 token 是否被一对引号完整包裹且引号内无转义 */
+  fullyQuoted: boolean
+}
+
+/**
+ * 提取段落的命令名 token，并判断它是否为完整引用的路径。
+ *
+ * 仅供 findUnverifiableShellStructure 判断「引号拼接」使用，不参与执行。
+ */
+function readShellCommandName(segment: string): ShellCommandName | undefined {
+  const trimmed = segment.trimStart()
+  if (!trimmed) {
+    return undefined
+  }
+  const quote = trimmed[0]
+  if (quote !== '"' && quote !== '\'') {
+    return { name: trimmed.match(/^\S+/u)?.[0] ?? '', fullyQuoted: false }
+  }
+  let end = -1
+  for (let index = 1; index < trimmed.length; index++) {
+    // 双引号内的反斜杠会转义下一个字符，含转义的命令名一律不视为可校验。
+    if (quote === '"' && trimmed[index] === '\\') {
+      index++
+      continue
+    }
+    if (trimmed[index] === quote) {
+      end = index
+      break
+    }
+  }
+  if (end === -1) {
+    return { name: trimmed, fullyQuoted: false }
+  }
+  const after = trimmed[end + 1]
+  const endsToken = after === undefined || /\s/u.test(after)
+  return {
+    name: trimmed.slice(0, end + 1),
+    fullyQuoted: endsToken && end > 1 && !trimmed.slice(1, end).includes('\\'),
+  }
+}
+
 function findUnverifiableShellStructure(command: string): string | undefined {
   let inSingleQuote = false
   let inDoubleQuote = false
@@ -817,12 +861,15 @@ function findUnverifiableShellStructure(command: string): string | undefined {
 
   try {
     for (const segment of splitByShellOperators(command)) {
-      const firstToken = segment.match(/^\S+/u)?.[0]
-      if (firstToken?.includes('"') || firstToken?.includes('\''))
+      const commandName = readShellCommandName(segment)
+      const firstToken = commandName?.name
+      // 仅允许「整个命令名被一对引号完整包裹」的写法（路径含空格时必须如此）。
+      // `"foo"bar` 这类引号拼接仍视为无法可靠校验。
+      if (!commandName?.fullyQuoted && (firstToken?.includes('"') || firstToken?.includes('\'')))
         return '命令名包含引号拼接'
-      if (firstToken && /[*?[]/u.test(firstToken))
+      if (!commandName?.fullyQuoted && firstToken && /[*?[]/u.test(firstToken))
         return '命令名包含 glob 展开'
-      const normalizedFirstToken = firstToken?.toLowerCase()
+      const normalizedFirstToken = commandName?.fullyQuoted ? undefined : firstToken?.toLowerCase()
       if (normalizedFirstToken && SHELL_CONTROL_WORDS.has(normalizedFirstToken))
         return `控制关键字 ${normalizedFirstToken}`
     }
