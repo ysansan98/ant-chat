@@ -1,41 +1,114 @@
-import type { MessageContent, SearchResult } from '@ant-chat/shared'
+import type { SearchResult } from '@ant-chat/shared'
 import type { AppDataDatabase } from '../types'
-import { parseMessageContent } from '../rows'
+import { escapeLikePattern, ftsPhrase, resolveSearchStrategy } from '../sqliteMessageSearch'
 
 interface SearchMessageRow {
   id: string
   conversationId: string
   conversationTitle: string
-  content: string
+  text: string
   createdAt: number
   convCreatedAt: number
 }
 
+interface SearchCapability {
+  fts5: boolean
+  trigram: boolean
+}
+
+/**
+ * 用户全局消息搜索：只查搜索投影/FTS，不再解析 messages.content JSON。
+ *
+ * - 匹配范围是 message_search_documents.text（text/error/批注等用户可读文本），
+ *   不含 tool_text；
+ * - FTS 不可用或表缺失时降级为投影表 LIKE，仍避免 json_each 全表扫描；
+ * - 分组与排序保持原合同：会话按 created_at DESC，组内消息按 created_at DESC。
+ */
 export class SqliteMessageSearchQuery {
-  constructor(private readonly db: AppDataDatabase) {}
+  private readonly capability: SearchCapability
+
+  constructor(private readonly db: AppDataDatabase) {
+    this.capability = readCapability(db)
+  }
 
   async searchMessagesByKeyword(query: string): Promise<SearchResult[]> {
-    const searchQuery = `%${query}%`
-    const results = this.db.prepare<unknown[], SearchMessageRow>(`
+    // 空查询没有可检索 token，返回空结果而不是退化成匹配全部消息
+    const keyword = query?.trim() ?? ''
+    if (!keyword) {
+      return []
+    }
+
+    const strategy = resolveSearchStrategy(this.capability.fts5, this.capability.trigram, keyword)
+    const rows = strategy === 'like'
+      ? this.searchProjection(keyword)
+      : this.searchFts(strategy, keyword)
+
+    return groupSearchResults(rows, keyword)
+  }
+
+  private searchProjection(keyword: string): SearchMessageRow[] {
+    return this.db.prepare<unknown[], SearchMessageRow>(`
       SELECT
         m.id AS id,
-        m.conv_id AS conversationId,
+        d.conversation_id AS conversationId,
         IFNULL(c.title, '') AS conversationTitle,
-        m.content AS content,
+        d.text AS text,
         m.created_at AS createdAt,
         c.created_at AS convCreatedAt
-      FROM messages m
-      LEFT JOIN conversations c ON m.conv_id = c.id
-      WHERE EXISTS (
-        SELECT 1
-        FROM json_each(m.content) AS item
-        WHERE json_extract(item.value, '$.type') = 'text'
-          AND json_extract(item.value, '$.text') LIKE ?
-      )
+      FROM message_search_documents d
+      JOIN messages m ON m.id = d.message_id
+      LEFT JOIN conversations c ON c.id = d.conversation_id
+      WHERE d.text LIKE ? ESCAPE '\\'
       ORDER BY c.created_at DESC, m.created_at DESC
-    `).all(searchQuery)
+    `).all(`%${escapeLikePattern(keyword)}%`)
+  }
 
-    return groupSearchResults(results, query)
+  private searchFts(strategy: 'trigram' | 'unicode', keyword: string): SearchMessageRow[] {
+    const ftsTable = strategy === 'trigram' ? 'messages_fts_trigram' : 'messages_fts_unicode'
+    // 列限定符是固定常量，用户输入整体作为已转义的 phrase 参数；
+    // 限定 text 列可避免 tool_text 命中改变用户搜索的匹配范围。
+    const matchExpression = `text : ${ftsPhrase(keyword)}`
+
+    return this.db.prepare<unknown[], SearchMessageRow>(`
+      SELECT
+        m.id AS id,
+        d.conversation_id AS conversationId,
+        IFNULL(c.title, '') AS conversationTitle,
+        d.text AS text,
+        m.created_at AS createdAt,
+        c.created_at AS convCreatedAt
+      FROM ${ftsTable} f
+      JOIN message_search_documents d ON d.message_id = f.message_id
+      JOIN messages m ON m.id = d.message_id
+      LEFT JOIN conversations c ON c.id = d.conversation_id
+      WHERE ${ftsTable} MATCH ?
+      ORDER BY c.created_at DESC, m.created_at DESC
+    `).all(matchExpression)
+  }
+}
+
+/** 能力以 message_search_meta 为准，并校验 FTS 表真实存在（防止标记与表不一致）。 */
+function readCapability(db: AppDataDatabase): SearchCapability {
+  try {
+    const values = new Map(
+      db.prepare<unknown[], { key: string, value: string }>(`
+        SELECT key, value FROM message_search_meta
+      `).all().map(row => [row.key, row.value]),
+    )
+    const tables = new Set(
+      db.prepare<unknown[], { name: string }>(`
+        SELECT name FROM sqlite_master
+        WHERE type = 'table' AND name IN ('messages_fts_unicode', 'messages_fts_trigram')
+      `).all().map(row => row.name),
+    )
+    return {
+      fts5: values.get('fts5') === '1' && tables.has('messages_fts_unicode'),
+      trigram: values.get('fts_trigram') === '1' && tables.has('messages_fts_trigram'),
+    }
+  }
+  catch {
+    // 能力表不存在（例如未跑 migration 的测试库）：整体降级为投影 LIKE
+    return { fts5: false, trigram: false }
   }
 }
 
@@ -57,7 +130,7 @@ function groupSearchResults(rows: SearchMessageRow[], query: string): SearchResu
       conversationId,
       messages: list.map(item => ({
         id: item.id,
-        content: extractSnippet(contentToSearchText(parseMessageContent(item.content)), query),
+        content: extractSnippet(item.text, query),
         createdAt: item.createdAt,
       })),
       conversationTitle: first.conversationTitle,
@@ -66,18 +139,6 @@ function groupSearchResults(rows: SearchMessageRow[], query: string): SearchResu
   }
 
   return result
-}
-
-function contentToSearchText(content: MessageContent): string {
-  return content.reduce((acc, item) => {
-    if (item.type === 'text') {
-      return acc + item.text
-    }
-    if (item.type === 'error') {
-      return acc + item.error
-    }
-    return acc
-  }, '')
 }
 
 function extractSnippet(text: string, keyword: string, contextLength = 50): string {
