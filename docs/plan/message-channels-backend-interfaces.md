@@ -1,5 +1,7 @@
 # 消息频道：Backend Module 与 Interface 设计
 
+> 状态：已实施（2026-10 核对）。下文已按实际接口同步关键差异；当前实现以 `packages/backend/src/channels/` 为准。
+
 ## 设计原则
 
 频道模块是一个 deep module：平台差异、重连、QR/setup、消息格式、限流、重试和投递分段隐藏在 connector/投递实现内；Agent Runtime 只看到统一的入口和现有事件。
@@ -25,17 +27,29 @@ Runtime module，持有频道整体生命周期：
 
 平台 Adapter 的 seam。一个 connector 对应一个平台：`FeishuConnector` 或 `WeixinConnector`。
 
-建议 interface（实现时可按现有类型命名调整）：
+实际 interface（见 `packages/backend/src/channels/channelConnector.ts`）：
 
 ```ts
 interface ChannelConnector {
-  readonly type: 'feishu' | 'weixin'
+  readonly type: ChannelType
+  readonly capabilities: ChannelCapabilities
 
-  setup(input: ChannelSetupInput): Promise<ChannelSetupResult>
-  start(input: ChannelStartInput): Promise<void>
-  stop(): Promise<void>
-  send(input: ChannelSendInput): Promise<ChannelSendResult>
-  getStatus(): ChannelConnectionStatus
+  setup(input: ChannelSetupInput): Promise<unknown>
+  start(input: {
+    channelAccountId: string
+    credential?: string
+    onInbound: (event: ChannelInboundEvent) => Promise<void>
+    onAction: (event: ChannelActionEvent) => Promise<ChannelActionResult>
+  }): Promise<void>
+  stop: () => Promise<void>
+  send: (input: ChannelSendInput) => Promise<ChannelSendResult>
+  sendAttachment: (input: {
+    externalChatId: string
+    attachment: ChannelAttachment
+  }) => Promise<{ messageId: string }>
+  update?: (input: ChannelUpdateInput) => Promise<void>
+  setTyping?: (input: ChannelTypingInput) => Promise<ChannelTypingResult>
+  getStatus: () => ChannelConnectorStatus
 }
 ```
 
@@ -96,6 +110,7 @@ turnSource: {
 type ChannelCommand =
   | { id: 'new'; path?: string }
   | { id: 'model'; query: string }
+  | { id: 'mode'; query?: string }
   | { id: 'models' }
   | { id: 'steer'; text: string }
   | { id: 'stop' }
@@ -147,26 +162,29 @@ interface ChannelDelivery {
 
 新增 `channel` namespace，复用现有 AppControl/RouteRegistry，不从 Renderer 或 CLI 直接启动 connector。
 
-建议能力集合：
+实际 AppControl 能力集合：
 
 ```text
 channel.list
 channel.setup
-channel.update
+channel.disconnect
+channel.create
+channel.delete
 channel.enable
 channel.disable
-channel.disconnect
 channel.getStatus
 channel.listPairingRequests
 channel.approvePairing
 channel.rejectPairing
+channel.listPairings
+channel.revokePairing
 ```
 
 约束：
 
 - setup 返回 QR/验证 URL 的短期状态，不把二维码凭据写入前端持久 store；
 - 任何 public DTO 不包含 App Secret、iLink token 或 SecretRef 明文；
-- `channel.update` 只接收非敏感配置和已校验 workspace；
+- `channel.update` 当前只存在于 `ChannelModule` 内部，尚未由 AppControl/CLI 暴露；若后续暴露，只接收非敏感配置和已校验 workspace；
 - `channel.disconnect` 清理连接、凭据引用和临时 pairing/approval 状态，但不删除 Conversation/Message/Trace；
 - 状态查询必须区分 `configured`、`connecting`、`connected`、`degraded`、`disconnected`，连接失败不能只返回 boolean。
 

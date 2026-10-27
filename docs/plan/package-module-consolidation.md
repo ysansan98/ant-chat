@@ -1,5 +1,7 @@
 # Packages 模块合并执行计划
 
+> 状态：已实施（历史记录）。本文的包结构是合并完成时的目标，后续继续演进：`local-server` 已改造为 npm 产品包 `ant-chat`，新增 `@ant-chat/control-client`，`@ant-chat/backend/rpc-handlers` 公开入口已移除。当前结构以 README 和 `package.json` 为准。
+
 ## 目标
 
 将以下四个内部包合并为 `@ant-chat/backend` 的源码模块：
@@ -70,7 +72,9 @@ appRuntime ──→ agent-runtime ──→ agent-core
 - [x] 验证 Local Server 能启动并调用运行时。
 - [x] 验证会话、Agent turn、MCP 工具和数据持久化主流程。
 
-## 完成标准
+## 完成标准（合并时点）
+
+> 以下是合并完成时的标准，包结构后续已继续演进，见文首状态注记。
 
 - `packages` 只保留 `backend`、`shared`、`local-server` 和 `ui`。
 - Desktop 和 Local Server 仍只依赖 `@ant-chat/backend`。

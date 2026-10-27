@@ -41,6 +41,8 @@ spawn(originalCommand, {
 
 因此 `git status && node script.js` 只启动一个 shell，不再拆成两次 `spawn(shell: false)`。短路、shell builtin、`cd`、环境状态、输出顺序和 timeout 都由同一个 shell 负责。
 
+> 现状注记（2026-10）：代码已重构为 `runPreparedCommand()`（`packages/backend/src/agent-core/native-tools/command/commandRunner.ts:25`）+ `spawn(executablePath, args, { shell: false })`（同文件 44-58 行），由固定解释器一次执行（`bashCommandAdapter.ts:94-99`）。结论（完整命令一次执行）仍成立，以上摘录保留为 2026-07-26 历史记录。
+
 非法 `&&`（前置、后置或连续空段）会作为无效输入拒绝，不再静默改写。
 
 当前 parser 无法可靠抽取子 shell、命令替换、动态变量展开、命令名引号拼接或 glob、分组、控制结构和未引用反斜杠中的全部 command node，因此这些结构直接硬阻断；简单管道、重定向和分号仍可在单次审批后原样执行。

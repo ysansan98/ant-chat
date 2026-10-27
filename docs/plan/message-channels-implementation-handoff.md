@@ -1,5 +1,9 @@
 # 消息频道实施交接
 
+> 状态：已实施（2026-10 核对）。飞书已接入；微信代码已实现，真实 iLink 扫码/长轮询联调状态待确认（无代码留痕）。
+>
+> 本文保留为实施交接记录；当前实现以 `packages/backend/src/channels/` 为准。
+
 ## 交接目标
 
 在新会话中按既定规格实施个人微信（Weixin）和飞书消息频道。本文是实施入口；完整模型见：
@@ -44,7 +48,7 @@
 - `ChannelCommandParser`；
 - 配对和 owner 自动授权；
 - Session 路由；
-- `/new [path]`、`/model`、`/models`、`/steer`、`/stop`、`/status`、`/help`、`/approve`、`/deny`；
+- `/new [path]`、`/model`、`/mode`、`/models`、`/steer`、`/stop`、`/status`、`/help`、`/approve`、`/deny`；
 - 入站 receipt 事务和 AgentTurnSource；
 - fake connector 端到端测试。
 
@@ -77,7 +81,7 @@
 
 - 飞书：官方 scan-to-create、WebSocket、私聊文本、事件校验；
 - 微信：iLink QR、long-polling、owner user ID 自动授权、配对回退、私聊文本；
-- 当前状态：飞书已接入；微信已完成代码实现，等待真实 iLink 扫码/长轮询联调。
+- 当前状态：飞书已接入；微信已完成代码实现；真实 iLink 扫码/长轮询联调状态待确认（无代码留痕）。
 
 平台 SDK 只能位于 adapter；不得把平台对象泄漏到 shared domain 或 Agent Runtime。
 
@@ -124,6 +128,6 @@ pnpm build
 
 平台真实联调需要记录：扫码创建/登录、重启恢复、重复事件、断网重连、长回复分段、审批 FIFO、Web/Desktop 推送和断开后历史保留。
 
-## 当前工作树注意事项
+## 当前工作树注意事项（交接时点）
 
 交接时工作树已有大量与 MCP/AppRuntime/SecretStore 相关的未提交修改。实施新功能前必须以当前工作树为事实基线，不要 reset、checkout 或覆盖这些改动；频道改动应保持文件范围可识别。

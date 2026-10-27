@@ -1,7 +1,7 @@
 # UI 规范（Agent 可读）
 
 本文件是 UI 代码的强制约束。所有新增和修改的 renderer 代码必须遵守。
-设计方向：Kami 纸感（详见 `apps/web/DESIGN.md`）——米白背景、低对比边框、克制用色、信息卡片化。
+设计方向：Kami 纸感——米白背景、低对比边框、克制用色、信息卡片化。
 
 技术栈：Tailwind CSS v4 + shadcn/ui（packages/ui）+ lucide-react 图标。
 
