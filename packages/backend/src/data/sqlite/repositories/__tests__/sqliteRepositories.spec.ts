@@ -12,6 +12,7 @@ import { SqliteMessageSearchQuery } from '../../queries'
 import { mapConversationRow } from '../../rows'
 import { SqliteConversationRepository } from '../sqliteConversationRepository'
 import { SqliteMessageRepository } from '../sqliteMessageRepository'
+import { SqlitePendingMessageRepository } from '../sqlitePendingMessageRepository'
 import { createConversationLifecycle } from '../../../../conversations/conversationLifecycle'
 import { SqliteChannelAccountRepository, SqliteChannelPairingRepository, SqliteChannelReceiptRepository, SqliteChannelSessionRepository } from '../sqliteChannelRepositories'
 
@@ -187,6 +188,67 @@ describe('sqlite repositories', () => {
     await accountRepository.updatePermissionMode('account-1', 'strict')
     expect(await accountRepository.getById('account-1')).toEqual(expect.objectContaining({ permissionMode: 'strict' }))
     expect(await sessionRepository.get('account-1', 'chat-1')).toEqual(expect.objectContaining({ activeConversationId: conversation.id }))
+  })
+
+  it('待处理消息持久化接力元数据，并按 createdAt 与 id 恢复顺序', async () => {
+    const conversationRepository = new SqliteConversationRepository(sqlite)
+    const conversation = await conversationRepository.create({
+      title: '队列会话',
+      workspacePath: '/workspace',
+      createdAt: 1,
+      updatedAt: 1,
+      conversationInstructions: '',
+      settings: { modelId: 'm', providerId: '' },
+    })
+    const turnSource = {
+      type: 'channel' as const,
+      channelType: 'feishu' as const,
+      channelAccountId: 'account-1',
+      externalUserId: 'user-1',
+      externalChatId: 'chat-1',
+      externalMessageId: 'external-1',
+    }
+    const repository = new SqlitePendingMessageRepository(sqlite)
+    await repository.create({
+      id: 'p-second',
+      conversationId: conversation.id,
+      text: '第二条',
+      source: 'channel',
+      mode: 'strict',
+      userMessageId: 'm1',
+      turnSource,
+      createdAt: 10,
+    })
+    await repository.create({
+      id: 'p-first',
+      conversationId: conversation.id,
+      text: '第一条',
+      source: 'sender',
+      createdAt: 5,
+    })
+    await repository.create({
+      id: 'p-tie',
+      conversationId: conversation.id,
+      text: '同一毫秒第二条',
+      source: 'sender',
+      createdAt: 5,
+    })
+
+    // 新实例模拟进程重启后从同一数据库恢复队列。
+    const reopened = new SqlitePendingMessageRepository(sqlite)
+    const records = await reopened.listByConversation(conversation.id)
+
+    expect(records.map(record => record.id)).toEqual(['p-first', 'p-tie', 'p-second'])
+    expect(records[2]).toMatchObject({
+      text: '第二条',
+      mode: 'strict',
+      userMessageId: 'm1',
+      turnSource,
+      createdAt: 10,
+    })
+    expect(records[0]).not.toHaveProperty('mode')
+    expect(records[0]).not.toHaveProperty('userMessageId')
+    expect(records[0]).not.toHaveProperty('turnSource')
   })
 
   it('归档后从普通列表隐藏，并可按工作区搜索和恢复', async () => {
