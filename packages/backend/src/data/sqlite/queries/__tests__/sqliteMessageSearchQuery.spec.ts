@@ -125,8 +125,21 @@ describe('sqliteMessageSearchQuery', () => {
     expect(percentResults.flatMap(result => result.messages.map(message => message.id))).toEqual([literal.id])
     expect(backslashResults.flatMap(result => result.messages.map(message => message.id))).toEqual([literal.id])
     expect(quoteResults).toEqual([])
-    // 旧实现把 % 当 SQL LIKE 通配符；新语义下它不是检索 token，不会命中全部消息
-    expect(wildcardResults).toEqual([])
+    // % 不再是 SQL LIKE 通配符，只按字面匹配包含 % 的消息
+    expect(wildcardResults.flatMap(result => result.messages.map(message => message.id))).toEqual([literal.id])
+  })
+
+  it('英文与路径查询保持旧 LIKE 的子串语义', async () => {
+    const conversation = await createConversation('子串', 1)
+    const english = await addMessage(conversation.id, [{ type: 'text', text: 'a needle in the haystack' }], 1)
+    const pathMessage = await addMessage(conversation.id, [{ type: 'text', text: '打开 /Users/name/project/file.ts 查看' }], 2)
+    const shortWord = await addMessage(conversation.id, [{ type: 'text', text: 'abcde' }], 3)
+    const idsOf = (results: Awaited<ReturnType<typeof search.searchMessagesByKeyword>>) =>
+      results.flatMap(result => result.messages.map(message => message.id))
+
+    expect(idsOf(await search.searchMessagesByKeyword('need'))).toEqual([english.id])
+    expect(idsOf(await search.searchMessagesByKeyword('project/file'))).toEqual([pathMessage.id])
+    expect(idsOf(await search.searchMessagesByKeyword('ab'))).toEqual([shortWord.id])
   })
 
   it('空查询返回空结果', async () => {
@@ -187,15 +200,16 @@ describe('sqliteMessageSearchQuery', () => {
     const plan = sqlite.prepare(`
       EXPLAIN QUERY PLAN
       SELECT m.id
-      FROM messages_fts_unicode f
-      JOIN message_search_documents d ON d.message_id = f.message_id
-      JOIN messages m ON m.id = d.message_id
-      LEFT JOIN conversations c ON c.id = d.conversation_id
-      WHERE messages_fts_unicode MATCH ?
+      FROM messages_fts_trigram f
+      JOIN messages m ON m.id = f.message_id
+      LEFT JOIN conversations c ON c.id = m.conv_id
+      WHERE messages_fts_trigram MATCH ?
       ORDER BY c.created_at DESC, m.created_at DESC
     `).all('text : "needle"') as Array<{ detail: string }>
 
-    expect(plan.map(row => row.detail).join('\n')).not.toContain('json_each')
+    const details = plan.map(row => row.detail).join('\n')
+    expect(details).not.toContain('json_each')
+    expect(details).not.toContain('SCAN messages')
   })
 })
 
