@@ -61,6 +61,7 @@ describe('app-data SQLite 迁移', () => {
       { version: 10, name: '记录微信扫码登录 owner 身份' },
       { version: 11, name: '自动化 run 状态收窄并增加已读标记' },
       { version: 12, name: '增加待处理消息队列表' },
+      { version: 13, name: '补充消息查询复合索引' },
     ])
   })
 
@@ -114,7 +115,7 @@ describe('app-data SQLite 迁移', () => {
     expect(messageColumnNames).not.toEqual(expect.arrayContaining(['images', 'attachments']))
     const conversationColumns = sqlite.prepare('PRAGMA table_info(conversations)').all() as Array<{ name: string }>
     expect(conversationColumns.map(column => column.name)).toContain('archived')
-    expect(sqlite.prepare('SELECT version FROM app_data_migrations').all()).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }, { version: 7 }, { version: 8 }, { version: 9 }, { version: 10 }, { version: 11 }, { version: 12 }])
+    expect(sqlite.prepare('SELECT version FROM app_data_migrations').all()).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }, { version: 7 }, { version: 8 }, { version: 9 }, { version: 10 }, { version: 11 }, { version: 12 }, { version: 13 }])
   })
 
   // ===== 测试：version 11 → 12 迁移 =====
@@ -149,6 +150,61 @@ describe('app-data SQLite 迁移', () => {
       runSqliteMigrations(sqlite, createAppDataMigrations({ attachmentsRootPath }))
       const applied = sqlite.prepare('SELECT COUNT(*) AS count FROM app_data_migrations WHERE version = 12').get() as { count: number }
       expect(applied.count).toBe(1)
+    })
+  })
+
+  // ===== 测试：version 12 → 13 迁移 =====
+
+  describe('version 12→13 迁移', () => {
+    it('新数据库初始化后包含消息查询复合索引', () => {
+      runSqliteMigrations(sqlite, createAppDataMigrations({ attachmentsRootPath }))
+
+      const indexes = sqlite.prepare(`
+        SELECT name, sql FROM sqlite_master
+        WHERE type = 'index' AND tbl_name = 'messages'
+        ORDER BY name
+      `).all() as Array<{ name: string, sql: string }>
+      expect(indexes).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          name: 'idx_messages_conversation_created_at',
+          sql: expect.stringContaining('(conv_id, created_at)'),
+        }),
+        expect.objectContaining({
+          name: 'idx_messages_conversation_turn',
+          sql: expect.stringContaining('(conv_id, turn_id)'),
+        }),
+      ]))
+    })
+
+    it('从 v12 升级为旧库补齐索引，重复运行保持幂等', () => {
+      runSqliteMigrations(sqlite, createAppDataMigrations({ attachmentsRootPath }))
+      // 模拟 v12 数据库：移除 v13 建立的索引与迁移记录
+      sqlite.exec(`
+        DROP INDEX idx_messages_conversation_created_at;
+        DROP INDEX idx_messages_conversation_turn;
+        DELETE FROM app_data_migrations WHERE version > 12;
+      `)
+      expect(sqlite.prepare(`
+        SELECT COUNT(*) AS count FROM sqlite_master
+        WHERE type = 'index' AND tbl_name = 'messages'
+          AND name IN ('idx_messages_conversation_created_at', 'idx_messages_conversation_turn')
+      `).get()).toEqual({ count: 0 })
+
+      runSqliteMigrations(sqlite, createAppDataMigrations({ attachmentsRootPath }))
+      expect(sqlite.prepare(`
+        SELECT COUNT(*) AS count FROM sqlite_master
+        WHERE type = 'index' AND tbl_name = 'messages'
+          AND name IN ('idx_messages_conversation_created_at', 'idx_messages_conversation_turn')
+      `).get()).toEqual({ count: 2 })
+
+      // 再次运行不应重复创建索引或重复记录版本
+      runSqliteMigrations(sqlite, createAppDataMigrations({ attachmentsRootPath }))
+      expect(sqlite.prepare('SELECT COUNT(*) AS count FROM app_data_migrations WHERE version = 13').get()).toEqual({ count: 1 })
+      expect(sqlite.prepare(`
+        SELECT COUNT(*) AS count FROM sqlite_master
+        WHERE type = 'index' AND tbl_name = 'messages'
+          AND name IN ('idx_messages_conversation_created_at', 'idx_messages_conversation_turn')
+      `).get()).toEqual({ count: 2 })
     })
   })
 

@@ -111,6 +111,64 @@ describe('sqlite repositories', () => {
     expect(messages).toEqual([expect.objectContaining({ id: message.id, convId: conversation.id })])
   })
 
+  it('会话消息按 created_at、rowid 稳定排序（复合索引不改变结果）', async () => {
+    const conversationRepository = new SqliteConversationRepository(sqlite)
+    const messageRepository = new SqliteMessageRepository(sqlite, { attachmentsRoot })
+    const conversation = await conversationRepository.create({
+      title: '排序',
+      workspacePath: '/workspace',
+      createdAt: 1,
+      updatedAt: 1,
+      conversationInstructions: '',
+      settings: { modelId: 'model-1', providerId: '' },
+    })
+
+    const late = await messageRepository.create({ convId: conversation.id, role: 'user', status: 'success', content: [{ type: 'text', text: 'late' }], createdAt: 300 })
+    const firstEarly = await messageRepository.create({ convId: conversation.id, role: 'user', status: 'success', content: [{ type: 'text', text: 'early-1' }], createdAt: 100 })
+    const secondEarly = await messageRepository.create({ convId: conversation.id, role: 'user', status: 'success', content: [{ type: 'text', text: 'early-2' }], createdAt: 100 })
+
+    const messages = await messageRepository.listByConversation(conversation.id)
+    expect(messages.map(message => message.id)).toEqual([firstEarly.id, secondEarly.id, late.id])
+  })
+
+  it('会话消息列表与 turn 查询使用复合索引，不再全表扫描', () => {
+    // 直接检查查询计划；写入少量数据即可，规划器仍会选择复合索引
+    sqlite.prepare(`
+      INSERT INTO conversations (id, workspace_path, title, created_at, updated_at, archived, settings)
+      VALUES ('conv-plan', '/ws', '计划', 1, 1, 0, '{}')
+    `).run()
+    for (let index = 0; index < 5; index++) {
+      sqlite.prepare(`
+        INSERT INTO messages (id, conv_id, role, content, created_at, status, turn_id, ordinal)
+        VALUES (?, 'conv-plan', 'user', '[]', ?, 'success', 'turn-1', ?)
+      `).run(`msg-plan-${index}`, 100 + index, index + 1)
+    }
+
+    const listPlan = explainPlan(sqlite, `
+      SELECT id, conv_id, created_at FROM messages
+      WHERE conv_id = ?
+      ORDER BY created_at ASC, rowid ASC
+    `, 'conv-plan')
+    expect(listPlan).toContain('idx_messages_conversation_created_at')
+    expect(listPlan).not.toContain('SCAN messages')
+    expect(listPlan).not.toContain('TEMP B-TREE')
+
+    // getTurn 的 turn_id 过滤走 (conv_id, turn_id) 索引
+    const turnFilterPlan = explainPlan(sqlite, `
+      SELECT id FROM messages WHERE conv_id = ? AND turn_id = ?
+    `, 'conv-plan', 'turn-1')
+    expect(turnFilterPlan).toContain('idx_messages_conversation_turn')
+    expect(turnFilterPlan).not.toContain('SCAN messages')
+
+    // getTurn 实际的 OR 查询：无论规划器选哪条索引路径，都不能退化为全表扫描
+    const turnPlan = explainPlan(sqlite, `
+      SELECT id FROM messages
+      WHERE (turn_id = ? OR id = ?) AND conv_id = ?
+      ORDER BY ordinal ASC
+    `, 'turn-1', 'msg-plan-0', 'conv-plan')
+    expect(turnPlan).not.toContain('SCAN messages')
+  })
+
   it('保存频道账号、配对、Session，并对 receipt 的外部事件和分段保持幂等', async () => {
     const accountRepository = new SqliteChannelAccountRepository(sqlite)
     const pairingRepository = new SqliteChannelPairingRepository(sqlite)
@@ -771,4 +829,9 @@ function existsSync(filePath: string): boolean {
 function loadBetterSqlite(): new (filename: string) => Database {
   const require = createRequire(import.meta.url)
   return require('better-sqlite3') as new (filename: string) => Database
+}
+
+function explainPlan(db: Database, sql: string, ...params: unknown[]): string {
+  const rows = db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...params) as Array<{ detail: string }>
+  return rows.map(row => row.detail).join('\n')
 }
