@@ -1,6 +1,6 @@
 import type { SearchResult } from '@ant-chat/shared'
 import type { AppDataDatabase } from '../types'
-import { escapeLikePattern, ftsPhrase, resolveSearchStrategy } from '../sqliteMessageSearch'
+import { escapeLikePattern, ftsPhrase } from '../sqliteMessageSearch'
 
 interface SearchMessageRow {
   id: string
@@ -38,10 +38,12 @@ export class SqliteMessageSearchQuery {
       return []
     }
 
-    const strategy = resolveSearchStrategy(this.capability.fts5, this.capability.trigram, keyword)
-    const rows = strategy === 'like'
-      ? this.searchProjection(keyword)
-      : this.searchFts(strategy, keyword)
+    // 用户全局搜索保持旧 LIKE 的子串语义：≥3 个字符走 trigram（支持子串），
+    // 更短的查询无法命中 trigram 索引，回退到投影表 LIKE。
+    const useTrigram = this.capability.fts5 && this.capability.trigram && [...keyword].length >= 3
+    const rows = useTrigram
+      ? this.searchTrigram(keyword)
+      : this.searchProjection(keyword)
 
     return groupSearchResults(rows, keyword)
   }
@@ -63,8 +65,7 @@ export class SqliteMessageSearchQuery {
     `).all(`%${escapeLikePattern(keyword)}%`)
   }
 
-  private searchFts(strategy: 'trigram' | 'unicode', keyword: string): SearchMessageRow[] {
-    const ftsTable = strategy === 'trigram' ? 'messages_fts_trigram' : 'messages_fts_unicode'
+  private searchTrigram(keyword: string): SearchMessageRow[] {
     // 列限定符是固定常量，用户输入整体作为已转义的 phrase 参数；
     // 限定 text 列可避免 tool_text 命中改变用户搜索的匹配范围。
     const matchExpression = `text : ${ftsPhrase(keyword)}`
@@ -72,16 +73,15 @@ export class SqliteMessageSearchQuery {
     return this.db.prepare<unknown[], SearchMessageRow>(`
       SELECT
         m.id AS id,
-        d.conversation_id AS conversationId,
+        m.conv_id AS conversationId,
         IFNULL(c.title, '') AS conversationTitle,
-        d.text AS text,
+        f.text AS text,
         m.created_at AS createdAt,
         c.created_at AS convCreatedAt
-      FROM ${ftsTable} f
-      JOIN message_search_documents d ON d.message_id = f.message_id
-      JOIN messages m ON m.id = d.message_id
-      LEFT JOIN conversations c ON c.id = d.conversation_id
-      WHERE ${ftsTable} MATCH ?
+      FROM messages_fts_trigram f
+      JOIN messages m ON m.id = f.message_id
+      LEFT JOIN conversations c ON c.id = m.conv_id
+      WHERE messages_fts_trigram MATCH ?
       ORDER BY c.created_at DESC, m.created_at DESC
     `).all(matchExpression)
   }
