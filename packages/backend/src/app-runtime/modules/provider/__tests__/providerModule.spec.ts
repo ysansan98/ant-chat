@@ -407,6 +407,33 @@ describe('provider module 认证生命周期撤销', () => {
     await expect(module.getProviderById({ id: 'openai' })).resolves.toMatchObject({ hasApiKey: false })
   })
 
+  it('updateProvider 未提交 API Key 时不触碰 Keychain 中的既有密钥', async () => {
+    let storedKey: string | null = 'existing-key'
+    const saveProviderApiKey = vi.fn(async ({ providerId, apiKey }) => {
+      storedKey = apiKey
+      return { kind: 'secret_ref' as const, id: `provider:${providerId}:api_key`, scope: 'persistent' as const }
+    })
+    const deleteProviderApiKey = vi.fn(async () => {
+      storedKey = null
+    })
+    const { module, repository } = createModule({
+      getProviderApiKey: vi.fn(async () => storedKey),
+      saveProviderApiKey,
+      deleteProviderApiKey,
+    })
+
+    await module.updateProvider({ config: { id: 'openai', name: 'Renamed OpenAI' } })
+
+    expect(saveProviderApiKey).not.toHaveBeenCalled()
+    expect(deleteProviderApiKey).not.toHaveBeenCalled()
+    expect(storedKey).toBe('existing-key')
+    expect(repository.getProviderSettingsById('openai')).toMatchObject({ name: 'Renamed OpenAI' })
+    await expect(module.getProviderById({ id: 'openai' })).resolves.toMatchObject({
+      name: 'Renamed OpenAI',
+      hasApiKey: true,
+    })
+  })
+
   it('内置 Provider 预置 secret ref 但 Keychain 无密钥时 hasApiKey 为 false', async () => {
     const { module } = createModule({
       getProviderApiKey: vi.fn(async () => null),

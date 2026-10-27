@@ -165,6 +165,28 @@ describe('agentMemoryManager', () => {
     expect(memory.lastSoulUpdate).toBeUndefined()
   })
 
+  it('keeps distinct backups when SOUL.md is updated twice within the same millisecond', async () => {
+    const service = createService()
+
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'))
+    await service.updateSoul({
+      content: '# SOUL\n\n- First change.',
+      summary: 'First change',
+    })
+    await service.updateSoul({
+      content: '# SOUL\n\n- Second change.',
+      summary: 'Second change',
+    })
+    const memory = await service.rollbackSoul()
+    vi.useRealTimers()
+
+    expect(memory.soulMarkdown).toBe('# SOUL\n\n- First change.\n')
+    expect(memory.lastSoulUpdate).toBeUndefined()
+    // 初始内容、第一次更新前内容、回滚前内容各自保留一份备份，互不覆盖。
+    expect(readdirSync(path.join(rootPath, '.soul-backups'))).toHaveLength(3)
+  })
+
   it('rejects empty SOUL.md content', async () => {
     const service = createService()
 
