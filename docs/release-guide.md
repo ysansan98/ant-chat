@@ -44,7 +44,7 @@
 
 ### 1.4 项目内依赖关系与变更影响面
 
-内部依赖链：`@ant-chat/shared`（叶子）→ backend / control-client / `@workspace-ui` → `apps/web`。
+内部依赖链：`@ant-chat/shared`（叶子）→ backend / control-client / `@workspace/ui` → `apps/web`。
 
 构建期绑定决定变更落点：
 
@@ -107,7 +107,7 @@ node scripts/validate-changeset.mjs origin/main
 git diff --check
 ```
 
-CI 在 PR 上会执行 Node.js 22 的 changeset 覆盖检查和 `pnpm check`：[ci.yml](/Users/ysansan/webProject/ant-chat/.github/workflows/ci.yml:35)。
+CI 在 PR 上强制执行 changeset 覆盖检查（仅 Node 22 矩阵，[ci.yml](../.github/workflows/ci.yml#L52-L54)）；`pnpm check` 在 Node 22/24 两个矩阵版本运行。
 
 `scripts/validate-changeset.mjs` 会：
 
@@ -168,7 +168,7 @@ git tag v1.0.0-alpha.1
 git push origin v1.0.0-alpha.1
 ```
 
-它触发 [release.yml](/Users/ysansan/webProject/ant-chat/.github/workflows/release.yml:1)。
+它触发 [release.yml](../.github/workflows/release.yml)。
 
 ### 5.2 npm 产品包
 
@@ -186,7 +186,7 @@ git tag ant-chat-v1.0.0-alpha.1
 git push origin ant-chat-v1.0.0-alpha.1
 ```
 
-它触发 [release-npm.yml](/Users/ysansan/webProject/ant-chat/.github/workflows/release-npm.yml:1)。
+它触发 [release-npm.yml](../.github/workflows/release-npm.yml)。
 
 ## 6. Desktop 发布流程
 
@@ -211,7 +211,7 @@ npm workflow 的阶段如下：
 
 1. 校验 `ant-chat-v<version>` tag；
 2. 在 Ubuntu、Node.js 22 环境构建产品包和 Web UI；
-3. 使用 `npm pack` 生成唯一 tarball；
+3. 使用 `pnpm pack` 生成唯一 tarball；
 4. 检查 tarball 包含：
    - `package/dist/cli.mjs`；
    - `package/dist/web/index.html`；
@@ -244,7 +244,7 @@ pnpm pack --pack-destination /tmp/ant-chat-package
 
 ### tarball 内容或 smoke 失败
 
-不要发布。先在本地执行 `pnpm build`、`npm pack` 和临时目录安装，修复包的 `files`、build 或资源复制问题后重新提交版本修复。
+不要发布。先在本地执行 `pnpm build`、`pnpm pack` 和临时目录安装，修复包的 `files`、build 或资源复制问题后重新提交版本修复。
 
 ### Desktop 某个平台构建失败
 

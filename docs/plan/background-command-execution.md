@@ -210,11 +210,12 @@ createAgentCommandPaths(appDataRoot) → {
 - RPC `agent.killBackgroundCommand`：`{ conversationId, commandId, signal? }` → `BackgroundCommandSummary | null`。属用户直接操作，不经 agent 审批，RPC 层校验会话归属。
 - RPC `agent.readBackgroundCommandOutput`：`{ conversationId, commandId, offset?, maxChars?, tail? }` → `{ text, nextOffset, status, exitCode?, truncated }`。复用 manager 的文件 offset 读取；`tail` 读最后 N 字节，供 UI 直接看尾部。
 
-**位置（D11）**：新增 `BackgroundCommandPanel`，放在 [SenderComposer.tsx](../../apps/web/src/components/Sender/SenderComposer.tsx) 中 `PendingMessageQueue` **之前**，与队列同处 composer 卡片内。无命令时 `return null`，不占位。
+**位置（D11）**：新增 `BackgroundCommandPanel`，实际挂载在 [Sender.tsx:78](../../apps/web/src/components/Sender/Sender.tsx#L78)，作为 `SenderComposer` 的兄弟节点（不在 composer 卡片内）。无运行中命令时 `return null`，不占位。
 
 **形态（D12）**：**横向胶囊组**，`flex flex-wrap gap-1` 排列，每个后台任务一个胶囊：
 
-- 胶囊内容：状态点（running 脉动 / exited 灰 / killed 红）+ 命令名（截断，优先 `description`）+ 运行中已结束的退出码；
+- 面板只保留运行中的命令；结束或被终止后从面板移除，终态通过 TurnTrace 徽标查看（`BackgroundCommandPanel.tsx:26,34-37`）；
+- 胶囊内容：running 脉动状态点 + 命令名（截断，优先 `description`）；
 - 超出 N 个时折叠为 `+N`，点击展开全部；
 - 任务多时占不超过两行高度，不长期顶高输入区；
 - 视觉上与队列区分（胶囊形态天然区别于队列的整行条目）。
@@ -231,8 +232,6 @@ createAgentCommandPaths(appDataRoot) → {
 
 - 投影：`useAppEventListener` 订阅 `agent:background-commands-updated` → `applyBackgroundCommandsSnapshot`（[useAppEventListener.ts](../../apps/web/src/hooks/useAppEventListener.ts)），存入 `store/agentRuntime`（新增 `backgroundCommandsByConversation`）。
 - 补齐：打开会话时调用 `agentApi.listBackgroundCommands(conversationId)`。
-- tool-call 卡片复用现有 `isExecuting` 判定（[turnSteps.ts](../../apps/web/src/components/Chat/turnSteps.ts)）显示「运行中」徽标；进程退出事件到达后收口为「已完成」。
-
 
 ## 生命周期（D9）
 

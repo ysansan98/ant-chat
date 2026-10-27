@@ -3,6 +3,8 @@
 > 调研日期：2026-07-31
 > 参考仓库：[`zarazhangrui/lark-coding-agent-bridge`](https://github.com/zarazhangrui/lark-coding-agent-bridge/tree/ec57a8851b172978eddd329757f813954bcb2294)
 > 固定源码版本：`ec57a8851b172978eddd329757f813954bcb2294`
+>
+> **快照时点：2026-07-31。** 部分「本地在建实现」缺口已在后续提交中修复，见文末「实现更新记录」。正文中的 file:line 为调研时点，当前行号可能漂移。
 
 ## 结论
 
@@ -15,7 +17,7 @@
 
 参考仓库实际有流式执行、停止、模型/配置表单、工作区切换、会话恢复、状态和帮助卡。它没有独立的工具审批卡：Codex 启动参数明确使用 `approval_policy="never"`。提问也不是固定业务模板，而是 Agent 生成任意卡片后，通过签名回调恢复同一会话。因此，提问和审批只能复用其回调机制，不能把参考仓库描述成已有完整实现。
 
-ant-chat 当前工作区有一套未提交、未跟踪的 `packages/backend/src/channels/**` 在建实现。下文把它称为“本地在建实现”，不能当成 `HEAD` 或已发布能力。
+调研时 ant-chat 工作区有一套未提交、未跟踪的 `packages/backend/src/channels/**` 在建实现（现已提交跟踪，commit `77b841af`）。下文把它称为“本地在建实现”，相关判断按调研时点理解。
 
 ## 场景总表
 
@@ -534,7 +536,7 @@ token 服务端记录的真实 action 应至少绑定：
 - 点击者配对状态、会话、任务来源和 actionId 复验：`packages/backend/src/app-runtime/modules/channel/index.ts:234`
 - 真正审批 owner：`packages/backend/src/agent-core/taskStore.ts:108`、`packages/backend/src/agent-core/AgentRuntime.ts:108`
 
-当前 `RegisteredAction` 只绑定 channel account 和 chat；任一已配对用户都可能点击，没有绑定发起该任务的 `externalUserId`。落地前必须把原消息操作者从 `ChannelInboundEvent → turnSource/execution projection → RegisteredAction` 贯通，并在 callback 中校验。群聊如果产品上允许其他审批人代批，也必须建立显式审批人策略，不能把“已配对”隐式当成授权。
+调研时 `RegisteredAction` 只绑定 channel account 和 chat；任一已配对用户都可能点击，没有绑定发起该任务的 `externalUserId`（现已绑定，见更新记录）。落地前必须把原消息操作者从 `ChannelInboundEvent → turnSource/execution projection → RegisteredAction` 贯通，并在 callback 中校验。群聊如果产品上允许其他审批人代批，也必须建立显式审批人策略，不能把“已配对”隐式当成授权。
 
 终态应更新原卡并移除按钮：
 
@@ -637,9 +639,9 @@ token 服务端记录的真实 action 应至少绑定：
 - 一次性 action token：`packages/backend/src/channels/channelDelivery.ts:100`
 - active conversation 复验和终态更新：`packages/backend/src/app-runtime/modules/channel/index.ts:249`
 
-当前 `ChannelRuntime.selectModel/setModel` 直接调用 `conversationRepository.update`，绕过了统一的 `ConversationLifecycle.update`，因此不会发出 `conversation:updated`，已加载该会话的桌面/Web 端可能不同步。模型切换必须依赖 `ConversationLifecycle` 或它暴露的最小 settings 接口；不能认可 repository 直写为最终 owner。统一 owner 见 `packages/backend/src/conversations/conversationLifecycle.ts:157`，Chat 模块的正确调用方式见 `packages/backend/src/app-runtime/modules/chat/index.ts:115`。
+调研时 `ChannelRuntime.selectModel/setModel` 直接调用 `conversationRepository.update`，绕过统一的 `ConversationLifecycle.update`，因此不会发出 `conversation:updated`（现已改走 `deps.updateConversation`，见更新记录）。模型切换必须依赖 `ConversationLifecycle` 或它暴露的最小 settings 接口；不能认可 repository 直写为最终 owner。统一 owner 见 `packages/backend/src/conversations/conversationLifecycle.ts:157`，Chat 模块的正确调用方式见 `packages/backend/src/app-runtime/modules/chat/index.ts:115`。
 
-当前飞书 renderer 是“一模型一按钮”。建议保留平台无关 `model-selection` 协议，只在 Feishu renderer 内根据模型数量选择按钮或 `select_static`。
+调研时飞书 renderer 是“一模型一按钮”；现已改为 `form + select_static + submit`，并保留平台无关 `model-selection` 协议。
 
 ### D. 运行状态卡
 
@@ -669,7 +671,7 @@ token 服务端记录的真实 action 应至少绑定：
 - Feishu renderer 只负责状态到 DSL：`packages/backend/src/channels/feishu/card.ts:13`
 - `ChannelConnector.send/update/setTyping` 是平台边界：`packages/backend/src/channels/channelConnector.ts:58`
 
-仍有三个缺口：
+调研时仍有三个缺口（其中 1、3 已修复，见更新记录）：
 
 1. `ChannelDelivery.handleTaskUpdate` 没有把 `task.summary/errorMessage` 放入 projection；模型产出文本前失败时，失败卡可能为空或保留旧正文。应在 projection owner 修复，不在飞书 renderer 猜错误。
 2. action token 只存在进程内 `Map`，重启后全部失效。若要求跨重启继续处理卡片，需要持久化 token hash、绑定上下文、过期时间和消费状态。
@@ -824,3 +826,18 @@ token 服务端记录的真实 action 应至少绑定：
 - `@larksuite/channel` 为参考仓库使用的 SDK；其便捷 API 不是飞书平台合同。落地时以飞书官方 OpenAPI 为准。
 - 参考仓库使用长连接接收 cardAction；如果 ant-chat 继续使用长连接，不需要照搬 HTTP webhook 验签，但业务 token、操作者绑定、幂等和状态复验仍然必须保留。
 - ant-chat 的 `packages/backend/src/channels/**` 是调研时工作区内的未提交在建实现，本文只据此判断接缝和缺口，不宣称其已发布。
+
+## 实现更新记录（2026-10 核对）
+
+调研后 channels 实现已提交（`77b841af` 等），下列早期缺口已修复：
+
+- `channels/**` 已全部提交跟踪；
+- `RegisteredAction` 已绑定 `externalUserId`，审批复验已迁移到 `channelActionHandler.ts`；
+- 已有平台无关 `task.cancel`，运行卡可以停止任务；
+- 模型切换改走 `deps.updateConversation` → `ConversationLifecycle.update`，会发出 `conversation:updated`；
+- execution projection 已写入 `task.summary/errorMessage`；
+- 飞书模型选择已改为 `form + select_static + submit`。
+
+仍待确认：action token 仍只存在进程内 `Map`，跨重启继续处理卡片尚未实现（如产品需要，需另立需求）。
+
+正文其余 file:line 与「本地在建实现」措辞均按调研时点保留。

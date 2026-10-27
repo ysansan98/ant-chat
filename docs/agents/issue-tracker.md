@@ -29,6 +29,8 @@
 
 由 `/wayfinder` 使用。**地图**是一条带 `wayfinder:map` 标签的 Issue，**子 ticket** 是子 Issue。
 
+> 前置条件：仓库当前只有标准标签，使用前需先创建 `wayfinder:map` 与 `wayfinder:<type>` 标签；否则 `gh issue create --label wayfinder:map` 会失败。
+
 - **地图**：一条带 `wayfinder:map` 标签的 Issue，包含 Notes / Decisions-so-far / Fog body。`gh issue create --label wayfinder:map`。
 - **子 ticket**：通过 GitHub sub-issues 端点关联地图的 Issue。若 sub-issues 未启用，在地图 body 的任务列表中添加子项，并在子项 body 顶部加 `Part of #<map>`。标签：`wayfinder:<type>`（`research`/`prototype`/`grilling`/`task`）。认领后分配给开发人员。
 - **阻塞关系**：使用 GitHub 原生 Issue 依赖关系。添加阻塞边：`gh api --method POST repos/<owner>/<repo>/issues/<child>/dependencies/blocked_by -F issue_id=<blocker-db-id>`，其中 `<blocker-db-id>` 是阻塞项的**数字数据库 ID**（`gh api repos/<owner>/<repo>/issues/<n> --jq .id`，不是 `#number` 或 `node_id`）。若依赖关系不可用，回退到在子项 body 顶部加 `Blocked by: #<n>, #<n>`。所有阻塞项关闭后 ticket 解除阻塞。

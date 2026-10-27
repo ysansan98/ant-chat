@@ -2,7 +2,7 @@
 
 ## 状态
 
-已确认，供后续实施会话执行。本文只定义数据模型、所有权和行为合同，不包含平台 SDK 实现。
+已实施（2026-10 核对）。本文定义的数据模型、所有权和行为合同已落地到 `packages/backend/src/channels/` 与 SQLite schema；下文仍保留当时的设计说明。
 
 ## 目标
 
@@ -76,7 +76,9 @@ id                         稳定本地账号 ID
 channel_type               feishu | weixin
 display_name               用户可见名称
 credential_ref             SecretStore 引用
+owner_user_id              平台 owner 身份，可为空
 default_workspace_path     必须是已登记且可用的 workspace
+permission_mode            频道默认权限模式
 enabled                    boolean
 status                     configured | connecting | connected | degraded | disconnected
 last_error                 脱敏诊断，可为空
@@ -175,6 +177,7 @@ receipt 不替代 `messages`：
 ```text
 /new [path]
 /model <名称或序号>
+/mode [模式]
 /models
 /steer <text>
 /stop
@@ -184,7 +187,7 @@ receipt 不替代 `messages`：
 /deny
 ```
 
-- `/new`、`/model`、`/models`、`/stop`、`/status`、`/help` 作为可审计 event Message 持久化，但不进入模型上下文；
+- `/new`、`/model`、`/mode`、`/models`、`/stop`、`/status`、`/help` 作为可审计 event Message 持久化，但不进入模型上下文；
 - `/steer` 是实际 Turn 输入，沿用现有 steering 持久化；
 - `/approve`、`/deny` 只操作当前 Conversation 的队首 pending action；多个审批严格 FIFO，一次只展示一个；
 - `/models` 展示带序号的候选列表；`/model` 支持按用户可见模型名/别名或列表序号切换；歧义时返回候选，不暴露 providerId 要求用户输入；后端最终保存真实 provider/model 设置。

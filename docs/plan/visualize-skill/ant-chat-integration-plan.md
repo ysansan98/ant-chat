@@ -1,5 +1,7 @@
 # Visualize Skill 集成方案：HTML fragment 主协议
 
+> 状态：已实施。安全合同以当前校验器（`packages/shared/src/schemas/visualization.ts`）和 sandbox CSP（`packages/shared/src/visualization/sandbox.ts`）为准。
+
 ## 结论
 
 ant-chat 的可视化协议唯一使用 `ant-chat.visualization.html.v1`。模型调用 `publish_visualization({ title, summary, html })`，后端校验原始 HTML fragment 后生成不可变 artifact；消息只保存 descriptor，Web/Electron 通过受权 RPC 读取 bytes，并在 `iframe sandbox="allow-scripts"` 中加载。
@@ -27,14 +29,14 @@ flowchart LR
   G --> H[allow-scripts iframe srcDoc]
   H --> I[MessagePort theme/resize/follow-up]
   I --> J[宿主确认]
-  J --> K[next-turn user message]
+  J --> K[普通 follow-up 用户消息]
 ```
 
 ## 安全合同
 
-- fragment 拒绝完整 document、iframe、object、embed、base、meta refresh、inline `on*` 属性、危险 URL、网络 API 和宿主对象；
+- fragment 拒绝完整 document、iframe、object、embed、base、meta refresh、危险 URL、网络 API 和宿主对象；允许 inline `on*` 事件属性，但其可达能力仍受 CSP 与 `window.antChatVisualization` 接口限制，只能发送经用户确认的 follow-up；
 - iframe 不添加 `allow-same-origin`、forms、popups、top-navigation、downloads 或 modals；
-- CSP 固定 `connect-src 'none'`、`img-src data:`、`font-src 'none'`、`font-src 'none'`；
+- CSP 固定 `default-src 'none'; connect-src 'none'; img-src data:; media-src 'none'; font-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; worker-src 'none'`；
 - 外部资源仅限固定 HTTPS CDN URL、精确版本、sha384 SRI 和 `crossorigin="anonymous"`；
 - HTML 原文只存在于当前工具执行和 artifact staging；trace、tool-call args、SQLite message args、context trace 和后续模型上下文只保留 descriptor；
 - `window.antChatVisualization` 只暴露 `sendFollowUpMessage({ prompt, title? })`；真实用户 gesture 和宿主确认都是必要条件。
@@ -58,10 +60,10 @@ pnpm --filter @ant-chat/shared build
 pnpm --filter @ant-chat/backend build
 pnpm --filter ant-chat build
 pnpm type-check
-pnpm --filter ant-chat test -- src/components/Visualization
+pnpm --filter @ant-chat/web test -- src/components/Visualization
 pnpm --filter @ant-chat/backend test -- publishVisualizationTool persistedTurn
 pnpm --filter @ant-chat/shared test -- visualization
 pnpm lint
 ```
 
-必须覆盖合法/非法 fragment、固定 CDN/SRI、artifact hash/ownership、完整主题 token、sandbox/CSP、真实 gesture、follow-up 确认和 next-turn 持久化。
+必须覆盖合法/非法 fragment、固定 CDN/SRI、artifact hash/ownership、完整主题 token、sandbox/CSP、真实 gesture、follow-up 确认和 follow-up 消息持久化（按普通用户输入处理）。

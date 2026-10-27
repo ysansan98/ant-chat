@@ -1,19 +1,21 @@
 # 消息列表工具调用渲染重构方案
 
 > 状态：已实施。DEMO 审核反馈已并入最终实现（见文末「DEMO 审核结论」）。
+>
+> 现状注记（2026-10）：实施后工具集继续演进——`bash` 改名为 `execute_command`，`browser` 拆分为 11 个 `browser_*` 子工具，新增 `send_attachment`、`read_command_output`、`kill_command`、`list_commands`。下文保留实施时设计，代码位置已按当前路径更新。
 
 ## 实施前背景
 
-- 渲染代码全部在 `apps/web`（desktop 复用同一 renderer，见 `apps/desktop/electron.vite.config.ts:52`）
+- 渲染代码全部在 `apps/web`（desktop 复用同一 renderer，见 `apps/desktop/electron.vite.config.ts:9`）
 - 实施前的**最外层折叠面板**是 `ProcessMessagesPanel`（「执行过程(N)」按钮）
 - 实施前由 `splitTurnMessages` 把 turn 内消息二分为 process（折叠）/ visible（最后一条文本）
 - 实施前 `AssistantTrace` 按**单条** assistant 消息构建 steps，仅支持消息级 tool-group（≥2 个连续 tool 才合并）
-- `ToolResultContent.result` 始终是**字符串**（`agentLoop.ts:249`、`toolExecution.ts:288`）
-- 内置工具全集（`nativeToolService.ts:53` + `toolRegistry.ts`）：
-  - native（8）：`read_file`、`list_dir`、`glob_files`、`grep_files`、`write_file`、`edit_file`、`bash`、`browser`
+- 实施时 `ToolResultContent.result` 始终是**字符串**；现状 schema 已放宽为 `z.unknown()`（`packages/shared/src/schemas/messages.ts:177-183`），有意/遗漏待确认。
+- 实施时内置工具全集（`nativeToolService.ts:59` + `tools/toolRegistry.ts`）：
+  - native：`read_file`、`list_dir`、`glob_files`、`grep_files`、`write_file`、`edit_file`、`execute_command`、`browser_*`（11 个子工具）、`send_attachment`、`read_command_output`、`kill_command`、`list_commands`
   - skill/agent-loop（5）：`use_skill`、`install_skill_from_github`、`memory`、`requestSecret`、`publish_visualization`
   - MCP：`<serverName>___<toolName>`（`DEFAULT_MCP_TOOL_NAME_SEPARATOR = '___'`），`ToolCallContent.serverName` 可选
-- bash 结果字符串格式：`stdout:\n…\nstderr:\n…\nexitCode=N`（`bashRunner.ts:160` `formatProcessResult`）
+- 命令结果字符串格式：`stdout:\n…\nstderr:\n…\nexitCode=N`（`command/commandRunner.ts:163` `formatProcessResult`）
 - shiki 已打包 `bash` / `diff` 语言（`packages/ui/src/lib/shiki-langs.ts:20,36`）
 
 ## 目标设计
@@ -76,8 +78,8 @@ step 类型：`reasoning` / `text` / `visualization` / `error-block` / `steering
 | `grep_files` | 搜索 `<pattern>` | args.pattern |
 | `glob_files` | 查找 `<pattern>` | args.pattern |
 | `list_dir` | 列出 `<path>` | args.path ?? `.` |
-| `bash` | `<description ?? command>` | 见第 3 节 |
-| `browser` | 浏览器 `<command>` `<首个参数>` | args.command + args.args?.[0] |
+| `execute_command` | `<description ?? command>` | 见第 3 节 |
+| `browser_*` | 浏览器 `<子命令>` `<首个参数>` | 工具名 + args |
 | `use_skill` | 使用技能 `<name>` | args.name |
 | `install_skill_from_github` | 安装技能 `<name ?? url>` | |
 | `memory` | 更新记忆（`<target>`） | args.target |
@@ -92,19 +94,19 @@ step 类型：`reasoning` / `text` / `visualization` / `error-block` / `steering
 
 | 工具 | body |
 |---|---|
-| `bash` | 见 3.1.2 |
+| `execute_command` | 见 3.1.2 |
 | `edit_file` | 见第 4 节 |
 | `read_file` | 结果文本，language 按 path 扩展名映射（无映射用 text） |
 | `write_file` | 展示 args.content（写入内容），language 按扩展名 |
 | 其余（grep/glob/list/browser/skill/mcp/未知） | 结果文本原样 CodeBlock（保持现状） |
 
-### 3. bash 增加 description 参数
+### 3. execute_command 增加 description 参数
 
-- `packages/shared/src/interfaces/agent-tools.ts:38`：`BashToolInput` 增加 `description?: string`
-- `packages/backend/src/agent-core/native-tools/tools/bashTool.ts:15`：inputSchema.properties 增加
-  `description: { type: 'string', description: '一句话说明这条命令的目的，例如「安装项目依赖」' }`（不进 required）；
+- `packages/shared/src/interfaces/agent-tools.ts:54`：`CommandToolInput` 增加 `description?: string`
+- `packages/backend/src/agent-core/native-tools/command/commandTool.ts:25`：inputSchema.properties 增加
+  `description: { type: 'string', description: '一句话说明这条命令的目的，例如「构建项目」' }`（不进 required）；
   工具 description 追加引导「调用时用 description 字段简要说明命令用途」
-- 执行路径零改动（`bashRunner` / `preValidateBashScope` 只看 command/cwd/env）
+- 执行路径零改动（`commandRunner` / `bashCommandParser` 只看 command/cwd/env）
 
 **3.1 渲染**：
 
@@ -138,16 +140,16 @@ step 类型：`reasoning` / `text` / `visualization` / `error-block` / `steering
 
 ## 代码改动清单
 
-1. `packages/shared/src/interfaces/agent-tools.ts` — `BashToolInput.description?`
-2. `packages/backend/src/agent-core/native-tools/tools/bashTool.ts` — inputSchema + 描述引导
-3. `apps/web/src/components/Chat/toolDisplay.ts`（新增）— 纯函数：`getToolLabel` / `getEditStats` / `buildEditDiff` / `parseBashResult` / 类别汇总映射
+1. `packages/shared/src/interfaces/agent-tools.ts` — `CommandToolInput.description?`
+2. `packages/backend/src/agent-core/native-tools/command/commandTool.ts` — inputSchema + 描述引导
+3. `apps/web/src/components/Chat/toolDisplay.ts`（新增）— 纯函数：`getToolLabel` / `getEditStats` / `buildEditDiff` / `parseCommandResult` / 类别汇总映射
 4. `apps/web/src/components/Chat/turnSteps.ts`（新增）— `buildTurnSteps` + run 汇总
 5. `apps/web/src/components/Chat/TurnTrace.tsx`（新增）— turn 级 step 流渲染组件
 6. `apps/web/src/components/Chat/MessageBubble.tsx` — 删除 `ProcessMessagesPanel` / `splitTurnMessages`，AI turn 改渲染 TurnTrace
 7. 测试：
    - 新增 `toolDisplay.spec.ts`、`turnSteps.spec.ts`
    - 重写 `apps/web/src/components/Chat/__tests__/MessageBubble.spec.tsx` 中执行过程相关用例（现有 13 个用例大量引用 process panel）
-   - `nativeToolService.spec.ts` 增加 bash schema 含 description 断言
+   - `nativeToolService.spec.ts` 增加 execute_command schema 含 description 断言（实施时未落地；当前 spec 无该断言）
 
 ## 决策记录（已自行决定，可驳回）
 
@@ -169,7 +171,7 @@ step 类型：`reasoning` / `text` / `visualization` / `error-block` / `steering
 ## 验证
 
 - `pnpm check`（type-check + lint + unit）
-- 场景走查：单 tool / 连续 tool（执行中→闭合汇总切换）/ bash 有无 description / edit_file diff / steering 打断 / reasoning 嵌入组内 / MCP 工具
+- 场景走查：单 tool / 连续 tool（执行中→闭合汇总切换）/ execute_command 有无 description / edit_file diff / steering 打断 / reasoning 嵌入组内 / MCP 工具
 
 ## 后续项（不在本次范围）
 

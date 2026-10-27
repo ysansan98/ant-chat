@@ -164,7 +164,9 @@ for block in blocks:
 - **消息去重**：`message_id` 去重 + 文本 MD5 指纹去重（5 分钟 TTL），防 iLink 重投。
 - **输入状态**：入站即 `sendtyping` 置输入中，终态送达后置停止；ticket 过期自动通过 `getconfig` 刷新，避免"输入中"卡死。
 
-## ant-chat 现状与差距
+## ant-chat 实施前现状与差距（快照）
+
+> 下表是实施前（2026-08-08 之前）的快照。建议 1-5 已于 2026-08-08 落地，当前行为见下节「实施状态」。
 
 对照点（`packages/backend/src/channels/weixin/transport.ts`、`connector.ts`、`channelDelivery.ts`）：
 

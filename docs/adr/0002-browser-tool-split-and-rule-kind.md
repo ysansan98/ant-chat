@@ -41,6 +41,8 @@
 | `browser_dialog` | `dialog accept`/`dismiss` | `action`, `text?` |
 | `browser_eval` | `eval` | `expression` |
 
+> 现状注记（2026-10）：`browser_navigate` 当前还接受 `injectCookies`（由 ADR-0003 引入）和 `timeoutMs`（`packages/backend/src/agent-core/native-tools/tools/browserTool.ts:86-92`）。本表是决策时点快照。
+
 工具名本身就是权限边界——`browser_click` 和 `browser_type` 是不同工具，规则直接按 `toolName` 匹配，不需要在规则里再加 action 维度。这是选择细粒度而非能力簇的核心原因：4 个能力簇方案把 click/fill/press 挤在 `browser_interact` 一个 toolName 下，要区分它们就得给规则加 action 字段；细粒度方案把 action 编码进 toolName，消解了这层复杂度。
 
 砍掉的命令（`forward`/`tab *`/`get *`/`find *`/`dblclick`/`focus`/`keydown`/`keyup`/`hover`/`select`/`check`/`uncheck`/`screenshot`/`pdf`/`download`/`wait`/`console`/`errors` 等）不可达。需要时再迭代加类型化工具，不从逃逸口透传。

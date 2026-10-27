@@ -1,5 +1,7 @@
 # AI SDK v7.0+ 升级计划
 
+> 状态：已实施（2026-10 合入，commit `ac16c9b2`）。正文保留为迁移方案记录；当前版本与实现以 `packages/backend/package.json`、`pnpm-workspace.yaml` 和代码为准。
+>
 > 分支：`refactor/ai-sdk-v7-upgrade`（已基于 `origin/main` 创建）
 > 当前版本：`ai@^6.0.x`，`@ai-sdk/{anthropic,deepseek,google,openai}@^2–3`
 > 目标版本：`ai@^7.0.0` + 兼容的 provider 包
@@ -250,13 +252,13 @@ export class MultiProvider {
 **决策 1：保留内部 usage schema 字段名不变，只改 AI SDK 源读取。**
 仓库内部有两套 `LanguageModelUsage`：
 - **AI SDK** 的 `LanguageModelUsage`（v7 移除了 `reasoningTokens`/`cachedInputTokens` 顶层字段）。
-- **`@ant-chat/shared`** 自有的 `LanguageModelUsageSchema`（`packages/shared/src/schemas/messages.ts:159`），顶层保留 `reasoningTokens`/`cachedInputTokens`，是 `IMessage.usage` / `IAIStreamChunk.usage` 的真实类型。
+- **`@ant-chat/shared`** 自有的 `LanguageModelUsageSchema`（`packages/shared/src/schemas/messages.ts:244`），顶层保留 `reasoningTokens`/`cachedInputTokens`，是 `IMessage.usage` / `IAIStreamChunk.usage` 的真实类型。
 
 策略：`MultiProvider.normalizeUsage()` **只改“从 AI SDK usage 取值”的源读取**（v7 嵌套结构），输出仍按内部字段名返回。所有消费内部 usage 的地方字段名不动，仅把原先“误从 `ai` 导入”的 `LanguageModelUsage` 类型改为从 `@ant-chat/shared` 导入，以消除 v7 类型编译错误。
 
 **决策 2：provider 包升级到与 `ai@7` 兼容的版本**，由 pnpm 解析 peer 依赖；升级后用 codemod + 人工核对 Google 重命名（若采用 2.3 的工厂表，`createGoogleGenerativeAI→createGoogle` 已在工厂表里直接写好）。
 
-**决策 3：Node 版本已在 CI 满足（ci.yml 用 node 22），本地无 `engines` 字段，建议补充。**
+**决策 3：Node 版本已在 CI 满足（ci.yml 矩阵为 Node 22/24），本地无 `engines` 字段，建议补充。**
 
 **决策 4：multi-provider 采用第二节的 v7 重新设计（推荐）**，而非仅机械改名。阶段 2 直接落地 2.3 方案。
 
@@ -301,7 +303,7 @@ npx @ai-sdk/codemod v7
 - 因 `streamModel`/`complete` 契约不变，依赖它们的 `agentLoop.spec`、`AgentRuntime.spec`、`agentFullChainPermissions.spec` 等 mock 应无需改动（仅 mock 实现细节若引用了旧字段需同步）。
 
 ### 阶段 6：环境与 CI
-- `.github/workflows/ci.yml` 已用 `node-version: 22` ✅。
+- `.github/workflows/ci.yml` 已用 `node-version: [22, 24]` ✅。
 - 建议（可选）在 root / 各 `package.json` 增加 `"engines": { "node": ">=22" }`。
 - 确认整仓 ESM（`apps/desktop` 主进程若含 CommonJS 需改造；当前未发现 `from 'ai'` 出现在 desktop，风险低）。
 
