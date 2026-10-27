@@ -241,6 +241,26 @@ export function createAppDataMigrations(
         `)
       },
     },
+    {
+      version: 13,
+      name: '补充消息查询复合索引',
+      migrate(db) {
+        const hasMessagesTable = Boolean(db.prepare(`
+          SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'messages'
+        `).get())
+        if (!hasMessagesTable)
+          return
+        // 会话消息列表：WHERE conv_id = ? ORDER BY created_at, rowid
+        // 复合索引同时提供过滤与排序，避免每次打开会话都建临时 B-tree。
+        // 按 turn_id 取同一轮消息：WHERE (turn_id = ? OR id = ?) AND conv_id = ?
+        db.exec(`
+          CREATE INDEX IF NOT EXISTS idx_messages_conversation_created_at
+            ON messages (conv_id, created_at);
+          CREATE INDEX IF NOT EXISTS idx_messages_conversation_turn
+            ON messages (conv_id, turn_id);
+        `)
+      },
+    },
   ]
 }
 

@@ -43,6 +43,14 @@ export function initializeAppDataSchema(db: AppDataDatabase): void {
       ,origin_external_chat_id text
     );
 
+    -- 会话消息列表按 created_at, rowid 排序；复合索引避免会话内临时排序
+    CREATE INDEX IF NOT EXISTS idx_messages_conversation_created_at
+      ON messages (conv_id, created_at);
+
+    -- getTurn 按 turn_id 定位同一轮消息，避免扫描整个会话
+    CREATE INDEX IF NOT EXISTS idx_messages_conversation_turn
+      ON messages (conv_id, turn_id);
+
     CREATE TABLE IF NOT EXISTS attachments (
       id text PRIMARY KEY NOT NULL,
       name text NOT NULL,
