@@ -396,12 +396,12 @@ export function resolveSearchStrategy(fts5: boolean, trigram: boolean, query: st
 }
 
 /** 按字面 phrase 构造 FTS5 查询：内部双引号翻倍，用户输入不参与表达式拼接。 */
-function ftsPhrase(query: string): string {
+export function ftsPhrase(query: string): string {
   return `"${query.replace(/"/g, '""')}"`
 }
 
 /** LIKE 模式转义：% _ \ 前缀反斜杠。 */
-function escapeLikePattern(value: string): string {
+export function escapeLikePattern(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_')
 }
 
