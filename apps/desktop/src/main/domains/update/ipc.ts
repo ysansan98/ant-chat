@@ -3,6 +3,7 @@ import { createErrorIpcResponse, createIpcResponse } from '@ant-chat/shared'
 import { UpdateService } from '@main/domains/update/updateService'
 import { UpdateConfigStore } from '@main/store/updateSettings'
 import { withIpcResponse } from '@main/utils/ipc-response'
+import { validateUpdateConfig } from '@main/utils/ipc-validation'
 import { logger } from '@main/utils/logger'
 import { UpdateErrorHandler } from '@main/utils/updateErrorHandler'
 import { IpcMethod, IpcService } from 'electron-ipc-decorator'
@@ -39,6 +40,9 @@ export class UpdateIpcService extends IpcService {
 
   @IpcMethod()
   async setUpdateConfig(config: UpdateConfig): Promise<IpcResponse<UpdateConfig>> {
+    const validationError = validateUpdateConfig(config)
+    if (validationError)
+      return createErrorIpcResponse(validationError)
     return withIpcResponse(() => this.updateService.updateConfig(config), '保存更新配置失败')
   }
 

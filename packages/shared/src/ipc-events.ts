@@ -118,7 +118,24 @@ export interface ElectronOnlyEvents {
   'update:update-error': UpdateError
 }
 
+export const ELECTRON_ONLY_EVENT_NAMES = [
+  'app:navigate',
+  'common:Notification',
+  'update:update-status-changed',
+  'update:update-available',
+  'update:update-not-available',
+  'update:download-progress',
+  'update:update-downloaded',
+  'update:update-error',
+] as const satisfies readonly (keyof ElectronOnlyEvents & string)[]
+
 /**
  * 渲染进程接收的事件（合并跨平台和 Electron 专用）
  */
 export type IpcRendererEvent = AppRendererEvents & ElectronOnlyEvents
+
+/** preload 允许转发给渲染进程的全部事件 channel。 */
+export const IPC_RENDERER_EVENT_NAMES = [
+  ...APP_RENDERER_EVENT_NAMES,
+  ...ELECTRON_ONLY_EVENT_NAMES,
+] as const satisfies readonly (keyof IpcRendererEvent & string)[]

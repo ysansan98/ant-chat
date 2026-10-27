@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { RuntimeIpcService } from '../ipc'
 
 const mocks = vi.hoisted(() => ({
@@ -36,6 +36,11 @@ vi.mock('@main/utils/logger', () => ({
 }))
 
 describe('runtime ipc', () => {
+  beforeEach(() => {
+    mocks.invoke.mockClear()
+    mocks.isShuttingDown.mockReturnValue(false)
+  })
+
   it('通过统一 RPC 调用 runtime handler 并返回成功响应', async () => {
     const service = new RuntimeIpcService()
     const response = await service.call('settings.getSettings', undefined)
@@ -54,14 +59,29 @@ describe('runtime ipc', () => {
     expect(mocks.invoke).toHaveBeenCalledWith('chat.getConversations', { pageIndex: 0, pageSize: 20 })
   })
 
-  it('未知 RPC 方法返回错误响应', async () => {
+  it('未知 RPC 方法在 main 被拒绝，且不调用 runtime', async () => {
     const service = new RuntimeIpcService()
     const response = await service.call('missing.method' as never, undefined as never)
 
     expect(response.success).toBe(false)
     if (!response.success) {
-      expect(response.msg).toBe('运行时路由不存在: missing.method')
+      expect(response.msg).toBe('未知的 Runtime RPC 方法: missing.method')
     }
+    expect(mocks.invoke).not.toHaveBeenCalled()
+  })
+
+  it('非对象 input 在 main 被拒绝，且不调用 runtime', async () => {
+    const service = new RuntimeIpcService()
+
+    for (const input of ['not-an-object', 42, null, ['array']]) {
+      const response = await service.call('chat.getConversations', input as never)
+      expect(response.success).toBe(false)
+      if (!response.success) {
+        expect(response.msg).toBe('runtime.call 的 input 必须是对象或 undefined')
+      }
+    }
+
+    expect(mocks.invoke).not.toHaveBeenCalled()
   })
 
   it('应用退出过程中 RPC 失败不记 error 日志（关闭噪音静默）', async () => {
@@ -70,11 +90,10 @@ describe('runtime ipc', () => {
     mocks.isShuttingDown.mockReturnValue(true)
     const service = new RuntimeIpcService()
 
-    const response = await service.call('missing.method' as never, undefined as never)
+    const response = await service.call('search.searchByKeyword', { query: 'x' })
 
     expect(response.success).toBe(false)
     expect(logger.error).not.toHaveBeenCalled()
-
-    mocks.isShuttingDown.mockReturnValue(false)
+    expect(mocks.invoke).toHaveBeenCalledWith('search.searchByKeyword', { query: 'x' })
   })
 })

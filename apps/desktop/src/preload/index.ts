@@ -1,14 +1,12 @@
-import { electronAPI } from '@electron-toolkit/preload'
-import { contextBridge } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron'
+import { createDesktopElectronApi } from './ipc-security'
 
 console.log('process.contextIsolated => ', process.contextIsolated)
 
-// Use `contextBridge` APIs to expose Electron APIs to
-// renderer only if context isolation is enabled, otherwise
-// just add to the DOM global.
+// 只暴露显式白名单内的能力，详见 ipc-security.ts。
 if (process.contextIsolated) {
   try {
-    contextBridge.exposeInMainWorld('electron', electronAPI)
+    contextBridge.exposeInMainWorld('electron', createDesktopElectronApi(ipcRenderer))
   }
   catch (error) {
     console.error(error)

@@ -1,9 +1,8 @@
-import type { electronAPI } from '@electron-toolkit/preload'
+import type { DesktopElectronApi } from '@ant-chat/shared'
 
 declare global {
   interface Window {
-    electronAPI: typeof electronAPI
-    electron: typeof electronAPI
+    electron: DesktopElectronApi
   }
 }
 

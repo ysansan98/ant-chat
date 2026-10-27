@@ -1,6 +1,8 @@
 import type { AppRpcInput, AppRpcMethod, AppRpcOutput, IpcResponse } from '@ant-chat/shared'
+import { createErrorIpcResponse } from '@ant-chat/shared'
 import { getAppRuntime, isDesktopAppRuntimeShuttingDown } from '@main/app-runtime-host/appRuntime'
 import { withIpcResponse } from '@main/utils/ipc-response'
+import { isAppRpcMethod, validateRuntimeCallInput } from '@main/utils/ipc-validation'
 import { IpcMethod, IpcService } from 'electron-ipc-decorator'
 
 export class RuntimeIpcService extends IpcService {
@@ -11,6 +13,13 @@ export class RuntimeIpcService extends IpcService {
     method: TMethod,
     input: AppRpcInput<TMethod>,
   ): Promise<IpcResponse<AppRpcOutput<TMethod>>> {
+    if (!isAppRpcMethod(method))
+      return createErrorIpcResponse(`未知的 Runtime RPC 方法: ${String(method)}`)
+
+    const inputError = validateRuntimeCallInput(input)
+    if (inputError)
+      return createErrorIpcResponse(inputError)
+
     // 关闭过程中 runtime 已不可用，此时 RPC 失败是退出流程的预期噪音，不记 error 日志
     const shuttingDown = isDesktopAppRuntimeShuttingDown()
     return withIpcResponse(async () => {
