@@ -240,6 +240,164 @@ export type AppRpcMethod = keyof AppRpcContract & string
 export type AppRpcInput<TMethod extends AppRpcMethod> = AppRpcContract[TMethod]['input']
 export type AppRpcOutput<TMethod extends AppRpcMethod> = AppRpcContract[TMethod]['output']
 
+/**
+ * Runtime RPC 方法白名单。
+ *
+ * 使用对象而非数组，`satisfies Record<AppRpcMethod, true>` 会在新增/删除
+ * `AppRpcContract` 方法时给出编译错误，避免白名单与合同漂移。
+ */
+export const APP_RPC_METHODS = {
+  'channel.list': true,
+  'channel.setup': true,
+  'channel.getSetupStatus': true,
+  'channel.disconnect': true,
+  'channel.listPairingRequests': true,
+  'channel.rejectPairing': true,
+  'channel.create': true,
+  'channel.update': true,
+  'channel.delete': true,
+  'channel.listPairings': true,
+  'channel.approvePairing': true,
+  'channel.revokePairing': true,
+  'channel.getStatus': true,
+  'channel.enable': true,
+  'channel.disable': true,
+  'runtime.getCommandHostStatus': true,
+  'browserProfiles.getStatus': true,
+  'browserProfiles.listSources': true,
+  'browserProfiles.import': true,
+  'browserProfiles.clear': true,
+  'chat.createConversationsTitle': true,
+  'chat.getConversations': true,
+  'chat.getWorkspaceConversations': true,
+  'chat.getWorkspaceConversationTotals': true,
+  'chat.getArchivedConversationWorkspaces': true,
+  'chat.getArchivedConversations': true,
+  'chat.getConversationById': true,
+  'chat.addConversation': true,
+  'chat.updateConversation': true,
+  'chat.deleteConversation': true,
+  'chat.archiveConversation': true,
+  'chat.restoreConversation': true,
+  'chat.deleteArchivedConversation': true,
+  'chat.deleteArchivedWorkspaceConversations': true,
+  'chat.deleteAllArchivedConversations': true,
+  'chat.clearWorkspaceConversations': true,
+  'chat.getMessagesByConvId': true,
+  'chat.getMessageById': true,
+  'chat.addMessage': true,
+  'chat.updateMessage': true,
+  'chat.deleteMessage': true,
+  'chat.batchDeleteMessages': true,
+  'settings.getSettings': true,
+  'settings.updateSettings': true,
+  'settings.resetSettings': true,
+  'settings.testProxyConnection': true,
+  'provider.listProviders': true,
+  'provider.listIntegrations': true,
+  'provider.probeIntegrations': true,
+  'provider.createProvider': true,
+  'provider.updateProvider': true,
+  'provider.deleteProvider': true,
+  'provider.getProviderById': true,
+  'provider.getAllAbvailableModels': true,
+  'provider.listProviderModels': true,
+  'provider.setModelEnabledStatus': true,
+  'provider.setModelsEnabledStatus': true,
+  'provider.createProviderModel': true,
+  'provider.deleteProviderModel': true,
+  'provider.getModel': true,
+  'provider.getModelsDevProviders': true,
+  'provider.syncModels': true,
+  'provider.startOAuthLogin': true,
+  'provider.importLocalAuth': true,
+  'provider.getAuthStatus': true,
+  'provider.getUsage': true,
+  'provider.logoutAuth': true,
+  'skills.listSkills': true,
+  'skills.listWorkspaceSkills': true,
+  'skills.importSkill': true,
+  'skills.previewGithubSkills': true,
+  'skills.importGithubSkills': true,
+  'skills.setSkillEnabled': true,
+  'skills.deleteSkill': true,
+  'skills.rebuildSkillIndex': true,
+  'memory.getMemoryFiles': true,
+  'memory.updateMemoryFiles': true,
+  'memory.rollbackSoul': true,
+  'memoryCatalog.list': true,
+  'memoryCatalog.getBody': true,
+  'memoryCatalog.approve': true,
+  'memoryCatalog.archive': true,
+  'mcp.getConfigs': true,
+  'mcp.getConfigByServerName': true,
+  'mcp.installServer': true,
+  'mcp.editServer': true,
+  'mcp.deleteServer': true,
+  'mcp.startServer': true,
+  'mcp.stopServer': true,
+  'mcp.setServerEnabled': true,
+  'mcp.testServer': true,
+  'mcp.getTestResult': true,
+  'mcp.getConnections': true,
+  'mcp.getAllAvailableToolsList': true,
+  'mcp.callTool': true,
+  'search.searchByKeyword': true,
+  'workspace.listWorkspaces': true,
+  'workspace.addWorkspace': true,
+  'workspace.removeWorkspace': true,
+  'workspace.openWorkspace': true,
+  'workspace.reorderWorkspaces': true,
+  'workspace.getDefaultWorkspacePath': true,
+  'workspace.listDirectories': true,
+  'workspace.createDirectory': true,
+  'workspace.searchWorkspaceFiles': true,
+  'workspace.listDirectoryEntries': true,
+  'workspace.readTextFile': true,
+  'workspace.openWithDefaultApp': true,
+  'workspace.resolveFileForStream': true,
+  'agent.startTurn': true,
+  'agent.listPendingMessages': true,
+  'agent.editPendingMessage': true,
+  'agent.removePendingMessage': true,
+  'agent.steerPendingMessage': true,
+  'agent.approvePendingAction': true,
+  'agent.rejectPendingAction': true,
+  'agent.resolveSecretRequest': true,
+  'agent.rejectSecretRequest': true,
+  'agent.cancelTask': true,
+  'agent.updateTaskMode': true,
+  'agent.injectSteering': true,
+  'agent.listActiveTasks': true,
+  'agent.listBackgroundCommands': true,
+  'agent.killBackgroundCommand': true,
+  'agent.readBackgroundCommandOutput': true,
+  'agent.listTurns': true,
+  'agent.getTurnTimeline': true,
+  'agent.getEvidence': true,
+  'agent.clearAllObservability': true,
+  'permissions.list': true,
+  'permissions.add': true,
+  'permissions.update': true,
+  'permissions.delete': true,
+  'permissions.clear': true,
+  'permissions.clearWorkspace': true,
+  'automation.list': true,
+  'automation.create': true,
+  'automation.update': true,
+  'automation.delete': true,
+  'automation.setEnabled': true,
+  'automation.runNow': true,
+  'automation.listRuns': true,
+  'automation.markRunRead': true,
+  'commands.runBuiltinCommand': true,
+  'commands.cancelCommand': true,
+  'files.getAttachmentData': true,
+  'visualizations.get': true,
+} as const satisfies Record<AppRpcMethod, true>
+
+export const APP_RPC_METHOD_NAMES = Object.keys(APP_RPC_METHODS) as AppRpcMethod[]
+
 export interface AppRpcClient {
   call: <TMethod extends AppRpcMethod>(
     method: TMethod,
@@ -276,3 +434,43 @@ export interface AppIpcServices {
     cancelDownload: () => Promise<void>
   }
 }
+
+/**
+ * preload 允许 invocation 的 IPC 方法白名单。
+ *
+ * 对象形式配合 `satisfies` 可确保每个 group 的方法与 `AppIpcServices`
+ * 完全一致：新增方法未登记或登记了不存在的方法都会编译失败。
+ */
+export const APP_IPC_GROUP_METHODS = {
+  app: {
+    clipboardWrite: true,
+    minimizeWindow: true,
+    maximizeOrRestoreWindow: true,
+    focusWindow: true,
+    quitApp: true,
+  },
+  runtime: {
+    call: true,
+  },
+  browserProfiles: {
+    importFromDirectory: true,
+  },
+  update: {
+    getCurrentVersion: true,
+    checkForUpdatesManual: true,
+    getUpdateConfig: true,
+    setUpdateConfig: true,
+    downloadUpdate: true,
+    getUpdateStatus: true,
+    checkForUpdates: true,
+    quitAndInstall: true,
+    cancelDownload: true,
+  },
+} as const satisfies {
+  [K in keyof AppIpcServices]: Record<keyof AppIpcServices[K] & string, true>
+}
+
+export type AppIpcChannel = `${keyof AppIpcServices}.${string}`
+
+export const APP_IPC_CHANNEL_NAMES: AppIpcChannel[] = Object.entries(APP_IPC_GROUP_METHODS)
+  .flatMap(([group, methods]) => Object.keys(methods).map(method => `${group}.${method}` as AppIpcChannel))

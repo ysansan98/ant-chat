@@ -1,6 +1,7 @@
 import type { ElectronData } from '@ant-chat/shared'
 import type { Rectangle } from 'electron'
 import { isWindows } from '@main/utils/env'
+import { validateClipboardWrite } from '@main/utils/ipc-validation'
 import { clipboardWrite } from '@main/utils/util'
 import { getMainWindow } from '@main/windows/window'
 import { app } from 'electron'
@@ -13,6 +14,9 @@ export class AppIpcService extends IpcService {
 
   @IpcMethod()
   async clipboardWrite(data: ElectronData, type?: 'selection' | 'clipboard'): Promise<boolean> {
+    const validationError = validateClipboardWrite(data, type)
+    if (validationError)
+      throw new Error(validationError)
     return clipboardWrite(data as Electron.Data, type)
   }
 
