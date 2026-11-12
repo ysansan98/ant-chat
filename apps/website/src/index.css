@@ -17,6 +17,7 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
+  --color-card: var(--card);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
@@ -37,6 +38,7 @@
   --primary-foreground: oklch(0.985 0.005 88);
   --secondary: oklch(0.93 0.014 88);
   --secondary-foreground: oklch(0.28 0.035 255);
+  --card: oklch(0.99 0.006 88);
   --muted: oklch(0.925 0.012 88);
   --muted-foreground: oklch(0.47 0.025 255);
   --accent: oklch(0.69 0.135 230);
@@ -53,6 +55,7 @@
   --primary-foreground: oklch(0.16 0.02 255);
   --secondary: oklch(0.27 0.018 255);
   --secondary-foreground: oklch(0.9 0.008 88);
+  --card: oklch(0.22 0.017 255);
   --muted: oklch(0.28 0.018 255);
   --muted-foreground: oklch(0.68 0.015 88);
   --accent: oklch(0.68 0.12 230);

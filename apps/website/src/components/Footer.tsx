@@ -1,7 +1,13 @@
 import { Heart, SquareTerminal } from 'lucide-react'
 import AnimateInView from './AnimateInView'
 
-const LINKS = [
+interface FooterLink {
+  label: string
+  href: string
+  external?: boolean
+}
+
+const LINKS: { title: string, items: FooterLink[] }[] = [
   {
     title: '项目',
     items: [
