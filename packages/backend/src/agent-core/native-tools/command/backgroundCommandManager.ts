@@ -83,6 +83,8 @@ interface CommandRecord {
   summary: BackgroundCommandSummary
   child?: ChildProcessWithoutNullStreams
   writeStream?: fs.WriteStream
+  /** 最近一次日志写入的落盘 Promise；read 必须等它完成后再 stat，避免读到旧大小。 */
+  pendingFlush: Promise<void>
   bytesWritten: number
   maxLogBytes: number
   /** 结束原因；未设置表示自然退出。 */
@@ -180,6 +182,7 @@ export class BackgroundCommandManager {
       commandFingerprint: fingerprintCommand(prepared.command, prepared.executionPlan.cwd),
       resourceScope: prepared.resourceScope,
       summary,
+      pendingFlush: Promise.resolve(),
       bytesWritten: 0,
       maxLogBytes: this.options.maxLogBytes ?? MAX_LOG_BYTES,
       waiters: new Set(),
@@ -255,6 +258,8 @@ export class BackgroundCommandManager {
     if (waitMs > 0 && record.summary.status === 'running') {
       await this.waitForChange(record, waitMs)
     }
+    // 日志写入是异步的：等待已排队的 chunk 落盘后再取大小，避免 waitMs 被提前唤醒却读到旧内容。
+    await record.pendingFlush
     const maxChars = clamp(options.maxChars ?? DEFAULT_MAX_READ_BYTES, 1, MAX_MAX_READ_BYTES)
     const size = await this.logSize(record)
     let offset = clamp(options.offset ?? 0, 0, size)
@@ -417,7 +422,11 @@ export class BackgroundCommandManager {
     record.summary.endedAt = Date.now()
     if (record.watchdog)
       clearTimeout(record.watchdog)
-    record.writeStream?.end()
+    if (record.writeStream) {
+      record.pendingFlush = new Promise<void>((resolve) => {
+        record.writeStream!.end(() => resolve())
+      })
+    }
     this.notifyWaiters(record)
     this.resolveExitSafe(record)
     void this.removeStateFile(record.summary.commandId)
@@ -657,7 +666,7 @@ function writeLogChunk(record: CommandRecord, text: string): void {
   const remaining = record.maxLogBytes - record.bytesWritten
   const slice = buffer.length <= remaining ? buffer : buffer.subarray(0, remaining)
   record.bytesWritten += slice.length
-  record.writeStream?.write(slice)
+  appendLogChunk(record, slice)
   // 有新数据即唤醒 waitMs 等待者
   for (const waiter of [...record.waiters])
     waiter()
@@ -665,11 +674,20 @@ function writeLogChunk(record: CommandRecord, text: string): void {
     markTruncated(record)
 }
 
+function appendLogChunk(record: CommandRecord, chunk: Buffer | string): void {
+  const stream = record.writeStream
+  if (!stream)
+    return
+  record.pendingFlush = new Promise<void>((resolve) => {
+    stream.write(chunk, () => resolve())
+  })
+}
+
 function markTruncated(record: CommandRecord): void {
   if (record.summary.truncated)
     return
   record.summary.truncated = true
-  record.writeStream?.write(TRUNCATED_MARKER)
+  appendLogChunk(record, TRUNCATED_MARKER)
 }
 
 function sanitizeSecretEnvironment(environment: Record<string, string> | undefined): Record<string, string> {
